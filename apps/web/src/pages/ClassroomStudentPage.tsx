@@ -626,7 +626,7 @@ export function ClassroomStudentPage({
   const sectionRail = (
     <div
       className="classroom-student-section-rail"
-      data-has-action={showsWorks || tab === 'merits' ? 'true' : 'false'}
+      data-has-action={tab === 'merits' ? 'true' : 'false'}
       role="group"
       aria-label="Разделы ученика"
     >
@@ -645,19 +645,7 @@ export function ClassroomStudentPage({
           ))}
         </select>
       </label>
-      {showsWorks ? (
-        <button
-          className="classroom-student-section-action"
-          type="button"
-          aria-label={archive ? 'Исключить архив работ' : 'Включить архив работ'}
-          title={archive ? 'Исключить архив' : 'Включить архив'}
-          aria-pressed={archive}
-          disabled={!profileReady}
-          onClick={() => setArchive((current) => !current)}
-        >
-          <span aria-hidden="true">▤</span>
-        </button>
-      ) : tab === 'merits' ? (
+      {tab === 'merits' ? (
         <button
           className="classroom-student-section-action"
           type="button"
@@ -1008,33 +996,43 @@ export function ClassroomStudentPage({
         <section className="classroom-student-section" aria-labelledby="student-works">
           <div className="classroom-student-works-head">
             <h2 id="student-works">{TABS.find((t) => t.key === tab)?.label}</h2>
-            <label>
-              <input
-                type="checkbox"
-                checked={archive}
-                onChange={(e) => setArchive(e.target.checked)}
-              />
-              Включая архив
-            </label>
-            <label className="classroom-student-filter">
-              <span>Статус</span>
-              <select
-                aria-label="Статус работ"
-                aria-describedby="student-filter-scope"
-                value={onlyAwaiting ? 'awaiting' : 'all'}
-                onChange={(e) => setOnlyAwaiting(e.target.value === 'awaiting')}
-              >
-                <option value="all">Все</option>
-                <option value="awaiting">Ждут проверки</option>
-              </select>
-              <small id="student-filter-scope">по загруженным</small>
-            </label>
+            <div
+              className="classroom-student-works-toolbar"
+              role="group"
+              aria-label="Показатели и фильтры работ"
+            >
+              <p className="classroom-student-work-summary" aria-label="Показатели работ ученика">
+                <span>Работ <strong>{metrics.totalWorks}</strong></span>
+                <span>Сдано <strong>{profile.submittedCount}</strong></span>
+                <span>Ждут <strong>{profile.awaitingReview}</strong></span>
+              </p>
+              <label className="classroom-student-archive-filter">
+                <input
+                  type="checkbox"
+                  aria-label="Включая архив"
+                  checked={archive}
+                  onChange={(event) => setArchive(event.target.checked)}
+                />
+                <span>Архив</span>
+              </label>
+              <label className="classroom-student-filter">
+                <span className="classroom-student-visually-hidden">Статус работ</span>
+                <select
+                  aria-label="Статус работ"
+                  aria-describedby="student-filter-scope"
+                  title="Отбор по загруженным работам"
+                  value={onlyAwaiting ? 'awaiting' : 'all'}
+                  onChange={(event) => setOnlyAwaiting(event.target.value === 'awaiting')}
+                >
+                  <option value="all">Все</option>
+                  <option value="awaiting">Ждут проверки</option>
+                </select>
+                <small id="student-filter-scope" className="classroom-student-visually-hidden">
+                  Только среди загруженных работ
+                </small>
+              </label>
+            </div>
           </div>
-          <p className="classroom-student-work-summary" aria-label="Показатели работ ученика">
-            <span>Работ: <strong>{metrics.totalWorks}</strong></span>
-            <span>Сдано: <strong>{profile.submittedCount}</strong></span>
-            <span>Ждут: <strong>{profile.awaitingReview}</strong></span>
-          </p>
           {works && works.visibleWorks < works.totalWorks ? (
             <p className="participant-visibility-note">
               Часть личных работ закрыта для преподавателя ({works.visibleWorks} из{' '}
@@ -1101,6 +1099,7 @@ export function ClassroomStudentPage({
           {works?.hasMore ? (
             <button
               type="button"
+              className="classroom-student-more"
               disabled={workLoading}
               onClick={() => void loadWorks(works.offset + 30)}
             >

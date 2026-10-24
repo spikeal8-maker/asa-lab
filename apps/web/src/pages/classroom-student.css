@@ -265,38 +265,121 @@
   color: #8a3f06;
 }
 
-/* Заголовок работ с отбором по тем, что ждут ответа. */
-.classroom-student-works-head {
+/* Teacher works: one compact toolbar rather than a second summary row. */
+.classroom-student .classroom-student-works-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+  margin: 0 0 7px;
 }
-
-.classroom-student-works-head h2 {
+.classroom-student .classroom-student-works-head h2 {
+  flex: 0 0 auto;
   margin: 0;
+  font-size: 15px;
+  line-height: 20px;
 }
-
-.classroom-student-filter {
-  padding: 6px 14px;
-  border: 1px solid #e8b98a;
-  border-radius: 999px;
-  background: #fdeee2;
-  color: #8a3f06;
-  font-size: 13px;
-  font-weight: 700;
+.classroom-student-works-toolbar {
+  display: flex;
+  flex: 1 1 280px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.classroom-student .classroom-student-work-summary {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 2px 11px;
+  min-width: 0;
+  margin: 0;
+  color: #526a78;
+  font-size: 12px;
+  line-height: 18px;
+}
+.classroom-student .classroom-student-work-summary > span {
+  white-space: nowrap;
+}
+.classroom-student .classroom-student-work-summary strong {
+  color: var(--student-ink);
+  font-variant-numeric: tabular-nums;
+}
+.classroom-student .classroom-student-archive-filter,
+.classroom-student .classroom-student-filter {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  gap: 5px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-ink);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 550;
+  white-space: nowrap;
   cursor: pointer;
 }
-
-.classroom-student-filter:hover {
-  border-color: #d08a3c;
+.classroom-student .classroom-student-archive-filter input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: #0878a4;
 }
-
-.classroom-student-filter.is-active {
-  background: #8a3f06;
-  color: #fff;
+.classroom-student .classroom-student-filter {
+  min-width: 77px;
+  padding: 0;
+}
+.classroom-student .classroom-student-filter select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 77px;
+  min-height: 42px;
+  height: 42px;
+  margin: 0;
+  padding: 0 18px 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--student-ink);
+  font-size: 12px;
+  font-weight: 550;
+}
+.classroom-student .classroom-student-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 110px;
+  min-height: 44px;
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: #0a709d;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.classroom-student .classroom-student-more:hover {
+  border-color: #8cb8cf;
+  background: #eef7fc;
+}
+.classroom-student .classroom-student-more:disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 /* Три числа в шапке — компактнее: это подпись к человеку, а не главный
@@ -491,54 +574,6 @@
 .classroom-student .classroom-student-section {
   margin-bottom: 12px;
 }
-.classroom-student .classroom-student-works-head {
-  justify-content: flex-start;
-  gap: 6px 12px;
-  margin: 0 0 8px;
-}
-.classroom-student .classroom-student-works-head h2 {
-  margin-right: auto;
-  font-size: 15px;
-}
-.classroom-student .classroom-student-works-head > label {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 44px;
-  width: auto;
-  margin: 0;
-  font-size: 12px;
-}
-.classroom-student .classroom-student-works-head input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  min-height: 0;
-  margin: 0;
-}
-.classroom-student .classroom-student-filter {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #526a78;
-  font-size: 12px;
-  font-weight: 400;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-}
-.classroom-student-filter select {
-  width: auto;
-  min-height: 36px;
-  margin: 0;
-  padding: 4px 6px;
-  border: 1px solid var(--student-line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--student-ink);
-  font-size: 12px;
-}
-.classroom-student-filter small {
-  font-size: 11px;
-}
 .classroom-student .project-card-primary,
 .classroom-student .project-card-tools > summary,
 .classroom-student .project-card-tools button {
@@ -682,44 +717,6 @@
   .classroom-student-navigation {
     grid-column: 2;
     width: 100%;
-  }
-  .classroom-student .classroom-student-works-head h2 {
-    width: 100%;
-    margin: 0;
-  }
-  .classroom-student .classroom-student-works-head {
-    position: relative;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
-    gap: 4px 8px;
-  }
-  .classroom-student .classroom-student-works-head h2 {
-    grid-column: 1 / -1;
-    padding-right: 110px;
-  }
-  .classroom-student .classroom-student-filter {
-    justify-self: end;
-    max-width: 100%;
-    margin: 0;
-    line-height: 1.25;
-  }
-  .classroom-student-filter > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
-  .classroom-student-filter select {
-    min-height: 40px;
-    max-width: 100%;
-  }
-  .classroom-student-filter small {
-    position: absolute;
-    top: 2px;
-    right: 0;
-    text-align: right;
   }
   .classroom-student .project-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1361,15 +1358,68 @@
   }
 }
 
-.classroom-student-work-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 4px 0 8px;
-  color: #526a78;
-  font-size: 12px;
+/* Mobile teacher profile: navigation already names the selected section.
+   Keep one compact metrics + filters toolbar and a shorter genuine preview. */
+@container teacher-profile (max-width: 599px) {
+  .classroom-student .classroom-student-works-head {
+    display: block;
+    margin: 0 0 6px;
+  }
+  .classroom-student .classroom-student-works-head > h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+  .classroom-student .classroom-student-works-toolbar {
+    justify-content: space-between;
+    gap: 4px 6px;
+    width: 100%;
+    min-height: 44px;
+  }
+  .classroom-student .classroom-student-work-summary {
+    flex: 1 1 auto;
+    gap: 2px 8px;
+    font-size: 11px;
+  }
+  .classroom-student .classroom-student-archive-filter {
+    padding: 0 5px;
+  }
+  .classroom-student .classroom-student-filter,
+  .classroom-student .classroom-student-filter select {
+    min-width: 71px;
+  }
+  .classroom-student .project-card-grid .project-card-frame {
+    aspect-ratio: 16 / 9;
+  }
+  .classroom-student .project-card-grid .project-card-body {
+    padding: 8px 10px;
+  }
+  .classroom-student .project-card-grid .project-card-title {
+    font-size: 14px;
+    line-height: 1.3;
+  }
 }
-.classroom-student-work-summary strong {
-  color: var(--student-ink);
-  font-variant-numeric: tabular-nums;
+@container teacher-profile (max-width: 350px) {
+  .classroom-student .classroom-student-works-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 6px;
+  }
+  .classroom-student .classroom-student-work-summary {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    min-height: 22px;
+  }
+  .classroom-student .classroom-student-archive-filter {
+    justify-self: start;
+  }
+  .classroom-student .classroom-student-filter {
+    justify-self: end;
+  }
 }
