@@ -819,7 +819,15 @@ test('all nine sections, honest loaded-only filtering, private works, archive an
       await shot(page, `tab-${name}-${width}`);
     }
   }
-  await expect(page.getByText(/Часть личных работ закрыта/)).toContainText('8 из 10');
+  const visibilityInfo = page.locator('.classroom-student-visibility-details');
+  const visibilityTrigger = visibilityInfo.locator(':scope > summary');
+  await expect(visibilityInfo).not.toHaveAttribute('open');
+  await visibilityTrigger.click();
+  await expect(visibilityInfo.locator('.classroom-student-visibility-popover')).toContainText(
+    'Доступно 8 из 10 работ.',
+  );
+  await visibilityTrigger.click();
+  await expect(visibilityInfo).not.toHaveAttribute('open');
   const works = page
     .locator('.classroom-student-section')
     .filter({ has: page.locator('#student-works') });
@@ -1256,6 +1264,28 @@ test('mobile work filters share a row and one card fills the grid while multiple
     expect(archive.x + archive.width).toBeLessThanOrEqual(awaiting.x);
     await expect(toolbar.getByRole('checkbox', { name: 'Включая архив' })).toHaveCount(1);
     await expect(toolbar.getByRole('combobox', { name: 'Статус работ' })).toHaveCount(1);
+    const visibility = toolbar.locator('.classroom-student-visibility-details');
+    const openInfo = visibility.locator(':scope > summary');
+    const icon = visibility.locator('.classroom-student-visibility-icon');
+    const infoPanel = visibility.locator('.classroom-student-visibility-popover');
+    const target = (await openInfo.boundingBox())!;
+    const iconBox = (await icon.boundingBox())!;
+    expect(target.width).toBeGreaterThanOrEqual(44);
+    expect(target.height).toBeGreaterThanOrEqual(44);
+    expect(iconBox.width).toBeLessThanOrEqual(22);
+    await expect(visibility).not.toHaveAttribute('open');
+    await expect(infoPanel).toBeHidden();
+    await openInfo.click();
+    await expect(infoPanel).toBeVisible();
+    await expect(infoPanel).toContainText('Доступно 8 из 10 работ.');
+    await expect(infoPanel).toContainText('Фильтр «Ждут»');
+    const panelBox = (await infoPanel.boundingBox())!;
+    expect(panelBox.x).toBeGreaterThanOrEqual(0);
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(width + 1);
+    await shot(page, `work-visibility-info-${width}`);
+    await openInfo.press('Escape');
+    await expect(visibility).not.toHaveAttribute('open');
+    await expect(infoPanel).toBeHidden();
     const filterScope = await page.locator('#student-filter-scope').evaluate((element) => ({
       width: element.getBoundingClientRect().width,
       clip: getComputedStyle(element).clipPath,
@@ -1269,6 +1299,25 @@ test('mobile work filters share a row and one card fills the grid while multiple
       await expect(sectionRail.locator('.classroom-student-section-action')).toHaveCount(0);
       const frame = (await grid.locator(':scope > li .project-card-frame').first().boundingBox())!;
       expect(frame.height / frame.width).toBeLessThan(0.6);
+      const sectionSelect = sectionRail.getByRole('combobox', { name: 'Раздел профиля' });
+      const sectionRect = (await sectionSelect.boundingBox())!;
+      expect(sectionRect.width).toBeLessThanOrEqual(192);
+      expect(sectionRect.height).toBeGreaterThanOrEqual(44);
+      expect(
+        await sectionSelect.evaluate((element) => getComputedStyle(element).borderTopWidth),
+      ).toBe('0px');
+      for (const control of [
+        toolbar.locator('.classroom-student-archive-filter'),
+        toolbar.locator('.classroom-student-filter'),
+        toolbar.getByRole('combobox', { name: 'Статус работ' }),
+      ]) {
+        const unboxed = await control.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return { border: style.borderTopWidth, background: style.backgroundColor };
+        });
+        expect(unboxed.border).toBe('0px');
+        expect(unboxed.background).toMatch(/^(?:transparent|rgba\(0, 0, 0, 0\))$/);
+      }
       if (width === 390) {
         expect(Math.abs(summary.y - archive.y)).toBeLessThanOrEqual(14);
         expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(48);
