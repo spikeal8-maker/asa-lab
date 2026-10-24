@@ -8586,22 +8586,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: historical_6db_targeted_pass_current_main_integration_selected
+      checkpoint: actual_8415_functional_pass_budget326_pointerdown_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: Current-main ten-path composition only; preserve foreign682 native optical renderer and subscribed microsecond clock. Adapt passive marker onto private SimulationClock span from microseconds / 1000, preserve clock format and invocation. Exact detailed hunks and test boundary are in the integration selection receipt.
-      source_budget: Historical6db actual217998 RAW passed retained218000 cap by2. Current main independently incorporates owner-approved foreign682 cap222000; preserve it without increase or decrease. New composition actual size is NOT_RUN and must be measured against222000; never claim its compliance with218000 from old evidence.
+      repair_scope: Suspend next current-main integration qualification for ONE pointer-down helper/two-body budget repair on exact8415 composition, plus meaningful existing instrument-knob-controls regressions only; preserve557 integration target and foreign682 source.
+      source_budget: Historical6db217998 RAW passed218000 cap by2. Current accepted foreign682 cap222000 remains unchanged. Actual8415 measures222326, FAIL326 categoryA; selected pointer-down503 module proxy saving and apparent177 margin do not prove actual production fit.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Preserve native event, exact foreground owner and strict current ready/runtime true-or-false validation; absent or invalid evidence falls through without actuation. Route only an actual same-PSU switch under crossing wire, using existing pointerSequence and mutationEpoch fences, never synthetic events or private React. Preserve pending wire, terminal and ordinary precedence, wire paint and selection elsewhere.
-      execution_boundary: Historical two-hunk selection applied to its old baseline only and must not be blindly replayed. Use the new ten-path current-main integration receipt, preserve all foreign additions, source-review exact composition, then new actual qualification and independent visual review.
+      execution_boundary: Frozen pointer-down proposal only. Keep the other eight source blobs of the ten-path8415 composition byte-exact, including Stage and Header. Preserve complete existing clock browser/interactions. NEW exact-source review, ONE new six-case scoped and General qualification, NEW actual review before integration/closure.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
       real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: ONE bounded current-main composition author, freeze unpublished exact SHA for NEW independent source review; then ONE new scoped six-case and General actual qualification with actual size against accepted222000, NEW independent actual/visual review, and only then source integration and679/557 technical closure. No deployment, physical owner acceptance or release claim.
+      next_action: ONE bounded pointer-down budget repair author on exact8415 composition; apply frozen Visual proposal and meaningful existing instrument-knob controls regressions only, NEW exact-source review, ONE new scoped six-case and General qualification, then NEW independent actual review before679/557 integration or closure.
       owner_targeted_acceptance:
         evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
         decision: API оставить отдельно; принять UI по целевым проверкам
@@ -8687,6 +8687,25 @@ parallel_lanes:
         source_review: NOT_RUN_new_exact_composition_required
         actual_review: NOT_RUN_new_exact_composition_required
         boundary: Preserve accepted foreign682 clock/renderer/runtime and owner-approved222000 cap; no new cap change. Historical218000 proof does not prove new composition size or acceptance.
+      pointerdown_budget_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-pointerdown-budget-repair-selection-20261024.md
+        actual_source_sha: 8415fac5eecb35ec750a78591bd1a62ba3252b46
+        scoped_run: 40087416800
+        scoped_actual: SUCCESS all three jobs and all six original native cases
+        general_run: 40087416057
+        general_actual: FAILURE Code categoryA own budget326; Governance PASS; Data and Access SKIPPED
+        actual_editor_raw_bytes: 222326
+        accepted_cap_bytes: 222000
+        independent_actual_review: NEEDS_FIX solely budget326; functional and visual APPROVE_TARGETED six of six
+        independent_actual_review_sha256: febdad11e0129690c66de91e8b88de6f4045ae9874dd02c3a796345ad8be6456
+        selected_visual_proposal_sha256: c751b66c74acd5f8f785e8d82e777b38ac8628d420d289e8dbcb5a3af514747e
+        independent_proposal_review: APPROVE_PROPOSAL_ONLY
+        independent_proposal_review_sha256: 5079fca88807cc50d0f75861dc41d918de5cea6756e8af67f46f0c69a8f1d9ab
+        independent_dispatch_comparisons: 3812
+        module_proxy_savings_bytes: 503
+        estimated_margin_bytes: 177
+        actual_full_bundle_fit: UNKNOWN_NOT_PROVEN
+        boundary: Suspend new current-main integration qualification until this bounded repair and new exact evidence; preserve557 integration target, all foreign682 source and accepted222000 cap unchanged. Historical6db217998 against218000 remains separate.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
