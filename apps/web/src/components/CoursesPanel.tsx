@@ -845,19 +845,20 @@ function CourseEditor({
     let settledResizeFrame: number | null = null;
     let pointerReleaseFrame: number | null = null;
     let blockPointerDown = false;
+    let pointerFocusedDocumentField: HTMLElement | null = null;
     // Pointer focus occurs between pointerdown and click. Scrolling a <summary>
     // at focusin changes its position before pointerup, so Chromium can finish
     // the click outside the disclosure (observed at scrollY 604 -> 869).
     // Keyboard focus still receives immediate sticky-header clearance.
     const onBlockPointerDown = (event: PointerEvent) => {
-      if (
-        !(event.target instanceof Element) ||
-        !event.target.closest('.lesson-block-menu > summary')
-      )
-        return;
-      blockPointerDown = true;
+      if (!(event.target instanceof Element)) return;
       if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
       pointerReleaseFrame = null;
+      // Mouse focus in the visible middle of a tall textarea must not snap
+      // the whole document to its off-screen top. Tab focus still reveals it.
+      const field = event.target.closest('.course-lesson-editor textarea.course-growing-textarea');
+      pointerFocusedDocumentField = field instanceof HTMLElement ? field : null;
+      blockPointerDown = Boolean(event.target.closest('.lesson-block-menu > summary'));
     };
     // Keep focus reachable after responsive layout changes. Browser-native
     // Tab may focus a lesson textarea at 200% zoom without revealing it in
@@ -874,7 +875,11 @@ function CourseEditor({
       const isShortViewportDocumentField =
         window.innerHeight <= 560 &&
         active.matches('.course-lesson-editor textarea.course-growing-textarea');
-      if ((!isBlockAction && !isShortViewportDocumentField) || (isBlockAction && blockPointerDown))
+      if (
+        (!isBlockAction && !isShortViewportDocumentField) ||
+        (isBlockAction && blockPointerDown) ||
+        (isShortViewportDocumentField && active === pointerFocusedDocumentField)
+      )
         return;
       // The Course toolbar becomes static in short viewports. Only genuinely
       // sticky chrome may obscure a focused control after scrolling.
@@ -892,14 +897,17 @@ function CourseEditor({
       }
     };
     const settleBlockPointer = () => {
-      if (!blockPointerDown) return;
+      if (!blockPointerDown && !pointerFocusedDocumentField) return;
       if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
       // pointerup is followed by the native click/toggle in the same task.
-      // Only reveal the focused menu after that activation has completed.
+      // Restore keyboard reveal only after a pointer activation completes;
+      // pointer-focused text never triggers a post-click document jump.
       pointerReleaseFrame = requestAnimationFrame(() => {
         pointerReleaseFrame = null;
+        const revealBlock = blockPointerDown;
         blockPointerDown = false;
-        revealFocusedCourseControl();
+        pointerFocusedDocumentField = null;
+        if (revealBlock) revealFocusedCourseControl();
       });
     };
     const updateOffset = () => {
