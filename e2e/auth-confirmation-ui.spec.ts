@@ -1160,7 +1160,7 @@ test('MAX-only registration sends one request while a duplicate submit is pendin
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
   const form = page.locator('.auth-social-registration');
   await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
-  const submit = form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true });
+  const submit = form.locator('button[type="submit"]');
   await submit.click();
   await expect.poll(() => heldRequests(page)).toBe(1);
   await expect(submit).toBeDisabled();
