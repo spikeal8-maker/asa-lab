@@ -437,6 +437,7 @@ interface ClockPreparation {
   readonly observeLedState?: LedElectricalObserver;
 }
 type OwnedClockRequest = {
+  readonly validatedDigest?: string;
   runtime?: ReturnType<typeof createOwnedClockedArduinoRuntime>;
   source?: string;
   continued: boolean;
@@ -588,12 +589,18 @@ export function createOwnedArduinoCircuitClockRequest(
   } catch {
     // Malformed public arguments retain their original validation/exception path.
   }
+  let validatedDigest: string | undefined;
   const check = () => {
     admitted = admitted && originalOwnedProducers();
     return admitted;
   };
   return {
     check,
+    validateDigest: () => {
+      const digest = simulationInputDigest(document, 0);
+      validatedDigest = check() ? digest : undefined;
+      return digest;
+    },
     create: (
       target: number,
       initial: ArduinoCircuitClockState | undefined,
@@ -610,6 +617,7 @@ export function createOwnedArduinoCircuitClockRequest(
         options,
         observeLedTemporal,
         check,
+        validatedDigest,
       ),
   };
 }
@@ -624,6 +632,7 @@ function createArduinoCircuitClockRequest(
   },
   observeLedTemporal: boolean,
   stillOwned: () => boolean,
+  validatedDigest?: string,
 ) {
   let collector = observeLedTemporal
     ? createLedTemporalObservation(
@@ -641,7 +650,10 @@ function createArduinoCircuitClockRequest(
     operatingPoint: createArduinoOperatingPointReuse(),
     ...(collector ? { observeLedState: collector.observe } : {}),
   };
-  const ownership: OwnedClockRequest = { continued: false };
+  const ownership: OwnedClockRequest = {
+    continued: false,
+    ...(validatedDigest === undefined ? {} : { validatedDigest }),
+  };
   if (stillOwned()) ownedClockRequests.set(preparation, ownership);
   let previous = initial;
   let data: { document: ElectronicsDocument; target: number; options: typeof options } | undefined =
@@ -828,7 +840,8 @@ export function advanceArduinoCircuitClock(
     return fault('invalid_board_count', 'Профиль поддерживает не более 8 плат Arduino.');
   let digest: string;
   try {
-    digest = ownedPreparation?.digest ?? simulationInputDigest(document, 0);
+    digest =
+      ownedPreparation?.digest ?? ownership?.validatedDigest ?? simulationInputDigest(document, 0);
     if (ownedPreparation) ownedPreparation.digest = digest;
   } catch {
     return fault('invalid_document', 'Электрический документ содержит некорректные значения.');

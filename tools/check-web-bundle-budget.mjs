@@ -20,8 +20,9 @@ const budgets = [
   // CI 86f112b5 measured 216616 bytes; the original ceiling failed.
   // Local owned checkout on bacd4cf8 + 9 reviewed paths measured 217259 bytes,
   // +592 bytes from the 216667-byte bacd build. This is a local build measurement.
-  // Allow 741 bytes of headroom for this lazy editor. Startup caps stay intact.
-  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 218_000 },
+  // Owner approved 222000 on 2026-10-24 for the native optical sink.
+  // Exact 67270cec CI measured 221556 bytes; startup and other editor caps stay intact.
+  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 222_000 },
   { label: 'chess editor', prefix: 'ChessModuleExperience-', maximum: 255_000 },
   { label: 'checkers editor', prefix: 'CheckersModuleExperience-', maximum: 160_000 },
   { label: '3D editor', prefix: 'ThreeDEditor-', maximum: 2_900_000 },

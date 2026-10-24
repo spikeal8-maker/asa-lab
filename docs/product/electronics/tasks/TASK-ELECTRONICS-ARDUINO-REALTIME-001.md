@@ -158,3 +158,10 @@ Actual6b53 General PASS but repeated8 still FAIL. Native ready-to-visible improv
 Current scalar displayed committed-time React state updates whole Workbench each RAF; Header is its only consumer. Select one bounded local Header clock subscriber through existing run-scoped projection port/new narrow clock projection, plus hook transport and necessary existing mounted tests. Preserve immediate canonical horizon/state refs, host demand and input order, session/source/generation, optical ready-only ACK/rollback, clock values and stopped/reset behavior. No speculative ahead simulation, reset/reanchor/debt discard, numerical/physics/cadence/timeouts/budget changes. No Stage/owner visual edits.
 
 BEFORE real callbacks+four actual RAFs cause four whole Workbench renders; AFTER none from scalar metric while actual Header clock updates each relevant RAF and Reset/Stop/source reject stale updates. Existing optical/native tests and all frozen8 cases remain unchanged. Separate exact independent review and actual gates/AFTER required; root render reduction alone is not acceptance and does not prove all Worker RTT is React cost.
+
+
+## Direct owner instruction: publish current partial result, 2026-10-24
+
+Owner explicitly instructed publication to main immediately. Reviewed candidate b8591503671fbeab1ec2e6a215ceaa1bc948e0b8 has Code PASS221993/222000 and focused PASS; exact strict40085282383 and General40084822351 were still running at publication preparation. Current actual all-eight visual acceptance is NOT established. Prior6b534da6 all-eight phase/drift failures remain historical evidence; they are not erased by this publication.
+
+Controlled merge preserves remote main2e0d0e981ea48897a550439e6760ddcfdaac77c7 and all unrelated changes without conflict. Product files remain byte-identical to reviewed b859 candidate. Publication is an owner-directed partial delivery, not full acceptance, release-candidate claim or site/deployment update. Continue actual eight-regime verification and remaining timing repair; no timeout, physics or journal weakening.

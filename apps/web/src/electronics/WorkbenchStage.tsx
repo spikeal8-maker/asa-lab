@@ -20,7 +20,7 @@ import {
   renderedSize,
   terminalPosition,
 } from './component-catalog';
-import { ProductionComponentVisual } from './ProductionComponentVisual';
+import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
 import {
   diagnosticBadgeGeometry,

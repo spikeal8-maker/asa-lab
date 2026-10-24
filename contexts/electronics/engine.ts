@@ -419,7 +419,8 @@ function* advanceElectronicsRequest(
   // Preserve the old structural validation and exception priority before continuation guards.
   // The registry identity itself does not require a separate numerical solve/quality check.
   compileCircuit(document);
-  simulationInputDigest(document, 0);
+  if (ownership) ownership.validateDigest();
+  else simulationInputDigest(document, 0);
   const modelSetDigest = simulationModelSetDigest();
   let previous: ArduinoCircuitClockState | undefined;
   if (previousContinuation) {

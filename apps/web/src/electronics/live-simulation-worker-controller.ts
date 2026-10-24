@@ -247,6 +247,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
+  private firstPositiveObservation = false;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
 
@@ -384,6 +385,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
     this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
+    this.firstPositiveObservation = false;
     this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
@@ -411,6 +413,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
     this.horizonOffsetMicroseconds = 0;
+    this.firstPositiveObservation = false;
     this.inFlight = false;
     this.inFlightKind = null;
   }
@@ -505,7 +508,12 @@ export class ElectronicsLiveSimulationWorkerController {
             committed,
             Math.min(
               pendingTarget.requestedHorizonMicroseconds,
-              committed + this.observationWindowMicroseconds,
+              committed +
+                (this.firstPositiveObservation &&
+                pendingTarget === this.latestTarget &&
+                this.pendingInputEvents.length === 0
+                  ? Math.min(1000, this.observationWindowMicroseconds)
+                  : this.observationWindowMicroseconds),
             ),
           ),
         };
@@ -610,8 +618,11 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));
       return;
     }
+    if (advance.committedHorizonMicroseconds > 0) this.firstPositiveObservation = false;
     const isStartup = target === this.startupTarget;
+    const completedDocument = this.dispatchedDocument;
     if (isStartup) {
+      this.firstPositiveObservation = this.callbacks?.readHostHorizonMicroseconds !== undefined;
       this.startupTarget = null;
       this.callbacks?.onInitialReady?.(this.horizonOffsetMicroseconds);
       if (generationId !== this.generationId) return;
@@ -626,6 +637,40 @@ export class ElectronicsLiveSimulationWorkerController {
       } else {
         this.callbacks?.onResult(advance.result, undefined, clockProfileId);
       }
+    }
+    if (isStartup && completedDocument !== null) {
+      const pull = () => {
+        const current = () =>
+          generationId === this.generationId &&
+          this.canonicalDocument === completedDocument &&
+          this.startupTarget === null &&
+          !this.inFlight;
+        if (!current()) return false;
+        const host = this.callbacks?.readHostHorizonMicroseconds?.();
+        if (
+          !current() ||
+          typeof host !== 'number' ||
+          !Number.isSafeInteger(host) ||
+          host < this.horizonOffsetMicroseconds
+        )
+          return false;
+        const horizon = host - this.horizonOffsetMicroseconds;
+        const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+        if (horizon <= committed) return horizon === committed;
+        this.firstPositiveObservation = true;
+        this.latestTarget = {
+          requestedHorizonMicroseconds: Math.max(
+            horizon,
+            this.latestTarget?.requestedHorizonMicroseconds ?? 0,
+          ),
+        };
+        this.pump();
+        return false;
+      };
+      if (pull())
+        queueMicrotask(() => {
+          pull();
+        });
     }
     this.pump();
   }

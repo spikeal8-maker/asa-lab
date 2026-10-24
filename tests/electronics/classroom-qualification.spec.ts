@@ -3421,3 +3421,108 @@ describe('prospective eighth-pace discovery and lossless transport', () => {
     ).toEqual([0, 0, 1, 1]);
   });
 });
+
+describe('Issue 682 native pointer receipt', () => {
+  const text = readFileSync(
+    new URL('../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile('interactions.ts', text, ts.ScriptTarget.Latest, true);
+  const release = parsed.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'realtime682ButtonRelease',
+  )!;
+  const check = runInNewContext(
+    ts.transpileModule(release.getText(parsed) + '\nrealtime682ButtonRelease;', {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    }).outputText,
+  ) as (rows: Record<string, unknown>[]) => boolean;
+  const start = text.indexOf('    const buttonPointers = new Set<number>();');
+  const end = text.indexOf('    const visible =', start);
+  function capture() {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const rows: Record<string, unknown>[] = [];
+    class Target {
+      tagName = 'rect';
+      id = '';
+      constructor(
+        readonly component: string | null,
+        readonly stage = true,
+      ) {}
+      closest(selector: string) {
+        if (selector === '[data-component-id]') return this.component ? this : null;
+        if (selector === '.workbench-stage') return this.stage ? this : null;
+        return null;
+      }
+      getAttribute(name: string) {
+        return name === 'data-component-id' ? this.component : 'raw-stage-class';
+      }
+    }
+    runInNewContext(
+      ts.transpileModule(text.slice(start, end), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022 },
+      }).outputText,
+      {
+        document: {
+          addEventListener: (type: string, listener: (event: unknown) => void) =>
+            listeners.set(type, listener),
+        },
+        HTMLInputElement: class {},
+        push: (kind: string, row: Record<string, unknown>) => rows.push({ kind, ...row }),
+      },
+    );
+    const emit = (type: string, component: string | null, pointerId = 7, trusted = true) =>
+      listeners.get(type)!({
+        target: new Target(component),
+        pointerId,
+        buttons: type === 'pointerdown' ? 1 : 0,
+        isTrusted: trusted,
+      });
+    return { rows, emit };
+  }
+  it('retains the actual stage release separately from its genuine button origin', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointerup', null);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({
+      target: 'stage',
+      pointerOrigin: 'button-682',
+      pointerId: 7,
+      buttons: 0,
+      trusted: true,
+      rawTarget: { component: null, stage: true, className: 'raw-stage-class' },
+    });
+    expect(check(rows)).toBe(true);
+  });
+  it('rejects absent, orphan, mismatched, untrusted and cancelled releases', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointerup', null);
+    expect(check(rows.slice(0, 1))).toBe(false);
+    expect(check(rows.slice(1))).toBe(false);
+    for (const mutation of [
+      { pointerId: 8 },
+      { trusted: false },
+      { buttons: 1 },
+      { type: 'pointercancel' },
+    ])
+      expect(check([rows[0]!, { ...rows[1]!, ...mutation }])).toBe(false);
+    expect(check([{ ...rows[0]!, trusted: false }, rows[1]!])).toBe(false);
+  });
+  it('cancellation clears the actual capture and cannot be redeemed by a later release', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointercancel', null);
+    emit('pointerup', null);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]!.type).toBe('pointercancel');
+    expect(check(rows)).toBe(false);
+  });
+  it('never invents a stage release without a genuine down for that pointer', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointerup', null, 8);
+    expect(rows).toHaveLength(1);
+    expect(check(rows)).toBe(false);
+  });
+});
