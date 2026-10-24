@@ -3094,7 +3094,7 @@
   stroke-width: 2.2;
 }
 .workbench-led-visual.is-reverse .workbench-led-asset {
-  filter: grayscale(1) brightness(0.88) contrast(0.82);
+  filter: none;
 }
 .workbench-led-explosion-outer {
   fill: #ffd21d;
