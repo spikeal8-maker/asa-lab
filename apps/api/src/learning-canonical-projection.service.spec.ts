@@ -248,7 +248,10 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     const projection = new LearningCanonicalProjectionService(pool, {});
     for (const result of [
       await projection.forSeat(base.seatId, '2026-08-21T00:00:00.000Z'),
-      await projection.forAccount('50000000-0000-4000-8000-000000000099', '2026-08-21T00:00:00.000Z'),
+      await projection.forAccount(
+        '50000000-0000-4000-8000-000000000099',
+        '2026-08-21T00:00:00.000Z',
+      ),
     ]) {
       const value = result.get(canonicalProjectionKey(base.seatId, base.classroomAssignmentId));
       expect(value?.participationApplicability).toEqual({ applicable: true, excused: true });

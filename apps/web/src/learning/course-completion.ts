@@ -40,7 +40,10 @@ export function lessonPracticeProgress(lesson: SeatCourseRunLesson): PracticePro
     const state = occurrence.canonicalState;
     const requirement = occurrence.requirement;
     if (requirement === 'not_assigned') continue;
-    if (requirement === 'excused' || (requirement === undefined && state?.flags.includes('excused'))) {
+    if (
+      requirement === 'excused' ||
+      (requirement === undefined && state?.flags.includes('excused'))
+    ) {
       result.excused += 1;
       continue;
     }

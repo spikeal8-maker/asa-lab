@@ -251,7 +251,9 @@ function courseActivityOccurrenceMap(
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
-    const projection = projections.get(canonicalProjectionKey(row.seat_id, row.classroom_assignment_id));
+    const projection = projections.get(
+      canonicalProjectionKey(row.seat_id, row.classroom_assignment_id),
+    );
     const provenance = projection?.state.provenance;
     const participation =
       provenance?.seatId === row.seat_id &&
