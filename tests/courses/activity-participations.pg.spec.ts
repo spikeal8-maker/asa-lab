@@ -1028,7 +1028,7 @@ describe('A4-1 immutable learning project origin', () => {
           `SELECT EXISTS (
              SELECT 1 FROM pg_stat_activity
               WHERE usename='asalab_app' AND wait_event_type='Lock'
-                AND query LIKE 'WITH updated AS (%'
+                AND query ~ '^WITH[[:space:]]+updated[[:space:]]+AS[[:space:]]*[(]'
            ) AS waiting`,
         );
         lockWaitObserved = waiting.rows[0].waiting as boolean;
@@ -1617,7 +1617,7 @@ describe('A4-1 immutable learning project origin', () => {
           `SELECT EXISTS (
              SELECT 1 FROM pg_stat_activity
               WHERE usename='asalab_app' AND wait_event_type='Lock'
-                AND query LIKE 'WITH updated AS (%'
+                AND query ~ '^WITH[[:space:]]+updated[[:space:]]+AS[[:space:]]*[(]'
            ) AS waiting`,
         );
         lockWaitObserved = waiting.rows[0].waiting as boolean;

@@ -105,3 +105,13 @@ removes only the UI technical-closure barrier, never relabels General or the
 five-of-six scoped workflow PASS, and clears no global API/release blocker.
 Physical owner acceptance, release, deployment and school actions remain pending.
 No repeated clock source rewrite or CI run is selected by this closeout.
+
+
+## 24 October: Committed-DOM attribution follow-up
+
+Select the same existing Header span public data-time-ms marker and strict independent binding by document/mount epoch, active worker/generation/session and horizon. Equivalent same-binding/horizon receipts retain all IDs; marker proves formatter input, not exact React frame. No text-derived receipt selection, ambiguity acceptance, wrong-text suppression or physics/core/hook change. Prior acceptance remains immutable history; new four-width actual evidence is required before reclosure.
+
+The [cause-based selection](../evidence/ui679-557-causal-repair-selection-20261024.md)
+supersedes earlier conflicting no-product/no-follow-up restrictions only for this
+bounded repair. Owner API-separate targeted acceptance continues; no global PASS,
+physical owner acceptance, release or deployment is implied.

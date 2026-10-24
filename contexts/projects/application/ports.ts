@@ -112,6 +112,16 @@ export interface SaveSnapshotInput {
   readonly sourceRevision: number;
 }
 
+/** A single command's metadata and identity-bound writer, never a cached grant.
+ * Implementations must recheck current access inside the write transaction.
+ */
+export interface PreparedDraftSave {
+  readonly moduleKey: string;
+  save(
+    input: Pick<SaveDraftInput, 'document' | 'preview' | 'baseRevision' | 'mutationId'>,
+  ): Promise<ProjectDraft | null>;
+}
+
 export type ProjectDocumentValidation =
   | { readonly ok: true; readonly document: unknown }
   | { readonly ok: false; readonly message: string; readonly reasonCode?: string };
@@ -185,6 +195,12 @@ export interface ProjectRepositoryPort {
     status: ProjectStatus,
   ): Promise<Project | null>;
   saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null>;
+  /** Avoid fetching the previous document and resolving the same context twice. */
+  prepareDraftSave?(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<PreparedDraftSave | null>;
   createCheckpoint(
     tenantId: string,
     projectId: string,
