@@ -60,6 +60,51 @@ class IndependentReviewTransitions(unittest.TestCase):
         self.assertIn(COMMENTS,calls)
         return result
 
+    def test_reverse_response_comment_before_unresolved_change_request(self):
+        # Newer COMMENTED (id=21) preceding the older change request (id=10)
+        # must not erase the original security reviewer's veto.
+        with self.assertRaisesRegex(proof.RemoteProofError, "change requests"):
+            self.verify([
+                review(21,"security-reviewer","COMMENTED"),
+                review(10,"security-reviewer","CHANGES_REQUESTED"),
+                review(30,"independent-reviewer","APPROVED"),
+            ])
+
+    def test_reverse_response_comment_before_pending_stays_blocked(self):
+        with self.assertRaisesRegex(proof.RemoteProofError, "pending"):
+            self.verify([
+                review(21,"security-reviewer","COMMENTED"),
+                review(10,"security-reviewer","PENDING"),
+                review(30,"independent-reviewer","APPROVED"),
+            ])
+
+    def test_newer_comment_on_page_one_does_not_hide_older_change_request_page_two(self):
+        # This deliberately reverses GitHub page ordering, forcing the
+        # verifier to sort all validated review IDs before reducing verdicts.
+        first=[
+            review(210,"security-reviewer","COMMENTED"),
+            review(211,"independent-reviewer","APPROVED"),
+        ] + [
+            review(i+300,"filler-reviewer-"+str(i),"COMMENTED")
+            for i in range(98)
+        ]
+        self.assertEqual(len(first),100)
+        second=[review(10,"security-reviewer","CHANGES_REQUESTED")]
+        def api(path,access_token):
+            if path==REVIEWS:
+                return first
+            if path==REVIEWS+"&page=2":
+                return second
+            if path==COMMENTS:
+                return []
+            raise AssertionError("Unexpected path: "+path)
+        with patch.object(proof,"github_json",side_effect=api):
+            with self.assertRaisesRegex(proof.RemoteProofError, "change requests"):
+                proof._get_reviews(
+                    999,SHA,"controller",False,"synthetic-token",
+                    implementation_authors={"executor"},
+                )
+
     def test_change_request_then_comment_still_vetoes_other_approval(self):
         with self.assertRaisesRegex(proof.RemoteProofError, "change requests"):
             self.verify([

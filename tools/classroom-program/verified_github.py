@@ -188,7 +188,7 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     # GitHub's REST review list is chronological across the fully-paginated
     # collection. A new PENDING review has no submitted_at, therefore sorting
     # by submitted_at would incorrectly put it before the older APPROVED.
-    # Keep the latest event for every reviewer in API order (including PENDING).
+    # Order by the GitHub review ID, including PENDING without submitted_at.
     excluded = {author_login} | set(implementation_authors or ())
     # A GitHub review has a unique positive integer ID even when PENDING
     # omits submitted_at. Never accept an unverifiable ordering fallback:
@@ -197,7 +197,10 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
         raise RemoteProofError("Invalid or missing authenticated GitHub review ID")
     latest_by_reviewer = {}
     permitted_states = {"APPROVED", "CHANGES_REQUESTED", "PENDING", "DISMISSED", "COMMENTED"}
-    for entry in exact:
+    # The full paginated REST collection can arrive out of order. Every ID was
+    # validated as a positive integer above; fold by ascending review ID so a
+    # newer COMMENTED cannot hide an older unresolved CHANGES_REQUESTED/PENDING.
+    for entry in sorted(exact, key=lambda item: item["id"]):
         reviewer = (entry.get("user") or {}).get("login")
         if not reviewer:
             raise RemoteProofError("Review has no authenticated GitHub reviewer")
@@ -206,8 +209,6 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
             raise RemoteProofError("Unknown exact-SHA GitHub review state")
         order = entry["id"]
         previous = latest_by_reviewer.get(reviewer)
-        if previous is not None and order < previous[0]:
-            continue
         # COMMENTED is not a review decision. It cannot revoke a previous
         # change request, pending re-review, or approval; only a decisive
         # APPROVED, CHANGES_REQUESTED, DISMISSED or PENDING can change it.
