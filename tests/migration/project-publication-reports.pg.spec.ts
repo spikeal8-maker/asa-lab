@@ -88,17 +88,30 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
           'SELECT project_publication_publish($1,$2,$3::jsonb) AS result',
           [principal, createdProject.project.id, JSON.stringify({ title: 'Published ' + index })],
         );
-        return status.rows[0].result.publication as {
-          publicationId: string;
-          revisionId: string;
+        return {
+          ...(status.rows[0].result.publication as {
+            publicationId: string;
+            revisionId: string;
+          }),
+          projectId: createdProject.project.id,
         };
       }
       const publication = await makePublication(0);
+      // The incoming report must not rewrite any author-owned Project data.
+      const coreSql = [
+        'SELECT to_jsonb(p) AS data FROM public.projects p WHERE p.id=$1',
+        'SELECT to_jsonb(d) AS data FROM public.project_drafts d WHERE d.project_id=$1',
+        'SELECT to_jsonb(s) AS data FROM public.project_snapshots s WHERE s.project_id=$1',
+      ];
+      const coreBefore = await Promise.all(
+        coreSql.map((sql) => pool!.query(sql, [publication.projectId])),
+      );
       function report(
         actor: string,
         pub: { publicationId: string; revisionId: string },
         reason: string,
         key: string,
+        comment = 'Please review',
       ) {
         return pool!.query<{
           receipt: { reportId: string; status: string; duplicate: boolean };
@@ -107,7 +120,7 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
           pub.publicationId,
           pub.revisionId,
           reason,
-          'Please review',
+          comment,
           key,
         ]);
       }
@@ -158,6 +171,12 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
         ).rows[0].state,
       ).toBe('public');
       expect((await pool.query('SELECT * FROM project_publication_moderation')).rows).toEqual([]);
+      const coreAfter = await Promise.all(
+        coreSql.map((sql) => pool!.query(sql, [publication.projectId])),
+      );
+      expect(coreAfter.map((result) => result.rows)).toEqual(
+        coreBefore.map((result) => result.rows),
+      );
 
       expect(
         (await report(principal, publication, 'spam', 'first-report')).rows[0].receipt,
@@ -172,6 +191,12 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
       await expect(
         report(principal, publication, 'copyright', 'changed-reason'),
       ).rejects.toMatchObject({ code: 'P5R09' });
+      await expect(
+        report(principal, publication, 'abuse', 'first-report'),
+      ).rejects.toMatchObject({ code: 'P5R09' });
+      await expect(
+        report(randomUUID(), publication, 'spam', 'forged-principal'),
+      ).rejects.toMatchObject({ code: '42501' });
       await expect(
         pool.query('SELECT project_publication_report_create($1,$2,$3,$4,$5,$6)', [
           principal,
@@ -217,6 +242,9 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
       );
       expect(new Set(simultaneous.map((item) => item.rows[0].receipt.reportId)).size).toBe(1);
       expect(simultaneous.filter((item) => !item.rows[0].receipt.duplicate)).toHaveLength(1);
+      await expect(report(principal, second, 'spam', 'first-report')).rejects.toMatchObject({
+        code: 'P5R09',
+      });
 
       // A new report is still allowed for the tenth distinct publication, not the eleventh.
       for (let index = 2; index <= 9; index++) {
@@ -237,6 +265,76 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
           )
         ).rows[0].n,
       ).toBe(10);
+      const unlisted = await makePublication(11);
+      expect(
+        (
+          await pool.query("SELECT project_visibility_set($1,$2,'link') AS ok", [
+            principal,
+            unlisted.projectId,
+          ])
+        ).rows[0].ok,
+      ).toBe(true);
+      await expect(report(otherPrincipal, unlisted, 'spam', 'unlisted')).rejects.toMatchObject({
+        code: 'P5P04',
+      });
+
+      const revoked = await makePublication(12);
+      expect(
+        (
+          await pool.query('SELECT project_publication_revoke($1,$2) AS ok', [
+            principal,
+            revoked.projectId,
+          ])
+        ).rows[0].ok,
+      ).toBe(true);
+      await expect(report(otherPrincipal, revoked, 'spam', 'revoked')).rejects.toMatchObject({
+        code: 'P5P04',
+      });
+
+      const malicious = await makePublication(13);
+      const sqlText = "'); DROP TABLE public.project_publication_reports; --";
+      expect(
+        (await report(otherPrincipal, malicious, 'other', 'literal-data', sqlText)).rows[0].receipt,
+      ).toMatchObject({ status: 'received', duplicate: false });
+      expect(
+        (
+          await pool.query('SELECT comment FROM project_publication_reports WHERE request_key=$1', [
+            'literal-data',
+          ])
+        ).rows[0].comment,
+      ).toBe(sqlText);
+
+      const unicode = await makePublication(14);
+      expect(
+        (await report(otherPrincipal, unicode, 'spam', 'unicode-500', '🚀'.repeat(500)))
+          .rows[0].receipt,
+      ).toMatchObject({ status: 'received', duplicate: false });
+      expect(
+        (
+          await pool.query(
+            'SELECT char_length(comment)::integer AS n FROM project_publication_reports WHERE request_key=$1',
+            ['unicode-500'],
+          )
+        ).rows[0].n,
+      ).toBe(500);
+      await expect(
+        report(otherPrincipal, unicode, 'spam', 'unicode-501', '🚀'.repeat(501)),
+      ).rejects.toMatchObject({ code: '22023' });
+      expect(
+        (
+          await pool.query(
+            "SELECT to_regclass('public.project_publication_reports') IS NOT NULL AS intact",
+          )
+        ).rows[0].intact,
+      ).toBe(true);
+      expect(
+        (
+          await pool.query('SELECT state FROM project_publication_state WHERE id=$1', [
+            malicious.publicationId,
+          ])
+        ).rows[0].state,
+      ).toBe('public');
+
       expect(
         (
           await pool.query(

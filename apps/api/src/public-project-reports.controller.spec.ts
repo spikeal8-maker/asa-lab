@@ -73,6 +73,28 @@ describe('public project report intake transport', () => {
     });
   });
 
+  it('accepts exactly 500 Unicode code points in a bound report comment', async () => {
+    const { controller, query } = fixture();
+    const comment = '🚀'.repeat(500);
+    await expect(
+      controller.report(request(), PUBLICATION, KEY, { ...valid, comment }),
+    ).resolves.toMatchObject({ status: 'received' });
+    expect(query).toHaveBeenCalledWith(
+      'SELECT public.project_publication_report_create($1,$2,$3,$4,$5,$6) AS result',
+      [PRINCIPAL, PUBLICATION, REVISION, 'spam', comment, KEY],
+    );
+  });
+
+  it('treats SQL-shaped text as a bound comment, never executable SQL', async () => {
+    const { controller, query } = fixture();
+    const comment = "'); DROP TABLE public.project_publication_reports; --";
+    await controller.report(request(), PUBLICATION, KEY, { ...valid, comment });
+    expect(query).toHaveBeenCalledWith(
+      'SELECT public.project_publication_report_create($1,$2,$3,$4,$5,$6) AS result',
+      [PRINCIPAL, PUBLICATION, REVISION, 'spam', comment, KEY],
+    );
+  });
+
   it('rejects anonymous accounts before executing SQL', async () => {
     const { controller, query } = fixture(false);
     await expect(controller.report(request(), PUBLICATION, KEY, valid)).rejects.toMatchObject({
@@ -102,6 +124,8 @@ describe('public project report intake transport', () => {
     [{ ...valid, reason: '' }, KEY, PUBLICATION],
     [{ ...valid, comment: { raw: 'x' } }, KEY, PUBLICATION],
     [{ ...valid, comment: 'x'.repeat(501) }, KEY, PUBLICATION],
+    [{ ...valid, comment: '🚀'.repeat(501) }, KEY, PUBLICATION],
+    [{ ...valid, comment: '\0' }, KEY, PUBLICATION],
     [valid, '', PUBLICATION],
     [valid, 'spaces not allowed', PUBLICATION],
     [valid, 'learning:copied-key', PUBLICATION],
@@ -125,6 +149,12 @@ describe('public project report intake transport', () => {
     ['42501', 403],
     ['22023', 400],
     ['22P02', 400],
+    ['22021', 400],
+    ['08006', 503],
+    ['57P01', 503],
+    ['53300', 503],
+    ['ECONNREFUSED', 503],
+    ['ETIMEDOUT', 503],
     ['P5P04', 404],
     ['P5R09', 409],
     ['P5R29', 429],

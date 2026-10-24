@@ -80,13 +80,16 @@ export class PublicProjectReportsController {
     const revisionId = checked.body['revisionId'];
     const reason = checked.body['reason'];
     const comment = checked.body['comment'];
+    // Match PostgreSQL char_length: count Unicode code points, not UTF-16 units.
+    const commentLength =
+      typeof comment === 'string' ? Array.from(comment.trim()).length : 0;
     if (
       typeof revisionId !== 'string' ||
       !UUID.test(revisionId) ||
       typeof reason !== 'string' ||
       !REASONS.has(reason) ||
       (comment !== undefined && typeof comment !== 'string') ||
-      (typeof comment === 'string' && comment.trim().length > 500)
+      (typeof comment === 'string' && (comment.includes('\0') || commentLength > 500))
     ) {
       throw publicationError('validation_error', 'Проверьте категорию и комментарий.', 400);
     }
@@ -117,6 +120,7 @@ export class PublicProjectReportsController {
           throw publicationError('report_forbidden', 'Жалоба недоступна.', 403);
         case '22023':
         case '22P02':
+        case '22021':
           throw publicationError('validation_error', 'Проверьте данные жалобы.', 400);
         case 'P5P04':
           throw publicationError('not_available', 'Публикация недоступна.', 404);
@@ -128,6 +132,22 @@ export class PublicProjectReportsController {
           );
         case 'P5R29':
           throw publicationError('report_rate_limited', 'Слишком много жалоб.', 429);
+        case '08000':
+        case '08001':
+        case '08003':
+        case '08004':
+        case '08006':
+        case '08007':
+        case '08P01':
+        case '57P01':
+        case '57P02':
+        case '57P03':
+        case '53300':
+        case '53400':
+        case 'ECONNREFUSED':
+        case 'ECONNRESET':
+        case 'ETIMEDOUT':
+          throw publicationError('database_unavailable', 'База данных недоступна.', 503);
         default:
           throw cause;
       }
