@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { SeatCourseRunLesson } from '../api';
-import { courseCompletion, lessonComplete } from './course-completion';
+import {
+  courseCompletion,
+  coursePracticeProgress,
+  lessonComplete,
+  lessonPracticeProgress,
+} from './course-completion';
 
 function lesson(
   kind: 'material' | 'assignment',
@@ -21,6 +26,7 @@ function lesson(
           },
   } as SeatCourseRunLesson;
 }
+
 describe('minimal course completion mirrors required lessons, not login or current Attempt', () => {
   it('requires explicit theory and selected accepted project; a submission alone is not complete', () => {
     expect(courseCompletion([lesson('material'), lesson('assignment')])).toEqual({
@@ -40,9 +46,12 @@ describe('minimal course completion mirrors required lessons, not login or curre
     expect(courseCompletion([lesson('assignment', true)]).complete).toBe(true);
   });
   it('explains exempt work without manufacturing completion or a grade for an empty denominator', () => {
-    expect(courseCompletion([lesson('material', true), lesson('assignment', false, true)])).toEqual(
-      { total: 1, completed: 1, excused: 1, complete: true },
-    );
+    expect(courseCompletion([lesson('material', true), lesson('assignment', false, true)])).toEqual({
+      total: 1,
+      completed: 1,
+      excused: 1,
+      complete: true,
+    });
     expect(courseCompletion([lesson('assignment', false, true)])).toEqual({
       total: 0,
       completed: 0,
@@ -53,16 +62,19 @@ describe('minimal course completion mirrors required lessons, not login or curre
   });
 });
 
+interface ScenarioPractice {
+  blockId: string;
+  workflow: 'not_started' | 'waiting_review' | 'changes_requested' | 'completed';
+  accepted?: boolean;
+  submittedAt?: string | null;
+  excused?: boolean;
+  canonicalMissing?: boolean;
+}
+
 /** Pinned published mixed lesson: block identity, not module/title or latest author draft. */
 function mixedLesson(
   theoryRead: boolean,
-  practices: Array<{
-    blockId: string;
-    workflow: 'not_started' | 'waiting_review' | 'changes_requested' | 'completed';
-    accepted?: boolean;
-    submittedAt?: string | null;
-    excused?: boolean;
-  }>,
+  practices: ScenarioPractice[],
   hiddenBlockIds: string[] = [],
 ): SeatCourseRunLesson {
   return {
@@ -77,11 +89,13 @@ function mixedLesson(
     activityOccurrences: practices.map((practice) => ({
       blockId: practice.blockId,
       submittedAt: practice.submittedAt ?? null,
-      canonicalState: {
-        workflowState: practice.workflow,
-        flags: practice.excused ? ['excused'] : [],
-        selectedResult: practice.accepted ? { completionValue: true } : null,
-      },
+      canonicalState: practice.canonicalMissing
+        ? null
+        : {
+            workflowState: practice.workflow,
+            flags: practice.excused ? ['excused'] : [],
+            selectedResult: practice.accepted ? { completionValue: true } : null,
+          },
     })),
   } as SeatCourseRunLesson;
 }
@@ -91,12 +105,12 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
   const accepted = { blockId: 'electronics-block', workflow: 'completed', accepted: true } as const;
 
   it('does not complete an assigned mixed lesson when theory alone is read', () => {
-    const lesson = mixedLesson(true, [
+    const studentLesson = mixedLesson(true, [
       { blockId: 'electronics-block', workflow: 'not_started' },
       unstarted,
     ]);
-    expect(lessonComplete(lesson)).toBe(false);
-    expect(courseCompletion([lesson])).toEqual({
+    expect(lessonComplete(studentLesson)).toBe(false);
+    expect(courseCompletion([studentLesson])).toEqual({
       total: 1,
       completed: 0,
       excused: 0,
@@ -104,15 +118,26 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
     });
   });
 
-  it('keeps the same pupil at 1/2 practices without completing the lesson/course', () => {
-    const lesson = mixedLesson(true, [accepted, unstarted]);
-    expect(lessonComplete(lesson)).toBe(false);
-    expect(courseCompletion([lesson]).complete).toBe(false);
+  it('counts 1/2 accepted practices without completing the lesson or course', () => {
+    const studentLesson = mixedLesson(true, [accepted, unstarted]);
+    expect(lessonPracticeProgress(studentLesson)).toEqual({
+      total: 2,
+      completed: 1,
+      excused: 0,
+      waitingReview: 0,
+      changesRequested: 0,
+      unavailable: 0,
+    });
+    expect(coursePracticeProgress([studentLesson])).toEqual(
+      lessonPracticeProgress(studentLesson),
+    );
+    expect(lessonComplete(studentLesson)).toBe(false);
+    expect(courseCompletion([studentLesson]).complete).toBe(false);
   });
 
-  it('does not turn a submission awaiting review or requested revision into acceptance', () => {
+  it('does not turn a submission awaiting review or a returned revision into acceptance', () => {
     for (const workflow of ['waiting_review', 'changes_requested'] as const) {
-      const lesson = mixedLesson(true, [
+      const studentLesson = mixedLesson(true, [
         accepted,
         {
           blockId: '3d-block',
@@ -120,31 +145,95 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
           submittedAt: '2026-10-24T11:00:00Z',
         },
       ]);
-      expect(lessonComplete(lesson)).toBe(false);
+      expect(lessonComplete(studentLesson)).toBe(false);
+      const progress = lessonPracticeProgress(studentLesson);
+      expect(progress.completed).toBe(1);
+      expect(progress.waitingReview).toBe(workflow === 'waiting_review' ? 1 : 0);
+      expect(progress.changesRequested).toBe(workflow === 'changes_requested' ? 1 : 0);
     }
   });
 
-  it('requires reading and all selected accepted results; an excused practice is excluded', () => {
-    const twoAccepted = [accepted, { blockId: '3d-block', workflow: 'completed', accepted: true } as const];
+  it('never promotes a legacy submission timestamp without a canonical selected result', () => {
+    const studentLesson = mixedLesson(true, [
+      accepted,
+      {
+        blockId: '3d-block',
+        workflow: 'waiting_review',
+        canonicalMissing: true,
+        submittedAt: '2026-10-24T11:00:00Z',
+      },
+    ]);
+    expect(lessonPracticeProgress(studentLesson).waitingReview).toBe(1);
+    expect(lessonComplete(studentLesson)).toBe(false);
+  });
+
+  it('requires theory and both accepted practices; excused work is not a debt', () => {
+    const twoAccepted = [
+      accepted,
+      { blockId: '3d-block', workflow: 'completed', accepted: true } as const,
+    ];
     expect(lessonComplete(mixedLesson(false, twoAccepted))).toBe(false);
     expect(lessonComplete(mixedLesson(true, twoAccepted))).toBe(true);
     expect(courseCompletion([mixedLesson(true, twoAccepted)]).complete).toBe(true);
-    expect(lessonComplete(mixedLesson(true, [accepted, { ...unstarted, excused: true }]))).toBe(true);
+    const excused = mixedLesson(true, [accepted, { ...unstarted, excused: true }]);
+    expect(lessonPracticeProgress(excused)).toMatchObject({
+      total: 1,
+      completed: 1,
+      excused: 1,
+    });
+    expect(lessonComplete(excused)).toBe(true);
   });
 
-  it('never counts hidden new-version blocks against an already pinned old version', () => {
+  it('retains the pinned old version while a new version hides a practice', () => {
     const oldPublishedLesson = mixedLesson(true, [accepted, unstarted]);
     const newerHiddenDraft = mixedLesson(true, [accepted, unstarted], ['3d-block']);
     expect(lessonComplete(oldPublishedLesson)).toBe(false);
+    expect(lessonPracticeProgress(newerHiddenDraft)).toMatchObject({
+      total: 1,
+      completed: 1,
+    });
     expect(lessonComplete(newerHiddenDraft)).toBe(true);
     expect(lessonComplete(oldPublishedLesson)).toBe(false);
   });
 
-  it('counts separately assigned blocks even when their content/module is identical', () => {
-    const lesson = mixedLesson(true, [
+  it('counts repeated activity modules by different published block IDs', () => {
+    const studentLesson = mixedLesson(true, [
       accepted,
-      { blockId: 'electronics-block-2', workflow: 'waiting_review', submittedAt: '2026-10-24T11:00:00Z' },
+      {
+        blockId: 'electronics-block-2',
+        workflow: 'waiting_review',
+        submittedAt: '2026-10-24T11:00:00Z',
+      },
     ]);
-    expect(lessonComplete(lesson)).toBe(false);
+    expect(lessonPracticeProgress(studentLesson)).toMatchObject({
+      total: 2,
+      completed: 1,
+    });
+    expect(lessonComplete(studentLesson)).toBe(false);
+  });
+
+  it('does not invent a required assignment when an activity block has no occurrence', () => {
+    const studentLesson = mixedLesson(true, [accepted, unstarted]);
+    studentLesson.activityOccurrences = studentLesson.activityOccurrences.slice(0, 1);
+    expect(lessonPracticeProgress(studentLesson)).toMatchObject({
+      total: 1,
+      completed: 1,
+      unavailable: 1,
+    });
+  });
+
+  it('counts standalone required and excused assignment lessons alongside embedded practices', () => {
+    const studentLesson = mixedLesson(true, [accepted, unstarted]);
+    expect(
+      coursePracticeProgress([
+        studentLesson,
+        lesson('assignment', true),
+        lesson('assignment', false, true),
+      ]),
+    ).toMatchObject({
+      total: 3,
+      completed: 2,
+      excused: 1,
+    });
   });
 });
