@@ -56,6 +56,25 @@ export function courseActivityOccurrenceForBlock(
   return lesson.activityOccurrences.find((occurrence) => occurrence.blockId === blockId) ?? null;
 }
 
+/** Visible practices follow the published lesson block order and exact occurrence ID. */
+export function visibleCourseLessonPractices(
+  lesson: SeatCourseRunLesson,
+): CourseActivityOccurrence[] {
+  return lesson.blocks.flatMap((block) => {
+    if (block.type !== 'activity' || block.hidden) return [];
+    const occurrence = courseActivityOccurrenceForBlock(lesson, block.id);
+    return occurrence ? [occurrence] : [];
+  });
+}
+
+function courseActivityStatus(occurrence: CourseActivityOccurrence): string {
+  if (occurrence.workOriginAmbiguous && occurrence.projectId) return 'Работа пока недоступна';
+  return (
+    canonicalLearningLabel(occurrence.canonicalState) ??
+    (occurrence.submittedAt ? 'Сдано' : occurrence.projectId ? 'В работе' : 'Не начато')
+  );
+}
+
 export function courseActivityAssignmentShape(
   run: SeatCourseRun,
   occurrence: CourseActivityOccurrence,
@@ -143,6 +162,12 @@ export function SeatCourses({
   const [runs, setRuns] = useState<SeatCourseRun[] | null>(null);
   const [openRunId, setOpenRunId] = useState<string | null>(null);
   const [openLessonId, setOpenLessonId] = useState<string | null>(null);
+  const [pendingPractice, setPendingPractice] = useState<{
+    runId: string;
+    lessonId: string;
+    blockId: string;
+  } | null>(null);
+  const practiceTargetRef = useRef<HTMLDivElement>(null);
   const destination = useLearningDestination();
   useEffect(() => {
     if (!destination.assignment && !destination.courseRun) return;
@@ -211,6 +236,20 @@ export function SeatCourses({
     : -1;
   const completion = courseCompletion(lessons);
   const completedLessonCount = completion.completed;
+
+  useEffect(() => {
+    if (
+      !pendingPractice ||
+      pendingPractice.runId !== openRunId ||
+      pendingPractice.lessonId !== openLesson?.id
+    )
+      return;
+    const target = practiceTargetRef.current;
+    if (!target) return;
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'center' });
+    setPendingPractice(null);
+  }, [openRunId, openLesson?.id, pendingPractice]);
 
   async function startActivity(
     occurrence: CourseActivityOccurrence,
@@ -286,7 +325,14 @@ export function SeatCourses({
     return (
       <section className="seat-course-player" data-testid="seat-course-player">
         <header className="seat-course-player-head">
-          <button type="button" className="classroom-back" onClick={() => setOpenRunId(null)}>
+          <button
+            type="button"
+            className="classroom-back"
+            onClick={() => {
+              setPendingPractice(null);
+              setOpenRunId(null);
+            }}
+          >
             ← Мои курсы
           </button>
           <div>
@@ -326,7 +372,10 @@ export function SeatCourses({
                       <button
                         type="button"
                         className={lesson.id === openLesson.id ? 'active' : undefined}
-                        onClick={() => setOpenLessonId(lesson.id)}
+                        onClick={() => {
+                          setPendingPractice(null);
+                          setOpenLessonId(lesson.id);
+                        }}
                       >
                         <span>{lesson.kind === 'assignment' ? '◆' : '●'}</span>
                         <span>
@@ -345,6 +394,34 @@ export function SeatCourses({
                           </small>
                         </span>
                       </button>
+                      {visibleCourseLessonPractices(lesson).length > 0 ? (
+                        <ul
+                          className="seat-course-practice-links"
+                          aria-label={`Практики урока «${lesson.title}»`}
+                        >
+                          {visibleCourseLessonPractices(lesson).map((occurrence) => (
+                            <li key={occurrence.blockId}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenLessonId(lesson.id);
+                                  setPendingPractice({
+                                    runId: openRun.id,
+                                    lessonId: lesson.id,
+                                    blockId: occurrence.blockId,
+                                  });
+                                }}
+                              >
+                                <span>{occurrence.title}</span>
+                                <small>
+                                  {courseActivityModuleLabel(occurrence.moduleKey)} ·{' '}
+                                  {courseActivityStatus(occurrence)}
+                                </small>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </li>
                   ))}
                 </ol>
@@ -383,20 +460,20 @@ export function SeatCourses({
                 }
                 const activityAssignment = courseActivityAssignmentShape(openRun, occurrence);
                 const busyKey = `activity:${occurrence.activityRunId}`;
-                const activityStatus =
-                  occurrence.workOriginAmbiguous && activityAssignment.projectId
-                    ? 'Работа пока недоступна'
-                    : (canonicalLearningLabel(activityAssignment.canonicalState) ??
-                      (activityAssignment.submittedAt
-                        ? 'Сдано'
-                        : activityAssignment.projectId
-                          ? 'В работе'
-                          : 'Не начато'));
+                const activityStatus = courseActivityStatus(occurrence);
                 return (
                   <div
                     className="seat-course-activity"
                     data-testid="course-activity-runtime"
                     data-assignment-id={occurrence.classroomAssignmentId}
+                    ref={
+                      pendingPractice?.runId === openRun.id &&
+                      pendingPractice.lessonId === openLesson.id &&
+                      pendingPractice.blockId === block.id
+                        ? practiceTargetRef
+                        : undefined
+                    }
+                    tabIndex={-1}
                   >
                     <div className="seat-course-activity-main">
                       <span className="course-eyebrow">Практика</span>
@@ -610,7 +687,10 @@ export function SeatCourses({
                 type="button"
                 className="btn-secondary"
                 disabled={openLessonIndex <= 0}
-                onClick={() => setOpenLessonId(lessons[openLessonIndex - 1]?.id ?? null)}
+                onClick={() => {
+                  setPendingPractice(null);
+                  setOpenLessonId(lessons[openLessonIndex - 1]?.id ?? null);
+                }}
               >
                 ← Назад
               </button>
@@ -626,6 +706,7 @@ export function SeatCourses({
                     const saved = await markMaterial(openLesson, true);
                     if (!saved) return;
                   }
+                  setPendingPractice(null);
                   setOpenLessonId(lessons[openLessonIndex + 1]?.id ?? null);
                 }}
               >

@@ -11,6 +11,7 @@ import { LessonBlocks } from '../../apps/web/src/components/LessonBlocks';
 import {
   courseActivityAssignmentShape,
   courseActivityOccurrenceForBlock,
+  visibleCourseLessonPractices,
 } from '../../apps/web/src/components/SeatCourses';
 
 function occurrence(
@@ -33,6 +34,7 @@ function occurrence(
     snapshotRevision: projectId ? 3 : null,
     updatedAt: projectId ? '2026-09-21T00:00:00.000Z' : null,
     canonicalState: null,
+    workOriginAmbiguous: false,
   };
 }
 
@@ -146,4 +148,48 @@ describe('E1-FIX-11D5 Course Activity learner UI', () => {
     expect(courseActivityAssignmentShape(run, b!).id).toBe('assignment-b');
     expect(courseActivityAssignmentShape(run, c!).id).toBe('assignment-c');
   });
+
+  it('lists visible exact practice occurrences in published block order without creating work', () => {
+    const electronics = occurrence(
+      'practice-electronics',
+      'assignment-a',
+      'electronics',
+      'project-a',
+    );
+    const threeD = occurrence('practice-3d', 'assignment-b', 'three-d', null);
+    const hidden = occurrence('practice-hidden', 'assignment-hidden', 'electronics', null);
+    const lesson = {
+      blocks: [
+        { id: 'intro', type: 'paragraph', text: 'Прочитайте объяснение' },
+        {
+          id: threeD.blockId,
+          type: 'activity',
+          learningActivityVersionId: threeD.learningActivityVersionId,
+        },
+        {
+          id: hidden.blockId,
+          type: 'activity',
+          learningActivityVersionId: hidden.learningActivityVersionId,
+          hidden: true,
+        },
+        {
+          id: 'missing-runtime',
+          type: 'activity',
+          learningActivityVersionId: 'missing-version',
+        },
+        {
+          id: electronics.blockId,
+          type: 'activity',
+          learningActivityVersionId: electronics.learningActivityVersionId,
+        },
+      ],
+      activityOccurrences: [electronics, hidden, threeD],
+    } as SeatCourseRunLesson;
+
+    expect(visibleCourseLessonPractices(lesson)).toEqual([threeD, electronics]);
+    expect(visibleCourseLessonPractices({ ...lesson, blocks: [] })).toEqual([]);
+    expect(courseActivityAssignmentShape(run, threeD).id).toBe('assignment-b');
+    expect(courseActivityAssignmentShape(run, electronics).id).toBe('assignment-a');
+  });
+
 });
