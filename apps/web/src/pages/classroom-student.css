@@ -281,6 +281,7 @@
   line-height: 20px;
 }
 .classroom-student-works-toolbar {
+  position: relative;
   display: flex;
   flex: 1 1 280px;
   align-items: center;
@@ -308,6 +309,86 @@
   color: var(--student-ink);
   font-variant-numeric: tabular-nums;
 }
+/* A small disclosure replaces a permanent full-width visibility warning.
+   The summary stays a touch-safe 44px target while the icon itself stays 18px. */
+.classroom-student-visibility-details {
+  display: inline-flex;
+  flex: 0 0 44px;
+  position: static;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+  margin: -13px -3px;
+}
+.classroom-student .classroom-student-visibility-details > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #42657a;
+  list-style: none;
+  cursor: pointer;
+}
+.classroom-student-visibility-details > summary::-webkit-details-marker {
+  display: none;
+}
+.classroom-student-visibility-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 19px;
+  height: 19px;
+  border: 1px solid #96aebc;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 750;
+  font-style: normal;
+  line-height: 1;
+}
+.classroom-student .classroom-student-visibility-details > summary:hover .classroom-student-visibility-icon,
+.classroom-student .classroom-student-visibility-details[open] .classroom-student-visibility-icon {
+  border-color: #0a709d;
+  background: #e8f5fa;
+  color: #075d84;
+}
+.classroom-student .classroom-student-visibility-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  box-sizing: border-box;
+  max-height: min(280px, 65dvh);
+  min-width: 0;
+  overflow: auto;
+  padding: 11px 13px;
+  border: 1px solid var(--student-line);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 6px 20px #14354b20;
+  color: var(--student-ink);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.classroom-student .classroom-student-visibility-popover strong {
+  display: block;
+  margin: 0 0 5px;
+  font-size: 13px;
+}
+.classroom-student .classroom-student-visibility-popover p {
+  margin: 4px 0 0;
+}
+
 .classroom-student .classroom-student-archive-filter,
 .classroom-student .classroom-student-filter {
   display: inline-flex;
@@ -1382,18 +1463,55 @@
     width: 100%;
     min-height: 44px;
   }
+  /* Native controls keep 44px hit targets, without surrounding white boxes. */
+  .classroom-student .classroom-student-archive-filter,
+  .classroom-student .classroom-student-filter {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .classroom-student .classroom-student-filter {
+    flex: 0 0 64px;
+    width: 64px;
+    min-width: 64px;
+  }
+  .classroom-student .classroom-student-filter select {
+    min-height: 44px;
+    height: 44px;
+    padding: 0 15px 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  .classroom-student .classroom-student-section-select {
+    width: min(188px, 100%);
+    justify-self: start;
+  }
+  .classroom-student .classroom-student-section-select select {
+    width: 100%;
+    padding: 0 22px 0 2px;
+    border: 0;
+    border-bottom: 1px solid var(--student-line);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: #315467;
+    font-size: 14px;
+    font-weight: 600;
+  }
   .classroom-student .classroom-student-work-summary {
     flex: 1 1 auto;
-    gap: 2px 8px;
+    gap: 2px 5px;
     font-size: 11px;
   }
   .classroom-student .classroom-student-archive-filter {
     padding: 0 5px;
   }
-  .classroom-student .classroom-student-filter {
-    min-width: 80px;
-    width: 80px;
-    flex-basis: 80px;
+  .classroom-student .classroom-student-archive-filter {
+    padding: 0 2px;
   }
   .classroom-student .project-card-grid .project-card-frame {
     aspect-ratio: 16 / 9;
@@ -1423,5 +1541,6 @@
   }
   .classroom-student .classroom-student-filter {
     justify-self: end;
+    width: 64px;
   }
 }
