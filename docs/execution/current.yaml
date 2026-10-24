@@ -9986,8 +9986,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r5_diagnosis_terminal_no_proven_cause
-      previous_checkpoint: r8_test_only_unique_native_meter_hit_path
+      checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
+      previous_checkpoint: r5_diagnosis_terminal_no_proven_cause
+      previous_r5_checkpoint: r8_test_only_unique_native_meter_hit_path
+      r6_diagnostic:
+        status: selected
+        executor: bounded_e11_test_only_author_549
+        selected_by: owner_instruction_2026_10_24
+        baseline_main_sha: 9f4e6a71fa4a089187c7ebd54266688c1c3bda16
+        scope: e2e/electronics-selection-outline.spec.ts only
+        max_experiments: 1
+        independent_review: pending
+        rules: >-
+          Mark post-final-snapshot recursive numeric verification, event checks,
+          PUT/readback and terminal checkpoint timing. Synthetic project only.
+          No product edits, reduced evidence, assertion removal or longer timeout.
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -9996,12 +10009,14 @@ parallel_lanes:
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R5 actual documentation closeout only,not Issue closure. Both selected lifecycle awaits fulfilled;
-        later pending operation UNKNOWN. No new source repair,observer,R6,rerun or product/AFTER selected.
+        R6 is a single explicitly owner-authorized bounded test-only post-final-snapshot
+        diagnosis; keep R5 historical evidence and all strict native assertions. No
+        product E11 repair is authorized before the diagnostic cause is established.
       source_budget: >-
-        NONE under terminal R5 diagnosis. Earlier R2/R3/R4/R5 executable budgets below are historical
-        and not permission for another observer,source change or run. A new explicit controller/owner
-        decision is required before any further executable slice;existing strict acceptance remains unmet.
+        ONE diagnostic test-only edit in existing e2e/electronics-selection-outline.spec.ts;
+        markers around numeric leaves, events, PUT/server readback and complete checkpoint.
+        One isolated synthetic run; preserve original physics, save/CAS, Worker, source
+        evidence, timeouts and historical R5 freeze. Further product edits require selection.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
@@ -11152,6 +11167,20 @@ parallel_lanes:
       issue: 649
       parent_issue: 546
       programme_issue: 452
+      shared_guard_722:
+        status: selected_for_single_writer
+        executor: github-connected-guard-author-649
+        github_actor: spikeal8-maker
+        existing_pr: 724
+        single_write_path: tools/test_ci_image_transport.py
+        baseline_main_sha: 9f4e6a71fa4a089187c7ebd54266688c1c3bda16
+        guard_scope: semantic_projection_and_adversarial_challenges_only
+        independent_review: pending
+        no_product_or_deployment_changes: true
+        coordination: >-
+          Owner-authorized bounded #722 guard repair. One author for this path,
+          reuse the existing #724 branch, preserve immutable image/PG/provenance
+          and unrelated lane changes. This is a source assignment, not approval.
       branch: main
       base_branch: main
       pr: null
