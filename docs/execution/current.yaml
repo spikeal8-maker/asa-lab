@@ -7543,7 +7543,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: late_ready_local_header_clock_projection_repair_selected
+      checkpoint: owner_directed_partial_main_publication_actual_eight_pending
       kind: repair
       owner_acceptance: pending
       context_hints:
