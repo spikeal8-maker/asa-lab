@@ -18,6 +18,7 @@ on:
       - 'apps/web/tsconfig.json'
       - 'e2e/electronics-simulation.spec.ts'
       - 'e2e/electronics-simulation-time.spec.ts'
+      - 'e2e/electronics-selection-outline.spec.ts'
       - 'e2e/electronics-interactions.spec.ts'
       - 'e2e/electronics-piezo-clock.spec.ts'
       - 'e2e/electronics-native-wheel.spec.ts'
