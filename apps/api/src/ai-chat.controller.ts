@@ -396,7 +396,7 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
-        attachmentIds,
+        ...(attachmentIds.length ? [attachmentIds] as const : [] as const),
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
