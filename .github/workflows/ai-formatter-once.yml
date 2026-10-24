@@ -1,0 +1,63 @@
+# Temporary one-shot style normalization in a feature branch only.
+# This workflow deletes itself in the same commit as the Prettier output.
+name: ASA AI one-shot formatter
+'on':
+  push:
+    branches:
+      - codex/ai-visible-attachments-vision-20261024
+    paths:
+      - .github/workflows/ai-formatter-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.repository == 'spikeal8-maker/asa-lab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/ai-visible-attachments-vision-20261024
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply canonical Prettier to candidate only, remove this formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write \
+            apps/api/src/ai-chat-attachments.spec.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/api/src/ai-ollama.spec.ts \
+            apps/api/src/ai-ollama.ts \
+            apps/web/src/ai/ai-chat-attachments.ts \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            apps/web/src/ai/stream-ai-request.spec.ts \
+            apps/web/src/ai/stream-ai-request.ts
+          git rm -- .github/workflows/ai-formatter-once.yml
+          git add -- \
+            apps/api/src/ai-chat-attachments.spec.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/api/src/ai-ollama.spec.ts \
+            apps/api/src/ai-ollama.ts \
+            apps/web/src/ai/ai-chat-attachments.ts \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            apps/web/src/ai/stream-ai-request.spec.ts \
+            apps/web/src/ai/stream-ai-request.ts
+          git diff --cached --check
+          git -c user.name='ASA AI Formatter' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m 'style(ai): apply canonical Prettier to isolated AI candidate'
+          git push origin HEAD:refs/heads/codex/ai-visible-attachments-vision-20261024
