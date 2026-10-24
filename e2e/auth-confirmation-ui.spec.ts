@@ -1077,6 +1077,16 @@ for (const width of [1440, 1024, 390, 320]) {
       form.locator('input[type="email"], input[type="password"], input[autocomplete="username"]'),
     ).toHaveCount(0);
     await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveAttribute('required', '');
+    await expect(page.getByText('Нет аккаунта?', { exact: true })).toBeHidden();
+    const birthDateBox = await form.getByLabel('Дата рождения', { exact: true }).boundingBox();
+    const birthDateLabelBox = await form.locator('label', { hasText: 'Дата рождения' }).boundingBox();
+    const countryLabelBox = await form.locator('label', { hasText: 'Страна' }).boundingBox();
+    expect(birthDateBox).not.toBeNull();
+    expect(birthDateLabelBox).not.toBeNull();
+    expect(countryLabelBox).not.toBeNull();
+    if (width >= 1024) expect(birthDateBox!.width).toBeGreaterThanOrEqual(200);
+    expect(birthDateLabelBox!.y + birthDateLabelBox!.height).toBeLessThanOrEqual(birthDateBox!.y);
+    expect(birthDateBox!.y + birthDateBox!.height).toBeLessThanOrEqual(countryLabelBox!.y);
     await expect(form.getByLabel('Отображаемое имя', { exact: true })).toHaveValue(
       'Новый участник',
     );
