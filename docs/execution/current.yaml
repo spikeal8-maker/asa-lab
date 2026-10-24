@@ -2952,46 +2952,41 @@ parallel_lanes:
       - e2e/classroom-profile-completion.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     task:
-      id: TASK-TEACHER-STUDENT-PROFILE-UI-589
-      issue: 589
+      id: TASK-TEACHER-STUDENT-PROFILE-UI-734
+      issue: 734
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: ui02_integrated_main_54d6585_ui03_settings_categories_selected
+      checkpoint: ui03_merged_main_292dc974_ui04a_games_embedded_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner 2026-10-18 Issue 589, expanded by explicit 2026-10-24 product direction
-        Issue 715 comment 6384209463 and Issue 589 comment 6384219085.
-        UI-01 integrated in main at 75b579157f40220f668b2972cf38800460da8c28
-        from source f1c29ab6eec1bd71270980201187cb6b441724bf.
-        UI-02 integrated as main 54d6585909091494d7b348a3f97e0cf1c94233a9
-        from source b913f0bfaef9d0e002f4afbc35f8b8c2911cbb2d after
-        six SUCCESS workflow checks and exact-SHA independent review.
-        Select UI-03 functional four-category student settings in the ninth
-        tab, relying on existing authorized seat/class/game API operations;
-        never deploy or modify school data.
+        Owner Issue #734 and comment 6387720711 (2026-10-24) explicitly authorizes
+        UI-04A then separately reviewed UI-04B and UI-04C in the teacher-facing
+        student profile only. UI-03 PR #733 source
+        0779aa66aeb132c57d41b1fde8f5d5e67b72925f was integrated in main
+        as 292dc97412066104c8f774b95954bb52192f6ce4. UI-04A is the
+        currently selected games-editor relocation; code, CI, review and main
+        acceptance are not claimed by this governance selection.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
         - https://github.com/spikeal8-maker/asa-lab/issues/715#issuecomment-6384209463
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6384219085
         - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+        - https://github.com/spikeal8-maker/asa-lab/issues/734
+        - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
       scope: >-
-        UI-03 selected bounded product slice after UI-02 main acceptance:
-        replace the temporary ninth-tab settings entry with four compact
-        real categories for profile/role/avatars, Student Code/access,
-        seat protection and per-student game access. Reuse existing
-        seatActions and participantsApi authorization/commands, and existing
-        ClassroomGamesSettings; one active editor at a time, honest disabled
-        and retry states, no decorative toggles, preserve unsaved panel state.
-        Preserve all eight prior sections and accepted IdentityRail/SectionRail,
-        grades/history and works/paging; avoid global auth and game backend.
-        UI-04 may remove duplicate permanent panels and relocate remaining
-        summary controls in a separate reviewed slice.
+        UI-04A (first bounded slice) selected after accepted UI-03 PR #733:
+        embed the existing single ClassroomGamesSettings editor exclusively in
+        Settings / Игровые разрешения, remove its always-mounted legacy region
+        and scroll workaround, preserve class-level consumer, dirty/navigation
+        protection, version/409/readback and Seat isolation. Do not start
+        UI-04B or UI-04C in this executor slice until separate acceptance.
+        Follow Issue #734 and preserve unrelated parallel lanes.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
@@ -6455,7 +6450,7 @@ parallel_lanes:
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
       - migrations/0238_project_publication_editorial.sql
-      - migrations/0241_project_publication_pins.sql
+      - migrations/0242_project_publication_pins.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
@@ -6465,23 +6460,29 @@ parallel_lanes:
       id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
       issue: 702
       branch: main
+      candidate_branch: codex/projects-pin-20261023
       base_branch: main
-      pr: null
-      pr_draft: false
+      pr: 704
+      pr_draft: true
       status: in_progress
-      checkpoint: pins_0241_reactivated_after_courses_705_merge
+      checkpoint: restore_migration_sequence_0242_after_published_max_0241
       owner_acceptance: pending
       owner_authorization: >-
-        Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
-        replacement programme to a controller and real author/review/QA subagents, including
-        tested integration into main. Legacy Gallery publication retention is superseded;
-        original Projects, drafts, versions, learning data and personal Collections are protected.
-        No production cleanup or deployment is authorized by this selection.
-        The Public Projects programme controller reselects existing #702 / PR #704
-        after accepted Courses #705 (published migration 0240) and main General CI
-        success on 2026-10-24. Integrate only the existing pinning slice as the
-        next candidate 0241; retain #713 / PR #717 as its blocked successor.
-        No mandatory CI or security waiver, foreign-system edits, or deployment.
+        On 2026-10-24 the owner explicitly reselected bounded pinning migration
+        integration repair for existing PR #704 after published main
+        0241_max_external_only_registration.sql. Do not rewrite pin business SQL.
+        Renumber the unpublished pin migration 0241 to 0242, preserve its SQL
+        bytes and digest, and compose exact full migration-history fixtures with
+        published 0239 Ollama, 0240 Courses and 0241 MAX, without changing their
+        SQL or weakening history validation. Existing reports B1 #713 / Draft
+        PR #717 head 18a79c0db6469bc7b9ecf45b7b53b433de556fed is
+        preserved and not merged; its provisional 0240 will require a new
+        successor after actual #704 integration, anticipated 0243.
+        Run isolated PostgreSQL, applicable native browser, focused and General
+        CI on the final candidate, then separate independent Code/Security
+        acceptance. PR #704 remains SECURITY_ACCEPTANCE_PENDING and Draft with
+        no owner-authorized waiver, Draft removal or merge yet. No production,
+        school DB, unrelated module or 717 branch changes.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -7584,13 +7585,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_private_exhausted_demand_test_only
-      kind: test
+      checkpoint: selected_private_epoch_bounded_feasibility
+      kind: diagnostic
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE PRIVATE TEST-ONLY public FakeExecutor probe for ordinary saved-target exhaustion; desired fresh bounded host sample is a proposed planning criterion, not a proven runtime cause. No product repair or CI selected.
+      selected_slice: ONE PRIVATE epoch-bounded controller feasibility experiment, not a proven runtime fix or product-main publication.
+      epoch_bounded_feasibility_contract:
+        scope: ONLY apps/web/src/electronics/live-simulation-worker-controller.ts and apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts; preserve original87 and private5f1d twelve tests/assertions.
+        permit: One permit per admitted valid EXTERNAL update epoch; internal read/pump/completion/input/yield/cancel NEVER rearm. Capture ordinary processed completion epoch BEFORE callbacks; old completion cannot consume or clear newer permit/target. Only ordinary positive completion after full startup settlement; startup release callback/timing exact. Input priority first.
+        sample: Consume before readHost; generation/document/epoch fence Stop/Reset/stale/reentrant samples, preserving newer targets. ONE refresh read feeds validated snapshot into dispatch WITHOUT second read using request-local bypass, never global skip. Normal retained-target reads unchanged. No callback/null/invalid/H<=committed consumes with no request/rearm/retry/spin. Refreshed completion cannot self-chain; later valid external update may rearm.
+        invariants: Independent real elapsed and ACK<=delivered committed; H=min(elapsed,ACK+50000),25000us and finite retained slicing unchanged. No reanchor/debt discard/future prediction/math/instruction cost/pacer/hook/Worker/tolerance/timeout/cadence/cap changes.
+        tests: Direct moving clock EVERY read/completion, finite one refresh per epoch/new external rearm; reentrant update/Stop/Reset/input, held ACK/normal host/no callback, yielded/buttonSerial/one-inflight. Nonvacuous null/NaN/negative/fractional/unchanged boundary exactly one read/no dispatch/no spin. Preserve original87/private12.
+        delivery: ONE PRIVATE all-green unpublished prototype/light focused checks/inverse/self-review/RAW proxy NOT actual fit, NEW exact source review. After APPROVE/focused tests/overlap check conditional measurement branch ONLY with preserved935 ports/original ten oracles/NEW composition review/ONE existing strict CI. No product main until all8 actual native/complete buttonSerialStopReset/NEW actual review/full required gates/actual RAW<=222000. Historical35-byte margin not fit proof. No cap raise/unrelated optimization/blind variants. Unsafe/infeasible/control FAIL STOP; RED never main/CI. Source not deployment/acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-epoch-bounded-feasibility-selection-20261024.md
       exhausted_demand_private_probe_contract:
         scope: ONLY apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts plus temporary evidence outside repository; preserve all existing tests. Canonical docs must publish before test writes. No product, workflow, script, dependency, asset or cap edits.
         fixture: Complete canonical H0 startup AND first positive startup release with bounded microtasks fully settled; prove public action/request counts, then arrange a NON-STARTUP ordinary positive target using public FakeExecutor/controller callbacks, then advance independently declared elapsed and displayed ACK during onResult without external update. ACK never exceeds delivered committed horizon; legal H=min(elapsed, ACK+50000), existing25000 slice. Expected values must not derive from executor requests or production outputs.
@@ -10105,16 +10114,32 @@ parallel_lanes:
     - apps/web/src/electronics/NativeOpticalComponentVisual.tsx
     - apps/web/src/electronics/testing/native-optical-lamp-presentation.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-LAMP-COMMITTED-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
     task:
-      id: TASK-ELECTRONICS-LAMP-COMMITTED-001
-      previous_task_id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
+      id: TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001
+      previous_task_id: TASK-ELECTRONICS-LAMP-COMMITTED-001
+      historical_previous_task_id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
       issue: 549
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: committed_lamp_optics_product_slice_selected
+      checkpoint: native_e11_psu_test_only_slice_selected_after_lamp_pr731
+      native_psu_test_only:
+        status: in_progress
+        scope: e2e/electronics-selection-outline.spec.ts only
+        candidate_pr: 741
+        candidate_head_at_selection: c55c749ae99c828ad7fda9f095f49887711c182a
+        verify_final_pr_head_each_time: true
+        sole_author: agent/e11-549-native-psu-test-20261024
+        original_patch_sha256: 05FC438C905F25C98E2158A36EC8EEFC958E16A82B799C922BB182E2F231AD3D
+        original_patch_diff: +11/-5 native pointer in one spec only
+        lamp_product_pr: 731
+        lamp_product_head_at_selection: 780c745f32925f3b61a16b4d982262941a40f164
+        required_gates: exact_shas_independent_review_original_e11_1440_390_320
+        no_merge_until: real_worker_svg_led_uno_save_cas_cookies_reopen_auth_max_and_review
+        school_deployment: prohibited
       previous_checkpoint: r6_one_synthetic_before_postfinal_lamp_visual_mismatch
       previous_r6_selection_checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
       previous_r5_diagnosis: r5_diagnosis_terminal_no_proven_cause
@@ -10163,31 +10188,38 @@ parallel_lanes:
         acceptance: committed_only_no_speculative_lamp_frame_led_uno_lease_unchanged
         school_deployment: prohibited
       context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-LAMP-COMMITTED-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
+      previous_lamp_repair_scope: >-
+        Product candidate PR731 subscribed incandescent lamp SVG only to
+        acknowledged Worker optics. Its code remains Draft pending complete
+        real E11 browser acceptance, independent review and mandatory CI.
       repair_scope: >-
-        One separately selected minimal product repair of stale incandescent-lamp
-        SVG presentation: subscribe the lamp to only ACK-committed optical results,
-        without enrolling it in proposed LED/Uno layout/asset lease or whole-stage
-        rerenders. Capture meaningful new mounted React/DOM regression BEFORE then
-        product AFTER with exact source tests, real Chromium 1440/390/320 and new
-        independent review. Preserve old R5/R6 test/oracle evidence and post-final
-        UNKNOWN; absolutely no second R6 experiment, physics, Worker, CAS or SVG edits.
+        One bounded test-only correction of the original E11 PSU switch action:
+        when visible wire-hit overlays SVG rectangle, Playwright locator.click
+        rejects actionability before a physical user event. Keep true-false-true
+        data-output-enabled assertions, use page.mouse move/down/up on measured
+        boundingBox center, preserve full 30s original test, real Worker/LED/Uno,
+        Save/CAS and cookies-only reopen. Not a Stage/Worker/physics change.
+        No edits to historical Draft PR729 or lamp product PR731.
       source_budget: >-
-        Exactly NativeOpticalComponentVisual.tsx plus one new mounted DOM
-        regression native-optical-lamp-presentation.spec.ts; controller-only
-        current.yaml and TASK-ELECTRONICS-LAMP-COMMITTED-001.md. Existing Draft
-        PR729 test-only R6 runtime remains FAIL and is not a product acceptance.
-        Preserve all Worker, physics, geometry, CAS, Save/reopen and deadlines.
+        Only e2e/electronics-selection-outline.spec.ts one minimal test change
+        (+11/-5) in candidate PR741, this current.yaml routing and
+        TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md. No changes to
+        NativeOpticalComponentVisual.tsx, lamp regression, WorkbenchStage,
+        Auth, network, browser failures, timeout, Save/CAS, solver or other lanes.
+        Existing separate Auth MAX PR740 must satisfy its own gates first.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
       frozen_browser_lines: 1516
       frozen_browser_sha256: b4c37d707c078d54fcd0a5419f0a382e9d9eb7306b00e31e8ec9df43f2268002
-      independent_source_review: SOURCE_APPROVE
+      previous_lamp_independent_source_review: SOURCE_APPROVE
+      independent_source_review: pending_for_native_e11_exact_sha
       before_strict_run: 39490329377
       before_general_run: 39490297942
       runtime_acceptance: INCOMPLETE_BEFORE_3of16_R5_TERMINAL_NO_PROVEN_CAUSE
@@ -12058,6 +12090,56 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: PROJECTS-704-SECURITY-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: projects
+    task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+    blocks:
+      - technical_acceptance
+      - integration
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - focused_verification
+      - independent_source_review
+      - documentation_update
+    reason: >-
+      Public Projects pinning PR #704 previously passed focused and General CI
+      on HEAD 8835cf2f304a77d86f7b592552c158d8364235e1, but the published
+      MAX 0241 migration invalidates that history. Bounded 0242 migration repair
+      and regression verification are permitted, NOT merge/release/acceptance.
+      A new exact-SHA independent Security verdict and owner-authorized Draft
+      transition/merge are still required. Existing security handoff
+      is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
+      Do not repeat the same review request or waive security. An external review
+      or owner decision is required before pinning integration.
+    evidence: https://github.com/spikeal8-maker/asa-lab/pull/704
+  - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
+    kind: acceptance_blocker
+    lane: projects
+    task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+    blocks:
+      - technical_acceptance
+      - integration
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - documentation_update
+      - focused_verification
+      - independent_source_review
+    reason: >-
+      Incoming report PR #717 at 18a79c0db6469bc7b9ecf45b7b53b433de556fed
+      is a preserved backend-only Draft with local API34/34 and PG16 1/1 evidence.
+      Its provisional migration 0240 conflicts with published Courses 0240.
+      Main also published MAX 0241; pending #704 pins must first become 0242,
+      and only a subsequent report migration can use the then-free successor
+      (anticipated 0243). No B1 merge or migration renumbering until #704
+      integration and independent B1 acceptance.
+    evidence: https://github.com/spikeal8-maker/asa-lab/pull/717
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
     lane: electronics-field-grab

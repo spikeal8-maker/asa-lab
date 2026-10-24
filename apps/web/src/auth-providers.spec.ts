@@ -214,11 +214,26 @@ describe('confirmed unlinked provider account choice', () => {
     if (!button) throw new Error(`Missing button: ${label}`);
     await act(async () => button.click());
   }
-  async function confirm(purpose: 'login' | 'register' | 'link') {
+  async function confirm(
+    purpose: 'login' | 'register' | 'link',
+    channel: 'max' | 'telegram' = 'telegram',
+  ) {
+    vi.mocked(api.startSocialPairing).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        pairingToken: 'confirmed-pairing',
+        launchUrl:
+          channel === 'max'
+            ? 'https://max.ru/fixture_bot?start=opaque'
+            : 'https://t.me/fixture_bot?start=opaque',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
     await act(async () =>
       root!.render(
         createElement(SocialAuthButtons, {
-          providers: [provider('max', true)],
+          providers: [provider(channel, true)],
           purpose,
           onAuthenticated,
           onUsePassword,
@@ -227,10 +242,10 @@ describe('confirmed unlinked provider account choice', () => {
     );
     await click(
       purpose === 'login'
-        ? 'Войти через MAX'
+        ? `Войти через ${channel === 'max' ? 'MAX' : 'Telegram'}`
         : purpose === 'register'
-          ? 'Создать через MAX'
-          : 'Подключить MAX',
+          ? `Создать через ${channel === 'max' ? 'MAX' : 'Telegram'}`
+          : `Подключить ${channel === 'max' ? 'MAX' : 'Telegram'}`,
     );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1500);
@@ -248,6 +263,20 @@ describe('confirmed unlinked provider account choice', () => {
       await click('Создать новый аккаунт');
       expect(container.querySelector('.auth-social-registration')).not.toBeNull();
       expect(api.startSocialPairing).toHaveBeenCalledTimes(1);
+      expect(api.registerSocialPairing).not.toHaveBeenCalled();
+      expect(onAuthenticated).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['login', 'register'] as const)(
+    '%s presents the minimal native MAX form without creating an Account implicitly',
+    async (purpose) => {
+      await confirm(purpose, 'max');
+      expect(container.querySelector('.auth-social-registration')).not.toBeNull();
+      expect(container.querySelector('input[type="email"]')).toBeNull();
+      expect(container.querySelector('input[type="password"]')).toBeNull();
+      expect(container.querySelector('input[type="date"]')?.hasAttribute('required')).toBe(true);
+      expect(container.textContent).not.toContain('Создать новый аккаунт');
       expect(api.registerSocialPairing).not.toHaveBeenCalled();
       expect(onAuthenticated).not.toHaveBeenCalled();
     },
@@ -283,13 +312,13 @@ describe('confirmed unlinked provider account choice', () => {
       status: 200,
       data: { status: 'authenticated', session },
     });
-    await confirm('login');
+    await confirm('login', 'max');
     expect(onAuthenticated).toHaveBeenCalledWith(session);
     expect(container.textContent).not.toContain('Создать новый аккаунт');
   });
 
   it('never offers registration when a same-account link attempt is rejected', async () => {
-    await confirm('link');
+    await confirm('link', 'max');
     expect(container.textContent).toContain('Не удалось связать способ');
     expect(container.textContent).not.toContain('Создать новый аккаунт');
     expect(api.registerSocialPairing).not.toHaveBeenCalled();
@@ -395,12 +424,11 @@ describe('registration without a mandatory public handle', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1500);
       });
-      await click('Создать новый аккаунт');
     }
-    await fill('Email', 'private-person@example.test');
+    if (kind !== 'social-max') await fill('Email', 'private-person@example.test');
     await fill('Дата рождения', '1988-03-01');
-    await fill(kind === 'social-max' ? 'Пароль для входа' : 'Пароль', 'safe-password-2026');
-    if (kind !== 'ordinary') await fill('Повторите пароль', 'safe-password-2026');
+    if (kind !== 'social-max') await fill('Пароль', 'safe-password-2026');
+    if (kind === 'legacy-max') await fill('Повторите пароль', 'safe-password-2026');
   }
   async function submit(kind: 'ordinary' | 'legacy-max' | 'social-max') {
     if (kind === 'ordinary') await click('Подтвердить тест');
@@ -418,7 +446,9 @@ describe('registration without a mandatory public handle', () => {
     async (kind) => {
       await mount(kind);
       expect(container.textContent).not.toContain('Имя пользователя');
-      expect(container.textContent).toContain('Почта будет вашим логином');
+      expect(container.textContent).toContain(
+        kind === 'social-max' ? 'Почта и пароль не нужны' : 'Почта будет вашим логином',
+      );
       const method =
         kind === 'ordinary'
           ? api.register
@@ -433,10 +463,14 @@ describe('registration without a mandatory public handle', () => {
           email: string;
         };
       expect(body(0)).toMatchObject({
-        email: 'private-person@example.test',
+        ...(kind === 'social-max' ? {} : { email: 'private-person@example.test' }),
         displayName: 'Пользователь',
         username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
       });
+      if (kind === 'social-max') {
+        expect(body(0)).not.toHaveProperty('email');
+        expect(body(0)).not.toHaveProperty('password');
+      }
       expect(vi.mocked(method)).toHaveBeenCalledTimes(1); // No automatic retry after a 503.
       vi.mocked(method).mockResolvedValueOnce({
         ok: false,

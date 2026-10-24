@@ -149,6 +149,10 @@
   gap: 0.8rem;
 }
 
+.auth-social-registration--max .auth-social-profile-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .auth-social-form-actions {
   margin-top: 0.8rem;
 }

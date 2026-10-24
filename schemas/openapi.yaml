@@ -164,15 +164,15 @@ paths:
   /api/auth/max/pairing/register:
     post:
       operationId: postMaxPairingRegister
-      summary: Finish Max registration with a real profile and backup password
+      summary: Create a native MAX external-only Account with a real adult profile
       description: >-
-        Requires approved, fresh provider proof and its browser-bound cookie. A username or email belonging to an existing Account is a conflict; Accounts are never merged from an unverified email. Returns the session directly without an authenticated wrapper.
+        Requires approved, fresh MAX proof and its browser-bound cookie, a real birth date (18+) and country. Creates an Account with absent email/password credentials and a normal Personal Workspace. Does not link by name or create an Account for a link-purpose pairing. Returns the session directly without an authenticated wrapper. Raw Mini App registration and Telegram keep their separate strict credential contracts.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AuthPairingRegistrationRequest'
+              $ref: '#/components/schemas/MaxExternalPairingRegistrationRequest'
       responses:
         '201':
           description: Successful server-authorized operation
@@ -7245,6 +7245,21 @@ components:
               enabled: { const: true }
           then:
             required: [botUsername, miniAppUrl]
+    MaxExternalPairingRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingToken, username, displayName, birthDate, country]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+        username:
+          $ref: '#/components/schemas/RegisterRequest/properties/username'
+        displayName:
+          $ref: '#/components/schemas/RegisterRequest/properties/displayName'
+        birthDate:
+          $ref: '#/components/schemas/RegisterRequest/properties/birthDate'
+        country:
+          $ref: '#/components/schemas/RegisterRequest/properties/country'
     AuthPairingRegistrationRequest:
       type: object
       additionalProperties: false
@@ -9637,13 +9652,16 @@ components:
       additionalProperties: false
       required: [id, displayName, email]
       properties:
+        identityKind:
+          type: string
+          const: account
         id:
           type: string
           format: uuid
         displayName:
           type: string
         email:
-          type: string
+          type: [string, 'null']
           format: email
     Capability:
       type: object

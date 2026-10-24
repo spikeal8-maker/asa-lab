@@ -22,9 +22,10 @@ export type { ApiError, ApiResult } from './api-call';
 export type { ProjectSnapshotInfo } from './project-snapshot-client';
 
 export interface PublicUser {
+  identityKind?: 'account' | 'student';
   id: string;
   displayName: string;
-  email: string;
+  email: string | null;
 }
 
 export type SafeTaskBlock =
@@ -184,12 +185,13 @@ export type SocialPairingResult =
 
 export interface SocialRegistrationInput {
   pairingToken: string;
-  email: string;
+  /** Required for Telegram; native MAX creates an external-only Account. */
+  email?: string;
   username: string;
   displayName: string;
   birthDate: string;
   country: string;
-  password: string;
+  password?: string;
 }
 
 export interface MaxAuthConfig {
@@ -217,7 +219,7 @@ export interface AccountPasswordStatus {
 }
 
 export interface AccountProfile {
-  email: string;
+  email: string | null;
   emailVerificationState: string;
   username: string;
   displayName: string;

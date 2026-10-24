@@ -511,7 +511,7 @@ export function AccountPage({
       </main>
     );
 
-  const maxManagedProfile = profile.email.endsWith('@users.asa.invalid');
+  const maxManagedProfile = profile.email === null || profile.email.endsWith('@users.asa.invalid');
   // Preserve old deep links and their guarded history entries without keeping
   // informational pages as separate navigation destinations.
   const selectedPanel = panel === 'privacy' ? 'security' : panel === 'requests' ? 'school' : panel;

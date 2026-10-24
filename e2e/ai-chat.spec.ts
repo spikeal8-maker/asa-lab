@@ -678,9 +678,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: 750 });
       const fake = await fixture(page);
       await page.goto('/#/ai');
-      await expect(
-        page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
-      ).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
       await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
       await expect(page.getByRole('button', { name: /Прикреп/ })).toHaveCount(0);
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
@@ -689,8 +687,9 @@ for (const theme of ['light', 'dark'] as const) {
       );
       await expectChatFits(page);
       await page.screenshot({ path: test.info().outputPath(`ai-empty-${theme}-${width}.png`) });
-      await page.getByRole('button', { name: /Написать код/ }).click();
       const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await composer.focus();
+      await composer.fill('Помоги написать или улучшить код. Я хочу сделать: ');
       await expect(composer).toBeFocused();
       await expect(composer).toHaveValue('Помоги написать или улучшить код. Я хочу сделать: ');
       expect(fake.requests).toHaveLength(0);
@@ -984,7 +983,14 @@ test('AI preserves automatic portal collapse as chat history closes and the scre
   await fixture(page);
   await page.goto('/#/ai');
   await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
-  await expect(page.locator('.portal-sidebar-collapse')).toHaveCount(0);
+  const expandSite = page.getByRole('button', { name: 'Развернуть боковую панель' });
+  await expect(expandSite).toBeVisible();
+  await expandSite.click();
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/collapsed/);
+  await expect(page.getByRole('button', { name: 'Открыть историю диалогов' })).toBeVisible();
+  await page.getByRole('button', { name: 'Свернуть боковую панель' }).click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
   await page.getByRole('button', { name: 'Свернуть историю' }).click();
   for (const viewport of [
     { width: 1024, height: 750 },
@@ -1004,6 +1010,20 @@ test('AI preserves automatic portal collapse as chat history closes and the scre
     await expectChatFits(page);
     await page.screenshot({ path: test.info().outputPath(`ai-collapsed-${viewport.width}.png`) });
   }
+
+  // Crossing the desktop breakpoint must not reopen history while ASA is open.
+  await page.setViewportSize({ width: 1024, height: 850 });
+  await page.getByRole('button', { name: 'Развернуть боковую панель' }).click();
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/collapsed/);
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const historyButton = page.getByRole('button', { name: 'Открыть историю диалогов' });
+  await expect(historyButton).toBeVisible();
+  await expectChatFits(page);
+  // Opening chat history deliberately gives it the width by collapsing ASA.
+  await historyButton.click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await expect(page.getByRole('button', { name: 'Свернуть историю' })).toBeVisible();
+  await expectChatFits(page);
 });
 
 test('AI confines long code and tables to message scrollers and copies the original source', async ({
@@ -1081,9 +1101,7 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 750 });
     const fake = await fixture(page);
     await page.goto('/#/ai');
-    await expect(
-      page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
@@ -1161,7 +1179,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect(
     sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'От идеи к работающему проекту' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
@@ -1269,3 +1287,41 @@ for (const width of [1440, 600, 390, 320]) {
     });
   });
 }
+
+test('AI composer frame and Send stay fully visible at ordinary viewport heights', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 750 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 750 });
+    await expect(page.locator('.chat-start-state h1')).toBeVisible();
+    await expectChatFits(page);
+    const geometry = await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>('.chat-composer-dock')!;
+      const form = document.querySelector<HTMLFormElement>('form.chat-composer')!;
+      const send = document.querySelector<HTMLButtonElement>('.chat-send-button')!;
+      const dockBox = dock.getBoundingClientRect();
+      const formBox = form.getBoundingClientRect();
+      const sendBox = send.getBoundingClientRect();
+      return {
+        dockTop: dockBox.top,
+        dockBottom: dockBox.bottom,
+        formTop: formBox.top,
+        formBottom: formBox.bottom,
+        sendBottom: sendBox.bottom,
+        dockScrollTop: dock.scrollTop,
+        dockScrollHeight: dock.scrollHeight,
+        dockClientHeight: dock.clientHeight,
+      };
+    });
+    // The grid already reserves the toolbar. A second 52px subtraction once
+    // clipped both the rounded composer border and the Send button.
+    expect(geometry.formTop).toBeGreaterThanOrEqual(geometry.dockTop - 1);
+    expect(geometry.formBottom).toBeLessThanOrEqual(geometry.dockBottom + 1);
+    expect(geometry.sendBottom).toBeLessThanOrEqual(geometry.formBottom + 1);
+    expect(geometry.dockScrollTop).toBe(0);
+    expect(geometry.dockScrollHeight).toBeLessThanOrEqual(geometry.dockClientHeight + 1);
+  }
+});
