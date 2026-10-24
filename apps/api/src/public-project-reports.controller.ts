@@ -81,8 +81,7 @@ export class PublicProjectReportsController {
     const reason = checked.body['reason'];
     const comment = checked.body['comment'];
     // Match PostgreSQL char_length: count Unicode code points, not UTF-16 units.
-    const commentLength =
-      typeof comment === 'string' ? Array.from(comment.trim()).length : 0;
+    const commentLength = typeof comment === 'string' ? Array.from(comment.trim()).length : 0;
     if (
       typeof revisionId !== 'string' ||
       !UUID.test(revisionId) ||

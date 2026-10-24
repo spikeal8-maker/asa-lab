@@ -191,9 +191,9 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
       await expect(
         report(principal, publication, 'copyright', 'changed-reason'),
       ).rejects.toMatchObject({ code: 'P5R09' });
-      await expect(
-        report(principal, publication, 'abuse', 'first-report'),
-      ).rejects.toMatchObject({ code: 'P5R09' });
+      await expect(report(principal, publication, 'abuse', 'first-report')).rejects.toMatchObject({
+        code: 'P5R09',
+      });
       await expect(
         report(randomUUID(), publication, 'spam', 'forged-principal'),
       ).rejects.toMatchObject({ code: '42501' });
@@ -306,8 +306,8 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
 
       const unicode = await makePublication(14);
       expect(
-        (await report(otherPrincipal, unicode, 'spam', 'unicode-500', '🚀'.repeat(500)))
-          .rows[0].receipt,
+        (await report(otherPrincipal, unicode, 'spam', 'unicode-500', '🚀'.repeat(500))).rows[0]
+          .receipt,
       ).toMatchObject({ status: 'received', duplicate: false });
       expect(
         (
