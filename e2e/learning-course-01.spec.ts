@@ -372,7 +372,6 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@course01.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('c' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор и преподаватель');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');

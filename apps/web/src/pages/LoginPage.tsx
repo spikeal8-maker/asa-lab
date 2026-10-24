@@ -51,7 +51,7 @@ export function LoginPage({
     if (pending.current) return;
     setMessage(null);
     if (!identifier.trim() || !password) {
-      setMessage('Введите email или имя пользователя и пароль.');
+      setMessage('Введите почту или логин и пароль.');
       identifierRef.current?.focus();
       return;
     }
@@ -123,7 +123,7 @@ export function LoginPage({
         ) : null}
         {contextMessage ? <p className="max-link-copy">{contextMessage}</p> : null}
         <form onSubmit={(event) => void submit(event)} noValidate hidden={socialRegistration}>
-          <label htmlFor="identifier">Email или имя пользователя</label>
+          <label htmlFor="identifier">Почта или логин</label>
           <input
             id="identifier"
             ref={identifierRef}

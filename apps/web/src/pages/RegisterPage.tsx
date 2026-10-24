@@ -3,6 +3,7 @@ import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
 import { SocialAuthButtons, useAuthProviders } from '../auth-providers';
+import { newRegistrationUsername, registrationDisplayName } from '../registration-profile';
 
 export function RegisterPage({
   onRegistered,
@@ -18,7 +19,7 @@ export function RegisterPage({
   onMaxRegistered?: (session: SessionPayload) => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(newRegistrationUsername);
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -86,8 +87,8 @@ export function RegisterPage({
     event.preventDefault();
     if (!alive.current || pending.current) return;
     setMessage(null);
-    if (!email.trim() || !username.trim() || !password || !birthDate) {
-      setMessage('Заполните email, имя пользователя, пароль и дату рождения.');
+    if (!email.trim() || !password || !birthDate) {
+      setMessage('Заполните почту, пароль и дату рождения.');
       return;
     }
     if (maxInitData && (password.length < 10 || password !== confirmPassword)) {
@@ -111,8 +112,8 @@ export function RegisterPage({
           {
             initData: maxInitData,
             email: email.trim(),
-            username: username.trim().toLowerCase(),
-            displayName: displayName.trim(),
+            username,
+            displayName: registrationDisplayName(displayName),
             birthDate,
             country,
             password,
@@ -122,8 +123,8 @@ export function RegisterPage({
       : await api.register(
           {
             email: email.trim(),
-            username: username.trim().toLowerCase(),
-            displayName: displayName.trim(),
+            username,
+            displayName: registrationDisplayName(displayName),
             password,
             birthDate,
             country,
@@ -140,6 +141,11 @@ export function RegisterPage({
     }
     setBotProof(null);
     setBotReset((value) => value + 1);
+    if (result.status === 409 && result.error.code === 'username_taken') {
+      setUsername(newRegistrationUsername());
+      setMessage('Не удалось завершить регистрацию. Повторите отправку формы.');
+      return;
+    }
     setMessage(
       result.status === 0
         ? result.error.code === 'auth_timeout'
@@ -177,16 +183,7 @@ export function RegisterPage({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </div>
-          <div className="auth-field">
-            <label htmlFor="register-username">Имя пользователя</label>
-            <input
-              id="register-username"
-              autoComplete="username"
-              spellCheck={false}
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-            />
+            <p className="field-hint">Почта будет вашим логином.</p>
           </div>
           <div className="auth-field">
             <label htmlFor="register-name">Отображаемое имя</label>
