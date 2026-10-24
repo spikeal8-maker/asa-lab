@@ -27,6 +27,7 @@ import { configureProductionLibrary } from '../production-manifest-adapter';
 import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
 import { SchematicView, BomView } from '../AlternateWorkbenchViews';
+import { WorkbenchHeader } from '../WorkbenchHeader';
 import { evaluateSimulationWorkerRequestBatched } from '../simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -132,6 +133,7 @@ let host: HTMLDivElement;
 let root: Root;
 let workbench: ReturnType<typeof useElectronicsWorkbench>;
 let renders: number;
+let headerMounted = false;
 let suspendRender: Promise<void> | null;
 let onLayoutCommit: (() => void) | null;
 let frameSequence = 0;
@@ -170,6 +172,22 @@ function Probe({
       'div',
       null,
       createElement(NativeProjectionOutput),
+      headerMounted
+        ? createElement(WorkbenchHeader, {
+            controller: workbench,
+            user: { id: 'clock-pupil', email: '', displayName: 'Pupil' },
+            view: 'breadboard',
+            notesOpen: false,
+            codeOpen: false,
+            onBack: () => {},
+            onViewChange: () => {},
+            onToggleNotes: () => {},
+            onToggleCode: () => {},
+            onToggleLibrary: () => {},
+            onOpenShare: () => {},
+            onExportView: () => {},
+          })
+        : null,
       view !== 'breadboard' && workbench.document
         ? view === 'schematic'
           ? createElement(SchematicView, { document: workbench.document, controller: workbench })
@@ -275,6 +293,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(ElectronicsLiveSimulationWorkerController);
   renders = 0;
+  headerMounted = false;
   suspendRender = null;
   onLayoutCommit = null;
   openedDocument = initial;
@@ -646,6 +665,69 @@ describe('mounted workbench host demand clock', () => {
       expect(workbench.simulationTimeMs).toBe(0);
       expect(workbench.simulationRunning).toBe(false);
       expect(workbench.nativeOpticalPresentation.getSnapshot().committed).toBeNull();
+    },
+  );
+
+  it('updates the actual Header clock through four complete receipts and RAFs without whole Workbench renders', async () => {
+    headerMounted = true;
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await frame();
+    const before = renders;
+    for (let second = 1; second <= 4; second++) {
+      await tick(1000);
+      await act(async () => {
+        worker().callbacks!.onSerialProjection!([]);
+        worker().callbacks!.onCommittedHorizon!(second * 1_000_000);
+        worker().callbacks!.onResult({ ...ready, current: second }, undefined, 'dc-inputs-v1');
+      });
+      await frame();
+      expect(host.querySelector('.workbench-simulation-time')?.textContent).toContain(
+        `00:00:0${second}`,
+      );
+      expect(workbench.committedSimulationTimeMs).toBe(second * 1000);
+    }
+    expect(renders - before).toBe(0);
+  });
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'keeps the actual Header clock safe from queued publication after %s',
+    async (change) => {
+      headerMounted = true;
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await frame();
+      await tick(1000);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(1_000_000);
+        worker().callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+      });
+      await frame();
+      expect(host.querySelector('.workbench-simulation-time')?.textContent).toContain('00:00:01');
+      await tick(1000);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(2_000_000);
+        worker().callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+      });
+      const staleFrames = [...frameCallbacks.values()];
+      await act(async () => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        if (change === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        if (change === 'unmount') root.unmount();
+      });
+      await act(async () => {
+        for (const callback of staleFrames) callback(window.performance.now());
+      });
+      const clock = host.querySelector('.workbench-simulation-time');
+      if (change === 'Stop' || change === 'unmount') expect(clock).toBeNull();
+      else expect(clock?.textContent).toContain(change === 'source' ? '00:00:01' : '00:00:00');
+      expect(workbench.committedSimulationTimeMs).toBe(
+        change === 'source' || change === 'unmount' ? 1000 : 0,
+      );
     },
   );
 
@@ -1641,7 +1723,7 @@ describe('mounted workbench LED temporal display', () => {
     await frame();
     expect(workbench.committedSimulationTimeMs).toBe(40);
     expect(workbench.simulationTimeMs).toBe(40);
-    expect(renders - before).toBe(1);
+    expect(renders - before).toBe(0);
     assertCommitted(0, 'off');
   });
 

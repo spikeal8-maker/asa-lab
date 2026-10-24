@@ -385,13 +385,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   // Host demand is not a new electrical frame. Keep the clock out of React
   // state so a pending Worker does not redraw the whole editor every 10 ms.
   const requestedHorizonMicrosecondsRef = useRef(0);
-  const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
   const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
   // The presenter belongs to this mounted workbench. Do not construct a new,
   // discarded history owner on every React render.
   const [ledPresentation] = useState(() => new LedTemporalPresentation());
   const [nativeOpticalPresentation] = useState(() => new NativeOpticalPresentation());
+  const setCommittedHorizonMicroseconds = (value: number) =>
+    nativeOpticalPresentation.setClock(value);
   const setLiveObservation = (value: LiveOpticalObservation | null) =>
     nativeOpticalPresentation.setObservation(value);
   const setLedAssetPreparation = (
@@ -591,6 +592,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     let latestResult: SolveResult | null = null;
     let latestResultDocument: SchematicDocument | null = null;
     let latestCommittedHorizon = 0;
+    let generationConfirmed = false;
+    let serialEmpty = true;
+    let lastCircuitMessage: SimulationStatusMessage | null = null;
     let pending: PendingOpticalObservation | null = null;
     let displayed: LiveOpticalObservation | null = null;
     let publishing = false;
@@ -942,6 +946,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           if (!currentSession()) return;
           simulationStartedAtRef.current = null;
           normalHostClockRef.current = false;
+          generationConfirmed = false;
+          lastCircuitMessage = null;
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
           ledPresentation.reset();
@@ -963,7 +969,6 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         },
         onResult: (nextResult, ledTemporal, clockProfileId) => {
           if (!currentSession()) return;
-          setGenerationPending(false);
           latestResult = nextResult;
           latestResultDocument = runtimeDocumentRef.current;
           if (ledTemporal) {
@@ -1001,8 +1006,16 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             ledPresentation.acceptSnapshot(nextResult, latestCommittedHorizon);
           }
           observeReanchor();
-          setSimulationMessage(circuitStateMessage(nextResult));
-          confirmSimulationStarted();
+          const message = circuitStateMessage(nextResult);
+          if (message !== lastCircuitMessage) {
+            lastCircuitMessage = message;
+            setSimulationMessage(message);
+          }
+          if (!generationConfirmed) {
+            generationConfirmed = true;
+            setGenerationPending(false);
+            confirmSimulationStarted();
+          }
           queueNativePreparation();
         },
         onCommittedHorizon: (horizon) => {
@@ -1012,11 +1025,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onSerialProjection: (serial) => {
           if (!currentSession()) return;
           if (serial.length === 0) {
-            setArduinoSerialByBoard((current) =>
-              Object.keys(current).length === 0 ? current : {},
-            );
+            if (!serialEmpty) {
+              serialEmpty = true;
+              setArduinoSerialByBoard({});
+            }
             return;
           }
+          serialEmpty = false;
           setArduinoSerialByBoard(
             Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
               Record<string, ElectronicsArduinoSerialProjection>
@@ -3563,7 +3578,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     get simulationTimeMs() {
       return (nativeOpticalPresentation.getSnapshot().committed?.frame.atMicroseconds ?? 0) / 1000;
     },
-    committedSimulationTimeMs: committedHorizonMicroseconds / 1000,
+    get committedSimulationTimeMs() {
+      return nativeOpticalPresentation.readClock() / 1000;
+    },
     simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
     simulationMessage,
     libraryOpen,

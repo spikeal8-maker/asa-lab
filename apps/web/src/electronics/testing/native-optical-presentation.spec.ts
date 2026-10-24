@@ -22,6 +22,24 @@ function observation(token = 'one'): NativeOpticalObservation {
   };
 }
 describe('mounted-owner native optical projection port', () => {
+  it('isolates scalar clock subscribers from optical snapshots and releases them on unmount', () => {
+    const port = new NativeOpticalPresentation(),
+      optical = vi.fn(),
+      clock = vi.fn();
+    port.subscribe(optical);
+    const dispose = port.subscribeClock(clock);
+    const snapshot = port.getSnapshot();
+    port.setClock(1_000_000);
+    port.setClock(1_000_000);
+    expect(port.readClock()).toBe(1_000_000);
+    expect(port.getSnapshot()).toBe(snapshot);
+    expect(optical).not.toHaveBeenCalled();
+    expect(clock).toHaveBeenCalledTimes(1);
+    dispose();
+    port.setClock(0);
+    expect(clock).toHaveBeenCalledTimes(1);
+  });
+
   it('publishes proposed leaves without exposing an unacknowledged canonical result', () => {
     const port = new NativeOpticalPresentation(),
       next = observation(),

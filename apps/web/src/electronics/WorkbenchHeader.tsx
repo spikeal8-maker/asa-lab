@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { PublicUser } from '../api';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { EditorPersistenceIndicator } from '../components/editor-chrome/EditorPersistenceIndicator';
@@ -144,6 +144,19 @@ function formatSimulationTime(totalSeconds: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = Math.floor(totalSeconds % 60);
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':');
+}
+
+function SimulationClock({
+  port,
+}: {
+  readonly port: ElectronicsWorkbenchController['nativeOpticalPresentation'];
+}) {
+  const microseconds = useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock);
+  return (
+    <span className="workbench-simulation-time" aria-label="Время моделирования">
+      Время моделирования: {formatSimulationTime(microseconds / 1_000_000)}
+    </span>
+  );
 }
 
 export function WorkbenchHeader({
@@ -386,11 +399,7 @@ export function WorkbenchHeader({
             </button>
           </div>
         )}
-        {c.simulationRunning ? (
-          <span className="workbench-simulation-time" aria-label="Время моделирования">
-            Время моделирования: {formatSimulationTime(c.committedSimulationTimeMs / 1000)}
-          </span>
-        ) : null}
+        {c.simulationRunning ? <SimulationClock port={c.nativeOpticalPresentation} /> : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
           {c.saveStatus === 'error' || (c.saveStatus !== 'saved' && !c.localCopySaved) ? (
