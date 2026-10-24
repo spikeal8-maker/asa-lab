@@ -46,12 +46,14 @@ describe('minimal course completion mirrors required lessons, not login or curre
     expect(courseCompletion([lesson('assignment', true)]).complete).toBe(true);
   });
   it('explains exempt work without manufacturing completion or a grade for an empty denominator', () => {
-    expect(courseCompletion([lesson('material', true), lesson('assignment', false, true)])).toEqual({
-      total: 1,
-      completed: 1,
-      excused: 1,
-      complete: true,
-    });
+    expect(courseCompletion([lesson('material', true), lesson('assignment', false, true)])).toEqual(
+      {
+        total: 1,
+        completed: 1,
+        excused: 1,
+        complete: true,
+      },
+    );
     expect(courseCompletion([lesson('assignment', false, true)])).toEqual({
       total: 0,
       completed: 0,
@@ -128,9 +130,7 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       changesRequested: 0,
       unavailable: 0,
     });
-    expect(coursePracticeProgress([studentLesson])).toEqual(
-      lessonPracticeProgress(studentLesson),
-    );
+    expect(coursePracticeProgress([studentLesson])).toEqual(lessonPracticeProgress(studentLesson));
     expect(lessonComplete(studentLesson)).toBe(false);
     expect(courseCompletion([studentLesson]).complete).toBe(false);
   });
