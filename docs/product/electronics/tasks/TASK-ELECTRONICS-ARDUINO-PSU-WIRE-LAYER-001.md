@@ -256,3 +256,21 @@ No meter/SVG/wrapper/core/hook/LED/API/assets/workflow/dependency/cap/timer or
 assertion changes. Generator equivalence unit proof adds no native browser claim.
 Preserve552/682/548, KEEP544/547OPEN,681CLOSED and immutable receipts; mobile
 visibility/568 limits, deployment, physical acceptance and release stay pending.
+
+
+## Active-selector compatibility amendment — 24 October 2026
+
+The [compatibility selection](../evidence/ui679-557-active-selectors-compatibility-selection-20261024.md)
+replaces only prior c751 implementation permission after a concrete pre-CI
+source-contract failure: three active full PSU selectors became prefix-composed.
+Keep the frozen presentation contract unchanged. Apply ONLY corrected Visual
+proposal8724338063755ecbf2d3a07dd840ff19e144f0defb73b75e69092a048bf13b78
+plus meaningful existing knob-controls regressions. Keep the other eight source
+blobs of the ten-path8415 composition byte-exact, including Stage and Header.
+Temporary read-redirection focused checks82/82 and independent4352 dispatch
+comparisons pass; proposal approval is not final source or browser acceptance.
+Corrected334 module-proxy saving/apparent8 margin proves no actual fit; old503
+selection/receipt stays historical. Accepted222000 cap unchanged. NEW exact-source
+review, ONE qualified Code/scoped-six/General cycle and NEW actual review are
+required. Preserve557 target, all foreign/blocker state, old receipts and native
+assertions. No alternate variants, cap increase, extra paths, deployment or closure.
