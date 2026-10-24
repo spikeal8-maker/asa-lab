@@ -338,13 +338,15 @@
   accent-color: #0878a4;
 }
 .classroom-student .classroom-student-filter {
-  min-width: 77px;
+  min-width: 84px;
+  width: 84px;
+  flex-basis: 84px;
   padding: 0;
 }
 .classroom-student .classroom-student-filter select {
   box-sizing: border-box;
   width: 100%;
-  min-width: 77px;
+  min-width: 0;
   min-height: 42px;
   height: 42px;
   margin: 0;
@@ -1382,9 +1384,10 @@
   .classroom-student .classroom-student-archive-filter {
     padding: 0 5px;
   }
-  .classroom-student .classroom-student-filter,
-  .classroom-student .classroom-student-filter select {
-    min-width: 71px;
+  .classroom-student .classroom-student-filter {
+    min-width: 80px;
+    width: 80px;
+    flex-basis: 80px;
   }
   .classroom-student .project-card-grid .project-card-frame {
     aspect-ratio: 16 / 9;

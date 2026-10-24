@@ -635,7 +635,7 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
     const worksOffset = works.y - header.y - header.height;
     if (width === 390) expect(worksOffset).toBeLessThanOrEqual(128);
     if (width === 320) expect(worksOffset).toBeLessThanOrEqual(144);
-    await expect(main.locator('.classroom-student-work-summary')).toContainText('Работ:');
+    await expect(main.locator('.classroom-student-work-summary')).toContainText('Работ 10');
     await noOverflow(page);
     await shot(page, `ui04-works-${width}`);
 

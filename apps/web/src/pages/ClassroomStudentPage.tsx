@@ -1025,7 +1025,7 @@ export function ClassroomStudentPage({
                   onChange={(event) => setOnlyAwaiting(event.target.value === 'awaiting')}
                 >
                   <option value="all">Все</option>
-                  <option value="awaiting">Ждут проверки</option>
+                  <option value="awaiting" aria-label="Ждут проверки">Ждут</option>
                 </select>
                 <small id="student-filter-scope" className="classroom-student-visually-hidden">
                   Только среди загруженных работ
