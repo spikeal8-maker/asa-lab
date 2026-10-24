@@ -81,6 +81,59 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-e11-psu-native-test
+    parent_lane: electronics
+    worktree_id: electronics-e11-psu-native-20261024
+    owned_paths:
+      - e2e/electronics-selection-outline.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
+    task:
+      id: TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001
+      issue: 549
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: low
+      semantic_change: 'no'
+      checkpoint: selected_one_author_test_only_psu_pointer_oracle
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner 2026-10-24 explicitly selected a separate one-author E11 test-only
+        native PSU click correction to unblock #549/#731 after real 1440/390/320
+        physical mouse baseline and source review. Keep full Save/CAS and 30s deadline.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
+        - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
+      repair_scope: >-
+        Apply only SHA256-verified D2-R2 native PSU patch to original E11 physical
+        click (true false true). Use page.mouse move/down/up at real boundingBox:
+        visible wire intercepts locator.click before pointer dispatch. No force,
+        element.click, browser error suppression, stubs or timeout inflation;
+        no Stage/Worker/Save/Auth changes. Preserve distinct overlapping
+        historical #729 and product #731 PRs. Publish test-only branch from main.
+        Full E11 with real Chromium 1440/390/320, independent review and CI
+        required for acceptance.
+    execution_lease:
+      executor_id: electronics-e11-psu-native-20261024
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-browser-partition-722
     parent_lane: electronics
     worktree_id: electronics-browser-partition-722
@@ -6459,7 +6512,8 @@ parallel_lanes:
     task:
       id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
       issue: 702
-      branch: codex/projects-pin-20261023
+      branch: main
+      candidate_branch: codex/projects-pin-20261023
       base_branch: main
       pr: 704
       pr_draft: true
