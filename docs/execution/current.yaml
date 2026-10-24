@@ -2958,20 +2958,33 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: selected_bounded_ui_main_acceptance_required_before_product_edits
+      checkpoint: ui01_integrated_main_75b5791_ui02_nine_section_rail_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
-      owner_authorization: Explicit owner request of 2026-10-18 for Issue 589 teacher classroom learner profile compact redesign; no deployment.
+      owner_authorization: >-
+        Owner 2026-10-18 Issue 589, expanded by explicit 2026-10-24 product direction
+        Issue 715 comment 6384209463 and Issue 589 comment 6384219085.
+        UI-01 integrated in main at 75b579157f40220f668b2972cf38800460da8c28
+        from source f1c29ab6eec1bd71270980201187cb6b441724bf.
+        Select UI-02 nine-section mobile selector with real settings action;
+        never deploy or modify school data.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
+        - https://github.com/spikeal8-maker/asa-lab/issues/715#issuecomment-6384209463
+        - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6384219085
         - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
       scope: >-
-        Current-class compact learner header/navigation, truthful role/class rank/safety status,
-        full manual and assignment grade history through existing journal.nextOffset and
-        nextResultOffset pagination, eight profile tabs and honest bounded works filters.
+        UI-02 is the single selected bounded product slice after accepted UI-01:
+        build a mobile SectionRail immediately below the integrated IdentityRail
+        with one live nine-section selector and one real contextual action.
+        Preserve all eight existing sections, works/grades paging, navigation,
+        roles, awards, safeMode, games and teacher-only permission checks.
+        The ninth Settings entry must invoke authorized existing seat settings
+        until UI-03 introduces its full server-backed settings tab.
+        No decorative permissions, backend or shared-tab redesign.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
