@@ -343,56 +343,56 @@ export function SchematicEditor({
         onOpenShare={() => setShareOpen(true)}
         onExportView={exportCurrentView}
       />
-      <div className="workbench-main" data-project-save-status={controller.saveStatus}>
-        {view === 'breadboard' ? (
-          <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
+      <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
+        <div className="workbench-main" data-project-save-status={controller.saveStatus}>
+          {view === 'breadboard' ? (
             <WorkbenchStage controller={controller} showGrid={showGrid} />
-          </NativeOpticalProvider>
-        ) : (
-          <Suspense fallback={null}>
-            {view === 'schematic' ? (
-              <SchematicView document={controller.document} controller={controller} />
-            ) : (
-              <BomView document={controller.document} />
-            )}
+          ) : (
+            <Suspense fallback={null}>
+              {view === 'schematic' ? (
+                <SchematicView document={controller.document} controller={controller} />
+              ) : (
+                <BomView document={controller.document} />
+              )}
+            </Suspense>
+          )}
+          <Suspense fallback={<aside className="workbench-library" aria-hidden="true" />}>
+            <WorkbenchSidebars controller={controller} />
           </Suspense>
-        )}
-        <Suspense fallback={<aside className="workbench-library" aria-hidden="true" />}>
-          <WorkbenchSidebars controller={controller} />
-        </Suspense>
-        {notesOpen ? (
-          <NotesPanel
-            title="Заметки"
-            notes={notes}
-            onNotesChange={updateNotes}
-            onClose={() => setNotesOpen(false)}
-          />
-        ) : null}
-        {codePanelMounted ? (
-          <Suspense
-            fallback={
-              <section
-                className={`arduino-code-panel empty ${codeOpen ? 'open' : 'closed'}`}
-                aria-label="Редактор кода Arduino"
-              >
-                <div className="arduino-code-empty-state">
-                  <strong>Открываем редактор кода…</strong>
-                </div>
-              </section>
-            }
-          >
-            <ArduinoCodePanel
-              controller={controller}
-              open={codeOpen}
-              drawerWidth={codePanelWidth}
-              onDrawerWidthChange={updateCodePanelWidth}
-              mobileHeightPercent={codeHeightPercent}
-              onMobileHeightChange={setCodeHeightPercent}
-              onClose={() => setCodeOpen(false)}
+          {notesOpen ? (
+            <NotesPanel
+              title="Заметки"
+              notes={notes}
+              onNotesChange={updateNotes}
+              onClose={() => setNotesOpen(false)}
             />
-          </Suspense>
-        ) : null}
-      </div>
+          ) : null}
+          {codePanelMounted ? (
+            <Suspense
+              fallback={
+                <section
+                  className={`arduino-code-panel empty ${codeOpen ? 'open' : 'closed'}`}
+                  aria-label="Редактор кода Arduino"
+                >
+                  <div className="arduino-code-empty-state">
+                    <strong>Открываем редактор кода…</strong>
+                  </div>
+                </section>
+              }
+            >
+              <ArduinoCodePanel
+                controller={controller}
+                open={codeOpen}
+                drawerWidth={codePanelWidth}
+                onDrawerWidthChange={updateCodePanelWidth}
+                mobileHeightPercent={codeHeightPercent}
+                onMobileHeightChange={setCodeHeightPercent}
+                onClose={() => setCodeOpen(false)}
+              />
+            </Suspense>
+          ) : null}
+        </div>
+      </NativeOpticalProvider>
       {shareOpen ? (
         <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />
       ) : null}
