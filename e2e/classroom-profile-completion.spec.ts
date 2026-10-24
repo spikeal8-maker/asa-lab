@@ -369,7 +369,9 @@ async function assertLayout(page: Page, width: number, file: string) {
         '.classroom-student-section-rail .classroom-student-section-action',
       );
       const tab = await page.locator('main.classroom-student').getAttribute('data-student-section');
-      const supportsAction = ['all', 'three-d', 'electronics', 'blocks', 'merits'].includes(tab ?? '');
+      // The only contextual mobile action is Merits → class avatars.
+      // Archive and status live once in the compact works toolbar, not in SectionRail.
+      const supportsAction = tab === 'merits';
       await expect(contextual).toHaveCount(supportsAction ? 1 : 0);
       if (supportsAction) {
         const actionBox = (await contextual.boundingBox())!;
