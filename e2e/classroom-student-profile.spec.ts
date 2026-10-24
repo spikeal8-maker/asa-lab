@@ -1310,6 +1310,10 @@ test('mobile work filters share a row and one card fills the grid while multiple
       expect(sharedWidth > 0 && sharedHeight > 0, 'Info tap target must never overlap section selector')
         .toBe(false);
       expect(
+        target.y - (sectionRect.y + sectionRect.height),
+        'Leave a visible gap between both 44px mobile hit targets',
+      ).toBeGreaterThanOrEqual(2);
+      expect(
         await sectionSelect.evaluate((element) => getComputedStyle(element).borderTopWidth),
       ).toBe('0px');
       for (const control of [
