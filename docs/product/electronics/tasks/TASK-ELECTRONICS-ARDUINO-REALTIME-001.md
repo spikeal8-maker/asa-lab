@@ -142,3 +142,10 @@ Allowed: new local optical store/provider modules, use-electronics-workbench.ts 
 Keep preparation/proposed/committed/rollback vectors immutable, current generation/project/source/frame ownership, loaded-mounted-visible native leases, atomic whole LED/L vector and existing distinct-frame layout ACK. No ACK until all real nodes are active/current; failed/stale/partial commit restores whole previous vector. Numeric views read committed snapshots; move display-only metric scheduling after optical work to avoid flushSync draining parent updates. No solver, clock origin/debt, timing tolerances, cadence, physical model, new artwork or global DOM mutations/cache.
 
 Regression must use actual mounted native nodes: preparation/publication causes zero extra whole-Workbench renders, one independent numeric metric render remains explicit, incomplete/stale/untrusted/error/href mutation/Suspense/unmount/Stop/Reset/source never falsely ACK. Preserve all existing readiness, independent-port, optical mean and rollback cases. Actual frozen8 AFTER and exact gates plus new independent source review required; local render reduction is not acceptance.
+
+
+## Owner-approved editor budget revision, 2026-10-24
+
+Owner explicitly answered: allow222000-byte budget and verification of all eight regimes. Exact67270cec native sink independently passed426 focused tests; Code types/build passed but actual editor221556 exceeded218000. Targeted safe reduction could not recover3556 without deleting the implementation/guards.
+
+Select one separate change to only Electronics editor maximum in tools/check-web-bundle-budget.mjs:218000 to222000. All other budgets, matching rules and failure semantics remain unchanged. This authorization does not weaken physical accuracy, timeouts, native ready/ACK requirements, phase/drift/duty limits or any of eight browser scenarios. New independent exact review, actual Code/build measurement and one justified all-eight AFTER required; no owner acceptance or deployment implied.

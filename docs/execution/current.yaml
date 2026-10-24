@@ -7471,13 +7471,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: actual_eight_fail_local_native_optical_sink_repair_selected
+      checkpoint: owner_approved_222000_editor_budget_native_sink_verification_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Actual618 all eight native cycles still fail with exact electrical fronts. Select one local run-scoped optical presentation store/provider to remove full Workbench React reconciliation from resource preparation and atomic LED/L publication, preserving native leases, whole-vector layout ACK, rollback and canonical presenter clocks. Only one Stage import redirect plus editor provider integration; original ProductionComponentVisual body unchanged. All eight frozen browser criteria and exact gates remain required.
+      selected_slice: Owner explicitly approved Electronics editor budget222000 bytes on2026-10-24 for independently reviewed native optical sink67270cec actual221556. Select one separate budget-only change in tools/check-web-bundle-budget.mjs; all other budgets and frozen eight-period timing/physics/native criteria unchanged. Independent exact review and actual Code followed by all eight browser regimes required before accepted main publication.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
