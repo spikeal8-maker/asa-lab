@@ -39,6 +39,53 @@ function mediaPreviewReady(block: LessonBlock): boolean {
   return false;
 }
 
+type MediaLessonBlock = Extract<
+  LessonBlock,
+  { type: 'image' | 'video' | 'audio' | 'file' }
+>;
+
+function isMediaLessonBlock(block: LessonBlock): block is MediaLessonBlock {
+  return (
+    block.type === 'image' ||
+    block.type === 'video' ||
+    block.type === 'audio' ||
+    block.type === 'file'
+  );
+}
+
+function InlineMediaPreview({
+  block,
+  index,
+}: {
+  readonly block: MediaLessonBlock;
+  readonly index: number;
+}): JSX.Element | null {
+  if (!block.url.trim()) return null;
+  if (!mediaPreviewReady(block)) {
+    return (
+      <p className="lesson-block-url-hint" role="status">
+        {block.type === 'file'
+          ? 'Укажите название файла и ссылку HTTPS или /assets/…'
+          : 'Для предпросмотра используйте ссылку на медиа /assets/…'}
+      </p>
+    );
+  }
+  return (
+    <div
+      className="lesson-block-edit-preview"
+      role="region"
+      aria-label={`Предпросмотр вложения блока ${index + 1}`}
+    >
+      <small>Как увидит ученик</small>
+      <LessonBlocks
+        blocks={[{ ...block, hidden: false }]}
+        compact
+        mediaScopeKey={`course-editor:${block.id}`}
+      />
+    </div>
+  );
+}
+
 function nextId(): string {
   return `b-${crypto.randomUUID().replaceAll('-', '')}`;
 }
@@ -670,34 +717,7 @@ export function LessonBlockEditor({
                 />
               </div>
             ) : null}
-              {(block.type === 'image' ||
-                block.type === 'video' ||
-                block.type === 'audio' ||
-                block.type === 'file') &&
-              mediaPreviewReady(block) ? (
-                <div
-                  className="lesson-block-edit-preview"
-                  role="region"
-                  aria-label={`Предпросмотр вложения блока ${index + 1}`}
-                >
-                  <small>Как увидит ученик</small>
-                  <LessonBlocks
-                    blocks={[{ ...block, hidden: false }]}
-                    compact
-                    mediaScopeKey={`course-editor:${block.id}`}
-                  />
-                </div>
-              ) : (block.type === 'image' ||
-                  block.type === 'video' ||
-                  block.type === 'audio' ||
-                  block.type === 'file') &&
-                block.url.trim() ? (
-                <p className="lesson-block-url-hint" role="status">
-                  {block.type === 'file'
-                    ? 'Укажите название файла и ссылку HTTPS или /assets/…'
-                    : 'Для предпросмотра используйте ссылку на медиа /assets/…'}
-                </p>
-              ) : null}
+              {isMediaLessonBlock(block) ? <InlineMediaPreview block={block} index={index} /> : null}
           </article>
         ))}
       </div>
