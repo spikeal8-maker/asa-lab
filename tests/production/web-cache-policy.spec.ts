@@ -34,7 +34,7 @@ describe('ASA Web immutable asset cache boundary', () => {
       '/assets/electronics/owner-supplied/led-red.svg',
       '/assets/electronics/owner-supplied/arduino-pinout-diagram.svg',
       '/assets/subdirectory/font-12345678.woff2',
-      '/assets/normal-unhashed.js',
+      '/assets/normal.js',
     ]) {
       expect(hashed.test(asset), asset).toBe(false);
     }
