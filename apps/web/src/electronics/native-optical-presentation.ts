@@ -24,19 +24,19 @@ export const EMPTY_NATIVE_OPTICAL_SNAPSHOT: NativeOpticalSnapshot = {
 };
 /** A mounted workbench owns one port. It never owns electrical time or native leases. */
 export class NativeOpticalPresentation {
-  private clock = 0;
-  private clockListeners = new Set<() => void>();
-  readonly readClock = () => this.clock;
+  private u = 0;
+  private ls = new Set<() => void>();
+  readonly readClock = () => this.u;
   readonly subscribeClock = (listener: () => void) => {
-    this.clockListeners.add(listener);
+    this.ls.add(listener);
     return () => {
-      this.clockListeners.delete(listener);
+      this.ls.delete(listener);
     };
   };
   setClock(value: number) {
-    if (this.clock === value) return;
-    this.clock = value;
-    for (const listener of [...this.clockListeners]) listener();
+    if (this.u === value) return;
+    this.u = value;
+    for (const listener of [...this.ls]) listener();
   }
   private snapshot: NativeOpticalSnapshot = EMPTY_NATIVE_OPTICAL_SNAPSHOT;
   private listeners = new Set<() => void>();
