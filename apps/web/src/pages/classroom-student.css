@@ -358,6 +358,12 @@
   font-size: 12px;
   font-weight: 550;
 }
+.classroom-student .classroom-student-filter-scope {
+  margin: 1px 0 6px;
+  color: #496477;
+  font-size: 11px;
+  line-height: 1.45;
+}
 .classroom-student .classroom-student-more {
   display: inline-flex;
   align-items: center;

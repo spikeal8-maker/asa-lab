@@ -120,6 +120,7 @@ async function setup(
     populated?: boolean;
     named?: boolean;
     moreWorks?: number;
+    firstWorkAwaiting?: boolean;
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
@@ -339,7 +340,7 @@ async function setup(
             assignment: null,
             feedback: null,
             lastEditedByTeacher: false,
-            awaitingReview: offset > 0 && i === 0,
+            awaitingReview: (offset > 0 && i === 0) || (offset === 0 && i === 0 && options.firstWorkAwaiting === true),
           })),
         },
       });
@@ -1320,6 +1321,33 @@ test('mobile work filters share a row and one card fills the grid while multiple
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
+
+for (const width of [390, 320]) {
+  test(`filtering loaded awaiting works explains incomplete pages at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await setup(page, {
+      long: false,
+      manual: 0,
+      results: 0,
+      firstWorkAwaiting: true,
+    });
+    await state.open();
+    await page.getByRole('combobox', { name: 'Статус работ' }).selectOption('awaiting');
+    await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
+    const scope = page.getByRole('note').filter({ hasText: 'только загруженные работы' });
+    await expect(scope).toBeVisible();
+    await expect(scope).toContainText('Есть ещё страницы.');
+    const toolbar = (await page.locator('.classroom-student-works-toolbar').boundingBox())!;
+    const scopeBox = (await scope.boundingBox())!;
+    expect(scopeBox.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+    await noOverflow(page);
+    await page.getByRole('button', { name: 'Ещё работы' }).click();
+    await expect(page.locator('.project-card-grid > li')).toHaveCount(2);
+    await expect(scope).toHaveCount(0);
+    await noOverflow(page);
+    expect(state.errors).toEqual([]);
+  });
+}
 
 test('pending role mutations cannot repopulate another learner or a logged-out profile; teacher history is unavailable', async ({
   page,

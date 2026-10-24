@@ -1033,6 +1033,11 @@ export function ClassroomStudentPage({
               </label>
             </div>
           </div>
+          {onlyAwaiting && works?.hasMore && visible.length > 0 ? (
+            <p className="classroom-student-filter-scope" role="note">
+              «Ждут»: только загруженные работы. Есть ещё страницы.
+            </p>
+          ) : null}
           {works && works.visibleWorks < works.totalWorks ? (
             <p className="participant-visibility-note">
               Часть личных работ закрыта для преподавателя ({works.visibleWorks} из{' '}
