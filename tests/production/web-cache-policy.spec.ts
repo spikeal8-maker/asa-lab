@@ -21,7 +21,7 @@ describe('ASA Web immutable asset cache boundary', () => {
       '/assets/index-DmX2XuAh.js',
       '/assets/project-draft-storage-Cq0SkLrw.js',
       '/assets/index-CPOsp9_1.css',
-      '/assets/subdirectory/font-12345678.woff2',
+      '/assets/font-12345678.woff2',
     ]) {
       expect(hashed.test(asset), asset).toBe(true);
     }
@@ -32,6 +32,8 @@ describe('ASA Web immutable asset cache boundary', () => {
       '/seo.css',
       '/asa-lab-mark.svg',
       '/assets/electronics/owner-supplied/led-red.svg',
+      '/assets/electronics/owner-supplied/arduino-pinout-diagram.svg',
+      '/assets/subdirectory/font-12345678.woff2',
       '/assets/normal-unhashed.js',
     ]) {
       expect(hashed.test(asset), asset).toBe(false);

@@ -86,11 +86,11 @@
 	}
 
 	# Content-hashed build output may be held for a year; nothing else may.
-	# Only hashed /assets/ filenames are immutable; stable files like build-metadata.json must not match.
+	# Only direct content-hashed Vite /assets/ filenames are immutable. Stable\n\t# build metadata and nested owner-supplied artwork must never match.
 	# The match is on the filename shape AND directory: /assets/ also
 	# carries owner-supplied electronics artwork copied verbatim from public/,
 	# which has no hash and must stay revalidated.
-	@hashed path_regexp hashed ^/assets/.*-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$
+	@hashed path_regexp hashed ^/assets/[^/]+-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$
 	handle @hashed {
 		root * /srv
 		header Cache-Control "public, max-age=31536000, immutable"
