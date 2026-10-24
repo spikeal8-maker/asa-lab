@@ -113,6 +113,10 @@ export function AiChatPage({
   >({});
   const fileInput = useRef<HTMLInputElement>(null);
   const previewUrls = useRef(new Set<string>());
+  const attachmentHistoryScope = useRef<{
+    threadId: string | null;
+    loaded: Set<string>;
+  }>({ threadId: null, loaded: new Set<string>() });
   const [busy, setBusy] = useState(false);
   const [creatingChat, setCreatingChat] = useState(false);
   // Serialize creation and sending before React renders disabled controls.
@@ -216,28 +220,55 @@ export function AiChatPage({
   }
 
   useEffect(() => {
+    const receipts = attachmentHistoryScope.current;
+    if (receipts.threadId !== currentId) {
+      receipts.threadId = currentId;
+      receipts.loaded.clear();
+      setHistoryAttachments({});
+    }
     if (!currentId) return;
     const ids = [
       ...new Set(
         messages.filter((message) => message.role === 'user').map((message) => message.requestId),
       ),
-    ].slice(0, 50);
+    ].filter((id) => !receipts.loaded.has(id));
     if (!ids.length) return;
     const version = selectedVersion.current;
+    const threadId = currentId;
     let cancelled = false;
-    void call<{
-      items: readonly { requestId: string; attachments: readonly AiHistoryAttachment[] }[];
-    }>(
-      '/api/ai/threads/' +
-        encodeURIComponent(currentId) +
-        '/attachments?requestIds=' +
-        ids.join(','),
-    ).then((result) => {
-      if (cancelled || version !== selectedVersion.current || !result.ok) return;
-      setHistoryAttachments(
-        Object.fromEntries(result.data.items.map((item) => [item.requestId, item.attachments])),
-      );
-    });
+    // The server accepts at most 50 IDs. Load only previously unseen requests
+    // and merge batches so paginating old turns never hides newer file chips.
+    void (async () => {
+      for (let start = 0; start < ids.length; start += 50) {
+        if (
+          cancelled ||
+          version !== selectedVersion.current ||
+          attachmentHistoryScope.current.threadId !== threadId
+        ) return;
+        const batch = ids.slice(start, start + 50);
+        const result = await call<{
+          items: readonly { requestId: string; attachments: readonly AiHistoryAttachment[] }[];
+        }>(
+          '/api/ai/threads/' +
+            encodeURIComponent(threadId) +
+            '/attachments?requestIds=' +
+            batch.join(','),
+        );
+        if (
+          cancelled ||
+          version !== selectedVersion.current ||
+          attachmentHistoryScope.current.threadId !== threadId ||
+          !result.ok
+        ) return;
+        for (const id of batch) receipts.loaded.add(id);
+        setHistoryAttachments((previous) => ({
+          ...previous,
+          ...Object.fromEntries(
+            result.data.items.map((item) => [item.requestId, item.attachments]),
+          ),
+        }));
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -733,17 +764,14 @@ export function AiChatPage({
           setMessages((previous) => mergeMessages(previous, history.data.items));
           if (
             history.data.items.some(
-              (message) => message.role === 'user' && message.requestId === requestId,
-            )
-          ) {
-            setDraft('');
-          }
-          if (
-            history.data.items.some(
               (message) => message.role === 'assistant' && message.requestId === requestId,
             )
           ) {
+            // The persisted answer settles the original request. Never carry
+            // its already-bound uploads into a new request after an SSE loss.
+            setDraft('');
             pendingRequest.current = null;
+            clearFiles();
             setError(null);
           }
         }

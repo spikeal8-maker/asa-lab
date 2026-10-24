@@ -341,6 +341,123 @@ test('AI composer uploads a real file once and restores the saved attachment aft
   expect(uploadCount).toBe(1);
 });
 
+
+test('AI clears bound file chips when a saved answer is recovered after SSE loss', async ({
+  page,
+}) => {
+  const fake = await fixture(page, 'Ответ сохранён при обрыве сети');
+  fake.setCompletion('recovery');
+  const bytes = Buffer.from('pinMode(13, INPUT);\n');
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  let uploadId: string | null = null;
+  let uploads = 0;
+  const sent: Array<{ message: string; attachmentIds?: readonly string[] }> = [];
+  await page.route(/\/api\/ai\/attachments(?:\/|$)/, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/ai/attachments' && request.method() === 'POST') {
+      const descriptor = request.postDataJSON() as { uploadId: string };
+      uploadId = descriptor.uploadId;
+      return route.fulfill({ json: { uploadId, sha256: hash, state: 'reserved' } });
+    }
+    if (
+      uploadId &&
+      path === '/api/ai/attachments/' + uploadId + '/bytes' &&
+      request.method() === 'PUT'
+    ) {
+      uploads += 1;
+      expect(request.postDataBuffer()).toEqual(bytes);
+      return route.fulfill({ json: { uploadId, sha256: hash, state: 'ready' } });
+    }
+    return route.fallback();
+  });
+  await page.route('**/api/ai/threads/*/messages/stream', async (route) => {
+    sent.push(route.request().postDataJSON() as (typeof sent)[number]);
+    return route.fallback();
+  });
+  fake.release();
+  await page.goto('/#/ai');
+  await page.locator('input[type=file][accept]').setInputFiles({
+    name: 'arduino.ino', mimeType: 'text/plain', buffer: bytes,
+  });
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Исправь код из файла');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.locator('.chat-turns')).toContainText('Ответ сохранён при обрыве сети');
+  await expect(page.locator('.chat-attachment-drafts')).toHaveCount(0);
+  await expect(composer).toHaveValue('');
+  await expect(page.locator('.asa-ai-error')).toHaveCount(0);
+  fake.setCompletion('current');
+  await composer.fill('Новый вопрос без файла');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.locator('.chat-turns > article')).toHaveCount(4);
+  expect(uploads).toBe(1);
+  expect(sent).toHaveLength(2);
+  expect(sent[0]?.attachmentIds).toEqual([uploadId]);
+  expect(sent[1]?.attachmentIds).toBeUndefined();
+  expect(fake.requests[1]).not.toBe(fake.requests[0]);
+});
+
+test('AI retains all attachment chips while paging over 125 user messages', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const fake = await fixture(page);
+  const threadId = randomUUID();
+  fake.threads.push({ id: threadId, title: 'История файлов', updatedAt: NOW });
+  const history: Message[] = Array.from({ length: 125 }, (_, index) => ({
+    id: randomUUID(),
+    role: 'user',
+    content: 'Вопрос с номером ' + index,
+    createdAt: new Date(Date.parse(NOW) - (125 - index) * 1000).toISOString(),
+    requestId: randomUUID(),
+  }));
+  fake.messages.set(threadId, history);
+  const names = new Map([
+    [history[0]!.requestId, 'oldest.png'],
+    [history[60]!.requestId, 'middle.png'],
+    [history[124]!.requestId, 'newest.png'],
+  ]);
+  const fetched: string[][] = [];
+  await page.route(/\/api\/ai\/threads\/[0-9a-f-]+\/attachments(?:\?|$)/, async (route) => {
+    const ids = new URL(route.request().url()).searchParams.get('requestIds')?.split(',') ?? [];
+    fetched.push(ids);
+    return route.fulfill({
+      json: {
+        items: ids.map((requestId) => ({
+          requestId,
+          attachments: names.has(requestId)
+            ? [{
+                uploadId: randomUUID(),
+                fileName: names.get(requestId),
+                sizeBytes: 512,
+                mediaType: 'image/png',
+                kind: 'image',
+              }]
+            : [],
+        })),
+      },
+    });
+  });
+  fake.release();
+  await page.goto('/#/ai');
+  await page.getByRole('button', { name: 'История файлов', exact: true }).click();
+  const turns = page.locator('.chat-turns > article');
+  const older = page.getByRole('button', { name: 'Загрузить предыдущие сообщения' });
+  await expect(turns).toHaveCount(50);
+  await expect(page.locator('.chat-attached-history')).toContainText('newest.png');
+  await older.click();
+  await expect(turns).toHaveCount(100);
+  await expect(page.locator('.chat-attached-history')).toHaveCount(2);
+  await older.click();
+  await expect(turns).toHaveCount(125);
+  await expect(page.locator('.chat-attached-history')).toHaveCount(3);
+  const namesOnScreen = await page.locator('.chat-attached-history').allTextContents();
+  expect(namesOnScreen.join(' ')).toContain('oldest.png');
+  expect(namesOnScreen.join(' ')).toContain('middle.png');
+  expect(namesOnScreen.join(' ')).toContain('newest.png');
+  expect(fetched.every((batch) => batch.length > 0 && batch.length <= 50)).toBe(true);
+  expect(new Set(fetched.flat()).size).toBe(125);
+});
+
 for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) {
   test(`AI waits for selected history before sending: ${selection}`, async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 750 });
