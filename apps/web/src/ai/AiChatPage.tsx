@@ -1435,7 +1435,7 @@ export function AiChatPage({
                       )}
                       <span title={item.file.name}>
                         {item.file.name}
-                        <small>{Math.ceil(item.file.size / 1024)} КБ</small>
+                        <small>{(item.file.type || item.file.name.split('.').at(-1) || 'файл') + ' · ' + Math.ceil(item.file.size / 1024) + ' КБ'}</small>
                       </span>
                       <button
                         type="button"
