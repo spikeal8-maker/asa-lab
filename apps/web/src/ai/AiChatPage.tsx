@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from 'react';
 import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
-import { AsaLabMark } from '../brand/AsaLabBrand';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import { useAiThreadHistory, type AiHistoryThread as AiThread } from './use-ai-thread-history';
@@ -221,6 +220,14 @@ export function AiChatPage({
     };
     media.addEventListener('change', change);
     return () => media.removeEventListener('change', change);
+  }, []);
+
+  useEffect(() => {
+    // When the owner expands ASA navigation, yield its workspace width by
+    // collapsing the *separate* chat history. The chat can be reopened later.
+    const closeForPortal = (): void => setSideOpen(false);
+    window.addEventListener('asa-ai-portal-sidebar-expanded', closeForPortal);
+    return () => window.removeEventListener('asa-ai-portal-sidebar-expanded', closeForPortal);
   }, []);
 
   useEffect(() => {
@@ -985,11 +992,6 @@ export function AiChatPage({
               </p>
             ) : null}
           </nav>
-          <footer className="chat-sidebar-bottom">
-            <span className="asa-ai-privacy">
-              История доступна только вам в выбранном контексте.
-            </span>
-          </footer>
         </dialog>
 
         <div className="chat-main">
@@ -1009,16 +1011,11 @@ export function AiChatPage({
               </button>
             ) : null}
             <div className="asa-ai-provider-label">
-              <strong>ИИ-помощник</strong>
-              <span className="asa-ai-current-title" title={currentTitle}>
-                {currentTitle}
-              </span>
-            </div>
-            <div className="asa-ai-model-status">
               {(status?.availableModels?.length ?? 0) > 1 ? (
                 <select
                   className="asa-ai-model-picker"
                   aria-label="Модель ИИ"
+                  title="Выбрать модель"
                   value={selectedModel || status?.model}
                   onChange={(event) => setSelectedModel(event.target.value)}
                   disabled={interactionBusy || !status?.enabled}
@@ -1032,17 +1029,21 @@ export function AiChatPage({
                   ))}
                 </select>
               ) : (
-                <span>
+                <strong className="asa-ai-model-single">
                   {loading
                     ? 'Подключение…'
                     : status?.enabled
-                      ? status.model
+                      ? status.model === 'ollama-local'
+                        ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                        : status.model
                       : status?.providerEnabled
                         ? 'Доступ закрыт'
-                        : 'Не подключён'}
-                </span>
+                        : 'ИИ не подключён'}
+                </strong>
               )}
             </div>
+            <span className="sr-only asa-ai-current-title">{currentTitle}</span>
+            {scopeControl}
             <button
               type="button"
               className="chat-icon-button asa-ai-new-chat"
@@ -1054,7 +1055,6 @@ export function AiChatPage({
               <span aria-hidden="true">+</span>
             </button>
           </header>
-          {scopeControl}
 
           {!historyReady && !error ? (
             <div className="chat-start-state" role="status">
@@ -1063,51 +1063,7 @@ export function AiChatPage({
           ) : empty ? (
             <div className="chat-start-state">
               <div className="asa-ai-start-copy">
-                <div className="asa-ai-start-brand">
-                  <AsaLabMark /> ASA Lab · ИИ
-                </div>
-                <h1>От идеи к работающему проекту</h1>
-                <p>
-                  Продумайте замысел, напишите код или разберитесь со схемой — начните с того, что
-                  хотите создать.
-                </p>
-                <div className="asa-ai-starters" aria-label="С чего начать">
-                  {[
-                    {
-                      title: 'Продумать идею',
-                      detail: 'От замысла к плану',
-                      prompt:
-                        'Помоги продумать идею проекта и составить план реализации. Мой замысел: ',
-                    },
-                    {
-                      title: 'Написать код',
-                      detail: 'Решение и логика',
-                      prompt: 'Помоги написать или улучшить код. Я хочу сделать: ',
-                    },
-                    {
-                      title: 'Разобрать схему',
-                      detail: 'Электроника и Arduino',
-                      prompt:
-                        'Помоги разобраться с электронной схемой и подобрать компоненты. Моя задача: ',
-                    },
-                  ].map((starter) => (
-                    <button
-                      key={starter.title}
-                      type="button"
-                      disabled={!status?.enabled || interactionBusy || !historyReady}
-                      onClick={() => {
-                        setDraft(starter.prompt);
-                        composer.current?.focus();
-                      }}
-                    >
-                      <strong>
-                        {starter.title}
-                        <span aria-hidden="true">↗</span>
-                      </strong>
-                      <span>{starter.detail}</span>
-                    </button>
-                  ))}
-                </div>
+                <h1>Чем помочь?</h1>
               </div>
             </div>
           ) : (
@@ -1240,7 +1196,7 @@ export function AiChatPage({
                   ) : null}
                   {busy ? (
                     <div className="chat-runtime-note" role="status">
-                      Модель формирует ответ… Сообщение сохранится в истории.
+                      Печатает…
                     </div>
                   ) : null}
                 </div>
@@ -1321,7 +1277,7 @@ export function AiChatPage({
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  rows={2}
+                  rows={1}
                   placeholder={
                     archived
                       ? 'Восстановите диалог, чтобы отправить сообщение'
@@ -1335,8 +1291,8 @@ export function AiChatPage({
                   aria-label="Сообщение ИИ"
                   aria-describedby="ai-composer-note"
                 />
-                <span className="chat-composer-hint">Shift + Enter — новая строка</span>
-                <span className="chat-character-count">{draft.length} / 3000</span>
+                <span className="chat-composer-hint sr-only">Shift + Enter — новая строка</span>
+                <span className="chat-character-count sr-only">{draft.length} / 3000</span>
                 <button
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
@@ -1352,7 +1308,7 @@ export function AiChatPage({
                   {busy ? '■' : '↑'}
                 </button>
               </form>
-              <p className="chat-composer-note" id="ai-composer-note">
+              <p className="sr-only" id="ai-composer-note">
                 Проверяйте важные ответы. Не отправляйте пароли и личные данные.
               </p>
             </div>

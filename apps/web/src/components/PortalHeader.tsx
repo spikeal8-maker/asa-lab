@@ -192,7 +192,15 @@ export function PortalHeader({
   // AI owns the available workspace without saving a new preference for the
   // other sections. Administrative routes retain their normal navigation.
   const aiLayout = active === 'ai' && !adminNavigation?.active;
-  const sidebarCollapsed = aiLayout || presentation.draft.sidebar === 'collapsed';
+  // AI starts with the ASA navigation collapsed, but the owner can reopen it.
+  // Never replace the saved preference for other ASA sections.
+  const [aiSidebarExpanded, setAiSidebarExpanded] = useState(false);
+  const sidebarCollapsed = aiLayout
+    ? !aiSidebarExpanded
+    : presentation.draft.sidebar === 'collapsed';
+  useEffect(() => {
+    if (!aiLayout) setAiSidebarExpanded(false);
+  }, [aiLayout]);
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -830,20 +838,31 @@ export function PortalHeader({
             <span className="portal-nav-label">Выход</span>
           </button>
         </div>
-        {!seatLearner && !aiLayout ? (
+        {!seatLearner || aiLayout ? (
           <button
             type="button"
             className="portal-sidebar-collapse"
             aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
+            aria-controls="portal-sidebar"
+            aria-expanded={!sidebarCollapsed}
             title={
-              settingsDirty
+              !aiLayout && settingsDirty
                 ? 'Сначала сохраните или отмените изменения настроек'
                 : sidebarCollapsed
                   ? 'Развернуть'
                   : 'Свернуть'
             }
-            disabled={presentation.busy || !presentation.loaded || settingsDirty}
-            onClick={() => void presentation.toggleSidebar()}
+            disabled={!aiLayout && (presentation.busy || !presentation.loaded || settingsDirty)}
+            onClick={() => {
+              if (aiLayout) {
+                if (!aiSidebarExpanded) {
+                  window.dispatchEvent(new Event('asa-ai-portal-sidebar-expanded'));
+                }
+                setAiSidebarExpanded(!aiSidebarExpanded);
+              } else {
+                void presentation.toggleSidebar();
+              }
+            }}
           >
             <span className="portal-sidebar-collapse-visual" aria-hidden="true">
               {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}

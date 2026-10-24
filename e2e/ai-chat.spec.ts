@@ -678,9 +678,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: 750 });
       const fake = await fixture(page);
       await page.goto('/#/ai');
-      await expect(
-        page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
-      ).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
       await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
       await expect(page.getByRole('button', { name: /Прикреп/ })).toHaveCount(0);
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
@@ -689,8 +687,9 @@ for (const theme of ['light', 'dark'] as const) {
       );
       await expectChatFits(page);
       await page.screenshot({ path: test.info().outputPath(`ai-empty-${theme}-${width}.png`) });
-      await page.getByRole('button', { name: /Написать код/ }).click();
       const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await composer.focus();
+      await composer.fill('Помоги написать или улучшить код. Я хочу сделать: ');
       await expect(composer).toBeFocused();
       await expect(composer).toHaveValue('Помоги написать или улучшить код. Я хочу сделать: ');
       expect(fake.requests).toHaveLength(0);
@@ -984,7 +983,14 @@ test('AI preserves automatic portal collapse as chat history closes and the scre
   await fixture(page);
   await page.goto('/#/ai');
   await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
-  await expect(page.locator('.portal-sidebar-collapse')).toHaveCount(0);
+  const expandSite = page.getByRole('button', { name: 'Развернуть боковую панель' });
+  await expect(expandSite).toBeVisible();
+  await expandSite.click();
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/collapsed/);
+  await expect(page.getByRole('button', { name: 'Открыть историю диалогов' })).toBeVisible();
+  await page.getByRole('button', { name: 'Свернуть боковую панель' }).click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
   await page.getByRole('button', { name: 'Свернуть историю' }).click();
   for (const viewport of [
     { width: 1024, height: 750 },
@@ -1081,9 +1087,7 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 750 });
     const fake = await fixture(page);
     await page.goto('/#/ai');
-    await expect(
-      page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
@@ -1161,7 +1165,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect(
     sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'От идеи к работающему проекту' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
