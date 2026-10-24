@@ -888,7 +888,8 @@
 
 .asa-ai-layout .chat-composer {
   grid-template-columns: minmax(0, 1fr) 40px;
-  grid-template-rows: minmax(32px, auto) auto;
+  /* The input track must shrink with visualViewport; auto overflows on mobile keyboards. */
+  grid-template-rows: minmax(32px, 1fr) auto;
   grid-template-areas: 'input input' '. send';
   gap: 6px;
   min-height: 76px;

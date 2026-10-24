@@ -1010,6 +1010,20 @@ test('AI preserves automatic portal collapse as chat history closes and the scre
     await expectChatFits(page);
     await page.screenshot({ path: test.info().outputPath(`ai-collapsed-${viewport.width}.png`) });
   }
+
+  // Crossing the desktop breakpoint must not reopen history while ASA is open.
+  await page.setViewportSize({ width: 1024, height: 850 });
+  await page.getByRole('button', { name: 'Развернуть боковую панель' }).click();
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/collapsed/);
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const historyButton = page.getByRole('button', { name: 'Открыть историю диалогов' });
+  await expect(historyButton).toBeVisible();
+  await expectChatFits(page);
+  // Opening chat history deliberately gives it the width by collapsing ASA.
+  await historyButton.click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await expect(page.getByRole('button', { name: 'Свернуть историю' })).toBeVisible();
+  await expectChatFits(page);
 });
 
 test('AI confines long code and tables to message scrollers and copies the original source', async ({

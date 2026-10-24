@@ -201,6 +201,13 @@ export function PortalHeader({
   useEffect(() => {
     if (!aiLayout) setAiSidebarExpanded(false);
   }, [aiLayout]);
+  useEffect(() => {
+    if (!aiLayout) return;
+    // Chat history and the main ASA panel are alternative workspace drawers.
+    const closeForHistory = (): void => setAiSidebarExpanded(false);
+    window.addEventListener('asa-ai-chat-history-opened', closeForHistory);
+    return () => window.removeEventListener('asa-ai-chat-history-opened', closeForHistory);
+  }, [aiLayout]);
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);

@@ -216,7 +216,9 @@ export function AiChatPage({
     const media = window.matchMedia('(min-width: 1120px)');
     const change = (): void => {
       setDesktop(media.matches);
-      setSideOpen(media.matches);
+      // Do not reopen history on a wide viewport when ASA navigation is open.
+      const sidebar = document.getElementById('portal-sidebar');
+      setSideOpen(media.matches && (!sidebar || sidebar.classList.contains('collapsed')));
     };
     media.addEventListener('change', change);
     return () => media.removeEventListener('change', change);
@@ -772,6 +774,12 @@ export function AiChatPage({
   const visibleError = error ?? historyError;
   const lastQuestion = [...messages].reverse().find((message) => message.role === 'user');
 
+  function openHistory(): void {
+    // Give the site its normal navigation state when history takes the width.
+    window.dispatchEvent(new Event('asa-ai-chat-history-opened'));
+    setSideOpen(true);
+  }
+
   function closeHistory(): void {
     setSideOpen(false);
     requestAnimationFrame(() => historyToggle.current?.focus());
@@ -1016,7 +1024,7 @@ export function AiChatPage({
                 ref={historyToggle}
                 type="button"
                 className="chat-icon-button chat-sidebar-open"
-                onClick={() => setSideOpen(true)}
+                onClick={openHistory}
                 aria-label="Открыть историю диалогов"
                 aria-controls="ai-chat-history"
                 aria-expanded={sideOpen}
