@@ -6512,7 +6512,8 @@ parallel_lanes:
     task:
       id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
       issue: 702
-      branch: codex/projects-pin-20261023
+      branch: main
+      candidate_branch: codex/projects-pin-20261023
       base_branch: main
       pr: 704
       pr_draft: true
