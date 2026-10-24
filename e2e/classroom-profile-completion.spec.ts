@@ -331,11 +331,13 @@ async function assertLayout(page: Page, width: number, file: string) {
       const actionBox = (await contextual.boundingBox())!;
       expect(actionBox.width).toBeGreaterThanOrEqual(44);
       expect(actionBox.height).toBeGreaterThanOrEqual(44);
+      const selectedBeforeLayoutCheck = await mobile.inputValue();
       await mobile.selectOption('grades');
       await expect(mobile).toHaveValue('grades');
       await expect(page.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
-      await mobile.selectOption('all');
-      await expect(mobile).toHaveValue('all');
+      // Layout checks must not silently change the teacher's active work section.
+      await mobile.selectOption(selectedBeforeLayoutCheck);
+      await expect(mobile).toHaveValue(selectedBeforeLayoutCheck);
     }
   }
 
