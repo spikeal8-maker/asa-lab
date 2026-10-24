@@ -168,8 +168,10 @@ async function selectTeacherProfileTab(
     merits: 'Заслуги',
     settings: 'Настройки',
   };
-  await page.getByRole('navigation', { name: 'Разделы профиля' })
-    .getByRole('button', { name: names[section], exact: true }).click();
+  await page
+    .getByRole('navigation', { name: 'Разделы профиля' })
+    .getByRole('button', { name: names[section], exact: true })
+    .click();
 }
 async function openTeacherProfileCategory(
   page: Page,
@@ -231,9 +233,11 @@ async function assertLayout(page: Page, width: number, file: string) {
   } else {
     await expect(tabs).toBeVisible();
   }
-  const content = page.locator(
-    'main.classroom-student .classroom-student-section, main.classroom-student .participant-grades, main.classroom-student .participant-assignments, main.classroom-student .classroom-student-settings-entry',
-  ).first();
+  const content = page
+    .locator(
+      'main.classroom-student .classroom-student-section, main.classroom-student .participant-grades, main.classroom-student .participant-assignments, main.classroom-student .classroom-student-settings-entry',
+    )
+    .first();
   if (await content.count()) {
     const current = (await content.boundingBox())!;
     const activeRail = (await mobileSectionRail.isVisible()) ? mobileSectionRail : tabs;

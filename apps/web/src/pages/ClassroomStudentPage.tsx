@@ -1002,9 +1002,15 @@ export function ClassroomStudentPage({
               aria-label="Показатели и фильтры работ"
             >
               <div className="classroom-student-work-summary" aria-label="Показатели работ ученика">
-                <span>Работ <strong>{metrics.totalWorks}</strong></span>
-                <span>Сдано <strong>{profile.submittedCount}</strong></span>
-                <span>Ждут <strong>{profile.awaitingReview}</strong></span>
+                <span>
+                  Работ <strong>{metrics.totalWorks}</strong>
+                </span>
+                <span>
+                  Сдано <strong>{profile.submittedCount}</strong>
+                </span>
+                <span>
+                  Ждут <strong>{profile.awaitingReview}</strong>
+                </span>
                 <details className="classroom-student-visibility-details">
                   <summary
                     aria-label="Информация о доступных преподавателю работах"
@@ -1016,7 +1022,9 @@ export function ClassroomStudentPage({
                       }
                     }}
                   >
-                    <span className="classroom-student-visibility-icon" aria-hidden="true">i</span>
+                    <span className="classroom-student-visibility-icon" aria-hidden="true">
+                      i
+                    </span>
                   </summary>
                   <div className="classroom-student-visibility-popover" role="note">
                     <strong>Что видит преподаватель</strong>
@@ -1030,8 +1038,8 @@ export function ClassroomStudentPage({
                       <p>Сведения о доступных работах загружаются.</p>
                     )}
                     <p>
-                      На странице показаны только загруженные работы, которые разрешено просматривать.
-                      Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                      На странице показаны только загруженные работы, которые разрешено
+                      просматривать. Фильтр «Ждут» не проверяет ещё не загруженные страницы.
                     </p>
                   </div>
                 </details>
@@ -1055,7 +1063,9 @@ export function ClassroomStudentPage({
                   onChange={(event) => setOnlyAwaiting(event.target.value === 'awaiting')}
                 >
                   <option value="all">Все</option>
-                  <option value="awaiting" aria-label="Ждут проверки">Ждут</option>
+                  <option value="awaiting" aria-label="Ждут проверки">
+                    Ждут
+                  </option>
                 </select>
                 <small id="student-filter-scope" className="classroom-student-visually-hidden">
                   Только среди загруженных работ

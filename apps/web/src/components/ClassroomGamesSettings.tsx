@@ -45,13 +45,16 @@ export function ClassroomGamesSettings({
     setError(null);
     setNotice(null);
     setSaving(false);
-    void gameAccessApi.readPolicy(classroomId, seatId).then((result) => {
-      if (token !== generation.current) return;
-      if (result.ok) adopt(result.data);
-      else setError('Не удалось загрузить доступ к играм.');
-    }).catch(() => {
-      if (token === generation.current) setError('Не удалось загрузить доступ к играм.');
-    });
+    void gameAccessApi
+      .readPolicy(classroomId, seatId)
+      .then((result) => {
+        if (token !== generation.current) return;
+        if (result.ok) adopt(result.data);
+        else setError('Не удалось загрузить доступ к играм.');
+      })
+      .catch(() => {
+        if (token === generation.current) setError('Не удалось загрузить доступ к играм.');
+      });
     return () => {
       generation.current++;
     };
@@ -196,7 +199,8 @@ export function ClassroomGamesSettings({
             className="btn-ghost"
             disabled={saving}
             onClick={() => {
-              if (dirty && !window.confirm('Несохранённый выбор будет потерян. Обновить правило?')) return;
+              if (dirty && !window.confirm('Несохранённый выбор будет потерян. Обновить правило?'))
+                return;
               setAttempt((value) => value + 1);
             }}
           >

@@ -815,7 +815,9 @@ describe('participant completion DOM behavior', () => {
   });
   it('shows grades only inside Оценки and helper classes only under student Settings', async () => {
     vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
-    const gradeRead = vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(grades('five', [0])));
+    const gradeRead = vi
+      .spyOn(participantsApi, 'grades')
+      .mockResolvedValue(ok(grades('five', [0])));
     vi.spyOn(participantsApi, 'works').mockResolvedValue(
       ok({
         totalWorks: 0,
@@ -848,8 +850,9 @@ describe('participant completion DOM behavior', () => {
     expect(host.querySelector('[aria-label="Классы помощника"]')).toBeNull();
     expect(host.textContent).not.toContain('Доступный класс помощника');
     await click('Настройки');
-    const identity = [...host.querySelectorAll<HTMLButtonElement>('.classroom-student-settings-category')]
-      .find((button) => button.textContent?.startsWith('Данные и роль'))!;
+    const identity = [
+      ...host.querySelectorAll<HTMLButtonElement>('.classroom-student-settings-category'),
+    ].find((button) => button.textContent?.startsWith('Данные и роль'))!;
     await act(async () => identity.click());
     expect(host.textContent).toContain('Доступный класс помощника');
     expect(host.querySelector('.classroom-student-settings-helper-classes')).not.toBeNull();

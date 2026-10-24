@@ -15,7 +15,6 @@
   overflow-wrap: anywhere;
 }
 
-
 .classroom-student-avatar {
   display: block;
   flex: 0 0 auto;
@@ -38,9 +37,6 @@
   margin: 0;
   color: var(--ink-muted);
 }
-
-
-
 
 /* The works get the room; the record is a rail beside them. On a phone the
    rail becomes the next section down. */
@@ -66,7 +62,6 @@
 }
 
 @media (max-width: 560px) {
-
   .classroom-student-avatar {
     width: 48px;
     height: 48px;
@@ -353,7 +348,10 @@
   font-style: normal;
   line-height: 1;
 }
-.classroom-student .classroom-student-visibility-details > summary:hover .classroom-student-visibility-icon,
+.classroom-student
+  .classroom-student-visibility-details
+  > summary:hover
+  .classroom-student-visibility-icon,
 .classroom-student .classroom-student-visibility-details[open] .classroom-student-visibility-icon {
   border-color: #0a709d;
   background: #e8f5fa;
@@ -467,7 +465,7 @@
   background: #eef7fc;
 }
 .classroom-student .classroom-student-more:disabled {
-  opacity: .55;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
@@ -1441,8 +1439,7 @@
     > h2 {
     display: none;
   }
-  .portal-content.classroom-student
-    .classroom-student-section-rail[data-has-action='false'] {
+  .portal-content.classroom-student .classroom-student-section-rail[data-has-action='false'] {
     grid-template-columns: minmax(0, 1fr);
   }
 }

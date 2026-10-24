@@ -953,10 +953,13 @@ async function renderProfileActions(actions: SeatActions, seatId = 'seat-a', rev
   );
 }
 
-async function openProfileCategory(category: 'Данные и роль' | 'Коды и доступ' | 'Защита ученика' | 'Игровые разрешения') {
+async function openProfileCategory(
+  category: 'Данные и роль' | 'Коды и доступ' | 'Защита ученика' | 'Игровые разрешения',
+) {
   if (button('Настройки').getAttribute('aria-pressed') !== 'true') await click('Настройки');
-  const item = [...host.querySelectorAll<HTMLButtonElement>('.classroom-student-settings-category')]
-    .find((entry) => entry.textContent?.startsWith(category));
+  const item = [
+    ...host.querySelectorAll<HTMLButtonElement>('.classroom-student-settings-category'),
+  ].find((entry) => entry.textContent?.startsWith(category));
   expect(item, category).toBeDefined();
   if (item?.getAttribute('aria-expanded') !== 'true') await act(async () => item!.click());
 }
@@ -973,7 +976,9 @@ it('keeps protection at the confirmed value until save and profile refresh compl
   const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
   await renderProfileActions(actions);
   await openProfileCategory('Защита ученика');
-  const protection = host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!;
+  const protection = host.querySelector<HTMLInputElement>(
+    '[aria-label="Защита ученика в настройках: seat-a"]',
+  )!;
   await act(async () => protection.click());
   expect(actions.onSafeMode).toHaveBeenCalledWith(true);
   expect(protection.checked).toBe(false);
@@ -994,7 +999,9 @@ it.each(['switch', 'logout'] as const)(
     await renderProfileActions(actions);
     await openProfileCategory('Защита ученика');
     await act(async () =>
-      host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!.click(),
+      host
+        .querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!
+        .click(),
     );
     if (boundary === 'switch') await renderProfileActions(actions, 'seat-b');
     else await act(async () => notifySessionLoggedOut());
@@ -1006,7 +1013,8 @@ it.each(['switch', 'logout'] as const)(
       expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
       await openProfileCategory('Защита ученика');
       expect(
-        host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-b"]')!.checked,
+        host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-b"]')!
+          .checked,
       ).toBe(false);
     } else expect(host.querySelector('.classroom-student-settings-safety')).toBeNull();
   },
@@ -1129,7 +1137,10 @@ it.each(['archive', 'suspended', 'pending'] as const)(
     });
     await renderProfileActions(actions);
     await openProfileCategory('Защита ученика');
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!.disabled).toBe(true);
+    expect(
+      host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!
+        .disabled,
+    ).toBe(true);
     await openProfileCategory('Данные и роль');
     expect(button('Изменить имя и аватар').disabled).toBe(true);
     await openProfileCategory('Коды и доступ');
@@ -1193,7 +1204,9 @@ it.each(['switch', 'logout'] as const)(
     await act(async () => root.render(createElement(ClassroomStudentPage, props)));
     await openProfileCategory('Данные и роль');
     await act(async () => {
-      const select = host.querySelector<HTMLSelectElement>('[aria-label="Роль ученика в настройках"]')!;
+      const select = host.querySelector<HTMLSelectElement>(
+        '[aria-label="Роль ученика в настройках"]',
+      )!;
       select.value = 'helper';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
@@ -1216,7 +1229,9 @@ it.each(['switch', 'logout'] as const)(
     if (boundary === 'switch') {
       expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
       await openProfileCategory('Данные и роль');
-      expect(host.querySelector<HTMLSelectElement>('[aria-label="Роль ученика в настройках"]')?.value).toBe('student');
+      expect(
+        host.querySelector<HTMLSelectElement>('[aria-label="Роль ученика в настройках"]')?.value,
+      ).toBe('student');
       await click('Выбрать ученика: seat-b');
       const menu = host.querySelector('[role="dialog"][aria-label="Ученики класса"]')!;
       expect(menu.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
@@ -1379,13 +1394,16 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   expect(host.textContent).toContain(
     'Среди загруженных работ нет ожидающих проверки. Загрузите ещё работы.',
   );
-  const visibility = host.querySelector<HTMLDetailsElement>('.classroom-student-visibility-details')!;
+  const visibility = host.querySelector<HTMLDetailsElement>(
+    '.classroom-student-visibility-details',
+  )!;
   expect(visibility).not.toBeNull();
   expect(visibility.open).toBe(false);
   await act(async () => visibility.querySelector('summary')!.click());
   expect(visibility.open).toBe(true);
-  expect(visibility.querySelector('.classroom-student-visibility-popover')?.textContent)
-    .toContain('Доступно 8 из 10 работ.');
+  expect(visibility.querySelector('.classroom-student-visibility-popover')?.textContent).toContain(
+    'Доступно 8 из 10 работ.',
+  );
   await act(async () => visibility.querySelector('summary')!.click());
   expect(visibility.open).toBe(false);
   await click('Ещё работы');

@@ -50,7 +50,8 @@ export function requestSettingsNavigation(proceed: () => void): void {
     if (
       auxiliaryDraft?.() &&
       !window.confirm('Игровые разрешения не сохранены. Покинуть настройки без сохранения?')
-    ) return;
+    )
+      return;
     proceed();
   };
   if (guard) guard(confirmed);
