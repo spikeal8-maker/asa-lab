@@ -1759,3 +1759,33 @@ test('UI-03: archived student settings stay read-only including Code, protection
   expect(state.mutations).toEqual([]);
   await noOverflow(page);
 });
+
+for (const settingsWidth of [390, 320]) {
+  test(`UI-03 mobile settings density remains within owner threshold at ${settingsWidth}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: settingsWidth, height: 900 });
+    const state = await setup(page, { long: false, manual: 0, results: 0 });
+    await state.open();
+    await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+    const heading = page.locator('.classroom-student-settings-entry > h2');
+    await expect(heading, 'No duplicate mobile Settings heading below SectionRail').toBeHidden();
+    const header = (await page.locator('.portal-header').boundingBox())!;
+    const category = (await page
+      .locator('.classroom-student-settings-category')
+      .first()
+      .boundingBox())!;
+    const offset = category.y - (header.y + header.height);
+    const threshold = settingsWidth === 390 ? 128 : 144;
+    console.log(
+      `UI03_SETTINGS_DENSITY width=${settingsWidth} offset=${offset.toFixed(1)} threshold=${threshold}`,
+    );
+    expect(
+      offset,
+      'First actionable Settings category after the global header',
+    ).toBeLessThanOrEqual(threshold);
+    expect(category.height).toBeGreaterThanOrEqual(44);
+    await noOverflow(page);
+    expect(state.errors).toEqual([]);
+  });
+}

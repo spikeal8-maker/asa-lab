@@ -1496,6 +1496,12 @@
    the two local rails. Legacy summary controls still exist in other sections,
    and are relocated for every section by the separate UI-04 slice. */
 @container teacher-profile (max-width: 599px) {
+  /* SectionRail already says "Настройки"; a second heading wastes vertical space. */
+  .portal-content.classroom-student[data-student-section='settings']
+    .classroom-student-settings-entry
+    > h2 {
+    display: none;
+  }
   .portal-content.classroom-student[data-student-section='settings'] .classroom-student-hero,
   .portal-content.classroom-student[data-student-section='settings'] .teacher-profile-grades,
   .portal-content.classroom-student[data-student-section='settings'] .participant-helper-classes,
