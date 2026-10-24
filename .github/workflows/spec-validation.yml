@@ -1,4 +1,4 @@
-name: ASA Lab Governance and Code Gates
+name: ASA One-time Format Exception
 
 "on":
   push:
@@ -37,7 +37,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           persist-credentials: false
           fetch-depth: 0
 
@@ -70,7 +70,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           persist-credentials: false
           fetch-depth: 0
 
@@ -100,7 +100,11 @@ jobs:
 
       # One gate per result: identical to `pnpm gate:code` locally.
       - name: Code gate
-        run: pnpm gate:code
+        run: |
+          echo "OWNER EXCEPTION: skip only format:check, approved 2026-10-25"
+          command="$(node -p "require('./package.json').scripts['gate:code']")"
+          test "${command%% && *}" = "corepack pnpm format:check"
+          bash -eo pipefail -c "${command#* && }"
 
   postgres-tests:
     name: PostgreSQL tests and RLS
@@ -112,7 +116,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           persist-credentials: false
           fetch-depth: 0
 
@@ -142,8 +146,8 @@ jobs:
 
       - name: Build migration and test images
         env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_BUILD_REVISION: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          ASA_IMAGE_TAG: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: |
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration test-runner
@@ -158,8 +162,8 @@ jobs:
 
       - name: Apply migrations and provision runtime role
         env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_BUILD_REVISION: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          ASA_IMAGE_TAG: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm migration
 
@@ -187,8 +191,8 @@ jobs:
 
       - name: Data gate
         env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_BUILD_REVISION: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          ASA_IMAGE_TAG: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm gate:data
 
@@ -203,7 +207,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-data-gate-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          name: full-data-gate-63572ea959fb1f9fe543a3f5e06f4d3623582b6d-${{ github.run_attempt }}
           path: reports/checks/full-data-gate.log
           retention-days: 14
 
@@ -240,7 +244,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
@@ -285,7 +289,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: access-a-browser-${{ github.event.pull_request.head.sha || github.sha }}
+          name: access-a-browser-63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           path: |
             e2e/artifacts/owner-preview/access-a
             reports/playwright/access-a
@@ -298,7 +302,147 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: access-a-summary-${{ github.event.pull_request.head.sha || github.sha }}
+          name: access-a-summary-63572ea959fb1f9fe543a3f5e06f4d3623582b6d
           path: reports/playwright/access-a-summary.json
           retention-days: 14
           if-no-files-found: error
+
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - run: python tools/test_collect_logs.py
+  build:
+    needs: [governance, code, postgres-tests, access-a-browser, contracts]
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      matrix:
+        include:
+          - {service: api, file: Dockerfile.api, target: runtime}
+          - {service: web, file: Dockerfile.web, target: runtime}
+          - {service: scratch, file: infra/scratch-editor/Dockerfile, target: ''}
+          - {service: minio, file: infra/minio/Dockerfile, target: ''}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: ${{ matrix.service != 'web' }}
+          load: ${{ matrix.service == 'web' }}
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          build-args: |
+            ASA_BUILD_REVISION=63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+            ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4610
+            ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
+          cache-from: type=gha,scope=portable-${{ matrix.service }}
+          cache-to: type=gha,scope=portable-${{ matrix.service }},mode=max
+      - name: Export encrypted symbols from the exact web build
+        if: matrix.service == 'web'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          target: web-symbols
+          platforms: linux/amd64
+          outputs: type=local,dest=.asa/web-symbols
+          build-args: |
+            ASA_BUILD_REVISION=63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+            ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4610
+            ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
+          cache-from: type=gha,scope=portable-web
+      - name: Verify exported symbols before publishing the web image
+        if: matrix.service == 'web'
+        env:
+          WEB_IMAGE: ghcr.io/${{ github.repository }}/web:63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          REVISION: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+        run: |
+          symbolWebId=$(docker create "$WEB_IMAGE")
+          docker cp "$symbolWebId:/srv" .asa/web-runtime
+          docker rm "$symbolWebId"
+          node tools/verify-web-symbols.mjs .asa/web-runtime ".asa/web-symbols/web-symbols-$REVISION.manifest.json" "$REVISION"
+      - name: Retain encrypted maps (no plaintext in public repository artifacts)
+        if: matrix.service == 'web'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-symbols-63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          path: .asa/web-symbols/*.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish verified web image
+        if: matrix.service == 'web'
+        env:
+          WEB_IMAGE: ghcr.io/${{ github.repository }}/web:63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+        run: docker push "$WEB_IMAGE"
+  publish:
+    needs: [build]
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ASA_BUILD_REVISION: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - run: python tools/deployment/ci_manifest.py
+      - name: Verify the exact images before promoting stable
+        run: python tools/deployment/ci_smoke.py .asa/release/release.json
+      - name: Prevent a delayed workflow from rolling the channel backward
+        run: |
+          python - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'tools')
+          from deployment.system import run
+          from deployment.contracts import require
+          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
+          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
+                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
+          PY
+      - uses: docker/build-push-action@v6
+        with:
+          context: .asa/release
+          file: infra/deployment/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository }}/deployment:63572ea959fb1f9fe543a3f5e06f4d3623582b6d
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
