@@ -232,3 +232,27 @@ remains separate. Mobile label baseline is hidden/NOT_OBSERVED;568 is NOT_RUN.
 Source publication is separate from deployment, physical owner acceptance and
 release. Preserve681 CLOSED,552 blockers,682 pending qualification,548 and
 owner KEEP544/547OPEN; no foreign work or blocker is cleared.
+
+
+## Current composition budget326 repair selection — 24 October 2026
+
+Exact8415 scoped40087416800 passes all six original cases/all three jobs;
+General40087416057 Code fails only RAW222326/222000 by326, categoryA.
+Governance PASS; Data/Access SKIPPED. Independent actual NEEDS_FIX solely budget,
+functional/visual APPROVE_TARGETED6/6, receipt SHA256
+`febdad11e0129690c66de91e8b88de6f4045ae9874dd02c3a796345ad8be6456`.
+Both full F2 Save/CAS2to3/fresh R3 documents and all12 clock phases complete.
+
+The [pointer-down repair selection](../evidence/ui679-557-pointerdown-budget-repair-selection-20261024.md)
+suspends next integration qualification until one exact repair: frozen Visual
+helper plus two pointer-down bodies, and meaningful existing knob-controls
+regressions only. Preserve8415 Stage/Header/all other eight source blobs, whole
+clock browser and interaction assertions. Proposal-only independent review
+approves3812 dispatch comparisons;503 proxy savings/apparent177 margin proves
+no production fit. Preserve accepted foreign682222000 cap unchanged and keep
+historical6db217998/218000 separate. NEW exact-source review, one new scoped six
+plus General and NEW actual review precede679/557 integration/closure.
+No meter/SVG/wrapper/core/hook/LED/API/assets/workflow/dependency/cap/timer or
+assertion changes. Generator equivalence unit proof adds no native browser claim.
+Preserve552/682/548, KEEP544/547OPEN,681CLOSED and immutable receipts; mobile
+visibility/568 limits, deployment, physical acceptance and release stay pending.
