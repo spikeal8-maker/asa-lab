@@ -653,7 +653,12 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await noOverflow(page);
     const row = page.locator('.classroom-student-navrow');
     const rowBox = await row.boundingBox();
-    expect(rowBox!.height, 'one slim navigation row').toBeLessThanOrEqual(46);
+    expect(
+      rowBox!.height,
+      'UI-01 rail: <=52px at 390, <=56px at 320 and compact on desktop',
+    ).toBeLessThanOrEqual(width <= 350 ? 56 : width <= 599 ? 52 : 68);
+    await expect(row.getByRole('navigation', { name: 'Переход по ученикам' })).toBeVisible();
+    await expect(row.locator('.classroom-student-picker-name')).toHaveText(longName);
     const hero = await page.locator('.participant-hero').boundingBox();
     expect(
       hero!.y - (rowBox!.y + rowBox!.height),
@@ -679,8 +684,12 @@ test('production profile stays compact with long Russian identity on desktop, sp
     const names = page.locator('.student-pager-name');
     await expect(names).toHaveText(['Петрова Анна', 'Иванов Иван']);
     for (const name of await names.all()) {
-      await expect(name).toBeVisible();
-      expect((await name.boundingBox())!.width).toBeGreaterThan(24);
+      if (width <= 599) {
+        await expect(name).toBeHidden();
+      } else {
+        await expect(name).toBeVisible();
+        expect((await name.boundingBox())!.width).toBeGreaterThan(24);
+      }
     }
     await expect(
       page.getByRole('button', { name: 'Предыдущий ученик: Петрова Анна Сергеевна' }),
@@ -702,6 +711,7 @@ test('production profile stays compact with long Russian identity on desktop, sp
     );
     measurements.push({
       width,
+      identityRailHeight: rowBox!.height,
       summaryHeight: summaryBox.height,
       tokenWidth: token.width,
       tokenHeight: token.height,
@@ -775,7 +785,8 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await expect(previous.locator('.student-pager-name')).toHaveText(
       'Александра Константинопольская-Долгорукова',
     );
-    await expect(previous.locator('.student-pager-name')).toBeVisible();
+    if (width <= 599) await expect(previous.locator('.student-pager-name')).toBeHidden();
+    else await expect(previous.locator('.student-pager-name')).toBeVisible();
     await noOverflow(page);
     await shot(page, `long-neighbor-${width}`);
   }
@@ -855,7 +866,7 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
   await expect(
     page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
   ).not.toBeChecked();
-  const suspended = page.locator('.participant-hero .classroom-student-suspended');
+  const suspended = page.locator('.classroom-student-identity-rail .classroom-student-suspended');
   await expect(suspended).toHaveCount(1);
   await expect(suspended).toHaveText('Доступ приостановлен');
   await expect(suspended).toBeVisible();
