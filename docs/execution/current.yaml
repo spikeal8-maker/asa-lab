@@ -10065,18 +10065,36 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
-      previous_checkpoint: r5_diagnosis_terminal_no_proven_cause
+      status: blocked
+      checkpoint: r6_one_synthetic_before_postfinal_lamp_visual_mismatch
+      previous_checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
+      previous_r5_diagnosis: r5_diagnosis_terminal_no_proven_cause
       previous_r5_checkpoint: r8_test_only_unique_native_meter_hit_path
       r6_diagnostic:
-        status: selected
+        status: terminal_source_reviewed_runtime_early_failure
         executor: bounded_e11_test_only_author_549
         selected_by: owner_instruction_2026_10_24
         baseline_main_sha: 9f4e6a71fa4a089187c7ebd54266688c1c3bda16
         scope: e2e/electronics-selection-outline.spec.ts only
         max_experiments: 1
-        independent_review: pending
+        experiments_completed: 1
+        remaining_experiments: 0
+        additional_experiment_authorized: false
+        candidate_pr: 729
+        candidate_sha: 0a04e3340acc5b928bf5014b3ae3cd3a5b8c555c
+        isolated_run_source_sha: 689ce6dacc1645f3b76c36b2e45a4d3b7ef98d91
+        independent_review: codex_source_no_major_issues_exact_0a04e334
+        reviewer_receipt: https://github.com/spikeal8-maker/asa-lab/pull/729#issuecomment-6384643429
+        runtime_verdict: early_lamp_worker_dom_mismatch_not_postfinal_attribution
+        runtime_result: one_1440_running_controls_test_failed_24_9s
+        runtime_failed_at: e2e/electronics-selection-outline.spec.ts:1466
+        runtime_details: >-
+          Original five-second lamp expect.poll failed before final snapshot:
+          Worker complete ready lamp brightness99.56 at seq66/96/133, yet
+          Playwright DOM kept lamp/off.svg; zero PUT and zero postfinal markers.
+          The historical 31-minute postfinal waiting operation remains UNKNOWN.
+        evidence_location: D2-R2/asa-lab-e11-549-r6-evidence-20261024
+        cleanup: isolated_compose_down_v_exit_zero
         rules: >-
           Mark post-final-snapshot recursive numeric verification, event checks,
           PUT/readback and terminal checkpoint timing. Synthetic project only.
@@ -10089,14 +10107,15 @@ parallel_lanes:
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R6 is a single explicitly owner-authorized bounded test-only post-final-snapshot
-        diagnosis; keep R5 historical evidence and all strict native assertions. No
-        product E11 repair is authorized before the diagnostic cause is established.
+        R6 test-only selection is exhausted. One isolated synthetic actual Chromium
+        test failed earlier at lamp presentation before reaching postfinal markers.
+        Preserve old R5 and current R6 evidence, all source oracles and historical
+        post-final UNKNOWN status. No product repair and no second experiment.
       source_budget: >-
-        ONE diagnostic test-only edit in existing e2e/electronics-selection-outline.spec.ts;
-        markers around numeric leaves, events, PUT/server readback and complete checkpoint.
-        One isolated synthetic run; preserve original physics, save/CAS, Worker, source
-        evidence, timeouts and historical R5 freeze. Further product edits require selection.
+        NONE until a new canonical owner/controller decision. Existing Draft
+        PR729 test-only source has exact independent source review; its actual
+        R6 runtime is FAIL and not a product acceptance. Preserve all untouched
+        Worker, physics, geometry, CAS, Save/reopen and deadlines.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
