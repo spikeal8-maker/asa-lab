@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import {
   LearningCanonicalProjectionService,
+  canonicalCourseParticipationKey,
   canonicalProjectionKey,
   canonicalReadsEnabled,
 } from './learning-canonical-projection.service.js';
@@ -258,6 +259,46 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       expect(value?.state.provenance.activityRunId).toBe(runId);
       expect(value?.surface.flags).toContain('excused');
     }
+  });
+
+  it('retains two distinct Activity Runs sharing one handout without hiding excusal', async () => {
+    const runA = '70000000-0000-4000-8000-000000000041';
+    const runB = '70000000-0000-4000-8000-000000000042';
+    const pool = poolWith(
+      {
+        ...base,
+        kind: 'course_project',
+        activityRunId: runA,
+        legacyWork: null,
+        participation: { applicable: true, status: 'active', excused: false },
+      },
+      {
+        ...base,
+        kind: 'course_project',
+        activityRunId: runB,
+        legacyWork: null,
+        participation: { applicable: true, status: 'active', excused: true },
+      },
+    );
+    const service = new LearningCanonicalProjectionService(pool, {});
+    for (const snapshot of [
+      await service.forSeatCourseRuns(base.seatId, '2026-08-21T00:00:00.000Z'),
+      await service.forAccountCourseRuns('50000000-0000-4000-8000-000000000099', '2026-08-21T00:00:00.000Z'),
+    ]) {
+      expect(snapshot.projections.size).toBe(1);
+      expect(snapshot.participationByRun.size).toBe(2);
+      expect(snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runA))).toEqual({
+        classroomAssignmentId: base.classroomAssignmentId,
+        applicable: true,
+        excused: false,
+      });
+      expect(snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runB))).toEqual({
+        classroomAssignmentId: base.classroomAssignmentId,
+        applicable: true,
+        excused: true,
+      });
+    }
+    expect(pool.query).toHaveBeenCalledTimes(2);
   });
 
   it('has an explicit reversible legacy cutover that bypasses canonical reads', async () => {

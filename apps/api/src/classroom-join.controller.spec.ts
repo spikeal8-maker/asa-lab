@@ -1030,6 +1030,39 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       not_started_visible: true,
     });
 
+    // Same handout, two exact Course Activity Runs: handout-keyed projections
+    // collapse but run-keyed participation must retain both eligibility states.
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentA,
+      shared_assignment: true,
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentA,
+      participation: { applicable: true, status: 'active', excused: true },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]).toMatchObject({
+        activityRunId: activityRunA,
+        requirement: 'required',
+      });
+      expect(practices?.[1]).toMatchObject({
+        activityRunId: activityRunB,
+        requirement: 'excused',
+      });
+    }
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentB,
+      shared_assignment: false,
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentB,
+      participation: { applicable: true, status: 'active', excused: false },
+    });
+
     Object.assign(occurrenceRows[1], { task_blocks: { present: true, blocks: null } });
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),

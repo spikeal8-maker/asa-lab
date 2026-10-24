@@ -39,7 +39,9 @@ import {
 } from './student-code-protection.js';
 import {
   LearningCanonicalProjectionService,
+  canonicalCourseParticipationKey,
   canonicalProjectionKey,
+  type CourseParticipationProof,
   type CanonicalLearningProjection,
   type CanonicalLearningSurfaceState,
 } from './learning-canonical-projection.service.js';
@@ -99,6 +101,7 @@ interface AssignmentForSeatRow {
 }
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
+type CourseParticipationMap = Map<string, CourseParticipationProof>;
 
 function canonicalFor(
   projections: CanonicalProjectionMap,
@@ -245,21 +248,19 @@ function courseActivityOccurrenceMap(
   rows: CourseActivityOccurrenceRow[],
   projections: CanonicalProjectionMap,
   origins?: OriginLearnerList,
+  participationByRun: CourseParticipationMap = new Map(),
 ) {
   const result = new Map<string, CourseActivityOccurrenceView[]>();
   for (const row of rows) {
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
-    const projection = projections.get(
-      canonicalProjectionKey(row.seat_id, row.classroom_assignment_id),
+    const exactParticipation = participationByRun.get(
+      canonicalCourseParticipationKey(row.seat_id, row.activity_run_id),
     );
-    const provenance = projection?.state.provenance;
     const participation =
-      provenance?.seatId === row.seat_id &&
-      provenance.classroomAssignmentId === row.classroom_assignment_id &&
-      provenance.activityRunId === row.activity_run_id
-        ? (projection?.participationApplicability ?? null)
+      exactParticipation?.classroomAssignmentId === row.classroom_assignment_id
+        ? exactParticipation
         : null;
     // The assigned/excused decision must not depend on whether legacy project
     // origin, editable work or a selected attempt is available to this viewer.
@@ -351,8 +352,14 @@ function seatCourseRuns(
   projections: CanonicalProjectionMap = new Map(),
   occurrenceRows: CourseActivityOccurrenceRow[] = [],
   origins?: OriginLearnerList,
+  participationByRun: CourseParticipationMap = new Map(),
 ) {
-  const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections, origins);
+  const activityOccurrences = courseActivityOccurrenceMap(
+    occurrenceRows,
+    projections,
+    origins,
+    participationByRun,
+  );
   const guardedLessonWork = new Set(
     occurrenceRows
       .filter(
@@ -1364,12 +1371,12 @@ export class ClassroomJoinController {
   async accountCourseRuns(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections, occurrences, origins] = await Promise.all([
+    const [result, canonicalSnapshot, occurrences, origins] = await Promise.all([
       this.requirePool().query(ACCOUNT_COURSE_LESSON_LIST_SQL, [
         context.accountId,
         context.principalId,
       ]),
-      this.canonical().forAccount(context.accountId),
+      this.canonical().forAccountCourseRuns(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
@@ -1391,9 +1398,10 @@ export class ClassroomJoinController {
     return {
       items: seatCourseRuns(
         result.rows as SeatCourseRunRow[],
-        projections,
+        canonicalSnapshot.projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
+        canonicalSnapshot.participationByRun,
       ),
     };
   }
@@ -1560,9 +1568,9 @@ export class ClassroomJoinController {
   @Get('me/course-runs')
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections, occurrences, origins] = await Promise.all([
+    const [result, canonicalSnapshot, occurrences, origins] = await Promise.all([
       this.requirePool().query(SEAT_COURSE_LESSON_LIST_SQL, [seat.seat_id]),
-      this.canonical().forSeat(seat.seat_id),
+      this.canonical().forSeatCourseRuns(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
@@ -1585,9 +1593,10 @@ export class ClassroomJoinController {
     return {
       items: seatCourseRuns(
         result.rows as SeatCourseRunRow[],
-        projections,
+        canonicalSnapshot.projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
+        canonicalSnapshot.participationByRun,
       ),
     };
   }

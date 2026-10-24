@@ -53,6 +53,21 @@ export interface CanonicalLearningSurfaceState {
   compatibilityDiagnostic?: string;
 }
 
+export interface CourseParticipationProof {
+  classroomAssignmentId: string;
+  applicable: boolean;
+  excused: boolean;
+}
+
+export interface CanonicalCourseLearnerSnapshot {
+  projections: Map<string, CanonicalLearningProjection>;
+  participationByRun: Map<string, CourseParticipationProof>;
+}
+
+export function canonicalCourseParticipationKey(seatId: string, activityRunId: string): string {
+  return `${seatId}:${activityRunId}`;
+}
+
 export interface CanonicalLearningProjection {
   key: string;
   state: CanonicalLearningState;
@@ -230,22 +245,56 @@ export class LearningCanonicalProjectionService {
     return this.read('learning_canonical_evidence_for_account($1)', [accountId], 'learner', asOf);
   }
 
+  /** One canonical read supplies both the legacy handout view and exact Course Run applicability. */
+  async forSeatCourseRuns(
+    seatId: string,
+    asOf = new Date().toISOString(),
+  ): Promise<CanonicalCourseLearnerSnapshot> {
+    return this.readSnapshot('learning_canonical_evidence_for_seat($1)', [seatId], 'learner', asOf);
+  }
+
+  async forAccountCourseRuns(
+    accountId: string,
+    asOf = new Date().toISOString(),
+  ): Promise<CanonicalCourseLearnerSnapshot> {
+    return this.readSnapshot('learning_canonical_evidence_for_account($1)', [accountId], 'learner', asOf);
+  }
+
   private async read(
     functionCall: string,
     parameters: string[],
     audience: ProjectionAudience,
     asOf: string,
   ): Promise<Map<string, CanonicalLearningProjection>> {
-    if (!this.enabled()) return new Map();
+    return (await this.readSnapshot(functionCall, parameters, audience, asOf)).projections;
+  }
+
+  private async readSnapshot(
+    functionCall: string,
+    parameters: string[],
+    audience: ProjectionAudience,
+    asOf: string,
+  ): Promise<CanonicalCourseLearnerSnapshot> {
+    const projections = new Map<string, CanonicalLearningProjection>();
+    const participationByRun = new Map<string, CourseParticipationProof>();
+    if (!this.enabled()) return { projections, participationByRun };
     const result = await this.pool.query<{ evidence: EvidenceRow }>(
       `SELECT evidence FROM ${functionCall}`,
       parameters,
     );
-    return new Map(
-      result.rows.map(({ evidence }) => {
-        const key = canonicalProjectionKey(evidence.seatId, evidence.classroomAssignmentId);
-        return [key, canonicalProjectionFromEvidence(evidence, key, asOf, audience)];
-      }),
-    );
+    for (const { evidence } of result.rows) {
+      const key = canonicalProjectionKey(evidence.seatId, evidence.classroomAssignmentId);
+      projections.set(key, canonicalProjectionFromEvidence(evidence, key, asOf, audience));
+      // Handout-keyed canonical state may collapse sibling Activity Runs.
+      // Preserve every learner/Run participation independently of work origin.
+      if (evidence.activityRunId && evidence.participation) {
+        participationByRun.set(canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId), {
+          classroomAssignmentId: evidence.classroomAssignmentId,
+          applicable: evidence.participation.applicable === true,
+          excused: evidence.participation.excused === true,
+        });
+      }
+    }
+    return { projections, participationByRun };
   }
 }
