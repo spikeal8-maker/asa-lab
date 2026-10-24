@@ -84,6 +84,11 @@ const upgradeArtifacts = [
     '0240_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
+  [
+    '0241',
+    '0241_max_external_only_registration.sql',
+    '859c003111fafed508271fff05205aafe63cb15edc030986e27fc90ed8191e85',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

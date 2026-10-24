@@ -396,7 +396,7 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
     );
     expect((await registerExternalMax(pending, { nonce: hash() })).result).toBe('unavailable');
     await admin.query(
-      "UPDATE auth_provider_pairings SET expires_at=now()-interval '1 minute' WHERE token_hash=$1",
+      "UPDATE auth_provider_pairings SET created_at=now()-interval '20 minutes',expires_at=now()-interval '1 minute' WHERE token_hash=$1",
       [pending.tokenHash],
     );
     expect((await registerExternalMax(pending)).result).toBe('unavailable');
