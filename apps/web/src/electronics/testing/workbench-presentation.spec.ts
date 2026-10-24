@@ -164,7 +164,12 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('ASA Lab');
     expect(headerSource).not.toContain('workbench-brand-grid');
     expect(headerSource).toContain('Время моделирования:');
-    expect(headerSource).toContain('formatSimulationTime(c.committedSimulationTimeMs / 1000)');
+    expect(headerSource).toContain(
+      'useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock)',
+    );
+    expect(headerSource).toContain('<SimulationClock port={c.nativeOpticalPresentation} />');
+    expect(headerSource).toContain('formatSimulationTime(microseconds / 1_000_000)');
+    expect(headerSource).not.toContain('formatSimulationTime(c.simulationTimeMs');
     expect(headerSource).not.toContain('Date.now() - startedAt');
     expect(headerSource).toContain('<EditorPersistenceIndicator');
     expect(headerSource).toContain('localCopySaved={c.localCopySaved}');
@@ -643,6 +648,7 @@ describe('owner-reference Electronics presentation contract', () => {
           `${predicateSource?.replace(': SchematicComponent', '').replace(': boolean', '')}; ${handlerSource}; handleWirePointerDown`,
           {
             c,
+            window: { document: { elementsFromPoint: () => [] } },
             componentAtClientPoint: () => component,
             lastWireClick: { current: null },
             pointerSequenceRef: { current: 1 },

@@ -1,15 +1,15 @@
 export interface SessionUser {
   readonly id: string;
-  readonly email: string;
+  readonly email: string | null;
   readonly displayName: string;
   readonly schoolId: string | null;
-  readonly passwordHash: string;
+  readonly passwordHash: string | null;
 }
 
 export interface SessionContext {
   readonly tenantId: string;
   readonly userId: string;
-  readonly email: string;
+  readonly email: string | null;
   readonly displayName: string;
   readonly schoolId: string | null;
 }

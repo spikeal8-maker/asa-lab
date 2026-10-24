@@ -305,8 +305,8 @@ export class PgAccountDirectory implements AccountDirectoryPort {
     return row
       ? {
           id: row['id'] as string,
-          email: row['email'] as string,
-          passwordHash: row['password_hash'] as string,
+          email: row['email'] as string | null,
+          passwordHash: row['password_hash'] as string | null,
         }
       : null;
   }
@@ -314,7 +314,7 @@ export class PgAccountDirectory implements AccountDirectoryPort {
   private toProfile(row: Record<string, unknown> | undefined): AccountProfileRecord | null {
     return row
       ? {
-          email: row['email'] as string,
+          email: row['email'] as string | null,
           emailVerificationState: row['email_verification_state'] as string,
           username: row['username'] as string,
           displayName: row['display_name'] as string,

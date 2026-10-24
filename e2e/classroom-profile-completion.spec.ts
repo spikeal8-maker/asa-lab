@@ -190,112 +190,155 @@ async function assertLayout(page: Page, width: number, file: string) {
   expect(Math.abs(backBox.y - previousRect.y)).toBeLessThanOrEqual(1);
   const hero = (await page.locator('.participant-hero').boundingBox())!;
   expect(navBox.y + navBox.height).toBeLessThanOrEqual(hero.y);
-  expect(hero.y - navBox.y - navBox.height).toBeLessThanOrEqual(12);
+  const mobileSectionRail = page.getByRole('group', { name: 'Разделы ученика' });
+  if (await mobileSectionRail.isVisible()) {
+    const railBox = (await mobileSectionRail.boundingBox())!;
+    expect(railBox.height, 'one 44px section row').toBe(44);
+    expect(railBox.y - navBox.y - navBox.height).toBeLessThanOrEqual(6);
+    expect(hero.y - railBox.y - railBox.height).toBeLessThanOrEqual(12);
+  } else {
+    expect(hero.y - navBox.y - navBox.height).toBeLessThanOrEqual(12);
+  }
   await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
-  // The approved local scroller exposes all eight full labels by focus/keyboard.
+  // On desktop nine sections remain keyboard-reachable in the original scroller.
+  // On narrow content the same nine sections use one native accessible selector.
   {
     const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
-    await expect(sections.locator('button')).toHaveText([
-      'Все работы',
-      'Оценки',
-      'Задания',
-      '3D',
-      'Электроника',
-      'Scratch',
-      'Заслуги',
-      'Активность',
-    ]);
-    expect((await sections.boundingBox())!.height).toBeLessThanOrEqual(70);
-    const layout = await sections.evaluate((nav) => {
-      const buttons = [...nav.querySelectorAll<HTMLButtonElement>('button')];
-      return {
-        scrollWidth: nav.scrollWidth,
-        clientWidth: nav.clientWidth,
-        buttons: buttons.map((button) => {
-          const rect = button.getBoundingClientRect();
-          return {
-            left: rect.left,
-            right: rect.right,
-            height: rect.height,
-            top: rect.top,
-            bottom: rect.bottom,
-            scrollWidth: button.scrollWidth,
-            clientWidth: button.clientWidth,
-          };
-        }),
-      };
-    });
-    // A button may have no overflow yet display an unreadable word split across lines.
-    // Measure actual rendered glyph fragments, not just scrollWidth.
-    const splitWords = await sections.locator('button').evaluateAll((buttons) => {
-      const broken: string[] = [];
-      for (const button of buttons) {
-        const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
-        let node: Node | null;
-        while ((node = walker.nextNode())) {
-          const content = node.textContent ?? '';
-          for (const match of content.matchAll(/\S+/gu)) {
-            const range = document.createRange();
-            range.setStart(node, match.index);
-            range.setEnd(node, match.index + match[0].length);
-            const fragments = Array.from(range.getClientRects());
-            const box = button.getBoundingClientRect();
-            if (fragments.length !== 1) {
-              broken.push(match[0]);
-              continue;
-            }
-            const fragment = fragments[0]!;
-            if (fragment.left < box.left - 1 || fragment.right > box.right + 1) {
-              broken.push(match[0]);
+    if (await sections.isVisible()) {
+      await expect(sections.locator('button')).toHaveText([
+        'Все работы',
+        'Оценки',
+        'Задания',
+        '3D',
+        'Электроника',
+        'Scratch',
+        'Заслуги',
+        'Активность',
+        'Настройки',
+      ]);
+      expect((await sections.boundingBox())!.height).toBeLessThanOrEqual(70);
+      const layout = await sections.evaluate((nav) => {
+        const buttons = [...nav.querySelectorAll<HTMLButtonElement>('button')];
+        return {
+          scrollWidth: nav.scrollWidth,
+          clientWidth: nav.clientWidth,
+          buttons: buttons.map((button) => {
+            const rect = button.getBoundingClientRect();
+            return {
+              left: rect.left,
+              right: rect.right,
+              height: rect.height,
+              top: rect.top,
+              bottom: rect.bottom,
+              scrollWidth: button.scrollWidth,
+              clientWidth: button.clientWidth,
+            };
+          }),
+        };
+      });
+      // A button may have no overflow yet display an unreadable word split across lines.
+      // Measure actual rendered glyph fragments, not just scrollWidth.
+      const splitWords = await sections.locator('button').evaluateAll((buttons) => {
+        const broken: string[] = [];
+        for (const button of buttons) {
+          const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+          let node: Node | null;
+          while ((node = walker.nextNode())) {
+            const content = node.textContent ?? '';
+            for (const match of content.matchAll(/\S+/gu)) {
+              const range = document.createRange();
+              range.setStart(node, match.index);
+              range.setEnd(node, match.index + match[0].length);
+              const fragments = Array.from(range.getClientRects());
+              const box = button.getBoundingClientRect();
+              if (fragments.length !== 1) {
+                broken.push(match[0]);
+                continue;
+              }
+              const fragment = fragments[0]!;
+              if (fragment.left < box.left - 1 || fragment.right > box.right + 1) {
+                broken.push(match[0]);
+              }
             }
           }
         }
-      }
-      return broken;
-    });
-    expect(layout.buttons).toHaveLength(8);
-    expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
-    for (const button of await sections.locator('button').all()) {
-      await button.focus();
-      // Chromium rounds local scroll offsets to pixels; keep the same 1px
-      // geometry tolerance as the rest of this layout contract.
-      await expect(button).toBeInViewport();
-      // Focus can scroll the document. Measure both rectangles in the same
-      // browser frame so document movement cannot look like local clipping.
-      const { box, rail } = await button.evaluate((element) => {
-        const box = element.getBoundingClientRect();
-        const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
-        return {
-          box: { x: box.x, y: box.y, width: box.width, height: box.height },
-          rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
-        };
+        return broken;
       });
-      expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
-      expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
-      expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
-      expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
-      expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
-      expect(box.height).toBeGreaterThanOrEqual(44);
-      expect(
-        await button.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
-      ).toBe(true);
-    }
-    // All eight hit targets must be disjoint, not just fully inside the viewport.
-    for (const [index, first] of layout.buttons.entries()) {
-      for (const second of layout.buttons.slice(index + 1)) {
-        const xOverlap = Math.min(first.right, second.right) - Math.max(first.left, second.left);
-        const yOverlap = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
-        expect(xOverlap > 1 && yOverlap > 1).toBe(false);
+      expect(layout.buttons).toHaveLength(9);
+      expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
+      for (const button of await sections.locator('button').all()) {
+        await button.focus();
+        // Chromium rounds local scroll offsets to pixels; keep the same 1px
+        // geometry tolerance as the rest of this layout contract.
+        await expect(button).toBeInViewport();
+        // Focus can scroll the document. Measure both rectangles in the same
+        // browser frame so document movement cannot look like local clipping.
+        const { box, rail } = await button.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
+          return {
+            box: { x: box.x, y: box.y, width: box.width, height: box.height },
+            rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
+          };
+        });
+        expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
+        expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
+        expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(
+          await button.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+        ).toBe(true);
       }
+      // All nine hit targets must be disjoint, not just fully inside the viewport.
+      for (const [index, first] of layout.buttons.entries()) {
+        for (const second of layout.buttons.slice(index + 1)) {
+          const xOverlap = Math.min(first.right, second.right) - Math.max(first.left, second.left);
+          const yOverlap = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
+          expect(xOverlap > 1 && yOverlap > 1).toBe(false);
+        }
+      }
+      await sections.locator('button').first().focus();
+      await page.keyboard.press('End');
+      await expect(sections.locator('button').last()).toBeFocused();
+      await expect(sections.locator('button').last()).toBeInViewport();
+      await page.keyboard.press('Home');
+      await expect(sections.locator('button').first()).toBeFocused();
+      await expect(sections.locator('button').first()).toBeInViewport();
+    } else {
+      await expect(sections).toBeHidden();
+      const mobile = page.getByRole('combobox', { name: 'Раздел профиля' });
+      await expect(mobile).toBeVisible();
+      await expect(mobile.locator('option')).toHaveText([
+        'Все работы',
+        'Оценки',
+        'Задания',
+        '3D',
+        'Электроника',
+        'Scratch',
+        'Заслуги',
+        'Активность',
+        'Настройки',
+      ]);
+      const sectionBox = (await mobile.boundingBox())!;
+      expect(sectionBox.height).toBe(44);
+      expect(sectionBox.width).toBeGreaterThanOrEqual(44);
+      const contextual = page.locator(
+        '.classroom-student-section-rail .classroom-student-section-action',
+      );
+      const actionBox = (await contextual.boundingBox())!;
+      expect(actionBox.width).toBeGreaterThanOrEqual(44);
+      expect(actionBox.height).toBeGreaterThanOrEqual(44);
+      const selectedBeforeLayoutCheck = await mobile.inputValue();
+      await mobile.selectOption('grades');
+      await expect(mobile).toHaveValue('grades');
+      await expect(page.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
+      // Layout checks must not silently change the teacher's active work section.
+      await mobile.selectOption(selectedBeforeLayoutCheck);
+      await expect(mobile).toHaveValue(selectedBeforeLayoutCheck);
     }
-    await sections.locator('button').first().focus();
-    await page.keyboard.press('End');
-    await expect(sections.locator('button').last()).toBeFocused();
-    await expect(sections.locator('button').last()).toBeInViewport();
-    await page.keyboard.press('Home');
-    await expect(sections.locator('button').first()).toBeFocused();
-    await expect(sections.locator('button').first()).toBeInViewport();
   }
 
   const controls = page.locator(

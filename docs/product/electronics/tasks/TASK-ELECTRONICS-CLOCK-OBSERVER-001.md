@@ -115,3 +115,47 @@ The [cause-based selection](../evidence/ui679-557-causal-repair-selection-202610
 supersedes earlier conflicting no-product/no-follow-up restrictions only for this
 bounded repair. Owner API-separate targeted acceptance continues; no global PASS,
 physical owner acceptance, release or deployment is implied.
+
+
+## Current-main integration selection — 24 October 2026
+
+The bounded historical candidate6dbab2cc7d181294e875e89895c231d0d86d61dc
+passed General40040123409 all four jobs and scoped40040123895 all three jobs,
+all six original native cases. Actual217998 RAW fit its218000 cap by2.
+NEW independent actual review APPROVE_TARGETED verified43 original hashes,
+4717 raw checks and20 PNGs, both complete F2 journeys with one Save/CAS/full
+fresh R3 document and all12 clock phases. Receipt SHA256
+`77f8474a3329dd535162acb34d1d97b2edc6bb7c6641493054523ec460792243`.
+This historical result does not accept a different current-main composition.
+
+See [current-main integration selection](../evidence/ui679-557-current-main-integration-selection-20261024.md)
+for the exact ten-path boundary. Preserve the foreign682 subscribed clock,
+optical renderer/runtime and separately owner-approved222000 cap. New composition
+source review, actual size, scoped/General execution and independent actual/visual
+review are still required. No new budget increase is selected; old218000 proof
+remains separate. Mobile label baseline is hidden/NOT_OBSERVED;568 is NOT_RUN.
+Source publication is separate from deployment, physical owner acceptance and
+release. Preserve681 CLOSED,552 blockers,682 pending qualification,548 and
+owner KEEP544/547OPEN; no foreign work or blocker is cleared.
+
+
+## Final targeted technical closeout — 24 October 2026
+
+[The final dated receipt](../evidence/ui679-557-final-technical-closeout-20261024.md)
+records qualified source `5b5f2cf549d94473e0365c8938093d8026ac67f4` integrated in main
+`380d35bc67d22d2eb6e96c92dbdbb75a4211928c`, NEW independent source/integration and
+APPROVE_TARGETED actual/visual reviews, all six original native cases complete,
+and actual221965 RAW against unchanged accepted222000 cap (35 bytes remaining).
+Both F2 whole-document one-Save/CAS2→3/cookies-only R3 journeys and all12 clock
+phases completed.679 closed2026-10-24T11:40:48Z;557 closed11:40:51Z.
+General40089881977 SUCCESS, all four jobs on exact qualified5b5f2cf5;
+no new main or documentation-SHA General result is claimed. Historical selections and prior
+NOT_RUN/failure records remain immutable history; current completion is recorded
+only in current.yaml and this receipt. No new documentation-SHA runtime claim.
+
+Owner API-separate targeted UI acceptance covers these technical closures only.
+Physical owner acceptance, release and deployment remain pending. Mobile hidden
+clock visibility NOT_OBSERVED;568px NOT_RUN. Preserve552 blocker byte-exact,
+682 partial/all-eight pending,548 and owner KEEP544/547OPEN,681 already closed
+and every foreign state. Historical6db218000-cap evidence is not new fit proof.
+Source publication is not deployment. NEXT_ALLOWED_TASK: STOP.

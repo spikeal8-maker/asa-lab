@@ -20,7 +20,7 @@ import {
   renderedSize,
   terminalPosition,
 } from './component-catalog';
-import { ProductionComponentVisual } from './ProductionComponentVisual';
+import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
 import { productionBreadboard } from './production-manifest-adapter';
 import {
   diagnosticBadgeGeometry,
@@ -475,6 +475,33 @@ export function WorkbenchStage({
         c.startComponentDrag(event, foregroundComponent);
       }
       return;
+    }
+    if (foregroundComponent?.componentTypeId === 'regulated-power-supply') {
+      const ownerAttribute = 'data-component-id';
+      const ownerSelector = '[' + ownerAttribute + ']';
+      const control = window.document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .find(
+          (element) =>
+            element.matches('rect.workbench-regulated-supply-power-switch') &&
+            element.closest(ownerSelector)?.getAttribute(ownerAttribute) === foregroundComponent.id,
+        );
+      const runtimeSelector = '.workbench-regulated-supply-runtime';
+      const runtime = control?.closest(runtimeSelector);
+      const owner = runtime?.closest(ownerSelector);
+      const output = runtime?.getAttribute('data-output-enabled');
+      if (
+        owner?.getAttribute(ownerAttribute) === foregroundComponent.id &&
+        owner.querySelectorAll(runtimeSelector).length === 1 &&
+        (output === 'true' || output === 'false')
+      ) {
+        c.setRegulatedPowerSupplyControls(foregroundComponent.id, {
+          outputEnabled: output === 'false',
+        });
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
     }
     event.stopPropagation();
     const previous = lastWireClick.current;

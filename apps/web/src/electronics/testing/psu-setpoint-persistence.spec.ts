@@ -17,6 +17,7 @@ import {
 import type {
   ElectronicsSimulationWorkerRequest,
   ElectronicsSimulationWorkerResponse,
+  SimulationTimedAdvancePayload,
 } from '../simulation-worker-protocol';
 import { normalizeLoadedDocument } from '../use-workbench-project-state';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
@@ -35,6 +36,8 @@ let omitEventHistoryInTransit = false;
 const deliveredAdvances: Array<{
   clockProfileId: string | undefined;
   committedMicroseconds: number;
+  requestedMicroseconds: number;
+  temporal: SimulationTimedAdvancePayload['ledTemporal'];
   solved: boolean;
   qualityPassed: boolean;
   hadTemporalHistory: boolean;
@@ -83,6 +86,8 @@ class InProcessWorker {
           deliveredAdvances.push({
             clockProfileId: original.state.continuation?.clockProfileId,
             committedMicroseconds: original.committedHorizonMicroseconds,
+            requestedMicroseconds: original.requestedHorizonMicroseconds,
+            temporal: original.ledTemporal,
             solved: original.result?.solved === true,
             qualityPassed: original.result?.quality?.passed === true,
             hadTemporalHistory: original.ledTemporal !== undefined,
@@ -314,16 +319,42 @@ describe('PSU pupil settings use the real document/recovery/save queue', () => {
       await prepare({ ...initial, components: [uno], connections: [] });
       omitEventHistoryInTransit = dropHistory;
       await toggle();
-      expect(deliveredAdvances).toEqual([
-        {
+      expect(deliveredAdvances.length).toBeGreaterThan(0);
+      expect(deliveredAdvances[0]!.committedMicroseconds).toBe(0);
+      let prior = 0;
+      const d13: Array<{ atMicroseconds: number; voltage: number }> = [];
+      for (const receipt of deliveredAdvances) {
+        expect(receipt).toMatchObject({
           clockProfileId: 'electrothermal-events-v2',
-          committedMicroseconds: 0,
           solved: true,
           qualityPassed: true,
           hadTemporalHistory: true,
           deliveredTemporalHistory: !dropHistory,
-        },
-      ]);
+        });
+        expect(Number.isSafeInteger(receipt.committedMicroseconds)).toBe(true);
+        expect(receipt.committedMicroseconds).toBeGreaterThanOrEqual(prior);
+        expect(receipt.requestedMicroseconds).toBe(receipt.committedMicroseconds);
+        expect(receipt.temporal!.fromMicroseconds).toBe(prior);
+        expect(receipt.temporal!.toMicroseconds).toBe(receipt.committedMicroseconds);
+        const uno = receipt.temporal!.arduinoIndicators!.find(
+          (entry) => entry.componentId === 'uno',
+        );
+        expect(uno).toBeDefined();
+        expect(uno!.truncated).toBe(false);
+        expect(uno!.samples[0]!.atMicroseconds).toBe(prior);
+        expect(uno!.samples.at(-1)!.atMicroseconds).toBe(receipt.committedMicroseconds);
+        for (const sample of uno!.samples) {
+          expect(Number.isSafeInteger(sample.atMicroseconds)).toBe(true);
+          expect(sample.atMicroseconds).toBeGreaterThanOrEqual(prior);
+          expect(sample.atMicroseconds).toBeLessThanOrEqual(receipt.committedMicroseconds);
+          expect(Number.isFinite(sample.voltage)).toBe(true);
+          d13.push(sample);
+        }
+        prior = receipt.committedMicroseconds;
+      }
+      expect(d13).toContainEqual({ atMicroseconds: 0, voltage: 0 });
+      if (dropHistory) expect(deliveredAdvances).toHaveLength(1);
+      else expect(d13).toContainEqual({ atMicroseconds: 1, voltage: 4.99999999995 });
       expect(c().simulationRunning).toBe(!dropHistory);
       expect(c().document!.simulation.running).toBe(!dropHistory);
       if (dropHistory) {
@@ -340,7 +371,7 @@ describe('PSU pupil settings use the real document/recovery/save queue', () => {
     const save = await prepare();
     await toggle();
     expect(c().simulationRunning).toBe(true);
-    expect(deliveredAdvances[0]).toEqual({
+    expect(deliveredAdvances[0]).toMatchObject({
       clockProfileId: 'electrothermal-v1',
       committedMicroseconds: 0,
       solved: true,

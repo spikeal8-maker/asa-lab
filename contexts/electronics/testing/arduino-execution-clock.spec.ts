@@ -760,3 +760,28 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(result.state.resumeAtMs).toBe(2.001);
   });
 });
+
+describe('owner repeated short-cycle prospective instruction contract', () => {
+  it.each([20, 30, 50, 100])(
+    'retains exact first edge and every phase over ten %i ms cycles',
+    (phaseMs) => {
+      const source = `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(${phaseMs});digitalWrite(13,LOW);delay(${phaseMs});}`;
+      const result = through(source, phaseMs * 22 + 1);
+      expect(result.executionStatus).toBe('ready');
+      expect(result.diagnostics).toEqual([]);
+      const actual = result.events
+        .filter((edge) => edge.kind === 'output-change' && edge.terminal === 'd13')
+        .slice(1, 22)
+        .map((edge) => ({ at: edge.atMicroseconds, high: 'voltage' in edge && edge.voltage > 0 }));
+      const expected = Array.from({ length: 21 }, (_, index) => ({
+        at:
+          2 + Math.floor(index / 2) * (2 * phaseMs * 1000 + 5) + (index % 2) * (phaseMs * 1000 + 2),
+        high: index % 2 === 0,
+      }));
+      expect(actual).toEqual(expected);
+      expect(through(source, phaseMs * 22 + 1, undefined, undefined, 1).state).toStrictEqual(
+        result.state,
+      );
+    },
+  );
+});

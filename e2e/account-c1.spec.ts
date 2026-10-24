@@ -62,7 +62,6 @@ test('owner completes Account C1 and existing project modules remain available',
 
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Имя пользователя').fill(username);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Owner Preview');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль').fill(password);
@@ -104,7 +103,7 @@ test('owner completes Account C1 and existing project modules remain available',
     allowAnonymousSessionProbe: true,
   });
   await secondPage.goto('/#/sign-in');
-  await secondPage.getByLabel('Email или имя пользователя').fill(username);
+  await secondPage.getByLabel('Почта или логин').fill(email);
   await secondPage.getByLabel('Пароль').fill(password);
   await secondPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
@@ -266,7 +265,7 @@ test('owner completes Account C1 and existing project modules remain available',
   // unexpected-browser-failure collector; no error allowlist is added.
   const oldPasswordPage = await context.newPage();
   await oldPasswordPage.goto('/#/sign-in');
-  await oldPasswordPage.getByLabel('Email или имя пользователя').fill(username);
+  await oldPasswordPage.getByLabel('Почта или логин').fill(email);
   await oldPasswordPage.getByLabel('Пароль').fill(password);
   await oldPasswordPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const oldPasswordLoginResponsePromise = oldPasswordPage.waitForResponse((response) => {
@@ -282,7 +281,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await oldPasswordPage.close();
 
   await page.goto('/#/sign-in');
-  await page.getByLabel('Email или имя пользователя').fill(username);
+  await page.getByLabel('Почта или логин').fill(email);
   await page.getByLabel('Пароль').fill(newPassword);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const newPasswordLoginResponsePromise = page.waitForResponse((response) => {
@@ -471,7 +470,7 @@ test('migrated teacher changes password through organization browser login', asy
   expect(await anonymousBeforeNormalLogin.json()).toEqual({ authenticated: false });
 
   await page.goto('/#/sign-in');
-  await page.getByLabel('Email или имя пользователя').fill(teacher.email);
+  await page.getByLabel('Почта или логин').fill(teacher.email);
   await page.getByLabel('Пароль').fill(passwordB);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const normalLogin = page.waitForResponse((response) => {
@@ -501,7 +500,6 @@ test('Account presentation persists through reload, cancels only display preview
     await target.goto('/#/');
     await target.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
     await target.getByLabel('Email').fill(`${label}-${unique}@presentation-e2e.test`);
-    await target.getByLabel('Имя пользователя').fill(`${label}_${unique}`.slice(0, 36));
     await target
       .getByLabel('Отображаемое имя', { exact: true })
       .fill('Очень длинное имя для проверки персонального оформления интерфейса');
@@ -597,7 +595,6 @@ test('mounted Account A cannot read or save Account B presentation after shared 
     await target.goto('/#/');
     await target.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
     await target.getByLabel('Email').fill(email);
-    await target.getByLabel('Имя пользователя').fill(`${label}_${unique}`.slice(0, 36));
     await target.getByLabel('Отображаемое имя', { exact: true }).fill(label);
     await target.getByLabel('Дата рождения').fill('1990-04-12');
     await target.getByLabel('Пароль').fill(password);

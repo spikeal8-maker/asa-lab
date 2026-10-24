@@ -768,3 +768,182 @@
     color-scheme: dark;
   }
 }
+
+/* AI-CHAT-UX-RECOVERY: one calm chat canvas inside the existing ASA shell.
+ * Global site navigation remains ASA-owned; this page only changes its own UI. */
+.portal-shell > .asa-ai-layout {
+  height: var(--ai-available-height, calc(100dvh - var(--portal-header-height, 56px)));
+  margin-top: 0;
+  margin-bottom: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.asa-ai-layout .chat-toolbar {
+  gap: 4px;
+  min-height: 52px;
+  padding: 4px 18px;
+  border-bottom: 0;
+}
+
+.asa-ai-layout .asa-ai-provider-label {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: min(55%, 330px);
+}
+
+.asa-ai-layout .asa-ai-model-picker,
+.asa-ai-layout .asa-ai-model-single {
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ai-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa-ai-layout .asa-ai-model-picker {
+  cursor: pointer;
+}
+
+.asa-ai-layout .asa-ai-model-picker:hover:not(:disabled),
+.asa-ai-layout .asa-ai-new-chat:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ai-text) 6%, transparent);
+}
+
+.asa-ai-layout .asa-ai-new-chat {
+  margin-inline-start: auto;
+}
+
+.asa-ai-layout .chat-toolbar:has(.chat-scope) .asa-ai-new-chat {
+  margin-inline-start: 0;
+}
+
+.asa-ai-layout .chat-start-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Vertical padding is not allowed to outgrow a zero-height conversation row
+   * while the software keyboard reserves most of the visual viewport. */
+  padding: 0 24px;
+}
+
+.asa-ai-layout .asa-ai-start-copy {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 0;
+  text-align: center;
+}
+
+.asa-ai-layout .chat-start-state h1 {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(25px, 3vw, 32px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.asa-ai-layout .chat-turn {
+  position: relative;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.asa-ai-layout .chat-turn-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.asa-ai-layout .chat-user-bubble {
+  max-width: min(90%, 640px);
+  padding: 10px 15px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-composer-dock {
+  padding: 6px 24px max(12px, env(safe-area-inset-bottom));
+  /* The main grid already reserves the toolbar row. Limiting this dock to
+   * 100% minus the toolbar again clips the form and partially hides Send. */
+  overflow-y: auto;
+}
+
+.asa-ai-layout .chat-composer-wrap {
+  width: min(100%, 760px);
+}
+
+.asa-ai-layout .chat-composer {
+  grid-template-columns: minmax(0, 1fr) 40px;
+  /* The input track must shrink with visualViewport; auto overflows on mobile keyboards. */
+  grid-template-rows: minmax(32px, 1fr) auto;
+  grid-template-areas: 'input input' '. send';
+  gap: 6px;
+  min-height: 76px;
+  padding: 11px 14px;
+  border-radius: 25px;
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--ai-text) 6%, transparent);
+}
+
+.asa-ai-layout .chat-composer textarea {
+  /* The 52px toolbar, send action, insets and some conversation space take
+   * priority over an expanded draft when the on-screen keyboard appears. */
+  max-height: clamp(32px, calc(var(--ai-available-height, 350px) - 144px), 160px);
+}
+
+.asa-ai-layout .chat-send-button {
+  width: 38px;
+  min-height: 38px;
+  border-radius: 50%;
+}
+
+@media (max-width: 1023px) {
+  .portal-shell > .asa-ai-layout,
+  .portal-shell:has(.portal-sidebar.collapsed) > .asa-ai-layout {
+    /* Respect safe edge gutters; remove the frame, not the usable margins. */
+    width: calc(100% - 24px);
+    margin: 0 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .asa-ai-layout .chat-toolbar {
+    gap: 2px;
+    min-height: 50px;
+    padding: 4px 8px;
+  }
+
+  .asa-ai-layout .asa-ai-provider-label {
+    max-width: min(45vw, 220px);
+  }
+
+  .asa-ai-layout .asa-ai-model-picker,
+  .asa-ai-layout .asa-ai-model-single {
+    font-size: 13px;
+    padding-inline: 5px;
+  }
+
+  .asa-ai-layout .chat-start-state {
+    padding: 0 12px;
+  }
+
+  .asa-ai-layout .chat-composer-dock {
+    padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
+  }
+}

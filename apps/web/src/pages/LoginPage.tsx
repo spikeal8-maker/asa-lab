@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
-import { SocialAuthButtons, useAuthProviders } from '../auth-providers';
+import { AuthProviderStatus, SocialAuthButtons, useAuthProviders } from '../auth-providers';
 
 export function LoginPage({
   onSignedIn,
@@ -27,7 +27,7 @@ export function LoginPage({
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
-  const { providers, refresh: refreshProviders } = useAuthProviders();
+  const { providers, status: providerStatus, refresh: refreshProviders } = useAuthProviders();
   const [socialRegistration, setSocialRegistration] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
@@ -51,7 +51,7 @@ export function LoginPage({
     if (pending.current) return;
     setMessage(null);
     if (!identifier.trim() || !password) {
-      setMessage('Введите email или имя пользователя и пароль.');
+      setMessage('Введите почту или логин и пароль.');
       identifierRef.current?.focus();
       return;
     }
@@ -123,7 +123,7 @@ export function LoginPage({
         ) : null}
         {contextMessage ? <p className="max-link-copy">{contextMessage}</p> : null}
         <form onSubmit={(event) => void submit(event)} noValidate hidden={socialRegistration}>
-          <label htmlFor="identifier">Email или имя пользователя</label>
+          <label htmlFor="identifier">Почта или логин</label>
           <input
             id="identifier"
             ref={identifierRef}
@@ -133,9 +133,14 @@ export function LoginPage({
             value={identifier}
             disabled={busy}
             aria-invalid={message ? 'true' : undefined}
-            aria-describedby={message ? messageId : undefined}
+            aria-describedby={['login-identifier-hint', message ? messageId : null]
+              .filter(Boolean)
+              .join(' ')}
             onChange={(event) => setIdentifier(event.target.value)}
           />
+          <p id="login-identifier-hint" className="field-hint">
+            Для нового аккаунта используйте почту; прежний логин тоже подходит.
+          </p>
           <label htmlFor="password">Пароль</label>
           <input
             id="password"
@@ -168,6 +173,9 @@ export function LoginPage({
           </button>
         </form>
 
+        {!contextMessage ? (
+          <AuthProviderStatus status={providerStatus} onRetry={() => void refreshProviders()} />
+        ) : null}
         {!contextMessage ? (
           <SocialAuthButtons
             providers={providers}
@@ -207,12 +215,14 @@ export function LoginPage({
           </button>
         ) : null}
 
-        <p className="auth-account-switch">
-          <span>Нет аккаунта?</span>{' '}
-          <button type="button" className="link-button" onClick={onCreateAccount}>
-            Создать
-          </button>
-        </p>
+        {!socialRegistration ? (
+          <p className="auth-account-switch">
+            <span>Нет аккаунта?</span>{' '}
+            <button type="button" className="link-button" onClick={onCreateAccount}>
+              Создать
+            </button>
+          </p>
+        ) : null}
         <p className="auth-organization-link">
           <button
             type="button"

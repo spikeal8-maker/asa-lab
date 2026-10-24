@@ -72,8 +72,10 @@ const TABS = [
   { key: 'blocks', label: 'Scratch', module: 'blocks' },
   { key: 'merits', label: 'Заслуги', module: null },
   { key: 'activity', label: 'Активность', module: null },
+  { key: 'settings', label: 'Настройки', module: null },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
+type SettingsCategory = 'identity' | 'access' | 'safety' | 'games';
 
 export function ClassroomStudentPage({
   classroomId,
@@ -111,6 +113,8 @@ export function ClassroomStudentPage({
   const [loadedScope, setLoadedScope] = useState('');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
+  const [settingsCategory, setSettingsCategory] = useState<SettingsCategory | null>(null);
+  const gameSettingsRef = useRef<HTMLDivElement>(null);
   const [archive, setArchive] = useState(false);
   const [works, setWorks] = useState<ParticipantWorks | null>(null);
   const [worksError, setWorksError] = useState<string | null>(null);
@@ -150,7 +154,7 @@ export function ClassroomStudentPage({
   scope.current = `${classroomId}:${seatId}`;
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
-  const showsWorks = !['assignments', 'merits', 'grades', 'activity'].includes(tab);
+  const showsWorks = !['assignments', 'merits', 'grades', 'activity', 'settings'].includes(tab);
   const closeLearnerPicker = useCallback((restoreFocus = true) => {
     setLearnerPickerOpen(false);
     if (restoreFocus) learnerOpener.current?.focus();
@@ -161,6 +165,7 @@ export function ClassroomStudentPage({
     setSafeBusy(false);
     safeRequest.current++;
     setFocusAvatar(false);
+    setSettingsCategory(null);
   }, [classroomId, seatId]);
   useEffect(() => {
     if (tab !== 'merits' || !focusAvatar) return;
@@ -334,56 +339,324 @@ export function ClassroomStudentPage({
     };
   }, [loadWorks, showsWorks]);
 
+  const activeStudent =
+    profile?.student.id === seatId && loadedScope === `${classroomId}:${seatId}`
+      ? profile.student
+      : null;
+  const matchingLearners = (
+    learnerRoster?.classroomId === classroomId ? learnerRoster.items : []
+  ).filter((entry) =>
+    entry.displayLabel.toLocaleLowerCase().includes(learnerSearch.trim().toLocaleLowerCase()),
+  );
+
   const navigationRow = (
-    <div className="classroom-student-navrow">
+    <div
+      className="classroom-student-navrow classroom-student-identity-rail"
+      role="group"
+      aria-label="Ученик и навигация"
+    >
       <button
         type="button"
         className="classroom-student-back"
-        onClick={onBack}
+        aria-label="← К классу"
         title={classroomTitle}
+        onClick={onBack}
       >
-        ← К классу
+        <span aria-hidden="true">←</span>
+        <span className="classroom-student-back-label">К классу</span>
       </button>
-      {navigation ? (
-        <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
-          <button
-            type="button"
-            aria-label={`Предыдущий ученик: ${navigation.previous.displayLabel}`}
-            title={navigation.previous.displayLabel}
-            disabled={navigation.total < 2}
-            onClick={() => onNavigateStudent(navigation.previous.id)}
-          >
-            <span aria-hidden="true">←</span>
+      <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
+        <button
+          type="button"
+          className="classroom-student-previous"
+          aria-label={
+            navigation
+              ? `Предыдущий ученик: ${navigation.previous.displayLabel}`
+              : 'Предыдущий ученик'
+          }
+          title={navigation?.previous.displayLabel}
+          disabled={!navigation || navigation.total < 2}
+          onClick={() => {
+            if (navigation) onNavigateStudent(navigation.previous.id);
+          }}
+        >
+          <span aria-hidden="true">‹</span>
+          {navigation ? (
             <span className="student-pager-name">
               {navigation.previous.displayLabel.trim().split(/\s+/).slice(0, 2).join(' ')}
             </span>
-          </button>
-          <span
-            className="classroom-student-navigation-position"
-            aria-label={`Ученик ${navigation.position} из ${navigation.total}`}
-          >
-            {navigation.position}/{navigation.total}
+          ) : null}
+        </button>
+        {activeStudent ? (
+          <div className="classroom-student-heading-row">
+            <div
+              className="classroom-student-picker"
+              ref={learnerPicker}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) closeLearnerPicker(false);
+              }}
+            >
+              <h1 className="classroom-student-picker-heading">
+                <button
+                  type="button"
+                  className="classroom-student-person classroom-student-picker-opener"
+                  ref={(element) => {
+                    learnerOpener.current = element;
+                    if (element && focusAfterNavigation.current === seatId) {
+                      focusAfterNavigation.current = null;
+                      element.focus();
+                    }
+                  }}
+                  aria-label={`Выбрать ученика: ${activeStudent.displayLabel}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={learnerPickerOpen}
+                  aria-controls={learnerPickerId}
+                  onClick={() => {
+                    setLearnerSearch('');
+                    setLearnerPickerOpen((open) => !open);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault();
+                      setLearnerPickerOpen(true);
+                      learnerSearchInput.current?.focus();
+                    }
+                  }}
+                >
+                  <img
+                    className="classroom-student-avatar"
+                    src={
+                      profile?.metrics.avatarUrl ??
+                      seatAvatar(activeStudent.id, activeStudent.avatarKey).src
+                    }
+                    alt=""
+                    width={48}
+                    height={48}
+                  />
+                  <span className="classroom-student-picker-text">
+                    <span
+                      className="classroom-student-picker-name"
+                      title={activeStudent.displayLabel}
+                    >
+                      {activeStudent.displayLabel}
+                    </span>
+                    <span className="classroom-student-rail-state">
+                      {navigation ? (
+                        <span
+                          className="classroom-student-navigation-position"
+                          aria-label={`Ученик ${navigation.position} из ${navigation.total}`}
+                        >
+                          {navigation.position}/{navigation.total}
+                        </span>
+                      ) : null}
+                      <span
+                        className={
+                          activeStudent.status === 'suspended'
+                            ? 'classroom-student-suspended'
+                            : undefined
+                        }
+                      >
+                        {activeStudent.status === 'suspended'
+                          ? 'Доступ приостановлен'
+                          : activeStudent.safeMode
+                            ? 'Защита включена'
+                            : 'Защита выключена'}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="classroom-student-picker-chevron" aria-hidden="true">
+                    ▾
+                  </span>
+                </button>
+              </h1>
+              {learnerPickerOpen ? (
+                <div
+                  className="classroom-student-picker-popup"
+                  id={learnerPickerId}
+                  role="dialog"
+                  aria-label="Ученики класса"
+                  onKeyDown={(event) => {
+                    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                    const controls = Array.from(
+                      event.currentTarget.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+                        'input, button',
+                      ),
+                    );
+                    const index = controls.indexOf(
+                      event.target as HTMLInputElement | HTMLButtonElement,
+                    );
+                    if (index < 0) return;
+                    // Home/End remain native text-editing keys in the search field.
+                    if (index === 0 && (event.key === 'Home' || event.key === 'End')) return;
+                    event.preventDefault();
+                    const next =
+                      event.key === 'Home'
+                        ? 1
+                        : event.key === 'End'
+                          ? controls.length - 1
+                          : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) %
+                            controls.length;
+                    controls[next]?.focus();
+                    controls[next]?.scrollIntoView?.({ block: 'nearest' });
+                  }}
+                >
+                  <input
+                    ref={learnerSearchInput}
+                    type="search"
+                    aria-label="Найти ученика по имени или фамилии"
+                    placeholder="Имя или фамилия"
+                    value={learnerSearch}
+                    onChange={(event) => setLearnerSearch(event.target.value)}
+                  />
+                  {learnerRosterError ? (
+                    <>
+                      <p role="alert">{learnerRosterError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setLearnerRosterRetry((retry) => retry + 1)}
+                      >
+                        Повторить
+                      </button>
+                    </>
+                  ) : learnerRoster?.classroomId !== classroomId ? (
+                    <p role="status">Загружаем учеников…</p>
+                  ) : (
+                    <>
+                      <ul aria-label="Список учеников">
+                        {matchingLearners.map((entry) => (
+                          <li key={entry.id}>
+                            <button
+                              type="button"
+                              aria-current={entry.id === seatId ? 'page' : undefined}
+                              onClick={() => {
+                                closeLearnerPicker();
+                                focusAfterNavigation.current =
+                                  entry.id !== seatId ? entry.id : null;
+                                onNavigateStudent(entry.id);
+                              }}
+                            >
+                              <img
+                                src={seatAvatar(entry.id, entry.avatarKey).src}
+                                alt=""
+                                width={28}
+                                height={28}
+                              />
+                              <span>{entry.displayLabel}</span>
+                              {entry.id === seatId ? (
+                                <span
+                                  className="classroom-student-picker-active"
+                                  aria-label="Текущий ученик"
+                                >
+                                  ✓
+                                </span>
+                              ) : null}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {matchingLearners.length === 0 ? (
+                        <p role="status">Ученики не найдены</p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <span className="classroom-student-rail-loading" role="status">
+            Загружаем ученика…
           </span>
-          <button
-            type="button"
-            aria-label={`Следующий ученик: ${navigation.next.displayLabel}`}
-            title={navigation.next.displayLabel}
-            disabled={navigation.total < 2}
-            onClick={() => onNavigateStudent(navigation.next.id)}
-          >
+        )}
+        <button
+          type="button"
+          className="classroom-student-next"
+          aria-label={
+            navigation ? `Следующий ученик: ${navigation.next.displayLabel}` : 'Следующий ученик'
+          }
+          title={navigation?.next.displayLabel}
+          disabled={!navigation || navigation.total < 2}
+          onClick={() => {
+            if (navigation) onNavigateStudent(navigation.next.id);
+          }}
+        >
+          {navigation ? (
             <span className="student-pager-name">
               {navigation.next.displayLabel.trim().split(/\s+/).slice(0, 2).join(' ')}
             </span>
-            <span aria-hidden="true">→</span>
-          </button>
-        </nav>
-      ) : null}
+          ) : null}
+          <span aria-hidden="true">›</span>
+        </button>
+      </nav>
     </div>
   );
-  if (!profile || profile.student.id !== seatId || loadedScope !== `${classroomId}:${seatId}`)
+  const profileReady =
+    profile?.student.id === seatId && loadedScope === [classroomId, seatId].join(':');
+  const sectionRail = (
+    <div className="classroom-student-section-rail" role="group" aria-label="Разделы ученика">
+      <label className="classroom-student-section-select">
+        <span className="classroom-student-visually-hidden">Раздел профиля</span>
+        <select
+          aria-label="Раздел профиля"
+          value={tab}
+          disabled={!profileReady}
+          onChange={(event) => setTab(event.target.value as Tab)}
+        >
+          {TABS.map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {showsWorks ? (
+        <button
+          className="classroom-student-section-action"
+          type="button"
+          aria-label={archive ? 'Исключить архив работ' : 'Включить архив работ'}
+          title={archive ? 'Исключить архив' : 'Включить архив'}
+          aria-pressed={archive}
+          disabled={!profileReady}
+          onClick={() => setArchive((current) => !current)}
+        >
+          <span aria-hidden="true">▤</span>
+        </button>
+      ) : tab === 'merits' ? (
+        <button
+          className="classroom-student-section-action"
+          type="button"
+          aria-label="Перейти к аватарам класса"
+          title="Аватары класса"
+          disabled={!profileReady}
+          onClick={() => setFocusAvatar(true)}
+        >
+          <span aria-hidden="true">◉</span>
+        </button>
+      ) : (
+        <button
+          className="classroom-student-section-action"
+          type="button"
+          aria-label="Открыть настройки текущего ученика"
+          title="Настройки ученика"
+          disabled={
+            !profileReady ||
+            !seatActions ||
+            seatActions.readOnly ||
+            seatActions.busy ||
+            profile?.student.status === 'suspended'
+          }
+          onClick={() => seatActions?.onSettings()}
+        >
+          <span aria-hidden="true">⚙</span>
+        </button>
+      )}
+    </div>
+  );
+  if (!profileReady)
     return (
       <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
         {navigationRow}
+        {sectionRail}
         {profileError ? (
           <section role="alert">
             <p>{profileError}</p>
@@ -409,165 +682,73 @@ export function ClassroomStudentPage({
   const readOnly = profile.status !== 'active' || Boolean(seatActions?.readOnly);
   const settingsLocked = readOnly || student.status === 'suspended';
   const controlsBusy = roleBusy || safeBusy || Boolean(seatActions?.busy);
+  const updateRole = (role: string): void => {
+    if (settingsLocked || controlsBusy) return;
+    const token = profileGeneration.current;
+    setRoleBusy(true);
+    setProfileError(null);
+    void participantsApi
+      .mutate(classroomId, 'role', { seatId, role }, newClientId())
+      .then(async (result) => {
+        if (token !== profileGeneration.current) return;
+        if (result.ok) await load();
+        else setProfileError(result.error.message);
+      })
+      .catch(() => {
+        if (token === profileGeneration.current && !sessionEnded.current)
+          setProfileError('Не удалось сохранить роль ученика.');
+      })
+      .finally(() => {
+        if (scope.current === `${classroomId}:${seatId}`) setRoleBusy(false);
+      });
+  };
+  const updateSafeMode = (value: boolean): void => {
+    if (!seatActions || settingsLocked || controlsBusy) return;
+    const currentScope = scope.current;
+    const token = ++safeRequest.current;
+    setSafeBusy(true);
+    setProfileError(null);
+    void (async () => {
+      try {
+        const error = await seatActions.onSafeMode(value);
+        if (scope.current !== currentScope || sessionEnded.current || safeRequest.current !== token)
+          return;
+        if (error) setProfileError(error);
+        else await load();
+      } catch {
+        if (
+          scope.current === currentScope &&
+          !sessionEnded.current &&
+          safeRequest.current === token
+        )
+          setProfileError('Не удалось сохранить защиту ученика.');
+      } finally {
+        if (
+          scope.current === currentScope &&
+          !sessionEnded.current &&
+          safeRequest.current === token
+        )
+          setSafeBusy(false);
+      }
+    })();
+  };
   const visible = (works?.items ?? []).filter(
     (work) =>
       !onlyAwaiting ||
       work.canonicalState?.workflowState === 'waiting_review' ||
       (!work.canonicalState && work.awaitingReview),
   );
-  const matchingLearners = (
-    learnerRoster?.classroomId === classroomId ? learnerRoster.items : []
-  ).filter((entry) =>
-    entry.displayLabel.toLocaleLowerCase().includes(learnerSearch.trim().toLocaleLowerCase()),
-  );
   return (
-    <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
+    <main
+      className="portal-content classroom-student"
+      id="main-content"
+      tabIndex={-1}
+      data-student-section={tab}
+      data-settings-category={settingsCategory ?? 'none'}
+    >
       {navigationRow}
+      {sectionRail}
       <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
-        <div className="classroom-student-heading-row">
-          <div
-            className="classroom-student-picker"
-            ref={learnerPicker}
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) closeLearnerPicker(false);
-            }}
-          >
-            <h1 className="classroom-student-picker-heading">
-              <button
-                type="button"
-                className="classroom-student-person classroom-student-picker-opener"
-                ref={(element) => {
-                  learnerOpener.current = element;
-                  if (element && focusAfterNavigation.current === seatId) {
-                    focusAfterNavigation.current = null;
-                    element.focus();
-                  }
-                }}
-                aria-label={`Выбрать ученика: ${student.displayLabel}`}
-                aria-haspopup="dialog"
-                aria-expanded={learnerPickerOpen}
-                aria-controls={learnerPickerId}
-                onClick={() => {
-                  setLearnerSearch('');
-                  setLearnerPickerOpen((open) => !open);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'ArrowDown') {
-                    event.preventDefault();
-                    setLearnerPickerOpen(true);
-                    learnerSearchInput.current?.focus();
-                  }
-                }}
-              >
-                <img
-                  className="classroom-student-avatar"
-                  src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
-                  alt=""
-                  width={48}
-                  height={48}
-                />
-                <span className="classroom-student-picker-name" title={student.displayLabel}>
-                  {student.displayLabel}
-                </span>
-                <span className="classroom-student-picker-chevron" aria-hidden="true">
-                  ▾
-                </span>
-              </button>
-            </h1>
-            {student.status === 'suspended' ? (
-              <small className="classroom-student-suspended">Доступ приостановлен</small>
-            ) : null}
-            {learnerPickerOpen ? (
-              <div
-                className="classroom-student-picker-popup"
-                id={learnerPickerId}
-                role="dialog"
-                aria-label="Ученики класса"
-                onKeyDown={(event) => {
-                  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-                  const controls = Array.from(
-                    event.currentTarget.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-                      'input, button',
-                    ),
-                  );
-                  const index = controls.indexOf(
-                    event.target as HTMLInputElement | HTMLButtonElement,
-                  );
-                  if (index < 0) return;
-                  // Home/End remain native text-editing keys in the search field.
-                  if (index === 0 && (event.key === 'Home' || event.key === 'End')) return;
-                  event.preventDefault();
-                  const next =
-                    event.key === 'Home'
-                      ? 1
-                      : event.key === 'End'
-                        ? controls.length - 1
-                        : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) %
-                          controls.length;
-                  controls[next]?.focus();
-                  controls[next]?.scrollIntoView?.({ block: 'nearest' });
-                }}
-              >
-                <input
-                  ref={learnerSearchInput}
-                  type="search"
-                  aria-label="Найти ученика по имени или фамилии"
-                  placeholder="Имя или фамилия"
-                  value={learnerSearch}
-                  onChange={(event) => setLearnerSearch(event.target.value)}
-                />
-                {learnerRosterError ? (
-                  <>
-                    <p role="alert">{learnerRosterError}</p>
-                    <button
-                      type="button"
-                      onClick={() => setLearnerRosterRetry((retry) => retry + 1)}
-                    >
-                      Повторить
-                    </button>
-                  </>
-                ) : learnerRoster?.classroomId !== classroomId ? (
-                  <p role="status">Загружаем учеников…</p>
-                ) : (
-                  <>
-                    <ul aria-label="Список учеников">
-                      {matchingLearners.map((entry) => (
-                        <li key={entry.id}>
-                          <button
-                            type="button"
-                            aria-current={entry.id === seatId ? 'page' : undefined}
-                            onClick={() => {
-                              closeLearnerPicker();
-                              focusAfterNavigation.current = entry.id !== seatId ? entry.id : null;
-                              onNavigateStudent(entry.id);
-                            }}
-                          >
-                            <img
-                              src={seatAvatar(entry.id, entry.avatarKey).src}
-                              alt=""
-                              width={28}
-                              height={28}
-                            />
-                            <span>{entry.displayLabel}</span>
-                            {entry.id === seatId ? (
-                              <span
-                                className="classroom-student-picker-active"
-                                aria-label="Текущий ученик"
-                              >
-                                ✓
-                              </span>
-                            ) : null}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                    {matchingLearners.length === 0 ? <p role="status">Ученики не найдены</p> : null}
-                  </>
-                )}
-              </div>
-            ) : null}
-          </div>
-        </div>
         <div className="classroom-student-meta-row">
           <div className="participant-main-stats" aria-label="Показатели ученика">
             <span className="classroom-student-stat">
@@ -590,21 +771,7 @@ export function ClassroomStudentPage({
                 aria-label="Роль в классе"
                 value={metrics.role}
                 disabled={settingsLocked || controlsBusy}
-                onChange={(e) => {
-                  const token = profileGeneration.current;
-                  setRoleBusy(true);
-                  setProfileError(null);
-                  void participantsApi
-                    .mutate(classroomId, 'role', { seatId, role: e.target.value }, newClientId())
-                    .then(async (r) => {
-                      if (token !== profileGeneration.current) return;
-                      if (r.ok) await load();
-                      else setProfileError(r.error.message);
-                    })
-                    .finally(() => {
-                      if (scope.current === `${classroomId}:${seatId}`) setRoleBusy(false);
-                    });
-                }}
+                onChange={(event) => updateRole(event.target.value)}
               >
                 <option value="student">Учащийся</option>
                 <option value="helper">Помощник</option>
@@ -618,41 +785,7 @@ export function ClassroomStudentPage({
                   checked={student.safeMode}
                   aria-label={`Защита: ${student.displayLabel}`}
                   disabled={settingsLocked || controlsBusy || !seatActions}
-                  onChange={(event) => {
-                    if (!seatActions || settingsLocked || controlsBusy) return;
-                    const value = event.target.checked;
-                    const currentScope = scope.current;
-                    const token = ++safeRequest.current;
-                    setSafeBusy(true);
-                    setProfileError(null);
-                    void (async () => {
-                      try {
-                        const error = await seatActions.onSafeMode(value);
-                        if (
-                          scope.current !== currentScope ||
-                          sessionEnded.current ||
-                          safeRequest.current !== token
-                        )
-                          return;
-                        if (error) setProfileError(error);
-                        else await load();
-                      } catch {
-                        if (
-                          scope.current === currentScope &&
-                          !sessionEnded.current &&
-                          safeRequest.current === token
-                        )
-                          setProfileError('Не удалось сохранить защиту ученика.');
-                      } finally {
-                        if (
-                          scope.current === currentScope &&
-                          !sessionEnded.current &&
-                          safeRequest.current === token
-                        )
-                          setSafeBusy(false);
-                      }
-                    })();
-                  }}
+                  onChange={(event) => updateSafeMode(event.target.checked)}
                 />
                 Защита
               </label>
@@ -765,12 +898,19 @@ export function ClassroomStudentPage({
         </section>
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
-      <ClassroomGamesSettings
-        key={`${classroomId}:${seatId}:games`}
-        classroomId={classroomId}
-        seatId={seatId}
-        readOnly={settingsLocked || controlsBusy}
-      />
+      <div
+        ref={gameSettingsRef}
+        className="classroom-student-games-region"
+        tabIndex={-1}
+        aria-label="Разрешения игр ученика"
+      >
+        <ClassroomGamesSettings
+          key={`${classroomId}:${seatId}:games`}
+          classroomId={classroomId}
+          seatId={seatId}
+          readOnly={settingsLocked || controlsBusy}
+        />
+      </div>
       {seatActions?.error && seatActions.error !== profileError ? (
         <p role="alert">{seatActions.error}</p>
       ) : null}
@@ -816,6 +956,205 @@ export function ClassroomStudentPage({
           </button>
         ))}
       </nav>
+      {tab === 'settings' ? (
+        <section
+          className="classroom-student-settings-entry"
+          role="region"
+          aria-label="Настройки ученика"
+        >
+          <h2>Настройки ученика</h2>
+          <div
+            className="classroom-student-settings-categories"
+            role="group"
+            aria-label="Категории настроек ученика"
+          >
+            {(
+              [
+                ['identity', 'Данные и роль'],
+                ['access', 'Коды и доступ'],
+                ['safety', 'Защита ученика'],
+                ['games', 'Игровые разрешения'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                type="button"
+                key={key}
+                className="classroom-student-settings-category"
+                aria-expanded={settingsCategory === key}
+                onClick={() => setSettingsCategory((current) => (current === key ? null : key))}
+              >
+                <span>{label}</span>
+                <span className="classroom-student-settings-category-state">
+                  {key === 'identity'
+                    ? metrics.role === 'helper'
+                      ? 'Помощник'
+                      : 'Учащийся'
+                    : key === 'access'
+                      ? student.status === 'suspended'
+                        ? 'Приостановлен'
+                        : 'Активен'
+                      : key === 'safety'
+                        ? student.safeMode
+                          ? 'Включена'
+                          : 'Выключена'
+                        : 'Правило класса / ученика'}
+                </span>
+                <span className="classroom-student-settings-chevron" aria-hidden="true">
+                  {settingsCategory === key ? '⌃' : '⌄'}
+                </span>
+              </button>
+            ))}
+          </div>
+          {settingsCategory !== null ? (
+            <div
+              className="classroom-student-settings-editor"
+              role="group"
+              aria-label="Активный редактор ученика"
+            >
+              {settingsCategory === 'identity' ? (
+                <>
+                  <dl className="classroom-student-settings-facts">
+                    <div>
+                      <dt>Ученик</dt>
+                      <dd>{student.displayLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>Рейтинг класса</dt>
+                      <dd>
+                        {metrics.score === null ? 'Нет данных' : metrics.score.toFixed(2)}
+                        {metrics.rank === null ? '' : ` · место ${metrics.rank}`}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="classroom-student-settings-actions">
+                    <button
+                      type="button"
+                      disabled={!seatActions || settingsLocked || controlsBusy}
+                      onClick={() => seatActions?.onSettings()}
+                    >
+                      Изменить имя и аватар
+                    </button>
+                    <label className="classroom-student-settings-select">
+                      Роль ученика
+                      <select
+                        aria-label="Роль ученика в настройках"
+                        value={metrics.role}
+                        disabled={settingsLocked || controlsBusy}
+                        onChange={(event) => updateRole(event.target.value)}
+                      >
+                        <option value="student">Учащийся</option>
+                        <option value="helper">Помощник</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={settingsLocked || controlsBusy}
+                      onClick={() => {
+                        setTab('merits');
+                        setFocusAvatar(true);
+                      }}
+                    >
+                      Аватары и заслуги класса
+                    </button>
+                  </div>
+                  {metrics.role === 'helper' ? (
+                    <div className="classroom-student-settings-helper-classes">
+                      <strong>Классы помощника</strong>
+                      {(profile.helperClasses ?? []).length === 0 ? (
+                        <p>Нет доступных общих классов.</p>
+                      ) : (
+                        <ul>
+                          {profile.helperClasses.map((entry) => (
+                            <li key={entry.id}>
+                              <a href={`#/classrooms/${entry.id}`}>{entry.title}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              {settingsCategory === 'access' ? (
+                <>
+                  <p className="classroom-student-settings-fact">
+                    Доступ: {student.status === 'suspended' ? 'приостановлен' : 'активен'}
+                  </p>
+                  <div className="classroom-student-settings-actions">
+                    {seatActions?.studentCode ? (
+                      <button
+                        type="button"
+                        disabled={settingsLocked || controlsBusy}
+                        onClick={() => seatActions.onCode()}
+                      >
+                        Изменить Student Code
+                      </button>
+                    ) : (
+                      <p className="classroom-student-settings-note">
+                        {seatActions
+                          ? 'Вход через аккаунт — Student Code не используется.'
+                          : 'Управление Student Code недоступно.'}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      disabled={
+                        !seatActions || settingsLocked || controlsBusy || !seatActions.canOpenCard
+                      }
+                      onClick={() => seatActions?.onAccessCard()}
+                    >
+                      Карточка доступа
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!seatActions || readOnly || controlsBusy}
+                      onClick={() => seatActions?.onSuspend()}
+                    >
+                      {student.status === 'suspended' ? 'Вернуть доступ' : 'Приостановить доступ'}
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {settingsCategory === 'safety' ? (
+                <>
+                  <label className="classroom-student-settings-safety">
+                    <input
+                      type="checkbox"
+                      aria-label={`Защита ученика в настройках: ${student.displayLabel}`}
+                      checked={student.safeMode}
+                      disabled={!seatActions || settingsLocked || controlsBusy}
+                      onChange={(event) => updateSafeMode(event.target.checked)}
+                    />
+                    Защита ученика {student.safeMode ? 'включена' : 'выключена'}
+                  </label>
+                  <p className="classroom-student-settings-note">
+                    Это настройка ученика. Классная защита и доступ к играм управляются отдельно.
+                  </p>
+                </>
+              ) : null}
+              {settingsCategory === 'games' ? (
+                <>
+                  <p className="classroom-student-settings-note">
+                    Индивидуальный доступ к играм действует по сохранённому правилу класса.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      gameSettingsRef.current?.scrollIntoView({ block: 'center' });
+                      gameSettingsRef.current?.focus();
+                    }}
+                  >
+                    Перейти к действующим игровым разрешениям
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          {!seatActions || settingsLocked ? (
+            <small role="status">Изменения недоступны для этого ученика.</small>
+          ) : null}
+        </section>
+      ) : null}
       {showsWorks ? (
         <section className="classroom-student-section" aria-labelledby="student-works">
           <div className="classroom-student-works-head">

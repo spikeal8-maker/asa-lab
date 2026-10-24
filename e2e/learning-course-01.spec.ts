@@ -1,4 +1,12 @@
-import { addCourseBlock, selectCoursePractice } from './learning-authoring-navigation';
+import {
+  addCourseBlock,
+  selectCoursePractice,
+  openCourseActions,
+  openCourseBlockActions,
+  openCourseLessonSettings,
+  closeCourseLessonSettings,
+  openCourseStructure,
+} from './learning-authoring-navigation';
 import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import type pg from 'pg';
@@ -364,7 +372,6 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@course01.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('c' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор и преподаватель');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -1601,7 +1608,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
   await summary.fill('Исходное описание');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Содержание исходного урока.');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   const readOutline = async () => {
     const response = await page.request.get(`/api/courses/${courseId}/outline`);
     expect(response.ok()).toBe(true);
@@ -1636,8 +1645,8 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
         phase === 'unconfirmed' || phase === 'unavailable'
           ? editor.getByRole('alert')
           : phase === 'confirmed'
-            ? editor.getByRole('status')
-            : lessonForm.locator('.course-editor-actions > span');
+            ? editor.getByRole('status', { name: 'Уведомление курса', exact: true })
+            : editor.getByRole('status', { name: 'Состояние сохранения курса', exact: true });
       await expect(text).toBeVisible();
       const geometry = await text.evaluate((element) => {
         const box = element.getBoundingClientRect();
@@ -1880,9 +1889,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
       await discardAndReopen(oldLesson.title);
       return;
     }
-    await expect(editor.getByRole('status')).toContainText(
-      'Последние изменения урока ещё не сохранены',
-    );
+    await expect(
+      editor.getByRole('status', { name: 'Уведомление курса', exact: true }),
+    ).toContainText('Последние изменения урока ещё не сохранены');
     await expect(title).toHaveValue(laterTitle);
     await expect(summary).toHaveValue(laterSummary);
     await expect(save).toBeEnabled();
@@ -1914,7 +1923,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
       await discardAndReopen('Чужие сохранённые правки C');
       return;
     }
-    await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+    await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+      'Урок сохранён.',
+    );
     const persisted = await readOutline();
     expect(persisted.sections).toHaveLength(1);
     expect(persisted.sections[0].lessons).toHaveLength(1);
@@ -1943,7 +1954,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
   await save.click();
   expect((await recoverySave).status()).toBe(200);
   expect(lessonWrites.at(-1)?.expectedRevision).toBe(recovered.draftRevision);
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок сохранён.',
+  );
   await page.reload();
   await tabs.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page
@@ -1987,7 +2000,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await editor.getByLabel('Название урока').fill('Структурная теория');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Материал исходной версии.');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   await expect(editor.locator('.course-outline-section').first().locator('li')).toHaveCount(1);
 
   await editor
@@ -1995,7 +2010,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
     .getByRole('button', { name: '+ Урок', exact: true })
     .click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('');
+  await openCourseLessonSettings(page);
   await editor.getByLabel('Тип урока').selectOption('assignment');
+  await closeCourseLessonSettings(page);
   await selectCoursePractice(page, material);
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
   await expect(editor.locator('.course-outline-section').first().locator('li')).toHaveCount(2);
@@ -2240,15 +2257,18 @@ test('Course Builder persists informational block structural controls into futur
     .filter({ hasText: courseTitle })
     .click();
   await expect(editor).toBeVisible();
+  await openCourseStructure(page);
   await editor.locator('.course-lesson-link').first().click();
 
   const cards = editor.locator('.lesson-block-card');
   await expect(cards).toHaveCount(3);
 
+  await openCourseBlockActions(page, 0);
   await cards.nth(0).getByRole('button', { name: 'Дублировать', exact: true }).click();
   await expect(cards).toHaveCount(4);
   await cards.nth(1).getByLabel('Текст блока', { exact: true }).fill('Дубликат A');
 
+  await openCourseBlockActions(page, 1);
   await cards.nth(1).getByRole('button', { name: 'Вставить ниже', exact: true }).click();
   await cards
     .nth(1)
@@ -2258,9 +2278,11 @@ test('Course Builder persists informational block structural controls into futur
   await expect(cards).toHaveCount(5);
   await cards.nth(2).getByLabel('Текст заголовка', { exact: true }).fill('Вставленный заголовок');
 
+  await openCourseBlockActions(page, 3);
   await cards.nth(3).getByRole('button', { name: 'Скрыть', exact: true }).click();
   await expect(cards.nth(3)).toContainText('Скрыт');
 
+  await openCourseBlockActions(page, 4);
   await cards.nth(4).getByRole('button', { name: 'Поднять блок 5', exact: true }).click();
   await expect(cards.nth(3).getByLabel('Текст блока', { exact: true })).toHaveValue('Исходный C');
   await expect(cards.nth(4)).toContainText('Скрыт');
@@ -2276,6 +2298,7 @@ test('Course Builder persists informational block structural controls into futur
     .filter({ hasText: courseTitle })
     .click();
   await expect(editor).toBeVisible();
+  await openCourseStructure(page);
   await editor.locator('.course-lesson-link').first().click();
   const reloadedCards = editor.locator('.lesson-block-card');
   await expect(reloadedCards).toHaveCount(5);
@@ -2523,7 +2546,9 @@ for (const module of ['electronics', 'three-d'])
       .locator('.course-outline')
       .getByRole('button', { name: '+ Урок', exact: true })
       .click();
+    await openCourseLessonSettings(page);
     await editor.getByLabel('Тип урока').selectOption('assignment');
+    await closeCourseLessonSettings(page);
     await selectCoursePractice(page, material);
     await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
     await expect(editor.locator('.course-outline li')).toHaveCount(2);
@@ -3057,7 +3082,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const suffix = ++sequence;
   const electronicsTitle = `D5 Electronics Activity ${suffix}`;
   const threeDTitle = `D5 3D Activity ${suffix}`;
-  const courseTitle = `D5 Activity blocks ${suffix}`;
+  const courseTitle = `Автоматический ночник · ${suffix}`;
   const manualTitle = `D5 Manual material ${suffix}`;
   const manualImage = readFileSync('apps/web/public/landing/electronics-simulation.png');
   const manualPdf = Buffer.from('%PDF-1.4\nD5 exact manual PDF\n%%EOF');
@@ -3227,7 +3252,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     .getByRole('link', { name: 'Знания', exact: true })
     .click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
+  await openCourseActions(page);
   await expect(editor.getByRole('button', { name: 'Назначить курс', exact: true })).toBeDisabled();
+  await editor.getByRole('button', { name: 'Действия курса', exact: true }).press('Escape');
   const portalHistory = () =>
     page.evaluate(() => {
       type Entry = { key: string; index: number; url: string };
@@ -3406,6 +3433,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  const liveCourseTitle = await editor.getByLabel('Название урока').elementHandle();
+  const savedCourseTitle = await editor.getByLabel('Название урока').inputValue();
   await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
   const preview = page.getByTestId('course-preview-page');
   const previewBlocks = preview.locator('.lesson-blocks').first().locator(':scope > *');
@@ -3415,15 +3444,46 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(previewBlocks.nth(2)).toContainText('Между двумя практиками');
   await expect(previewBlocks.nth(3)).toContainText(manualTitle);
   await expect(previewBlocks.nth(4)).toContainText(threeDTitle);
+  // Both canonical image renderers portal outside the preview surface. Their
+  // close controls must remain reachable, and Escape must not close the course.
+  const sample = preview.getByRole('img', { name: `Образец: ${electronicsTitle}`, exact: true });
+  const sampleSrc = await sample.getAttribute('src');
+  await preview
+    .getByRole('button', { name: `Открыть образец: ${electronicsTitle}`, exact: true })
+    .click();
+  const sampleDialog = page.getByRole('dialog', {
+    name: `Образец: ${electronicsTitle}`,
+    exact: true,
+  });
+  await expect(sampleDialog.getByRole('img')).toHaveAttribute('src', sampleSrc!);
+  await sampleDialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(sampleDialog).not.toBeVisible();
+  const manualPreview = preview.getByTestId('course-pinned-material');
+  const manualImageSrc = await manualPreview.getByRole('img').getAttribute('src');
+  const openManualImage = manualPreview.getByRole('button', { name: /^Открыть крупно:/ });
+  await openManualImage.click();
+  const imageDialog = page.locator('.task-block-image-lightbox');
+  await expect(imageDialog.getByRole('img')).toHaveAttribute('src', manualImageSrc!);
+  await expect(imageDialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeFocused();
+  await page.screenshot({ path: `${evidenceDir}/course-preview-pinned-image.png` });
+  await imageDialog.getByRole('button', { name: 'Закрыть', exact: true }).press('Escape');
+  await expect(imageDialog).not.toBeVisible();
+  await expect(preview).toBeVisible();
+  await expect(openManualImage).toBeFocused();
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+  await expect(editor.getByLabel('Название урока')).toHaveValue(savedCourseTitle);
+  expect(await liveCourseTitle!.evaluate((element) => element.isConnected)).toBe(true);
+  await expect(editor.getByRole('button', { name: 'Предпросмотр', exact: true })).toBeFocused();
 
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
 
+  await openCourseActions(page);
   await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
   await expect(preview).toContainText('Опубликованная версия 1');
   await expect(preview.locator('.course-pinned-practice').nth(0)).toContainText(electronicsGoal);
   await expect(preview.locator('.course-pinned-practice').nth(1)).toContainText(threeDGoal);
+  await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   let assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
@@ -3467,6 +3527,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(page.getByTestId('courses-list')).toHaveCount(0);
   await denyPortalExit(() => openAccountSettings(page));
   await denyPortalExit(() => page.evaluate(() => window.history.back()), -1);
+  await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await expect(assignDialog.getByLabel('Класс для курса')).toBeDisabled();
@@ -3549,8 +3610,16 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     if (courseRunId === null) courseRunId = run.id;
     expect(run.id).toBe(courseRunId);
     if (options.reloadAfterExternalChange) {
-      // An admin SQL update does not notify the mounted player. Reload the
-      // document so SeatCourses fetches the current occurrence projection.
+      // A real resubmission can leave the learner in the Electronics editor.
+      // Return to the Course Player before reloading: reloading that editor
+      // never requests the course-run projection (confirmed by Chromium trace).
+      const courseUrl = '/#/learning?courseRun=' + encodeURIComponent(courseRunId);
+      if (!learner.page.url().endsWith(courseUrl)) {
+        await learner.page.goto(courseUrl);
+        await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
+      }
+      // An external teacher review does not notify a mounted Course Player.
+      // Keep the real successful browser GET requirement after the reload.
       const refreshed = learner.page.waitForResponse(
         (response) =>
           response.url().includes('/api/class-join/me/course-runs') &&
@@ -3628,6 +3697,15 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     (await learner.page.request.get(`${materialBase}/file/${newerManual.fileHash}`)).status(),
   ).toBe(404);
   await expect(manual.getByRole('button', { name: /Начать|Отправить/ })).toHaveCount(0);
+
+  // Both practical works belong to one published CourseVersion, but the
+  // informational lesson must also have its own durable completion.
+  const markTheory = player.getByRole('button', { name: 'Отметить пройденным', exact: true });
+  await expect(markTheory).toBeVisible();
+  await markTheory.click();
+  await expect(
+    player.getByRole('button', { name: 'Отметить непройденным', exact: true }),
+  ).toBeVisible();
 
   let electronicsCard = player
     .locator('.lesson-activity-block')
@@ -4007,6 +4085,123 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     path: `${a1EvidenceDir}/unavailable-390.png`,
     fullPage: false,
   });
+  // Complete the same real course: two different submitted project identities,
+  // return one attempt, accept the other, resubmit and verify canonical journal.
+  await learner.page.unroute(`**/api/learning/projects/${threeDEvidence.projectId}/context`);
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
+  await openCourse();
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  const threeDSubmit = learner.page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname ===
+        `/api/learning/projects/${threeDEvidence.projectId}/submit`,
+  );
+  learner.page.once('dialog', (dialog) => void dialog.accept());
+  await threeDCard.getByRole('button', { name: 'Сдать', exact: true }).click();
+  expect((await threeDSubmit).ok()).toBe(true);
+
+  const bothSubmitted = await openCourse();
+  expect(occurrenceFromCourseRun(bothSubmitted, electronicsTitle)).toMatchObject({
+    projectId: electronicsEvidence.projectId,
+    canonicalState: { workflowState: 'submitted' },
+  });
+  expect(occurrenceFromCourseRun(bothSubmitted, threeDTitle)).toMatchObject({
+    projectId: threeDEvidence.projectId,
+    canonicalState: { workflowState: 'submitted' },
+  });
+  await learner.page.screenshot({
+    path: `${evidenceDir}/nightlight-both-practices-submitted.png`,
+    fullPage: true,
+  });
+
+  await page.goto('/#/classrooms/' + classroomId);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  const electronicsCell = page.getByRole('button', {
+    name: new RegExp('D5 learner · ' + electronicsTitle),
+  });
+  const threeDCell = page.getByRole('button', {
+    name: new RegExp('D5 learner · ' + threeDTitle),
+  });
+  await electronicsCell.click();
+  const review = page.getByRole('region', { name: 'Проверка сдачи' });
+  const originalEvidenceId = await review.getByTestId('submission-version-id').innerText();
+  await review
+    .getByLabel('Причина возврата или исправления')
+    .fill('Проверьте подключение фоторезистора и сдайте исправленную схему.');
+  await review.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+  await expect(review.getByText('Ревизия 1 · На доработке')).toBeVisible();
+  await page.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
+  await threeDCell.click();
+  await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(threeDCell).toContainText('Выполнено');
+
+  const mixedStatus = await openCourse({ reloadAfterExternalChange: true });
+  expect(occurrenceFromCourseRun(mixedStatus, electronicsTitle).canonicalState?.workflowState).toBe(
+    'changes_requested',
+  );
+  expect(occurrenceFromCourseRun(mixedStatus, threeDTitle).canonicalState?.workflowState).toBe(
+    'completed',
+  );
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  await expect(electronicsCard).toContainText('Нужна доработка');
+  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  const brief = learner.page.getByTestId('assignment-brief');
+  await expect(brief).toBeVisible();
+  await editRealProject(learner.page, 'electronics');
+  const resubmit = brief.getByRole('button', { name: 'Отправить повторно', exact: true });
+  await expect(resubmit).toBeEnabled();
+  await resubmit.click();
+  await expect(brief.locator('.assignment-brief-footer')).toContainText('На проверке');
+
+  await page.goto('/#/classrooms/' + classroomId);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  await electronicsCell.click();
+  await expect(review.getByTestId('submission-version-id')).not.toHaveText(originalEvidenceId);
+  await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(electronicsCell).toContainText('Выполнено');
+  await expect(threeDCell).toContainText('Выполнено');
+  await page.screenshot({
+    path: `${evidenceDir}/nightlight-teacher-accepted-both-in-journal.png`,
+    fullPage: true,
+  });
+
+  const finalRun = await openCourse({ reloadAfterExternalChange: true });
+  for (const [title, projectId] of [
+    [electronicsTitle, electronicsEvidence.projectId],
+    [threeDTitle, threeDEvidence.projectId],
+  ] as const) {
+    expect(occurrenceFromCourseRun(finalRun, title)).toMatchObject({
+      projectId,
+      canonicalState: { workflowState: 'completed' },
+    });
+  }
+  await expect(
+    player.getByRole('button', { name: 'Отметить непройденным', exact: true }),
+  ).toBeVisible();
+  await learner.page.reload();
+  const restored = await openCourse();
+  for (const [title, projectId] of [
+    [electronicsTitle, electronicsEvidence.projectId],
+    [threeDTitle, threeDEvidence.projectId],
+  ] as const) {
+    expect(occurrenceFromCourseRun(restored, title)).toMatchObject({
+      projectId,
+      canonicalState: { workflowState: 'completed' },
+    });
+  }
+  await learner.page.screenshot({
+    path: `${evidenceDir}/nightlight-learner-accepted-and-reloaded.png`,
+    fullPage: true,
+  });
 
   learnerFailures.assertEmpty();
   await learner.context.close();
@@ -4172,6 +4367,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
     [oldPin.id, teacher.tenantId],
   );
   expect(archived.rowCount).toBe(1);
+  await openCourseStructure(page);
   await editor.locator('.course-lesson-link').filter({ hasText: 'Первая теория' }).click();
   await title.fill('Первая теория — новая редакция');
   await confirmLessonWrite(firstAdded.receipt.id, () => save.click());
@@ -4327,9 +4523,12 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await editor.getByLabel('Название урока').fill(lessonTitle);
   await editor.getByLabel('Текст блока', { exact: true }).fill(lessonText);
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
@@ -4389,6 +4588,7 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
 
   // Leave a real new-assignment dialog open while another tab archives the
   // course. No response is mocked; the later command must consult the lock.
+  await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   await assignDialog.getByRole('button', { name: 'Новое назначение', exact: true }).click();
   await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
@@ -4818,7 +5018,9 @@ test('Course media errors survive saved author preview and learner delivery with
   await editor.getByLabel('Ссылка на файл').fill('https://example.test/initial-' + suffix + '.pdf');
   await editor.getByLabel('Название файла').fill('Исходная памятка');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   async function outline() {
     const response = await page.request.get('/api/courses/' + courseId + '/outline');
     expect(response.status()).toBe(200);
@@ -4897,7 +5099,9 @@ test('Course media errors survive saved author preview and learner delivery with
   );
   await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
   expect((await save).status()).toBe(200);
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок сохранён.',
+  );
   await reopen();
   for (const [label, value] of [
     ['Ссылка на изображение', imageUrl],
@@ -4931,6 +5135,7 @@ test('Course media errors survive saved author preview and learner delivery with
   expect(await outline(), 'error, open affordance and retry do not write the draft').toEqual(saved);
   authorObserver.assertObservedFailuresAndNoUnexpectedErrors();
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+  await openCourseStructure(page);
   const lessonActions = editor.locator('details.course-outline-menu').filter({
     has: page.getByRole('button', { name: 'Действия урока «' + lessonTitle + '»', exact: true }),
   });
@@ -4938,7 +5143,9 @@ test('Course media errors survive saved author preview and learner delivery with
     .getByRole('button', { name: 'Действия урока «' + lessonTitle + '»', exact: true })
     .click();
   await lessonActions.getByRole('button', { name: 'Дублировать', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок продублирован.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок продублирован.',
+  );
   const duplicated = await outline();
   expect(duplicated.sections[0]!.lessons).toHaveLength(2);
   expect(duplicated.sections[0]!.lessons[1]!.id).not.toBe(lesson.id);
@@ -4961,6 +5168,7 @@ test('Course media errors survive saved author preview and learner delivery with
   const history = await historyResponse.json();
   expect(history.items).toHaveLength(1);
   expect(history.items[0]).toMatchObject({ id: version.versionId, versionNumber: 1 });
+  await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });

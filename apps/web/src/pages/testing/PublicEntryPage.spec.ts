@@ -19,14 +19,19 @@ describe('PublicEntryPage licensing notice', () => {
   it('offers unambiguous account actions within the header and a separate class-code path', () => {
     const html = renderToStaticMarkup(createElement(PublicEntryPage, { onChoose: vi.fn() }));
 
-    // Desktop, mobile and hero legitimately repeat the same action. Result A
-    // journeys select an accessible region instead of imposing page-wide uniqueness.
+    // Signup repeats in the hero, but login stays in the header at every width.
     const headerActions = html.match(
       /<div class="public-home-header-actions"[^>]*>(.*?)<\/div>/,
     )?.[1];
     expect(headerActions).toBeDefined();
     expect(headerActions!.match(/>Войти<\/button>/g)).toHaveLength(1);
     expect(headerActions!.match(/>Создать аккаунт<\/button>/g)).toHaveLength(1);
+    const menu = html.match(/<details class="public-home-mobile-menu"[^>]*>(.*?)<\/details>/)?.[1];
+    expect(menu).not.toMatch(/>Войти<\/button>/);
+    expect(menu).toContain('Создать аккаунт');
+    const hero = html.match(/<section class="public-home-hero".*?<\/section>/)?.[0];
+    expect(hero).toContain('Создать аккаунт');
+    expect(hero).not.toContain('Начать создавать');
     expect(html).toContain('У меня есть код класса →');
   });
 
