@@ -86,6 +86,7 @@ parallel_lanes:
     worktree_id: electronics-browser-partition-722
     owned_paths:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
+      - tests/electronics/ui-679-557-qualification.spec.ts
     task:
       id: TASK-ELECTRONICS-BROWSER-PARTITION-001
       issue: 722
@@ -97,7 +98,27 @@ parallel_lanes:
       kind: maintenance
       risk: low
       semantic_change: 'no'
-      checkpoint: original_browser_261_cases_verified_partition_144_plus_117
+      checkpoint: exact_general_ui679_557_contract_compatibility_selected
+      previous_checkpoint: original_browser_261_cases_verified_partition_144_plus_117
+      ui_scope_contract_compatibility_722:
+        status: selected
+        executor: github-connected-ui-compat-author-722
+        source_owner_issues: [679, 557]
+        target_pr: 724
+        sole_write_path: tests/electronics/ui-679-557-qualification.spec.ts
+        baseline_main_sha: fd5649c95e9f01b3fe395e856f31364a1e4cddb9
+        exact_failed_pr_sha: 6c6654c4f829f97eab711a315faa7e288aad57c9
+        exact_failed_general_run: 40091258177
+        exact_failed_general_job: 120865278948
+        approved_scope: >-
+          Align only the scoped six-case UI workflow contract test with the
+          accepted full browser sharding differences. Verify original full
+          matrix and isolation strictly, project only shard-specific fields
+          out of the comparison, retain exact unsharded six-case commands,
+          independent negative checks and existing browser/provenance gates.
+          One clean worktree and one writer; no UI/product/runtime edit.
+        independent_review: pending
+        main_integration: prohibited_until_final_gates
       owner_acceptance: pending
       owner_authorization: >-
         Owner #452/#703/#718 expressly commissioned bounded CI-only browser
@@ -7543,13 +7564,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_directed_partial_main_publication_actual_eight_pending
+      checkpoint: selected_test_only_existing_jsonl_mock_contract_repair
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Actual6b53 all eight native cycles still fail despite faster optical publication. Later edge requests arrive late and every RAF scalar clock state causes full Workbench reconciliation. Select one run-scoped local Header clock subscriber using existing projection port; remove only displayed-time root render dependency, preserving canonical refs, host demand, optical ACK and all eight unchanged timing criteria. No speculative future simulation or physics/cadence/origin/budget changes.
+      selected_slice: ONE test-only follow-up to published471 observer repair; change only apps/web/src/electronics/testing/led-temporal-presentation.spec.ts existing append mock to parse every nonempty JSONL line. Preserve4096 durable originals,2048 long retention, ACK and all existing assertions; no interactions or product changes.
+      observer_repair_contract:
+        scope: Follow-up author may change ONLY apps/web/src/electronics/testing/led-temporal-presentation.spec.ts existing append mock; original471 interactions/classroom implementation remains unchanged. No new runtime or product scope.
+        cutoff: Missing/late-render checks must exclude only records after long-stop-action using the same native-paint cutoff. Retain every raw row and Stop/final-ACK checks; identical missing or late evidence inside the active interval must still FAIL.
+        batch: Validate the whole nonempty batch of at most256 rows for contiguous sequence and finite times before mutation. Serialize identical original envelopes with the same per-row Date.now rule; perform one append with flush before any observer callback or ACK. Serialization/write/partial failure gives no ACK; preserve all originals and errors without loss or false durability.
+        regression: Parse ALL nonempty JSONL append lines in the existing mock; preserve every4096 durable-original/2048 long-retention/ACK assertion and all prior76 adversarial checks. Run full165 LED and76 classroom tests before one justified unchanged AFTER; no skips, timeout changes or weakened assertions.
+        delivery: Freeze one unpublished implementation commit with focused checks/self-review then STOP for NEW independent exact-SHA source review; controller performs final governance/publication and justified unchanged native AFTER. No claim observer overhead is the sole timing cause.
+      observer_selection_receipt: docs/product/electronics/evidence/arduino-682-observer-selection-20261024.md
+      observer_jsonl_selection_receipt: docs/product/electronics/evidence/arduino-682-jsonl-contract-selection-20261024.md
+      next_action: NEW independent review then controller canonical publication before ONE existing-mock repair author; full165 LED plus76 classroom checks, exact review and one justified AFTER. Actual all-eight qualification and owner acceptance remain pending.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
@@ -8299,8 +8329,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: historical_6db_targeted_pass_current_main_integration_selected
+      status: done
+      checkpoint: final_targeted_technical_accepted_main_integrated_issue_closed_STOP
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -8327,7 +8357,7 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: ONE bounded current-main composition author, freeze unpublished exact SHA for NEW independent source review; then ONE new scoped six-case and General actual qualification with actual size against accepted222000, NEW independent actual/visual review, and only then source integration and679/557 technical closure. No deployment, physical owner acceptance or release claim.
+      next_action: STOP selected technical scope accepted and issue closed; no next task, physical owner acceptance, release or deployment authorized.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
@@ -8381,6 +8411,31 @@ parallel_lanes:
         source_review: NOT_RUN_new_exact_composition_required
         actual_review: NOT_RUN_new_exact_composition_required
         boundary: Preserve accepted foreign682 clock/renderer/runtime and owner-approved222000 cap; no new cap change. Historical218000 proof does not prove new composition size or acceptance.
+      final_technical_acceptance:
+        evidence: docs/product/electronics/evidence/ui679-557-final-technical-closeout-20261024.md
+        status: accepted_targeted_scope_only
+        supersedes: Prospective repair instructions and NOT_RUN values in preserved selection records are historical; this completion record is the current technical result.
+        qualified_source_sha: 5b5f2cf549d94473e0365c8938093d8026ac67f4
+        integrated_main_sha: 380d35bc67d22d2eb6e96c92dbdbb75a4211928c
+        source_review_sha256: 69258c7e6abc7fa92abbc8e6e87036964b7acc83e2a759ddd34114e38ff2fb66
+        integration_review_sha256: 6ca8fc58047f29b2e4d92e15aa75ea91824a9c66f58f2f46e335b1a517f38f4b
+        actual_review: APPROVE_TARGETED
+        actual_review_sha256: 13ae4bcc5ff8f7e13761248c5b8e68e77f1ae157d9e125de54c5092a6037d35b
+        scoped_run: 40089882465
+        scoped_conclusion: success_all_three_jobs_six_of_six_native_cases
+        source_general_run: 40089881977
+        source_general_observed: SUCCESS all four jobs on qualified5b5f2cf5 only, Governance120860219649, Code120860596972, Data/RLS120861685819 and Access120861685839 PASS. Data545 files passed/3 skipped,6954 tests passed/43 skipped; standalone RLS16/16 PASS. No new main or documentation-SHA General result claimed.
+        actual_editor_raw_bytes: 221965
+        accepted_cap_bytes: 222000
+        remaining_bytes: 35
+        focused: 934 core, 895 web, 65 adversarial checks; 70 fresh Nx tasks; NX_SKIP_NX_CACHE=true; cache skipped.
+        actual_scope: Both F2 native cases complete, one Save and CAS2to3 with full independent R3 documents and closed fresh contexts; four clock widths complete in all12 phases.
+        issue_state: CLOSED
+        issue_closed_at: '2026-10-24T11:40:51Z'
+        issue_closure_comment: https://github.com/spikeal8-maker/asa-lab/issues/557#issuecomment-6383764592
+        acceptance_boundary: Technical UI only under explicit owner API-separate decision; physical owner acceptance pending, release and deployment not accepted. No new main-runtime or documentation-SHA runtime qualification claim.
+        preservation: Existing552 blocker and every foreign lane/blocker remain unchanged;682 partial qualification pending,548 and owner KEEP544/547OPEN,681 prior closure retained.
+        visibility_limits: Mobile hidden clock label NOT_OBSERVED;568px NOT_RUN.
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -8585,8 +8640,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: active_selectors_compatibility_repair_selected_actual_fit_unknown
+      status: done
+      checkpoint: final_targeted_technical_accepted_main_integrated_issue_closed_STOP
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -8601,7 +8656,7 @@ parallel_lanes:
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: ONE bounded source author applies corrected active-selector compatibility proposal only after canonical selection publication; freeze for NEW exact-source independent review, then ONE justified qualified Code/scoped-six/General execution and NEW actual review. No cap change, alternate variant or test weakening.
+      next_action: STOP selected technical scope accepted and issue closed; no next task, physical owner acceptance, release or deployment authorized.
       owner_targeted_acceptance:
         evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
         decision: API оставить отдельно; принять UI по целевым проверкам
@@ -8727,6 +8782,31 @@ parallel_lanes:
         accepted_cap_bytes: 222000
         actual_full_bundle_fit: UNKNOWN_NOT_PROVEN
         preservation: Old503 selection and published receipt immutable; other eight8415 source blobs unchanged, including Stage/Header. All foreign task/blocker and557 integration state preserved; no closure or deployment.
+      final_technical_acceptance:
+        evidence: docs/product/electronics/evidence/ui679-557-final-technical-closeout-20261024.md
+        status: accepted_targeted_scope_only
+        supersedes: Prospective repair instructions and NOT_RUN values in preserved selection records are historical; this completion record is the current technical result.
+        qualified_source_sha: 5b5f2cf549d94473e0365c8938093d8026ac67f4
+        integrated_main_sha: 380d35bc67d22d2eb6e96c92dbdbb75a4211928c
+        source_review_sha256: 69258c7e6abc7fa92abbc8e6e87036964b7acc83e2a759ddd34114e38ff2fb66
+        integration_review_sha256: 6ca8fc58047f29b2e4d92e15aa75ea91824a9c66f58f2f46e335b1a517f38f4b
+        actual_review: APPROVE_TARGETED
+        actual_review_sha256: 13ae4bcc5ff8f7e13761248c5b8e68e77f1ae157d9e125de54c5092a6037d35b
+        scoped_run: 40089882465
+        scoped_conclusion: success_all_three_jobs_six_of_six_native_cases
+        source_general_run: 40089881977
+        source_general_observed: SUCCESS all four jobs on qualified5b5f2cf5 only, Governance120860219649, Code120860596972, Data/RLS120861685819 and Access120861685839 PASS. Data545 files passed/3 skipped,6954 tests passed/43 skipped; standalone RLS16/16 PASS. No new main or documentation-SHA General result claimed.
+        actual_editor_raw_bytes: 221965
+        accepted_cap_bytes: 222000
+        remaining_bytes: 35
+        focused: 934 core, 895 web, 65 adversarial checks; 70 fresh Nx tasks; NX_SKIP_NX_CACHE=true; cache skipped.
+        actual_scope: Both F2 native cases complete, one Save and CAS2to3 with full independent R3 documents and closed fresh contexts; four clock widths complete in all12 phases.
+        issue_state: CLOSED
+        issue_closed_at: '2026-10-24T11:40:48Z'
+        issue_closure_comment: https://github.com/spikeal8-maker/asa-lab/issues/679#issuecomment-6383764115
+        acceptance_boundary: Technical UI only under explicit owner API-separate decision; physical owner acceptance pending, release and deployment not accepted. No new main-runtime or documentation-SHA runtime qualification claim.
+        preservation: Existing552 blocker and every foreign lane/blocker remain unchanged;682 partial qualification pending,548 and owner KEEP544/547OPEN,681 prior closure retained.
+        visibility_limits: Mobile hidden clock label NOT_OBSERVED;568px NOT_RUN.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned

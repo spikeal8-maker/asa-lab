@@ -1,7 +1,10 @@
-import { createElement } from 'react';
+// @vitest-environment jsdom
+
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
-import type { AuthProviderAvailability } from './api';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { api, type AuthProviderAvailability, type SessionPayload } from './api';
 import {
   availableSocialProviders,
   SocialAuthButtons,
@@ -9,13 +12,155 @@ import {
   providerWebhookUrl,
 } from './auth-providers';
 
-vi.mock('./api', () => ({ api: {} }));
+vi.mock('./api', () => ({
+  api: {
+    startSocialPairing: vi.fn(),
+    completeSocialPairing: vi.fn(),
+    registerSocialPairing: vi.fn(),
+  },
+}));
 
 const provider = (
   id: AuthProviderAvailability['id'],
   available: boolean,
   reason: AuthProviderAvailability['reason'] = available ? 'ready' : 'invalid_token',
 ): AuthProviderAvailability => ({ id, available, reason, checkedAt: null });
+
+describe('confirmed unlinked provider account choice', () => {
+  let root: Root | undefined;
+  let container: HTMLDivElement;
+  const onAuthenticated = vi.fn();
+  const onUsePassword = vi.fn();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    vi.mocked(api.startSocialPairing).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        pairingToken: 'confirmed-pairing',
+        launchUrl: 'https://max.ru/fixture_bot?start=opaque',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
+    vi.mocked(api.completeSocialPairing).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        status: 'registration_required',
+        profile: { displayName: 'Подтверждённый', username: 'confirmed' },
+      },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+  afterEach(async () => {
+    await act(async () => root?.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = false;
+  });
+  async function click(label: string) {
+    const button = [...container.querySelectorAll('button')].find(
+      (entry) =>
+        (
+          entry.querySelector('span:not([aria-hidden])')?.textContent ?? entry.textContent
+        )?.trim() === label,
+    );
+    if (!button) throw new Error(`Missing button: ${label}`);
+    await act(async () => button.click());
+  }
+  async function confirm(purpose: 'login' | 'register' | 'link') {
+    await act(async () =>
+      root!.render(
+        createElement(SocialAuthButtons, {
+          providers: [provider('max', true)],
+          purpose,
+          onAuthenticated,
+          onUsePassword,
+        }),
+      ),
+    );
+    await click(
+      purpose === 'login'
+        ? 'Войти через MAX'
+        : purpose === 'register'
+          ? 'Создать через MAX'
+          : 'Подключить MAX',
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1500);
+    });
+  }
+
+  it.each(['login', 'register'] as const)(
+    '%s asks before collecting new-account data',
+    async (purpose) => {
+      await confirm(purpose);
+      expect(container.textContent).toContain('Войти в существующий аккаунт');
+      expect(container.textContent).toContain('Создать новый аккаунт');
+      expect(container.querySelector('form')).toBeNull();
+      expect(api.registerSocialPairing).not.toHaveBeenCalled();
+      await click('Создать новый аккаунт');
+      expect(container.querySelector('.auth-social-registration')).not.toBeNull();
+      expect(api.startSocialPairing).toHaveBeenCalledTimes(1);
+      expect(api.registerSocialPairing).not.toHaveBeenCalled();
+      expect(onAuthenticated).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns to existing password proof without creating or silently linking an account', async () => {
+    await confirm('login');
+    await click('Войти в существующий аккаунт');
+    expect(onUsePassword).toHaveBeenCalledTimes(1);
+    expect(onAuthenticated).not.toHaveBeenCalled();
+    expect(api.registerSocialPairing).not.toHaveBeenCalled();
+    expect(container.querySelector('form')).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(api.completeSocialPairing).toHaveBeenCalledTimes(1);
+  });
+
+  it('expires the choice without permitting late registration', async () => {
+    await confirm('login');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(container.textContent).toContain('Время подтверждения истекло');
+    expect(container.textContent).not.toContain('Создать новый аккаунт');
+    expect(api.registerSocialPairing).not.toHaveBeenCalled();
+  });
+
+  it('keeps authenticated linked identities on the direct login path', async () => {
+    const session = { authenticated: true } as unknown as SessionPayload;
+    vi.mocked(api.completeSocialPairing).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { status: 'authenticated', session },
+    });
+    await confirm('login');
+    expect(onAuthenticated).toHaveBeenCalledWith(session);
+    expect(container.textContent).not.toContain('Создать новый аккаунт');
+  });
+
+  it('never offers registration when a same-account link attempt is rejected', async () => {
+    await confirm('link');
+    expect(container.textContent).toContain('Не удалось связать способ');
+    expect(container.textContent).not.toContain('Создать новый аккаунт');
+    expect(api.registerSocialPairing).not.toHaveBeenCalled();
+    expect(onAuthenticated).not.toHaveBeenCalled();
+  });
+});
 
 describe('available sign-in methods', () => {
   it('shows only server-available implemented methods, with no email placeholder', () => {
