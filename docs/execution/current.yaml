@@ -7564,13 +7564,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_directed_partial_main_publication_actual_eight_pending
+      checkpoint: selected_test_only_stop_cutoff_and_durable_batch_observer_repair
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Actual6b53 all eight native cycles still fail despite faster optical publication. Later edge requests arrive late and every RAF scalar clock state causes full Workbench reconciliation. Select one run-scoped local Header clock subscriber using existing projection port; remove only displayed-time root render dependency, preserving canonical refs, host demand, optical ACK and all eight unchanged timing criteria. No speculative future simulation or physics/cadence/origin/budget changes.
+      selected_slice: ONE TEST-ONLY repair of e2e/electronics-interactions.spec.ts and tests/electronics/classroom-qualification.spec.ts existing adversarial gate for narrow extracted regressions, plus a narrow new test contract only if necessary; generated metadata only if a validator requires it. Align long missing/late-render active interval with native-paint long-stop-action cutoff and replace per-row durable flush with one validated contiguous batch append/flush before observer and ACK. Preserve raw records, trusted Stop, final ACK and active-interval negatives; no product timing repair or acceptance claim.
+      observer_repair_contract:
+        scope: e2e/electronics-interactions.spec.ts and tests/electronics/classroom-qualification.spec.ts for extracted deterministic regressions, plus narrow new test contract only if necessary; no product/controller/physics/pace/tolerance/timeout/coverage/label/dependency/workflow/cap edits.
+        cutoff: Missing/late-render checks must exclude only records after long-stop-action using the same native-paint cutoff. Retain every raw row and Stop/final-ACK checks; identical missing or late evidence inside the active interval must still FAIL.
+        batch: Validate the whole nonempty batch of at most256 rows for contiguous sequence and finite times before mutation. Serialize identical original envelopes with the same per-row Date.now rule; perform one append with flush before any observer callback or ACK. Serialization/write/partial failure gives no ACK; preserve all originals and errors without loss or false durability.
+        regression: Deterministic extracted tests prove exact byte equivalence,256rows to1flush, observer only after flush, gap/NaN failure without ACK and cached-original raw replay. Preserve every frozen native criterion and eight scenarios.
+        delivery: Freeze one unpublished implementation commit with focused checks/self-review then STOP for NEW independent exact-SHA source review; controller performs final governance/publication and justified unchanged native AFTER. No claim observer overhead is the sole timing cause.
+      observer_selection_receipt: docs/product/electronics/evidence/arduino-682-observer-selection-20261024.md
+      next_action: Controller publishes this independently reviewed canonical docs selection before assigning ONE bounded test-only implementation author; no product edits under this docs slice. Preserve historical failures and owner acceptance pending.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
