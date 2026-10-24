@@ -147,6 +147,20 @@ surfaces:
     - apps/web/src/pages/AssignmentLibraryPage.tsx
     - apps/web/src/components/CoursesPanel.tsx
     - apps/web/src/components/LessonBlockEditor.tsx
+    - apps/web/src/components/GrowingTextarea.tsx
+    - apps/web/src/components/CourseEditorDialog.tsx
+    - apps/web/src/components/course-editor-test-dom.ts
+    - apps/web/src/components/lesson-informational-blocks.spec.ts
+    - apps/web/src/learning/testing/course-metadata-save-race.spec.ts
+    - apps/web/src/learning/testing/course-prepublication-diagnostics.spec.ts
+    - apps/web/src/components/courses-panel.css
+    - e2e/learning-authoring-navigation.ts
+    - e2e/learning-author-preview.spec.ts
+    - e2e/course-editor-native-zoom.ts
+    - tests/courses/course-editor-native-zoom.spec.ts
+    - e2e/learning-course-01.spec.ts
+    - e2e/courses-sharing.spec.ts
+    - tools/testing/learning-e1-browser.mjs
     - apps/web/src/components/LessonBlocks.tsx
     - apps/web/src/components/lesson-blocks.css
     - apps/web/src/learning/testing/lesson-blocks-media.spec.ts

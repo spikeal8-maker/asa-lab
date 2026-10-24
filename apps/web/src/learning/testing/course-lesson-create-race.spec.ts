@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { api, type Course, type CourseLesson, type CourseSection } from '../../api';
 import { CoursesPanel } from '../../components/CoursesPanel';
+import { installCourseEditorTestDom } from '../../components/course-editor-test-dom';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 const course: Course = {
@@ -44,8 +45,12 @@ function button(container: HTMLElement, label: string): HTMLButtonElement {
   return found;
 }
 
-function setInput(input: HTMLInputElement, value: string): void {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
+function setInput(input: HTMLInputElement | HTMLTextAreaElement, value: string): void {
+  const prototype =
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(prototype, 'value')?.set?.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -90,12 +95,15 @@ async function flush(): Promise<void> {
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let restoreBrowserApis: () => void;
 
 beforeAll(() => {
+  restoreBrowserApis = installCourseEditorTestDom();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
 });
 
 afterAll(() => {
+  restoreBrowserApis();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 
@@ -186,8 +194,8 @@ it('creates a second lesson even when a late outline reload selects the first le
   await act(async () => openCourse?.click());
   expect(readOutline).toHaveBeenCalledTimes(1);
   await act(async () => button(container!, '+ Урок').click());
-  const firstTitle = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const firstTitle = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
   );
   expect(firstTitle).not.toBeNull();
   await act(async () => setInput(firstTitle!, 'First lesson'));
@@ -205,8 +213,8 @@ it('creates a second lesson even when a late outline reload selects the first le
 
   await act(async () => button(container!, '+ Урок').click());
   expect(container.textContent).toContain('Новый урок');
-  const secondTitle = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const secondTitle = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
   );
   expect(secondTitle).not.toBeNull();
   await act(async () => setInput(secondTitle!, 'Second lesson'));
@@ -262,8 +270,8 @@ it('creates a second lesson even when a late outline reload selects the first le
   ].find((entry) => entry.textContent?.includes('First lesson'));
   expect(firstLesson).toBeDefined();
   await act(async () => firstLesson?.click());
-  const editTitle = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const editTitle = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
   );
   expect(editTitle?.value).toBe('First lesson');
   await act(async () => setInput(editTitle!, 'Updated first lesson'));
@@ -342,8 +350,8 @@ it('keeps edits made during a create request and updates that lesson on the next
       ?.click(),
   );
   await act(async () => button(container!, '+ Урок').click());
-  const title = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const title = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
   );
   expect(title).not.toBeNull();
   await act(async () => setInput(title!, 'First version'));
@@ -449,17 +457,21 @@ it('retains post-submit edits when the acknowledged PATCH moves an existing less
       ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
       ?.click(),
   );
-  const title = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const title = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
   );
   const section = container.querySelector<HTMLSelectElement>('.course-lesson-editor select');
   expect(title?.value).toBe('Original');
   expect(section).not.toBeNull();
   await act(async () => {
     setInput(title!, 'Submitted title');
+  });
+  await act(async () => button(container!, 'Параметры урока').click());
+  await act(async () => {
     section!.value = 'section-2';
     section!.dispatchEvent(new Event('change', { bubbles: true }));
   });
+  await act(async () => button(container!, 'Вернуться к уроку').click());
   await act(async () => {
     container
       ?.querySelector('.course-lesson-editor')
@@ -481,7 +493,7 @@ it('retains post-submit edits when the acknowledged PATCH moves an existing less
     await flush();
   });
   expect(
-    container.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]'),
+    container.querySelector<HTMLTextAreaElement>('.course-lesson-editor textarea[maxlength="160"]'),
   ).toBe(title);
   expect(title?.value).toBe('Typed after submit');
   await act(async () => {
@@ -614,8 +626,8 @@ it.each([
   );
   if (mode === 'new') {
     await act(async () => button(container!, '+ Урок').click());
-    const title = container.querySelector<HTMLInputElement>(
-      '.course-lesson-editor input[maxlength="160"]',
+    const title = container.querySelector<HTMLTextAreaElement>(
+      '.course-lesson-editor textarea[maxlength="160"]',
     );
     await act(async () => setInput(title!, 'Original'));
   }
@@ -633,9 +645,14 @@ it.each([
       button(editor!, 'Заменить практику').click();
       await flush();
     });
+  if (field === 'minutes' || field === 'section' || field === 'kind')
+    await act(async () => button(container!, 'Параметры урока').click());
   await act(async () => {
     if (field === 'summary') {
-      setInput(editor!.querySelector<HTMLInputElement>('input[maxlength="600"]')!, 'Late summary');
+      setInput(
+        editor!.querySelector<HTMLTextAreaElement>('textarea[maxlength="600"]')!,
+        'Late summary',
+      );
     } else if (field === 'minutes') {
       setInput(editor!.querySelector<HTMLInputElement>('input[type="number"]')!, '45');
     } else if (field === 'section') {
@@ -649,6 +666,8 @@ it.each([
       await flush();
     }
   });
+  if (field === 'minutes' || field === 'section' || field === 'kind')
+    await act(async () => button(container!, 'Вернуться к уроку').click());
   if (mode === 'new') {
     savedLesson = testLesson('Original');
   } else {
@@ -730,8 +749,8 @@ it('does not adopt a concurrent revision while preserving edits made after save'
       ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
       ?.click(),
   );
-  const title = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const title = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
   );
   expect(title?.value).toBe('Original');
   await act(async () => setInput(title!, 'Saved by me'));
@@ -841,8 +860,8 @@ it.each(['newer revision', 'failed request'] as const)(
       await flush();
     });
     expect(readOutline).toHaveBeenCalledTimes(2);
-    const title = container.querySelector<HTMLInputElement>(
-      '.course-lesson-editor input[maxlength="160"]',
+    const title = container.querySelector<HTMLTextAreaElement>(
+      '.course-lesson-editor textarea[maxlength="160"]',
     );
     expect(title?.value).toBe('Original');
     await act(async () => setInput(title!, 'Saved by me'));
@@ -962,8 +981,8 @@ it.each(['failed', 'stale'] as const)(
         ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
         ?.click(),
     );
-    const title = container.querySelector<HTMLInputElement>(
-      '.course-lesson-editor input[maxlength="160"]',
+    const title = container.querySelector<HTMLTextAreaElement>(
+      '.course-lesson-editor textarea[maxlength="160"]',
     );
     expect(title?.value).toBe('Original');
     await act(async () => setInput(title!, 'Saved lesson'));
@@ -1037,7 +1056,9 @@ it('protects dirty course lessons through the registered portal guard and before
   expect(guard!()).toBe(true);
   await act(async () =>
     setInput(
-      container!.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')!,
+      container!.querySelector<HTMLTextAreaElement>(
+        '.course-lesson-editor textarea[maxlength="160"]',
+      )!,
       'Unsaved lesson',
     ),
   );
@@ -1048,8 +1069,9 @@ it('protects dirty course lessons through the registered portal guard and before
   window.dispatchEvent(unload);
   expect(unload.defaultPrevented).toBe(true);
   expect(
-    container!.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')!
-      .value,
+    container!.querySelector<HTMLTextAreaElement>(
+      '.course-lesson-editor textarea[maxlength="160"]',
+    )!.value,
   ).toBe('Unsaved lesson');
 });
 
@@ -1116,6 +1138,9 @@ it('keeps the frozen ambiguous assignment when internal Course Back is declined 
     await flush();
   });
   await act(async () => container!.querySelector<HTMLButtonElement>('.course-row-main')!.click());
+  await act(async () =>
+    container!.querySelector<HTMLElement>('.course-actions-menu > summary')!.click(),
+  );
   await act(async () => {
     button(container!, 'Назначить курс').click();
     await flush();
@@ -1157,6 +1182,9 @@ it('keeps the frozen ambiguous assignment when internal Course Back is declined 
   expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Назначение курса не подтверждено'));
   expect(container!.querySelector('[data-testid="course-editor"]')).not.toBeNull();
   expect(container!.querySelector('[data-testid="courses-list"]')).toBeNull();
+  await act(async () =>
+    container!.querySelector<HTMLElement>('.course-actions-menu > summary')!.click(),
+  );
   await act(async () => {
     button(container!, 'Назначить курс').click();
     await flush();

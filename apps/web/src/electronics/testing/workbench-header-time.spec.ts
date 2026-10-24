@@ -76,6 +76,9 @@ describe('mounted production WorkbenchHeader committed time', () => {
       expect(host.querySelector('[aria-label="Время моделирования"]')?.textContent).toBe(
         `Время моделирования: ${display}`,
       );
+      expect(
+        host.querySelector('[aria-label="Время моделирования"]')?.getAttribute('data-time-ms'),
+      ).toBe(String(port.readClock() / 1000));
       expect(controller.committedSimulationTimeMs).toBe(milliseconds);
       expect(controller.simulationTimeMs).toBe(milliseconds + 60_000);
       expect(host.querySelector('[aria-label="Остановить моделирование"]')).not.toBeNull();
