@@ -191,5 +191,4 @@ describe('E1-FIX-11D5 Course Activity learner UI', () => {
     expect(courseActivityAssignmentShape(run, threeD).id).toBe('assignment-b');
     expect(courseActivityAssignmentShape(run, electronics).id).toBe('assignment-a');
   });
-
 });
