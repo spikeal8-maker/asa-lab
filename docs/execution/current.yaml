@@ -2952,46 +2952,41 @@ parallel_lanes:
       - e2e/classroom-profile-completion.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     task:
-      id: TASK-TEACHER-STUDENT-PROFILE-UI-589
-      issue: 589
+      id: TASK-TEACHER-STUDENT-PROFILE-UI-734-UI04A
+      issue: 734
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: ui02_integrated_main_54d6585_ui03_settings_categories_selected
+      checkpoint: ui03_merged_main_292dc974_ui04a_games_embedded_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner 2026-10-18 Issue 589, expanded by explicit 2026-10-24 product direction
-        Issue 715 comment 6384209463 and Issue 589 comment 6384219085.
-        UI-01 integrated in main at 75b579157f40220f668b2972cf38800460da8c28
-        from source f1c29ab6eec1bd71270980201187cb6b441724bf.
-        UI-02 integrated as main 54d6585909091494d7b348a3f97e0cf1c94233a9
-        from source b913f0bfaef9d0e002f4afbc35f8b8c2911cbb2d after
-        six SUCCESS workflow checks and exact-SHA independent review.
-        Select UI-03 functional four-category student settings in the ninth
-        tab, relying on existing authorized seat/class/game API operations;
-        never deploy or modify school data.
+        Owner Issue #734 and comment 6387720711 (2026-10-24) explicitly authorizes
+        UI-04A then separately reviewed UI-04B and UI-04C in the teacher-facing
+        student profile only. UI-03 PR #733 source
+        0779aa66aeb132c57d41b1fde8f5d5e67b72925f was integrated in main
+        as 292dc97412066104c8f774b95954bb52192f6ce4. UI-04A is the
+        currently selected games-editor relocation; code, CI, review and main
+        acceptance are not claimed by this governance selection.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
         - https://github.com/spikeal8-maker/asa-lab/issues/715#issuecomment-6384209463
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6384219085
         - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+        - https://github.com/spikeal8-maker/asa-lab/issues/734
+        - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
       scope: >-
-        UI-03 selected bounded product slice after UI-02 main acceptance:
-        replace the temporary ninth-tab settings entry with four compact
-        real categories for profile/role/avatars, Student Code/access,
-        seat protection and per-student game access. Reuse existing
-        seatActions and participantsApi authorization/commands, and existing
-        ClassroomGamesSettings; one active editor at a time, honest disabled
-        and retry states, no decorative toggles, preserve unsaved panel state.
-        Preserve all eight prior sections and accepted IdentityRail/SectionRail,
-        grades/history and works/paging; avoid global auth and game backend.
-        UI-04 may remove duplicate permanent panels and relocate remaining
-        summary controls in a separate reviewed slice.
+        UI-04A (first bounded slice) selected after accepted UI-03 PR #733:
+        embed the existing single ClassroomGamesSettings editor exclusively in
+        Settings / Игровые разрешения, remove its always-mounted legacy region
+        and scroll workaround, preserve class-level consumer, dirty/navigation
+        protection, version/409/readback and Seat isolation. Do not start
+        UI-04B or UI-04C in this executor slice until separate acceptance.
+        Follow Issue #734 and preserve unrelated parallel lanes.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
