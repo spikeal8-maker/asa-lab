@@ -192,16 +192,22 @@ export async function describeOllamaModel(
   }
   if (!response.ok) throw failure(response.status);
   const detail = await limitedJson(response);
-  if (!detail || typeof detail !== 'object' || !Array.isArray((detail as { capabilities?: unknown }).capabilities))
+  if (
+    !detail ||
+    typeof detail !== 'object' ||
+    !Array.isArray((detail as { capabilities?: unknown }).capabilities)
+  )
     throw new OllamaError(
       'ai_ollama_capability_unknown',
       503,
       'Ollama не сообщила достоверные возможности модели.',
     );
   return (detail as { capabilities: unknown[] }).capabilities
-    .filter((capability): capability is string =>
-      typeof capability === 'string' && capability.length > 0 && capability.length <= 40,
-    ).slice(0, 32);
+    .filter(
+      (capability): capability is string =>
+        typeof capability === 'string' && capability.length > 0 && capability.length <= 40,
+    )
+    .slice(0, 32);
 }
 
 export interface OllamaStreamArgs {
@@ -238,7 +244,8 @@ export async function streamOllamaText(
           ...args.context.map((item, index) => ({
             ...item,
             ...(index === args.context.length - 1 && item.role === 'user' && args.images?.length
-              ? { images: args.images } : {}),
+              ? { images: args.images }
+              : {}),
           })),
         ],
         stream: true,

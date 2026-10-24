@@ -11,7 +11,9 @@ import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scop
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import {
-  AI_CHAT_FILE_ACCEPT, checkAiChatFiles, uploadAiChatFile,
+  AI_CHAT_FILE_ACCEPT,
+  checkAiChatFiles,
+  uploadAiChatFile,
   type AiChatFileDraft,
 } from './ai-chat-attachments';
 import { fetchWithSessionRefresh } from '../session-fetch';
@@ -150,7 +152,10 @@ export function AiChatPage({
 
   useEffect(() => {
     const urls = previewUrls.current;
-    return () => { for (const url of urls) URL.revokeObjectURL(url); urls.clear(); };
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url);
+      urls.clear();
+    };
   }, []);
 
   function releaseFiles(files: readonly AiChatFileDraft[]): void {
@@ -171,7 +176,10 @@ export function AiChatPage({
     if (interactionBusy || requestBusy.current || currentArchived.current) return;
     const selected = [...attachments.map((item) => item.file), ...files];
     const issue = checkAiChatFiles(selected);
-    if (issue) { setError(issue); return; }
+    if (issue) {
+      setError(issue);
+      return;
+    }
     const additions = files.map((file) => {
       const image = /\.(png|jpe?g|webp)$/i.test(file.name);
       const preview = image ? URL.createObjectURL(file) : null;
@@ -209,21 +217,30 @@ export function AiChatPage({
 
   useEffect(() => {
     if (!currentId) return;
-    const ids = [...new Set(messages.filter((message) => message.role === 'user')
-      .map((message) => message.requestId))].slice(0, 50);
+    const ids = [
+      ...new Set(
+        messages.filter((message) => message.role === 'user').map((message) => message.requestId),
+      ),
+    ].slice(0, 50);
     if (!ids.length) return;
     const version = selectedVersion.current;
     let cancelled = false;
-    void call<{ items: readonly { requestId: string; attachments: readonly AiHistoryAttachment[] }[] }>(
-      '/api/ai/threads/' + encodeURIComponent(currentId) +
-        '/attachments?requestIds=' + ids.join(','),
+    void call<{
+      items: readonly { requestId: string; attachments: readonly AiHistoryAttachment[] }[];
+    }>(
+      '/api/ai/threads/' +
+        encodeURIComponent(currentId) +
+        '/attachments?requestIds=' +
+        ids.join(','),
     ).then((result) => {
       if (cancelled || version !== selectedVersion.current || !result.ok) return;
-      setHistoryAttachments(Object.fromEntries(
-        result.data.items.map((item) => [item.requestId, item.attachments]),
-      ));
+      setHistoryAttachments(
+        Object.fromEntries(result.data.items.map((item) => [item.requestId, item.attachments])),
+      );
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [call, currentId, messages]);
 
   useEffect(() => {
@@ -680,7 +697,7 @@ export function AiChatPage({
           controller.signal,
           selectedModel || status.model,
           aiScopeHeaders(seatId),
-          ...(uploadIds.length ? [uploadIds] as const : [] as const),
+          ...(uploadIds.length ? ([uploadIds] as const) : ([] as const)),
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -704,7 +721,8 @@ export function AiChatPage({
         }
         if (version !== selectedVersion.current) return;
         setError(
-          problem instanceof Error ? problem.message
+          problem instanceof Error
+            ? problem.message
             : 'Не удалось завершить ответ. Проверьте историю диалога.',
         );
         const history = await call<AiPage<AiMessage>>(
@@ -1410,24 +1428,36 @@ export function AiChatPage({
                 <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
                   {attachments.map((item) => (
                     <div key={item.uploadId} className="chat-attachment-chip">
-                      {item.preview ? <img src={item.preview} alt="" /> : <span aria-hidden="true">▤</span>}
+                      {item.preview ? (
+                        <img src={item.preview} alt="" />
+                      ) : (
+                        <span aria-hidden="true">▤</span>
+                      )}
                       <span title={item.file.name}>
                         {item.file.name}
                         <small>{Math.ceil(item.file.size / 1024)} КБ</small>
                       </span>
-                      <button type="button" disabled={interactionBusy}
+                      <button
+                        type="button"
+                        disabled={interactionBusy}
                         aria-label={'Удалить ' + item.file.name}
-                        onClick={() => removeFile(item.uploadId)}>×</button>
+                        onClick={() => removeFile(item.uploadId)}
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
               ) : null}
-              <form className="chat-composer" onSubmit={(event) => void send(event)}
+              <form
+                className="chat-composer"
+                onSubmit={(event) => void send(event)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
                   addFiles(Array.from(event.dataTransfer.files));
-                }}>
+                }}
+              >
                 <input
                   ref={fileInput}
                   type="file"
@@ -1440,10 +1470,16 @@ export function AiChatPage({
                     event.currentTarget.value = '';
                   }}
                 />
-                <button type="button" className="chat-attach-button"
-                  aria-label="Прикрепить файлы" title="Прикрепить файлы"
+                <button
+                  type="button"
+                  className="chat-attach-button"
+                  aria-label="Прикрепить файлы"
+                  title="Прикрепить файлы"
                   disabled={!status?.enabled || interactionBusy || archived}
-                  onClick={() => fileInput.current?.click()}>+</button>
+                  onClick={() => fileInput.current?.click()}
+                >
+                  +
+                </button>
                 <textarea
                   ref={composer}
                   value={draft}

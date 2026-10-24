@@ -948,7 +948,6 @@
   }
 }
 
-
 /* File controls belong to the single existing chat composer. */
 .asa-ai-layout .chat-composer {
   grid-template-columns: 38px minmax(0, 1fr) 40px;

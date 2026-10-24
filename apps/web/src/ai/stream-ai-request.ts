@@ -34,8 +34,12 @@ export async function streamAiRequest<T>(
   return streamCommand(
     threadId,
     'messages',
-    { message: text, requestId, ...(model ? { model } : {}),
-      ...(attachmentIds.length ? { attachmentIds } : {}) },
+    {
+      message: text,
+      requestId,
+      ...(model ? { model } : {}),
+      ...(attachmentIds.length ? { attachmentIds } : {}),
+    },
     onDelta,
     signal,
     scopeHeaders,

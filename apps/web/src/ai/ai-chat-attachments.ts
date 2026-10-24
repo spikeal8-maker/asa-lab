@@ -12,7 +12,8 @@ export interface AiChatFileDraft {
 
 interface Receipt {
   readonly uploadId: string;
-  readonly state: 'reserved' | 'uploading' | 'unknown' | 'ready' | 'bound' | 'deleting' | 'deleted' | 'failed';
+  readonly state:
+    'reserved' | 'uploading' | 'unknown' | 'ready' | 'bound' | 'deleting' | 'deleted' | 'failed';
   readonly sha256: string;
 }
 
@@ -20,13 +21,16 @@ export function checkAiChatFiles(files: readonly File[]): string | null {
   if (files.length > 4) return 'Можно прикрепить не более четырёх файлов.';
   let total = 0;
   const imageExtensions = new Set(['png', 'jpg', 'jpeg', 'webp']);
-  const otherExtensions = new Set(
-    AI_CHAT_FILE_ACCEPT.split(',').map((part) => part.slice(1)),
-  );
+  const otherExtensions = new Set(AI_CHAT_FILE_ACCEPT.split(',').map((part) => part.slice(1)));
   for (const file of files) {
     if (file.size < 1) return 'Нельзя прикрепить пустой файл.';
-    if (!file.name || file.name.length > 180 || file.name.startsWith('.') ||
-        file.name.includes('..') || /[\\/<>:"|?*\u202a-\u202e]/u.test(file.name))
+    if (
+      !file.name ||
+      file.name.length > 180 ||
+      file.name.startsWith('.') ||
+      file.name.includes('..') ||
+      /[\\/<>:"|?*\u202a-\u202e]/u.test(file.name)
+    )
       return 'Имя файла не подходит для безопасной загрузки.';
     const extension = file.name.split('.').at(-1)?.toLowerCase() ?? '';
     if (!otherExtensions.has(extension))
@@ -50,7 +54,8 @@ export async function uploadAiChatFile(
   const bytes = await draft.file.arrayBuffer();
   signal.throwIfAborted();
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
-    .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
   signal.throwIfAborted();
   const call = createAiScopeCall(seatId);
   const reserved = await call<Receipt>('/api/ai/attachments', {
@@ -68,7 +73,9 @@ export async function uploadAiChatFile(
     throw new Error('Контрольная сумма файла изменилась. Выберите файл заново.');
   if (reserved.data.state === 'ready') return reserved.data.uploadId;
   if (reserved.data.state !== 'reserved')
-    throw new Error('Состояние прежней загрузки не подтверждено. Проверьте вложение перед отправкой.');
+    throw new Error(
+      'Состояние прежней загрузки не подтверждено. Проверьте вложение перед отправкой.',
+    );
   // A single bounded PUT. Never repeat it automatically after an uncertain result.
   const response = await fetchWithSessionRefresh(
     '/api/ai/attachments/' + encodeURIComponent(draft.uploadId) + '/bytes',
@@ -84,12 +91,21 @@ export async function uploadAiChatFile(
   );
   if (!response.ok) {
     let body: { error?: { message?: string } } | null = null;
-    try { body = (await response.json()) as { error?: { message?: string } }; } catch { /* rejected binary transfer */ }
-    throw new Error(body?.error?.message ?? 'Загрузка файла не завершилась. Проверьте состояние вложения.');
+    try {
+      body = (await response.json()) as { error?: { message?: string } };
+    } catch {
+      /* rejected binary transfer */
+    }
+    throw new Error(
+      body?.error?.message ?? 'Загрузка файла не завершилась. Проверьте состояние вложения.',
+    );
   }
   let receipt: Receipt;
-  try { receipt = (await response.json()) as Receipt; }
-  catch { throw new Error('Состояние загрузки неизвестно. Автоматическая повторная загрузка запрещена.'); }
+  try {
+    receipt = (await response.json()) as Receipt;
+  } catch {
+    throw new Error('Состояние загрузки неизвестно. Автоматическая повторная загрузка запрещена.');
+  }
   if (receipt.uploadId !== draft.uploadId || receipt.sha256 !== hash || receipt.state !== 'ready')
     throw new Error('Сервер не подтвердил безопасное сохранение файла.');
   return draft.uploadId;

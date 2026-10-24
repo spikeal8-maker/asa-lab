@@ -36,18 +36,25 @@ function mockPool() {
     if (sql.includes('ai_runtime_config'))
       return { rows: [{ enabled: false, provider: 'openai', model: 'gpt-5-mini' }] };
     if (sql.includes('ai_ollama_runtime'))
-      return { rows: [{ enabled: true, base_url: 'http://127.0.0.1:11434', model: 'ornith:9b', revision: 5 }] };
-    if (sql.includes('ai_attachment_begin_message_local'))
-      return { rows: [{ admitted: true }] };
+      return {
+        rows: [
+          { enabled: true, base_url: 'http://127.0.0.1:11434', model: 'ornith:9b', revision: 5 },
+        ],
+      };
+    if (sql.includes('ai_attachment_begin_message_local')) return { rows: [{ admitted: true }] };
     if (sql.includes('ai_text_generation_context'))
       return { rows: [{ role: 'user', content: 'Найди ошибку в файле' }] };
     if (sql.includes('ai_text_messages_page'))
       return {
-        rows: [{
-          id: '66666666-6666-4666-8666-666666666666',
-          role: 'assistant', content: 'Исправьте номер порта.',
-          request_id: REQUEST, created_at: new Date('2026-10-01T12:00:00Z'),
-        }],
+        rows: [
+          {
+            id: '66666666-6666-4666-8666-666666666666',
+            role: 'assistant',
+            content: 'Исправьте номер порта.',
+            request_id: REQUEST,
+            created_at: new Date('2026-10-01T12:00:00Z'),
+          },
+        ],
       };
     return { rows: [] };
   });
@@ -59,21 +66,33 @@ describe('ASA AI real file-to-provider context', () => {
     const code = Buffer.from('const int led=13;\nvoid setup(){pinMode(led,INPUT);}\n');
     const attachments = attachmentService(code);
     const { pool, sqlCalls } = mockPool();
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
-      new Response(JSON.stringify({ message: { content: 'Используйте OUTPUT.' }, done: true }) + '\n'),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ message: { content: 'Используйте OUTPUT.' }, done: true }) + '\n',
+        ),
     );
     const chat = new AiChatService(pool, { attachments, fetchImpl });
     const result = await chat.sendStream(
-      OWNER, THREAD, 'Найди ошибку в файле', REQUEST, () => undefined,
-      new AbortController().signal, 'ollama-local', undefined, [UPLOAD],
+      OWNER,
+      THREAD,
+      'Найди ошибку в файле',
+      REQUEST,
+      () => undefined,
+      new AbortController().signal,
+      'ollama-local',
+      undefined,
+      [UPLOAD],
     );
     expect(result.replayed).toBe(false);
-    expect((attachments.withRead as ReturnType<typeof vi.fn>).mock.calls[0]?.slice(0, 2))
-      .toEqual([OWNER, UPLOAD]);
-    const admitted = sqlCalls.find((entry) => entry.sql.includes('ai_attachment_begin_message_local'));
-    expect(admitted?.params).toEqual([
-      OWNER, THREAD, REQUEST, 'Найди ошибку в файле', 5, [UPLOAD],
+    expect((attachments.withRead as ReturnType<typeof vi.fn>).mock.calls[0]?.slice(0, 2)).toEqual([
+      OWNER,
+      UPLOAD,
     ]);
+    const admitted = sqlCalls.find((entry) =>
+      entry.sql.includes('ai_attachment_begin_message_local'),
+    );
+    expect(admitted?.params).toEqual([OWNER, THREAD, REQUEST, 'Найди ошибку в файле', 5, [UPLOAD]]);
     expect(sqlCalls.some((entry) => entry.sql.includes('ai_text_begin_paid'))).toBe(false);
     const [url, options] = fetchImpl.mock.calls[0]!;
     expect(url).toBe('http://127.0.0.1:11434/api/chat');
@@ -88,14 +107,23 @@ describe('ASA AI real file-to-provider context', () => {
   it('refuses an image if /api/show lacks Vision before SQL admission or provider chat', async () => {
     const { pool, sqlCalls } = mockPool();
     const attachments = attachmentService(Buffer.from('test image'), 'image');
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
-      new Response(JSON.stringify({ capabilities: ['completion'] })),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ capabilities: ['completion'] })),
     );
     const chat = new AiChatService(pool, { attachments, fetchImpl });
-    await expect(chat.sendStream(
-      OWNER, THREAD, 'Что изображено?', REQUEST, () => undefined,
-      new AbortController().signal, 'ollama-local', undefined, [UPLOAD],
-    )).rejects.toMatchObject({ code: 'ai_vision_unsupported', status: 409 });
+    await expect(
+      chat.sendStream(
+        OWNER,
+        THREAD,
+        'Что изображено?',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+        'ollama-local',
+        undefined,
+        [UPLOAD],
+      ),
+    ).rejects.toMatchObject({ code: 'ai_vision_unsupported', status: 409 });
     expect(sqlCalls.some((entry) => entry.sql.includes('ai_attachment_begin_message'))).toBe(false);
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://127.0.0.1:11434/api/show');
@@ -110,10 +138,19 @@ describe('ASA AI real file-to-provider context', () => {
     } as unknown as AiAttachmentService;
     const fetchImpl = vi.fn<typeof fetch>();
     const chat = new AiChatService(pool, { attachments, fetchImpl });
-    await expect(chat.sendStream(
-      OWNER, THREAD, 'Что в файле?', REQUEST, () => undefined,
-      new AbortController().signal, 'ollama-local', undefined, [UPLOAD],
-    )).rejects.toMatchObject({ code: 'ai_attachment_not_found', status: 403 });
+    await expect(
+      chat.sendStream(
+        OWNER,
+        THREAD,
+        'Что в файле?',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+        'ollama-local',
+        undefined,
+        [UPLOAD],
+      ),
+    ).rejects.toMatchObject({ code: 'ai_attachment_not_found', status: 403 });
     expect(sqlCalls.some((entry) => entry.sql.includes('ai_attachment_begin_message'))).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
   });

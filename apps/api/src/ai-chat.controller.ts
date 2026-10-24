@@ -81,9 +81,13 @@ export class AiChatController {
 
   private attachmentIds(value: unknown): readonly string[] {
     if (value === undefined) return [];
-    if (!Array.isArray(value) || value.length < 1 || value.length > 4 ||
+    if (
+      !Array.isArray(value) ||
+      value.length < 1 ||
+      value.length > 4 ||
       value.some((id: unknown) => typeof id !== 'string' || !UUID.test(id)) ||
-      new Set(value.map((id: string) => id.toLowerCase())).size !== value.length)
+      new Set(value.map((id: string) => id.toLowerCase())).size !== value.length
+    )
       return reject('ai_attachment_invalid', 'Выберите не более четырёх разных файлов.', 400);
     return (value as string[]).map((id) => id.toLowerCase());
   }
@@ -233,13 +237,20 @@ export class AiChatController {
     const account = await this.requireOwner(request);
     const threadId = this.threadId(rawId);
     const ids = typeof rawIds === 'string' ? rawIds.split(',') : [];
-    if (!ids.length || ids.length > 50 ||
+    if (
+      !ids.length ||
+      ids.length > 50 ||
       ids.some((id) => !UUID.test(id)) ||
-      new Set(ids.map((id) => id.toLowerCase())).size !== ids.length)
+      new Set(ids.map((id) => id.toLowerCase())).size !== ids.length
+    )
       return reject('ai_attachment_invalid', 'Неверный список сообщений.', 400);
-    return this.safe(() => this.ai.attachmentHistory(
-      account.principalId, threadId, ids.map((id) => id.toLowerCase()),
-    ));
+    return this.safe(() =>
+      this.ai.attachmentHistory(
+        account.principalId,
+        threadId,
+        ids.map((id) => id.toLowerCase()),
+      ),
+    );
   }
 
   @Post('threads/:threadId/requests/:requestId/stop')
@@ -396,7 +407,7 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
-        ...(attachmentIds.length ? [attachmentIds] as const : [] as const),
+        ...(attachmentIds.length ? ([attachmentIds] as const) : ([] as const)),
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
