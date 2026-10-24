@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   format:
-    if: github.event.head_commit.message == 'chore(classroom): trigger UI-04 formatting'
+    if: "${{ github.event.head_commit.message == 'chore(classroom): trigger UI-04 formatting' }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
