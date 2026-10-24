@@ -841,18 +841,17 @@ test('all nine sections, honest loaded-only filtering, private works, archive an
     .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
     .toBe(true);
   expect(state.requests.filter((r) => r.kind === 'works').at(-1)?.offset).toBe(0);
-  const mobileSection = page.getByRole('combobox', { name: 'Раздел профиля' });
-  if (await mobileSection.isVisible()) {
-    const archiveAction = page
-      .getByRole('group', { name: 'Разделы ученика' })
-      .getByRole('button', { name: 'Исключить архив работ' });
-    await expect(archiveAction).toHaveAttribute('aria-pressed', 'true');
-    await archiveAction.click();
-    await expect(works.getByLabel('Включая архив')).not.toBeChecked();
-    await expect
-      .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
-      .toBe(false);
-  }
+  const archiveFilter = works.getByRole('checkbox', { name: 'Включая архив' });
+  await expect(archiveFilter).toBeChecked();
+  await archiveFilter.uncheck();
+  await expect(archiveFilter).not.toBeChecked();
+  await expect
+    .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
+    .toBe(false);
+  await expect(
+    page.getByRole('group', { name: 'Разделы ученика' })
+      .getByRole('button', { name: /архив работ/i }),
+  ).toHaveCount(0);
   await noOverflow(page);
   await shot(page, 'loaded-only-archive-helper-suspended');
   expect(state.errors).toEqual([]);
@@ -1245,17 +1244,41 @@ test('mobile work filters share a row and one card fills the grid while multiple
     const card = (await grid.locator(':scope > li').first().boundingBox())!;
     if (width <= 600)
       expect(card.width).toBeGreaterThanOrEqual((await grid.boundingBox())!.width - 2);
-    const filters = page.locator('.classroom-student-works-head');
-    const archive = (await filters.locator('label').first().boundingBox())!;
-    const awaiting = (await filters.locator('.classroom-student-filter').boundingBox())!;
-    expect(Math.abs(archive.y - awaiting.y)).toBeLessThanOrEqual(1);
+    const head = page.locator('.classroom-student-works-head');
+    const toolbar = head.getByRole('group', { name: 'Показатели и фильтры работ' });
+    const summary = (await toolbar.locator('.classroom-student-work-summary').boundingBox())!;
+    const archive = (await toolbar.locator('.classroom-student-archive-filter').boundingBox())!;
+    const awaiting = (await toolbar.locator('.classroom-student-filter').boundingBox())!;
     expect(archive.height).toBeGreaterThanOrEqual(44);
     expect(awaiting.height).toBeGreaterThanOrEqual(44);
+    expect(Math.abs(archive.y - awaiting.y)).toBeLessThanOrEqual(1);
     expect(archive.x + archive.width).toBeLessThanOrEqual(awaiting.x);
+    await expect(toolbar.getByRole('checkbox', { name: 'Включая архив' })).toHaveCount(1);
+    await expect(toolbar.getByRole('combobox', { name: 'Статус работ' })).toHaveCount(1);
+    await expect(page.locator('#student-filter-scope')).toBeHidden();
+    if (width <= 599) {
+      await expect(head.locator('#student-works')).toBeHidden();
+      const sectionRail = page.getByRole('group', { name: 'Разделы ученика' });
+      await expect(sectionRail.getByRole('combobox', { name: 'Раздел профиля' })).toHaveValue('all');
+      await expect(sectionRail.locator('.classroom-student-section-action')).toHaveCount(0);
+      const frame = (await grid.locator(':scope > li .project-card-frame').first().boundingBox())!;
+      expect(frame.height / frame.width).toBeLessThan(0.6);
+      if (width === 390) {
+        expect(Math.abs(summary.y - archive.y)).toBeLessThanOrEqual(14);
+        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(48);
+      }
+      if (width === 320) {
+        expect(summary.y).toBeLessThanOrEqual(archive.y);
+        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(75);
+      }
+    } else await expect(head.locator('#student-works')).toBeVisible();
     await noOverflow(page);
     await shot(page, `work-one-${width}`);
   }
-  await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
+  const moreButton = page.getByRole('button', { name: 'Ещё работы', exact: true });
+  await expect(moreButton).toHaveClass(/classroom-student-more/);
+  expect((await moreButton.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await moreButton.click();
   await expect(grid.locator(':scope > li')).toHaveCount(5);
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });

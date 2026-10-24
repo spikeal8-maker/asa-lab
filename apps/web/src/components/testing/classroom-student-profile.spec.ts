@@ -1346,7 +1346,9 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   expect(host.querySelector('.teacher-profile-grades')).toBeNull();
   expect(host.querySelector('.classroom-student-games-region')).toBeNull();
   expect(host.querySelector('.classroom-student-settings-safety')).toBeNull();
-  expect(host.textContent).toContain('Работ:');
+  expect(host.querySelector('.classroom-student-work-summary')?.textContent).toContain('Работ 10');
+  expect(host.querySelectorAll('.classroom-student-archive-filter input')).toHaveLength(1);
+  expect(host.querySelector('.classroom-student-section-action')).toBeNull();
   const tabs = host.querySelectorAll<HTMLButtonElement>('.participant-tabs button');
   expect(tabs).toHaveLength(9);
   expect(
