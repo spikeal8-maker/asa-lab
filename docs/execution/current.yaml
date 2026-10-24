@@ -10073,16 +10073,21 @@ parallel_lanes:
     - apps/web/src/electronics/testing/selection-outline.spec.ts
     - e2e/electronics-selection-outline.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
+    - apps/web/src/electronics/NativeOpticalComponentVisual.tsx
+    - apps/web/src/electronics/testing/native-optical-lamp-presentation.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-LAMP-COMMITTED-001.md
     task:
-      id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
+      id: TASK-ELECTRONICS-LAMP-COMMITTED-001
+      previous_task_id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
       issue: 549
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: blocked
-      checkpoint: r6_one_synthetic_before_postfinal_lamp_visual_mismatch
-      previous_checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
+      status: in_progress
+      checkpoint: committed_lamp_optics_product_slice_selected
+      previous_checkpoint: r6_one_synthetic_before_postfinal_lamp_visual_mismatch
+      previous_r6_selection_checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
       previous_r5_diagnosis: r5_diagnosis_terminal_no_proven_cause
       previous_r5_checkpoint: r8_test_only_unique_native_meter_hit_path
       r6_diagnostic:
@@ -10116,21 +10121,38 @@ parallel_lanes:
           No product edits, reduced evidence, assertion removal or longer timeout.
       kind: repair
       owner_acceptance: pending
+      product_followup:
+        id: TASK-ELECTRONICS-LAMP-COMMITTED-001
+        kind: new_bounded_product_slice_not_r6_rerun
+        baseline_main_sha: 26f1de30cd25bbbc5c21dfaaf27f19eb2d365d49
+        source_selection: owner_electronics_programme_2026_10_24
+        candidate_status: pending_test_first_and_independent_review
+        historical_r6_experiments_remaining: 0
+        scope:
+          - apps/web/src/electronics/NativeOpticalComponentVisual.tsx
+          - apps/web/src/electronics/testing/native-optical-lamp-presentation.spec.ts
+        acceptance: committed_only_no_speculative_lamp_frame_led_uno_lease_unchanged
+        school_deployment: prohibited
       context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-LAMP-COMMITTED-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R6 test-only selection is exhausted. One isolated synthetic actual Chromium
-        test failed earlier at lamp presentation before reaching postfinal markers.
-        Preserve old R5 and current R6 evidence, all source oracles and historical
-        post-final UNKNOWN status. No product repair and no second experiment.
+        One separately selected minimal product repair of stale incandescent-lamp
+        SVG presentation: subscribe the lamp to only ACK-committed optical results,
+        without enrolling it in proposed LED/Uno layout/asset lease or whole-stage
+        rerenders. Capture meaningful new mounted React/DOM regression BEFORE then
+        product AFTER with exact source tests, real Chromium 1440/390/320 and new
+        independent review. Preserve old R5/R6 test/oracle evidence and post-final
+        UNKNOWN; absolutely no second R6 experiment, physics, Worker, CAS or SVG edits.
       source_budget: >-
-        NONE until a new canonical owner/controller decision. Existing Draft
-        PR729 test-only source has exact independent source review; its actual
-        R6 runtime is FAIL and not a product acceptance. Preserve all untouched
-        Worker, physics, geometry, CAS, Save/reopen and deadlines.
+        Exactly NativeOpticalComponentVisual.tsx plus one new mounted DOM
+        regression native-optical-lamp-presentation.spec.ts; controller-only
+        current.yaml and TASK-ELECTRONICS-LAMP-COMMITTED-001.md. Existing Draft
+        PR729 test-only R6 runtime remains FAIL and is not a product acceptance.
+        Preserve all Worker, physics, geometry, CAS, Save/reopen and deadlines.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
