@@ -29,7 +29,6 @@ test('exact saved and published learner preview ignores late responses and creat
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@preview.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('p' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор предпросмотра');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -245,7 +244,6 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@blocks.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('b' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор блоков');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -316,7 +314,6 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@preview.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('p' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор предпросмотра');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -505,7 +502,6 @@ test('content-first image and PDF keep the new draft selectable as a project pra
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@content-first.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('c' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор практики');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -576,7 +572,6 @@ test('first-class image block survives draft reload and pins exact published byt
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@task-image.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('i' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор изображения');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -733,7 +728,6 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@draft-image.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('d' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор картинки');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -817,7 +811,6 @@ test('published task image stays immutable across versions', async ({ page }) =>
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@published-image.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('v' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор версии');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -974,7 +967,6 @@ test('course and section forms preserve later edits after real save receipts wit
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@course-save.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('m' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор курса');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -1226,7 +1218,6 @@ test('Course publication lost response replays the exact V1 after V2 and reload 
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(unique + '@publish-replay.test');
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('r' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор публикации');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -1437,7 +1428,6 @@ test('Course history compares exact V1–V4 policies and structural before/after
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(unique + '@course-history.test');
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('h' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор истории курса');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -1761,7 +1751,6 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@course-document.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('d' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Преподаватель курса');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');

@@ -5,6 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type AuthProviderAvailability, type SessionPayload } from './api';
+import { RegisterPage } from './pages/RegisterPage';
+import { registrationDisplayName } from './registration-profile';
 import {
   availableSocialProviders,
   SocialAuthButtons,
@@ -17,7 +19,22 @@ vi.mock('./api', () => ({
     startSocialPairing: vi.fn(),
     completeSocialPairing: vi.fn(),
     registerSocialPairing: vi.fn(),
+    register: vi.fn(),
+    maxRegister: vi.fn(),
+    authProviders: vi.fn(),
+    localPreviewConfig: vi.fn(),
   },
+}));
+vi.mock('./components/BotCheck', () => ({
+  BotCheck: ({ onVerified }: { onVerified: (proof: unknown) => void }) =>
+    createElement(
+      'button',
+      {
+        type: 'button',
+        onClick: () => onVerified({ synthetic: true }),
+      },
+      'Подтвердить тест',
+    ),
 }));
 
 const provider = (
@@ -160,6 +177,164 @@ describe('confirmed unlinked provider account choice', () => {
     expect(api.registerSocialPairing).not.toHaveBeenCalled();
     expect(onAuthenticated).not.toHaveBeenCalled();
   });
+});
+
+describe('registration without a mandatory public handle', () => {
+  let root: Root;
+  let container: HTMLDivElement;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    vi.mocked(api.authProviders).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { providers: [] },
+    });
+    vi.mocked(api.localPreviewConfig).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { enabled: false },
+    });
+    for (const method of [api.register, api.maxRegister, api.registerSocialPairing]) {
+      vi.mocked(method).mockResolvedValue({
+        ok: false,
+        status: 503,
+        error: { code: 'unavailable', message: 'Сервер пока недоступен' },
+      });
+    }
+    vi.mocked(api.startSocialPairing).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        pairingToken: 'registration-pairing',
+        launchUrl: 'https://max.ru/fixture_bot?start=opaque',
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      },
+    });
+    vi.mocked(api.completeSocialPairing).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        status: 'registration_required',
+        profile: { displayName: null, username: 'messenger-name' },
+      },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = false;
+  });
+  async function click(text: string) {
+    const button = [...container.querySelectorAll('button')].find((entry) =>
+      entry.textContent?.trim().endsWith(text),
+    );
+    if (!button) throw new Error(`Missing button: ${text}`);
+    await act(async () => button.click());
+  }
+  async function fill(text: string, value: string) {
+    const label = [...container.querySelectorAll('label')].find(
+      (entry) => entry.textContent?.trim() === text,
+    );
+    const input = label && container.querySelector<HTMLInputElement>(`[id="${label.htmlFor}"]`);
+    if (!input) throw new Error(`Missing field: ${text}`);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+  async function mount(kind: 'ordinary' | 'legacy-max' | 'social-max') {
+    await act(async () =>
+      root.render(
+        kind === 'social-max'
+          ? createElement(SocialAuthButtons, {
+              providers: [provider('max', true)],
+              purpose: 'register',
+              onAuthenticated: vi.fn(),
+              onUsePassword: vi.fn(),
+            })
+          : createElement(RegisterPage, {
+              onRegistered: vi.fn(),
+              onBackToLogin: vi.fn(),
+              onHome: vi.fn(),
+              ...(kind === 'legacy-max' ? { maxInitData: 'signed-max' } : {}),
+            }),
+      ),
+    );
+    if (kind === 'social-max') {
+      await click('Создать через MAX');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      await click('Создать новый аккаунт');
+    }
+    await fill('Email', 'private-person@example.test');
+    await fill('Дата рождения', '1988-03-01');
+    await fill(kind === 'social-max' ? 'Пароль для входа' : 'Пароль', 'safe-password-2026');
+    if (kind !== 'ordinary') await fill('Повторите пароль', 'safe-password-2026');
+  }
+  async function submit(kind: 'ordinary' | 'legacy-max' | 'social-max') {
+    if (kind === 'ordinary') await click('Подтвердить тест');
+    const form = container.querySelector('form')!;
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+  }
+  it('keeps optional display names without exposing an email or generated handle as a fallback', () => {
+    expect(registrationDisplayName('')).toBe('Пользователь');
+    expect(registrationDisplayName(' Имя из MAX ')).toBe('Имя из MAX');
+  });
+  it.each(['ordinary', 'legacy-max', 'social-max'] as const)(
+    '%s keeps a private generated handle stable across ambiguous failures and rotates only definite conflicts',
+    async (kind) => {
+      await mount(kind);
+      expect(container.textContent).not.toContain('Имя пользователя');
+      expect(container.textContent).toContain('Почта будет вашим логином');
+      const method =
+        kind === 'ordinary'
+          ? api.register
+          : kind === 'legacy-max'
+            ? api.maxRegister
+            : api.registerSocialPairing;
+      await submit(kind);
+      const body = (index: number) =>
+        vi.mocked(method).mock.calls[index]![kind === 'social-max' ? 1 : 0] as {
+          username: string;
+          displayName: string;
+          email: string;
+        };
+      expect(body(0)).toMatchObject({
+        email: 'private-person@example.test',
+        displayName: 'Пользователь',
+        username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
+      });
+      expect(vi.mocked(method)).toHaveBeenCalledTimes(1); // No automatic retry after a 503.
+      vi.mocked(method).mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        error: { code: 'username_taken', message: 'internal conflict' },
+      });
+      await submit(kind);
+      expect(body(1).username).toBe(body(0).username); // Unknown outcome never changes identity.
+      expect(container.textContent).toContain('Повторите отправку формы');
+      expect(vi.mocked(method)).toHaveBeenCalledTimes(2); // Conflict also requires explicit submit.
+      await submit(kind);
+      expect(body(2).username).toMatch(/^u_[a-f0-9]{32}$/);
+      expect(body(2).username).not.toBe(body(1).username);
+      expect(vi.mocked(method)).toHaveBeenCalledTimes(3);
+    },
+  );
 });
 
 describe('available sign-in methods', () => {
