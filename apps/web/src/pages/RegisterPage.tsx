@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
-import { SocialAuthButtons, useAuthProviders } from '../auth-providers';
+import { AuthProviderStatus, SocialAuthButtons, useAuthProviders } from '../auth-providers';
 import { newRegistrationUsername, registrationDisplayName } from '../registration-profile';
 
 export function RegisterPage({
@@ -29,7 +29,7 @@ export function RegisterPage({
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
-  const { providers, refresh: refreshProviders } = useAuthProviders();
+  const { providers, status: providerStatus, refresh: refreshProviders } = useAuthProviders();
   const [socialRegistration, setSocialRegistration] = useState(false);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
   const alive = useRef(true);
@@ -180,10 +180,13 @@ export function RegisterPage({
               id="register-email"
               type="email"
               autoComplete="email"
+              aria-describedby="register-email-hint"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-            <p className="field-hint">Почта будет вашим логином.</p>
+            <p id="register-email-hint" className="field-hint">
+              Почта будет вашим логином.
+            </p>
           </div>
           <div className="auth-field">
             <label htmlFor="register-name">Отображаемое имя</label>
@@ -199,9 +202,20 @@ export function RegisterPage({
             <input
               id="register-birth-date"
               type="date"
+              aria-describedby="register-age-hint"
               value={birthDate}
               onChange={(event) => setBirthDate(event.target.value)}
             />
+            <p id="register-age-hint" className="field-hint">
+              Личный аккаунт — с 18 лет.
+            </p>
+            <details className="auth-field-help">
+              <summary title="Зачем указывать дату рождения">Почему нужна дата рождения?</summary>
+              <p>
+                Она нужна для проверки возраста при создании личного аккаунта. Ученики могут входить
+                по коду класса без личного аккаунта.
+              </p>
+            </details>
           </div>
           <div className="auth-field">
             <label htmlFor="register-country">Страна</label>
@@ -223,10 +237,13 @@ export function RegisterPage({
               id="register-password"
               type="password"
               autoComplete="new-password"
+              aria-describedby="register-password-hint"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
-            <p className="field-hint">Не короче 10 символов. Личный аккаунт — с 18 лет.</p>
+            <p id="register-password-hint" className="field-hint">
+              Не меньше 10 символов.
+            </p>
           </div>
           {maxInitData ? (
             <div className="auth-field">
@@ -235,10 +252,13 @@ export function RegisterPage({
                 id="register-confirm-password"
                 type="password"
                 autoComplete="new-password"
+                aria-describedby="register-confirm-password-hint"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
               />
-              <p className="field-hint">Пароль для входа, если мессенджер недоступен.</p>
+              <p id="register-confirm-password-hint" className="field-hint">
+                Пароль для входа, если мессенджер недоступен.
+              </p>
             </div>
           ) : null}
           <div className="auth-register-wide">
@@ -264,6 +284,9 @@ export function RegisterPage({
             </button>
           </div>
         </form>
+        {!maxInitData ? (
+          <AuthProviderStatus status={providerStatus} onRetry={() => void refreshProviders()} />
+        ) : null}
         {!maxInitData ? (
           <SocialAuthButtons
             providers={providers}

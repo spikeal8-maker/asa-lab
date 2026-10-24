@@ -22,11 +22,39 @@ export function availableSocialProviders(
   );
 }
 
+export type AuthProviderLoadState = 'loading' | 'ready' | 'error';
+
+export function AuthProviderStatus({
+  status,
+  onRetry,
+}: {
+  status: AuthProviderLoadState;
+  onRetry: () => void;
+}): JSX.Element | null {
+  if (status === 'ready') return null;
+  return (
+    <div className="auth-provider-status" role="status" aria-live="polite">
+      <p>
+        {status === 'loading'
+          ? 'Проверяем способы входа…'
+          : 'Не удалось проверить вход через мессенджеры. Войдите по почте и паролю или повторите проверку.'}
+      </p>
+      {status === 'error' ? (
+        <button type="button" className="link-button" onClick={onRetry}>
+          Проверить ещё раз
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function useAuthProviders(): {
   providers: AuthProviderAvailability[];
+  status: AuthProviderLoadState;
   refresh: () => Promise<void>;
 } {
   const [providers, setProviders] = useState<AuthProviderAvailability[]>([]);
+  const [status, setStatus] = useState<AuthProviderLoadState>('loading');
   const request = useRef(0);
   const inFlight = useRef<AbortController | null>(null);
   const refresh = useCallback(async (): Promise<void> => {
@@ -34,10 +62,21 @@ export function useAuthProviders(): {
     const controller = new AbortController();
     inFlight.current = controller;
     const current = ++request.current;
-    const result = await api.authProviders(controller.signal);
-    if (inFlight.current === controller) inFlight.current = null;
-    if (current === request.current && !controller.signal.aborted) {
-      setProviders(result.ok && Array.isArray(result.data.providers) ? result.data.providers : []);
+    setStatus((previous) => (previous === 'ready' ? previous : 'loading'));
+    try {
+      const result = await api.authProviders(controller.signal);
+      if (current === request.current && !controller.signal.aborted) {
+        const valid = result.ok && Array.isArray(result.data.providers);
+        setProviders(valid ? result.data.providers : []);
+        setStatus(valid ? 'ready' : 'error');
+      }
+    } catch {
+      if (current === request.current && !controller.signal.aborted) {
+        setProviders([]);
+        setStatus('error');
+      }
+    } finally {
+      if (inFlight.current === controller) inFlight.current = null;
     }
   }, []);
   useEffect(() => {
@@ -57,7 +96,7 @@ export function useAuthProviders(): {
       document.removeEventListener('visibilitychange', refreshVisible);
     };
   }, [refresh]);
-  return { providers, refresh };
+  return { providers, status, refresh };
 }
 
 /** Display/format only; the server validates this origin against deployment settings. */
