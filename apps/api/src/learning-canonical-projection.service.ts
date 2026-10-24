@@ -257,7 +257,12 @@ export class LearningCanonicalProjectionService {
     accountId: string,
     asOf = new Date().toISOString(),
   ): Promise<CanonicalCourseLearnerSnapshot> {
-    return this.readSnapshot('learning_canonical_evidence_for_account($1)', [accountId], 'learner', asOf);
+    return this.readSnapshot(
+      'learning_canonical_evidence_for_account($1)',
+      [accountId],
+      'learner',
+      asOf,
+    );
   }
 
   private async read(
@@ -288,11 +293,14 @@ export class LearningCanonicalProjectionService {
       // Handout-keyed canonical state may collapse sibling Activity Runs.
       // Preserve every learner/Run participation independently of work origin.
       if (evidence.activityRunId && evidence.participation) {
-        participationByRun.set(canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId), {
-          classroomAssignmentId: evidence.classroomAssignmentId,
-          applicable: evidence.participation.applicable === true,
-          excused: evidence.participation.excused === true,
-        });
+        participationByRun.set(
+          canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId),
+          {
+            classroomAssignmentId: evidence.classroomAssignmentId,
+            applicable: evidence.participation.applicable === true,
+            excused: evidence.participation.excused === true,
+          },
+        );
       }
     }
     return { projections, participationByRun };

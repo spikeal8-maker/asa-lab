@@ -283,16 +283,23 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     const service = new LearningCanonicalProjectionService(pool, {});
     for (const snapshot of [
       await service.forSeatCourseRuns(base.seatId, '2026-08-21T00:00:00.000Z'),
-      await service.forAccountCourseRuns('50000000-0000-4000-8000-000000000099', '2026-08-21T00:00:00.000Z'),
+      await service.forAccountCourseRuns(
+        '50000000-0000-4000-8000-000000000099',
+        '2026-08-21T00:00:00.000Z',
+      ),
     ]) {
       expect(snapshot.projections.size).toBe(1);
       expect(snapshot.participationByRun.size).toBe(2);
-      expect(snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runA))).toEqual({
+      expect(
+        snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runA)),
+      ).toEqual({
         classroomAssignmentId: base.classroomAssignmentId,
         applicable: true,
         excused: false,
       });
-      expect(snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runB))).toEqual({
+      expect(
+        snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runB)),
+      ).toEqual({
         classroomAssignmentId: base.classroomAssignmentId,
         applicable: true,
         excused: true,
