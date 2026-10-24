@@ -11,6 +11,9 @@ import { telemetryReceipt } from './fixtures/telemetry-receipts';
 // messenger popups are blocked from making external requests.
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE_ID = '10000000-0000-4000-8000-000000000001';
+const AUTH_FIXTURE_ORIGIN = new URL(
+  process.env['ASA_E2E_BASE_URL'] ?? `http://127.0.0.1:${process.env['ASA_E2E_PORT'] ?? '4612'}`,
+).origin;
 const METHODS: readonly SocialAuthProvider[] = ['max', 'telegram'];
 type PairingOutcome =
   | 'pending'
@@ -239,14 +242,14 @@ async function fixture(
     const url = new URL(route.request().url());
     // An API request must never fall through to the static server, including
     // unload/keepalive requests after the initiating page has been closed.
-    return url.origin === 'http://127.0.0.1:4612' && !url.pathname.startsWith('/api/')
+    return url.origin === AUTH_FIXTURE_ORIGIN && !url.pathname.startsWith('/api/')
       ? route.fallback()
       : route.abort();
   });
   await page.context().route('**/api/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.origin !== 'http://127.0.0.1:4612') return route.abort();
+    if (url.origin !== AUTH_FIXTURE_ORIGIN) return route.abort();
     const path = url.pathname;
     const method = request.method();
     const body = (request.postData() ? request.postDataJSON() : {}) as Record<string, unknown>;
@@ -485,6 +488,42 @@ async function fixture(
   });
   return state;
 }
+
+test('ordinary Home and Projects never request unavailable MAX Mini App SDK', async ({ page }) => {
+  const sdkRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().startsWith('https://st.max.ru/js/')) sdkRequests.push(request.url());
+  });
+  await page.route('https://st.max.ru/**', (route) => route.abort('failed'));
+  await fixture(page);
+
+  const durationsMs: Record<string, number> = {};
+  for (const path of ['/home', '/projects']) {
+    const start = Date.now();
+    await visit(page, path);
+    durationsMs[path] = Date.now() - start;
+    await expect(page.locator('body')).toBeVisible();
+  }
+  expect(sdkRequests).toEqual([]);
+  await test.info().attach('ordinary-navigation-with-blocked-max-sdk', {
+    body: JSON.stringify({ durationsMs, sdkRequests }),
+    contentType: 'application/json',
+  });
+});
+
+test('MAX Mini App launch requests the real bridge and reports network failure', async ({
+  page,
+}) => {
+  let sdkRequests = 0;
+  await page.route('https://st.max.ru/js/max-web-app.js', (route) => {
+    sdkRequests += 1;
+    return route.abort('failed');
+  });
+  await fixture(page);
+  await page.goto('/max-login', { waitUntil: 'load' });
+  await expect(page.getByText(/Не удалось загрузить SDK MAX/)).toBeVisible();
+  expect(sdkRequests).toBe(1);
+});
 
 let navigationSequence = 0;
 async function visit(page: Page, route: string): Promise<void> {
@@ -1079,7 +1118,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveAttribute('required', '');
     await expect(page.getByText('Нет аккаунта?', { exact: true })).toBeHidden();
     const birthDateBox = await form.getByLabel('Дата рождения', { exact: true }).boundingBox();
-    const birthDateLabelBox = await form.locator('label', { hasText: 'Дата рождения' }).boundingBox();
+    const birthDateLabelBox = await form
+      .locator('label', { hasText: 'Дата рождения' })
+      .boundingBox();
     const countryLabelBox = await form.locator('label', { hasText: 'Страна' }).boundingBox();
     expect(birthDateBox).not.toBeNull();
     expect(birthDateLabelBox).not.toBeNull();
