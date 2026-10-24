@@ -253,24 +253,33 @@ test('AI composer uploads a real file once and restores the saved attachment aft
   const fake = await fixture(page, 'В коде указан INPUT, нужен OUTPUT.');
   const bytes = Buffer.from('void setup() { pinMode(13, INPUT); }\n');
   const hash = createHash('sha256').update(bytes).digest('hex');
-  const uploadId = randomUUID();
+  let uploadId: string | null = null;
   let uploadCount = 0;
   let sentIds: readonly string[] = [];
   await page.route('**/api/ai/attachments**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path === '/api/ai/attachments' && request.method() === 'POST') {
-      expect(request.postDataJSON()).toMatchObject({
-        uploadId,
+      const descriptor = request.postDataJSON() as {
+        uploadId: string;
+        fileName: string;
+        sizeBytes: number;
+        sha256: string;
+      };
+      expect(descriptor).toMatchObject({
         fileName: 'sketch.ino',
         sizeBytes: bytes.length,
         sha256: hash,
       });
+      expect(descriptor.uploadId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      uploadId = descriptor.uploadId;
       return route.fulfill({
         json: { uploadId, sha256: hash, state: 'reserved' },
       });
     }
-    if (path === '/api/ai/attachments/' + uploadId + '/bytes' && request.method() === 'PUT') {
+    if (uploadId && path === '/api/ai/attachments/' + uploadId + '/bytes' && request.method() === 'PUT') {
       uploadCount += 1;
       expect(request.postDataBuffer()).toEqual(bytes);
       expect(request.headers()['content-type']).toBe('application/vnd.asa.ai-attachment');
@@ -318,6 +327,7 @@ test('AI composer uploads a real file once and restores the saved attachment aft
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();
   await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
   expect(uploadCount).toBe(1);
+  expect(uploadId).not.toBeNull();
   expect(sentIds).toEqual([uploadId]);
   expect(fake.requests).toHaveLength(1);
   await page.reload();
