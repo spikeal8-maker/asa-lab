@@ -1579,6 +1579,66 @@ test('UI-03: four real student settings categories preserve permissions and one 
   expect(state.errors).toEqual([]);
 });
 
+test('UI-04: games policy is lazy, Seat-bound, and guards unsaved edits', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const state = await setup(page, { long: false, manual: 0, results: 0 });
+  const reads: string[] = [];
+  const writes: Array<{ seat: string; override: string; expectedVersion: number }> = [];
+  await page.route(`**/api/games/classrooms/${classId}/seats/*`, async (route) => {
+    const seat = new URL(route.request().url()).pathname.split('/').at(-1)!;
+    const policy = {
+      mode: 'allow',
+      state: 'active',
+      threshold: null,
+      version: writes.filter((entry) => entry.seat === seat).length + 1,
+      override: writes.filter((entry) => entry.seat === seat).at(-1)?.override ?? 'inherit',
+      admission: { granted: true, reason: 'allowed', threshold: null },
+    };
+    if (route.request().method() === 'GET') {
+      reads.push(seat);
+      return route.fulfill({ json: policy });
+    }
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as { override: string; expectedVersion: number };
+      expect(body.expectedVersion).toBe(policy.version);
+      writes.push({ seat, ...body });
+      return route.fulfill({ json: { ...policy, version: policy.version + 1, override: body.override } });
+    }
+    return route.abort();
+  });
+  await state.open();
+  await openTeacherTab(page, 'activity');
+  await openTeacherTab(page, 'settings');
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  await expect(region.locator('.classroom-games-settings')).toHaveCount(0);
+  await expect.poll(() => reads.length).toBe(0);
+  const games = region.getByRole('button', { name: /^Игровые разрешения/ });
+  await games.click();
+  await expect(region.locator('.classroom-games-settings')).toHaveCount(1);
+  await expect.poll(() => reads).toEqual(['seat-0']);
+  const access = region.getByLabel('Индивидуальный доступ');
+  await expect(access).toHaveValue('inherit');
+  await access.selectOption('deny');
+  await expect(region.getByRole('button', { name: 'Сохранить доступ' })).toBeEnabled();
+
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await openTeacherTab(page, 'activity');
+  await expect(page.locator('main.classroom-student')).toHaveAttribute('data-student-section', 'settings');
+  await expect(access).toHaveValue('deny');
+  await region.getByRole('button', { name: 'Сохранить доступ' }).click();
+  await expect(region.getByRole('status')).toContainText('Доступ к играм сохранён.');
+  expect(writes).toEqual([{ seat: 'seat-0', override: 'deny', expectedVersion: 1 }]);
+  await openTeacherTab(page, 'activity');
+  await expect(region).toHaveCount(0);
+  await expect(page.locator('.classroom-games-settings')).toHaveCount(0);
+  await page.getByRole('button', { name: /Следующий ученик:/ }).click();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
+  const next = await openTeacherSettings(page, 'Игровые разрешения');
+  await expect(next.getByLabel('Индивидуальный доступ')).toHaveValue('inherit');
+  await expect.poll(() => reads).toEqual(['seat-0', 'seat-1']);
+  expect(state.errors).toEqual([]);
+});
+
 test('UI-03: archived student settings stay read-only including Code, protection and access', async ({
   page,
 }) => {
