@@ -813,9 +813,9 @@ describe('participant completion DOM behavior', () => {
     await act(async () => window.dispatchEvent(new Event('focus')));
     expect(host.querySelector('li strong')?.textContent).toBe('Шкала недоступна');
   });
-  it('shows grades immediately below the pupil hero and actual helper classes instead; history remains available', async () => {
+  it('shows grades only inside Оценки and helper classes only under student Settings', async () => {
     vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
-    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(grades('five', [0])));
+    const gradeRead = vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(grades('five', [0])));
     vi.spyOn(participantsApi, 'works').mockResolvedValue(
       ok({
         totalWorks: 0,
@@ -837,22 +837,26 @@ describe('participant completion DOM behavior', () => {
       onOpenProject: vi.fn(),
     };
     await render(createElement(ClassroomStudentPage, props));
-    expect(
-      host.querySelector('.participant-hero')?.nextElementSibling?.getAttribute('aria-label'),
-    ).toBe('Оценки этого класса');
-    expect(host.querySelector('.teacher-profile-grades strong')?.textContent).toBe('0');
+    expect(host.querySelector('.participant-hero')).toBeNull();
+    expect(host.querySelector('.teacher-profile-grades')).toBeNull();
+    expect(gradeRead).not.toHaveBeenCalled();
     expect(host.querySelector('.participant-role-hint')).toBeNull();
+
     vi.mocked(participantsApi.profile).mockResolvedValue(ok(profile('helper', 'seat-b')));
     await render(createElement(ClassroomStudentPage, { ...props, seatId: 'seat-b' }));
-    expect(
-      host.querySelector('.participant-hero')?.nextElementSibling?.getAttribute('aria-label'),
-    ).toBe('Оценки этого класса');
+    expect(host.querySelector('.participant-hero')).toBeNull();
+    expect(host.querySelector('[aria-label="Классы помощника"]')).toBeNull();
+    expect(host.textContent).not.toContain('Доступный класс помощника');
+    await click('Настройки');
+    const identity = [...host.querySelectorAll<HTMLButtonElement>('.classroom-student-settings-category')]
+      .find((button) => button.textContent?.startsWith('Данные и роль'))!;
+    await act(async () => identity.click());
     expect(host.textContent).toContain('Доступный класс помощника');
-    expect(host.querySelector('[aria-label="Классы помощника"]')).not.toBeNull();
-    expect(host.querySelector('.teacher-profile-grades')).not.toBeNull();
-    expect(host.querySelector('.participant-role-hint')).toBeNull();
+    expect(host.querySelector('.classroom-student-settings-helper-classes')).not.toBeNull();
     await click('Оценки');
     expect(host.querySelector('.participant-grades')).not.toBeNull();
+    expect(host.querySelector('.teacher-profile-grades')).toBeNull();
+    expect(gradeRead).toHaveBeenCalledTimes(1);
   });
   it('switches pupils from a searchable class picker, reuses one roster read and restores keyboard focus', async () => {
     const entries = ['Иванова Анна Сергеевна', 'Петров Борис Александрович'].map(
