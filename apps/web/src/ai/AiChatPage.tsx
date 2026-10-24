@@ -515,6 +515,8 @@ export function AiChatPage({
     setHistoryReady(false);
     pendingRequest.current = null;
     setPendingMessage(null);
+    clearFiles();
+    setHistoryAttachments({});
     setCurrentId(id);
     currentArchived.current = !!(threads.find((thread) => thread.id === id) ?? currentThread)
       ?.archivedAt;
@@ -570,6 +572,8 @@ export function AiChatPage({
       setHistoryReady(true);
       pendingRequest.current = null;
       setPendingMessage(null);
+      clearFiles();
+      setHistoryAttachments({});
       setCurrentId(result.data.id);
       setCurrentThread({
         id: result.data.id,
