@@ -18,12 +18,15 @@ export function Dropdown({
   className,
   ariaLabel,
   disabled = false,
+  fitViewport = false,
   children,
 }: {
   readonly label: ReactNode;
   readonly className: string;
   readonly ariaLabel?: string;
   readonly disabled?: boolean;
+  /** Keep tall action menus within the visible viewport on narrow or scrolled pages. */
+  readonly fitViewport?: boolean;
   /** Receives a way to close the menu, so an item can act and dismiss. */
   readonly children: (close: () => void) => ReactNode;
 }): JSX.Element {
@@ -33,6 +36,38 @@ export function Dropdown({
     if (ref.current) ref.current.open = false;
     setOpen(false);
   }, []);
+
+  function fitOpenMenu(element: HTMLDetailsElement): void {
+    if (!fitViewport) return;
+    const menu = element.querySelector<HTMLElement>(':scope > .dropdown-menu');
+    const trigger = element.querySelector<HTMLElement>(':scope > summary');
+    if (!menu || !trigger) return;
+    element.removeAttribute('data-dropdown-placement');
+    menu.style.maxHeight = '';
+    if (!element.open) return;
+
+    const anchor = trigger.getBoundingClientRect();
+    const stickyBottom =
+      document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0;
+    const availableAbove = Math.max(0, anchor.top - Math.max(8, stickyBottom) - 8);
+    const availableBelow = Math.max(0, window.innerHeight - anchor.bottom - 8);
+    const openAbove =
+      menu.getBoundingClientRect().height > availableBelow && availableAbove > availableBelow;
+    const space = openAbove ? availableAbove : availableBelow;
+    element.dataset.dropdownPlacement = openAbove ? 'above' : 'below';
+    menu.style.maxHeight = `${Math.floor(space)}px`;
+
+    // The Add Content popup can be wider than the remaining space to the
+    // right of its trigger (e.g. sidebar + course outline at 1024px).
+    // Clamp it within the viewport without weakening keyboard or hit targets.
+    menu.style.transform = '';
+    if (element.classList.contains('lesson-block-add')) {
+      const popup = menu.getBoundingClientRect();
+      const rightOverflow = Math.max(0, popup.right - (window.innerWidth - 8));
+      const shift = Math.min(rightOverflow, Math.max(0, popup.left - 8));
+      if (shift > 0) menu.style.transform = `translateX(-${Math.ceil(shift)}px)`;
+    }
+  }
 
   useEffect(() => {
     function onPointer(event: MouseEvent): void {
@@ -57,11 +92,30 @@ export function Dropdown({
     };
   }, []);
 
+  useEffect(() => {
+    if (!fitViewport) return;
+    const closeOnViewportChange = () => {
+      if (!ref.current?.open) return;
+      close();
+      ref.current?.querySelector('summary')?.focus();
+    };
+    window.addEventListener('resize', closeOnViewportChange);
+    window.visualViewport?.addEventListener('resize', closeOnViewportChange);
+    return () => {
+      window.removeEventListener('resize', closeOnViewportChange);
+      window.visualViewport?.removeEventListener('resize', closeOnViewportChange);
+    };
+  }, [close, fitViewport]);
+
   return (
     <details
       ref={ref}
       className={className}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(event) => {
+        const element = event.currentTarget as HTMLDetailsElement;
+        fitOpenMenu(element);
+        setOpen(element.open);
+      }}
     >
       {/* A summary is announced as a disclosure triangle, which is not what this
           is: it opens a menu of actions. Saying so makes it reachable by name

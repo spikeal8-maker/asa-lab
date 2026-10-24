@@ -109,3 +109,53 @@ export async function selectCoursePractice(page: Page, title: string, index = 0)
   await picker.getByRole('button', { name: `Добавить практику «${title}»`, exact: true }).click();
   await expect(picker.locator('.course-pinned-practice')).toContainText(title);
 }
+
+export async function openCourseActions(page: Page): Promise<void> {
+  const editor = page.getByTestId('course-editor');
+  const preview = editor.getByRole('dialog', { name: 'Как увидит ученик', exact: true });
+  if (await preview.isVisible())
+    await preview.getByRole('button', { name: 'Редактировать', exact: true }).click();
+  const trigger = editor.getByRole('button', { name: 'Действия курса', exact: true });
+  if ((await trigger.getAttribute('aria-expanded')) !== 'true') await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+}
+
+export async function openCourseHistory(page: Page): Promise<void> {
+  const history = page.getByTestId('course-editor').getByTestId('author-version-history');
+  if (await history.isVisible()) return;
+  await openCourseActions(page);
+  await page
+    .getByTestId('course-editor')
+    .getByRole('button', { name: 'История версий', exact: true })
+    .click();
+  await expect(history).toBeVisible();
+}
+
+export async function openCourseLessonSettings(page: Page): Promise<void> {
+  await page
+    .getByTestId('course-editor')
+    .getByRole('button', { name: 'Параметры урока', exact: true })
+    .click();
+  await expect(page.getByRole('dialog', { name: 'Параметры урока', exact: true })).toBeVisible();
+}
+
+export async function closeCourseLessonSettings(page: Page): Promise<void> {
+  const settings = page.getByRole('dialog', { name: 'Параметры урока', exact: true });
+  await settings.getByRole('button', { name: 'Вернуться к уроку', exact: true }).click();
+  await expect(settings).not.toBeVisible();
+}
+
+export async function openCourseStructure(page: Page): Promise<void> {
+  const editor = page.getByTestId('course-editor');
+  if (await editor.locator('.course-outline').isVisible()) return;
+  const trigger = editor.getByRole('button', { name: 'Структура курса', exact: true });
+  if (await trigger.isVisible()) await trigger.click();
+  await expect(editor.locator('.course-outline')).toBeVisible();
+}
+
+export async function openCourseBlockActions(page: Page, index: number): Promise<void> {
+  const block = page.getByTestId('course-editor').locator('.lesson-block-card').nth(index);
+  const trigger = block.getByRole('button', { name: `Действия блока ${index + 1}`, exact: true });
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+}
