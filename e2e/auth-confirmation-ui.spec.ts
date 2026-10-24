@@ -42,7 +42,7 @@ function healthyProviders(): AuthProviderAvailability[] {
   ];
 }
 
-type FixtureIdentity = { id: string; email: string; displayName: string };
+type FixtureIdentity = { id: string; email: string | null; displayName: string };
 
 interface UiState {
   identity: FixtureIdentity | null;
@@ -423,9 +423,26 @@ async function fixture(
       }
       if (path === `/api/auth/${provider}/pairing/register`) {
         expect(pairings.has(String(body.pairingToken))).toBe(true);
+        if (provider === 'max') {
+          expect(body).not.toHaveProperty('email');
+          expect(body).not.toHaveProperty('password');
+          const birthDate = new Date(`${String(body.birthDate)}T00:00:00Z`);
+          if (!Number.isFinite(birthDate.getTime()))
+            return error('validation_error', 'Укажите дату рождения.', 400);
+          const adultCutoff = new Date();
+          adultCutoff.setUTCFullYear(adultCutoff.getUTCFullYear() - 18);
+          if (birthDate > adultCutoff)
+            return error('age_routed', 'Личный аккаунт доступен с 18 лет.', 422);
+          state.passwordConfigured = false;
+          state.identity = {
+            id: '20000000-0000-4000-8000-000000000009',
+            email: null,
+            displayName: String(body.displayName),
+          };
+        }
         profile = {
           ...profile,
-          email: String(body.email),
+          email: provider === 'max' ? '' : String(body.email),
           username: String(body.username),
           displayName: String(body.displayName),
           birthDate: String(body.birthDate),
@@ -759,14 +776,22 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.getByRole('button', { name: 'Создать через MAX', exact: true }).click();
     await expect(
       page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
-    ).toBeVisible();
-    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
-    await screenshot(page, `social-account-choice-${width}`);
-    await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }),
+    ).toHaveCount(0);
     await expect(
       page.getByRole('heading', { name: 'Завершить регистрацию', exact: true }),
     ).toBeVisible();
     await expect(page.locator('.auth-social-registration input[type="date"]')).toHaveValue('');
+    await expect(
+      page.locator(
+        '.auth-social-registration input[type="email"], .auth-social-registration input[type="password"]',
+      ),
+    ).toHaveCount(0);
     await expect(
       page.locator('.auth-social-registration input[autocomplete="username"]'),
     ).toHaveCount(0);
@@ -995,13 +1020,13 @@ test('a bot failure during confirmation rechecks server policy before releasing 
   await expect(page.locator('.auth-provider-button')).toHaveCount(0);
 });
 
-test('an unknown social identity can return to its existing password account without registering', async ({
+test('an unknown Telegram identity can return to its existing password account without registering', async ({
   page,
 }) => {
   const state = await fixture(page, { nextPairing: 'registration_required' });
   await visit(page, '/sign-in');
   await page.getByLabel('Почта или логин', { exact: true }).fill('existing-account');
-  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
   await page.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
   await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('existing-account');
   await expect(page.locator('.auth-social-registration')).toHaveCount(0);
@@ -1031,75 +1056,120 @@ for (const width of [1440, 390]) {
       username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
     });
   });
+}
 
-  test(`MAX account choice preserves existing password login at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
-    const state = await fixture(page, { nextPairing: 'registration_required' });
-    await visit(page, '/sign-in');
-    await page.getByLabel('Почта или логин', { exact: true }).fill('existing-account');
-    await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
-    const choice = page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true });
-    await expect(choice).toContainText('После входа подключите MAX');
-    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
-    expect(state.signedIn).toBe(false);
-    expect(state.linked.max).toBe(false);
-    await screenshot(page, `max-existing-choice-${width}`);
-    await choice.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
-    await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue(
-      'existing-account',
-    );
-    await passwordLogin(page, 'existing-account');
-    await expect.poll(() => state.signedIn).toBe(true);
-    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
-    expect(
-      state.requests.filter((request) => request.path.endsWith('/pairing/register')),
-    ).toHaveLength(0);
-    expect(state.linked.max).toBe(false);
-    expect(state.verifiedProvider).toBeNull();
-  });
-
-  test(`MAX account choice creates an account only after selection at ${width}px`, async ({
+for (const width of [1440, 1024, 390, 320]) {
+  test(`MAX-only registration asks for age without account choice or password at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
     const state = await fixture(page, { nextPairing: 'registration_required' });
     await visit(page, '/sign-in');
     await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+    const form = page.locator('.auth-social-registration');
+    await expect(
+      form.getByRole('heading', { name: 'Завершить регистрацию', exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
-    ).toBeVisible();
-    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
-    expect(
-      state.requests.filter((request) => request.path.endsWith('/pairing/register')),
-    ).toHaveLength(0);
-    await screenshot(page, `max-new-choice-${width}`);
-    await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
-    const form = page.locator('.auth-social-registration');
-    await expect(form.locator('input[autocomplete="username"]')).toHaveCount(0);
-    await form.getByLabel('Email', { exact: true }).fill('max-new-account@example.test');
+    ).toHaveCount(0);
+    await expect(
+      form.locator('input[type="email"], input[type="password"], input[autocomplete="username"]'),
+    ).toHaveCount(0);
+    await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveAttribute('required', '');
+    await expect(form.getByLabel('Отображаемое имя', { exact: true })).toHaveValue(
+      'Новый участник',
+    );
+    expect(state.requests.filter((r) => r.path === '/api/auth/max/pairing/register')).toHaveLength(
+      0,
+    );
     await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
-    await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
-    await form.getByLabel('Повторите пароль', { exact: true }).fill('backup-password-2026');
-    await screenshot(page, `max-new-registration-${width}`);
+    await screenshot(page, `max-external-registration-${width}`);
     await form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true }).click();
     await expect.poll(() => state.signedIn).toBe(true);
-    expect(state.linked.max).toBe(true);
-    expect(
-      state.requests.filter((request) => request.path === '/api/auth/max/pairing/start'),
-    ).toHaveLength(1);
-    expect(
-      state.requests.filter((request) => request.path === '/api/auth/max/pairing/register'),
-    ).toHaveLength(1);
-    expect(
-      state.requests.find((request) => request.path === '/api/auth/max/pairing/register')?.body,
-    ).toMatchObject({
-      email: 'max-new-account@example.test',
+    await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+    const writes = state.requests.filter((r) => r.path === '/api/auth/max/pairing/register');
+    expect(writes).toHaveLength(1);
+    expect(writes[0].body).toEqual({
+      pairingToken: expect.any(String),
       username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
       displayName: 'Новый участник',
+      birthDate: '1988-03-01',
+      country: 'RU',
     });
-    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(0);
+    expect(state.passwordConfigured).toBe(false);
+    expect(state.identity?.email).toBeNull();
+    expect(state.linked.max).toBe(true);
+    expect(state.identity?.id).not.toBe(ACCOUNT_ID);
+    expect(
+      state.requests.filter((r) => r.path === '/api/auth/login' || r.path === '/api/auth/register'),
+    ).toHaveLength(0);
+    expect(state.requests.filter((r) => r.path === '/api/auth/max/pairing/start')).toHaveLength(1);
+  });
+
+  test(`already-linked MAX identity enters its existing account directly at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const identity = {
+      id: ACCOUNT_ID,
+      email: 'existing@example.test',
+      displayName: 'Существующий аккаунт',
+    };
+    const state = await fixture(page, {
+      nextPairing: 'authenticated',
+      linked: { max: true, telegram: false },
+      identity,
+    });
+    await visit(page, '/sign-in');
+    await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+    await expect.poll(() => state.signedIn).toBe(true);
+    await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
+    await expect(
+      page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
+    ).toHaveCount(0);
+    expect(state.identity?.id).toBe(ACCOUNT_ID);
+    expect(
+      state.requests.filter((r) => r.path.endsWith('/register') || r.path === '/api/auth/login'),
+    ).toHaveLength(0);
   });
 }
+
+test('MAX-only registration keeps the adult requirement without asking for email', async ({
+  page,
+}) => {
+  const state = await fixture(page, { nextPairing: 'registration_required' });
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  const form = page.locator('.auth-social-registration');
+  await form.getByLabel('Дата рождения', { exact: true }).fill('2015-03-01');
+  await form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true }).click();
+  await expect(form.getByRole('alert')).toContainText('18');
+  expect(state.signedIn).toBe(false);
+  expect(state.linked.max).toBe(false);
+  await expect(form.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+});
+
+test('MAX-only registration sends one request while a duplicate submit is pending', async ({
+  page,
+}) => {
+  const state = await fixture(page, { nextPairing: 'registration_required' });
+  await holdAuthRequest(page, '/api/auth/max/pairing/register', 'POST');
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  const form = page.locator('.auth-social-registration');
+  await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  const submit = form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true });
+  await submit.click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await expect(submit).toBeDisabled();
+  await form.dispatchEvent('submit');
+  await form.dispatchEvent('submit');
+  expect(await heldRequests(page)).toBe(1);
+  expect(state.signedIn).toBe(false);
+  await visit(page, '/sign-in'); // Discard this deliberately unacknowledged synthetic attempt.
+});
 
 for (const identifier of [
   'long.account.name.for.layout.review@example.test',
