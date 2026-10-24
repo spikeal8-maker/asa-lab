@@ -1304,3 +1304,207 @@
     display: none;
   }
 }
+
+/* UI-03: four compact, server-backed student-settings categories. Only the
+   selected category has an editor; legacy hero controls remain for UI-04. */
+.classroom-student .classroom-student-settings-entry {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0 0 12px;
+  padding: 0;
+}
+.classroom-student .classroom-student-settings-entry h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 750;
+}
+.classroom-student-settings-categories {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+  min-width: 0;
+}
+.classroom-student .classroom-student-settings-category {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) 18px;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  height: 44px;
+  padding: 4px 10px;
+  margin: 0;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-ink);
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+}
+.classroom-student .classroom-student-settings-category[aria-expanded='true'] {
+  border-color: #7fb4cc;
+  background: #f0f7fa;
+}
+.classroom-student-settings-category > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classroom-student-settings-category-state {
+  overflow: hidden;
+  max-width: 160px;
+  color: #526a78;
+  font-size: 11px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classroom-student-settings-chevron {
+  text-align: center;
+  color: #526a78;
+  font-size: 15px;
+}
+.classroom-student .classroom-student-settings-editor {
+  min-width: 0;
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid var(--student-line);
+  border-radius: 8px;
+  background: #fff;
+}
+.classroom-student-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.classroom-student .classroom-student-settings-editor button,
+.classroom-student .classroom-student-settings-editor select {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: #0a709d;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.classroom-student .classroom-student-settings-editor button:disabled,
+.classroom-student .classroom-student-settings-editor select:disabled {
+  color: #71818b;
+  cursor: not-allowed;
+}
+.classroom-student-settings-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--student-ink);
+  font-size: 12px;
+}
+.classroom-student .classroom-student-settings-select select {
+  color: var(--student-ink);
+}
+.classroom-student-settings-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.classroom-student-settings-facts > div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.classroom-student-settings-facts dt {
+  flex: 0 0 auto;
+  color: #526a78;
+  font-size: 12px;
+}
+.classroom-student-settings-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 650;
+}
+.classroom-student-settings-fact,
+.classroom-student-settings-note {
+  margin: 0 0 8px;
+  color: #526a78;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.classroom-student-settings-safety {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--student-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+.classroom-student-settings-safety input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+}
+.classroom-student-settings-helper-classes {
+  margin-top: 9px;
+  font-size: 12px;
+}
+.classroom-student-settings-helper-classes ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.classroom-student-games-region:focus-visible {
+  outline: 2px solid #2676a2;
+  outline-offset: 3px;
+}
+@container teacher-profile (max-width: 599px) {
+  .classroom-student .classroom-student-settings-entry h2 {
+    margin: 0 0 4px;
+    font-size: 14px;
+  }
+  .classroom-student .classroom-student-settings-category {
+    gap: 5px;
+    padding: 3px 7px;
+  }
+  .classroom-student-settings-category-state {
+    max-width: 100px;
+  }
+  .classroom-student .classroom-student-settings-editor {
+    padding: 8px;
+  }
+  .classroom-student-settings-select {
+    flex-wrap: wrap;
+  }
+}
+
+/* UI-03 narrow Settings: show the four editable categories immediately after
+   the two local rails. Legacy summary controls still exist in other sections,
+   and are relocated for every section by the separate UI-04 slice. */
+@container teacher-profile (max-width: 599px) {
+  .portal-content.classroom-student[data-student-section='settings'] .classroom-student-hero,
+  .portal-content.classroom-student[data-student-section='settings'] .teacher-profile-grades,
+  .portal-content.classroom-student[data-student-section='settings'] .participant-helper-classes,
+  .portal-content.classroom-student[data-student-section='settings']
+    .classroom-student-games-region {
+    display: none;
+  }
+  .portal-content.classroom-student[data-student-section='settings'][data-settings-category='games']
+    .classroom-student-games-region {
+    display: block;
+  }
+}
