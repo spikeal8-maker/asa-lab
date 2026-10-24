@@ -1,3 +1,4 @@
+import { beginPhaseTrace, installPhaseProbe } from './arduino-682-phase-probe';
 import { createInterface } from 'node:readline';
 import { appendFileSync, createReadStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -417,6 +418,7 @@ async function realtime682Journal(
   page: Page,
   path: string,
   long?: { phaseMs: number; observe: (row: Realtime682Record) => void },
+  phaseRun?: string,
 ) {
   const records: Realtime682Record[] = [];
   const errors: string[] = [];
@@ -475,7 +477,7 @@ async function realtime682Journal(
       pendingBrowserRecords: 10_000,
       batchLimit: 256,
     });
-  await page.addInitScript((recordLimit: number) => {
+  const installJournal = (recordLimit: number) => {
     type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
     const host = window as unknown as Window & {
       __realtime682Batch: (rows: Row[]) => Promise<number>;
@@ -791,7 +793,15 @@ async function realtime682Journal(
       requestAnimationFrame(paint);
     };
     requestAnimationFrame(paint);
-  }, recordLimit);
+  };
+  if (phaseRun) {
+    // One script guarantees the receipt listener is registered before journal parsing.
+    await page.addInitScript({
+      content: `(${installPhaseProbe.toString()})(${JSON.stringify(phaseRun)});(${installJournal.toString()})(${recordLimit});`,
+    });
+  } else {
+    await page.addInitScript(installJournal, recordLimit);
+  }
   const barrier = async () => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -927,19 +937,28 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
     }
   });
   test.afterAll(async () => pool.end());
-  for (const mode of [
-    'delays',
-    'button-serial',
-    'short20',
-    'short30',
-    'short50',
-    'short100',
-    'long1000',
-    'long5000',
-    'long10000',
-    'long20000',
-  ] as const)
-    test(`${mode}: strict real time and acknowledged native evidence`, async ({ page }, info) => {
+  for (const { mode, diagnostic } of (
+    [
+      'delays',
+      'button-serial',
+      'short20',
+      'short30',
+      'short50',
+      'short100',
+      'long1000',
+      'long5000',
+      'long10000',
+      'long20000',
+    ] as const
+  )
+    .map((mode) => ({ mode, diagnostic: false }))
+    .concat([
+      { mode: 'short50', diagnostic: true },
+      { mode: 'long1000', diagnostic: true },
+    ]))
+    test(`${diagnostic ? 'DIAGNOSTIC phase ' : ''}${mode}: strict real time and acknowledged native evidence`, async ({
+      page,
+    }, info) => {
       const shortMs = mode.startsWith('short') ? Number(mode.slice(5)) : null;
       const longMs = mode.startsWith('long') ? Number(mode.slice(4)) : null;
       const phaseMs = shortMs ?? longMs;
@@ -952,11 +971,15 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
             : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
       const longAudit = longMs === null ? null : createRealtime682LongAudit(longMs, source);
       const journalPath = info.outputPath('realtime-682-native.jsonl');
+      const phaseRun = diagnostic ? crypto.randomUUID() : undefined;
       const journal = await realtime682Journal(
         page,
         journalPath,
         longMs === null ? undefined : { phaseMs: longMs, observe: longAudit!.accept },
+        phaseRun,
       );
+      let finishPhase: Awaited<ReturnType<typeof beginPhaseTrace>> | null = null;
+      let stopReached = false;
       let primary: unknown,
         failed = false,
         held = false;
@@ -982,6 +1005,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           : -1;
       };
       try {
+        if (phaseRun) finishPhase = await beginPhaseTrace(page, phaseRun);
         await page.context().addCookies(cookies);
         await page.setViewportSize({ width: 1600, height: 1000 });
         await page.goto('/#/home');
@@ -1099,6 +1123,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           await journal.barrier();
           journal.retain('long-stop-action', { at: await page.evaluate(() => performance.now()) });
           await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          if (diagnostic) stopReached = true;
           await expect(
             page.getByRole('button', { name: 'Начать моделирование', exact: true }),
           ).toBeVisible();
@@ -1364,6 +1389,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
             await expect.poll(() => nativeLevel(2)).toBe(0);
           }
           await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          if (diagnostic) stopReached = true;
           await expect(
             page.getByRole('button', { name: 'Начать моделирование', exact: true }),
           ).toBeVisible();
@@ -1375,6 +1401,27 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
         primary = error;
         journal.retain('primary-error', String(error));
       } finally {
+        if (finishPhase) {
+          try {
+            const { raw, report } = await finishPhase();
+            writeFileSync(info.outputPath('realtime-682-phase-trace.json'), raw, 'utf8');
+            writeFileSync(
+              info.outputPath('realtime-682-phase-report.json'),
+              JSON.stringify({ ...report, stop: stopReached ? 'REACHED' : 'NOT_REACHED' }, null, 2),
+              'utf8',
+            );
+            if (report.verdict === 'NOT_OBSERVED' && !failed) {
+              failed = true;
+              primary = new Error('Phase diagnostic NOT_OBSERVED: ' + report.errors.join('; '));
+            }
+          } catch (error) {
+            info.annotations.push({ type: 'phase-retention-error', description: String(error) });
+            if (!failed) {
+              failed = true;
+              primary = error;
+            }
+          }
+        }
         journal.retain('node-final', {
           failed,
           retainedNodeRecords: journal.records.length,
