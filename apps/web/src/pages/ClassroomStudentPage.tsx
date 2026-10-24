@@ -14,7 +14,6 @@ import {
 } from '../classroom-participants-api';
 import { ProjectCard } from '../modules/ProjectCard';
 import { WorkPreview } from '../components/WorkPreview';
-import { Dropdown } from '../components/Dropdown';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
@@ -662,24 +661,7 @@ export function ClassroomStudentPage({
         >
           <span aria-hidden="true">◉</span>
         </button>
-      ) : (
-        <button
-          className="classroom-student-section-action"
-          type="button"
-          aria-label="Открыть настройки текущего ученика"
-          title="Настройки ученика"
-          disabled={
-            !profileReady ||
-            !seatActions ||
-            seatActions.readOnly ||
-            seatActions.busy ||
-            profile?.student.status === 'suspended'
-          }
-          onClick={() => seatActions?.onSettings()}
-        >
-          <span aria-hidden="true">⚙</span>
-        </button>
-      )}
+      ) : null}
     </div>
   );
   if (!profileReady)
@@ -795,113 +777,7 @@ export function ClassroomStudentPage({
             </span>
             <ParticipantRating metrics={metrics} settings={settings} />
           </div>
-          <div className="classroom-student-meta-actions">
-            <label className="participant-role">
-              <select
-                aria-label="Роль в классе"
-                value={metrics.role}
-                disabled={settingsLocked || controlsBusy}
-                onChange={(event) => updateRole(event.target.value)}
-              >
-                <option value="student">Учащийся</option>
-                <option value="helper">Помощник</option>
-              </select>
-            </label>
-            <div className="classroom-student-badges">
-              <SeatAwardRow keys={awardKeys} size="small" />
-              <label className="classroom-student-safety">
-                <input
-                  type="checkbox"
-                  checked={student.safeMode}
-                  aria-label={`Защита: ${student.displayLabel}`}
-                  disabled={settingsLocked || controlsBusy || !seatActions}
-                  onChange={(event) => updateSafeMode(event.target.checked)}
-                />
-                Защита
-              </label>
-              {seatActions ? (
-                <>
-                  <button
-                    type="button"
-                    className="classroom-student-settings"
-                    aria-label={`Настройки ученика: ${student.displayLabel}`}
-                    title="Настройки ученика"
-                    disabled={settingsLocked || controlsBusy}
-                    onClick={seatActions.onSettings}
-                  >
-                    <span aria-hidden="true">⚙</span>
-                  </button>
-                  <Dropdown
-                    key={`${classroomId}:${seatId}`}
-                    className="classroom-row-menu classroom-student-actions"
-                    ariaLabel={`Действия: ${student.displayLabel}`}
-                    label="•••"
-                    disabled={controlsBusy}
-                  >
-                    {(close) => (
-                      <>
-                        <button
-                          type="button"
-                          disabled={settingsLocked || controlsBusy}
-                          onClick={() => {
-                            close();
-                            seatActions.onSettings();
-                          }}
-                        >
-                          Имя и аватар
-                        </button>
-                        {seatActions.studentCode ? (
-                          <button
-                            type="button"
-                            disabled={settingsLocked || controlsBusy}
-                            onClick={() => {
-                              close();
-                              seatActions.onCode();
-                            }}
-                          >
-                            Изменить код
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={settingsLocked || controlsBusy || !seatActions.canOpenCard}
-                          onClick={() => {
-                            close();
-                            seatActions.onAccessCard();
-                          }}
-                        >
-                          Карточка доступа
-                        </button>
-                        <button
-                          type="button"
-                          disabled={readOnly || controlsBusy}
-                          onClick={() => {
-                            close();
-                            seatActions.onSuspend();
-                          }}
-                        >
-                          {student.status === 'suspended'
-                            ? 'Вернуть доступ'
-                            : 'Приостановить доступ'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={settingsLocked || controlsBusy}
-                          onClick={() => {
-                            close();
-                            setTab('merits');
-                            setFocusAvatar(true);
-                          }}
-                        >
-                          Аватары класса
-                        </button>
-                      </>
-                    )}
-                  </Dropdown>
-                </>
-              ) : null}
-            </div>
-          </div>
+          <SeatAwardRow keys={awardKeys} size="small" />
         </div>
       </section>
       <ParticipantGradeHistory
@@ -926,18 +802,6 @@ export function ClassroomStudentPage({
             </ul>
           )}
         </section>
-      ) : null}
-      {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
-      {seatActions?.error && seatActions.error !== profileError ? (
-        <p role="alert">{seatActions.error}</p>
-      ) : null}
-      {profileError ? (
-        <p role="alert">
-          {profileError}{' '}
-          <button type="button" onClick={() => void load()}>
-            Обновить
-          </button>
-        </p>
       ) : null}
       <nav
         className="participant-tabs"
@@ -1070,7 +934,7 @@ export function ClassroomStudentPage({
                       type="button"
                       disabled={settingsLocked || controlsBusy}
                       onClick={() => {
-                        setTab('merits');
+                        changeTab('merits');
                         setFocusAvatar(true);
                       }}
                     >
@@ -1164,7 +1028,22 @@ export function ClassroomStudentPage({
             </div>
           ) : null}
           {!seatActions || settingsLocked ? (
-            <small role="status">Изменения недоступны для этого ученика.</small>
+            <small role="status">
+              {readOnly
+                ? 'Класс в архиве. Изменения недоступны.'
+                : 'Изменения недоступны для этого ученика.'}
+            </small>
+          ) : null}
+          {seatActions?.error && seatActions.error !== profileError ? (
+            <p role="alert">{seatActions.error}</p>
+          ) : null}
+          {profileError ? (
+            <p role="alert">
+              {profileError}{' '}
+              <button type="button" onClick={() => void load()}>
+                Обновить
+              </button>
+            </p>
           ) : null}
         </section>
       ) : null}
