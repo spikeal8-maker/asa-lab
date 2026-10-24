@@ -378,6 +378,29 @@ class CoverageTests(unittest.TestCase):
             self.assertEqual(database_diagnostics('administrative_audit_events', {'action': action, 'reason': 'PRIVATE'}), {'action': action})
         self.assertEqual(database_diagnostics('administrative_audit_events', {'action': 'administration.PRIVATE'}), {})
 
+    def test_ollama_audit_projection_keeps_only_closed_event_and_safe_metadata(self):
+        value = {
+            'action': 'administration.ai_ollama.update', 'scope_kind': 'platform',
+            'actor_role': 'platform_admin', 'result': 'succeeded',
+            'before_version': 3, 'after_version': 4,
+            'reason': 'PRIVATE free-form reason', 'base_url': 'http://PRIVATE.internal:11434',
+            'api_key': 'PRIVATE_API_KEY', 'token': 'PRIVATE_TOKEN',
+            'principal_id': 'PRIVATE_PRINCIPAL', 'request_id': 'PRIVATE_REQUEST',
+            'payload': {'model': 'PRIVATE_MODEL', 'authorization': 'PRIVATE_BEARER'},
+        }
+        expected = {key: value[key] for key in (
+            'action', 'scope_kind', 'actor_role', 'result', 'before_version', 'after_version')}
+        projected = database_diagnostics('administrative_audit_events', value)
+        self.assertEqual(projected, expected)
+        self.assertNotIn('PRIVATE', json.dumps(projected))
+        self.assertEqual(database_diagnostics('administrative_audit_events', projected), expected)
+        for unknown in ('administration.ai_ollama.PRIVATE', 'administration.ai_ollama.update.extra',
+                        'administration.ai_ollama.read', 'administration.ai_unknown.update'):
+            with self.subTest(action=unknown):
+                self.assertEqual(database_diagnostics('administrative_audit_events',
+                                                     {**value, 'action': unknown}),
+                                 {key: item for key, item in expected.items() if key != 'action'})
+
     def test_new_projection_keeps_real_names_metadata_and_no_private_values(self):
         row = {'event_type':'visit.observed','module_key':'blocks','browser_family':'Firefox',
                'operating_system':'Linux','device_category':'desktop','address_provenance':'server_resolved',

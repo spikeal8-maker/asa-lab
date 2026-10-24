@@ -560,13 +560,19 @@ export class SaveDraftUseCase {
         );
       }
     }
-    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor, {
-      includeVersions: false,
-    });
-    if (!loaded) {
+    const prepared = this.repository.prepareDraftSave
+      ? await this.repository.prepareDraftSave(input.tenantId, input.projectId, input.actor)
+      : undefined;
+    const loaded =
+      prepared === undefined
+        ? await this.repository.load(input.tenantId, input.projectId, input.actor, {
+            includeVersions: false,
+          })
+        : undefined;
+    if (prepared === null || (prepared === undefined && !loaded)) {
       return fail('project_not_found', 'project not found');
     }
-    const moduleKey = loaded.project.moduleKey;
+    const moduleKey = prepared?.moduleKey ?? loaded!.project.moduleKey;
     const module = this.modules.get(moduleKey);
     if (!module) {
       return fail(
@@ -605,7 +611,7 @@ export class SaveDraftUseCase {
     }
     let draft: ProjectDraft | null;
     try {
-      draft = await this.repository.saveDraft({
+      const saveInput = {
         tenantId: input.tenantId,
         projectId: input.projectId,
         actor: input.actor,
@@ -613,7 +619,10 @@ export class SaveDraftUseCase {
         preview: previewOf(module, document),
         baseRevision: input.baseRevision,
         mutationId: input.mutationId,
-      });
+      };
+      draft = prepared
+        ? await prepared.save(saveInput)
+        : await this.repository.saveDraft(saveInput);
     } catch (error) {
       if (error instanceof LearningWorkReadOnlyError) {
         return fail('learning_work_read_only', error.message);
