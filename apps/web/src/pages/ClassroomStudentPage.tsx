@@ -114,7 +114,8 @@ export function ClassroomStudentPage({
   const [profileError, setProfileError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory | null>(null);
-  const gameSettingsRef = useRef<HTMLDivElement>(null);
+  const gamesDirtyRef = useRef(false);
+  const [gamesDirty, setGamesDirty] = useState(false);
   const [archive, setArchive] = useState(false);
   const [works, setWorks] = useState<ParticipantWorks | null>(null);
   const [worksError, setWorksError] = useState<string | null>(null);
@@ -155,6 +156,30 @@ export function ClassroomStudentPage({
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
   const showsWorks = !['assignments', 'merits', 'grades', 'activity', 'settings'].includes(tab);
+  const gamesChanged = useCallback((dirty: boolean) => {
+    gamesDirtyRef.current = dirty;
+    setGamesDirty(dirty);
+  }, []);
+  const confirmDiscard = useCallback(
+    () =>
+      !gamesDirtyRef.current ||
+      window.confirm('Изменения игровых разрешений не сохранены. Закрыть без сохранения?'),
+    [],
+  );
+  const changeTab = (nextTab: Tab) => {
+    if (nextTab === tab || !confirmDiscard()) return;
+    setTab(nextTab);
+    setSettingsCategory(null);
+  };
+  useEffect(() => {
+    if (!gamesDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [gamesDirty]);
   const closeLearnerPicker = useCallback((restoreFocus = true) => {
     setLearnerPickerOpen(false);
     if (restoreFocus) learnerOpener.current?.focus();
@@ -166,6 +191,8 @@ export function ClassroomStudentPage({
     safeRequest.current++;
     setFocusAvatar(false);
     setSettingsCategory(null);
+    gamesDirtyRef.current = false;
+    setGamesDirty(false);
   }, [classroomId, seatId]);
   useEffect(() => {
     if (tab !== 'merits' || !focusAvatar) return;
@@ -360,7 +387,9 @@ export function ClassroomStudentPage({
         className="classroom-student-back"
         aria-label="← К классу"
         title={classroomTitle}
-        onClick={onBack}
+        onClick={() => {
+          if (confirmDiscard()) onBack();
+        }}
       >
         <span aria-hidden="true">←</span>
         <span className="classroom-student-back-label">К классу</span>
@@ -377,7 +406,7 @@ export function ClassroomStudentPage({
           title={navigation?.previous.displayLabel}
           disabled={!navigation || navigation.total < 2}
           onClick={() => {
-            if (navigation) onNavigateStudent(navigation.previous.id);
+            if (navigation && confirmDiscard()) onNavigateStudent(navigation.previous.id);
           }}
         >
           <span aria-hidden="true">‹</span>
@@ -529,6 +558,7 @@ export function ClassroomStudentPage({
                               type="button"
                               aria-current={entry.id === seatId ? 'page' : undefined}
                               onClick={() => {
+                                if (!confirmDiscard()) return;
                                 closeLearnerPicker();
                                 focusAfterNavigation.current =
                                   entry.id !== seatId ? entry.id : null;
@@ -577,7 +607,7 @@ export function ClassroomStudentPage({
           title={navigation?.next.displayLabel}
           disabled={!navigation || navigation.total < 2}
           onClick={() => {
-            if (navigation) onNavigateStudent(navigation.next.id);
+            if (navigation && confirmDiscard()) onNavigateStudent(navigation.next.id);
           }}
         >
           {navigation ? (
@@ -600,7 +630,7 @@ export function ClassroomStudentPage({
           aria-label="Раздел профиля"
           value={tab}
           disabled={!profileReady}
-          onChange={(event) => setTab(event.target.value as Tab)}
+          onChange={(event) => changeTab(event.target.value as Tab)}
         >
           {TABS.map((item) => (
             <option key={item.key} value={item.key}>
@@ -898,19 +928,6 @@ export function ClassroomStudentPage({
         </section>
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
-      <div
-        ref={gameSettingsRef}
-        className="classroom-student-games-region"
-        tabIndex={-1}
-        aria-label="Разрешения игр ученика"
-      >
-        <ClassroomGamesSettings
-          key={`${classroomId}:${seatId}:games`}
-          classroomId={classroomId}
-          seatId={seatId}
-          readOnly={settingsLocked || controlsBusy}
-        />
-      </div>
       {seatActions?.error && seatActions.error !== profileError ? (
         <p role="alert">{seatActions.error}</p>
       ) : null}
@@ -950,7 +967,7 @@ export function ClassroomStudentPage({
             type="button"
             key={item.key}
             aria-pressed={tab === item.key}
-            onClick={() => setTab(item.key)}
+            onClick={() => changeTab(item.key)}
           >
             {item.label}
           </button>
@@ -981,7 +998,10 @@ export function ClassroomStudentPage({
                 key={key}
                 className="classroom-student-settings-category"
                 aria-expanded={settingsCategory === key}
-                onClick={() => setSettingsCategory((current) => (current === key ? null : key))}
+                onClick={() => {
+                  if (!confirmDiscard()) return;
+                  setSettingsCategory((current) => (current === key ? null : key));
+                }}
               >
                 <span>{label}</span>
                 <span className="classroom-student-settings-category-state">
@@ -1133,20 +1153,13 @@ export function ClassroomStudentPage({
                 </>
               ) : null}
               {settingsCategory === 'games' ? (
-                <>
-                  <p className="classroom-student-settings-note">
-                    Индивидуальный доступ к играм действует по сохранённому правилу класса.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      gameSettingsRef.current?.scrollIntoView({ block: 'center' });
-                      gameSettingsRef.current?.focus();
-                    }}
-                  >
-                    Перейти к действующим игровым разрешениям
-                  </button>
-                </>
+                <ClassroomGamesSettings
+                  key={`${classroomId}:${seatId}:games`}
+                  classroomId={classroomId}
+                  seatId={seatId}
+                  readOnly={settingsLocked || controlsBusy}
+                  onDirtyChange={gamesChanged}
+                />
               ) : null}
             </div>
           ) : null}
