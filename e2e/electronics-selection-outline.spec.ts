@@ -1126,6 +1126,34 @@ for (const width of [1440, 1024, 390, 320])
           console.error('[E11 lifecycle journal write failure]', failure);
         }
       }
+      // R6: independent, flush-on-write evidence for the exact post-snapshot
+      // gap. No physics, save, timeout, or assertion semantics are changed.
+      const postFinalPath = info.outputPath(`e11-outline-${scenario}-${width}-postfinal.jsonl`);
+      let postFinalSequence = 0;
+      function postFinalMarker(
+        phase: string,
+        outcome: 'begin' | 'progress' | 'end',
+        fields: Record<string, string | number> = {},
+      ) {
+        if (scenario !== 'running-controls' || width !== 1440) return;
+        const entry = {
+          sequence: ++postFinalSequence,
+          at: Date.now(),
+          monotonicNanoseconds: process.hrtime.bigint().toString(),
+          phase,
+          outcome,
+          ...fields,
+        };
+        try {
+          appendFileSync(postFinalPath, JSON.stringify(entry) + '\n', {
+            encoding: 'utf8',
+            flush: true,
+          });
+        } catch (error) {
+          // Diagnostics cannot replace or swallow the original test failure.
+          console.error('[E11 R6 diagnostic write error]', String(error));
+        }
+      }
       const workerHash = createHash('sha256');
       const workerSources = new Map<
         Page,
@@ -1819,6 +1847,7 @@ for (const width of [1440, 1024, 390, 320])
           lifecycleMarker('final-original-snapshot', 'rejected', page, error);
           throw error;
         }
+        postFinalMarker('final-original-snapshot', 'end');
         if (scenario === 'running-controls') {
           const advances = workerSources
             .get(page)!
@@ -1827,6 +1856,10 @@ for (const width of [1440, 1024, 390, 320])
             .filter((response) => response.ok && response.kind === 'advance');
           expect(advances.length).toBeGreaterThan(0);
           let committed = 0;
+          let finiteChecks = 0;
+          let finiteNanoseconds = 0n;
+          const workerPhaseStart = process.hrtime.bigint();
+          postFinalMarker('worker-advance-verification', 'begin', { advances: advances.length });
           for (const response of advances) {
             if (!response.ok || response.kind !== 'advance') throw new Error('Unexpected response');
             if (response.advance.executionStatus === 'ready') {
@@ -1841,12 +1874,28 @@ for (const width of [1440, 1024, 390, 320])
                 committed,
               );
               committed = response.advance.committedHorizonMicroseconds;
+              const finiteStart = process.hrtime.bigint();
               assertFinite(response.advance.result);
+              finiteNanoseconds += process.hrtime.bigint() - finiteStart;
+              finiteChecks++;
+              if (finiteChecks % 16 === 0)
+                postFinalMarker('recursive-finite-verification', 'progress', {
+                  checked: finiteChecks,
+                  finiteMs: Number(finiteNanoseconds) / 1_000_000,
+                });
             } else if (response.advance.executionStatus === 'yielded')
               expect(response.advance.result).toBeNull();
             else throw new Error('Real safe DC fixture faulted');
           }
+          postFinalMarker('worker-advance-verification', 'end', {
+            advances: advances.length,
+            finiteChecks,
+            finiteMs: Number(finiteNanoseconds) / 1_000_000,
+            elapsedMs: Number(process.hrtime.bigint() - workerPhaseStart) / 1_000_000,
+          });
         }
+        const eventPhaseStart = process.hrtime.bigint();
+        postFinalMarker('pointer-event-verification', 'begin');
         expect(
           observed.events.filter((event) => (event as { trusted: boolean }).trusted === false),
         ).toEqual([]);
@@ -1858,10 +1907,33 @@ for (const width of [1440, 1024, 390, 320])
             (event) => (event as { type: string }).type === 'lostpointercapture',
           ),
         ).toBe(true);
+        postFinalMarker('pointer-event-verification', 'end', {
+          elapsedMs: Number(process.hrtime.bigint() - eventPhaseStart) / 1_000_000,
+        });
+        const putPhaseStart = process.hrtime.bigint();
+        postFinalMarker('put-count-verification', 'begin');
         expect(puts).toHaveLength(1);
+        postFinalMarker('put-count-verification', 'end', {
+          elapsedMs: Number(process.hrtime.bigint() - putPhaseStart) / 1_000_000,
+        });
+        const serverPhaseStart = process.hrtime.bigint();
+        postFinalMarker('server-readback-verification', 'begin');
         expect((await server(page, projectId)).draft).toEqual(saved.draft);
+        postFinalMarker('server-readback-verification', 'end', {
+          elapsedMs: Number(process.hrtime.bigint() - serverPhaseStart) / 1_000_000,
+        });
+        const errorPhaseStart = process.hrtime.bigint();
+        postFinalMarker('captured-event-failures', 'begin');
         failures.assertEmpty();
+        postFinalMarker('captured-event-failures', 'end', {
+          elapsedMs: Number(process.hrtime.bigint() - errorPhaseStart) / 1_000_000,
+        });
+        const completionPhaseStart = process.hrtime.bigint();
+        postFinalMarker('complete-checkpoint', 'begin');
         await checkpoint('complete');
+        postFinalMarker('complete-checkpoint', 'end', {
+          elapsedMs: Number(process.hrtime.bigint() - completionPhaseStart) / 1_000_000,
+        });
       } catch (error) {
         retainPrimary(error);
         throw error;
