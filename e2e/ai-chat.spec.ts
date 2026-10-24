@@ -680,7 +680,7 @@ for (const theme of ['light', 'dark'] as const) {
       await page.goto('/#/ai');
       await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
       await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Прикреп/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /Прикреп/ })).toBeVisible();
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
         'background-color',
         theme === 'dark' ? 'rgb(18, 33, 45)' : 'rgb(255, 255, 255)',
