@@ -341,7 +341,6 @@ test('AI composer uploads a real file once and restores the saved attachment aft
   expect(uploadCount).toBe(1);
 });
 
-
 test('AI clears bound file chips when a saved answer is recovered after SSE loss', async ({
   page,
 }) => {
@@ -378,7 +377,9 @@ test('AI clears bound file chips when a saved answer is recovered after SSE loss
   fake.release();
   await page.goto('/#/ai');
   await page.locator('input[type=file][accept]').setInputFiles({
-    name: 'arduino.ino', mimeType: 'text/plain', buffer: bytes,
+    name: 'arduino.ino',
+    mimeType: 'text/plain',
+    buffer: bytes,
   });
   const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
   await composer.fill('Исправь код из файла');
@@ -425,13 +426,15 @@ test('AI retains all attachment chips while paging over 125 user messages', asyn
         items: ids.map((requestId) => ({
           requestId,
           attachments: names.has(requestId)
-            ? [{
-                uploadId: randomUUID(),
-                fileName: names.get(requestId),
-                sizeBytes: 512,
-                mediaType: 'image/png',
-                kind: 'image',
-              }]
+            ? [
+                {
+                  uploadId: randomUUID(),
+                  fileName: names.get(requestId),
+                  sizeBytes: 512,
+                  mediaType: 'image/png',
+                  kind: 'image',
+                },
+              ]
             : [],
         })),
       },

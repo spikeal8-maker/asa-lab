@@ -244,7 +244,8 @@ export function AiChatPage({
           cancelled ||
           version !== selectedVersion.current ||
           attachmentHistoryScope.current.threadId !== threadId
-        ) return;
+        )
+          return;
         const batch = ids.slice(start, start + 50);
         const result = await call<{
           items: readonly { requestId: string; attachments: readonly AiHistoryAttachment[] }[];
@@ -259,7 +260,8 @@ export function AiChatPage({
           version !== selectedVersion.current ||
           attachmentHistoryScope.current.threadId !== threadId ||
           !result.ok
-        ) return;
+        )
+          return;
         for (const id of batch) receipts.loaded.add(id);
         setHistoryAttachments((previous) => ({
           ...previous,
