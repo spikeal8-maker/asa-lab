@@ -162,3 +162,51 @@ equivalence. Unknown/invalid ownership or runtime never actuates. No synthetic
 events, invented geometry, cap increase, class-identity variant, core/hook/API or
 asset edits. NEW exact-source review, actual RAW<=218000 and all six native cases
 with independent actual review remain mandatory; proxy size is not acceptance.
+
+
+## 24 October: safe replacement after dynamic meter regression
+
+The [safe combined selection](../evidence/ui679-safe-budget-repair-selection-20261024.md)
+supersedes the preceding multimeter-compaction permission. Private f634 loses the
+actual owner button and focus on a normal readout update; restore multimeter
+byte-exact baseline984. Preserve f634 strict native same-owner PSU routing and
+honest F2 top-wire/resolved-owner journal, exact point/actions, full independent
+document, R3 storage and one Save/CAS.
+
+Only PSU/generator knob regions may share the raw arc-ratio helper and
+move/up/cancel factory, including selected PSU branch dedup. Preserve original
+clamp ordering, capture, state, exception and handler ordering. Omit only the existing PSU root SVG explicit default preserveAspectRatio prop;
+retain viewBox, x/y, dimensions, transforms and owner markup. Generator SVG
+attributes remain byte-exact. No meter/LED/FET/core/hook/API/
+persistence/asset/dependency/workflow/cap change. This remains679's budget
+dependency;681 stays closed. Preserve accepted961 clock blobs and sole682 controller.
+
+Independent proposal approval selects implementation only. Estimate217983 RAW
+with17 margin is not actual fit; jsdom/affine checks are not native CTM evidence.
+Require NEW final-source review, actual editor<=218000, all six original native
+cases and NEW actual/visual review. API remains separate under owner targeted UI
+acceptance; no full General PASS, physical acceptance, release or deployment.
+
+
+## 24 October: actual d8 exceeds retained cap by111; select two hunks only
+
+The [dated d8 receipt and selection](../evidence/ui679-d8-111-budget-repair-selection-20261024.md)
+supersedes only the preceding implementation permission. Exact d8 scoped run
+40035753201 completed all six cases, but General40035752095 Code measured218111
+RAW against218000: categoryA own budget FAIL111, Data/Access skipped. Functional
+success is not acceptance. Preserve d8 and all earlier immutable receipts.
+
+Select ONLY frozen stop-event extraction in the selected knob helper/PSU down
+hunk and owner/runtime selector constants in the new Stage routing hunk. Preserve
+all other seven selected source blobs and every byte outside these hunks exact d8;
+no JSX identity, event ordering, receiver, exception or native priority changes.
+Independent APPROVE_PROPOSAL_ONLY and119 module-proxy saving permit one source
+author after canonical publication; estimated8 margin proves no actual fit.
+Require NEW final-SHA source review, one justified actual Code/raw measurement,
+all six original cases and NEW actual/visual review before closure. Actual d8
+actual review NEEDS_FIX solely budget111; selected six cases PASS. Mobile clock is hidden by the
+existing toolbar; desktop visibility and mobile timing evidence do not establish
+mobile visible-clock acceptance. 568px landscape remains NOT_RUN. Preserve API-separate
+owner decision, sole682 controller,681 closed,548 blocker and544/547 open.
+No cap raise, blind variant, meter/core/hook/LED/API/assets/workflow/dependency
+change, global PASS, owner/device acceptance, release or deployment is selected.

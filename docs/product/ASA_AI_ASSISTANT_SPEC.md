@@ -648,3 +648,65 @@ AI Assistant не должен превращать ошибку провайд�
 Поток должен завершаться событием провайдера, а не простым закрытием соединения.
 Полученная часть оборванного ответа сохраняется с признаком незавершённого,
 а повтор того же requestId не создаёт ещё одно платное обращение.
+
+## 18. Ollama, LAN и источники повторного использования (AI-OLLAMA-LAN-001)
+
+Первая локальная языковая модель подключается независимо от оплачиваемых API.
+В админке `Администрирование → ИИ и модели` обязательны три верхних подраздела:
+**Ключи**, **Ollama**, **ComfyUI**. «Ключи» сохраняет текущие зашифрованные
+DeepSeek/OpenAI credentials и платный тест; «Ollama» имеет собственные URL,
+модель, флаг включения, открытие каталога `/api/tags`, отдельный тест реального
+текстового ответа и версию настроек. «ComfyUI» является отдельной будущей
+image-generation интеграцией; одноимённая вкладка не должна создавать ложного
+впечатления, что она уже работает.
+
+### 18.1. Обязательные исходники — не переписывать с нуля
+
+1. `spikeal8-maker/IZO_ASA`, donor main `51543df2b6a559d693e3ed75b11baeacdb9033d3`:
+   `backend/app/integrations/ollama.py` (discover, chat, residency/unload),
+   `backend/app/services/assistant_runtime.py` (local/external routing),
+   `backend/app/api/routers/phone_chat.py` (local model selection),
+   `docs/assistant-models-plan.md` (GPU, warmup and bounds),
+   `docs/comfyui-runtime-contract-20260727.md` (image worker).
+2. `spikeal8-maker/izo-asa-platform`, donor main
+   `321fcb4fe193993db70aa705a46842e9836daac0`:
+   `apps/web/src/shell/chat/ModelPicker.tsx`,
+   `apps/web/src/shell/chat/ChatSidebar.tsx`,
+   `apps/web/src/shell/chat/AttachmentControl.tsx`,
+   `apps/api/izo/chat/provider_openrouter.py`, canonical Chat policy and tests.
+3. ASA Lab source of truth remains its existing React/Nest/PostgreSQL architecture.
+   Donor UX/tests/adapters are adapted by exact-SHA comparison; never import
+   donor account identity, SQL migrations, provider keys, billing or unreviewed
+   large components wholesale. Each transfer records path, symbol, behavior,
+   adapted acceptance and safety decision.
+
+### 18.2. Network and request contract
+
+- Browser only calls authenticated ASA Lab `/api/ai/*`. The ASA API server calls
+  Ollama `/api/tags` and `/api/chat` on a private server-side endpoint.
+- Same host: `http://127.0.0.1:11434` only when API runs on the host;
+  for Docker the standard mapping is `http://host.docker.internal:11434`.
+  Another computer in LAN: e.g. `http://192.168.1.20:11434`. The target
+  Ollama process must bind an address reachable by the API container; a firewall
+  must limit access to trusted ASA API hosts. Do not publish 11434 on the Internet.
+- Server accepts only explicitly validated loopback/private IPv4 or Docker
+  host-gateway HTTP endpoints. Public IP, cloud metadata, arbitrary DNS hosts,
+  URL credentials, paths and redirects are denied; all probes are admin-only.
+  Never accept base URL or credential from the browser chat request.
+- Model discovery does not implicitly download or install models. Only a model
+  installed at the selected endpoint can pass the inference smoke.
+- The chat model selector advertises `ollama-local` when the independent
+  connection is enabled. Its effective internal Ollama model is a trusted,
+  versioned server setting, never a client-supplied upstream identifier.
+- Local requests retain Account/StudentSeat ownership, teacher admissions,
+  per-owner rate limits, immutable requestId replay, history, Stop and partial
+  answer semantics. They do not require an external API key and **do not reserve
+  the platform-wide quota of paid provider operations**. The local GPU still
+  requires a separate concurrency/load acceptance for production capacity.
+- No implicit local→paid fallback. Every potential paid call must pass the
+  existing explicit authorized paid admission, without automatically replaying
+  an unknown-outcome Ollama request through an external provider.
+- Initial migration: `0239_ai_ollama_local.sql`; default disabled, forward-only,
+  no edits to historical applied migrations or provider credentials.
+  Installed DB prefix and actual network/model performance are separate
+  acceptance gates; merged code never counts as completed deployment.

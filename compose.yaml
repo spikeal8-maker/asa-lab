@@ -198,6 +198,9 @@ services:
     networks:
       - application
       - database
+    # LAN Ollama may run on the Docker host GPU; never expose its API through web.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     security_opt:
       - no-new-privileges:true
     cap_drop:

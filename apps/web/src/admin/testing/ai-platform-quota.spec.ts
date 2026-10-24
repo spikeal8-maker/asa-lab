@@ -7,7 +7,6 @@ import { call } from '../admin-api';
 import { aiAdminFixture } from './ai-admin-config.fixture';
 
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
-
 let root: Root;
 let host: HTMLDivElement;
 const config = aiAdminFixture({
@@ -17,11 +16,9 @@ const config = aiAdminFixture({
   paidOperationsPerHour: 0,
   apiKeyConfigured: true,
   encryptionReady: true,
-  keyFingerprint: null,
   configurationVersion: 1,
   updatedAt: null,
 });
-
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.mocked(call).mockReset();
@@ -29,51 +26,68 @@ beforeEach(() => {
   document.body.append(host);
   root = createRoot(host);
 });
-
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
 });
-
-async function render(limit: number) {
-  vi.mocked(call).mockResolvedValue({
+async function show(limit: number) {
+  vi.mocked(call).mockResolvedValueOnce({
     ok: true,
     status: 200,
     data: { ...config, paidOperationsPerHour: limit },
   });
-  await act(async () => root.render(createElement(AiAdminPage, { onAccessDenied: vi.fn() })));
+  await act(async () =>
+    root.render(createElement(AiAdminPage, { onAccessDenied: vi.fn(), providerChoice: 'openai' })),
+  );
 }
-
-function button(label: string): HTMLButtonElement {
-  return [...host.querySelectorAll('button')].find((item) => item.textContent === label)!;
+function save() {
+  return [...host.querySelectorAll('button')].find((b) =>
+    b.textContent?.includes('Сохранить'),
+  ) as HTMLButtonElement;
 }
-
-describe('AI admin paid operation limit', () => {
-  it('labels the safe zero default as a platform count and disables a paid provider test', async () => {
-    await render(0);
-    const field = host.querySelector<HTMLInputElement>('input[type=number]')!;
-    expect(field.value).toBe('0');
-    expect(field.min).toBe('0');
-    expect(field.step).toBe('1');
-    expect(field.required).toBe(true);
-    expect(host.textContent).toContain('Общий лимит платных ИИ-операций за час');
-    expect(host.textContent).toContain('а не денежный бюджет');
-    expect(host.textContent).toContain('включая проверку подключения');
-    expect(button('Проверить подключение').disabled).toBe(true);
+describe('Compact AI cloud paid quota', () => {
+  it('makes the zero default visible and does not authorize paid inference', async () => {
+    await show(0);
+    const quota = host.querySelector<HTMLInputElement>('input[type=number]')!;
+    expect(quota.value).toBe('0');
+    expect(quota.min).toBe('0');
+    expect(quota.step).toBe('1');
+    expect(save().disabled).toBe(true);
+    const consent = host.querySelector<HTMLInputElement>('input[type=checkbox]:not(:first-child)');
+    expect(host.textContent).toContain('Лимит платных запросов/ч');
+    expect(host.textContent).toContain('задайте лимит больше нуля');
     expect(call).toHaveBeenCalledTimes(1);
+    expect(consent?.checked).not.toBe(true);
   });
-
-  it('includes the explicitly configured count in settings saves without making a paid test', async () => {
-    await render(7);
-    expect(host.querySelector<HTMLInputElement>('input[type=number]')!.value).toBe('7');
+  it('one click can recheck the saved configuration only after consent', async () => {
+    await show(7);
+    expect(save().disabled).toBe(true);
+    const checkbox = [...host.querySelectorAll('label')]
+      .find((x) => x.textContent?.includes('Разрешаю один платный'))!
+      .querySelector('input')!;
+    await act(async () => checkbox.click());
+    expect(save().disabled).toBe(false);
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        provider: 'openai',
+        model: 'gpt-6-luna',
+        configurationVersion: 1,
+        elapsedMs: 450,
+        testedAt: '2026-10-24T00:01:00Z',
+      },
+    });
     await act(async () => {
       host
         .querySelector('form')!
         .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
-    const write = vi.mocked(call).mock.calls.find(([, options]) => options?.method === 'PUT');
-    expect(JSON.parse(String(write?.[1]?.body))).toMatchObject({ paidOperationsPerHour: 7 });
-    expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/ai/test', {
+      method: 'POST',
+      body: JSON.stringify({ acknowledgePaidRequest: true, configurationVersion: 1 }),
+    });
+    expect(host.textContent).toContain('Подключено · OpenAI · 0.5 с');
   });
 });

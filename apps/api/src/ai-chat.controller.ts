@@ -16,7 +16,13 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { isAiModel } from './ai-model-catalog.js';
-import { AiChatService, AiServiceError, type AiCursor, type AiModel } from './ai-chat.service.js';
+import { OLLAMA_SELECTION } from './ai-ollama.js';
+import {
+  AiChatService,
+  AiServiceError,
+  type AiCursor,
+  type AiChatModel,
+} from './ai-chat.service.js';
 import { AiAccessService, aiRequestActor, aiSeatSelector } from './ai-access.service.js';
 import type { SeatContextUseCase } from './seat-context.js';
 import { TOKENS } from './tokens.js';
@@ -273,7 +279,7 @@ export class AiChatController {
       );
     }
     const model = body['model'];
-    if (model !== undefined && !isAiModel(model)) {
+    if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
     return this.streamResponse(
@@ -282,7 +288,7 @@ export class AiChatController {
       '',
       body['requestId'].toLowerCase(),
       reply,
-      model as AiModel | undefined,
+      model as AiChatModel | undefined,
       body['sourceUserMessageId'].toLowerCase(),
     );
   }
@@ -312,7 +318,7 @@ export class AiChatController {
     const message = body['message'] as string;
     const requestId = (body['requestId'] as string).toLowerCase();
     const model = body['model'];
-    if (model !== undefined && !isAiModel(model)) {
+    if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
 
@@ -322,7 +328,7 @@ export class AiChatController {
       message,
       requestId,
       reply,
-      model as AiModel | undefined,
+      model as AiChatModel | undefined,
     );
   }
 
@@ -332,7 +338,7 @@ export class AiChatController {
     message: string,
     requestId: string,
     reply: FastifyReply,
-    model?: AiModel,
+    model?: AiChatModel,
     sourceId?: string,
   ): Promise<void> {
     reply.hijack();

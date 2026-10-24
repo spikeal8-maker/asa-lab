@@ -43,6 +43,7 @@ import {
   resolveLocalApiOrigin,
 } from './origin-policy.js';
 import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
+import { requestMutationAdmission } from './mutation-session-proof.js';
 import { registerAiAttachmentTransport } from './ai-attachments/transport.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
@@ -441,6 +442,7 @@ export async function createApiApp(
                 sessionDatabase,
                 addressResolution,
                 admission: requestAdmissionDiagnostics.get(request),
+                mutationAdmission: requestMutationAdmission.get(request),
                 ...(databaseTrouble
                   ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
                   : {}),
@@ -456,6 +458,7 @@ export async function createApiApp(
     });
 
     fastify.addHook('onRequest', async (request, reply) => {
+      mutationAbuseProtection.observe(request);
       noteRequestReceipt(request);
       void reply.header('x-request-id', request.id);
       const path = (request.raw.url ?? '/').split('?')[0];

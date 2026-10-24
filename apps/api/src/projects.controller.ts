@@ -48,6 +48,7 @@ import { learningWorkContextForProject, type WorkRow } from './learning-work-con
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 import { safeValidationReason } from './server-diagnostics.js';
 import { throwPublicationError } from './public-projects.errors.js';
+import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
 
 interface ProjectRequestContext {
   readonly tenantId: string;
@@ -137,6 +138,7 @@ export class ProjectsController {
       const seat = await this.seatContext.resolve(token);
       if (!seat || !token)
         throw new HttpException(error('unauthorized', 'no active student session'), 401);
+      noteAuthoritativeMutationSession(request, 'seat-legacy', token);
       return {
         tenantId: seat.tenantId,
         principalId: seat.principalId,
@@ -154,6 +156,7 @@ export class ProjectsController {
     }
     const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (account) {
+      noteAuthoritativeMutationSession(request, 'account', request.cookies[SESSION_COOKIE]);
       return {
         tenantId: account.tenantId,
         principalId: account.principalId,
