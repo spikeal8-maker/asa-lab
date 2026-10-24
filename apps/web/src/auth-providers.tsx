@@ -92,6 +92,7 @@ type ProviderFlow = {
   generation: number;
 } & (
   | { phase: 'pending' }
+  | { phase: 'choice'; profile: { displayName: string | null; username: string | null } }
   | { phase: 'registration'; profile: { displayName: string | null; username: string | null } }
 );
 
@@ -149,7 +150,7 @@ export function SocialAuthButtons({
   const labelId = useId();
 
   useEffect(() => {
-    onRegistrationActiveChange?.(flow?.phase === 'registration');
+    onRegistrationActiveChange?.(flow?.phase === 'choice' || flow?.phase === 'registration');
   }, [flow?.phase, onRegistrationActiveChange]);
   useEffect(() => {
     onFlowActiveChange?.(flow !== null || starting !== null);
@@ -248,7 +249,7 @@ export function SocialAuthButtons({
           setFlow(null);
           setMessage('Не удалось связать способ с текущим аккаунтом. Повторите подтверждение.');
         } else {
-          setFlow({ ...flow, phase: 'registration', profile: result.data.profile });
+          setFlow({ ...flow, phase: 'choice', profile: result.data.profile });
           setMessage(null);
         }
         return;
@@ -331,13 +332,53 @@ export function SocialAuthButtons({
   return (
     <section className="auth-social" aria-labelledby={labelId}>
       <p className="auth-social-label" id={labelId}>
-        {flow?.phase === 'registration'
-          ? `Регистрация через ${SOCIAL_PROVIDER_LABELS[flow.provider]}`
-          : purpose === 'link'
-            ? 'Подтвердить одним способом'
-            : 'Или продолжить через'}
+        {flow?.phase === 'choice'
+          ? `${SOCIAL_PROVIDER_LABELS[flow.provider]} подтверждён`
+          : flow?.phase === 'registration'
+            ? `Регистрация через ${SOCIAL_PROVIDER_LABELS[flow.provider]}`
+            : purpose === 'link'
+              ? 'Подтвердить одним способом'
+              : 'Или продолжить через'}
       </p>
-      {flow?.phase === 'registration' ? (
+      {flow?.phase === 'choice' ? (
+        <div className="auth-social-pending" role="region" aria-label="Выбор аккаунта ASA Lab">
+          <h2>У вас уже есть аккаунт ASA Lab?</h2>
+          <p>Выберите, как продолжить. Новый аккаунт пока не создан.</p>
+          <div className="auth-social-buttons">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                cancel();
+                onUsePassword?.();
+              }}
+            >
+              Войти в существующий аккаунт
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                if (
+                  flow.generation !== generation.current ||
+                  Date.parse(flow.pairing.expiresAt) <= Date.now()
+                )
+                  return;
+                setFlow({ ...flow, phase: 'registration' });
+              }}
+            >
+              Создать новый аккаунт
+            </button>
+          </div>
+          <p>
+            В существующий аккаунт войдите по паролю. После входа подключите{' '}
+            {SOCIAL_PROVIDER_LABELS[flow.provider]} в разделе «Учётная запись» → «Способы входа».
+          </p>
+          <button type="button" className="link-button" onClick={cancel}>
+            Отмена
+          </button>
+        </div>
+      ) : flow?.phase === 'registration' ? (
         <SocialRegistrationForm
           key={flow.pairing.pairingToken}
           flow={flow}
