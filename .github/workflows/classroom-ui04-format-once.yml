@@ -1,0 +1,70 @@
+name: ASA Classroom UI-04 scoped formatter (one-time)
+
+on:
+  push:
+    branches:
+      - codex/classroom-student-ui04-complete-20261024
+
+permissions:
+  contents: write
+
+concurrency:
+  group: classroom-ui04-one-time-formatter
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.event.head_commit.message == 'chore(classroom): trigger UI-04 formatting'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Format only nine UI-04 owned paths and push one commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_ref='refs/heads/codex/classroom-student-ui04-complete-20261024'
+          test "${GITHUB_REF}" = "${expected_ref}"
+          readarray -t paths <<'PATHS'
+          apps/web/src/components/ClassroomGamesSettings.tsx
+          apps/web/src/components/settings-navigation.tsx
+          apps/web/src/components/testing/classroom-profile-completion.spec.ts
+          apps/web/src/components/testing/classroom-student-profile.spec.ts
+          apps/web/src/pages/classroom-student.css
+          apps/web/src/pages/ClassroomStudentPage.tsx
+          e2e/classroom-participants.spec.ts
+          e2e/classroom-profile-completion.spec.ts
+          e2e/classroom-student-profile.spec.ts
+          PATHS
+          pnpm exec prettier --write "${paths[@]}"
+          pnpm exec prettier --check "${paths[@]}"
+          declare -A allow=()
+          for f in "${paths[@]}"; do allow["$f"]=1; done
+          while IFS= read -r changed; do
+            if [[ -n "$changed" && -z "${allow[$changed]+set}" ]]; then
+              echo "Unexpected edited file: $changed" >&2
+              exit 1
+            fi
+          done < <(git diff --name-only)
+          if git diff --quiet; then
+            echo 'No owned formatting changes; no commit'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "${paths[@]}"
+          git diff --cached --check
+          git commit -m 'style(classroom): canonical Prettier for nine UI-04 files'
+          git push origin "HEAD:${expected_ref}"
