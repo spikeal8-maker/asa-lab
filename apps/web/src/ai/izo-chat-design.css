@@ -880,8 +880,8 @@
 
 .asa-ai-layout .chat-composer-dock {
   padding: 6px 24px max(12px, env(safe-area-inset-bottom));
-  /* Reserve the toolbar's height even when the visual viewport is short. */
-  max-height: calc(100% - 52px);
+  /* The main grid already reserves the toolbar row. Limiting this dock to
+   * 100% minus the toolbar again clips the form and partially hides Send. */
   overflow-y: auto;
 }
 

@@ -1287,3 +1287,41 @@ for (const width of [1440, 600, 390, 320]) {
     });
   });
 }
+
+test('AI composer frame and Send stay fully visible at ordinary viewport heights', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 750 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 750 });
+    await expect(page.locator('.chat-start-state h1')).toBeVisible();
+    await expectChatFits(page);
+    const geometry = await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>('.chat-composer-dock')!;
+      const form = document.querySelector<HTMLFormElement>('form.chat-composer')!;
+      const send = document.querySelector<HTMLButtonElement>('.chat-send-button')!;
+      const dockBox = dock.getBoundingClientRect();
+      const formBox = form.getBoundingClientRect();
+      const sendBox = send.getBoundingClientRect();
+      return {
+        dockTop: dockBox.top,
+        dockBottom: dockBox.bottom,
+        formTop: formBox.top,
+        formBottom: formBox.bottom,
+        sendBottom: sendBox.bottom,
+        dockScrollTop: dock.scrollTop,
+        dockScrollHeight: dock.scrollHeight,
+        dockClientHeight: dock.clientHeight,
+      };
+    });
+    // The grid already reserves the toolbar. A second 52px subtraction once
+    // clipped both the rounded composer border and the Send button.
+    expect(geometry.formTop).toBeGreaterThanOrEqual(geometry.dockTop - 1);
+    expect(geometry.formBottom).toBeLessThanOrEqual(geometry.dockBottom + 1);
+    expect(geometry.sendBottom).toBeLessThanOrEqual(geometry.formBottom + 1);
+    expect(geometry.dockScrollTop).toBe(0);
+    expect(geometry.dockScrollHeight).toBeLessThanOrEqual(geometry.dockClientHeight + 1);
+  }
+});
