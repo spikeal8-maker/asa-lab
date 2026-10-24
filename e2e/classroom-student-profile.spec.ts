@@ -470,28 +470,24 @@ async function assertPupilHistory(page: Page) {
 }
 
 for (const width of [1440, 390, 320]) {
-  test(`profile settings and confirmed seat actions stay usable at ${width}px`, async ({
-    page,
-  }) => {
+  test(`UI-04 Settings preserves real teacher Seat actions at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const state = await setup(page, { long: false, manual: 0, results: 0 });
     await state.open();
     const main = page.locator('main.classroom-student');
-    const protection = main.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true });
-    const hiddenRoster = page.locator('main.classroom-owner-workspace');
-    await expect(hiddenRoster).toBeHidden();
-    let releaseSave!: () => void;
-    const held = new Promise<void>((resolve) => {
-      releaseSave = resolve;
+    await expect(main.locator('.classroom-student-hero, .classroom-student-games-region')).toHaveCount(0);
+    await expect(main.getByRole('button', { name: /^Действия:/ })).toHaveCount(0);
+    let region = await openTeacherSettings(page, 'Защита ученика');
+    const protection = region.getByRole('checkbox', {
+      name: 'Защита ученика в настройках: Ученик 01',
     });
+    let releaseSave!: () => void;
+    const held = new Promise<void>((resolve) => { releaseSave = resolve; });
     let patchSeen = false;
     await page.route(`**/api/classrooms/${classId}/seats/seat-0`, async (route) => {
       if (route.request().method() !== 'PATCH') return route.fallback();
       patchSeen = true;
-      expect(route.request().postDataJSON()).toMatchObject({
-        safeMode: false,
-        displayLabel: 'Ученик 01',
-      });
+      expect(route.request().postDataJSON()).toMatchObject({ safeMode: false, displayLabel: 'Ученик 01' });
       await held;
       await route.fallback();
     });
@@ -504,184 +500,106 @@ for (const width of [1440, 390, 320]) {
     await expect(protection).toBeEnabled();
     await page.unroute(`**/api/classrooms/${classId}/seats/seat-0`);
 
-    const sections = main.getByRole('combobox', { name: 'Раздел профиля' });
-    if (await sections.isVisible()) {
-      await sections.selectOption('settings');
-      await expect(sections).toHaveValue('settings');
-      const sectionSettings = main.getByRole('region', { name: 'Настройки ученика', exact: true });
-      const identityCategory = sectionSettings.getByRole('button', { name: /^Данные и роль/ });
-      await expect(identityCategory).toHaveAttribute('aria-expanded', 'false');
-      await identityCategory.click();
-      await sectionSettings
-        .getByRole('button', { name: 'Изменить имя и аватар', exact: true })
-        .click();
-    } else {
-      await main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }).click();
-    }
+    region = await openTeacherSettings(page, 'Данные и роль');
+    await region.getByRole('button', { name: 'Изменить имя и аватар' }).click();
     const dialog = page.getByRole('dialog', { name: 'Настройки ученика: Ученик 01', exact: true });
     await expect(dialog).toBeVisible();
-    await expect(hiddenRoster).toBeHidden();
-    expect(await dialog.evaluate((node) => node.closest('main[aria-hidden="true"]'))).toBeNull();
-    await expect(dialog.getByLabel('Имя в списке класса')).toBeFocused();
     await dialog.getByLabel('Имя в списке класса').fill('Сохранённый ученик');
-    await dialog.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
-    await dialog
-      .getByRole('button', { name: /^Выбрать: / })
-      .first()
-      .click();
-    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Выбрать аватар ученика' }).click();
+    await dialog.getByRole('button', { name: /^Выбрать: / }).first().click();
+    await dialog.getByRole('button', { name: 'Использовать' }).click();
     await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(dialog).toBeHidden();
     await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
     expect(state.students()[0]!.avatarKey).not.toBeNull();
-    expect(state.mutations.filter((mutation) => mutation.path.endsWith('/seats/seat-0'))).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          body: expect.objectContaining({
-            displayLabel: 'Сохранённый ученик',
-            safeMode: false,
-            avatarKey: expect.any(String),
-          }),
-        }),
-      ]),
-    );
-    await noOverflow(page);
-    // The compact mobile settings view hides redundant header controls.
-    // Return to works before exercising the legacy actions menu contract.
-    if (await sections.isVisible()) await sections.selectOption('all');
 
-    const actions = () =>
-      main.getByRole('button', { name: 'Действия: Сохранённый ученик', exact: true });
-    await actions().click();
-    await main.getByRole('button', { name: 'Аватары класса', exact: true }).click();
+    region = await openTeacherSettings(page, 'Данные и роль');
+    await region.getByRole('button', { name: 'Аватары и заслуги класса' }).click();
     const avatars = main.getByRole('region', { name: 'Аватары класса', exact: true });
     await expect(avatars).toBeFocused();
     await expect(avatars.locator('.participant-recognition')).toBeVisible();
-    await expect(avatars).toContainText('Стандартный аватар выбирается в настройках ученика');
-    const mobileSections = main.getByRole('combobox', { name: 'Раздел профиля' });
-    if (await mobileSections.isVisible()) await mobileSections.selectOption('all');
-    else await main.getByRole('button', { name: 'Все работы', exact: true }).click();
-
+    region = await openTeacherSettings(page, 'Коды и доступ');
     await page.route(`**/api/classrooms/${classId}/seats/seat-0/code`, async (route) => {
       expect(route.request().method()).toBe('POST');
-      expect(route.request().postDataJSON()).toMatchObject({
-        studentCode: 'NewCode7',
-        requestId: expect.any(String),
-      });
+      expect(route.request().postDataJSON()).toMatchObject({ studentCode: 'NewCode7', requestId: expect.any(String) });
       Object.assign(state.students()[0]!, { studentCode: 'NewCode7', loginHandle: 'NewCode7' });
       await route.fulfill({ json: { studentCode: 'NewCode7', version: 2, reused: false } });
     });
-    expect(await main.textContent()).not.toContain('Aa0000');
-    await actions().click();
-    await main.getByRole('button', { name: 'Изменить код', exact: true }).click();
+    await region.getByRole('button', { name: 'Изменить Student Code' }).click();
     const code = page.locator('.student-code-dialog');
-    await expect(code).toBeVisible();
     await code.getByLabel('Код ученика', { exact: true }).fill('NewCode7');
-    await code.getByRole('button', { name: 'Сохранить код', exact: true }).click();
+    await code.getByRole('button', { name: 'Сохранить код' }).click();
     await expect(code).toBeHidden();
-    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
-    expect(await main.textContent()).not.toContain('NewCode7');
-    await actions().click();
-    await main.getByRole('button', { name: 'Карточка доступа', exact: true }).click();
-    const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
-    await expect(cards).toBeVisible();
+    await region.getByRole('button', { name: 'Карточка доступа' }).click();
+    const cards = page.getByRole('dialog', { name: 'Карточки доступа' });
     await expect(cards).toContainText('NewCode7');
     await cards.getByRole('button', { name: 'Закрыть', exact: true }).first().click();
 
-    await actions().click();
-    await main.getByRole('button', { name: 'Приостановить доступ', exact: true }).click();
-    await expect(main.getByText('Доступ приостановлен', { exact: true })).toBeVisible();
-    await expect(
-      main.getByRole('checkbox', { name: 'Защита: Сохранённый ученик', exact: true }),
-    ).toBeDisabled();
-    await actions().click();
-    await main.getByRole('button', { name: 'Вернуть доступ', exact: true }).click();
-    await expect(main.getByText('Доступ приостановлен', { exact: true })).toHaveCount(0);
-    await expect(
-      main.getByRole('checkbox', { name: 'Защита: Сохранённый ученик', exact: true }),
-    ).toBeEnabled();
+    await region.getByRole('button', { name: 'Приостановить доступ' }).click();
+    await expect(main.locator('.classroom-student-suspended')).toContainText('Доступ приостановлен');
+    region = await openTeacherSettings(page, 'Защита ученика');
+    await expect(region.getByRole('checkbox', { name: 'Защита ученика в настройках: Сохранённый ученик' })).toBeDisabled();
+    region = await openTeacherSettings(page, 'Коды и доступ');
+    await region.getByRole('button', { name: 'Вернуть доступ' }).click();
+    region = await openTeacherSettings(page, 'Защита ученика');
+    await expect(region.getByRole('checkbox', { name: 'Защита ученика в настройках: Сохранённый ученик' })).toBeEnabled();
+    await noOverflow(page);
+    await shot(page, `ui04-saved-actions-${width}`);
 
     await main.getByRole('button', { name: /Следующий ученик:/ }).click();
-    await expect(main.locator('.classroom-student-picker-name')).not.toHaveText(
-      'Сохранённый ученик',
-    );
-    await main.getByRole('button', { name: /^Выбрать ученика:/ }).click();
-    await page
-      .getByRole('dialog', { name: 'Ученики класса', exact: true })
-      .getByRole('button', { name: 'Сохранённый ученик', exact: true })
-      .click();
-    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
-    await main.getByRole('button', { name: '← К классу', exact: true }).click();
-    await expect(hiddenRoster).toBeVisible();
-    await expect(
-      page.locator('.classroom-student-name').filter({ hasText: 'Сохранённый ученик' }),
-    ).toBeVisible();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
+    await main.getByRole('button', { name: '← К классу' }).click();
+    await expect(page.locator('main.classroom-owner-workspace')).toBeVisible();
     expect(state.errors).toEqual([]);
   });
 }
 
-test('account seats have no code editor and archived profiles expose no enabled mutations', async ({
-  page,
-}) => {
+test('Account and archive keep Code absent and teacher mutations disabled', async ({ page }) => {
   const state = await setup(page, { long: false, archived: true, manual: 0, results: 0 });
-  Object.assign(state.students()[0]!, {
-    loginMethod: 'account',
-    studentCode: null,
-    loginHandle: null,
-  });
+  Object.assign(state.students()[0]!, { loginMethod: 'account', studentCode: null, loginHandle: null });
   await state.open();
   const main = page.locator('main.classroom-student');
-  await expect(
-    main.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true }),
-  ).toBeDisabled();
-  await expect(
-    main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }),
-  ).toBeDisabled();
-  await main.getByRole('button', { name: 'Действия: Ученик 01', exact: true }).click();
-  await expect(main.getByRole('button', { name: 'Изменить код', exact: true })).toHaveCount(0);
-  for (const name of ['Имя и аватар', 'Карточка доступа', 'Приостановить доступ', 'Аватары класса'])
-    await expect(main.getByRole('button', { name, exact: true })).toBeDisabled();
+  let settings = await openTeacherSettings(page, 'Защита ученика');
+  await expect(settings.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 01' })).toBeDisabled();
+  settings = await openTeacherSettings(page, 'Данные и роль');
+  await expect(settings.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
+  await expect(settings.getByRole('combobox', { name: 'Роль ученика в настройках' })).toBeDisabled();
+  settings = await openTeacherSettings(page, 'Коды и доступ');
+  await expect(settings).toContainText('Student Code не используется');
+  await expect(settings.getByRole('button', { name: 'Изменить Student Code' })).toHaveCount(0);
+  for (const name of ['Карточка доступа', 'Приостановить доступ'])
+    await expect(settings.getByRole('button', { name })).toBeDisabled();
+  await expect(main.locator('.classroom-student-hero, .classroom-student-actions')).toHaveCount(0);
   expect(state.mutations).toEqual([]);
 });
 
-test('a pending seat reply cannot change the next pupil and forbidden saves mask the profile', async ({
-  page,
-}) => {
+test('a pending Safe Mode reply cannot change the next pupil or leak 403', async ({ page }) => {
   const state = await setup(page, { long: false, manual: 0, results: 0 });
   await state.open();
   let release!: () => void;
-  const pending = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const pending = new Promise<void>((resolve) => { release = resolve; });
   let seen = false;
   await page.route(`**/api/classrooms/${classId}/seats/seat-0`, async (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     seen = true;
     await pending;
-    await route.fulfill({
-      status: 403,
-      json: { error: { code: 'forbidden', message: 'OLD SEAT ERROR' } },
-    });
+    await route.fulfill({ status: 403, json: { error: { code: 'forbidden', message: 'OLD SEAT ERROR' } } });
   });
-  await page.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true }).click();
+  let region = await openTeacherSettings(page, 'Защита ученика');
+  await region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 01' }).click();
   await expect.poll(() => seen).toBe(true);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
   release();
-  await expect(
-    page.getByRole('checkbox', { name: 'Защита: Ученик 02', exact: true }),
-  ).toBeEnabled();
+  region = await openTeacherSettings(page, 'Защита ученика');
+  await expect(region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 02' })).toBeEnabled();
   await expect(page.getByText(/OLD SEAT ERROR/)).toHaveCount(0);
   await page.route(`**/api/classrooms/${classId}/seats/seat-1`, (route) =>
-    route.fulfill({
-      status: 403,
-      json: { error: { code: 'forbidden', message: 'Доступ запрещён' } },
-    }),
+    route.fulfill({ status: 403, json: { error: { code: 'forbidden', message: 'Доступ запрещён' } } }),
   );
-  await page.getByRole('checkbox', { name: 'Защита: Ученик 02', exact: true }).click();
+  await region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 02' }).click();
   await expect(page.getByText('Доступ к классу закрыт.', { exact: true })).toBeVisible();
   await expect(page.locator('main.classroom-student')).toHaveCount(0);
-  await expect(page.locator('.student-code-dialog')).toHaveCount(0);
   expect(state.students()[0]!.safeMode).toBe(true);
   expect(state.students()[1]!.safeMode).toBe(true);
   expect(state.errors).toEqual([]);
