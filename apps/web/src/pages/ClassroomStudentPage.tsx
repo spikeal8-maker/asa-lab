@@ -30,6 +30,7 @@ import type { ClassroomStudentNavigation } from '../components/classroom-student
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
+import { registerAuxiliarySettingsDraft } from '../components/settings-navigation';
 import '../modules/classroom-mobile.css';
 
 export const BADGE_LABELS: Readonly<Record<string, string>> = {
@@ -170,6 +171,7 @@ export function ClassroomStudentPage({
     setTab(nextTab);
     setSettingsCategory(null);
   };
+  useEffect(() => registerAuxiliarySettingsDraft(() => gamesDirtyRef.current), []);
   useEffect(() => {
     if (!gamesDirty) return;
     const warn = (event: BeforeUnloadEvent) => {
