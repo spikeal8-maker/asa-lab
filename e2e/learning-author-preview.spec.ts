@@ -2004,8 +2004,33 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     const text = targetEditor.getByLabel('Текст блока', { exact: true });
     await text.scrollIntoViewIfNeeded();
     const point = await hitTarget(text, name + ':body:text', false);
+    const pointerTopBefore =
+      name === 'document-native-zoom-200'
+        ? await text.evaluate((element) => element.getBoundingClientRect().top)
+        : null;
     await targetPage.mouse.click(point.x, point.y);
     await expect(text).toBeFocused();
+    if (pointerTopBefore !== null) {
+      // At genuine Chromium 200% zoom a visible middle-of-text pointer click
+      // must not snap a growing textarea's off-screen top under the portal bar.
+      // The earlier keyboard Tab-to-summary reveal remains independently strict.
+      await targetPage.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      const pointerTopAfter = await text.evaluate((element) => element.getBoundingClientRect().top);
+      expect(
+        Math.abs(pointerTopAfter - pointerTopBefore),
+        name + ': pointer focus preserves the visible textarea reading position',
+      ).toBeLessThanOrEqual(24);
+      viewportEvidence.push({
+        stage: name + ':body:pointer-focus-scroll-stability',
+        topBefore: pointerTopBefore,
+        topAfter: pointerTopAfter,
+      });
+    }
     const stickyShell = await targetPage.locator('.portal-header').evaluate((header) => ({
       position: getComputedStyle(header).position,
       top: header.getBoundingClientRect().top,
