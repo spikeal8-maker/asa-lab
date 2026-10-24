@@ -6,6 +6,7 @@ import {
   type SocialAuthProvider,
   type SocialPairing,
 } from './api';
+import { newRegistrationUsername, registrationDisplayName } from './registration-profile';
 
 export const SOCIAL_PROVIDER_LABELS: Readonly<Record<SocialAuthProvider, string>> = {
   max: 'MAX',
@@ -470,7 +471,7 @@ function SocialRegistrationForm({
   onUsePassword?: () => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState(flow.profile.username ?? '');
+  const [username, setUsername] = useState(newRegistrationUsername);
   const [displayName, setDisplayName] = useState(flow.profile.displayName ?? '');
   const [birthDate, setBirthDate] = useState('');
   const [country, setCountry] = useState('RU');
@@ -509,8 +510,8 @@ function SocialRegistrationForm({
       {
         pairingToken: flow.pairing.pairingToken,
         email: email.trim(),
-        username: username.trim().toLowerCase(),
-        displayName: displayName.trim(),
+        username,
+        displayName: registrationDisplayName(displayName),
         birthDate,
         country,
         password,
@@ -522,6 +523,11 @@ function SocialRegistrationForm({
     setBusy(false);
     if (result.ok) {
       onRegistered(result.data);
+      return;
+    }
+    if (result.status === 409 && result.error.code === 'username_taken') {
+      setUsername(newRegistrationUsername());
+      setError('Не удалось завершить регистрацию. Повторите отправку формы.');
       return;
     }
     if (result.status === 0 || result.status >= 500) onUnavailable?.();
@@ -560,17 +566,7 @@ function SocialRegistrationForm({
         value={email}
         onChange={(event) => setEmail(event.target.value)}
       />
-      <label htmlFor={`${id}-username`}>Имя пользователя</label>
-      <input
-        id={`${id}-username`}
-        autoComplete="username"
-        required
-        minLength={3}
-        maxLength={40}
-        disabled={busy}
-        value={username}
-        onChange={(event) => setUsername(event.target.value)}
-      />
+      <p className="field-hint">Почта будет вашим логином.</p>
       <label htmlFor={`${id}-display-name`}>Отображаемое имя</label>
       <input
         id={`${id}-display-name`}

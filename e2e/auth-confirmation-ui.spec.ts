@@ -290,6 +290,18 @@ async function fixture(
       state.signedIn = true;
       return reply(session());
     }
+    if (path === '/api/auth/register') {
+      profile = {
+        ...profile,
+        email: String(body.email),
+        username: String(body.username),
+        displayName: String(body.displayName),
+        birthDate: String(body.birthDate),
+        country: String(body.country),
+      };
+      state.signedIn = true;
+      return reply(session(), 201);
+    }
     if (path === '/api/auth/logout') {
       state.signedIn = false;
       return reply({ ok: true });
@@ -578,7 +590,7 @@ async function releaseHeldRequest(page: Page, body: unknown): Promise<void> {
 }
 
 async function passwordLogin(page: Page, identifier = 'auth-review-account'): Promise<void> {
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill(identifier);
+  await page.getByLabel('Почта или логин', { exact: true }).fill(identifier);
   await page.getByLabel('Пароль', { exact: true }).fill('synthetic-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот' }).focus();
   await page.keyboard.press('Space');
@@ -611,6 +623,8 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Создать через MAX', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('#register-username')).toHaveCount(0);
+    await expect(page.getByText('Почта будет вашим логином.', { exact: true })).toBeVisible();
     await screenshot(page, `register-${width}`);
     state.nextPairing = 'registration_required';
     await page.getByRole('button', { name: 'Создать через MAX', exact: true }).click();
@@ -624,6 +638,9 @@ for (const width of [1440, 1024, 390, 320]) {
       page.getByRole('heading', { name: 'Завершить регистрацию', exact: true }),
     ).toBeVisible();
     await expect(page.locator('.auth-social-registration input[type="date"]')).toHaveValue('');
+    await expect(
+      page.locator('.auth-social-registration input[autocomplete="username"]'),
+    ).toHaveCount(0);
     await screenshot(page, `social-registration-${width}`);
     state.signedIn = true;
     state.policyEnabled = true;
@@ -685,7 +702,7 @@ test('a health update hides the dead button without clearing the password form',
   const state = await fixture(page);
   await visit(page, '/sign-in');
   await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeVisible();
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('kept-identifier');
+  await page.getByLabel('Почта или логин', { exact: true }).fill('kept-identifier');
   state.providers = state.providers.map((entry) =>
     entry.id === 'max' ? { ...entry, available: false, reason: 'invalid_token' } : entry,
   );
@@ -694,9 +711,7 @@ test('a health update hides the dead button without clearing the password form',
   await expect(
     page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
-    'kept-identifier',
-  );
+  await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('kept-identifier');
 });
 
 test('overdue password sign-in links the same account and resumes after server confirmation', async ({
@@ -768,7 +783,6 @@ test('new social registration collects a real birth date and backup password', a
   await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveValue('');
   await expect(page.locator('input#identifier')).toBeHidden();
   await form.getByLabel('Email', { exact: true }).fill('new-account@example.test');
-  await form.getByLabel('Имя пользователя', { exact: true }).fill('new-account');
   await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
   await form.getByLabel('Повторите пароль', { exact: true }).fill('different-password-2026');
@@ -784,7 +798,7 @@ test('new social registration collects a real birth date and backup password', a
     state.requests.find((request) => request.path === '/api/auth/telegram/pairing/register')?.body,
   ).toMatchObject({
     email: 'new-account@example.test',
-    username: 'new-account',
+    username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
     birthDate: '1988-03-01',
     country: 'RU',
     password: 'backup-password-2026',
@@ -817,22 +831,43 @@ test('an unknown social identity can return to its existing password account wit
 }) => {
   const state = await fixture(page, { nextPairing: 'registration_required' });
   await visit(page, '/sign-in');
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
+  await page.getByLabel('Почта или логин', { exact: true }).fill('existing-account');
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
   await page.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
-  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
-    'existing-account',
-  );
+  await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('existing-account');
   await expect(page.locator('.auth-social-registration')).toHaveCount(0);
   expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
 });
 
 for (const width of [1440, 390]) {
+  test(`ordinary account registration uses email without requesting a public handle at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const state = await fixture(page);
+    await visit(page, '/sign-up');
+    await expect(page.locator('#register-username')).toHaveCount(0);
+    await page.getByLabel('Email', { exact: true }).fill('private-registration@example.test');
+    await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+    await page.getByLabel('Пароль', { exact: true }).fill('registration-password-2026');
+    await screenshot(page, `email-registration-${width}`);
+    await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).press('Space');
+    await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+    await expect.poll(() => state.signedIn).toBe(true);
+    const registered = state.requests.filter((request) => request.path === '/api/auth/register');
+    expect(registered).toHaveLength(1);
+    expect(registered[0].body).toMatchObject({
+      email: 'private-registration@example.test',
+      displayName: 'Пользователь',
+      username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
+    });
+  });
+
   test(`MAX account choice preserves existing password login at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
     const state = await fixture(page, { nextPairing: 'registration_required' });
     await visit(page, '/sign-in');
-    await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
+    await page.getByLabel('Почта или логин', { exact: true }).fill('existing-account');
     await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
     const choice = page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true });
     await expect(choice).toContainText('После входа подключите MAX');
@@ -841,7 +876,7 @@ for (const width of [1440, 390]) {
     expect(state.linked.max).toBe(false);
     await screenshot(page, `max-existing-choice-${width}`);
     await choice.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
-    await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
+    await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue(
       'existing-account',
     );
     await passwordLogin(page, 'existing-account');
@@ -871,8 +906,8 @@ for (const width of [1440, 390]) {
     await screenshot(page, `max-new-choice-${width}`);
     await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
     const form = page.locator('.auth-social-registration');
+    await expect(form.locator('input[autocomplete="username"]')).toHaveCount(0);
     await form.getByLabel('Email', { exact: true }).fill('max-new-account@example.test');
-    await form.getByLabel('Имя пользователя', { exact: true }).fill('max-new-account');
     await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
     await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
     await form.getByLabel('Повторите пароль', { exact: true }).fill('backup-password-2026');
@@ -886,7 +921,31 @@ for (const width of [1440, 390]) {
     expect(
       state.requests.filter((request) => request.path === '/api/auth/max/pairing/register'),
     ).toHaveLength(1);
+    expect(
+      state.requests.find((request) => request.path === '/api/auth/max/pairing/register')?.body,
+    ).toMatchObject({
+      email: 'max-new-account@example.test',
+      username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
+      displayName: 'Новый участник',
+    });
     expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(0);
+  });
+}
+
+for (const identifier of [
+  'long.account.name.for.layout.review@example.test',
+  'auth-review-account',
+]) {
+  test(`password sign-in keeps existing email or legacy handle: ${identifier}`, async ({
+    page,
+  }) => {
+    const state = await fixture(page);
+    await visit(page, '/sign-in');
+    await passwordLogin(page, identifier);
+    await expect.poll(() => state.signedIn).toBe(true);
+    expect(
+      state.requests.find((request) => request.path === '/api/auth/login')?.body.identifier,
+    ).toBe(identifier);
   });
 }
 
@@ -1096,7 +1155,7 @@ test('a stalled pairing start can be cancelled and its late success is ignored',
   const state = await fixture(page);
   await holdAuthRequest(page, '/api/auth/max/pairing/start', 'POST');
   await visit(page, '/sign-in');
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('kept-account');
+  await page.getByLabel('Почта или логин', { exact: true }).fill('kept-account');
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
   await expect.poll(() => heldRequests(page)).toBe(1);
   await page.getByRole('button', { name: 'Отмена', exact: true }).click();
@@ -1106,9 +1165,7 @@ test('a stalled pairing start can be cancelled and its late success is ignored',
     expiresAt: new Date(Date.now() + 600_000).toISOString(),
   });
   await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeEnabled();
-  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
-    'kept-account',
-  );
+  await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('kept-account');
   await expect(page.locator('.auth-social-pending')).toHaveCount(0);
   expect(
     state.requests.filter((request) => request.path.endsWith('/pairing/complete')),
@@ -1150,7 +1207,6 @@ test('a stalled registration can return to password login without accepting its 
   await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
   const form = page.locator('.auth-social-registration');
   await form.getByLabel('Email', { exact: true }).fill('new-account@example.test');
-  await form.getByLabel('Имя пользователя', { exact: true }).fill('new-account');
   await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
   await form.getByLabel('Повторите пароль', { exact: true }).fill('backup-password-2026');
@@ -1265,7 +1321,6 @@ test('password sign-in cancels the pending social attempt and ignores its late a
 
 async function submitRegistration(page: Page): Promise<void> {
   await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
   await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
@@ -1350,7 +1405,6 @@ test('registration timeout retains unknown-result guidance and does not repeat t
   await visit(page, '/sign-up');
   // Complete the anti-bot interaction normally, then control only the request deadline.
   await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
   await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
