@@ -319,7 +319,7 @@
   justify-content: center;
   min-width: 44px;
   height: 44px;
-  margin: -13px -3px;
+  margin: 0 -3px;
 }
 .classroom-student .classroom-student-visibility-details > summary {
   display: inline-flex;
@@ -1534,7 +1534,7 @@
   .classroom-student .classroom-student-work-summary {
     grid-column: 1 / -1;
     justify-content: flex-start;
-    min-height: 22px;
+    min-height: 44px;
   }
   .classroom-student .classroom-student-archive-filter {
     justify-self: start;
