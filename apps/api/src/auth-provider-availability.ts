@@ -166,8 +166,8 @@ export interface ProviderAdminUpdateInput {
 }
 
 export interface ProviderRegistrationInput {
-  readonly email: unknown;
-  readonly password: unknown;
+  readonly email?: unknown;
+  readonly password?: unknown;
   readonly username: unknown;
   readonly displayName: unknown;
   readonly birthDate: unknown;

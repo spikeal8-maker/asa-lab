@@ -81,6 +81,54 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-e11-psu-native-test
+    parent_lane: electronics
+    worktree_id: electronics-e11-psu-native-20261024
+    owned_paths:
+      - e2e/electronics-selection-outline.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
+    task:
+      id: TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001
+      issue: 549
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: low
+      semantic_change: 'no'
+      checkpoint: selected_one_author_test_only_psu_pointer_oracle
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner 2026-10-24 explicitly selected a separate one-author E11 test-only
+        native PSU click correction to unblock #549/#731 after real 1440/390/320
+        physical mouse baseline and source review. Keep full Save/CAS and 30s deadline.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
+        - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
+      repair_scope: >-
+        Apply only SHA256-verified D2-R2 native PSU patch to original E11 physical
+        click (true false true). Use page.mouse move/down/up at real boundingBox:
+        visible wire intercepts locator.click before pointer dispatch. No force,
+        element.click, browser error suppression, stubs or timeout inflation;
+        no Stage/Worker/Save/Auth changes. Preserve distinct overlapping
+        historical #729 and product #731 PRs. Publish test-only branch from main.
+        Full E11 with real Chromium 1440/390/320, independent review and CI
+        required for acceptance.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-browser-partition-722
     parent_lane: electronics
     worktree_id: electronics-browser-partition-722
@@ -2952,46 +3000,41 @@ parallel_lanes:
       - e2e/classroom-profile-completion.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     task:
-      id: TASK-TEACHER-STUDENT-PROFILE-UI-589
-      issue: 589
+      id: TASK-TEACHER-STUDENT-PROFILE-UI-734
+      issue: 734
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: ui02_integrated_main_54d6585_ui03_settings_categories_selected
+      checkpoint: ui03_merged_main_292dc974_ui04a_games_embedded_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner 2026-10-18 Issue 589, expanded by explicit 2026-10-24 product direction
-        Issue 715 comment 6384209463 and Issue 589 comment 6384219085.
-        UI-01 integrated in main at 75b579157f40220f668b2972cf38800460da8c28
-        from source f1c29ab6eec1bd71270980201187cb6b441724bf.
-        UI-02 integrated as main 54d6585909091494d7b348a3f97e0cf1c94233a9
-        from source b913f0bfaef9d0e002f4afbc35f8b8c2911cbb2d after
-        six SUCCESS workflow checks and exact-SHA independent review.
-        Select UI-03 functional four-category student settings in the ninth
-        tab, relying on existing authorized seat/class/game API operations;
-        never deploy or modify school data.
+        Owner Issue #734 and comment 6387720711 (2026-10-24) explicitly authorizes
+        UI-04A then separately reviewed UI-04B and UI-04C in the teacher-facing
+        student profile only. UI-03 PR #733 source
+        0779aa66aeb132c57d41b1fde8f5d5e67b72925f was integrated in main
+        as 292dc97412066104c8f774b95954bb52192f6ce4. UI-04A is the
+        currently selected games-editor relocation; code, CI, review and main
+        acceptance are not claimed by this governance selection.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
         - https://github.com/spikeal8-maker/asa-lab/issues/715#issuecomment-6384209463
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6384219085
         - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+        - https://github.com/spikeal8-maker/asa-lab/issues/734
+        - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
       scope: >-
-        UI-03 selected bounded product slice after UI-02 main acceptance:
-        replace the temporary ninth-tab settings entry with four compact
-        real categories for profile/role/avatars, Student Code/access,
-        seat protection and per-student game access. Reuse existing
-        seatActions and participantsApi authorization/commands, and existing
-        ClassroomGamesSettings; one active editor at a time, honest disabled
-        and retry states, no decorative toggles, preserve unsaved panel state.
-        Preserve all eight prior sections and accepted IdentityRail/SectionRail,
-        grades/history and works/paging; avoid global auth and game backend.
-        UI-04 may remove duplicate permanent panels and relocate remaining
-        summary controls in a separate reviewed slice.
+        UI-04A (first bounded slice) selected after accepted UI-03 PR #733:
+        embed the existing single ClassroomGamesSettings editor exclusively in
+        Settings / Игровые разрешения, remove its always-mounted legacy region
+        and scroll workaround, preserve class-level consumer, dirty/navigation
+        protection, version/409/readback and Seat isolation. Do not start
+        UI-04B or UI-04C in this executor slice until separate acceptance.
+        Follow Issue #734 and preserve unrelated parallel lanes.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
@@ -6455,7 +6498,7 @@ parallel_lanes:
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
       - migrations/0238_project_publication_editorial.sql
-      - migrations/0241_project_publication_pins.sql
+      - migrations/0242_project_publication_pins.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
@@ -6464,24 +6507,29 @@ parallel_lanes:
     task:
       id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
       issue: 702
-      branch: main
+      branch: codex/projects-pin-20261023
       base_branch: main
-      pr: null
-      pr_draft: false
+      pr: 704
+      pr_draft: true
       status: in_progress
-      checkpoint: pins_0241_reactivated_after_courses_705_merge
+      checkpoint: restore_migration_sequence_0242_after_published_max_0241
       owner_acceptance: pending
       owner_authorization: >-
-        Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
-        replacement programme to a controller and real author/review/QA subagents, including
-        tested integration into main. Legacy Gallery publication retention is superseded;
-        original Projects, drafts, versions, learning data and personal Collections are protected.
-        No production cleanup or deployment is authorized by this selection.
-        The Public Projects programme controller reselects existing #702 / PR #704
-        after accepted Courses #705 (published migration 0240) and main General CI
-        success on 2026-10-24. Integrate only the existing pinning slice as the
-        next candidate 0241; retain #713 / PR #717 as its blocked successor.
-        No mandatory CI or security waiver, foreign-system edits, or deployment.
+        On 2026-10-24 the owner explicitly reselected bounded pinning migration
+        integration repair for existing PR #704 after published main
+        0241_max_external_only_registration.sql. Do not rewrite pin business SQL.
+        Renumber the unpublished pin migration 0241 to 0242, preserve its SQL
+        bytes and digest, and compose exact full migration-history fixtures with
+        published 0239 Ollama, 0240 Courses and 0241 MAX, without changing their
+        SQL or weakening history validation. Existing reports B1 #713 / Draft
+        PR #717 head 18a79c0db6469bc7b9ecf45b7b53b433de556fed is
+        preserved and not merged; its provisional 0240 will require a new
+        successor after actual #704 integration, anticipated 0243.
+        Run isolated PostgreSQL, applicable native browser, focused and General
+        CI on the final candidate, then separate independent Code/Security
+        acceptance. PR #704 remains SECURITY_ACCEPTANCE_PENDING and Draft with
+        no owner-authorized waiver, Draft removal or merge yet. No production,
+        school DB, unrelated module or 717 branch changes.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -12066,6 +12114,56 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: PROJECTS-704-SECURITY-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: projects
+    task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+    blocks:
+      - technical_acceptance
+      - integration
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - focused_verification
+      - independent_source_review
+      - documentation_update
+    reason: >-
+      Public Projects pinning PR #704 previously passed focused and General CI
+      on HEAD 8835cf2f304a77d86f7b592552c158d8364235e1, but the published
+      MAX 0241 migration invalidates that history. Bounded 0242 migration repair
+      and regression verification are permitted, NOT merge/release/acceptance.
+      A new exact-SHA independent Security verdict and owner-authorized Draft
+      transition/merge are still required. Existing security handoff
+      is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
+      Do not repeat the same review request or waive security. An external review
+      or owner decision is required before pinning integration.
+    evidence: https://github.com/spikeal8-maker/asa-lab/pull/704
+  - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
+    kind: acceptance_blocker
+    lane: projects
+    task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+    blocks:
+      - technical_acceptance
+      - integration
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - documentation_update
+      - focused_verification
+      - independent_source_review
+    reason: >-
+      Incoming report PR #717 at 18a79c0db6469bc7b9ecf45b7b53b433de556fed
+      is a preserved backend-only Draft with local API34/34 and PG16 1/1 evidence.
+      Its provisional migration 0240 conflicts with published Courses 0240.
+      Main also published MAX 0241; pending #704 pins must first become 0242,
+      and only a subsequent report migration can use the then-free successor
+      (anticipated 0243). No B1 merge or migration renumbering until #704
+      integration and independent B1 acceptance.
+    evidence: https://github.com/spikeal8-maker/asa-lab/pull/717
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
     lane: electronics-field-grab

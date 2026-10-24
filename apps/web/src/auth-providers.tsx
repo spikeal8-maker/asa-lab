@@ -289,7 +289,11 @@ export function SocialAuthButtons({
           setFlow(null);
           setMessage('Не удалось связать способ с текущим аккаунтом. Повторите подтверждение.');
         } else {
-          setFlow({ ...flow, phase: 'choice', profile: result.data.profile });
+          setFlow({
+            ...flow,
+            phase: flow.provider === 'max' ? 'registration' : 'choice',
+            profile: result.data.profile,
+          });
           setMessage(null);
         }
         return;
@@ -516,6 +520,7 @@ function SocialRegistrationForm({
   const [country, setCountry] = useState('RU');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const externalOnly = flow.provider === 'max';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
@@ -532,7 +537,7 @@ function SocialRegistrationForm({
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (pending.current) return;
-    if (password.length < 10 || password !== confirmPassword) {
+    if (!externalOnly && (password.length < 10 || password !== confirmPassword)) {
       setError(
         password.length < 10
           ? 'Пароль должен содержать не меньше 10 символов.'
@@ -548,12 +553,11 @@ function SocialRegistrationForm({
       flow.provider,
       {
         pairingToken: flow.pairing.pairingToken,
-        email: email.trim(),
+        ...(!externalOnly ? { email: email.trim(), password } : {}),
         username,
         displayName: registrationDisplayName(displayName),
         birthDate,
         country,
-        password,
       },
       controller.signal,
     );
@@ -575,7 +579,7 @@ function SocialRegistrationForm({
 
   return (
     <form
-      className="auth-social-registration"
+      className={`auth-social-registration${externalOnly ? ' auth-social-registration--max' : ''}`}
       onSubmit={(event) => void submit(event)}
       aria-busy={busy}
     >
@@ -592,20 +596,26 @@ function SocialRegistrationForm({
             onUsePassword();
           }}
         >
-          У меня уже есть аккаунт — войти по паролю
+          {externalOnly ? 'Другой способ входа' : 'У меня уже есть аккаунт — войти по паролю'}
         </button>
       ) : null}
-      <label htmlFor={`${id}-email`}>Email</label>
-      <input
-        id={`${id}-email`}
-        type="email"
-        autoComplete="email"
-        required
-        disabled={busy}
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      <p className="field-hint">Почта будет вашим логином.</p>
+      {!externalOnly ? (
+        <>
+          <label htmlFor={`${id}-email`}>Email</label>
+          <input
+            id={`${id}-email`}
+            type="email"
+            autoComplete="email"
+            required
+            disabled={busy}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <p className="field-hint">Почта будет вашим логином.</p>
+        </>
+      ) : (
+        <p className="field-hint">Вход в этот аккаунт — через MAX. Почта и пароль не нужны.</p>
+      )}
       <label htmlFor={`${id}-display-name`}>Отображаемое имя</label>
       <input
         id={`${id}-display-name`}
@@ -645,31 +655,35 @@ function SocialRegistrationForm({
           </select>
         </div>
       </div>
-      <label htmlFor={`${id}-password`}>Пароль для входа</label>
-      <input
-        id={`${id}-password`}
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
-        disabled={busy}
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
-      <p className="field-hint">
-        Пароль для входа, если мессенджер недоступен. Не меньше 10 символов.
-      </p>
-      <label htmlFor={`${id}-confirm-password`}>Повторите пароль</label>
-      <input
-        id={`${id}-confirm-password`}
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
-        disabled={busy}
-        value={confirmPassword}
-        onChange={(event) => setConfirmPassword(event.target.value)}
-      />
+      {!externalOnly ? (
+        <>
+          <label htmlFor={`${id}-password`}>Пароль для входа</label>
+          <input
+            id={`${id}-password`}
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+            disabled={busy}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <p className="field-hint">
+            Пароль для входа, если мессенджер недоступен. Не меньше 10 символов.
+          </p>
+          <label htmlFor={`${id}-confirm-password`}>Повторите пароль</label>
+          <input
+            id={`${id}-confirm-password`}
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+            disabled={busy}
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
+        </>
+      ) : null}
       <p className="field-hint">
         Личный аккаунт доступен с 18 лет. Подтверждение почты отдельно не требуется.
       </p>
