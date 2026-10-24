@@ -804,11 +804,12 @@
     white-space: nowrap;
   }
   .classroom-student .teacher-profile-grades {
-    grid-template-columns: minmax(0, 1fr);
+    /* Keep the heading and real 44px paging controls on a shared first row. */
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .teacher-profile-grade-paging {
-    grid-column: 1;
-    grid-row: 3;
+    grid-column: 2;
+    grid-row: 1;
   }
   .classroom-student .classroom-student-navrow {
     grid-template-columns: auto minmax(0, 1fr);
