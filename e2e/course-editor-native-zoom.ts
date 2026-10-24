@@ -52,8 +52,23 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
     }
     const ownedContext = context;
     if (ownedContext) {
-      // Playwright Test owns the trace for this persistent context. Do not
-      // stop its recorder or replace its original error during cleanup.
+      // Runner-owned tracing is never stopped here. Keep a bounded receipt
+      // of who owns the recording, then close only the owned browser context.
+      await attempt('trace receipt', () =>
+        writeFile(
+          path.join(evidence, 'native-zoom-trace-ownership.json'),
+          JSON.stringify(
+            {
+              owner: 'Playwright Test',
+              mode: 'retain-on-failure',
+              browser: 'persistent Chromium with MV3 tabs zoom',
+              directTracingCalls: false,
+            },
+            null,
+            2,
+          ) + '\n',
+        ),
+      );
       await attempt('context close', () => ownedContext.close());
     }
     await attempt('owned profile removal', () =>
@@ -104,19 +119,6 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
     // The runner's trace.zip retains screenshots/snapshots for failed native
     // 200% checks, while ordinary CI evidence keeps explicit zoom screenshots.
     await mkdir(evidence, { recursive: true });
-    await writeFile(
-      path.join(evidence, 'native-zoom-trace-ownership.json'),
-      JSON.stringify(
-        {
-          owner: 'Playwright Test',
-          mode: 'retain-on-failure',
-          browser: 'persistent Chromium with MV3 tabs zoom',
-          directTracingCalls: false,
-        },
-        null,
-        2,
-      ) + '\n',
-    );
     // Copy only the run-created author's cookies in memory; no storage-state file.
     await context.addCookies(await sourcePage.context().cookies());
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));

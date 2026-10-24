@@ -12,7 +12,7 @@ interface NativeSession {
 type Outcome = { ok: true } | { ok: false; error: unknown };
 type Fault =
   | 'launch_error'
-  | 'tracing_start_error'
+  | 'evidence_prepare_error'
   | 'cookies_error'
   | 'worker_wait_error'
   | 'control_goto_error'
@@ -20,8 +20,8 @@ type Fault =
   | 'reset_reject'
   | 'reset_wrong_readback'
   | 'reset_pending'
-  | 'trace_stop_error'
-  | 'trace_stop_pending'
+  | 'trace_receipt_error'
+  | 'trace_receipt_pending'
   | 'context_close_error'
   | 'context_close_pending'
   | 'remove_error';
@@ -102,13 +102,12 @@ function harness(options: { faults?: Fault[]; ci?: boolean; ambiguous?: boolean 
   const context = {
     tracing: {
       start: async () => {
-        record('trace.start');
-        fail('tracing_start_error');
+        record('unexpected.runnerTraceStart');
+        throw new Error('Runner owns trace.start: native helper must not start tracing.');
       },
-      stop: async (arg: unknown) => {
-        record('trace.stop', arg);
-        fail('trace_stop_error');
-        if (faults.has('trace_stop_pending')) await pending();
+      stop: async () => {
+        record('unexpected.runnerTraceStop');
+        throw new Error('Runner owns trace.stop: native helper must not stop tracing.');
       },
     },
     addCookies: async (cookies: unknown) => {
@@ -136,8 +135,17 @@ function harness(options: { faults?: Fault[]; ci?: boolean; ambiguous?: boolean 
       record('mkdtemp', prefix);
       return ownedDirectory;
     },
-    mkdir: async (location: string) => record('mkdir', location),
-    writeFile: async (location: string, data: string) => record('writeFile', location, data),
+    mkdir: async (location: string) => {
+      record('mkdir', location);
+      if (location === '/pure-evidence') fail('evidence_prepare_error');
+    },
+    writeFile: async (location: string, data: string) => {
+      if (location.endsWith('/native-zoom-trace-ownership.json')) {
+        record('trace.receipt', location, data);
+        fail('trace_receipt_error');
+        if (faults.has('trace_receipt_pending')) await pending();
+      } else record('writeFile', location, data);
+    },
     rm: async (location: string, args: unknown) => {
       record('rm', location, args);
       fail('remove_error');
@@ -281,8 +289,9 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
     expect(test.zoomCalls()).toEqual([1, 2, 1]);
     expect(test.events.filter(({ name }) => name === 'tabs.getZoom')).toHaveLength(3);
     const names = test.events.map(({ name }) => name);
-    expect(names.lastIndexOf('tabs.getZoom')).toBeLessThan(names.indexOf('trace.stop'));
-    expect(names.indexOf('trace.stop')).toBeLessThan(names.indexOf('context.close'));
+    expect(names.lastIndexOf('tabs.getZoom')).toBeLessThan(names.indexOf('trace.receipt'));
+    expect(names.indexOf('trace.receipt')).toBeLessThan(names.indexOf('context.close'));
+    expect(names.some((name) => name.startsWith('unexpected.runnerTrace'))).toBe(false);
     test.expectOwnedCleanup();
   });
 
@@ -297,7 +306,7 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
   it.each([
     'reset_reject',
     'reset_wrong_readback',
-    'trace_stop_error',
+    'trace_receipt_error',
     'context_close_error',
     'remove_error',
   ] as const)('fails an otherwise successful scenario when cleanup reports %s', async (fault) => {
@@ -315,7 +324,7 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
   it.each([
     'reset_reject',
     'reset_wrong_readback',
-    'trace_stop_error',
+    'trace_receipt_error',
     'context_close_error',
     'remove_error',
   ] as const)('preserves the original scenario error when cleanup reports %s', async (fault) => {
@@ -330,7 +339,7 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
     test.expectOwnedCleanup();
   });
 
-  it.each(['reset_pending', 'trace_stop_pending', 'context_close_pending'] as const)(
+  it.each(['reset_pending', 'trace_receipt_pending', 'context_close_pending'] as const)(
     'bounds unresolved %s, reports failure and still removes the owned profile',
     async (fault) => {
       const test = harness({ faults: [fault] });
@@ -366,7 +375,7 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
   it.each([false, true])(
     'retains all cleanup attempts with multiple faults; primary=%s',
     async (hasPrimary) => {
-      const test = harness({ faults: ['reset_reject', 'trace_stop_error', 'context_close_error'] });
+      const test = harness({ faults: ['reset_reject', 'trace_receipt_error', 'context_close_error'] });
       const original = new Error('original assertion');
       const outcome = await test.run(async (session) => {
         await zoomIn(session);
@@ -378,7 +387,7 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
         expect(error).toBeInstanceOf(AggregateError);
         expect((error as AggregateError).errors).toEqual([
           test.errors.get('reset_reject'),
-          test.errors.get('trace_stop_error'),
+          test.errors.get('trace_receipt_error'),
           test.errors.get('context_close_error'),
         ]);
       }
@@ -387,8 +396,22 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
     },
   );
 
+  it('keeps the runner-owned trace receipt without manual start or stop', async () => {
+    const test = harness();
+    expect(await test.run(zoomIn)).toEqual({ ok: true });
+    const receipts = test.events.filter(({ name }) => name === 'trace.receipt');
+    expect(receipts).toHaveLength(1);
+    expect(JSON.parse(String(receipts[0]!.args[1]))).toMatchObject({
+      owner: 'Playwright Test',
+      mode: 'retain-on-failure',
+      directTracingCalls: false,
+    });
+    expect(test.events.some(({ name }) => name.startsWith('unexpected.runnerTrace'))).toBe(false);
+    test.expectOwnedCleanup();
+  });
+
   it('does not mistake a thrown undefined for a successful scenario', async () => {
-    const test = harness({ faults: ['trace_stop_error'] });
+    const test = harness({ faults: ['trace_receipt_error'] });
     const outcome = await test.run(async (session) => {
       await zoomIn(session);
       throw undefined;
@@ -414,7 +437,7 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
   });
 
   it.each([
-    'tracing_start_error',
+    'evidence_prepare_error',
     'cookies_error',
     'worker_wait_error',
     'control_goto_error',
