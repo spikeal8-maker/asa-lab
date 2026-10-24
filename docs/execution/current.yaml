@@ -6462,26 +6462,28 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-      issue: 702
-      branch: main
+      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
+      branch: codex/public-reports-20261024
       base_branch: main
-      pr: null
-      pr_draft: false
+      pr: 717
+      pr_draft: true
       status: in_progress
-      checkpoint: pins_0241_reactivated_after_courses_705_merge
+      checkpoint: b1_independent_api_and_disposable_pg_preparation_only
       owner_acceptance: pending
       owner_authorization: >-
-        Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
-        replacement programme to a controller and real author/review/QA subagents, including
-        tested integration into main. Legacy Gallery publication retention is superseded;
-        original Projects, drafts, versions, learning data and personal Collections are protected.
-        No production cleanup or deployment is authorized by this selection.
-        The Public Projects programme controller reselects existing #702 / PR #704
-        after accepted Courses #705 (published migration 0240) and main General CI
-        success on 2026-10-24. Integrate only the existing pinning slice as the
-        next candidate 0241; retain #713 / PR #717 as its blocked successor.
-        No mandatory CI or security waiver, foreign-system edits, or deployment.
+        On 2026-10-24 the owner explicitly selected independent B1 #713 / existing PR #717
+        backend verification and bounded API/test hardening, without integrating its
+        provisional 0240 SQL migration or updating unrelated migration history.
+        Predecessor pinning #702 / PR #704 at exact 8835cf2f304a77d86f7b592552c158d8364235e1
+        remains SECURITY_ACCEPTANCE_PENDING, OPEN/DRAFT/NOT_MERGED, and its unpublished
+        0241 pin migration is reserved. The currently published frontier is 0240
+        teacher_home_canonical_read_jit. Report migration numbering will be decided only
+        after #704 acceptance and current-frontier verification; probable successor 0242
+        is not yet assigned. Restrict work to existing B1 controller and own focused
+        tests in existing PR #717, preserving foreign areas and production database.
+        Independent Code/Security review, exact-SHA CI, main integration and deployment
+        remain separate required gates.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -12066,6 +12068,49 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: PROJECTS-704-SECURITY-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: projects
+    task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+    blocks:
+      - technical_acceptance
+      - integration
+      - owner_acceptance
+      - release_claim
+    allows:
+      - independent_source_review
+      - documentation_update
+    reason: >-
+      Public Projects pinning PR #704, exact HEAD 8835cf2f304a77d86f7b592552c158d8364235e1,
+      has successful focused and General CI but lacks distinct Security verdict and
+      required owner-controlled Draft/merge authorization. Existing security handoff
+      is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
+      Do not repeat the same review request or waive security. An external review
+      or owner decision is required before pinning integration.
+    evidence: https://github.com/spikeal8-maker/asa-lab/pull/704
+  - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
+    kind: acceptance_blocker
+    lane: projects
+    task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+    blocks:
+      - technical_acceptance
+      - integration
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - documentation_update
+      - focused_verification
+      - independent_source_review
+    reason: >-
+      Incoming report PR #717 is a backend-only candidate. Its provisional
+      migration 0240 conflicts with published Courses 0240, and predecessor #704
+      pin migration 0241 is not integrated. B1 code and tests may be hardened in
+      the existing Draft branch, including disposable PostgreSQL verification;
+      dependent SQL migration renumbering, final migration history, merging and
+      deployment wait for #704 acceptance and independent B1 review.
+    evidence: https://github.com/spikeal8-maker/asa-lab/pull/717
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
     lane: electronics-field-grab
