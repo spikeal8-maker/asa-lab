@@ -9,8 +9,7 @@ const requests = vi.hoisted(() => ({
 
 vi.mock('./ai-scope-api', () => ({
   createAiScopeCall: () => requests.scope,
-  aiScopeHeaders: (seatId?: string) =>
-    seatId ? { 'x-asa-ai-seat': seatId } : {},
+  aiScopeHeaders: (seatId?: string) => (seatId ? { 'x-asa-ai-seat': seatId } : {}),
 }));
 vi.mock('../session-fetch', () => ({
   fetchWithSessionRefresh: requests.bytes,
@@ -38,7 +37,11 @@ describe('ASA chat uploads and exact request recovery', () => {
       data: { uploadId: UPLOAD, sha256: SHA, state: 'bound' },
     });
     await expect(
-      uploadAiChatFile(draft(), '55555555-5555-4555-8555-555555555555', new AbortController().signal),
+      uploadAiChatFile(
+        draft(),
+        '55555555-5555-4555-8555-555555555555',
+        new AbortController().signal,
+      ),
     ).resolves.toBe(UPLOAD);
     expect(requests.scope).toHaveBeenCalledExactlyOnceWith(
       '/api/ai/attachments',

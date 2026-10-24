@@ -1080,9 +1080,8 @@ export class AiChatService {
           'Не удалось проверить вложения исходного сообщения.',
         );
       effectiveUploads = source.items.map((item: unknown) => {
-        const id = item && typeof item === 'object'
-          ? (item as { uploadId?: unknown }).uploadId
-          : null;
+        const id =
+          item && typeof item === 'object' ? (item as { uploadId?: unknown }).uploadId : null;
         if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))
           throw new AiServiceError(
             'ai_attachment_context_unavailable',

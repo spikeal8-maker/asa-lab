@@ -41,8 +41,11 @@ function mockPool(source?: { items?: readonly { uploadId: string }[]; denied?: b
           { enabled: true, base_url: 'http://127.0.0.1:11434', model: 'ornith:9b', revision: 5 },
         ],
       };
-    if (sql.includes('ai_attachment_begin_message_local') ||
-        sql.includes('ai_text_regenerate_begin_local')) return { rows: [{ admitted: true }] };
+    if (
+      sql.includes('ai_attachment_begin_message_local') ||
+      sql.includes('ai_text_regenerate_begin_local')
+    )
+      return { rows: [{ admitted: true }] };
     if (sql.includes('ai_attachment_source_by_message')) {
       if (source?.denied) throw new Error('AI_SOURCE_DENIED');
       return { rows: [{ value: { items: source?.items ?? [] } }] };
@@ -169,21 +172,33 @@ describe('recovered file context for a new answer variant', () => {
       Buffer.from('void setup(){pinMode(13,INPUT);}\nvoid loop(){}\n'),
     );
     const { pool, sqlCalls } = mockPool({ items: [{ uploadId: UPLOAD }] });
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
-      new Response(JSON.stringify({ message: { content: 'Используйте OUTPUT.' }, done: true }) + '\n'),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({ message: { content: 'Используйте OUTPUT.' }, done: true }) + '\n',
+        ),
     );
     const chat = new AiChatService(pool, { attachments, fetchImpl });
     const result = await chat.sendStream(
-      OWNER, THREAD, '', REQUEST, () => undefined,
-      new AbortController().signal, 'ollama-local', SOURCE,
+      OWNER,
+      THREAD,
+      '',
+      REQUEST,
+      () => undefined,
+      new AbortController().signal,
+      'ollama-local',
+      SOURCE,
     );
     expect(result.replayed).toBe(false);
-    expect(sqlCalls.find((item) => item.sql.includes('ai_attachment_source_by_message'))?.params)
-      .toEqual([OWNER, THREAD, SOURCE]);
+    expect(
+      sqlCalls.find((item) => item.sql.includes('ai_attachment_source_by_message'))?.params,
+    ).toEqual([OWNER, THREAD, SOURCE]);
     expect(sqlCalls.some((item) => item.sql.includes('ai_text_regenerate_begin_local'))).toBe(true);
     expect(sqlCalls.some((item) => item.sql.includes('ai_text_begin_paid'))).toBe(false);
-    expect((attachments.withRead as ReturnType<typeof vi.fn>).mock.calls[0]?.slice(0, 2))
-      .toEqual([OWNER, UPLOAD]);
+    expect((attachments.withRead as ReturnType<typeof vi.fn>).mock.calls[0]?.slice(0, 2)).toEqual([
+      OWNER,
+      UPLOAD,
+    ]);
     const request = JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body)) as {
       messages: Array<{ role: string; content: string }>;
     };
@@ -194,15 +209,24 @@ describe('recovered file context for a new answer variant', () => {
     const pixels = Buffer.from('validated image bytes from private storage');
     const attachments = attachmentService(pixels, 'image');
     const { pool, sqlCalls } = mockPool({ items: [{ uploadId: UPLOAD }] });
-    const fetchImpl = vi.fn<typeof fetch>(async (url) =>
-      new Response(String(url).endsWith('/api/show')
-        ? JSON.stringify({ capabilities: ['completion', 'vision'] })
-        : JSON.stringify({ message: { content: 'Красный светодиод.' }, done: true }) + '\n'),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async (url) =>
+        new Response(
+          String(url).endsWith('/api/show')
+            ? JSON.stringify({ capabilities: ['completion', 'vision'] })
+            : JSON.stringify({ message: { content: 'Красный светодиод.' }, done: true }) + '\n',
+        ),
     );
     const chat = new AiChatService(pool, { attachments, fetchImpl });
     await chat.sendStream(
-      OWNER, THREAD, '', REQUEST, () => undefined,
-      new AbortController().signal, 'ollama-local', SOURCE,
+      OWNER,
+      THREAD,
+      '',
+      REQUEST,
+      () => undefined,
+      new AbortController().signal,
+      'ollama-local',
+      SOURCE,
     );
     const call = fetchImpl.mock.calls.find(([url]) => String(url).endsWith('/api/chat'));
     const payload = JSON.parse(String(call?.[1]?.body)) as {
@@ -219,11 +243,21 @@ describe('recovered file context for a new answer variant', () => {
       attachments: attachmentService(Buffer.from('private')),
       fetchImpl,
     });
-    await expect(chat.sendStream(
-      OWNER, THREAD, '', REQUEST, () => undefined,
-      new AbortController().signal, 'ollama-local', SOURCE,
-    )).rejects.toMatchObject({ code: 'ai_source_not_found', status: 404 });
-    expect(sqlCalls.some((item) => item.sql.includes('ai_text_regenerate_begin_local'))).toBe(false);
+    await expect(
+      chat.sendStream(
+        OWNER,
+        THREAD,
+        '',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+        'ollama-local',
+        SOURCE,
+      ),
+    ).rejects.toMatchObject({ code: 'ai_source_not_found', status: 404 });
+    expect(sqlCalls.some((item) => item.sql.includes('ai_text_regenerate_begin_local'))).toBe(
+      false,
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

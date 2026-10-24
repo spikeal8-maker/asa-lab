@@ -246,7 +246,6 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
   };
 }
 
-
 test('AI composer uploads a real file once and restores the saved attachment after reload', async ({
   page,
 }) => {
@@ -285,9 +284,18 @@ test('AI composer uploads a real file once and restores the saved attachment aft
       json: {
         items: ids.map((requestId) => ({
           requestId,
-          attachments: requestId === fake.requests[0]
-            ? [{ uploadId, fileName: 'sketch.ino', sizeBytes: bytes.length, mediaType: 'text/plain', kind: 'text' }]
-            : [],
+          attachments:
+            requestId === fake.requests[0]
+              ? [
+                  {
+                    uploadId,
+                    fileName: 'sketch.ino',
+                    sizeBytes: bytes.length,
+                    mediaType: 'text/plain',
+                    kind: 'text',
+                  },
+                ]
+              : [],
         })),
       },
     });
