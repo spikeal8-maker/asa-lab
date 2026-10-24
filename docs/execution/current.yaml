@@ -2952,7 +2952,7 @@ parallel_lanes:
       - e2e/classroom-profile-completion.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     task:
-      id: TASK-TEACHER-STUDENT-PROFILE-UI-734-UI04A
+      id: TASK-TEACHER-STUDENT-PROFILE-UI-734
       issue: 734
       branch: main
       base_branch: main
