@@ -1001,11 +1001,41 @@ export function ClassroomStudentPage({
               role="group"
               aria-label="Показатели и фильтры работ"
             >
-              <p className="classroom-student-work-summary" aria-label="Показатели работ ученика">
+              <div className="classroom-student-work-summary" aria-label="Показатели работ ученика">
                 <span>Работ <strong>{metrics.totalWorks}</strong></span>
                 <span>Сдано <strong>{profile.submittedCount}</strong></span>
                 <span>Ждут <strong>{profile.awaitingReview}</strong></span>
-              </p>
+                <details className="classroom-student-visibility-details">
+                  <summary
+                    aria-label="Информация о доступных преподавателю работах"
+                    title="Что видит преподаватель"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.currentTarget.parentElement?.removeAttribute('open');
+                        event.stopPropagation();
+                      }
+                    }}
+                  >
+                    <span className="classroom-student-visibility-icon" aria-hidden="true">i</span>
+                  </summary>
+                  <div className="classroom-student-visibility-popover" role="note">
+                    <strong>Что видит преподаватель</strong>
+                    {works ? (
+                      <p>
+                        {works.visibleWorks < works.totalWorks
+                          ? `Доступно ${works.visibleWorks} из ${works.totalWorks} работ. Остальные личные работы закрыты для преподавателя.`
+                          : `Доступны все ${works.totalWorks} работ ученика.`}
+                      </p>
+                    ) : (
+                      <p>Сведения о доступных работах загружаются.</p>
+                    )}
+                    <p>
+                      На странице показаны только загруженные работы, которые разрешено просматривать.
+                      Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                    </p>
+                  </div>
+                </details>
+              </div>
               <label className="classroom-student-archive-filter">
                 <input
                   type="checkbox"
@@ -1036,12 +1066,6 @@ export function ClassroomStudentPage({
           {onlyAwaiting && works?.hasMore && visible.length > 0 ? (
             <p className="classroom-student-filter-scope" role="note">
               «Ждут»: только загруженные работы. Есть ещё страницы.
-            </p>
-          ) : null}
-          {works && works.visibleWorks < works.totalWorks ? (
-            <p className="participant-visibility-note">
-              Часть личных работ закрыта для преподавателя ({works.visibleWorks} из{' '}
-              {works.totalWorks}).
             </p>
           ) : null}
           {worksError ? (
