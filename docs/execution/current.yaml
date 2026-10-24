@@ -6450,35 +6450,38 @@ parallel_lanes:
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
       - migrations/0238_project_publication_editorial.sql
-      - migrations/0241_project_publication_pins.sql
+      - migrations/0242_project_publication_pins.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-      issue: 713
-      branch: codex/public-reports-20261024
+      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+      issue: 702
+      branch: codex/projects-pin-20261023
       base_branch: main
-      pr: 717
+      pr: 704
       pr_draft: true
       status: in_progress
-      checkpoint: b1_independent_api_and_disposable_pg_preparation_only
+      checkpoint: restore_migration_sequence_0242_after_published_max_0241
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-24 the owner explicitly selected independent B1 #713 / existing PR #717
-        backend verification and bounded API/test hardening, without integrating its
-        provisional 0240 SQL migration or updating unrelated migration history.
-        Predecessor pinning #702 / PR #704 at exact 8835cf2f304a77d86f7b592552c158d8364235e1
-        remains SECURITY_ACCEPTANCE_PENDING, OPEN/DRAFT/NOT_MERGED, and its unpublished
-        0241 pin migration is reserved. The currently published frontier is 0240
-        teacher_home_canonical_read_jit. Report migration numbering will be decided only
-        after #704 acceptance and current-frontier verification; probable successor 0242
-        is not yet assigned. Restrict work to existing B1 controller and own focused
-        tests in existing PR #717, preserving foreign areas and production database.
-        Independent Code/Security review, exact-SHA CI, main integration and deployment
-        remain separate required gates.
+        On 2026-10-24 the owner explicitly reselected bounded pinning migration
+        integration repair for existing PR #704 after published main
+        0241_max_external_only_registration.sql. Do not rewrite pin business SQL.
+        Renumber the unpublished pin migration 0241 to 0242, preserve its SQL
+        bytes and digest, and compose exact full migration-history fixtures with
+        published 0239 Ollama, 0240 Courses and 0241 MAX, without changing their
+        SQL or weakening history validation. Existing reports B1 #713 / Draft
+        PR #717 head 18a79c0db6469bc7b9ecf45b7b53b433de556fed is
+        preserved and not merged; its provisional 0240 will require a new
+        successor after actual #704 integration, anticipated 0243.
+        Run isolated PostgreSQL, applicable native browser, focused and General
+        CI on the final candidate, then separate independent Code/Security
+        acceptance. PR #704 remains SECURITY_ACCEPTANCE_PENDING and Draft with
+        no owner-authorized waiver, Draft removal or merge yet. No production,
+        school DB, unrelated module or 717 branch changes.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -12073,12 +12076,18 @@ blocking:
       - owner_acceptance
       - release_claim
     allows:
+      - bounded_repair
+      - regression_authoring
+      - focused_verification
       - independent_source_review
       - documentation_update
     reason: >-
-      Public Projects pinning PR #704, exact HEAD 8835cf2f304a77d86f7b592552c158d8364235e1,
-      has successful focused and General CI but lacks distinct Security verdict and
-      required owner-controlled Draft/merge authorization. Existing security handoff
+      Public Projects pinning PR #704 previously passed focused and General CI
+      on HEAD 8835cf2f304a77d86f7b592552c158d8364235e1, but the published
+      MAX 0241 migration invalidates that history. Bounded 0242 migration repair
+      and regression verification are permitted, NOT merge/release/acceptance.
+      A new exact-SHA independent Security verdict and owner-authorized Draft
+      transition/merge are still required. Existing security handoff
       is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
       Do not repeat the same review request or waive security. An external review
       or owner decision is required before pinning integration.
@@ -12099,12 +12108,13 @@ blocking:
       - focused_verification
       - independent_source_review
     reason: >-
-      Incoming report PR #717 is a backend-only candidate. Its provisional
-      migration 0240 conflicts with published Courses 0240, and predecessor #704
-      pin migration 0241 is not integrated. B1 code and tests may be hardened in
-      the existing Draft branch, including disposable PostgreSQL verification;
-      dependent SQL migration renumbering, final migration history, merging and
-      deployment wait for #704 acceptance and independent B1 review.
+      Incoming report PR #717 at 18a79c0db6469bc7b9ecf45b7b53b433de556fed
+      is a preserved backend-only Draft with local API34/34 and PG16 1/1 evidence.
+      Its provisional migration 0240 conflicts with published Courses 0240.
+      Main also published MAX 0241; pending #704 pins must first become 0242,
+      and only a subsequent report migration can use the then-free successor
+      (anticipated 0243). No B1 merge or migration renumbering until #704
+      integration and independent B1 acceptance.
     evidence: https://github.com/spikeal8-maker/asa-lab/pull/717
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
