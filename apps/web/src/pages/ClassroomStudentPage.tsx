@@ -345,7 +345,11 @@ export function ClassroomStudentPage({
   );
 
   const navigationRow = (
-    <div className="classroom-student-navrow classroom-student-identity-rail" role="group" aria-label="Ученик и навигация">
+    <div
+      className="classroom-student-navrow classroom-student-identity-rail"
+      role="group"
+      aria-label="Ученик и навигация"
+    >
       <button
         type="button"
         className="classroom-student-back"
@@ -360,7 +364,11 @@ export function ClassroomStudentPage({
         <button
           type="button"
           className="classroom-student-previous"
-          aria-label={navigation ? `Предыдущий ученик: ${navigation.previous.displayLabel}` : 'Предыдущий ученик'}
+          aria-label={
+            navigation
+              ? `Предыдущий ученик: ${navigation.previous.displayLabel}`
+              : 'Предыдущий ученик'
+          }
           title={navigation?.previous.displayLabel}
           disabled={!navigation || navigation.total < 2}
           onClick={() => {
@@ -375,175 +383,192 @@ export function ClassroomStudentPage({
           ) : null}
         </button>
         {activeStudent ? (
-            <div className="classroom-student-heading-row">
-              <div
-                className="classroom-student-picker"
-                ref={learnerPicker}
-                onBlur={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget)) closeLearnerPicker(false);
-                }}
-              >
-                <h1 className="classroom-student-picker-heading">
-                  <button
-                    type="button"
-                    className="classroom-student-person classroom-student-picker-opener"
-                    ref={(element) => {
-                      learnerOpener.current = element;
-                      if (element && focusAfterNavigation.current === seatId) {
-                        focusAfterNavigation.current = null;
-                        element.focus();
-                      }
-                    }}
-                    aria-label={`Выбрать ученика: ${activeStudent.displayLabel}`}
-                    aria-haspopup="dialog"
-                    aria-expanded={learnerPickerOpen}
-                    aria-controls={learnerPickerId}
-                    onClick={() => {
-                      setLearnerSearch('');
-                      setLearnerPickerOpen((open) => !open);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'ArrowDown') {
-                        event.preventDefault();
-                        setLearnerPickerOpen(true);
-                        learnerSearchInput.current?.focus();
-                      }
-                    }}
-                  >
-                    <img
-                      className="classroom-student-avatar"
-                      src={metrics.avatarUrl ?? seatAvatar(activeStudent.id, activeStudent.avatarKey).src}
-                      alt=""
-                      width={48}
-                      height={48}
-                    />
-                    <span className="classroom-student-picker-text">
-                      <span className="classroom-student-picker-name" title={activeStudent.displayLabel}>
-                        {activeStudent.displayLabel}
-                      </span>
-                      <span className="classroom-student-rail-state">
-                        {navigation ? (
-                          <span
-                            className="classroom-student-navigation-position"
-                            aria-label={`Ученик ${navigation.position} из ${navigation.total}`}
-                          >
-                            {navigation.position}/{navigation.total}
-                          </span>
-                        ) : null}
-                        <span
-                          className={activeStudent.status === 'suspended' ? 'classroom-student-suspended' : undefined}
-                        >
-                          {activeStudent.status === 'suspended'
-                            ? 'Доступ приостановлен'
-                            : activeStudent.safeMode
-                              ? 'Защита включена'
-                              : 'Защита выключена'}
-                        </span>
-                      </span>
-                    </span>
-                    <span className="classroom-student-picker-chevron" aria-hidden="true">
-                      ▾
-                    </span>
-                  </button>
-                </h1>
-                {learnerPickerOpen ? (
-                  <div
-                    className="classroom-student-picker-popup"
-                    id={learnerPickerId}
-                    role="dialog"
-                    aria-label="Ученики класса"
-                    onKeyDown={(event) => {
-                      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-                      const controls = Array.from(
-                        event.currentTarget.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
-                          'input, button',
-                        ),
-                      );
-                      const index = controls.indexOf(
-                        event.target as HTMLInputElement | HTMLButtonElement,
-                      );
-                      if (index < 0) return;
-                      // Home/End remain native text-editing keys in the search field.
-                      if (index === 0 && (event.key === 'Home' || event.key === 'End')) return;
+          <div className="classroom-student-heading-row">
+            <div
+              className="classroom-student-picker"
+              ref={learnerPicker}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) closeLearnerPicker(false);
+              }}
+            >
+              <h1 className="classroom-student-picker-heading">
+                <button
+                  type="button"
+                  className="classroom-student-person classroom-student-picker-opener"
+                  ref={(element) => {
+                    learnerOpener.current = element;
+                    if (element && focusAfterNavigation.current === seatId) {
+                      focusAfterNavigation.current = null;
+                      element.focus();
+                    }
+                  }}
+                  aria-label={`Выбрать ученика: ${activeStudent.displayLabel}`}
+                  aria-haspopup="dialog"
+                  aria-expanded={learnerPickerOpen}
+                  aria-controls={learnerPickerId}
+                  onClick={() => {
+                    setLearnerSearch('');
+                    setLearnerPickerOpen((open) => !open);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown') {
                       event.preventDefault();
-                      const next =
-                        event.key === 'Home'
-                          ? 1
-                          : event.key === 'End'
-                            ? controls.length - 1
-                            : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) %
-                              controls.length;
-                      controls[next]?.focus();
-                      controls[next]?.scrollIntoView?.({ block: 'nearest' });
-                    }}
-                  >
-                    <input
-                      ref={learnerSearchInput}
-                      type="search"
-                      aria-label="Найти ученика по имени или фамилии"
-                      placeholder="Имя или фамилия"
-                      value={learnerSearch}
-                      onChange={(event) => setLearnerSearch(event.target.value)}
-                    />
-                    {learnerRosterError ? (
-                      <>
-                        <p role="alert">{learnerRosterError}</p>
-                        <button
-                          type="button"
-                          onClick={() => setLearnerRosterRetry((retry) => retry + 1)}
+                      setLearnerPickerOpen(true);
+                      learnerSearchInput.current?.focus();
+                    }
+                  }}
+                >
+                  <img
+                    className="classroom-student-avatar"
+                    src={
+                      profile?.metrics.avatarUrl ??
+                      seatAvatar(activeStudent.id, activeStudent.avatarKey).src
+                    }
+                    alt=""
+                    width={48}
+                    height={48}
+                  />
+                  <span className="classroom-student-picker-text">
+                    <span
+                      className="classroom-student-picker-name"
+                      title={activeStudent.displayLabel}
+                    >
+                      {activeStudent.displayLabel}
+                    </span>
+                    <span className="classroom-student-rail-state">
+                      {navigation ? (
+                        <span
+                          className="classroom-student-navigation-position"
+                          aria-label={`Ученик ${navigation.position} из ${navigation.total}`}
                         >
-                          Повторить
-                        </button>
-                      </>
-                    ) : learnerRoster?.classroomId !== classroomId ? (
-                      <p role="status">Загружаем учеников…</p>
-                    ) : (
-                      <>
-                        <ul aria-label="Список учеников">
-                          {matchingLearners.map((entry) => (
-                            <li key={entry.id}>
-                              <button
-                                type="button"
-                                aria-current={entry.id === seatId ? 'page' : undefined}
-                                onClick={() => {
-                                  closeLearnerPicker();
-                                  focusAfterNavigation.current = entry.id !== seatId ? entry.id : null;
-                                  onNavigateStudent(entry.id);
-                                }}
-                              >
-                                <img
-                                  src={seatAvatar(entry.id, entry.avatarKey).src}
-                                  alt=""
-                                  width={28}
-                                  height={28}
-                                />
-                                <span>{entry.displayLabel}</span>
-                                {entry.id === seatId ? (
-                                  <span
-                                    className="classroom-student-picker-active"
-                                    aria-label="Текущий ученик"
-                                  >
-                                    ✓
-                                  </span>
-                                ) : null}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                        {matchingLearners.length === 0 ? <p role="status">Ученики не найдены</p> : null}
-                      </>
-                    )}
-                  </div>
-                ) : null}
-              </div>
+                          {navigation.position}/{navigation.total}
+                        </span>
+                      ) : null}
+                      <span
+                        className={
+                          activeStudent.status === 'suspended'
+                            ? 'classroom-student-suspended'
+                            : undefined
+                        }
+                      >
+                        {activeStudent.status === 'suspended'
+                          ? 'Доступ приостановлен'
+                          : activeStudent.safeMode
+                            ? 'Защита включена'
+                            : 'Защита выключена'}
+                      </span>
+                    </span>
+                  </span>
+                  <span className="classroom-student-picker-chevron" aria-hidden="true">
+                    ▾
+                  </span>
+                </button>
+              </h1>
+              {learnerPickerOpen ? (
+                <div
+                  className="classroom-student-picker-popup"
+                  id={learnerPickerId}
+                  role="dialog"
+                  aria-label="Ученики класса"
+                  onKeyDown={(event) => {
+                    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                    const controls = Array.from(
+                      event.currentTarget.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+                        'input, button',
+                      ),
+                    );
+                    const index = controls.indexOf(
+                      event.target as HTMLInputElement | HTMLButtonElement,
+                    );
+                    if (index < 0) return;
+                    // Home/End remain native text-editing keys in the search field.
+                    if (index === 0 && (event.key === 'Home' || event.key === 'End')) return;
+                    event.preventDefault();
+                    const next =
+                      event.key === 'Home'
+                        ? 1
+                        : event.key === 'End'
+                          ? controls.length - 1
+                          : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) %
+                            controls.length;
+                    controls[next]?.focus();
+                    controls[next]?.scrollIntoView?.({ block: 'nearest' });
+                  }}
+                >
+                  <input
+                    ref={learnerSearchInput}
+                    type="search"
+                    aria-label="Найти ученика по имени или фамилии"
+                    placeholder="Имя или фамилия"
+                    value={learnerSearch}
+                    onChange={(event) => setLearnerSearch(event.target.value)}
+                  />
+                  {learnerRosterError ? (
+                    <>
+                      <p role="alert">{learnerRosterError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setLearnerRosterRetry((retry) => retry + 1)}
+                      >
+                        Повторить
+                      </button>
+                    </>
+                  ) : learnerRoster?.classroomId !== classroomId ? (
+                    <p role="status">Загружаем учеников…</p>
+                  ) : (
+                    <>
+                      <ul aria-label="Список учеников">
+                        {matchingLearners.map((entry) => (
+                          <li key={entry.id}>
+                            <button
+                              type="button"
+                              aria-current={entry.id === seatId ? 'page' : undefined}
+                              onClick={() => {
+                                closeLearnerPicker();
+                                focusAfterNavigation.current =
+                                  entry.id !== seatId ? entry.id : null;
+                                onNavigateStudent(entry.id);
+                              }}
+                            >
+                              <img
+                                src={seatAvatar(entry.id, entry.avatarKey).src}
+                                alt=""
+                                width={28}
+                                height={28}
+                              />
+                              <span>{entry.displayLabel}</span>
+                              {entry.id === seatId ? (
+                                <span
+                                  className="classroom-student-picker-active"
+                                  aria-label="Текущий ученик"
+                                >
+                                  ✓
+                                </span>
+                              ) : null}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      {matchingLearners.length === 0 ? (
+                        <p role="status">Ученики не найдены</p>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ) : null}
             </div>
+          </div>
         ) : (
-          <span className="classroom-student-rail-loading" role="status">Загружаем ученика…</span>
+          <span className="classroom-student-rail-loading" role="status">
+            Загружаем ученика…
+          </span>
         )}
         <button
           type="button"
           className="classroom-student-next"
-          aria-label={navigation ? `Следующий ученик: ${navigation.next.displayLabel}` : 'Следующий ученик'}
+          aria-label={
+            navigation ? `Следующий ученик: ${navigation.next.displayLabel}` : 'Следующий ученик'
+          }
           title={navigation?.next.displayLabel}
           disabled={!navigation || navigation.total < 2}
           onClick={() => {
