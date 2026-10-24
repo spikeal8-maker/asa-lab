@@ -50,6 +50,11 @@ export function BlocksEditor({
 }: BlocksEditorProps): JSX.Element {
   const runtimeOrigin = useMemo(configuredRuntimeOrigin, []);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const loadedFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const frameLoadHandlerRef = useRef<{
+    frame: HTMLIFrameElement;
+    onLoad: () => void;
+  } | null>(null);
   const bridgeRef = useRef<BlocksRuntimeBridge | null>(null);
   const homeSavePendingRef = useRef(false);
   const onHomeClickRef = useRef(onHomeClick);
@@ -77,9 +82,23 @@ export function BlocksEditor({
       });
   }, []);
 
-  // Subscribe during commit: an iframe can finish navigating before passive
-  // effects run. Missing that one load event leaves bootstrap waiting forever.
+  // Capture navigation during commit, but defer bootstrap until ancestor layout
+  // effects have established the identity/analytics binding. Keep one early
+  // completion for this exact frame; never forward it to a replacement frame.
   useLayoutEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return undefined;
+    if (loadedFrameRef.current !== frame) loadedFrameRef.current = null;
+    const onLoad = (): void => {
+      loadedFrameRef.current = frame;
+      const handler = frameLoadHandlerRef.current;
+      if (handler?.frame === frame) handler.onLoad();
+    };
+    frame.addEventListener('load', onLoad);
+    return () => frame.removeEventListener('load', onLoad);
+  }, [projectId, recoveryPrincipalKey, attempt, actorKey(telemetryActor)]);
+
+  useEffect(() => {
     if (!runtimeOrigin) return undefined;
     const frame = iframeRef.current;
     if (!frame) return undefined;
@@ -406,7 +425,10 @@ export function BlocksEditor({
     };
 
     window.addEventListener('message', onMessage);
-    frame.addEventListener('load', onLoad);
+    frameLoadHandlerRef.current = { frame, onLoad };
+    // The message listener and current identity-bound tracker must exist before
+    // draining an early load. Retaining completion also supports effect replay.
+    if (loadedFrameRef.current === frame) onLoad();
     return () => {
       activity.dispose();
       disposed = true;
@@ -421,7 +443,7 @@ export function BlocksEditor({
       document.removeEventListener('visibilitychange', noteVisible);
       window.removeEventListener('pageshow', noteVisible);
       window.removeEventListener('online', noteVisible);
-      frame.removeEventListener('load', onLoad);
+      if (frameLoadHandlerRef.current?.onLoad === onLoad) frameLoadHandlerRef.current = null;
       window.removeEventListener('message', onMessage);
       bridge?.stop();
       if (bridgeRef.current === bridge) bridgeRef.current = null;

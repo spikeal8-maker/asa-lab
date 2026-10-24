@@ -220,6 +220,35 @@ describe('BlocksEditor runtime session bootstrap', () => {
     ).toBe('ready');
   });
 
+  it('binds activity after ancestor identity layout even when frame load arrives during commit', async () => {
+    const telemetry: Array<Record<string, unknown>> = [];
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    setTelemetryContext(null, false, 'unknown');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (input, options) => {
+        if (String(input) === '/api/analytics/v2/module-session') {
+          telemetry.push(JSON.parse(options?.body as string) as Record<string, unknown>);
+        }
+        return telemetryResponse(input, options) ?? jsonResponse(session());
+      }),
+    );
+    let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR }, (frame) => {
+      // React runs descendant layout effects before this ancestor identity proof.
+      setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+      postMessage = spyOnPostMessage(frame);
+      frame.dispatchEvent(new Event('load'));
+    });
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(telemetry).toHaveLength(0);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry.filter((event) => event['operation'] === 'start')).toHaveLength(1);
+    expect(telemetry[0]?.['actorExpectation']).toEqual(TELEMETRY_ACTOR);
+  });
+
   it.each(['project', 'principal'] as const)(
     'closes analytics and binds a fresh iframe on %s change',
     async (change: 'project' | 'principal') => {
