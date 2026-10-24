@@ -566,6 +566,9 @@ export function AiChatPage({
     pendingRequest.current = null;
     setPendingMessage(null);
     clearFiles();
+    // Reset both sides of the receipt cache when reselecting this same thread.
+    // Clearing only the rendered chips would keep old IDs marked as loaded.
+    attachmentHistoryScope.current.loaded.clear();
     setHistoryAttachments({});
     setCurrentId(id);
     currentArchived.current = !!(threads.find((thread) => thread.id === id) ?? currentThread)
@@ -623,6 +626,7 @@ export function AiChatPage({
       pendingRequest.current = null;
       setPendingMessage(null);
       if (!preserveAttachments) clearFiles();
+      attachmentHistoryScope.current.loaded.clear();
       setHistoryAttachments({});
       setCurrentId(result.data.id);
       setCurrentThread({
