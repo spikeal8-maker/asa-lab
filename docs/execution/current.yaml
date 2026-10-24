@@ -6457,32 +6457,38 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-      issue: 702
+      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
       branch: main
-      candidate_branch: codex/projects-pin-20261023
+      candidate_branch: codex/public-reports-20261024
       base_branch: main
-      pr: 704
+      pr: 717
       pr_draft: true
       status: in_progress
-      checkpoint: restore_migration_sequence_0242_after_published_max_0241
+      checkpoint: b1_real_http_e2e_isolated_postgresql_only
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-24 the owner explicitly reselected bounded pinning migration
-        integration repair for existing PR #704 after published main
-        0241_max_external_only_registration.sql. Do not rewrite pin business SQL.
-        Renumber the unpublished pin migration 0241 to 0242, preserve its SQL
-        bytes and digest, and compose exact full migration-history fixtures with
-        published 0239 Ollama, 0240 Courses and 0241 MAX, without changing their
-        SQL or weakening history validation. Existing reports B1 #713 / Draft
-        PR #717 head 18a79c0db6469bc7b9ecf45b7b53b433de556fed is
-        preserved and not merged; its provisional 0240 will require a new
-        successor after actual #704 integration, anticipated 0243.
-        Run isolated PostgreSQL, applicable native browser, focused and General
-        CI on the final candidate, then separate independent Code/Security
-        acceptance. PR #704 remains SECURITY_ACCEPTANCE_PENDING and Draft with
-        no owner-authorized waiver, Draft removal or merge yet. No production,
-        school DB, unrelated module or 717 branch changes.
+        On 2026-10-25 the owner selected ONLY Public Projects report intake B1
+        Issue #713 and existing Draft PR #717 for one bounded real HTTP E2E slice.
+        Keep pinning PR #704 frozen at 7035c3873913db897bc9cb8fe70ba8d337434f59:
+        its exact-SHA focused Public Projects CI succeeded, General Code was blocked
+        by foreign e2e/auth-confirmation-ui.spec.ts formatting, and independent
+        Security APPROVE and owner merge permission are absent. Retain the
+        PROJECTS-704-SECURITY-ACCEPTANCE blocker; no merge, waiver or rerun
+        without a material change. Report PR #717 stays OPEN/DRAFT and
+        unmerged at prior HEAD 18a79c0db6469bc7b9ecf45b7b53b433de556fed
+        until bounded B1 HTTP tests are published on that existing branch.
+        Add tests exclusively in Public Projects owned scope for real
+        POST /api/public-projects/:publicationId/reports over a real listener,
+        genuine disposable PostgreSQL 16, supported account/seat fixtures,
+        negative and concurrency cases, safe private receipt and preservation
+        of original Projects/Drafts/Versions; do not modify Identity, Auth,
+        Courses, Scratch, Electronics, AI, workflows, or other modules.
+        Maintain B1 provisional SQL migration 0240 in Draft only; no renumber
+        or merge until #704 has entered main and actual migration frontier is
+        rechecked (expected future B1 successor 0243). B2 #721 and B3 #723
+        remain dependent and may not start or merge yet. No working database,
+        production/school deployment, forced pushes or synthetic reviews.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
