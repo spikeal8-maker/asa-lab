@@ -1195,3 +1195,112 @@
     max-height: 46px;
   }
 }
+
+/* UI-02: the second local row is a working section selector on narrow content.
+   Other pages retain their own navigation. */
+.classroom-student-section-rail {
+  display: none;
+}
+.classroom-student-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+.classroom-student-section-select {
+  display: block;
+  min-width: 0;
+}
+.classroom-student .classroom-student-section-select select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--student-ink);
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 650;
+}
+.classroom-student .classroom-student-section-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: #0a709d;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+.classroom-student .classroom-student-section-action[aria-pressed='true'] {
+  border-color: #0878a4;
+  background: #e8f3f9;
+}
+.classroom-student .classroom-student-section-action:disabled {
+  color: #71818b;
+  cursor: not-allowed;
+}
+.classroom-student-settings-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 0;
+}
+.classroom-student-settings-entry h2 {
+  margin: 0 10px 0 0;
+  font-size: 15px;
+}
+.classroom-student .classroom-student-settings-entry button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 5px 10px;
+  border: 1px solid var(--student-line);
+  border-radius: 7px;
+  background: #fff;
+  color: #0a709d;
+  font-size: 13px;
+  font-weight: 650;
+}
+.classroom-student-settings-entry small {
+  color: #526a78;
+  font-size: 12px;
+}
+@container teacher-profile (max-width: 599px) {
+  .portal-content.classroom-student .classroom-student-section-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 4px;
+    align-items: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    margin: 0 0 6px;
+    padding: 0;
+  }
+  .portal-content.classroom-student .participant-tabs {
+    display: none;
+  }
+}

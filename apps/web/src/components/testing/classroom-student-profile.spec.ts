@@ -1329,12 +1329,27 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   expect(protection!.disabled).toBe(true);
   expect(host.textContent).toContain('39.05');
   const tabs = host.querySelectorAll<HTMLButtonElement>('.participant-tabs button');
-  expect(tabs).toHaveLength(8);
+  expect(tabs).toHaveLength(9);
+  expect(
+    Array.from(
+      host.querySelectorAll<HTMLSelectElement>('select[aria-label="Раздел профиля"] option'),
+    ).map((option) => option.textContent),
+  ).toEqual([
+    'Все работы',
+    'Оценки',
+    'Задания',
+    '3D',
+    'Электроника',
+    'Scratch',
+    'Заслуги',
+    'Активность',
+    'Настройки',
+  ]);
   tabs[0]!.focus();
   await act(async () =>
     tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })),
   );
-  expect(document.activeElement).toBe(tabs[7]);
+  expect(document.activeElement).toBe(tabs[8]);
   await act(async () => {
     const select = host.querySelector<HTMLSelectElement>('[aria-label="Статус работ"]')!;
     select.value = 'awaiting';
