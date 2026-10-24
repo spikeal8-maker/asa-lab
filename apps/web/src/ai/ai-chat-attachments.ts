@@ -71,7 +71,11 @@ export async function uploadAiChatFile(
   if (!reserved.ok) throw new Error(reserved.error.message);
   if (reserved.data.sha256 !== hash)
     throw new Error('Контрольная сумма файла изменилась. Выберите файл заново.');
-  if (reserved.data.state === 'ready') return reserved.data.uploadId;
+  // A lost SSE may arrive after atomic SQL binding. Return the same ID to
+  // its original requestId; the immutable DB manifest enforces same owner,
+  // prompt, order and files without another paid or local provider call.
+  if (reserved.data.state === 'ready' || reserved.data.state === 'bound')
+    return reserved.data.uploadId;
   if (reserved.data.state !== 'reserved')
     throw new Error(
       'Состояние прежней загрузки не подтверждено. Проверьте вложение перед отправкой.',
