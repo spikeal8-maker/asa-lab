@@ -5941,14 +5941,31 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
             const sliderPoint = await locatorCenter(slider);
             const controlHit = await page.evaluate(({ x, y }) => {
               const hit = document.elementFromPoint(x, y);
+              const control = document
+                .elementsFromPoint(x, y)
+                .find(
+                  (element) =>
+                    element.matches('rect.workbench-regulated-supply-power-switch') &&
+                    element.closest('[data-component-id]')?.getAttribute('data-component-id') ===
+                      'cross-psu',
+                );
+              const runtime = control?.closest('.workbench-regulated-supply-runtime');
+              const output = runtime?.getAttribute('data-output-enabled');
               return {
-                slider: !!hit?.closest('.workbench-regulated-supply-power-switch'),
+                top: {
+                  tag: hit?.tagName,
+                  class: hit?.getAttribute('class'),
+                  wire: hit?.getAttribute('data-wire-id'),
+                },
+                slider: !!runtime && (output === 'true' || output === 'false'),
                 component:
-                  hit?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+                  control?.closest('[data-component-id]')?.getAttribute('data-component-id') ??
+                  null,
+                output,
               };
             }, sliderPoint);
             real.journal('psu-slider-hit', { sliderPoint, controlHit });
-            expect(controlHit).toEqual({ slider: true, component: 'cross-psu' });
+            expect(controlHit).toMatchObject({ slider: true, component: 'cross-psu' });
             expected = {
               ...expected,
               components: expected.components.map((component) =>

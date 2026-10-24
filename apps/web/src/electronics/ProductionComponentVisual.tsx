@@ -1103,20 +1103,93 @@ function OwnerPiezoVisual({
   );
 }
 
+function knobPointerRatio(
+  event: ReactPointerEvent<SVGSVGElement>,
+  centerX: number,
+  centerY: number,
+): number | null {
+  const matrix = event.currentTarget.getScreenCTM();
+  if (!matrix) return null;
+  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+  let angle = (Math.atan2(point.y - centerY, point.x - centerX) * 180) / Math.PI;
+  if (angle < 0) angle += 360;
+  let arcAngle = angle;
+  if (angle <= 45) arcAngle = angle + 360;
+  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
+  return (arcAngle - 135) / 270;
+}
 function regulatedSupplyValueFromPointer(
   event: ReactPointerEvent<SVGSVGElement>,
   centerY: number,
   maximum: number,
 ): number | null {
-  const matrix = event.currentTarget.getScreenCTM();
-  if (!matrix) return null;
-  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-  let angle = (Math.atan2(point.y - centerY, point.x - 234) * 180) / Math.PI;
-  if (angle < 0) angle += 360;
-  let arcAngle = angle;
-  if (angle <= 45) arcAngle = angle + 360;
-  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
-  return Math.min(maximum, Math.max(0, ((arcAngle - 135) / 270) * maximum));
+  const ratio = knobPointerRatio(event, 234, centerY);
+  return ratio === null ? null : Math.min(maximum, Math.max(0, ratio * maximum));
+}
+function stopKnobEvent(event: ReactPointerEvent<SVGSVGElement>): void {
+  event.preventDefault();
+  event.stopPropagation();
+}
+function knobDragHandlers<T extends string>(
+  knob: T | null,
+  setKnob: (knob: T | null) => void,
+  update: (event: ReactPointerEvent<SVGSVGElement>, knob: T) => void,
+  supply: boolean,
+) {
+  return {
+    onPointerMove: (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!knob) return;
+      update(event, knob);
+      if (supply) {
+        stopKnobEvent(event);
+      }
+    },
+    onPointerUp: (event: ReactPointerEvent<SVGSVGElement>) => {
+      if (!knob) return;
+      if (!supply) setKnob(null);
+      if (event.currentTarget.hasPointerCapture(event.pointerId))
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      if (supply) {
+        setKnob(null);
+        stopKnobEvent(event);
+      }
+    },
+    onPointerCancel: () => setKnob(null),
+  };
+}
+
+function instrumentPointerDown<T extends string>(
+  event: ReactPointerEvent<SVGSVGElement>,
+  prefix: string | Record<string, string>,
+  power: string,
+  onChange:
+    | ((patch: { outputEnabled?: boolean; waveform?: 'square' | 'sine' | 'triangle' }) => void)
+    | undefined,
+  outputEnabled: boolean,
+  waveforms: boolean,
+  knobs: readonly T[],
+  setKnob: (knob: T | null) => void,
+  update: (event: ReactPointerEvent<SVGSVGElement>, knob: T) => void,
+): void {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const matches = (kind: string) =>
+    target.closest(typeof prefix === 'string' ? prefix + kind : prefix[kind]!);
+  if (matches(power)) onChange?.({ outputEnabled: !outputEnabled });
+  else {
+    const waveform = waveforms
+      ? (['square', 'sine', 'triangle'] as const).find(matches)
+      : undefined;
+    if (waveform) onChange?.({ waveform });
+    else {
+      const knob = knobs.find((kind) => matches(kind + (waveforms ? '' : '-knob')));
+      if (!knob) return;
+      setKnob(knob);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      update(event, knob);
+    }
+  }
+  stopKnobEvent(event);
 }
 
 function OwnerRegulatedPowerSupplyVisual({
@@ -1223,43 +1296,25 @@ function OwnerRegulatedPowerSupplyVisual({
       width={width}
       height={height}
       viewBox="0 0 294 237"
-      preserveAspectRatio="xMidYMid meet"
       pointerEvents="all"
-      onPointerDown={(event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest('.workbench-regulated-supply-power-switch')) {
-          onChange?.({ outputEnabled: !outputEnabled });
-        } else if (target.closest('.workbench-regulated-supply-voltage-knob')) {
-          setDraggingKnob('voltage');
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateKnob(event, 'voltage');
-        } else if (target.closest('.workbench-regulated-supply-current-knob')) {
-          setDraggingKnob('current');
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateKnob(event, 'current');
-        } else {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerMove={(event) => {
-        if (!draggingKnob) return;
-        updateKnob(event, draggingKnob);
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerUp={(event) => {
-        if (!draggingKnob) return;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-        setDraggingKnob(null);
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerCancel={() => setDraggingKnob(null)}
+      onPointerDown={(event) =>
+        instrumentPointerDown(
+          event,
+          {
+            'power-switch': '.workbench-regulated-supply-power-switch',
+            'voltage-knob': '.workbench-regulated-supply-voltage-knob',
+            'current-knob': '.workbench-regulated-supply-current-knob',
+          },
+          'power-switch',
+          onChange,
+          outputEnabled,
+          false,
+          ['voltage', 'current'] as const,
+          setDraggingKnob,
+          updateKnob,
+        )
+      }
+      {...knobDragHandlers(draggingKnob, setDraggingKnob, updateKnob, true)}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
@@ -1270,15 +1325,9 @@ function signalGeneratorValueFromPointer(
   centerY: number,
   kind: 'frequency' | 'amplitude' | 'offset',
 ): number | null {
-  const matrix = event.currentTarget.getScreenCTM();
-  if (!matrix) return null;
-  const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-  let angle = (Math.atan2(point.y - centerY, point.x - 267) * 180) / Math.PI;
-  if (angle < 0) angle += 360;
-  let arcAngle = angle;
-  if (angle <= 45) arcAngle = angle + 360;
-  else if (angle < 135) arcAngle = angle < 90 ? 405 : 135;
-  const ratio = Math.min(1, Math.max(0, (arcAngle - 135) / 270));
+  const rawRatio = knobPointerRatio(event, 267, centerY);
+  if (rawRatio === null) return null;
+  const ratio = Math.min(1, Math.max(0, rawRatio));
   if (kind === 'frequency') return Number((10 ** (ratio * 6)).toPrecision(3));
   if (kind === 'amplitude') return Math.round(ratio * 200) / 20;
   return Math.round((ratio * 10 - 5) * 20) / 20;
@@ -1369,44 +1418,20 @@ function OwnerSignalGeneratorVisual({
       viewBox="0 0 579 405"
       preserveAspectRatio="xMidYMid meet"
       pointerEvents="all"
-      onPointerDown={(event) => {
-        const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (target.closest('.workbench-signal-generator-power')) {
-          onChange?.({ outputEnabled: !outputEnabled });
-        } else if (target.closest('.workbench-signal-generator-square')) {
-          onChange?.({ waveform: 'square' });
-        } else if (target.closest('.workbench-signal-generator-sine')) {
-          onChange?.({ waveform: 'sine' });
-        } else if (target.closest('.workbench-signal-generator-triangle')) {
-          onChange?.({ waveform: 'triangle' });
-        } else {
-          const knob = target.closest('.workbench-signal-generator-frequency')
-            ? 'frequency'
-            : target.closest('.workbench-signal-generator-amplitude')
-              ? 'amplitude'
-              : target.closest('.workbench-signal-generator-offset')
-                ? 'offset'
-                : null;
-          if (!knob) return;
-          setDraggingKnob(knob);
-          event.currentTarget.setPointerCapture(event.pointerId);
-          updateKnob(event, knob);
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-      onPointerMove={(event) => {
-        if (draggingKnob) updateKnob(event, draggingKnob);
-      }}
-      onPointerUp={(event) => {
-        if (!draggingKnob) return;
-        setDraggingKnob(null);
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-          event.currentTarget.releasePointerCapture(event.pointerId);
-        }
-      }}
-      onPointerCancel={() => setDraggingKnob(null)}
+      onPointerDown={(event) =>
+        instrumentPointerDown(
+          event,
+          '.workbench-signal-generator-',
+          'power',
+          onChange,
+          outputEnabled,
+          true,
+          ['frequency', 'amplitude', 'offset'] as const,
+          setDraggingKnob,
+          updateKnob,
+        )
+      }
+      {...knobDragHandlers(draggingKnob, setDraggingKnob, updateKnob, false)}
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );
