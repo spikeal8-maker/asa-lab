@@ -12,6 +12,8 @@ import {
   SocialAuthButtons,
   socialLaunchUrl,
   providerWebhookUrl,
+  AuthProviderStatus,
+  useAuthProviders,
 } from './auth-providers';
 
 vi.mock('./api', () => ({
@@ -42,6 +44,122 @@ const provider = (
   available: boolean,
   reason: AuthProviderAvailability['reason'] = available ? 'ready' : 'invalid_token',
 ): AuthProviderAvailability => ({ id, available, reason, checkedAt: null });
+
+describe('provider discovery availability feedback', () => {
+  let root: Root;
+  let container: HTMLDivElement;
+  function Discovery() {
+    const state = useAuthProviders();
+    return createElement(
+      'div',
+      null,
+      createElement(AuthProviderStatus, {
+        status: state.status,
+        onRetry: () => void state.refresh(),
+      }),
+      createElement(
+        'output',
+        { 'data-testid': 'available' },
+        availableSocialProviders(state.providers)
+          .map((value) => value.id)
+          .join(','),
+      ),
+      createElement('button', { type: 'button', onClick: () => void state.refresh() }, 'Обновить'),
+    );
+  }
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = false;
+  });
+  async function refresh(label: string) {
+    const button = [...container.querySelectorAll('button')].find(
+      (value) => value.textContent === label,
+    )!;
+    await act(async () => button.click());
+  }
+  it('distinguishes an outage from disabled providers, fails closed, and recovers on explicit retry', async () => {
+    vi.mocked(api.authProviders)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { providers: [provider('max', true)] },
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        error: { code: 'unavailable', message: 'PRIVATE_INTERNAL' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { providers: [provider('telegram', true)] },
+      });
+    await act(async () => root.render(createElement(Discovery)));
+    expect(container.querySelector('output')?.textContent).toBe('max');
+    await refresh('Обновить');
+    expect(container.querySelector('output')?.textContent).toBe('');
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Не удалось проверить вход',
+    );
+    expect(container.textContent).not.toContain('PRIVATE_INTERNAL');
+    await refresh('Проверить ещё раз');
+    expect(container.querySelector('output')?.textContent).toBe('telegram');
+    expect(container.querySelector('[role="status"]')).toBeNull();
+  });
+  it('does not label a successful empty or disabled result as a network failure', async () => {
+    vi.mocked(api.authProviders)
+      .mockResolvedValueOnce({ ok: true, status: 200, data: { providers: [] } })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { providers: [provider('max', false)] },
+      });
+    await act(async () => root.render(createElement(Discovery)));
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    await refresh('Обновить');
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('output')?.textContent).toBe('');
+  });
+  it('shows pending discovery and aborts late results on unmount', async () => {
+    let resolve!: (value: Awaited<ReturnType<typeof api.authProviders>>) => void;
+    vi.mocked(api.authProviders).mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    await act(async () => root.render(createElement(Discovery)));
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Проверяем способы входа',
+    );
+    const signal = vi.mocked(api.authProviders).mock.calls[0]![0]!;
+    await act(async () => root.unmount());
+    expect(signal.aborted).toBe(true);
+    await act(async () =>
+      resolve({ ok: true, status: 200, data: { providers: [provider('max', true)] } }),
+    );
+    expect(container.textContent).toBe('');
+  });
+  it('handles a rejected discovery promise without exposing technical details', async () => {
+    vi.mocked(api.authProviders).mockRejectedValueOnce(new Error('PRIVATE_NETWORK_URL'));
+    await act(async () => root.render(createElement(Discovery)));
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      'Войдите по почте и паролю',
+    );
+    expect(container.textContent).not.toContain('PRIVATE_NETWORK_URL');
+  });
+});
 
 describe('confirmed unlinked provider account choice', () => {
   let root: Root | undefined;

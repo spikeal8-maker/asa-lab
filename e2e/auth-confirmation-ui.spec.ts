@@ -611,6 +611,94 @@ async function passwordLogin(page: Page, identifier = 'auth-review-account'): Pr
 }
 
 for (const width of [1440, 1024, 390, 320]) {
+  test(`public landing keeps direct account entry without opening the menu at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    await fixture(page);
+    await visit(page, '/');
+    const header = page.locator('.public-home-header');
+    const login = header.getByRole('button', { name: 'Войти', exact: true });
+    await expect(login).toBeVisible();
+    await expect(login).toBeInViewport();
+    const loginBox = await login.boundingBox();
+    expect(loginBox!.width).toBeGreaterThanOrEqual(44);
+    expect(loginBox!.height).toBeGreaterThanOrEqual(44);
+    const brandBox = await header.locator('.public-home-brand').boundingBox();
+    expect(brandBox!.x + brandBox!.width).toBeLessThanOrEqual(loginBox!.x);
+    const menu = header.locator('.public-home-mobile-menu');
+    if (width <= 1120) {
+      await expect(menu).toHaveJSProperty('open', false);
+      const menuBox = await menu.boundingBox();
+      expect(loginBox!.x + loginBox!.width).toBeLessThanOrEqual(menuBox!.x);
+      await menu.locator('summary').click();
+      await expect(menu.getByRole('link', { name: 'Инструменты', exact: true })).toBeVisible();
+      await expect(
+        menu.getByRole('button', { name: 'Создать аккаунт', exact: true }),
+      ).toBeVisible();
+      await expect(menu.getByRole('button', { name: 'Войти', exact: true })).toHaveCount(0);
+      await menu.locator('summary').click();
+    }
+    const hero = page.locator('.public-home-hero');
+    await expect(hero.getByRole('button', { name: 'Создать аккаунт', exact: true })).toBeVisible();
+    await expect(hero.getByRole('link', { name: 'Смотреть проекты', exact: true })).toHaveAttribute(
+      'href',
+      '#community',
+    );
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`landing-entry-${width}-viewport.png`) });
+    await login.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#\/sign-in$/);
+    await visit(page, '/');
+    await page
+      .locator('.public-home-hero')
+      .getByRole('button', { name: 'Создать аккаунт', exact: true })
+      .click();
+    await expect(page).toHaveURL(/#\/sign-up$/);
+  });
+
+  test(`static landing retains a visible native sign-in link with JavaScript disabled at ${width}px`, async ({
+    browser,
+    baseURL,
+  }) => {
+    if (!baseURL) throw new Error('Auth UI fixture baseURL is required');
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport: { width, height: width < 600 ? 720 : 900 },
+    });
+    try {
+      await context.route('https://st.max.ru/**', (route) => route.abort());
+      const page = await context.newPage();
+      await page.goto(baseURL);
+      const login = page
+        .locator('.seo-fallback .seo-header')
+        .getByRole('link', { name: 'Войти', exact: true });
+      await expect(login).toBeVisible();
+      await expect(login).toBeInViewport();
+      await expect(login).toHaveAttribute('href', '/#/sign-in');
+      const box = await login.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      await expect(
+        page
+          .locator('.seo-fallback .seo-actions')
+          .getByRole('link', { name: 'Создать аккаунт', exact: true }),
+      ).toHaveAttribute('href', '/#/sign-up');
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+        .toBe(true);
+      await page.screenshot({ path: test.info().outputPath(`static-entry-${width}-viewport.png`) });
+      await login.focus();
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(/#\/sign-in$/); // Native route only; SPA authentication needs JS.
+    } finally {
+      await context.close();
+    }
+  });
+
   test(`auth surfaces and long account data fit at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
     const state = await fixture(page);
@@ -618,13 +706,54 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('#login-identifier-hint')).toBeVisible();
+    await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveAttribute(
+      'aria-describedby',
+      /login-identifier-hint/,
+    );
     await screenshot(page, `login-${width}`);
+    state.providersFailure = true;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    const providerError = page.locator('.auth-provider-status');
+    await expect(providerError).toContainText('Не удалось проверить вход через мессенджеры');
+    const providerRetry = providerError.getByRole('button', {
+      name: 'Проверить ещё раз',
+      exact: true,
+    });
+    const retryBox = await providerRetry.boundingBox();
+    expect(retryBox!.height).toBeGreaterThanOrEqual(44);
+    expect(retryBox!.width).toBeGreaterThanOrEqual(44);
+    await screenshot(page, `provider-error-${width}`);
+    state.providersFailure = false;
+    await providerRetry.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeVisible();
+    await expect(providerError).toHaveCount(0);
     await visit(page, '/sign-up');
     await expect(
       page.getByRole('button', { name: 'Создать через MAX', exact: true }),
     ).toBeVisible();
     await expect(page.locator('#register-username')).toHaveCount(0);
     await expect(page.getByText('Почта будет вашим логином.', { exact: true })).toBeVisible();
+    for (const [field, hint] of [
+      ['register-email', 'register-email-hint'],
+      ['register-password', 'register-password-hint'],
+      ['register-birth-date', 'register-age-hint'],
+    ]) {
+      await expect(page.locator(`#${field}`)).toHaveAttribute('aria-describedby', hint);
+      await expect(page.locator(`#${hint}`)).toBeVisible();
+    }
+    const help = page.locator('.auth-field-help');
+    await expect(help).toHaveJSProperty('open', false);
+    const helpBox = await help.locator('summary').boundingBox();
+    expect(helpBox!.height).toBeGreaterThanOrEqual(44);
+    expect(helpBox!.width).toBeGreaterThanOrEqual(44);
+    await help.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(help).toHaveJSProperty('open', true);
+    await expect(help.locator('p')).toContainText('Ученики могут входить по коду класса');
+    await page.keyboard.press('Enter');
+    await expect(help).toHaveJSProperty('open', false);
     await screenshot(page, `register-${width}`);
     state.nextPairing = 'registration_required';
     await page.getByRole('button', { name: 'Создать через MAX', exact: true }).click();
@@ -669,6 +798,46 @@ for (const width of [1440, 1024, 390, 320]) {
     await screenshot(page, `account-methods-${width}`);
   });
 }
+
+for (const route of ['/sign-in', '/sign-up']) {
+  test(`provider-check failure is explained and can retry without clearing credentials on ${route}`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, { providersFailure: true });
+    await visit(page, route);
+    const identifier =
+      route === '/sign-in'
+        ? page.getByLabel('Почта или логин', { exact: true })
+        : page.getByLabel('Email', { exact: true });
+    await identifier.fill('kept@example.test');
+    const status = page.locator('.auth-provider-status');
+    await expect(status).toHaveAttribute('role', 'status');
+    await expect(status).toContainText('Не удалось проверить вход через мессенджеры');
+    await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+    await expect(page.locator('.auth-provider-button')).toHaveCount(0);
+    state.providersFailure = false;
+    await status.getByRole('button', { name: 'Проверить ещё раз', exact: true }).click();
+    await expect(
+      page.getByRole('button', {
+        name: route === '/sign-in' ? 'Войти через MAX' : 'Создать через MAX',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(status).toHaveCount(0);
+    await expect(identifier).toHaveValue('kept@example.test');
+    expect(
+      state.requests.filter((request) => request.path === '/api/auth/providers').length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+}
+
+test('a successful empty provider list does not claim a network failure', async ({ page }) => {
+  await fixture(page, { providers: [] });
+  await visit(page, '/sign-in');
+  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  await expect(page.locator('.auth-provider-status')).toHaveCount(0);
+  await expect(page.locator('.auth-provider-button')).toHaveCount(0);
+});
 
 for (const failure of ['invalid_token', 'delivery_unavailable', 'api_error'] as const) {
   test(`unavailable providers are hidden and password login works: ${failure}`, async ({

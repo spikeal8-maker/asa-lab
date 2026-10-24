@@ -838,13 +838,13 @@
 }
 
 @media (max-width: 1120px) {
-  .public-home-nav,
-  .public-home-header-actions {
+  .public-home-nav {
     display: none;
   }
 
   .public-home-header {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.65rem;
   }
 
   .public-home-mobile-menu {
@@ -960,6 +960,15 @@
 
   .public-home-header {
     min-height: 70px;
+    gap: 0.5rem;
+  }
+
+  .public-home-header-actions .public-home-button-primary {
+    display: none;
+  }
+
+  .public-home-header-actions .public-home-button-quiet {
+    padding: 0.65rem 0.8rem;
   }
 
   .public-home-hero {
