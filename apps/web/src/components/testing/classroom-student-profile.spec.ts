@@ -948,6 +948,14 @@ async function renderProfileActions(actions: SeatActions, seatId = 'seat-a', rev
   );
 }
 
+async function openProfileCategory(category: 'Данные и роль' | 'Коды и доступ' | 'Защита ученика' | 'Игровые разрешения') {
+  if (button('Настройки').getAttribute('aria-pressed') !== 'true') await click('Настройки');
+  const item = [...host.querySelectorAll<HTMLButtonElement>('.classroom-student-settings-category')]
+    .find((entry) => entry.textContent?.startsWith(category));
+  expect(item, category).toBeDefined();
+  if (item?.getAttribute('aria-expanded') !== 'true') await act(async () => item!.click());
+}
+
 it('keeps protection at the confirmed value until save and profile refresh complete', async () => {
   let safeMode = false;
   const read = mockProfilePage(async () => {
@@ -959,7 +967,8 @@ it('keeps protection at the confirmed value until save and profile refresh compl
   const saved = deferred<string | null>();
   const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
   await renderProfileActions(actions);
-  const protection = host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!;
+  await openProfileCategory('Защита ученика');
+  const protection = host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!;
   await act(async () => protection.click());
   expect(actions.onSafeMode).toHaveBeenCalledWith(true);
   expect(protection.checked).toBe(false);
@@ -978,8 +987,9 @@ it.each(['switch', 'logout'] as const)(
     const saved = deferred<string | null>();
     const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
     await renderProfileActions(actions);
+    await openProfileCategory('Защита ученика');
     await act(async () =>
-      host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!.click(),
+      host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!.click(),
     );
     if (boundary === 'switch') await renderProfileActions(actions, 'seat-b');
     else await act(async () => notifySessionLoggedOut());
@@ -989,10 +999,11 @@ it.each(['switch', 'logout'] as const)(
     expect(read).toHaveBeenCalledTimes(calls);
     if (boundary === 'switch') {
       expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
-      expect(host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-b"]')!.checked).toBe(
-        false,
-      );
-    } else expect(host.querySelector('.classroom-student-safety')).toBeNull();
+      await openProfileCategory('Защита ученика');
+      expect(
+        host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-b"]')!.checked,
+      ).toBe(false);
+    } else expect(host.querySelector('.classroom-student-settings-safety')).toBeNull();
   },
 );
 
@@ -1016,15 +1027,18 @@ it('wires settings, credentials, access cards, suspension and the real class ava
   mockProfilePage();
   const actions = profileActions();
   await renderProfileActions(actions);
-  await click('Настройки ученика: seat-a');
-  await click('Изменить код');
+  await openProfileCategory('Данные и роль');
+  await click('Изменить имя и аватар');
+  await openProfileCategory('Коды и доступ');
+  await click('Изменить Student Code');
   await click('Карточка доступа');
   await click('Приостановить доступ');
   expect(actions.onSettings).toHaveBeenCalledTimes(1);
   expect(actions.onCode).toHaveBeenCalledTimes(1);
   expect(actions.onAccessCard).toHaveBeenCalledTimes(1);
   expect(actions.onSuspend).toHaveBeenCalledTimes(1);
-  await click('Аватары класса');
+  await openProfileCategory('Данные и роль');
+  await click('Аватары и заслуги класса');
   const section = host.querySelector<HTMLElement>('section[aria-label="Аватары класса"]')!;
   expect(section).not.toBeNull();
   expect(section.contains(host.querySelector('.participant-recognition'))).toBe(true);
@@ -1056,7 +1070,8 @@ it('blocks suspended teacher avatar writes and uses the teacher endpoint after r
     .mockResolvedValue(ok({}) as Awaited<ReturnType<typeof participantsApi.mutate>>);
   const actions = profileActions();
   await renderProfileActions(actions);
-  expect(button('Аватары класса').disabled).toBe(true);
+  await openProfileCategory('Данные и роль');
+  expect(button('Аватары и заслуги класса').disabled).toBe(true);
   await click('Заслуги');
   for (const label of [
     'Выбрать next',
@@ -1108,12 +1123,13 @@ it.each(['archive', 'suspended', 'pending'] as const)(
       studentCode: false,
     });
     await renderProfileActions(actions);
-    expect(host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!.disabled).toBe(
-      true,
-    );
-    expect(button('Настройки ученика: seat-a').disabled).toBe(true);
+    await openProfileCategory('Защита ученика');
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Защита ученика в настройках: seat-a"]')!.disabled).toBe(true);
+    await openProfileCategory('Данные и роль');
+    expect(button('Изменить имя и аватар').disabled).toBe(true);
+    await openProfileCategory('Коды и доступ');
     expect(button('Карточка доступа').disabled).toBe(true);
-    expect(host.textContent).not.toContain('Изменить код');
+    expect(host.textContent).not.toContain('Изменить Student Code');
     if (mode === 'suspended') {
       expect(button('Вернуть доступ').disabled).toBe(false);
       await click('Вернуть доступ');
@@ -1170,8 +1186,9 @@ it.each(['switch', 'logout'] as const)(
       onNavigateStudent: vi.fn(),
     };
     await act(async () => root.render(createElement(ClassroomStudentPage, props)));
+    await openProfileCategory('Данные и роль');
     await act(async () => {
-      const select = host.querySelector<HTMLSelectElement>('[aria-label="Роль в классе"]')!;
+      const select = host.querySelector<HTMLSelectElement>('[aria-label="Роль ученика в настройках"]')!;
       select.value = 'helper';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
@@ -1193,16 +1210,15 @@ it.each(['switch', 'logout'] as const)(
     expect(read).toHaveBeenCalledTimes(calls);
     if (boundary === 'switch') {
       expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
-      expect(host.querySelector<HTMLSelectElement>('[aria-label="Роль в классе"]')?.value).toBe(
-        'student',
-      );
+      await openProfileCategory('Данные и роль');
+      expect(host.querySelector<HTMLSelectElement>('[aria-label="Роль ученика в настройках"]')?.value).toBe('student');
       await click('Выбрать ученика: seat-b');
       const menu = host.querySelector('[role="dialog"][aria-label="Ученики класса"]')!;
       expect(menu.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
       expect(menu.querySelector('[aria-current="page"] > span')?.textContent).toBe('seat-b');
       expect(menu.textContent).not.toContain('PRIVATE');
     } else {
-      expect(host.querySelector('[aria-label="Роль в классе"]')).toBeNull();
+      expect(host.querySelector('[aria-label="Роль ученика в настройках"]')).toBeNull();
       expect(host.textContent).toContain('Войдите');
     }
   },
@@ -1321,13 +1337,11 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
       ?.getAttribute('title'),
   ).toBe('Иванов Иван Петрович');
   expect(host.querySelectorAll('.classroom-student-navrow button:disabled')).toHaveLength(2);
-  const protection = host.querySelector<HTMLInputElement>(
-    `input[type="checkbox"][aria-label="Защита: ${profile().student.displayLabel}"]`,
-  );
-  expect(protection).not.toBeNull();
-  expect(protection!.checked).toBe(false);
-  expect(protection!.disabled).toBe(true);
-  expect(host.textContent).toContain('39.05');
+  expect(host.querySelector('.classroom-student-hero')).toBeNull();
+  expect(host.querySelector('.teacher-profile-grades')).toBeNull();
+  expect(host.querySelector('.classroom-student-games-region')).toBeNull();
+  expect(host.querySelector('.classroom-student-settings-safety')).toBeNull();
+  expect(host.textContent).toContain('Работ:');
   const tabs = host.querySelectorAll<HTMLButtonElement>('.participant-tabs button');
   expect(tabs).toHaveLength(9);
   expect(
