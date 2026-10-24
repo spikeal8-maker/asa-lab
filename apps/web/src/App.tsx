@@ -109,7 +109,12 @@ const ModuleEditorHost = lazy(() =>
 );
 import { AppBootShell } from './components/AppBootShell';
 import { PageDeliveryBoundary } from './components/PageDeliveryBoundary';
-import { isMaxLaunchLocation, leaveMaxLaunch, readMaxInitData } from './max-auth';
+import {
+  isMaxLaunchLocation,
+  leaveMaxLaunch,
+  readMaxInitData,
+  type MaxBridgeLoadResult,
+} from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
 import { onAccountVerificationRequired } from './auth-verification';
 import './auth-verification.css';
@@ -174,7 +179,11 @@ function publicViewFromHash(): PublicView {
   return PUBLIC_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'entry' };
 }
 
-export function App(): JSX.Element {
+export function App({
+  maxBridgeLoadResult = 'not-required',
+}: {
+  maxBridgeLoadResult?: MaxBridgeLoadResult;
+} = {}): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
   usePresentationSessionLifetime(
     session.kind === 'checking'
@@ -313,7 +322,9 @@ export function App(): JSX.Element {
   const [pendingMaxLink, setPendingMaxLink] = useState<string | null>(null);
   const [maxLaunchMessage, setMaxLaunchMessage] = useState<string | null>(() =>
     isMaxLaunchLocation() && maxLaunchData.current === null
-      ? 'Вернитесь на страницу входа ASA Lab и нажмите «Войти через MAX». В боте останется нажать «Начать».'
+      ? maxBridgeLoadResult === 'failed' || maxBridgeLoadResult === 'timed-out'
+        ? 'Не удалось загрузить SDK MAX. Проверьте подключение и откройте ASA Lab в MAX ещё раз. Вход по почте остаётся доступен.'
+        : 'Вернитесь на страницу входа ASA Lab и нажмите «Войти через MAX». В боте останется нажать «Начать».'
       : null,
   );
 
