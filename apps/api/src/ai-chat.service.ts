@@ -1296,6 +1296,19 @@ export class AiChatService {
         'Исходный вопрос не найден в этом диалоге.',
       );
     }
+    if (message.includes('AI_ATTACHMENT_NOT_READY')) {
+      throw new AiServiceError('ai_attachment_not_ready', 409,
+        'Вложение ещё не готово к отправке или уже использовано.');
+    }
+    if (message.includes('AI_ATTACHMENT_INVALID')) {
+      throw new AiServiceError('ai_attachment_invalid', 400,
+        'Неверное вложение или порядок файлов.');
+    }
+    if (message.includes('AI_ATTACHMENT_QUOTA')) {
+      throw new AiServiceError('ai_attachment_quota', 413,
+        'Превышен разрешённый объём вложений.');
+    }
+
     if (message.includes('AI_THREAD_DENIED')) {
       throw new AiServiceError('ai_thread_not_found', 404, 'Диалог не найден.');
     }
