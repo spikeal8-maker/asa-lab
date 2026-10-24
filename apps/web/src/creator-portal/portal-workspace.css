@@ -445,3 +445,54 @@
     animation-duration: 0s;
   }
 }
+
+/* The VK asset is bundled in the component, so LAN/offline pages keep their logo. */
+.portal-vk-glyph {
+  display: block;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  fill: #0077ff;
+}
+
+.portal-sidebar-help-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.portal-sidebar-help-row > .portal-nav-item {
+  min-width: 0;
+}
+
+.portal-sidebar .portal-sidebar-vk {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  text-decoration: none;
+}
+
+.portal-sidebar .portal-sidebar-vk:hover {
+  background: #eff6ff;
+}
+
+.portal-sidebar .portal-sidebar-vk:focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+
+.portal-sidebar.collapsed .portal-sidebar-help-row {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+}
+
+@media (max-width: 1023px) {
+  .portal-sidebar.collapsed.mobile-open .portal-sidebar-help-row {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    justify-items: stretch;
+  }
+}
