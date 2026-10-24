@@ -1,49 +1,57 @@
+/* The Account/StudentSeat selector only appears for multiple authorized owners.
+ * It shares the model toolbar instead of creating an extra horizontal stripe. */
+.asa-ai-layout .chat-toolbar .chat-scope {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: min(28vw, 240px);
+  margin-inline-start: auto;
+}
+
+.asa-ai-layout .chat-toolbar .chat-scope select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.asa-ai-layout .chat-toolbar .chat-scope select:hover {
+  background: color-mix(in srgb, var(--ai-text) 5%, transparent);
+}
+
+.asa-ai-layout .chat-toolbar .asa-ai-school-scope-label {
+  display: inline-block;
+  max-width: min(22vw, 150px);
+  margin-inline-start: auto;
+  overflow: hidden;
+  color: var(--ai-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ai-chat-scope-state {
-  padding: 24px;
   max-width: 720px;
   margin: 0 auto;
+  padding: 24px;
 }
-.chat-scope {
-  grid-area: scope;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--izo-border, #dbe4ef);
-  font-size: 12px;
-}
-.chat-scope label {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-}
-.chat-scope select {
-  width: min(320px, 100%);
-  min-width: 0;
-  max-width: 100%;
-}
-.chat-scope > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.asa-ai-chat .chat-main:has(.chat-scope) {
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-  grid-template-areas: 'toolbar' 'scope' 'conversation' 'error' 'composer';
-}
-@media (max-width: 390px) {
-  .chat-scope {
-    padding: 8px 10px;
+
+@media (max-width: 600px) {
+  .asa-ai-layout .chat-toolbar .chat-scope {
+    max-width: min(32vw, 156px);
   }
-  .chat-scope label {
-    display: grid;
-    width: 100%;
-  }
-  .chat-scope select {
-    width: 100%;
+
+  .asa-ai-layout .chat-toolbar .chat-scope select {
+    padding-inline: 4px;
+    font-size: 11px;
   }
 }
