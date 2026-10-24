@@ -1250,6 +1250,25 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* Reuse the exact learner media renderer while authoring, including its
+   explicit failure and retry controls; do not invent a second uploader. */
+.lesson-block-edit-preview {
+  max-width: min(100%, 480px);
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #d8e2e9;
+  border-radius: 8px;
+  background: #f7fafc;
+}
+
+.lesson-block-edit-preview > small {
+  display: block;
+  margin-bottom: 6px;
+  color: #516777;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .lesson-block-add {
   display: flex;
   flex-wrap: wrap;
