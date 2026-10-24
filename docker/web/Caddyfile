@@ -86,7 +86,8 @@
 	}
 
 	# Content-hashed build output may be held for a year; nothing else may.
-	# Only direct content-hashed Vite /assets/ filenames are immutable. Stable\n\t# build metadata and nested owner-supplied artwork must never match.
+	# Only direct content-hashed Vite /assets/ filenames are immutable. Stable
+	# build metadata and nested owner-supplied artwork must never match.
 	# The match is on the filename shape AND directory: /assets/ also
 	# carries owner-supplied electronics artwork copied verbatim from public/,
 	# which has no hash and must stay revalidated.
