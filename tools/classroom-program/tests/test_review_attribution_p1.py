@@ -63,11 +63,58 @@ class ReviewOrderingP1(unittest.TestCase):
         with self.assertRaisesRegex(proof.RemoteProofError, "pending"):
             self.call_with_pages([[review(11,"PENDING"),review(10,"APPROVED")]])
 
-    def test_partial_review_ids_are_ambiguous_and_fail_closed(self):
+    def test_partial_review_ids_are_invalid_and_fail_closed(self):
         old = review(10,"APPROVED")
         old.pop("id")
-        with self.assertRaisesRegex(proof.RemoteProofError, "Ambiguous"):
+        with self.assertRaisesRegex(proof.RemoteProofError, "Invalid or missing"):
             self.call_with_pages([[old,review(11,"PENDING")]])
+
+    def test_all_invalid_review_ids_fail_closed_even_when_order_reversed(self):
+        for invalid in (None, 0, -7, "101"):
+            with self.subTest(id=invalid):
+                newer = review(11,"PENDING")
+                older = review(10,"APPROVED")
+                if invalid is None:
+                    newer.pop("id")
+                    older.pop("id")
+                else:
+                    newer["id"] = invalid
+                    older["id"] = invalid - 1 if isinstance(invalid, int) else invalid + "-older"
+                with self.assertRaisesRegex(proof.RemoteProofError, "Invalid or missing"):
+                    self.call_with_pages([[newer,older]])
+
+    def test_negative_security_verdict_blocks_a_standard_task(self):
+        code = {"commit_sha":CODE_SHA,"status":"completed",
+                "has_any_findings":False,"has_unresolved_findings":False}
+        security = {"commit_sha":CODE_SHA,"status":"completed",
+                    "has_any_findings":True,"has_unresolved_findings":True}
+        state = {"code_review":code,"security_review":security}
+        result = {"id":101,"updated_at":"2026-10-24T08:00:00Z",
+                  "user":{"login":"chatgpt-codex-connector[bot]"},
+                  "body":"<!-- codex-review-state:v1 "+json.dumps(state)+" -->"}
+        with self.assertRaisesRegex(proof.RemoteProofError, "security"):
+            self.call_with_pages([[]],comments=[[result]])
+
+    def test_incomplete_security_verdict_blocks_a_standard_task(self):
+        code = {"commit_sha":CODE_SHA,"status":"completed",
+                "has_any_findings":False,"has_unresolved_findings":False}
+        security = {"commit_sha":CODE_SHA,"status":"running",
+                    "has_any_findings":None,"has_unresolved_findings":None}
+        state = {"code_review":code,"security_review":security}
+        result = {"id":102,"updated_at":"2026-10-24T08:01:00Z",
+                  "user":{"login":"chatgpt-codex-connector[bot]"},
+                  "body":"<!-- codex-review-state:v1 "+json.dumps(state)+" -->"}
+        with self.assertRaisesRegex(proof.RemoteProofError, "incomplete"):
+            self.call_with_pages([[]],comments=[[result]])
+
+    def test_clean_security_verdict_accepted_for_standard_task(self):
+        complete = {"commit_sha":CODE_SHA,"status":"completed",
+                    "has_any_findings":False,"has_unresolved_findings":False}
+        state = {"code_review":complete,"security_review":complete}
+        result = {"id":103,"updated_at":"2026-10-24T08:02:00Z",
+                  "user":{"login":"chatgpt-codex-connector[bot]"},
+                  "body":"<!-- codex-review-state:v1 "+json.dumps(state)+" -->"}
+        self.call_with_pages([[]],comments=[[result]])
 
     def test_second_page_pending_blocks_older_approval(self):
         first = [review(1,"APPROVED")] + [

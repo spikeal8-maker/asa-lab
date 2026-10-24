@@ -190,19 +190,17 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     # by submitted_at would incorrectly put it before the older APPROVED.
     # Keep the latest event for every reviewer in API order (including PENDING).
     excluded = {author_login} | set(implementation_authors or ())
-    # GitHub review IDs follow creation, including PENDING which may lack a
-    # submitted_at. Use the highest authenticated review ID for each reviewer,
-    # independent of page/response ordering. Legacy test fixtures without IDs
-    # may use the complete API sequence; mixed real/missing IDs are ambiguous.
-    with_ids = [isinstance(item.get("id"), int) and item["id"] > 0 for item in exact]
-    if with_ids and any(with_ids) and not all(with_ids):
-        raise RemoteProofError("Ambiguous GitHub review timeline: partial IDs")
+    # A GitHub review has a unique positive integer ID even when PENDING
+    # omits submitted_at. Never accept an unverifiable ordering fallback:
+    # missing/negative/string IDs could hide a newer pending or failed review.
+    if any(type(entry.get("id")) is not int or entry["id"] <= 0 for entry in exact):
+        raise RemoteProofError("Invalid or missing authenticated GitHub review ID")
     latest_by_reviewer = {}
-    for index, entry in enumerate(exact):
+    for entry in exact:
         reviewer = (entry.get("user") or {}).get("login")
         if not reviewer:
             raise RemoteProofError("Review has no authenticated GitHub reviewer")
-        order = entry["id"] if with_ids and all(with_ids) else index
+        order = entry["id"]
         previous = latest_by_reviewer.get(reviewer)
         if previous is None or order > previous[0]:
             latest_by_reviewer[reviewer] = (order, entry.get("state"))
@@ -251,7 +249,16 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
         if "chatgpt-codex-connector[bot]" in excluded:
             raise RemoteProofError("Codex code contributor cannot independently review itself")
         _, code, security = latest
-        required = [code] + ([security] if needs_security else [])
+        # Security review may be optional for some task types, but an actual
+        # exact-SHA negative or incomplete security verdict is NEVER optional.
+        # The bot cannot authorize the task with clean code review while its
+        # explicit security finding remains unresolved.
+        if (security.get("has_any_findings") is True
+                or security.get("has_unresolved_findings") is True) and                 security.get("commit_sha") in (None, commit_sha):
+            raise RemoteProofError("Latest exact-SHA Codex security review has findings")
+        required = [code]
+        if needs_security or security.get("commit_sha") == commit_sha:
+            required.append(security)
         if all(
             state.get("commit_sha") == commit_sha
             and state.get("status") == "completed"

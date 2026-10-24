@@ -125,7 +125,7 @@ class RepairRegressionTest(unittest.TestCase):
                     'body':'<!-- codex-review-state:v1 '+json.dumps(state)+' -->'}
         def github(path,token):
             if path.endswith('/reviews?per_page=100'):
-                return [{'commit_id':sha,'state':'APPROVED',
+                return [{'id':11,'commit_id':sha,'state':'APPROVED',
                          'user':{'login':'independent-reviewer'}}]
             if path.endswith('/comments?per_page=100'):
                 # A summary edited later has an earlier creation/id.

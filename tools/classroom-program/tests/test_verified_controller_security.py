@@ -51,7 +51,7 @@ class ClassroomSecurityGateTest(unittest.TestCase):
             return [{"sha": self.sha, "author": {"login": "executor-bot"},
                      "committer": {"login": "executor-bot"}}]
         if path.endswith("/pulls/999/reviews?per_page=100"):
-            return [{"state": "APPROVED", "commit_id": self.sha, "user": {"login": "independent-reviewer"}}]
+            return [{"id": 11, "state": "APPROVED", "commit_id": self.sha, "user": {"login": "independent-reviewer"}}]
         if path.endswith("/issues/999/comments?per_page=100"):
             # The real verifier now checks the latest authenticated Codex verdict
             # even if an independent human approval exists. No Codex comment in
@@ -87,7 +87,7 @@ class ClassroomSecurityGateTest(unittest.TestCase):
     def test_missing_independent_approval_blocks(self):
         def unreviewed(path,tok):
             if path.endswith("/pulls/999/reviews?per_page=100"):
-                return [{"state": "COMMENTED", "commit_id": self.sha, "user": {"login": "executor-bot"}}]
+                return [{"id": 12, "state": "COMMENTED", "commit_id": self.sha, "user": {"login": "executor-bot"}}]
             if path.endswith("/issues/999/comments?per_page=100"):
                 return []
             return self._mock_api(path,tok)
