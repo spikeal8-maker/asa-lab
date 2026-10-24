@@ -1057,8 +1057,43 @@ export class AiChatService {
         throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
     const apiKey = useLocal ? '' : this.requireProviderKey(runtime);
-    const files = attachmentIds.length
-      ? await this.prepareAttachmentInput(principalId, attachmentIds)
+    let effectiveUploads = attachmentIds;
+    if (sourceId && this.attachments) {
+      // A fresh answer to a saved file question must see the SAME source bytes,
+      // not just the text of the original question. Resolve by the immutable
+      // user message identity, never by caller-supplied arbitrary upload IDs.
+      let source: { items?: unknown } | undefined;
+      try {
+        const result = await this.pool.query<{ value: { items?: unknown } }>(
+          'SELECT ai_attachment_source_by_message($1::uuid,$2::uuid,$3::uuid) AS value',
+          [principalId, threadId, sourceId],
+        );
+        source = result.rows[0]?.value;
+      } catch (problem) {
+        this.rethrowTextError(problem);
+        throw problem;
+      }
+      if (!source || !Array.isArray(source.items))
+        throw new AiServiceError(
+          'ai_attachment_context_unavailable',
+          503,
+          'Не удалось проверить вложения исходного сообщения.',
+        );
+      effectiveUploads = source.items.map((item: unknown) => {
+        const id = item && typeof item === 'object'
+          ? (item as { uploadId?: unknown }).uploadId
+          : null;
+        if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id))
+          throw new AiServiceError(
+            'ai_attachment_context_unavailable',
+            503,
+            'Сохранённый список вложений недоступен.',
+          );
+        return id.toLowerCase();
+      });
+    }
+    const files = effectiveUploads.length
+      ? await this.prepareAttachmentInput(principalId, effectiveUploads)
       : null;
     if (files?.images.length) {
       if (!useLocal) {
