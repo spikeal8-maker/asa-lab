@@ -1452,7 +1452,8 @@
 @container teacher-profile (max-width: 599px) {
   .classroom-student .classroom-student-works-head {
     display: block;
-    margin: 0 0 6px;
+    /* A full 44px info hit target needs separation from the 44px section select. */
+    margin: 12px 0 6px;
   }
   .classroom-student .classroom-student-works-head > h2 {
     display: none;
