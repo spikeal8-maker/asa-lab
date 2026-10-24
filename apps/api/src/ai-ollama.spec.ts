@@ -4,6 +4,7 @@ import {
   ollamaBaseUrl,
   validOllamaModel,
   discoverOllama,
+  describeOllamaModel,
   streamOllamaText,
 } from './ai-ollama';
 
@@ -235,5 +236,58 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
       }),
     ).rejects.toMatchObject({ code: 'ai_ollama_url_denied' });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+describe('Ollama actual image capabilities and payload', () => {
+  it('confirms vision only from POST /api/show and forwards no credentials', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ capabilities: ['completion', 'vision', 'tools'] })),
+    );
+    await expect(describeOllamaModel('http://127.0.0.1:11434', 'gemma3:12b', fetchImpl))
+      .resolves.toEqual(['completion', 'vision', 'tools']);
+    const [url, options] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('http://127.0.0.1:11434/api/show');
+    expect(options).toMatchObject({ method: 'POST', redirect: 'error' });
+    expect(JSON.parse(String(options?.body))).toEqual({ model: 'gemma3:12b' });
+    expect(JSON.stringify(options)).not.toContain('authorization');
+  });
+
+  it('fails closed when capability metadata is missing', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ details: { parameter_size: '12B' } })),
+    );
+    await expect(describeOllamaModel('http://127.0.0.1:11434', 'gemma3:12b', fetchImpl))
+      .rejects.toMatchObject({ code: 'ai_ollama_capability_unknown', status: 503 });
+  });
+
+  it('sends actual base64 only on the current user message, never in system instructions', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      new Response(JSON.stringify({ message: { content: 'Вижу красный диод.' }, done: true }) + '\n'),
+    );
+    await expect(streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'gemma3:12b',
+      context: [
+        { role: 'user', content: 'Контекст' },
+        { role: 'assistant', content: 'Хорошо' },
+        { role: 'user', content: 'Что на схеме?' },
+      ],
+      images: ['aW1hZ2U='],
+      instructions: 'Учебный помощник',
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      fetchImpl,
+    })).resolves.toMatchObject({ text: 'Вижу красный диод.' });
+    const request = JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body)) as {
+      messages: Array<{ role: string; content: string; images?: string[] }>;
+    };
+    expect(request.messages).toEqual([
+      { role: 'system', content: 'Учебный помощник' },
+      { role: 'user', content: 'Контекст' },
+      { role: 'assistant', content: 'Хорошо' },
+      { role: 'user', content: 'Что на схеме?', images: ['aW1hZ2U='] },
+    ]);
+    expect(request.messages[0]!.images).toBeUndefined();
   });
 });
