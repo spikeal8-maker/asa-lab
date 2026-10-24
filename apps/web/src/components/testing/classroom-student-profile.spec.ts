@@ -1379,7 +1379,15 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   expect(host.textContent).toContain(
     'Среди загруженных работ нет ожидающих проверки. Загрузите ещё работы.',
   );
-  expect(host.textContent).toContain('Часть личных работ закрыта');
+  const visibility = host.querySelector<HTMLDetailsElement>('.classroom-student-visibility-details')!;
+  expect(visibility).not.toBeNull();
+  expect(visibility.open).toBe(false);
+  await act(async () => visibility.querySelector('summary')!.click());
+  expect(visibility.open).toBe(true);
+  expect(visibility.querySelector('.classroom-student-visibility-popover')?.textContent)
+    .toContain('Доступно 8 из 10 работ.');
+  await act(async () => visibility.querySelector('summary')!.click());
+  expect(visibility.open).toBe(false);
   await click('Ещё работы');
   await click('Повторить');
   expect(read.mock.calls.map((args) => args[4])).toEqual([0, 30, 30]);
