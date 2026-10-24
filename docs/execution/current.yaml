@@ -116,6 +116,11 @@ parallel_lanes:
         historical #729 and product #731 PRs. Publish test-only branch from main.
         Full E11 with real Chromium 1440/390/320, independent review and CI
         required for acceptance.
+    execution_lease:
+      executor_id: electronics-e11-psu-native-20261024
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -6507,7 +6512,8 @@ parallel_lanes:
     task:
       id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
       issue: 702
-      branch: codex/projects-pin-20261023
+      branch: main
+      candidate_branch: codex/projects-pin-20261023
       base_branch: main
       pr: 704
       pr_draft: true
