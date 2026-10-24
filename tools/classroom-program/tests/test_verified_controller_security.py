@@ -59,9 +59,17 @@ class ClassroomSecurityGateTest(unittest.TestCase):
             return []
         if path.endswith("/actions/runs/777"):
             return {"head_sha": self.sha, "conclusion": "success", "status": "completed",
-                    "repository": {"full_name": g.REPOSITORY}, "name": "Classroom Program Controller Checks"}
+                    "repository": {"full_name": g.REPOSITORY},
+                    "path": ".github/workflows/classroom-controller.yml",
+                    "name": "Classroom Program Controller Checks"}
         if path.endswith("/actions/runs/777/jobs?per_page=100"):
-            return {"jobs": [{"name": "validate", "status": "completed", "conclusion": "success"}]}
+            steps = ["Validate requirements, dependencies and decisions",
+                     "Run all controller regression tests",
+                     "Rebuild registry and check deterministic output"]
+            return {"total_count": 1, "jobs": [
+                {"name": "validate", "status": "completed", "conclusion": "success",
+                 "steps": [{"name": step, "status": "completed", "conclusion": "success"}
+                           for step in steps]}]}
         if path.endswith("/commits/" + self.sha + "/check-runs?per_page=100"):
             return {"check_runs": [{"name": s, "status": "completed", "conclusion": "success",
                                     "head_sha": self.sha} for s in (

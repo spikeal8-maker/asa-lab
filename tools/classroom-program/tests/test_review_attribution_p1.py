@@ -213,9 +213,16 @@ class VerifiedImplementerP1(unittest.TestCase):
         if path.endswith("/actions/runs/777"):
             return {"head_sha":CODE_SHA,"conclusion":"success","status":"completed",
                     "repository":{"full_name":proof.REPOSITORY},
+                    "path":".github/workflows/classroom-controller.yml",
                     "name":"Classroom Program Controller Checks"}
         if path.endswith("/actions/runs/777/jobs?per_page=100"):
-            return {"jobs":[{"name":"validate","conclusion":"success","status":"completed"}]}
+            steps = ["Validate requirements, dependencies and decisions",
+                     "Run all controller regression tests",
+                     "Rebuild registry and check deterministic output"]
+            return {"total_count":1, "jobs":[
+                {"name":"validate","conclusion":"success","status":"completed",
+                 "steps":[{"name": step, "status":"completed","conclusion":"success"}
+                          for step in steps]}]}
         if path.endswith("/commits/"+CODE_SHA+"/check-runs?per_page=100"):
             return {"check_runs":[
                 {"name":name,"head_sha":CODE_SHA,"status":"completed","conclusion":"success","id":i+1}

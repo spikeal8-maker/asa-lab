@@ -184,6 +184,26 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     )
     if not isinstance(reviews, list):
         raise RemoteProofError("Unexpected PR review response")
+    # Read the ENTIRE authenticated PR review history before filtering the
+    # source SHA. A prior-commit CHANGES_REQUESTED remains a blocker until
+    # explicitly APPROVED or DISMISSED by that reviewer; a new head alone is
+    # not a dismissal. Positive review evidence still must match exact SHA.
+    if any(type(e.get("id")) is not int or e["id"] <= 0 for e in reviews):
+        raise RemoteProofError("Invalid or missing authenticated GitHub review ID")
+    previous_veto_by_reviewer = {}
+    for entry in sorted(reviews, key=lambda e: e["id"]):
+        author = (entry.get("user") or {}).get("login")
+        if not author:
+            raise RemoteProofError("Missing authenticated GitHub reviewer in PR history")
+        state = entry.get("state")
+        if state == "CHANGES_REQUESTED":
+            previous_veto_by_reviewer[author] = True
+        elif state in {"APPROVED", "DISMISSED"}:
+            previous_veto_by_reviewer[author] = False
+        elif state not in {"COMMENTED", "PENDING"}:
+            raise RemoteProofError("Unknown state in authenticated PR review history")
+    if any(previous_veto_by_reviewer.values()):
+        raise RemoteProofError("Undismissed CHANGES_REQUESTED review persists across source SHA changes (change requests)")
     exact = [x for x in reviews if x.get("commit_id") == commit_sha]
     # GitHub's REST review list is chronological across the fully-paginated
     # collection. A new PENDING review has no submitted_at, therefore sorting
@@ -308,8 +328,57 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
         return
     raise RemoteProofError("No authenticated independent clean review for exact SHA")
 
-def _ci_run(ev: dict, commit_sha: str, kind: str, access_token: str):
+
+# Registration is deliberately *fail-closed*. CTRL-00 is a governance slice
+# whose exact Python checks are in the controller workflow. A product task
+# requires an owner-reviewed task-specific focused_ci contract in the canonical
+# registry before any CI may authorize acceptance. Generic "classroom" jobs
+# are never interchangeable with a task's own E2E/PG/security assertions.
+_CONTROLLER_FOCUSED_CI = {
+    "task_id": "CTRL-00",
+    "workflow_path": ".github/workflows/classroom-controller.yml",
+    "required_jobs": ["validate"],
+    "required_steps": [
+        "Validate requirements, dependencies and decisions",
+        "Run all controller regression tests",
+        "Rebuild registry and check deterministic output",
+    ],
+}
+_TASK_ID = re.compile(r"^[A-Z]+-[0-9]{2}$")
+_WORKFLOW_PATH = re.compile(r"^\.github/workflows/[a-z0-9][a-z0-9_-]*\.ya?ml$")
+
+
+def _focused_ci_contract(task: dict):
+    if not isinstance(task, dict) or not _TASK_ID.fullmatch(task.get("id") or ""):
+        raise RemoteProofError("Missing canonical focused task ID")
+    task_id = task["id"]
+    contract = _CONTROLLER_FOCUSED_CI if task_id == "CTRL-00" else task.get("focused_ci")
+    if not isinstance(contract, dict) or contract.get("task_id") != task_id:
+        raise RemoteProofError(
+            "No task-specific approved focused_ci workflow/job/step contract for " + task_id
+        )
+    path = contract.get("workflow_path")
+    jobs = contract.get("required_jobs")
+    steps = contract.get("required_steps")
+    if (
+        not isinstance(path, str)
+        or not _WORKFLOW_PATH.fullmatch(path)
+        or (task_id != "CTRL-00" and path == _CONTROLLER_FOCUSED_CI["workflow_path"])
+        or not isinstance(jobs, list) or not jobs
+        or not isinstance(steps, list) or not steps
+        or any(not isinstance(v, str) or not v.strip() for v in jobs + steps)
+        or len(set(jobs)) != len(jobs)
+        or len(set(steps)) != len(steps)
+    ):
+        raise RemoteProofError("Malformed or generic focused_ci contract for " + task_id)
+    if task_id != "CTRL-00" and not any(task_id in step for step in steps):
+        raise RemoteProofError("Focused CI step must be explicitly bound to " + task_id)
+    return contract
+
+
+def _ci_run(ev: dict, commit_sha: str, kind: str, access_token: str, task: dict | None = None):
     number = _matched(RUN_LINK, ev.get("uri"), kind)
+    contract = _focused_ci_contract(task) if kind == "focused" else None
     run = github_json(
         "/repos/" + REPOSITORY + "/actions/runs/" + number, access_token
     )
@@ -320,9 +389,10 @@ def _ci_run(ev: dict, commit_sha: str, kind: str, access_token: str):
         or run.get("repository", {}).get("full_name") != REPOSITORY
     ):
         raise RemoteProofError(kind + " workflow not successful on exact source SHA")
-    run_name = (run.get("name") or "").lower()
-    if kind == "focused" and "classroom" not in run_name:
-        raise RemoteProofError("Focused evidence must be from a Classroom workflow")
+    if kind == "focused" and run.get("path") != contract["workflow_path"]:
+        raise RemoteProofError(
+            "Focused workflow path does not match task-specific contract for " + task["id"]
+        )
     jobs_data = github_json(
         "/repos/" + REPOSITORY + "/actions/runs/" + number + "/jobs?per_page=100",
         access_token,
@@ -330,6 +400,34 @@ def _ci_run(ev: dict, commit_sha: str, kind: str, access_token: str):
     jobs = jobs_data.get("jobs", [])
     if not isinstance(jobs, list) or not jobs:
         raise RemoteProofError("Workflow has no verifiable jobs")
+    count = jobs_data.get("total_count")
+    if (kind == "focused" and type(count) is not int) or (
+        count is not None and (type(count) is not int or count != len(jobs))
+    ):
+        raise RemoteProofError("Focused workflow job collection is incomplete")
+    if kind == "focused":
+        # All required jobs AND their exact step names must be completed and
+        # successful on this run. A generic CI result cannot replace a real
+        # task-specific executed check.
+        successful_jobs = [
+            job for job in jobs
+            if job.get("status") == "completed" and job.get("conclusion") == "success"
+        ]
+        required_jobs = [
+            job for job in successful_jobs
+            if job.get("name") in contract["required_jobs"]
+        ]
+        for name in contract["required_jobs"]:
+            if not any(job.get("name") == name for job in required_jobs):
+                raise RemoteProofError("Missing successful focused CI job " + name)
+        executed = {
+            step.get("name")
+            for job in required_jobs
+            for step in job.get("steps", [])
+            if step.get("status") == "completed" and step.get("conclusion") == "success"
+        }
+        if not set(contract["required_steps"]).issubset(executed):
+            raise RemoteProofError("Missing task-specific successful focused CI steps")
     success = [
         (j.get("name") or "").lower()
         for j in jobs
@@ -402,7 +500,7 @@ def verify_acceptance(reg: dict, task: dict, receipt: dict, main_sha: str, code_
 
     for kind in task["gates"]:
         if kind in {"focused", "pg", "visual"}:
-            _ci_run(evidence[kind], code_sha, kind, access_token)
+            _ci_run(evidence[kind], code_sha, kind, access_token, task=task)
 
     # General guard is mandatory even for a focused documentation/control task.
     check_data = github_json(
