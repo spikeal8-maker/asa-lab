@@ -375,7 +375,9 @@ describe('Course Editor native zoom lifecycle without a browser or profile', () 
   it.each([false, true])(
     'retains all cleanup attempts with multiple faults; primary=%s',
     async (hasPrimary) => {
-      const test = harness({ faults: ['reset_reject', 'trace_receipt_error', 'context_close_error'] });
+      const test = harness({
+        faults: ['reset_reject', 'trace_receipt_error', 'context_close_error'],
+      });
       const original = new Error('original assertion');
       const outcome = await test.run(async (session) => {
         await zoomIn(session);
