@@ -70,10 +70,31 @@ class ClassroomSecurityGateTest(unittest.TestCase):
                 {"name": "validate", "status": "completed", "conclusion": "success",
                  "steps": [{"name": step, "status": "completed", "conclusion": "success"}
                            for step in steps]}]}
+        if path.endswith("/actions/runs/888"):
+            return {"id": 888, "head_sha": self.sha, "status": "completed",
+                    "conclusion": "success", "path": ".github/workflows/spec-validation.yml",
+                    "repository": {"full_name": g.REPOSITORY}}
+        if path.endswith("/actions/runs/888/jobs?per_page=100"):
+            return {"total_count": 2, "jobs": [
+                {"id": 201, "run_id": 888, "name": "Governance contracts",
+                 "status": "completed", "conclusion": "success"},
+                {"id": 202, "run_id": 888, "name": "Format lint types contracts build",
+                 "status": "completed", "conclusion": "success"},
+            ]}
         if path.endswith("/commits/" + self.sha + "/check-runs?per_page=100"):
-            return {"check_runs": [{"name": s, "status": "completed", "conclusion": "success",
-                                    "head_sha": self.sha} for s in (
-                                    "Governance contracts", "Format lint types contracts build")]}
+            return {"total_count": 2, "check_runs": [
+                {"id": job_id, "name": name, "status": "completed",
+                 "conclusion": "success", "head_sha": self.sha,
+                 "app": {"slug": "github-actions", "id": 15368},
+                 "details_url": (
+                     "https://github.com/spikeal8-maker/asa-lab/actions/runs/888/job/"
+                     + str(job_id)
+                 )}
+                for job_id, name in (
+                    (201, "Governance contracts"),
+                    (202, "Format lint types contracts build"),
+                )
+            ]}
         raise AssertionError("Unexpected GH URL: " + path)
 
     def test_real_remote_attestation_with_independent_review_accepts(self):
@@ -184,6 +205,98 @@ class ClassroomSecurityGateTest(unittest.TestCase):
         with self.assertRaisesRegex(q.QueueError,"provenance"):
             q.choose(self.root,self.reg,{"CTRL-00":{"state":"open","number":999,
                 "user":{"login":"spikeal8-maker"}}})
+
+
+    def test_untrusted_check_app_cannot_override_failed_general_ci(self):
+        """A checks:write app cannot supply a fake later green Governance result."""
+        def spoof(path, access_token):
+            response = self._mock_api(path, access_token)
+            if path.endswith("/commits/" + self.sha + "/check-runs?per_page=100"):
+                original = response["check_runs"]
+                for item in original:
+                    item["conclusion"] = "failure"
+                forged = [
+                    {**item, "id": item["id"] + 1000, "conclusion": "success",
+                     "app": {"slug": "untrusted-check-app", "id": 444}}
+                    for item in original
+                ]
+                response["check_runs"] = original + forged
+                response["total_count"] = len(response["check_runs"])
+            return response
+
+        with patch.object(g, "github_json", side_effect=spoof), patch.object(
+            g, "token", return_value="fake-unit-token"
+        ):
+            with self.assertRaisesRegex(g.RemoteProofError, "General CI"):
+                g.verify_acceptance(
+                    self.reg, c.tasks_map(self.reg)["CTRL-00"],
+                    {}, self.main, self.sha, self.facts
+                )
+
+    def test_general_ci_must_come_from_canonical_workflow(self):
+        def wrong_workflow(path, access_token):
+            response = self._mock_api(path, access_token)
+            if path.endswith("/actions/runs/888"):
+                response["path"] = ".github/workflows/pretend-general.yml"
+            return response
+
+        with patch.object(g, "github_json", side_effect=wrong_workflow), patch.object(
+            g, "token", return_value="fake-unit-token"
+        ):
+            with self.assertRaisesRegex(g.RemoteProofError, "General CI"):
+                g.verify_acceptance(
+                    self.reg, c.tasks_map(self.reg)["CTRL-00"],
+                    {}, self.main, self.sha, self.facts
+                )
+
+    def test_general_ci_rejects_unverified_job_id(self):
+        def wrong_job(path, access_token):
+            response = self._mock_api(path, access_token)
+            if path.endswith("/actions/runs/888/jobs?per_page=100"):
+                response["jobs"][0]["id"] = 7777
+            return response
+
+        with patch.object(g, "github_json", side_effect=wrong_job), patch.object(
+            g, "token", return_value="fake-unit-token"
+        ):
+            with self.assertRaisesRegex(g.RemoteProofError, "General CI"):
+                g.verify_acceptance(
+                    self.reg, c.tasks_map(self.reg)["CTRL-00"],
+                    {}, self.main, self.sha, self.facts
+                )
+
+    def test_general_ci_rejects_incomplete_check_pages(self):
+        def missing_page(path, access_token):
+            response = self._mock_api(path, access_token)
+            if path.endswith("/commits/" + self.sha + "/check-runs?per_page=100"):
+                response["total_count"] += 1
+            return response
+
+        with patch.object(g, "github_json", side_effect=missing_page), patch.object(
+            g, "token", return_value="fake-unit-token"
+        ):
+            with self.assertRaisesRegex(g.RemoteProofError, "pagination"):
+                g.verify_acceptance(
+                    self.reg, c.tasks_map(self.reg)["CTRL-00"],
+                    {}, self.main, self.sha, self.facts
+                )
+
+    def test_general_ci_requires_successful_entire_run(self):
+        def failed_workflow(path, access_token):
+            response = self._mock_api(path, access_token)
+            if path.endswith("/actions/runs/888"):
+                response["conclusion"] = "failure"
+            return response
+
+        with patch.object(g, "github_json", side_effect=failed_workflow), patch.object(
+            g, "token", return_value="fake-unit-token"
+        ):
+            with self.assertRaisesRegex(g.RemoteProofError, "General CI"):
+                g.verify_acceptance(
+                    self.reg, c.tasks_map(self.reg)["CTRL-00"],
+                    {}, self.main, self.sha, self.facts
+                )
+
 
 
 if __name__=="__main__":

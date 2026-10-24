@@ -443,6 +443,119 @@ def _ci_run(ev: dict, commit_sha: str, kind: str, access_token: str, task: dict 
         raise RemoteProofError("Workflow lacked successful jobs")
 
 
+
+# Only GitHub Actions jobs from the canonical General CI workflow are evidence.
+# A third-party GitHub App with checks:write can create an arbitrary check name.
+_GENERAL_WORKFLOW = ".github/workflows/spec-validation.yml"
+_GENERAL_JOB_URL = re.compile(
+    r"^https://github\.com/spikeal8-maker/asa-lab/actions/runs/([1-9][0-9]*)/job/([1-9][0-9]*)$"
+)
+_GITHUB_ACTIONS_APP_ID = 15368
+
+
+def _all_general_checks(commit_sha: str, access_token: str):
+    """Read all canonical commit checks; incomplete and changing pages fail closed."""
+    endpoint = "/repos/" + REPOSITORY + "/commits/" + commit_sha + "/check-runs?per_page=100"
+    checks = []
+    seen = set()
+    total = None
+    for page in range(1, MAX_REVIEW_PAGES + 1):
+        path = endpoint if page == 1 else endpoint + "&page=" + str(page)
+        data = github_json(path, access_token)
+        if not isinstance(data, dict):
+            raise RemoteProofError("Malformed General CI check collection")
+        count = data.get("total_count")
+        batch = data.get("check_runs")
+        if type(count) is not int or count < 0 or (
+            total is not None and count != total
+        ) or not isinstance(batch, list) or len(batch) > REVIEW_PAGE_SIZE or any(
+            not isinstance(item, dict) for item in batch
+        ):
+            raise RemoteProofError("Incomplete or unstable General CI check collection")
+        total = count
+        for check in batch:
+            identity = check.get("id")
+            if type(identity) is not int or identity <= 0 or identity in seen:
+                raise RemoteProofError("Invalid or duplicate General CI check ID")
+            seen.add(identity)
+        checks.extend(batch)
+        if len(batch) < REVIEW_PAGE_SIZE:
+            if len(checks) != total:
+                raise RemoteProofError("Incomplete General CI check pagination")
+            return checks
+    raise RemoteProofError("General CI check pagination limit reached")
+
+
+def _canonical_general_job(check: dict, source_sha: str, access_token: str):
+    """Authenticate the Actions app, exact workflow run and matching real job."""
+    app = check.get("app")
+    if not isinstance(app, dict) or (
+        app.get("slug") != "github-actions"
+        or app.get("id") != _GITHUB_ACTIONS_APP_ID
+    ):
+        return None
+    match = _GENERAL_JOB_URL.fullmatch(check.get("details_url") or "")
+    if match is None or check.get("id") != int(match.group(2)):
+        return None
+    run_id = int(match.group(1))
+    run = github_json(
+        "/repos/" + REPOSITORY + "/actions/runs/" + str(run_id), access_token
+    )
+    if (
+        run.get("id") != run_id
+        or run.get("path") != _GENERAL_WORKFLOW
+        or run.get("head_sha") != source_sha
+        or run.get("repository", {}).get("full_name") != REPOSITORY
+    ):
+        return None
+    job_data = github_json(
+        "/repos/" + REPOSITORY + "/actions/runs/" + str(run_id) + "/jobs?per_page=100",
+        access_token,
+    )
+    jobs = job_data.get("jobs") if isinstance(job_data, dict) else None
+    count = job_data.get("total_count") if isinstance(job_data, dict) else None
+    if type(count) is not int or count <= 0 or not isinstance(jobs, list) or len(jobs) != count:
+        raise RemoteProofError("Incomplete canonical General CI job collection")
+    job = next((x for x in jobs if x.get("id") == check["id"]), None)
+    if job is None or job.get("name") != check.get("name") or job.get("run_id") != run_id:
+        return None
+    return run, job
+
+
+def _require_general_ci(task: dict, source_sha: str, access_token: str):
+    """Accept only the latest canonical GitHub Actions jobs in one successful run."""
+    required = {"Governance contracts", "Format lint types contracts build"}
+    if "pg" in task["gates"]:
+        required.add("PostgreSQL tests and RLS")
+    if "visual" in task["gates"]:
+        required.add("Access A real browser journeys")
+
+    selected = {}
+    for check in sorted(
+        _all_general_checks(source_sha, access_token),
+        key=lambda value: value["id"],
+        reverse=True,
+    ):
+        name = check.get("name")
+        if name not in required or name in selected or check.get("head_sha") != source_sha:
+            continue
+        identity = _canonical_general_job(check, source_sha, access_token)
+        if identity is not None:
+            selected[name] = (check, *identity)
+
+    if set(selected) != required:
+        raise RemoteProofError("Missing authenticated canonical General CI checks")
+    if len({run["id"] for _, run, _ in selected.values()}) != 1:
+        raise RemoteProofError("Required General CI checks belong to different workflow runs")
+    for name, (check, run, job) in selected.items():
+        if any(
+            item.get("status") != "completed" or item.get("conclusion") != "success"
+            for item in (check, run, job)
+        ):
+            raise RemoteProofError("Missing latest exact-SHA General CI success: " + name)
+
+
+
 def verify_acceptance(reg: dict, task: dict, receipt: dict, main_sha: str, code_sha: str, evidence: dict):
     """Authenticate ALL relevant acceptance proofs; reject any missing remote fact."""
     if reg.get("repository") != REPOSITORY:
@@ -502,24 +615,9 @@ def verify_acceptance(reg: dict, task: dict, receipt: dict, main_sha: str, code_
         if kind in {"focused", "pg", "visual"}:
             _ci_run(evidence[kind], code_sha, kind, access_token, task=task)
 
-    # General guard is mandatory even for a focused documentation/control task.
-    check_data = github_json(
-        "/repos/" + REPOSITORY + "/commits/" + code_sha + "/check-runs?per_page=100",
-        access_token,
-    )
-    checks = check_data.get("check_runs", [])
-    required = {"Governance contracts", "Format lint types contracts build"}
-    if "pg" in task["gates"]:
-        required.add("PostgreSQL tests and RLS")
-    if "visual" in task["gates"]:
-        required.add("Access A real browser journeys")
-    for name in required:
-        found = sorted(
-            (x for x in checks if x.get("name") == name and x.get("head_sha") == code_sha),
-            key=lambda x: x.get("id") or 0,
-        )
-        if not found or found[-1].get("status") != "completed" or found[-1].get("conclusion") != "success":
-            raise RemoteProofError("Missing latest exact-SHA General CI success: " + name)
+    # Mandatory remote General CI proof, not merely caller-supplied check names.
+    _require_general_ci(task, code_sha, access_token)
+
     if _main_sha(access_token) != current_main:
         raise RemoteProofError("GitHub main moved during attestation")
     return {

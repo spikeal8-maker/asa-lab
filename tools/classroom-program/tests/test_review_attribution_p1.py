@@ -223,10 +223,30 @@ class VerifiedImplementerP1(unittest.TestCase):
                 {"name":"validate","conclusion":"success","status":"completed",
                  "steps":[{"name": step, "status":"completed","conclusion":"success"}
                           for step in steps]}]}
+        if path.endswith("/actions/runs/888"):
+            return {"id": 888, "head_sha": CODE_SHA, "conclusion": "success",
+                    "status": "completed", "path": ".github/workflows/spec-validation.yml",
+                    "repository": {"full_name": proof.REPOSITORY}}
+        if path.endswith("/actions/runs/888/jobs?per_page=100"):
+            return {"total_count": 2, "jobs": [
+                {"id": 201, "run_id": 888, "name": "Governance contracts",
+                 "status": "completed", "conclusion": "success"},
+                {"id": 202, "run_id": 888, "name": "Format lint types contracts build",
+                 "status": "completed", "conclusion": "success"},
+            ]}
         if path.endswith("/commits/"+CODE_SHA+"/check-runs?per_page=100"):
-            return {"check_runs":[
-                {"name":name,"head_sha":CODE_SHA,"status":"completed","conclusion":"success","id":i+1}
-                for i,name in enumerate(["Governance contracts","Format lint types contracts build"])
+            return {"total_count": 2, "check_runs": [
+                {"id": job_id, "name": name, "head_sha": CODE_SHA,
+                 "status": "completed", "conclusion": "success",
+                 "app": {"slug": "github-actions", "id": 15368},
+                 "details_url": (
+                     "https://github.com/spikeal8-maker/asa-lab/actions/runs/888/job/"
+                     + str(job_id)
+                 )}
+                for job_id, name in (
+                    (201, "Governance contracts"),
+                    (202, "Format lint types contracts build"),
+                )
             ]}
         self.fail("Unexpected API path: "+path)
 
