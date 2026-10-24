@@ -1255,7 +1255,12 @@ test('mobile work filters share a row and one card fills the grid while multiple
     expect(archive.x + archive.width).toBeLessThanOrEqual(awaiting.x);
     await expect(toolbar.getByRole('checkbox', { name: 'Включая архив' })).toHaveCount(1);
     await expect(toolbar.getByRole('combobox', { name: 'Статус работ' })).toHaveCount(1);
-    await expect(page.locator('#student-filter-scope')).toBeHidden();
+    const filterScope = await page.locator('#student-filter-scope').evaluate((element) => ({
+      width: element.getBoundingClientRect().width,
+      clip: getComputedStyle(element).clipPath,
+    }));
+    expect(filterScope.width).toBeLessThanOrEqual(1);
+    expect(filterScope.clip).not.toBe('none');
     if (width <= 599) {
       await expect(head.locator('#student-works')).toBeHidden();
       const sectionRail = page.getByRole('group', { name: 'Разделы ученика' });

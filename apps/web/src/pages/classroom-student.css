@@ -1366,14 +1366,7 @@
     margin: 0 0 6px;
   }
   .classroom-student .classroom-student-works-head > h2 {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    clip-path: inset(50%);
+    display: none;
   }
   .classroom-student .classroom-student-works-toolbar {
     justify-content: space-between;
