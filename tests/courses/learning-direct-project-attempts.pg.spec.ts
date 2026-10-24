@@ -8,6 +8,7 @@ import {
 } from '../../apps/api/src/learning-canonical-projection.service';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 import { acquireLearningSubmissionSuiteLock } from './learning-submission-suite-lock';
+import { diagnoseTeacherHomeQuery } from './teacher-home-query-diagnostic';
 
 const policies = {
   attemptPolicy: { maxAttempts: 1 },
@@ -1345,6 +1346,14 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ),
     ).toBe(3);
   });
+
+  it('diagnostic only: compares pre-TeacherHome canonical account reads with default, off and restored JIT', async () => {
+    const diagnostic = await diagnoseTeacherHomeQuery(admin, app, teacherAccount);
+    expect(diagnostic.status).toBe('complete');
+    expect(diagnostic.same_results).toBe(true);
+    expect(diagnostic.session_restored).toBe(true);
+    expect(diagnostic.pools_ended).toBe(true);
+  }, 60_000);
 
   // The full lifecycle repeatedly queries Teacher Home and can be delayed by shared CI database load.
   it('Teacher Home follows exact review and resubmission independently of notification read/OFF, preserving correction history', async () => {
