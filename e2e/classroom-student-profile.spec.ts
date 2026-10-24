@@ -653,10 +653,10 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await noOverflow(page);
     const row = page.locator('.classroom-student-navrow');
     const rowBox = await row.boundingBox();
-    expect(
-      rowBox!.height,
-      'UI-01 rail: <=52px at 390, <=56px at 320 and compact on desktop',
-    ).toBeLessThanOrEqual(width <= 350 ? 56 : width <= 599 ? 52 : 68);
+    // Accepted Access A contract: one <=46px rail, with >=44px live controls.
+    expect(rowBox!.height, 'one slim top bar at every viewport').toBeLessThanOrEqual(46);
+    const heroBox = (await page.locator('.participant-hero').boundingBox())!;
+    expect(heroBox.y - rowBox!.y - rowBox!.height, 'rail-to-profile gap').toBeLessThanOrEqual(12);
     await expect(row.getByRole('navigation', { name: 'Переход по ученикам' })).toBeVisible();
     await expect(row.locator('.classroom-student-picker-name')).toHaveText(longName);
     const hero = await page.locator('.participant-hero').boundingBox();
