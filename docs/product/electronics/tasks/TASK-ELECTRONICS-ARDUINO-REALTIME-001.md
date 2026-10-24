@@ -149,3 +149,12 @@ Regression must use actual mounted native nodes: preparation/publication causes 
 Owner explicitly answered: allow222000-byte budget and verification of all eight regimes. Exact67270cec native sink independently passed426 focused tests; Code types/build passed but actual editor221556 exceeded218000. Targeted safe reduction could not recover3556 without deleting the implementation/guards.
 
 Select one separate change to only Electronics editor maximum in tools/check-web-bundle-budget.mjs:218000 to222000. All other budgets, matching rules and failure semantics remain unchanged. This authorization does not weaken physical accuracy, timeouts, native ready/ACK requirements, phase/drift/duty limits or any of eight browser scenarios. New independent exact review, actual Code/build measurement and one justified all-eight AFTER required; no owner acceptance or deployment implied.
+
+
+## Selected local Header clock projection repair
+
+Actual6b53 General PASS but repeated8 still FAIL. Native ready-to-visible improved13-26ms; later producer request starts late. For20s transition80000012us the crossing request begins57.888ms after expected edge; ready95.688ms late, native adds33ms. Raw30ms last HIGH appears after audit and286ms late, not proved permanently lost. Do not extend audit or relax bounds.
+
+Current scalar displayed committed-time React state updates whole Workbench each RAF; Header is its only consumer. Select one bounded local Header clock subscriber through existing run-scoped projection port/new narrow clock projection, plus hook transport and necessary existing mounted tests. Preserve immediate canonical horizon/state refs, host demand and input order, session/source/generation, optical ready-only ACK/rollback, clock values and stopped/reset behavior. No speculative ahead simulation, reset/reanchor/debt discard, numerical/physics/cadence/timeouts/budget changes. No Stage/owner visual edits.
+
+BEFORE real callbacks+four actual RAFs cause four whole Workbench renders; AFTER none from scalar metric while actual Header clock updates each relevant RAF and Reset/Stop/source reject stale updates. Existing optical/native tests and all frozen8 cases remain unchanged. Separate exact independent review and actual gates/AFTER required; root render reduction alone is not acceptance and does not prove all Worker RTT is React cost.
