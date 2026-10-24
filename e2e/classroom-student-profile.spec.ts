@@ -1625,6 +1625,22 @@ test('UI-04: games policy is lazy, Seat-bound, and guards unsaved edits', async 
   await openTeacherTab(page, 'activity');
   await expect(page.locator('main.classroom-student')).toHaveAttribute('data-student-section', 'settings');
   await expect(access).toHaveValue('deny');
+
+  // Native hash/history navigation also passes through the portal-wide dirty
+  // guard. A dismissed prompt must restore the accepted route and the draft.
+  const acceptedHash = await page.evaluate(() => window.location.hash);
+  const hashDecision = new Promise<string>((resolve) => {
+    page.once('dialog', async (dialog) => {
+      const message = dialog.message();
+      await dialog.dismiss();
+      resolve(message);
+    });
+  });
+  await page.evaluate(() => { window.location.hash = '#/classrooms'; });
+  expect(await hashDecision).toContain('Игровые разрешения не сохранены');
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(acceptedHash);
+  await expect(access).toHaveValue('deny');
+
   await region.getByRole('button', { name: 'Сохранить доступ' }).click();
   await expect(region.getByRole('status')).toContainText('Доступ к играм сохранён.');
   expect(writes).toEqual([{ seat: 'seat-0', override: 'deny', expectedVersion: 1 }]);
