@@ -674,7 +674,11 @@ test('production profile stays compact with long Russian identity on desktop, sp
     expect(metrics.rail).toEqual(acceptedTabs.rail);
     expect(metrics.button).toEqual({
       ...acceptedTabs.button,
-      height: width <= 600 ? '40px' : '34px',
+      // The profile's section buttons preserve the mandated >=44px hit target.
+      // Open-class tabs retain the same palette/focus language but are shorter.
+      height: '44px',
+      fontSize: '13px',
+      lineHeight: '15.6px',
     });
     const summaryBox = (await summary.boundingBox())!;
     expect(summaryBox.height, 'dense grade overview including paging').toBeLessThanOrEqual(
