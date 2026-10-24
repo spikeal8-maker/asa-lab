@@ -279,7 +279,11 @@ test('AI composer uploads a real file once and restores the saved attachment aft
         json: { uploadId, sha256: hash, state: 'reserved' },
       });
     }
-    if (uploadId && path === '/api/ai/attachments/' + uploadId + '/bytes' && request.method() === 'PUT') {
+    if (
+      uploadId &&
+      path === '/api/ai/attachments/' + uploadId + '/bytes' &&
+      request.method() === 'PUT'
+    ) {
       uploadCount += 1;
       expect(request.postDataBuffer()).toEqual(bytes);
       expect(request.headers()['content-type']).toBe('application/vnd.asa.ai-attachment');
