@@ -7584,13 +7584,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_private_exhausted_demand_test_only
-      kind: test
+      checkpoint: selected_private_epoch_bounded_feasibility
+      kind: diagnostic
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE PRIVATE TEST-ONLY public FakeExecutor probe for ordinary saved-target exhaustion; desired fresh bounded host sample is a proposed planning criterion, not a proven runtime cause. No product repair or CI selected.
+      selected_slice: ONE PRIVATE epoch-bounded controller feasibility experiment, not a proven runtime fix or product-main publication.
+      epoch_bounded_feasibility_contract:
+        scope: ONLY apps/web/src/electronics/live-simulation-worker-controller.ts and apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts; preserve original87 and private5f1d twelve tests/assertions.
+        permit: One permit per admitted valid EXTERNAL update epoch; internal read/pump/completion/input/yield/cancel NEVER rearm. Capture ordinary processed completion epoch BEFORE callbacks; old completion cannot consume or clear newer permit/target. Only ordinary positive completion after full startup settlement; startup release callback/timing exact. Input priority first.
+        sample: Consume before readHost; generation/document/epoch fence Stop/Reset/stale/reentrant samples, preserving newer targets. ONE refresh read feeds validated snapshot into dispatch WITHOUT second read using request-local bypass, never global skip. Normal retained-target reads unchanged. No callback/null/invalid/H<=committed consumes with no request/rearm/retry/spin. Refreshed completion cannot self-chain; later valid external update may rearm.
+        invariants: Independent real elapsed and ACK<=delivered committed; H=min(elapsed,ACK+50000),25000us and finite retained slicing unchanged. No reanchor/debt discard/future prediction/math/instruction cost/pacer/hook/Worker/tolerance/timeout/cadence/cap changes.
+        tests: Direct moving clock EVERY read/completion, finite one refresh per epoch/new external rearm; reentrant update/Stop/Reset/input, held ACK/normal host/no callback, yielded/buttonSerial/one-inflight. Nonvacuous null/NaN/negative/fractional/unchanged boundary exactly one read/no dispatch/no spin. Preserve original87/private12.
+        delivery: ONE PRIVATE all-green unpublished prototype/light focused checks/inverse/self-review/RAW proxy NOT actual fit, NEW exact source review. After APPROVE/focused tests/overlap check conditional measurement branch ONLY with preserved935 ports/original ten oracles/NEW composition review/ONE existing strict CI. No product main until all8 actual native/complete buttonSerialStopReset/NEW actual review/full required gates/actual RAW<=222000. Historical35-byte margin not fit proof. No cap raise/unrelated optimization/blind variants. Unsafe/infeasible/control FAIL STOP; RED never main/CI. Source not deployment/acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-epoch-bounded-feasibility-selection-20261024.md
       exhausted_demand_private_probe_contract:
         scope: ONLY apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts plus temporary evidence outside repository; preserve all existing tests. Canonical docs must publish before test writes. No product, workflow, script, dependency, asset or cap edits.
         fixture: Complete canonical H0 startup AND first positive startup release with bounded microtasks fully settled; prove public action/request counts, then arrange a NON-STARTUP ordinary positive target using public FakeExecutor/controller callbacks, then advance independently declared elapsed and displayed ACK during onResult without external update. ACK never exceeds delivered committed horizon; legal H=min(elapsed, ACK+50000), existing25000 slice. Expected values must not derive from executor requests or production outputs.
