@@ -79,6 +79,15 @@ export class AiChatController {
     }
   }
 
+  private attachmentIds(value: unknown): readonly string[] {
+    if (value === undefined) return [];
+    if (!Array.isArray(value) || value.length < 1 || value.length > 4 ||
+      value.some((id: unknown) => typeof id !== 'string' || !UUID.test(id)) ||
+      new Set(value.map((id: string) => id.toLowerCase())).size !== value.length)
+      return reject('ai_attachment_invalid', 'Выберите не более четырёх разных файлов.', 400);
+    return (value as string[]).map((id) => id.toLowerCase());
+  }
+
   private threadId(value: string): string {
     if (!UUID.test(value))
       return reject('ai_thread_id_invalid', 'Неверный идентификатор чата.', 400);
@@ -215,6 +224,24 @@ export class AiChatController {
     return this.safe(() => this.ai.messagePage(account.principalId, threadId, cursor));
   }
 
+  @Get('threads/:threadId/attachments')
+  async attachments(
+    @Req() request: FastifyRequest,
+    @Param('threadId') rawId: string,
+    @Query('requestIds') rawIds: string,
+  ) {
+    const account = await this.requireOwner(request);
+    const threadId = this.threadId(rawId);
+    const ids = typeof rawIds === 'string' ? rawIds.split(',') : [];
+    if (!ids.length || ids.length > 50 ||
+      ids.some((id) => !UUID.test(id)) ||
+      new Set(ids.map((id) => id.toLowerCase())).size !== ids.length)
+      return reject('ai_attachment_invalid', 'Неверный список сообщений.', 400);
+    return this.safe(() => this.ai.attachmentHistory(
+      account.principalId, threadId, ids.map((id) => id.toLowerCase()),
+    ));
+  }
+
   @Post('threads/:threadId/requests/:requestId/stop')
   @HttpCode(200)
   async stop(
@@ -329,6 +356,8 @@ export class AiChatController {
       requestId,
       reply,
       model as AiChatModel | undefined,
+      undefined,
+      this.attachmentIds(body['attachmentIds']),
     );
   }
 
@@ -340,6 +369,7 @@ export class AiChatController {
     reply: FastifyReply,
     model?: AiChatModel,
     sourceId?: string,
+    attachmentIds: readonly string[] = [],
   ): Promise<void> {
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -366,6 +396,7 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
+        attachmentIds,
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
