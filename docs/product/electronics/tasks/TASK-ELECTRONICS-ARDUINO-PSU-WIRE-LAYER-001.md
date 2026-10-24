@@ -210,3 +210,25 @@ mobile visible-clock acceptance. 568px landscape remains NOT_RUN. Preserve API-s
 owner decision, sole682 controller,681 closed,548 blocker and544/547 open.
 No cap raise, blind variant, meter/core/hook/LED/API/assets/workflow/dependency
 change, global PASS, owner/device acceptance, release or deployment is selected.
+
+
+## Current-main integration selection — 24 October 2026
+
+The bounded historical candidate6dbab2cc7d181294e875e89895c231d0d86d61dc
+passed General40040123409 all four jobs and scoped40040123895 all three jobs,
+all six original native cases. Actual217998 RAW fit its218000 cap by2.
+NEW independent actual review APPROVE_TARGETED verified43 original hashes,
+4717 raw checks and20 PNGs, both complete F2 journeys with one Save/CAS/full
+fresh R3 document and all12 clock phases. Receipt SHA256
+`77f8474a3329dd535162acb34d1d97b2edc6bb7c6641493054523ec460792243`.
+This historical result does not accept a different current-main composition.
+
+See [current-main integration selection](../evidence/ui679-557-current-main-integration-selection-20261024.md)
+for the exact ten-path boundary. Preserve the foreign682 subscribed clock,
+optical renderer/runtime and separately owner-approved222000 cap. New composition
+source review, actual size, scoped/General execution and independent actual/visual
+review are still required. No new budget increase is selected; old218000 proof
+remains separate. Mobile label baseline is hidden/NOT_OBSERVED;568 is NOT_RUN.
+Source publication is separate from deployment, physical owner acceptance and
+release. Preserve681 CLOSED,552 blockers,682 pending qualification,548 and
+owner KEEP544/547OPEN; no foreign work or blocker is cleared.

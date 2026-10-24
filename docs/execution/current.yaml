@@ -8300,7 +8300,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: actual995_committed_dom_attribution_repair_selected
+      checkpoint: historical_6db_targeted_pass_current_main_integration_selected
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -8309,7 +8309,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Passive public data-time-ms on the same existing Header span from actual committedSimulationTimeMs render input, with strict independent unique binding by document, DOM mount epoch, active worker/generation/session and horizon. Equivalent same-binding/horizon receipts retain all IDs; marker proves formatter input, not exact React frame. No math, core, hook, Worker, visible text or physics change.
+      repair_scope: Current-main ten-path composition only; preserve foreign682 native optical renderer and subscribed microsecond clock. Adapt passive marker onto private SimulationClock span from microseconds / 1000, preserve clock format and invocation. Exact detailed hunks and test boundary are in the integration selection receipt.
       integration_candidate:
         pr: 695
         head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
@@ -8327,7 +8327,7 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: One bounded Header marker and clock observer author, NEW independent source review and four complete actual clock cases before reclosure. Prior07 acceptance and closeout remain immutable history; new995 causal attribution follow-up is in progress. API remains separate.
+      next_action: ONE bounded current-main composition author, freeze unpublished exact SHA for NEW independent source review; then ONE new scoped six-case and General actual qualification with actual size against accepted222000, NEW independent actual/visual review, and only then source integration and679/557 technical closure. No deployment, physical owner acceptance or release claim.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
@@ -8364,6 +8364,23 @@ parallel_lanes:
         actual_sha: 9957c9bc6b65ec4e1d6ac4cd1f42c056867f4d28
         actual_run: 40023851278
         independent_review_sha256: e3dbcf77190e0ee36262957b8feb47029c7dcfb549d24affb79b79426f5f8c89
+      current_main_integration_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-current-main-integration-selection-20261024.md
+        baseline_sha: 8cdd5d26374bb1609ee7a9b81bcf468b71c2e29e
+        historical_source_sha: 6dbab2cc7d181294e875e89895c231d0d86d61dc
+        historical_general_run: 40040123409
+        historical_general_actual: SUCCESS all four jobs
+        historical_scoped_run: 40040123895
+        historical_scoped_actual: SUCCESS all three jobs and all six original cases
+        historical_raw_bytes: 217998
+        historical_cap_bytes: 218000
+        historical_actual_review: APPROVE_TARGETED
+        historical_actual_review_sha256: 77f8474a3329dd535162acb34d1d97b2edc6bb7c6641493054523ec460792243
+        current_accepted_cap_bytes: 222000
+        new_composition_raw_bytes: NOT_RUN
+        source_review: NOT_RUN_new_exact_composition_required
+        actual_review: NOT_RUN_new_exact_composition_required
+        boundary: Preserve accepted foreign682 clock/renderer/runtime and owner-approved222000 cap; no new cap change. Historical218000 proof does not prove new composition size or acceptance.
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -8569,22 +8586,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d8_functional_six_pass_actual_budget_fail111_two_hunk_repair_selected
+      checkpoint: historical_6db_targeted_pass_current_main_integration_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: One bounded two-hunk repair against d8e215e7; extract only stop-event helper in selected knob factory/PSU down hunk and Stage owner/runtime selector constants in selected strict native routing hunk. Apply frozen stopVisual and strictStage proposal only; all other seven selected source blobs and all bytes outside these hunks remain exact d8.
-      source_budget: Owner retains218000. Actual d8 editor218111 RAW fails by111; scoped40035753201 all six SUCCESS does not grant acceptance. Frozen two-hunk proposal saves119 only in module-transform proxy, estimated217992 with8 margin; actual production fit UNKNOWN. No further blind variant, cap raise or meter compaction.
+      repair_scope: Current-main ten-path composition only; preserve foreign682 native optical renderer and subscribed microsecond clock. Adapt passive marker onto private SimulationClock span from microseconds / 1000, preserve clock format and invocation. Exact detailed hunks and test boundary are in the integration selection receipt.
+      source_budget: Historical6db actual217998 RAW passed retained218000 cap by2. Current main independently incorporates owner-approved foreign682 cap222000; preserve it without increase or decrease. New composition actual size is NOT_RUN and must be measured against222000; never claim its compliance with218000 from old evidence.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Preserve native event, exact foreground owner and strict current ready/runtime true-or-false validation; absent or invalid evidence falls through without actuation. Route only an actual same-PSU switch under crossing wire, using existing pointerSequence and mutationEpoch fences, never synthetic events or private React. Preserve pending wire, terminal and ordinary precedence, wire paint and selection elsewhere.
-      execution_boundary: After canonical selection publication, one bounded source author applies only two frozen hunks, meaningful focused checks and necessary generated source metadata. NEW final-SHA source review precedes one justified actual Code/raw measurement and exactly six original native cases, then NEW actual/visual review. Preserve event receiver/order/throws, strict ready/runtime checks, pending-wire/terminal/ordinary priority and JSX identity.
+      execution_boundary: Historical two-hunk selection applied to its old baseline only and must not be blindly replayed. Use the new ten-path current-main integration receipt, preserve all foreign additions, source-review exact composition, then new actual qualification and independent visual review.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
       real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: Implement ONLY frozen stop-event extraction47 and Stage selector constants72 after canonical docs publication. Preserve other seven d8 source blobs byte-exact. Freeze one source SHA for NEW independent review; require actual RAW<=218000 and all six original cases plus NEW actual/visual review before679/557 closure. Actual d8 review NEEDS_FIX solely budget111; selected six functional cases PASS, no acceptance implied.
+      next_action: ONE bounded current-main composition author, freeze unpublished exact SHA for NEW independent source review; then ONE new scoped six-case and General actual qualification with actual size against accepted222000, NEW independent actual/visual review, and only then source integration and679/557 technical closure. No deployment, physical owner acceptance or release claim.
       owner_targeted_acceptance:
         evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
         decision: API оставить отдельно; принять UI по целевым проверкам
@@ -8653,6 +8670,23 @@ parallel_lanes:
         actual_full_bundle_fit: UNKNOWN
         independent_actual_review_sha256: 9a1a719dfb7451660fae3e184690ede4e25cad1a0478da93afd08766225443b5
         actual_functional_review: NEEDS_FIX solely budget111; selected six functional cases PASS
+      current_main_integration_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-current-main-integration-selection-20261024.md
+        baseline_sha: 8cdd5d26374bb1609ee7a9b81bcf468b71c2e29e
+        historical_source_sha: 6dbab2cc7d181294e875e89895c231d0d86d61dc
+        historical_general_run: 40040123409
+        historical_general_actual: SUCCESS all four jobs
+        historical_scoped_run: 40040123895
+        historical_scoped_actual: SUCCESS all three jobs and all six original cases
+        historical_raw_bytes: 217998
+        historical_cap_bytes: 218000
+        historical_actual_review: APPROVE_TARGETED
+        historical_actual_review_sha256: 77f8474a3329dd535162acb34d1d97b2edc6bb7c6641493054523ec460792243
+        current_accepted_cap_bytes: 222000
+        new_composition_raw_bytes: NOT_RUN
+        source_review: NOT_RUN_new_exact_composition_required
+        actual_review: NOT_RUN_new_exact_composition_required
+        boundary: Preserve accepted foreign682 clock/renderer/runtime and owner-approved222000 cap; no new cap change. Historical218000 proof does not prove new composition size or acceptance.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
