@@ -1012,9 +1012,10 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 56px;
+  height: 46px;
+  min-height: 46px;
   margin: 0 0 6px;
-  padding: 3px 0;
+  padding: 0;
   box-sizing: border-box;
   border-bottom: 1px solid var(--student-line);
 }
@@ -1142,9 +1143,9 @@
   .classroom-student .classroom-student-identity-rail {
     grid-template-columns: 44px minmax(0, 1fr);
     gap: 2px;
-    height: 50px;
-    min-height: 50px;
-    max-height: 50px;
+    height: 46px;
+    min-height: 46px;
+    max-height: 46px;
     padding: 0;
   }
   .classroom-student .classroom-student-identity-rail .classroom-student-back {
@@ -1189,8 +1190,8 @@
 }
 @container teacher-profile (max-width: 350px) {
   .classroom-student .classroom-student-identity-rail {
-    height: 56px;
-    min-height: 56px;
-    max-height: 56px;
+    height: 46px;
+    min-height: 46px;
+    max-height: 46px;
   }
 }
