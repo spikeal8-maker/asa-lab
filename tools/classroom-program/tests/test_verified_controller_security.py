@@ -46,6 +46,10 @@ class ClassroomSecurityGateTest(unittest.TestCase):
             return {"merged_at": "2026-10-24T00:00:00Z",
                     "head": {"sha": self.sha}, "base": {"ref": "main", "repo": {"full_name": g.REPOSITORY}},
                     "user": {"login": "executor-bot"}, "body": "CTRL-00"}
+        if path.endswith("/pulls/999/commits?per_page=100"):
+            # GitHub-linked implementation authors; never trust receipt.actor as attribution.
+            return [{"sha": self.sha, "author": {"login": "executor-bot"},
+                     "committer": {"login": "executor-bot"}}]
         if path.endswith("/pulls/999/reviews?per_page=100"):
             return [{"state": "APPROVED", "commit_id": self.sha, "user": {"login": "independent-reviewer"}}]
         if path.endswith("/issues/999/comments?per_page=100"):

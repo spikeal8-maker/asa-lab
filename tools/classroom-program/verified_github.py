@@ -137,7 +137,46 @@ def github_all_pages(path: str, access_token: str, *, max_pages: int = MAX_REVIE
     raise RemoteProofError("Review/comment pagination limit reached; cannot prove completeness")
 
 
-def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_security: bool, access_token: str):
+
+
+def _verified_implementation_authors(pr_number: int, commit_sha: str, access_token: str):
+    """Use GitHub's linked commit author and committer identities, never receipt.actor.
+
+    All pages of the exact PR commit list must be readable. Missing attribution
+    is an ambiguity, not proof that a contributor is independent.
+    """
+    commits = github_all_pages(
+        "/repos/" + REPOSITORY + "/pulls/" + str(pr_number) + "/commits?per_page=100",
+        access_token,
+    )
+    if not commits:
+        raise RemoteProofError("PR has no GitHub-attributed implementation commits")
+    source_found = False
+    actors = set()
+    visited = set()
+    for commit in commits:
+        if not isinstance(commit, dict):
+            raise RemoteProofError("Unverifiable GitHub implementation commit")
+        identity = _sha(commit.get("sha"))
+        if identity in visited:
+            raise RemoteProofError("Duplicate GitHub implementation commit")
+        visited.add(identity)
+        if identity == commit_sha:
+            source_found = True
+        for role in ("author", "committer"):
+            contributor = commit.get(role)
+            login = contributor.get("login") if isinstance(contributor, dict) else None
+            if not isinstance(login, str) or not login.strip():
+                raise RemoteProofError(
+                    "Implementation " + role + " has no authenticated GitHub identity"
+                )
+            actors.add(login)
+    if not source_found:
+        raise RemoteProofError("Source SHA absent from authenticated PR commits")
+    return actors
+
+
+def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_security: bool, access_token: str, implementation_authors=None):
     """Use the latest authenticated exact-SHA reviewer verdict, never an old PASS."""
     reviews = github_all_pages(
         "/repos/" + REPOSITORY + "/pulls/" + str(pr_number) + "/reviews?per_page=100",
@@ -146,21 +185,35 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     if not isinstance(reviews, list):
         raise RemoteProofError("Unexpected PR review response")
     exact = [x for x in reviews if x.get("commit_id") == commit_sha]
-    if any(x.get("state") == "CHANGES_REQUESTED" for x in exact):
-        raise RemoteProofError("Exact-SHA independent review contains change requests")
+    # GitHub's REST review list is chronological across the fully-paginated
+    # collection. A new PENDING review has no submitted_at, therefore sorting
+    # by submitted_at would incorrectly put it before the older APPROVED.
+    # Keep the latest event for every reviewer in API order (including PENDING).
+    excluded = {author_login} | set(implementation_authors or ())
+    # GitHub review IDs follow creation, including PENDING which may lack a
+    # submitted_at. Use the highest authenticated review ID for each reviewer,
+    # independent of page/response ordering. Legacy test fixtures without IDs
+    # may use the complete API sequence; mixed real/missing IDs are ambiguous.
+    with_ids = [isinstance(item.get("id"), int) and item["id"] > 0 for item in exact]
+    if with_ids and any(with_ids) and not all(with_ids):
+        raise RemoteProofError("Ambiguous GitHub review timeline: partial IDs")
     latest_by_reviewer = {}
     for index, entry in enumerate(exact):
         reviewer = (entry.get("user") or {}).get("login")
-        if not reviewer or reviewer == author_login:
-            continue
-        # Exact-SHA reviews without timestamps are still ordered by GitHub's
-        # paginated ascending API result order; latest entry wins on ties.
-        order = (entry.get("submitted_at") or "", entry.get("id") or 0, index)
+        if not reviewer:
+            raise RemoteProofError("Review has no authenticated GitHub reviewer")
+        order = entry["id"] if with_ids and all(with_ids) else index
         previous = latest_by_reviewer.get(reviewer)
         if previous is None or order > previous[0]:
             latest_by_reviewer[reviewer] = (order, entry.get("state"))
+    if any(
+        state in {"PENDING", "CHANGES_REQUESTED"}
+        for _, state in latest_by_reviewer.values()
+    ):
+        raise RemoteProofError("Latest exact-SHA review pending or requesting changes (change requests)")
     human_approved = any(
-        state == "APPROVED" for _, state in latest_by_reviewer.values()
+        state == "APPROVED" and reviewer not in excluded
+        for reviewer, (_, state) in latest_by_reviewer.items()
     )
     comments = github_all_pages(
         "/repos/" + REPOSITORY + "/issues/" + str(pr_number) + "/comments?per_page=100",
@@ -195,6 +248,8 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
         if latest is None or order > latest[0]:
             latest = (order, code, security)
     if latest is not None:
+        if "chatgpt-codex-connector[bot]" in excluded:
+            raise RemoteProofError("Codex code contributor cannot independently review itself")
         _, code, security = latest
         required = [code] + ([security] if needs_security else [])
         if all(
@@ -285,12 +340,21 @@ def verify_acceptance(reg: dict, task: dict, receipt: dict, main_sha: str, code_
     scope_refs = (pr.get("body") or "") + "\n" + (pr.get("title") or "")
     if task["id"] not in scope_refs:
         raise RemoteProofError("PR does not reference the selected task ID")
+    # The PR opener may be a controller. Authenticate ALL implementation
+    # authors/committers through GitHub, excluding them as well as the opener
+    # from independent approvals. Receipt author can only add a veto, never
+    # supply a trusted implementer identity.
+    authors = _verified_implementation_authors(pr_number, code_sha, access_token)
+    claimed_author = receipt.get("author") if isinstance(receipt, dict) else None
+    if isinstance(claimed_author, str) and claimed_author.strip():
+        authors.add(claimed_author.strip())
     _get_reviews(
         pr_number,
         code_sha,
         pr.get("user", {}).get("login"),
         task.get("risk") == "security",
         access_token,
+        implementation_authors=authors,
     )
 
     for kind in task["gates"]:
