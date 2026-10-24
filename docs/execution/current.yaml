@@ -6414,21 +6414,21 @@ parallel_lanes:
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
       - migrations/0238_project_publication_editorial.sql
-      - migrations/0239_project_publication_pins.sql
+      - migrations/0241_project_publication_pins.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-      issue: 713
+      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+      issue: 702
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: report_intake_selected_while_702_waits_external_general_ci
+      checkpoint: pins_0241_reactivated_after_courses_705_merge
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -6436,10 +6436,13 @@ parallel_lanes:
         tested integration into main. Legacy Gallery publication retention is superseded;
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
-        Owner's 2026-10-24 continuation selects independent report-intake #713 while
-        #702/PR #704 remains OPEN/DRAFT and BLOCKED FOR MERGE by external General CI.
-        Do not modify #704 paths, merge #704, waive CI, or touch other product lanes.
+        The Public Projects programme controller reselects existing #702 / PR #704
+        after accepted Courses #705 (published migration 0240) and main General CI
+        success on 2026-10-24. Integrate only the existing pinning slice as the
+        next candidate 0241; retain #713 / PR #717 as its blocked successor.
+        No mandatory CI or security waiver, foreign-system edits, or deployment.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
         - docs/product/projects/tasks/PROJ-R8-03.md
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
