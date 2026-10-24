@@ -474,7 +474,17 @@ for (const width of [1440, 390, 320]) {
     await expect(protection).toBeEnabled();
     await page.unroute(`**/api/classrooms/${classId}/seats/seat-0`);
 
-    await main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }).click();
+    const sections = main.getByRole('combobox', { name: 'Раздел профиля' });
+    if (await sections.isVisible()) {
+      await sections.selectOption('settings');
+      await expect(sections).toHaveValue('settings');
+      await main
+        .getByRole('region', { name: 'Настройки ученика', exact: true })
+        .getByRole('button', { name: 'Изменить имя и аватар', exact: true })
+        .click();
+    } else {
+      await main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }).click();
+    }
     const dialog = page.getByRole('dialog', { name: 'Настройки ученика: Ученик 01', exact: true });
     await expect(dialog).toBeVisible();
     await expect(hiddenRoster).toBeHidden();
@@ -512,7 +522,9 @@ for (const width of [1440, 390, 320]) {
     await expect(avatars).toBeFocused();
     await expect(avatars.locator('.participant-recognition')).toBeVisible();
     await expect(avatars).toContainText('Стандартный аватар выбирается в настройках ученика');
-    await main.getByRole('button', { name: 'Все работы', exact: true }).click();
+    const mobileSections = main.getByRole('combobox', { name: 'Раздел профиля' });
+    if (await mobileSections.isVisible()) await mobileSections.selectOption('all');
+    else await main.getByRole('button', { name: 'Все работы', exact: true }).click();
 
     await page.route(`**/api/classrooms/${classId}/seats/seat-0/code`, async (route) => {
       expect(route.request().method()).toBe('POST');
@@ -656,30 +668,55 @@ test('production profile stays compact with long Russian identity on desktop, sp
     // Accepted Access A contract: one <=46px rail, with >=44px live controls.
     expect(rowBox!.height, 'one slim top bar at every viewport').toBeLessThanOrEqual(46);
     const heroBox = (await page.locator('.participant-hero').boundingBox())!;
-    expect(heroBox.y - rowBox!.y - rowBox!.height, 'rail-to-profile gap').toBeLessThanOrEqual(12);
+    const selector = page.getByRole('combobox', { name: 'Раздел профиля' });
+    const mobile = await selector.isVisible();
+    const rail = page.getByRole('group', { name: 'Разделы ученика' });
+    if (mobile) {
+      const railBox = (await rail.boundingBox())!;
+      expect(railBox.height, 'single 44px SectionRail').toBe(44);
+      expect(railBox.y - rowBox!.y - rowBox!.height).toBeLessThanOrEqual(6);
+      expect(heroBox.y - railBox.y - railBox.height).toBeLessThanOrEqual(12);
+      await expect(selector.locator('option')).toHaveText([
+        'Все работы',
+        'Оценки',
+        'Задания',
+        '3D',
+        'Электроника',
+        'Scratch',
+        'Заслуги',
+        'Активность',
+        'Настройки',
+      ]);
+    } else {
+      expect(heroBox.y - rowBox!.y - rowBox!.height).toBeLessThanOrEqual(12);
+    }
     await expect(row.getByRole('navigation', { name: 'Переход по ученикам' })).toBeVisible();
     await expect(row.locator('.classroom-student-picker-name')).toHaveText(longName);
     const hero = await page.locator('.participant-hero').boundingBox();
-    expect(
-      hero!.y - (rowBox!.y + rowBox!.height),
-      'navigation adjacent to identity',
-    ).toBeLessThanOrEqual(12);
+    expect(hero).not.toBeNull();
     for (const target of await row.locator('button').all()) {
       const box = await target.boundingBox();
       expect(box!.height).toBeGreaterThanOrEqual(44);
       expect(box!.width).toBeGreaterThanOrEqual(44);
     }
     const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
-    const metrics = await tabMetrics(tabs);
-    expect(metrics.rail).toEqual(acceptedTabs.rail);
-    expect(metrics.button).toEqual({
-      ...acceptedTabs.button,
-      // The profile's section buttons preserve the mandated >=44px hit target.
-      // Open-class tabs retain the same palette/focus language but are shorter.
-      height: '44px',
-      fontSize: '13px',
-      lineHeight: '15.6px',
-    });
+    const metrics = mobile ? null : await tabMetrics(tabs);
+    if (mobile) {
+      await expect(tabs).toBeHidden();
+      const railBox = (await rail.boundingBox())!;
+      expect(railBox.height).toBe(44);
+      const action = rail.locator('.classroom-student-section-action');
+      expect((await action.boundingBox())!.width).toBeGreaterThanOrEqual(44);
+      expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    } else {
+      expect(metrics!.rail).toEqual(acceptedTabs.rail);
+      expect(metrics!.button).toEqual({
+        ...acceptedTabs.button,
+        height: '44px',
+        fontSize: '13px',
+        lineHeight: '15.6px',
+      });
+    }
     const summaryBox = (await summary.boundingBox())!;
     // Two 44px rows plus a 4px gap are required for the real pagination controls.
     // Do not shrink touch targets to meet an obsolete 84px grade-strip baseline.
@@ -728,33 +765,43 @@ test('production profile stays compact with long Russian identity on desktop, sp
       toolbarHeight: toolbar.height,
       tabs: metrics,
     });
-    expect((await tabs.boundingBox())!.height, 'single row, no giant tab grid').toBeLessThanOrEqual(
-      70,
-    );
-    await expect(tabs.locator('button')).toHaveCount(8);
-    for (const tab of await tabs.locator('button').all()) {
-      await tab.focus();
-      await expect(tab).toBeInViewport();
-      const { box, rail } = await tab.evaluate((element) => {
-        const box = element.getBoundingClientRect();
-        const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
-        return {
-          box: { x: box.x, y: box.y, width: box.width, height: box.height },
-          rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
-        };
-      });
-      expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
-      expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
-      expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
-      expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
+    if (!mobile) {
+      expect(
+        (await tabs.boundingBox())!.height,
+        'single row, no giant tab grid',
+      ).toBeLessThanOrEqual(70);
+      await expect(tabs.locator('button')).toHaveCount(9);
+      for (const tab of await tabs.locator('button').all()) {
+        await tab.focus();
+        await expect(tab).toBeInViewport();
+        const { box, rail } = await tab.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
+          return {
+            box: { x: box.x, y: box.y, width: box.width, height: box.height },
+            rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
+          };
+        });
+        expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
+        expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
+        expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
+      }
+      await tabs.locator('button').first().focus();
+      await page.keyboard.press('End');
+      await expect(tabs.locator('button').last()).toBeFocused();
+      await expect(tabs.locator('button').last()).toBeInViewport();
+      await page.keyboard.press('Home');
+      await expect(tabs.locator('button').first()).toBeFocused();
+      await expect(tabs.locator('button').first()).toBeInViewport();
+    } else {
+      const mobileSelect = page.getByRole('combobox', { name: 'Раздел профиля' });
+      await mobileSelect.selectOption('grades');
+      await expect(mobileSelect).toHaveValue('grades');
+      await expect(page.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
+      await mobileSelect.selectOption('all');
+      await expect(mobileSelect).toHaveValue('all');
     }
-    await tabs.locator('button').first().focus();
-    await page.keyboard.press('End');
-    await expect(tabs.locator('button').last()).toBeFocused();
-    await expect(tabs.locator('button').last()).toBeInViewport();
-    await page.keyboard.press('Home');
-    await expect(tabs.locator('button').first()).toBeFocused();
-    await expect(tabs.locator('button').first()).toBeInViewport();
     await shot(page, `profile-${width}`);
   }
   const rail = summary.getByRole('list', { name: 'Оценки текущего класса' });
@@ -861,7 +908,7 @@ for (const count of [0, 1, 30, 100]) {
   });
 }
 
-test('all eight sections, honest loaded-only filtering, private works, archive and failed next-page retry', async ({
+test('all nine sections, honest loaded-only filtering, private works, archive and failed next-page retry', async ({
   page,
 }) => {
   const state = await setup(page, {
@@ -884,21 +931,29 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const name of [
-      'Оценки',
-      'Задания',
-      '3D',
-      'Электроника',
-      'Scratch',
-      'Заслуги',
-      'Активность',
-      'Все работы',
-    ]) {
-      await tabs.getByRole('button', { name, exact: true }).click();
-      await expect(tabs.getByRole('button', { name, exact: true })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
+    const choices = [
+      ['Оценки', 'grades'],
+      ['Задания', 'assignments'],
+      ['3D', 'three-d'],
+      ['Электроника', 'electronics'],
+      ['Scratch', 'blocks'],
+      ['Заслуги', 'merits'],
+      ['Активность', 'activity'],
+      ['Настройки', 'settings'],
+      ['Все работы', 'all'],
+    ] as const;
+    const mobile = page.getByRole('combobox', { name: 'Раздел профиля' });
+    for (const [name, key] of choices) {
+      if (await mobile.isVisible()) {
+        await mobile.selectOption(key);
+        await expect(mobile).toHaveValue(key);
+      } else {
+        await tabs.getByRole('button', { name, exact: true }).click();
+        await expect(tabs.getByRole('button', { name, exact: true })).toHaveAttribute(
+          'aria-pressed',
+          'true',
+        );
+      }
       await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
       await expect(page.getByText('Оценки и история', { exact: true })).toHaveCount(0);
       await noOverflow(page);
@@ -912,7 +967,11 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
         await expect(page.getByTestId('classroom-activity')).toContainText(
           'Исследовательская модель',
         );
-      else if (name !== 'Оценки')
+      else if (name === 'Настройки') {
+        const region = page.getByRole('region', { name: 'Настройки ученика' });
+        await expect(region).toBeVisible();
+        await expect(region.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
+      } else if (name !== 'Оценки')
         await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
       await shot(page, `tab-${name}-${width}`);
     }
@@ -940,6 +999,18 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
     .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
     .toBe(true);
   expect(state.requests.filter((r) => r.kind === 'works').at(-1)?.offset).toBe(0);
+  const mobileSection = page.getByRole('combobox', { name: 'Раздел профиля' });
+  if (await mobileSection.isVisible()) {
+    const archiveAction = page
+      .getByRole('group', { name: 'Разделы ученика' })
+      .getByRole('button', { name: 'Исключить архив работ' });
+    await expect(archiveAction).toHaveAttribute('aria-pressed', 'true');
+    await archiveAction.click();
+    await expect(works.getByLabel('Включая архив')).not.toBeChecked();
+    await expect
+      .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
+      .toBe(false);
+  }
   await noOverflow(page);
   await shot(page, 'loaded-only-archive-helper-suspended');
   expect(state.errors).toEqual([]);

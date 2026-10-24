@@ -72,6 +72,7 @@ const TABS = [
   { key: 'blocks', label: 'Scratch', module: 'blocks' },
   { key: 'merits', label: 'Заслуги', module: null },
   { key: 'activity', label: 'Активность', module: null },
+  { key: 'settings', label: 'Настройки', module: null },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
 
@@ -150,7 +151,7 @@ export function ClassroomStudentPage({
   scope.current = `${classroomId}:${seatId}`;
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
-  const showsWorks = !['assignments', 'merits', 'grades', 'activity'].includes(tab);
+  const showsWorks = !['assignments', 'merits', 'grades', 'activity', 'settings'].includes(tab);
   const closeLearnerPicker = useCallback((restoreFocus = true) => {
     setLearnerPickerOpen(false);
     if (restoreFocus) learnerOpener.current?.focus();
@@ -585,10 +586,73 @@ export function ClassroomStudentPage({
       </nav>
     </div>
   );
-  if (!profile || profile.student.id !== seatId || loadedScope !== `${classroomId}:${seatId}`)
+  const profileReady =
+    profile?.student.id === seatId && loadedScope === [classroomId, seatId].join(':');
+  const sectionRail = (
+    <div className="classroom-student-section-rail" role="group" aria-label="Разделы ученика">
+      <label className="classroom-student-section-select">
+        <span className="classroom-student-visually-hidden">Раздел профиля</span>
+        <select
+          aria-label="Раздел профиля"
+          value={tab}
+          disabled={!profileReady}
+          onChange={(event) => setTab(event.target.value as Tab)}
+        >
+          {TABS.map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {showsWorks ? (
+        <button
+          className="classroom-student-section-action"
+          type="button"
+          aria-label={archive ? 'Исключить архив работ' : 'Включить архив работ'}
+          title={archive ? 'Исключить архив' : 'Включить архив'}
+          aria-pressed={archive}
+          disabled={!profileReady}
+          onClick={() => setArchive((current) => !current)}
+        >
+          <span aria-hidden="true">▤</span>
+        </button>
+      ) : tab === 'merits' ? (
+        <button
+          className="classroom-student-section-action"
+          type="button"
+          aria-label="Перейти к аватарам класса"
+          title="Аватары класса"
+          disabled={!profileReady}
+          onClick={() => setFocusAvatar(true)}
+        >
+          <span aria-hidden="true">◉</span>
+        </button>
+      ) : (
+        <button
+          className="classroom-student-section-action"
+          type="button"
+          aria-label="Открыть настройки текущего ученика"
+          title="Настройки ученика"
+          disabled={
+            !profileReady ||
+            !seatActions ||
+            seatActions.readOnly ||
+            seatActions.busy ||
+            profile?.student.status === 'suspended'
+          }
+          onClick={() => seatActions?.onSettings()}
+        >
+          <span aria-hidden="true">⚙</span>
+        </button>
+      )}
+    </div>
+  );
+  if (!profileReady)
     return (
       <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
         {navigationRow}
+        {sectionRail}
         {profileError ? (
           <section role="alert">
             <p>{profileError}</p>
@@ -623,6 +687,7 @@ export function ClassroomStudentPage({
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
       {navigationRow}
+      {sectionRail}
       <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
         <div className="classroom-student-meta-row">
           <div className="participant-main-stats" aria-label="Показатели ученика">
@@ -872,6 +937,25 @@ export function ClassroomStudentPage({
           </button>
         ))}
       </nav>
+      {tab === 'settings' ? (
+        <section
+          className="classroom-student-settings-entry"
+          role="region"
+          aria-label="Настройки ученика"
+        >
+          <h2>Настройки ученика</h2>
+          <button
+            type="button"
+            disabled={!seatActions || settingsLocked || controlsBusy}
+            onClick={() => seatActions?.onSettings()}
+          >
+            Изменить имя и аватар
+          </button>
+          {!seatActions || settingsLocked ? (
+            <small role="status">Изменения недоступны для этого ученика.</small>
+          ) : null}
+        </section>
+      ) : null}
       {showsWorks ? (
         <section className="classroom-student-section" aria-labelledby="student-works">
           <div className="classroom-student-works-head">
