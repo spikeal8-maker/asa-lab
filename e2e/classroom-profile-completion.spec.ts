@@ -236,7 +236,8 @@ async function assertLayout(page: Page, width: number, file: string) {
   ).first();
   if (await content.count()) {
     const current = (await content.boundingBox())!;
-    const rail = (await (await mobileSectionRail.isVisible() ? mobileSectionRail : tabs).boundingBox())!;
+    const activeRail = (await mobileSectionRail.isVisible()) ? mobileSectionRail : tabs;
+    const rail = (await activeRail.boundingBox())!;
     expect(current.y).toBeGreaterThanOrEqual(rail.y + rail.height - 2);
   }
   // On desktop nine sections remain keyboard-reachable in the original scroller.
@@ -488,7 +489,11 @@ test('teacher saves real pupil settings from the profile and keeps the learner s
   await openProfile(page, classroom.id, pupil.name);
   const main = page.locator('main.classroom-student');
   const profilePath = `/api/classrooms/${classroom.id}/participants/${pupil.id}/profile`;
-  const protection = main.getByRole('checkbox', { name: `Защита: ${pupil.name}`, exact: true });
+  let settings = await openTeacherProfileCategory(page, 'Защита ученика');
+  const protection = settings.getByRole('checkbox', {
+    name: `Защита ученика в настройках: ${pupil.name}`,
+    exact: true,
+  });
   await expect(protection).toBeChecked();
   const saved = page.waitForResponse(
     (response) =>
@@ -502,7 +507,8 @@ test('teacher saves real pupil settings from the profile and keeps the learner s
   const newName = 'Сохранённый профиль ученика';
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    await main.getByRole('button', { name: /^Настройки ученика:/ }).click();
+    settings = await openTeacherProfileCategory(page, 'Данные и роль');
+    await settings.getByRole('button', { name: 'Изменить имя и аватар' }).click();
     const dialog = page.getByRole('dialog', { name: /^Настройки ученика:/ });
     await expect(dialog).toBeVisible();
     await expect(page.locator('main.classroom-owner-workspace')).toBeHidden();
@@ -521,8 +527,12 @@ test('teacher saves real pupil settings from the profile and keeps the learner s
   );
   await main.getByRole('button', { name: /^Предыдущий ученик:/ }).click();
   await expect(main.locator('.classroom-student-picker-name')).toHaveText(newName);
+  settings = await openTeacherProfileCategory(page, 'Защита ученика');
   await expect(
-    main.getByRole('checkbox', { name: `Защита: ${newName}`, exact: true }),
+    settings.getByRole('checkbox', {
+      name: `Защита ученика в настройках: ${newName}`,
+      exact: true,
+    }),
   ).not.toBeChecked();
 });
 
@@ -607,8 +617,9 @@ test('assigned without a project stays one row through start, submission and rev
       .getByRole('button', { name: 'Задания', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
   // Work/grade tab selection survives switching pupils; return to works explicitly.
-  await page.getByRole('button', { name: 'Все работы', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
+  await selectTeacherProfileTab(page, 'all');
+  await expect(page.locator('.teacher-profile-grades')).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Оценки', exact: true })).toHaveCount(0);
   for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
     await assertLayout(page, width, 'student-review-navigation');
   }
@@ -739,7 +750,8 @@ test('assigned without a project stays one row through start, submission and rev
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Принято');
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await selectTeacherProfileTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     const result = summary.locator('[data-grade-source="results"]').filter({ hasText: title });
     await expect(result).toHaveCount(1);
     await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
@@ -758,12 +770,16 @@ test('assigned without a project stays one row through start, submission and rev
     ).toBe('completed');
     expect((await counts()).projects).toBe(before.projects + 1);
 
-    await page.getByLabel('Роль в классе').selectOption('helper');
-    await expect(page.getByRole('region', { name: 'Классы помощника' })).toContainText(
+    const settings = await openTeacherProfileCategory(page, 'Данные и роль');
+    const role = settings.getByRole('combobox', { name: 'Роль ученика в настройках' });
+    await role.selectOption('helper');
+    await expect(role).toHaveValue('helper');
+    await expect(settings.locator('.classroom-student-settings-helper-classes')).toContainText(
       classroom.title,
     );
-    // A helper is still a pupil, and the teacher must see their marks as well.
-    await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
+    // A helper is still a pupil; grades stay accessible only under Оценки.
+    await selectTeacherProfileTab(page, 'grades');
+    await expect(page.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
     expect((await pupil.request.get(`/api/classrooms/${classroom.id}/participants`)).status()).toBe(
       401,
     );
@@ -794,6 +810,7 @@ test('assigned without a project stays one row through start, submission and rev
     await expect(pupil.getByRole('heading', { name: 'Мои заслуги', exact: true })).toBeVisible();
     await expect(pupil.getByRole('heading', { name: 'Заслуги преподавателя' })).toHaveCount(0);
     await expect(pupil.getByRole('region', { name: 'Мои показатели' })).not.toContainText('API');
+    await selectTeacherProfileTab(page, 'assignments');
     for (const width of [390, 1440]) await assertLayout(page, width, 'helper-profile');
     await post(
       page,
@@ -1013,7 +1030,9 @@ test('real full Account and Seat manual history preserves zero and all five leve
       }
     }
     await openProfile(page, classroom.id, a.name);
-    const teacherSummary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await expect(page.locator('.teacher-profile-grades')).toHaveCount(0);
+    await selectTeacherProfileTab(page, 'grades');
+    const teacherSummary = page.getByRole('region', { name: 'Оценки', exact: true });
     const currentGrade = teacherSummary
       .locator('[data-grade-source="journal"]')
       .filter({ hasText: 'Отзыв оценки' });
@@ -1049,9 +1068,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     expect(
       authoritative.journal.grades.filter((grade) => grade.columnId === retractionColumn.id),
     ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
-    await page.getByRole('button', { name: 'Оценки', exact: true }).click();
-    // The summary strip separately exposes the same current grades under
-    // "Оценки этого класса"; inspect only the full panel, including after focus.
+    // The full teacher grade panel preserves server revisions after focus refresh.
     const gradesRegion = page.getByRole('region', { name: 'Оценки', exact: true });
     const manualGrades = gradesRegion.getByRole('list', { name: 'Ручные оценки', exact: true });
     await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
