@@ -845,51 +845,69 @@ function CourseEditor({
     let settledResizeFrame: number | null = null;
     let pointerReleaseFrame: number | null = null;
     let blockPointerDown = false;
+    let pointerFocusedDocumentField: HTMLElement | null = null;
     // Pointer focus occurs between pointerdown and click. Scrolling a <summary>
     // at focusin changes its position before pointerup, so Chromium can finish
     // the click outside the disclosure (observed at scrollY 604 -> 869).
     // Keyboard focus still receives immediate sticky-header clearance.
     const onBlockPointerDown = (event: PointerEvent) => {
-      if (
-        !(event.target instanceof Element) ||
-        !event.target.closest('.lesson-block-menu > summary')
-      )
-        return;
-      blockPointerDown = true;
+      if (!(event.target instanceof Element)) return;
       if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
       pointerReleaseFrame = null;
+      // Mouse focus in the visible middle of a tall textarea must not snap
+      // the whole document to its off-screen top. Tab focus still reveals it.
+      const field = event.target.closest('.course-lesson-editor textarea.course-growing-textarea');
+      pointerFocusedDocumentField = field instanceof HTMLElement ? field : null;
+      blockPointerDown = Boolean(event.target.closest('.lesson-block-menu > summary'));
     };
-    const revealFocusedBlockAction = () => {
-      if (blockPointerDown) return;
+    // Keep focus reachable after responsive layout changes. Browser-native
+    // Tab may focus a lesson textarea at 200% zoom without revealing it in
+    // the 720×380 CSS viewport; an off-screen focused field is unusable.
+    const revealFocusedCourseControl = () => {
       const active = document.activeElement;
       if (
         !(active instanceof HTMLElement) ||
         !editor.contains(active) ||
-        !active.matches('.lesson-block-menu > summary') ||
         typeof active.scrollIntoView !== 'function'
       )
         return;
+      const isBlockAction = active.matches('.lesson-block-menu > summary');
+      const isShortViewportDocumentField =
+        window.innerHeight <= 560 &&
+        active.matches('.course-lesson-editor textarea.course-growing-textarea');
+      if (
+        (!isBlockAction && !isShortViewportDocumentField) ||
+        (isBlockAction && blockPointerDown) ||
+        (isShortViewportDocumentField && active === pointerFocusedDocumentField)
+      )
+        return;
+      // The Course toolbar becomes static in short viewports. Only genuinely
+      // sticky chrome may obscure a focused control after scrolling.
       const stickyBottom = Math.max(
-        header.getBoundingClientRect().bottom,
+        getComputedStyle(header).position === 'sticky' ? header.getBoundingClientRect().bottom : 0,
         document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0,
       );
       const bounds = active.getBoundingClientRect();
-      if (bounds.top < stickyBottom + 8 || bounds.bottom > window.innerHeight - 8) {
-        // A responsive resize can leave the focused action either behind the
-        // sticky headers or entirely below the viewport. Both are unusable.
-        // The summary's measured sticky-header scroll margin reserves room.
+      const hiddenAbove = bounds.top < stickyBottom + 8;
+      const hiddenBelow =
+        bounds.top >= window.innerHeight - 8 ||
+        (isBlockAction && bounds.bottom > window.innerHeight - 8);
+      if (hiddenAbove || hiddenBelow) {
         active.scrollIntoView({ block: 'start', behavior: 'instant' });
       }
     };
     const settleBlockPointer = () => {
-      if (!blockPointerDown) return;
+      if (!blockPointerDown && !pointerFocusedDocumentField) return;
       if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
       // pointerup is followed by the native click/toggle in the same task.
-      // Only reveal the focused menu after that activation has completed.
+      // Restore keyboard reveal only after a pointer activation completes;
+      // pointer-focused text never triggers a post-click document jump.
       pointerReleaseFrame = requestAnimationFrame(() => {
         pointerReleaseFrame = null;
+        const revealBlock = blockPointerDown;
         blockPointerDown = false;
-        revealFocusedBlockAction();
+        pointerFocusedDocumentField = null;
+        if (revealBlock) revealFocusedCourseControl();
       });
     };
     const updateOffset = () => {
@@ -897,7 +915,7 @@ function CourseEditor({
         '--course-compact-header-height',
         `${Math.ceil(header.getBoundingClientRect().height)}px`,
       );
-      revealFocusedBlockAction();
+      revealFocusedCourseControl();
       // The viewport resize event may precede responsive grid reflow. Recheck
       // the same focused action after the new layout has been painted; do not
       // move focus or rely on a test-only scroll.
@@ -905,10 +923,10 @@ function CourseEditor({
       if (settledResizeFrame !== null) cancelAnimationFrame(settledResizeFrame);
       resizeFrame = requestAnimationFrame(() => {
         resizeFrame = null;
-        revealFocusedBlockAction();
+        revealFocusedCourseControl();
         settledResizeFrame = requestAnimationFrame(() => {
           settledResizeFrame = null;
-          revealFocusedBlockAction();
+          revealFocusedCourseControl();
         });
       });
     };
@@ -916,7 +934,7 @@ function CourseEditor({
     const observer =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOffset);
     observer?.observe(header);
-    editor.addEventListener('focusin', revealFocusedBlockAction);
+    editor.addEventListener('focusin', revealFocusedCourseControl);
     editor.addEventListener('pointerdown', onBlockPointerDown, true);
     window.addEventListener('pointerup', settleBlockPointer, true);
     window.addEventListener('pointercancel', settleBlockPointer, true);
@@ -928,7 +946,7 @@ function CourseEditor({
       if (settledResizeFrame !== null) cancelAnimationFrame(settledResizeFrame);
       if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
       observer?.disconnect();
-      editor.removeEventListener('focusin', revealFocusedBlockAction);
+      editor.removeEventListener('focusin', revealFocusedCourseControl);
       editor.removeEventListener('pointerdown', onBlockPointerDown, true);
       window.removeEventListener('pointerup', settleBlockPointer, true);
       window.removeEventListener('pointercancel', settleBlockPointer, true);
