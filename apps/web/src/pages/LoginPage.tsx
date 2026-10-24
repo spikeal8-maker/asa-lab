@@ -215,12 +215,14 @@ export function LoginPage({
           </button>
         ) : null}
 
-        <p className="auth-account-switch">
-          <span>Нет аккаунта?</span>{' '}
-          <button type="button" className="link-button" onClick={onCreateAccount}>
-            Создать
-          </button>
-        </p>
+        {!socialRegistration ? (
+          <p className="auth-account-switch">
+            <span>Нет аккаунта?</span>{' '}
+            <button type="button" className="link-button" onClick={onCreateAccount}>
+              Создать
+            </button>
+          </p>
+        ) : null}
         <p className="auth-organization-link">
           <button
             type="button"

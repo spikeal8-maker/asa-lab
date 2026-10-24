@@ -579,7 +579,7 @@ function SocialRegistrationForm({
 
   return (
     <form
-      className="auth-social-registration"
+      className={`auth-social-registration${externalOnly ? ' auth-social-registration--max' : ''}`}
       onSubmit={(event) => void submit(event)}
       aria-busy={busy}
     >
