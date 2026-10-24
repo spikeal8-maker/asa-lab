@@ -11,6 +11,9 @@ import { telemetryReceipt } from './fixtures/telemetry-receipts';
 // messenger popups are blocked from making external requests.
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE_ID = '10000000-0000-4000-8000-000000000001';
+const AUTH_FIXTURE_ORIGIN = new URL(
+  process.env['ASA_E2E_BASE_URL'] ?? `http://127.0.0.1:${process.env['ASA_E2E_PORT'] ?? '4612'}`,
+).origin;
 const METHODS: readonly SocialAuthProvider[] = ['max', 'telegram'];
 type PairingOutcome =
   | 'pending'
@@ -239,14 +242,14 @@ async function fixture(
     const url = new URL(route.request().url());
     // An API request must never fall through to the static server, including
     // unload/keepalive requests after the initiating page has been closed.
-    return url.origin === 'http://127.0.0.1:4612' && !url.pathname.startsWith('/api/')
+    return url.origin === AUTH_FIXTURE_ORIGIN && !url.pathname.startsWith('/api/')
       ? route.fallback()
       : route.abort();
   });
   await page.context().route('**/api/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.origin !== 'http://127.0.0.1:4612') return route.abort();
+    if (url.origin !== AUTH_FIXTURE_ORIGIN) return route.abort();
     const path = url.pathname;
     const method = request.method();
     const body = (request.postData() ? request.postDataJSON() : {}) as Record<string, unknown>;
