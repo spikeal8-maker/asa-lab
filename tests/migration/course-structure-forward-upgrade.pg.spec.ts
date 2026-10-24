@@ -110,6 +110,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0237', // Published StudentSeat heartbeat; preserve its existing migration.
         '0238', // New editorial choice migration follows StudentSeat.
         '0239', // Optional LAN Ollama with independent local admission.
+        '0240', // Function-local JIT for canonical Teacher Home projection.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -379,6 +380,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0237', // Published StudentSeat heartbeat.
           '0238', // Additive Public Projects editorial choice.
           '0239', // Optional LAN Ollama with independent local admission.
+          '0240', // Function-local JIT for canonical Teacher Home projection.
         ]);
         expect(
           await applyIsolatedTestPlan(

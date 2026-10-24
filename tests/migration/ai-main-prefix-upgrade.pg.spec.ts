@@ -19,6 +19,7 @@ const expectedPending = [
   '0237',
   '0238',
   '0239', // Optional LAN Ollama; preserve older published migrations.
+  '0240', // Courses Teacher Home: function-local JIT only.
 ];
 
 interface Identity {

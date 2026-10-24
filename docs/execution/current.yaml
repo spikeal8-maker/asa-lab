@@ -81,6 +81,71 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-browser-partition-722
+    parent_lane: electronics
+    worktree_id: electronics-browser-partition-722
+    owned_paths:
+      - .github/workflows/electronics-r4-m1-focused.yml
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
+    task:
+      id: TASK-ELECTRONICS-BROWSER-PARTITION-001
+      issue: 722
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: low
+      semantic_change: 'no'
+      checkpoint: original_browser_261_cases_verified_partition_144_plus_117
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner #452/#703/#718 expressly commissioned bounded CI-only browser
+        gate repair, preserving all cases, physics, and foreign ongoing tasks.
+        No deployment, school data, server, Docker host or network operations.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
+        - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
+      repair_scope: >-
+        Split the unchanged strict-real-time 261-case Playwright browser gate
+        into complementary 1/2 and 2/2 jobs using isolated GitHub runners,
+        unique Compose project names and evidence artifacts. Preserve the
+        complete original classroom-d13-v2/v3 unsharded profiles, editor
+        messages profile, 50-minute per-job limit, zero retries, exact tests,
+        no continue-on-error, and review-images all-child dependency.
+        Leave all unrelated failing product suites to their assigned owners.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 09ca53851fedf8288380c19333b12939094b6f9b
+      head_sha: null
+      main:
+        branch: main
+        sha: 09ca53851fedf8288380c19333b12939094b6f9b
+      observed_at: '2026-10-24T09:19:42.722Z'
+      observation_note: >-
+        CI-only work selected after verified cancelled exact PR #719 browser
+        run #40047454221; historical baseline only. Fetch current main and
+        exact candidate before writes, check overlaps, CI and review.
+    execution_lease:
+      executor_id: electronics-browser-partition-722
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-reverse-led-colour
     parent_lane: electronics
     worktree_id: electronics-reverse-led-colour-718
