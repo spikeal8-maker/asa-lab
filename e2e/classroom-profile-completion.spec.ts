@@ -152,6 +152,35 @@ async function openProfile(page: Page, classId: string, name: string) {
   await page.getByRole('row').filter({ hasText: name }).locator('.classroom-student-name').click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText(name);
 }
+async function selectTeacherProfileTab(
+  page: Page,
+  section: 'all' | 'grades' | 'assignments' | 'merits' | 'settings',
+) {
+  const mobile = page.getByRole('combobox', { name: 'Раздел профиля' });
+  if (await mobile.isVisible()) {
+    await mobile.selectOption(section);
+    return;
+  }
+  const names = {
+    all: 'Все работы',
+    grades: 'Оценки',
+    assignments: 'Задания',
+    merits: 'Заслуги',
+    settings: 'Настройки',
+  };
+  await page.getByRole('navigation', { name: 'Разделы профиля' })
+    .getByRole('button', { name: names[section], exact: true }).click();
+}
+async function openTeacherProfileCategory(
+  page: Page,
+  name: 'Данные и роль' | 'Коды и доступ' | 'Защита ученика' | 'Игровые разрешения',
+) {
+  await selectTeacherProfileTab(page, 'settings');
+  const settings = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const category = settings.getByRole('button', { name: new RegExp('^' + name) });
+  if ((await category.getAttribute('aria-expanded')) !== 'true') await category.click();
+  return settings;
+}
 async function assertLayout(page: Page, width: number, file: string) {
   await page.setViewportSize({ width, height: 900 });
   await page.locator('#main-content').evaluate((element) => {
@@ -188,18 +217,28 @@ async function assertLayout(page: Page, width: number, file: string) {
   expect(backBox.height).toBeGreaterThanOrEqual(44);
   expect(backBox.x + backBox.width).toBeLessThanOrEqual(previousRect.x);
   expect(Math.abs(backBox.y - previousRect.y)).toBeLessThanOrEqual(1);
-  const hero = (await page.locator('.participant-hero').boundingBox())!;
-  expect(navBox.y + navBox.height).toBeLessThanOrEqual(hero.y);
+  await expect(
+    page.locator(
+      '.classroom-student-hero, .participant-hero, .teacher-profile-grades, .participant-helper-classes, .classroom-student-games-region',
+    ),
+  ).toHaveCount(0);
   const mobileSectionRail = page.getByRole('group', { name: 'Разделы ученика' });
+  const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   if (await mobileSectionRail.isVisible()) {
     const railBox = (await mobileSectionRail.boundingBox())!;
     expect(railBox.height, 'one 44px section row').toBe(44);
     expect(railBox.y - navBox.y - navBox.height).toBeLessThanOrEqual(6);
-    expect(hero.y - railBox.y - railBox.height).toBeLessThanOrEqual(12);
   } else {
-    expect(hero.y - navBox.y - navBox.height).toBeLessThanOrEqual(12);
+    await expect(tabs).toBeVisible();
   }
-  await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
+  const content = page.locator(
+    'main.classroom-student .classroom-student-section, main.classroom-student .participant-grades, main.classroom-student .participant-assignments, main.classroom-student .classroom-student-settings-entry',
+  ).first();
+  if (await content.count()) {
+    const current = (await content.boundingBox())!;
+    const rail = (await (await mobileSectionRail.isVisible() ? mobileSectionRail : tabs).boundingBox())!;
+    expect(current.y).toBeGreaterThanOrEqual(rail.y + rail.height - 2);
+  }
   // On desktop nine sections remain keyboard-reachable in the original scroller.
   // On narrow content the same nine sections use one native accessible selector.
   {
@@ -328,9 +367,14 @@ async function assertLayout(page: Page, width: number, file: string) {
       const contextual = page.locator(
         '.classroom-student-section-rail .classroom-student-section-action',
       );
-      const actionBox = (await contextual.boundingBox())!;
-      expect(actionBox.width).toBeGreaterThanOrEqual(44);
-      expect(actionBox.height).toBeGreaterThanOrEqual(44);
+      const tab = await page.locator('main.classroom-student').getAttribute('data-student-section');
+      const supportsAction = ['all', 'three-d', 'electronics', 'blocks', 'merits'].includes(tab ?? '');
+      await expect(contextual).toHaveCount(supportsAction ? 1 : 0);
+      if (supportsAction) {
+        const actionBox = (await contextual.boundingBox())!;
+        expect(actionBox.width).toBeGreaterThanOrEqual(44);
+        expect(actionBox.height).toBeGreaterThanOrEqual(44);
+      }
       const selectedBeforeLayoutCheck = await mobile.inputValue();
       await mobile.selectOption('grades');
       await expect(mobile).toHaveValue('grades');
@@ -342,7 +386,7 @@ async function assertLayout(page: Page, width: number, file: string) {
   }
 
   const controls = page.locator(
-    '.participant-tabs button, .participant-assignments button, .participant-assignments a, .participant-role select, .participant-grades button',
+    '.participant-tabs button, .participant-assignments button, .participant-assignments a, .participant-grades button',
   );
   for (const control of await controls.all()) {
     if (!(await control.isVisible())) continue;
@@ -366,14 +410,11 @@ async function assertLayout(page: Page, width: number, file: string) {
       expect(rect!.height).toBeGreaterThanOrEqual(44);
     }
     const compactNavigation = await control.evaluate((element) =>
-      element.matches('.participant-tabs button, .participant-role select'),
+      element.matches('.participant-tabs button'),
     );
     // Approved compact cards use 12px labels with full 44px targets. Expanded
     // grades/assignments retain 16px; every action must fit its rendered label.
-    const compactGrade = await control.evaluate((element) =>
-      Boolean(element.closest('.teacher-profile-grades')),
-    );
-    const minFontSize = compactNavigation ? 13 : compactGrade ? 12 : 16;
+    const minFontSize = compactNavigation ? 13 : 16;
     expect(
       await control.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
     ).toBe(true);
