@@ -1166,7 +1166,7 @@ for (const newerFirst of [true, false]) {
     ]);
     await expect(result).toHaveCount(1);
     await expect(result.locator('strong')).toHaveText('Без балла');
-    await expect(result).toHaveAttribute('title', new RegExp(latest.feedback));
+    await expect(result.locator('.participant-grade-feedback')).toContainText(latest.feedback);
     await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
     await noOverflow(page);
     await shot(page, `repair-result-retraction-${newerFirst}`);
