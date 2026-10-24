@@ -14,6 +14,7 @@ import {
 const Context = createContext<NativeOpticalPresentation | null>(null);
 const idleSubscribe = () => () => {};
 const idleSnapshot = () => EMPTY_NATIVE_OPTICAL_SNAPSHOT;
+const idleCommitted = () => null;
 export function NativeOpticalProvider({
   port,
   children,
@@ -30,22 +31,48 @@ export function NativeOpticalProvider({
 /** Only the native visual subscribes: the Stage and its editor do not reconcile for a frame. */
 export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisual>) {
   const port = useContext(Context);
-  const opticalPort =
+  // LED/Uno renders participate in the prepared-asset and layout ACK barrier.
+  // The lamp must not participate: it has no prepared asset lease and may only
+  // show a complete, already accepted vector rather than a proposed observation.
+  const nativePort =
     props.simulationRunning && (props.entry.key === 'led-5mm' || props.entry.key === 'arduino-uno')
       ? port
       : null;
+  const lampPort = props.simulationRunning && props.entry.key === 'incandescent-lamp' ? port : null;
   const snapshot = useSyncExternalStore(
-    opticalPort?.subscribe ?? idleSubscribe,
-    opticalPort?.getSnapshot ?? idleSnapshot,
+    nativePort?.subscribe ?? idleSubscribe,
+    nativePort?.getSnapshot ?? idleSnapshot,
     idleSnapshot,
   );
+  const committed = useSyncExternalStore(
+    lampPort?.subscribe ?? idleSubscribe,
+    () => lampPort?.getSnapshot().committed ?? null,
+    idleCommitted,
+  );
   useLayoutEffect(() => {
-    if (opticalPort) return opticalPort.rendered(props.component.id, snapshot);
+    if (nativePort) return nativePort.rendered(props.component.id, snapshot);
     return undefined;
-  }, [opticalPort, props.component.id, snapshot]);
-  if (!opticalPort) return <OwnerVisual {...props} />;
+  }, [nativePort, props.component.id, snapshot]);
+  if (lampPort) {
+    return (
+      <OwnerVisual
+        {...props}
+        result={lampPort.resultMap(committed).get(props.component.id)}
+        simulationTimeMs={(committed?.frame.atMicroseconds ?? 0) / 1000}
+      />
+    );
+  }
+  if (!nativePort) {
+    // Stop/Reset must not reuse a parent prop from a formerly running frame.
+    return (
+      <OwnerVisual
+        {...props}
+        result={props.entry.key === 'incandescent-lamp' ? undefined : props.result}
+      />
+    );
+  }
   const observation = snapshot.observation;
-  const result = opticalPort.resultMap(observation).get(props.component.id);
+  const result = nativePort.resultMap(observation).get(props.component.id);
   const optical = observation?.frame.brightness.get(props.component.id);
   let visualState = props.visualState;
   if (props.component.kind === 'led') {
