@@ -1098,7 +1098,7 @@ export class AiChatService {
 
     if (!admitted) {
       // A request with file bindings cannot be replayed as a text-only operation.
-      if (!sourceId && !attachmentIds.length) {
+      if (this.attachments && !sourceId && !attachmentIds.length) {
         const existing = await this.pool.query<{ source: { items?: unknown } }>(
           'SELECT ai_attachment_request_source($1,$2,$3) AS source',
           [principalId, threadId, requestId],
