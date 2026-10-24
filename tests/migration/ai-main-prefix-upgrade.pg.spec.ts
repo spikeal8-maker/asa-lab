@@ -18,6 +18,7 @@ const expectedPending = [
   '0236',
   '0237',
   '0238',
+  '0239', // Optional LAN Ollama; preserve older published migrations.
 ];
 
 interface Identity {
