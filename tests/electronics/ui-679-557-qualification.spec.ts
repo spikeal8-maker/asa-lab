@@ -179,13 +179,47 @@ describe('additive workflow retains existing execution protections', () => {
     expect(Object.keys(scoped.jobs)).toEqual(['focused', 'benchmark', 'browser']);
     for (const job of ['focused', 'benchmark'])
       expect(scoped.jobs[job]).toEqual(original.jobs[job]);
+    // The full browser CI now requires two independent shards. This scoped
+    // six-case UI qualification deliberately runs a single whole-suite child.
+    // Require every new full-gate control before projecting only its known
+    // sharding differences; keep all shared transport/runtime steps identical.
     const browser = structuredClone(original.jobs.browser);
+    const matrix = browser.strategy?.matrix?.browser_case;
+    expect(Object.keys(browser.strategy)).toEqual(['fail-fast', 'matrix']);
+    expect(browser.strategy['fail-fast']).toBe(false);
+    expect(Object.keys(browser.strategy.matrix)).toEqual(['browser_case']);
+    expect(matrix).toContain('classroom-d13-v2');
+    expect(matrix).toContain('classroom-d13-v3');
+    expect(matrix).toContain('arduino-editor-error');
+    expect(matrix).toContain('"label":"whole","shard":""');
+    expect(matrix).toContain('"label":"s1","shard":"1/2"');
+    expect(matrix).toContain('"label":"s2","shard":"2/2"');
+    expect(matrix.match(/"label"/g)).toHaveLength(3);
+    expect(browser.env.ASA_ELECTRONICS_BROWSER_SHARD).toBe('${{ matrix.browser_case.shard }}');
+    expect(browser.env.COMPOSE_PROJECT_NAME).toBe(
+      'asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}',
+    );
+    expect(browser['timeout-minutes']).toBe(50);
+    expect(browser['continue-on-error']).toBeUndefined();
+    expect(scoped.jobs.browser.strategy).toBeUndefined();
+    expect(scoped.jobs.browser.env.ASA_ELECTRONICS_BROWSER_SHARD).toBeUndefined();
+
+    const shardCli = ' ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}';
+    const gate = browser.steps.find(
+      (step: { name: string }) => step.name === 'Selected Electronics browser qualification',
+    );
+    expect(gate?.run.endsWith(shardCli)).toBe(true);
+    delete browser.strategy;
+    delete browser.env.ASA_ELECTRONICS_BROWSER_SHARD;
+    browser.env.COMPOSE_PROJECT_NAME = 'asa-lab-electronics-${{ github.run_id }}';
     browser.name = 'Scoped six-case UI qualification (not full Electronics)';
     browser.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE = 'strict-real-time';
     browser.env.ASA_ELECTRONICS_BROWSER_GATE = 'gate:electronics-ui-679-557:browser';
     for (const step of browser.steps) {
-      if (step.name === 'Selected Electronics browser qualification')
+      if (step.name === 'Selected Electronics browser qualification') {
+        step.run = step.run.slice(0, -shardCli.length);
         step.name = 'Six existing native cases, unchanged assertions';
+      }
       if (step.name === 'Upload browser evidence')
         step.with.name = 'electronics-ui-679-557-browser-${{ github.run_id }}';
     }
