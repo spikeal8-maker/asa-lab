@@ -878,7 +878,8 @@
 
 .asa-ai-layout .chat-composer-dock {
   padding: 6px 24px max(12px, env(safe-area-inset-bottom));
-  /* On-screen keyboards must shrink the dock rather than cover messages. */
+  /* Reserve the toolbar's height even when the visual viewport is short. */
+  max-height: calc(100% - 52px);
   overflow-y: auto;
 }
 
@@ -896,6 +897,12 @@
   padding: 11px 14px;
   border-radius: 25px;
   box-shadow: 0 3px 12px color-mix(in srgb, var(--ai-text) 6%, transparent);
+}
+
+.asa-ai-layout .chat-composer textarea {
+  /* The 52px toolbar, send action, insets and some conversation space take
+   * priority over an expanded draft when the on-screen keyboard appears. */
+  max-height: clamp(32px, calc(var(--ai-available-height, 350px) - 144px), 160px);
 }
 
 .asa-ai-layout .chat-send-button {
