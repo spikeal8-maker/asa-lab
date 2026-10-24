@@ -1,5 +1,6 @@
 import {
   addCourseBlock,
+  openCourseActions,
   selectCoursePractice,
   openNewAssignmentEditor,
   openExistingAssignmentEditor,
@@ -347,6 +348,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await sidebar(matePage, 'Курсы и задания').click();
   await bankTab(matePage, 'Каталог').click();
   await expect(matePage.getByText(title, { exact: true })).toHaveCount(0);
+  await openCourseActions(authorPage);
   await editor.getByRole('button', { name: 'Доступ', exact: true }).click();
   const share = authorPage.getByRole('dialog', { name: 'Кому видно' });
   await share.getByRole('radio', { name: /Названным преподавателям/ }).click();
@@ -665,6 +667,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   }
   await matePage.setViewportSize({ width: 1440, height: 900 });
   await copiedCourseCard.click();
+  await openCourseActions(matePage);
   await ownEditor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assign = matePage.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assign.getByLabel('Класс для курса').selectOption({ label: 'Library class ' + suffix });

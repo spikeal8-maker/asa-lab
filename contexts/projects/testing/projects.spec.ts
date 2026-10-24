@@ -457,6 +457,42 @@ describe('list, rename, draft and checkpoint', () => {
     },
   );
 
+  it('uses prepared metadata without loading the old document and retains conflict fallback', async () => {
+    const { port } = repo();
+    const save = vi.fn(async () => ({
+      projectId: 'p1',
+      document: {},
+      revision: 2,
+      updatedAt: 'now',
+      preview: null,
+    }));
+    port.prepareDraftSave = vi.fn(async () => ({ moduleKey: 'electronics', save }));
+    const load = vi.spyOn(port, 'load');
+    const legacySave = vi.spyOn(port, 'saveDraft');
+    const input = {
+      tenantId: 't1',
+      projectId: 'p1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
+      document: {},
+      baseRevision: 1,
+      mutationId: '00000000-0000-4000-8000-000000000003',
+    };
+    const useCase = new SaveDraftUseCase(port, catalog());
+    expect(await useCase.execute(input)).toMatchObject({ ok: true, value: { revision: 2 } });
+    expect(load).not.toHaveBeenCalled();
+    expect(legacySave).not.toHaveBeenCalled();
+    save.mockResolvedValueOnce(null as never);
+    expect(await useCase.execute(input)).toMatchObject({
+      ok: false,
+      code: 'project_revision_conflict',
+    });
+    expect(load).toHaveBeenCalledTimes(1);
+    port.prepareDraftSave = vi.fn(async () => null);
+    expect(await useCase.execute(input)).toMatchObject({ ok: false, code: 'project_not_found' });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses to overwrite a draft whose server revision moved forward', async () => {
     const { port } = repo({ saveDraft: async () => null });
     const load = vi.spyOn(port, 'load');

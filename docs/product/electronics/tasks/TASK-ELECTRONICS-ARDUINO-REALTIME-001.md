@@ -111,3 +111,50 @@ Actual17 short phases still fail after metric coalescing. Complete electrical fr
 One bounded author may change only `use-electronics-workbench.ts` and existing mounted-clock specs to retain state identity for empty-to-empty Serial projection. Nonempty updates, nonempty-to-empty clearing, RX/TX/begun/baud data, generation/source/Stop/Reset behavior and immediate canonical input/state must remain unchanged;no Serial throttling or expensive history serialization/comparison. Correct the mounted receive fixture to invoke real controller callbacks in production order, including Serial, and reproduce the receipt-render failure before fixing it. Keep all eight native scenarios and their time/phase/duty/drift/journal assertions intact. No solver/profile/pace/physics/origin changes.
 
 If needed solely to retain the unchanged bundle ceiling, an independently AST-equivalent rename of keys inside the presenter's private clock-anchor object is allowed;no public frame/protocol fields, values or behavior may change. No build-budget increase or minifier configuration changes. Freeze focused checks and exactSHA, independent source review, then required exact gates and one justified actual AFTER. Proven unchanged-render reduction alone is not accepted visual timing;remaining compute/dispatch costs must be reported honestly.
+
+
+## Selected actual-eight-failure repair: H0 host-demand bootstrap
+
+Exact dcf8 actual browser run40026274248 retained all eight failures. At20ms H0 to first dispatch is39.2ms, then25000us computation takes46.2ms; first complete history arrives after the first pulse. Controller pump returns on null pending target before consulting authoritative host horizon. This is a demonstrated idle path, not an oracle excuse. Long-cycle compute and native publication lag remain open.
+
+One author may change only the Arduino simulation controller and its existing targeted tests, plus narrowly necessary mounted-clock regression. After genuine H0 completion, promptly read already elapsed authoritative host time and enqueue only a finite safe integer horizon strictly beyond committed time. A first positive complete observation may be capped at1000us once, preserving the entire requested horizon and all subsequent continuation. If elapsed is still zero, at most one generation-guarded microtask retry is allowed; no busy loop, forced positive time, future work, wall-origin reset, hidden warmup or phase buffer. Retain callback ordering and reentrancy safety, current input/H0/yielded/Reset/Stop/source/dedup behavior and canonical state.
+
+Prove BEFORE delayed/no host read without external timer and AFTER lawful immediate demand, first complete slice and exact continuation; compare full canonical events/state across horizons. Cover zero/invalid host horizons, stale generations, reentrant callbacks, input/yielded/Reset/Stop. All eight frozen browser cases, phase/duty/drift/ACK/loss criteria, existing timeouts, physics and pace stay unchanged. Independently review the frozen source SHA before one justified actual AFTER. No claim this alone repairs continuing runtime or asset latency.
+
+Fresh preflight reports only foreign dirty workflows in D13 and teacher worktrees, no actual selected-path dirty overlap and no execution blockers; those workflows remain untouched under the owner's existing limited separate-tree exception and current direct_main policy. No guard is disabled.
+
+
+## Selected duplicate owned-request digest repair
+
+Actual998 all eight repeated native cases remain FAIL; initial dispatch is repaired, continuing ready debt remains. Real saved100ms project replay through batched evaluator shows1312 simulationInputDigest calls for656 ready requests; all656 canonical-input pairs byte-identical. Sampling attributes431.990ms inclusive digest CPU of2507.165ms evaluator CPU (17.2percent), not exact wall timing. No claim removing half this work suffices for visual acceptance.
+
+One author may change contexts/electronics/engine.ts, existing immutable owned-request capability and scheduler preparation plus necessary existing tests. Compute the required digest once at its original engine validation location/error priority; carry it only through the existing owned immutable request capability and reuse for scheduler preparation. Preserve direct scheduler API fallback validation, malformed input/error order, disposal, source/input/request isolation. No global or mutable-object cache, hash algorithm change, trusted caller bypass, new public unsafe capability, physics, numerical accuracy, cadence, wall origin or timeout change.
+
+BEFORE prove two identical calls per request; AFTER one validated computation with byte-identical whole ready results, canonical state and events at every saved horizon, including button/input/yielded/Reset/source cases and direct scheduler negatives. Use the same saved fixture and report call counts plus comparative CPU honestly. Freeze one bounded commit with focused checks, independent exact review, then necessary exact CI and unchanged all-eight browser AFTER. Native asset delay remains open; do not edit the concurrently owned ProductionComponentVisual path.
+
+
+## Selected local native optical publication sink
+
+Actual618 repeated8 remains FAIL despite exact electrical fronts and reduced digest work. Existing optical preparation/publication React state belongs to the entire Workbench hook; each frame requires parent reconciliation before native owner resources and layout ACK. Select one coherent local run-scoped external store/provider and visual subscriber wrapper, preserving the original ProductionComponentVisual implementation and assets.
+
+Allowed: new local optical store/provider modules, use-electronics-workbench.ts transport and lifecycle, pages/SchematicEditor.tsx provider integration, ONE WorkbenchStage.tsx import redirection to a wrapper with identical public props, and existing mounted/native tests plus narrow store tests. Fresh targeted status across all worktrees shows no dirty changes in hook/editor/Stage; historical lane ownership is not an exclusive write permission under direct_main. Recheck before writing; if a real dirty overlap appears preserve it and stop that path. Do not alter Stage geometry/selection/foreign hunks or original visual body.
+
+Keep preparation/proposed/committed/rollback vectors immutable, current generation/project/source/frame ownership, loaded-mounted-visible native leases, atomic whole LED/L vector and existing distinct-frame layout ACK. No ACK until all real nodes are active/current; failed/stale/partial commit restores whole previous vector. Numeric views read committed snapshots; move display-only metric scheduling after optical work to avoid flushSync draining parent updates. No solver, clock origin/debt, timing tolerances, cadence, physical model, new artwork or global DOM mutations/cache.
+
+Regression must use actual mounted native nodes: preparation/publication causes zero extra whole-Workbench renders, one independent numeric metric render remains explicit, incomplete/stale/untrusted/error/href mutation/Suspense/unmount/Stop/Reset/source never falsely ACK. Preserve all existing readiness, independent-port, optical mean and rollback cases. Actual frozen8 AFTER and exact gates plus new independent source review required; local render reduction is not acceptance.
+
+
+## Owner-approved editor budget revision, 2026-10-24
+
+Owner explicitly answered: allow222000-byte budget and verification of all eight regimes. Exact67270cec native sink independently passed426 focused tests; Code types/build passed but actual editor221556 exceeded218000. Targeted safe reduction could not recover3556 without deleting the implementation/guards.
+
+Select one separate change to only Electronics editor maximum in tools/check-web-bundle-budget.mjs:218000 to222000. All other budgets, matching rules and failure semantics remain unchanged. This authorization does not weaken physical accuracy, timeouts, native ready/ACK requirements, phase/drift/duty limits or any of eight browser scenarios. New independent exact review, actual Code/build measurement and one justified all-eight AFTER required; no owner acceptance or deployment implied.
+
+
+## Selected local Header clock projection repair
+
+Actual6b53 General PASS but repeated8 still FAIL. Native ready-to-visible improved13-26ms; later producer request starts late. For20s transition80000012us the crossing request begins57.888ms after expected edge; ready95.688ms late, native adds33ms. Raw30ms last HIGH appears after audit and286ms late, not proved permanently lost. Do not extend audit or relax bounds.
+
+Current scalar displayed committed-time React state updates whole Workbench each RAF; Header is its only consumer. Select one bounded local Header clock subscriber through existing run-scoped projection port/new narrow clock projection, plus hook transport and necessary existing mounted tests. Preserve immediate canonical horizon/state refs, host demand and input order, session/source/generation, optical ready-only ACK/rollback, clock values and stopped/reset behavior. No speculative ahead simulation, reset/reanchor/debt discard, numerical/physics/cadence/timeouts/budget changes. No Stage/owner visual edits.
+
+BEFORE real callbacks+four actual RAFs cause four whole Workbench renders; AFTER none from scalar metric while actual Header clock updates each relevant RAF and Reset/Stop/source reject stale updates. Existing optical/native tests and all frozen8 cases remain unchanged. Separate exact independent review and actual gates/AFTER required; root render reduction alone is not acceptance and does not prove all Worker RTT is React cost.

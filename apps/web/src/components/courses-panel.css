@@ -1567,6 +1567,30 @@
   position: relative;
   display: block;
 }
+/* The Add Content menu is a positioned popup: near the bottom of a short
+   viewport it must flip above the trigger, not flow underneath the fold. */
+.course-document-editor .lesson-block-add > .dropdown-menu {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 4px);
+  bottom: auto;
+  left: 0;
+  right: auto;
+  width: min(640px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+  overflow-y: auto;
+}
+
+.course-document-editor .lesson-block-add[data-dropdown-placement='above'] > .dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.course-document-editor .lesson-block-add[data-dropdown-placement='below'] > .dropdown-menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+}
+
 .lesson-block-add [role='menu'] {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1607,4 +1631,492 @@
   max-width: 100%;
   margin-top: 0.75rem;
   white-space: normal;
+}
+
+/* The Course Builder is a document with one outline, not a stack of form cards. */
+.course-document-editor {
+  gap: 16px;
+  color: #20313b;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.course-editor-document:not([hidden]) {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.course-document-editor button,
+.course-document-editor summary {
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.course-document-editor :is(button, summary, input, textarea, select):focus-visible {
+  outline: 3px solid #0b82ba;
+  outline-offset: 2px;
+}
+
+.course-document-editor .course-compact-header {
+  position: sticky;
+  top: calc(var(--portal-header-height, 56px) + 12px);
+  z-index: 5;
+  background: #fff;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  padding-bottom: 16px;
+  /* Keep natural browser focus scrolling clear of the responsive portal bar. */
+  scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 12px);
+}
+
+.course-document-editor .course-compact-title h2 {
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.course-document-editor .course-compact-title p {
+  display: block;
+  font-size: 12px;
+}
+
+.course-document-editor .course-header-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  overflow: visible;
+}
+
+.course-document-editor .course-header-actions button {
+  width: auto;
+  padding: 8px 14px;
+  font-size: 14px;
+}
+
+.course-save-slot:empty {
+  display: none;
+}
+
+.course-save-state {
+  display: grid;
+  flex: 1 1 180px;
+  gap: 2px;
+  min-width: 0;
+  color: #425b66;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.course-save-state small {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.course-document-editor .course-outline-menu > summary {
+  width: 44px;
+  height: 44px;
+}
+
+.course-document-editor .course-actions-menu > summary {
+  width: auto;
+  padding-inline: 12px;
+  border-color: #c9d5db;
+  scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 12px);
+}
+
+.course-document-editor .course-actions-menu > .dropdown-menu {
+  left: auto;
+  max-width: calc(100vw - 48px);
+  overflow-y: auto;
+}
+
+.course-document-editor .course-actions-menu[data-dropdown-placement='above'] > .dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.course-document-editor .course-actions-menu[data-dropdown-placement='below'] > .dropdown-menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+}
+
+.course-document-editor .course-builder {
+  grid-template-columns: 240px minmax(0, 1fr);
+  align-items: start;
+  min-height: 0;
+  overflow: visible;
+  border: 0;
+}
+
+.course-document-editor .course-outline {
+  border: 1px solid #dfe7eb;
+  border-radius: 10px;
+}
+
+.course-document-editor .course-outline-scroll {
+  max-height: calc(100dvh - 210px);
+}
+
+/* The inline outline stays accessible beneath both sticky headers, even when
+   its contents reach the scroller's maximum height. Modal outlines are separate. */
+.course-document-editor .course-outline-dialog[data-inline='true'] .course-outline-scroll {
+  max-height: max(
+    0px,
+    calc(
+      100dvh - var(--portal-header-height, 56px) - var(--course-compact-header-height, 0px) - 24px -
+        var(--course-outline-head-height, 64px) - 16px
+    )
+  );
+}
+
+.course-document-editor .course-outline-section-head {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.course-document-editor .course-outline-section li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: start;
+}
+
+.course-document-editor .course-lesson-link {
+  padding: 10px 6px;
+}
+
+.course-document-editor :is(.course-section-name strong, .course-lesson-link strong) {
+  font-size: 13px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.course-document-editor .course-lesson-link small {
+  font-size: 11px;
+}
+
+.course-document-editor .course-lesson-order {
+  position: static;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  transform: none;
+}
+
+.course-document-editor .course-lesson-order button,
+.course-document-editor .course-icon-button {
+  width: 44px;
+  height: 44px;
+}
+
+.course-document-editor .course-add-lesson {
+  font-size: 14px;
+}
+
+.course-document-editor .course-workspace {
+  padding: 0 clamp(16px, 3vw, 36px) 24px;
+}
+
+.course-document-editor .course-lesson-editor {
+  max-width: 740px;
+  gap: 20px;
+}
+
+.course-document-editor .course-editor-title {
+  min-height: 44px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.course-document-editor .course-eyebrow {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.course-document-editor .course-field {
+  font-size: 14px;
+}
+
+.course-field textarea.course-growing-textarea,
+.lesson-block-card textarea.course-growing-textarea {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  overflow: hidden;
+  resize: none;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.course-document-editor .course-document-title textarea {
+  color: #172832;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.course-document-editor .lesson-block-card {
+  gap: 8px;
+  padding: 12px 0 18px;
+  border: 0;
+  border-bottom: 1px solid #dfe7eb;
+  border-radius: 0;
+  background: #fff;
+}
+
+.course-document-editor .lesson-block-card.is-hidden {
+  border-bottom-style: dashed;
+  background: #f8fafb;
+}
+
+.course-document-editor .lesson-block-card > header > span {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Keep a focused block action below both sticky headers after layout changes. */
+.course-document-editor .lesson-block-menu > summary {
+  scroll-margin-block-start: calc(
+    var(--portal-header-height, 56px) + var(--course-compact-header-height, 0px) + 24px
+  );
+}
+
+.course-document-editor .lesson-block-menu .dropdown-menu button {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.course-document-editor .lesson-block-menu .dropdown-menu {
+  left: auto;
+  min-width: 200px;
+  max-width: calc(100vw - 48px);
+  overflow-y: auto;
+}
+
+.course-document-editor .lesson-block-menu[data-dropdown-placement='above'] > .dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.course-document-editor .lesson-block-menu[data-dropdown-placement='below'] > .dropdown-menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+}
+
+.lesson-block-add > summary {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 1px solid #c9d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lesson-block-add > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lesson-block-add > summary[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.course-document-editor .lesson-block-add button {
+  font-size: 14px;
+}
+
+.course-structure-button {
+  display: none;
+}
+
+.course-editor-dialog {
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid #c9d5db;
+  border-radius: 12px;
+  color: #20313b;
+  background: #fff;
+  overflow: auto;
+}
+
+.course-editor-dialog::backdrop {
+  background: rgba(18, 35, 45, 0.45);
+}
+
+.course-editor-dialog[data-inline='true'] {
+  position: sticky;
+  inset: auto;
+  top: calc(var(--portal-header-height, 56px) + var(--course-compact-header-height, 0px) + 24px);
+  display: block;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+}
+
+.course-dialog-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.course-dialog-header h3 {
+  margin: 0;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.course-editor-dialog .course-field {
+  margin-block: 16px;
+}
+
+.course-parameters-note {
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.course-history-panel {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #dfe7eb;
+  border-radius: 10px;
+}
+
+.course-preview-dialog {
+  width: 100%;
+}
+
+/* A screen, not the native top layer: pinned task images use body portals. */
+.course-editor-dialog[data-screen='true'] {
+  position: static;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+}
+
+.course-preview-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.course-preview-sources [aria-pressed='true'] {
+  border-color: #0878a9;
+  background: #e8f5fa;
+}
+
+@media (max-width: 760px) {
+  .course-document-editor .course-compact-header {
+    gap: 8px;
+  }
+
+  .course-document-editor .course-compact-title h2 {
+    font-size: 18px;
+  }
+
+  .course-document-editor .course-header-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .course-save-state {
+    order: -1;
+    flex-basis: 100%;
+  }
+
+  .course-save-slot {
+    flex: 1 1 130px;
+  }
+
+  .course-document-editor .course-save-slot button {
+    width: 100%;
+  }
+
+  .course-document-editor .course-header-actions > button {
+    flex: 1 1 auto;
+    min-width: min-content;
+    overflow-wrap: normal;
+  }
+
+  .course-document-editor .course-builder {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .course-structure-button {
+    display: block;
+    justify-self: start;
+  }
+
+  .course-document-editor .course-outline {
+    max-height: none;
+  }
+
+  .course-document-editor .course-outline-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .course-document-editor .course-workspace {
+    padding: 0 0 16px;
+  }
+
+  .course-document-editor .course-document-title textarea {
+    font-size: 24px;
+  }
+
+  .course-document-editor .lesson-block-fields.is-heading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .course-editor-dialog {
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    padding: 16px;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+/* A two-row mobile document toolbar can cover most of a 320×568 viewport.
+   Keep the portal bar sticky, but let the course toolbar scroll away so a
+   long text block remains pointer- and keyboard-accessible while editing. */
+@media (max-width: 520px) {
+  .course-document-editor .course-compact-header {
+    position: static;
+    top: auto;
+  }
+
+  .course-document-editor .lesson-block-menu > summary {
+    scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 16px);
+  }
 }

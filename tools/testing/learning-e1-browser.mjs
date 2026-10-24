@@ -35,6 +35,7 @@ const manifest = {
     'course and section forms preserve later edits after real save receipts without duplicates or rebasing competing changes',
     'Course publication lost response replays the exact V1 after V2 and reload without duplicate versions',
     'Course history compares exact V1–V4 policies and structural before/after changes without current defaults',
+    'document Course Builder preserves the lesson, real save acknowledgements and exact preview at four widths',
   ],
   'learning-course-01.spec.ts': [
     'author-only content keeps exact ID and versions after teaching activation; graded scale and mute are usable',
@@ -360,6 +361,13 @@ function execution(report, destination, expected) {
 }
 
 function main() {
+  // CI executes the complete 31 + 15 identity matrix in two isolated jobs.
+  // Local invocation without a phase retains the exact original all-cases behavior.
+  const phase = process.env.LEARNING_E1_BATCH ?? 'all';
+  check(
+    phase === 'all' || phase === 'first' || phase === 'second',
+    'Learning E1 phase must be all, first or second.',
+  );
   const expectedScript =
     `playwright test ${firstSelectors.join(' ')} --workers=1 && ` +
     `playwright test ${secondSelectors.join(' ')} --workers=1`;
@@ -421,7 +429,7 @@ function main() {
     );
     if (batch !== secondBatch) verified.push(...selected);
   }
-  equal(verified, first, 'Ordered first-batch union must be all 30 cases exactly once.');
+  equal(verified, first, 'Ordered first-batch union must be all 31 cases exactly once.');
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
@@ -521,18 +529,29 @@ function main() {
     // Preserve the process exit even if reporting or copying also failed.
     return receipt.testExitCode || receipt.coverageExitCode || receipt.evidenceExitCode;
   }
-  let firstExitCode = 0;
-  for (const batch of firstBatches) {
-    const status = run(batch);
-    if (firstExitCode === 0 && status !== 0) firstExitCode = status;
+  const runFirst = phase !== 'second';
+  const runSecond = phase !== 'first';
+  let firstExitCode = null;
+  if (runFirst) {
+    firstExitCode = 0;
+    for (const batch of firstBatches) {
+      const status = run(batch);
+      if (firstExitCode === 0 && status !== 0) firstExitCode = status;
+    }
   }
   let secondExitCode = null;
-  if (firstExitCode === 0) secondExitCode = run(secondBatch);
-  else console.log('First Learning E1 batch failed; the original second batch is NOT_RUN.');
-  const exitCode = firstExitCode || secondExitCode || 0;
+  if (runSecond && (!runFirst || firstExitCode === 0)) secondExitCode = run(secondBatch);
+  else if (runSecond)
+    console.log('First Learning E1 batch failed; the original second batch is NOT_RUN.');
+  const exitCode = (firstExitCode ?? 0) || (secondExitCode ?? 0);
   try {
     write(path.join(evidence, 'summary.json'), {
-      first: { cases: 30, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
+      phase,
+      first: {
+        cases: 31,
+        exitCode: firstExitCode,
+        status: firstExitCode === null ? 'NOT_RUN' : firstExitCode ? 'FAIL' : 'PASS',
+      },
       second: {
         cases: 15,
         exitCode: secondExitCode,
