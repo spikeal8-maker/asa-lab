@@ -75,6 +75,7 @@ const TABS = [
   { key: 'settings', label: 'Настройки', module: null },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
+type SettingsCategory = 'identity' | 'access' | 'safety' | 'games';
 
 export function ClassroomStudentPage({
   classroomId,
@@ -112,6 +113,8 @@ export function ClassroomStudentPage({
   const [loadedScope, setLoadedScope] = useState('');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
+  const [settingsCategory, setSettingsCategory] = useState<SettingsCategory | null>(null);
+  const gameSettingsRef = useRef<HTMLDivElement>(null);
   const [archive, setArchive] = useState(false);
   const [works, setWorks] = useState<ParticipantWorks | null>(null);
   const [worksError, setWorksError] = useState<string | null>(null);
@@ -162,6 +165,7 @@ export function ClassroomStudentPage({
     setSafeBusy(false);
     safeRequest.current++;
     setFocusAvatar(false);
+    setSettingsCategory(null);
   }, [classroomId, seatId]);
   useEffect(() => {
     if (tab !== 'merits' || !focusAvatar) return;
@@ -678,6 +682,56 @@ export function ClassroomStudentPage({
   const readOnly = profile.status !== 'active' || Boolean(seatActions?.readOnly);
   const settingsLocked = readOnly || student.status === 'suspended';
   const controlsBusy = roleBusy || safeBusy || Boolean(seatActions?.busy);
+  const updateRole = (role: string): void => {
+    if (settingsLocked || controlsBusy) return;
+    const token = profileGeneration.current;
+    setRoleBusy(true);
+    setProfileError(null);
+    void participantsApi
+      .mutate(classroomId, 'role', { seatId, role }, newClientId())
+      .then(async (result) => {
+        if (token !== profileGeneration.current) return;
+        if (result.ok) await load();
+        else setProfileError(result.error.message);
+      })
+      .catch(() => {
+        if (token === profileGeneration.current && !sessionEnded.current)
+          setProfileError('Не удалось сохранить роль ученика.');
+      })
+      .finally(() => {
+        if (scope.current === `${classroomId}:${seatId}`) setRoleBusy(false);
+      });
+  };
+  const updateSafeMode = (value: boolean): void => {
+    if (!seatActions || settingsLocked || controlsBusy) return;
+    const currentScope = scope.current;
+    const token = ++safeRequest.current;
+    setSafeBusy(true);
+    setProfileError(null);
+    void (async () => {
+      try {
+        const error = await seatActions.onSafeMode(value);
+        if (scope.current !== currentScope || sessionEnded.current || safeRequest.current !== token)
+          return;
+        if (error) setProfileError(error);
+        else await load();
+      } catch {
+        if (
+          scope.current === currentScope &&
+          !sessionEnded.current &&
+          safeRequest.current === token
+        )
+          setProfileError('Не удалось сохранить защиту ученика.');
+      } finally {
+        if (
+          scope.current === currentScope &&
+          !sessionEnded.current &&
+          safeRequest.current === token
+        )
+          setSafeBusy(false);
+      }
+    })();
+  };
   const visible = (works?.items ?? []).filter(
     (work) =>
       !onlyAwaiting ||
@@ -685,7 +739,13 @@ export function ClassroomStudentPage({
       (!work.canonicalState && work.awaitingReview),
   );
   return (
-    <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
+    <main
+      className="portal-content classroom-student"
+      id="main-content"
+      tabIndex={-1}
+      data-student-section={tab}
+      data-settings-category={settingsCategory ?? 'none'}
+    >
       {navigationRow}
       {sectionRail}
       <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
@@ -711,21 +771,7 @@ export function ClassroomStudentPage({
                 aria-label="Роль в классе"
                 value={metrics.role}
                 disabled={settingsLocked || controlsBusy}
-                onChange={(e) => {
-                  const token = profileGeneration.current;
-                  setRoleBusy(true);
-                  setProfileError(null);
-                  void participantsApi
-                    .mutate(classroomId, 'role', { seatId, role: e.target.value }, newClientId())
-                    .then(async (r) => {
-                      if (token !== profileGeneration.current) return;
-                      if (r.ok) await load();
-                      else setProfileError(r.error.message);
-                    })
-                    .finally(() => {
-                      if (scope.current === `${classroomId}:${seatId}`) setRoleBusy(false);
-                    });
-                }}
+                onChange={(event) => updateRole(event.target.value)}
               >
                 <option value="student">Учащийся</option>
                 <option value="helper">Помощник</option>
@@ -739,41 +785,7 @@ export function ClassroomStudentPage({
                   checked={student.safeMode}
                   aria-label={`Защита: ${student.displayLabel}`}
                   disabled={settingsLocked || controlsBusy || !seatActions}
-                  onChange={(event) => {
-                    if (!seatActions || settingsLocked || controlsBusy) return;
-                    const value = event.target.checked;
-                    const currentScope = scope.current;
-                    const token = ++safeRequest.current;
-                    setSafeBusy(true);
-                    setProfileError(null);
-                    void (async () => {
-                      try {
-                        const error = await seatActions.onSafeMode(value);
-                        if (
-                          scope.current !== currentScope ||
-                          sessionEnded.current ||
-                          safeRequest.current !== token
-                        )
-                          return;
-                        if (error) setProfileError(error);
-                        else await load();
-                      } catch {
-                        if (
-                          scope.current === currentScope &&
-                          !sessionEnded.current &&
-                          safeRequest.current === token
-                        )
-                          setProfileError('Не удалось сохранить защиту ученика.');
-                      } finally {
-                        if (
-                          scope.current === currentScope &&
-                          !sessionEnded.current &&
-                          safeRequest.current === token
-                        )
-                          setSafeBusy(false);
-                      }
-                    })();
-                  }}
+                  onChange={(event) => updateSafeMode(event.target.checked)}
                 />
                 Защита
               </label>
@@ -886,12 +898,19 @@ export function ClassroomStudentPage({
         </section>
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
-      <ClassroomGamesSettings
-        key={`${classroomId}:${seatId}:games`}
-        classroomId={classroomId}
-        seatId={seatId}
-        readOnly={settingsLocked || controlsBusy}
-      />
+      <div
+        ref={gameSettingsRef}
+        className="classroom-student-games-region"
+        tabIndex={-1}
+        aria-label="Разрешения игр ученика"
+      >
+        <ClassroomGamesSettings
+          key={`${classroomId}:${seatId}:games`}
+          classroomId={classroomId}
+          seatId={seatId}
+          readOnly={settingsLocked || controlsBusy}
+        />
+      </div>
       {seatActions?.error && seatActions.error !== profileError ? (
         <p role="alert">{seatActions.error}</p>
       ) : null}
@@ -944,13 +963,193 @@ export function ClassroomStudentPage({
           aria-label="Настройки ученика"
         >
           <h2>Настройки ученика</h2>
-          <button
-            type="button"
-            disabled={!seatActions || settingsLocked || controlsBusy}
-            onClick={() => seatActions?.onSettings()}
+          <div
+            className="classroom-student-settings-categories"
+            role="group"
+            aria-label="Категории настроек ученика"
           >
-            Изменить имя и аватар
-          </button>
+            {(
+              [
+                ['identity', 'Данные и роль'],
+                ['access', 'Коды и доступ'],
+                ['safety', 'Защита ученика'],
+                ['games', 'Игровые разрешения'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                type="button"
+                key={key}
+                className="classroom-student-settings-category"
+                aria-expanded={settingsCategory === key}
+                onClick={() => setSettingsCategory((current) => (current === key ? null : key))}
+              >
+                <span>{label}</span>
+                <span className="classroom-student-settings-category-state">
+                  {key === 'identity'
+                    ? metrics.role === 'helper'
+                      ? 'Помощник'
+                      : 'Учащийся'
+                    : key === 'access'
+                      ? student.status === 'suspended'
+                        ? 'Приостановлен'
+                        : 'Активен'
+                      : key === 'safety'
+                        ? student.safeMode
+                          ? 'Включена'
+                          : 'Выключена'
+                        : 'Правило класса / ученика'}
+                </span>
+                <span className="classroom-student-settings-chevron" aria-hidden="true">
+                  {settingsCategory === key ? '⌃' : '⌄'}
+                </span>
+              </button>
+            ))}
+          </div>
+          {settingsCategory !== null ? (
+            <div
+              className="classroom-student-settings-editor"
+              role="group"
+              aria-label="Активный редактор ученика"
+            >
+              {settingsCategory === 'identity' ? (
+                <>
+                  <dl className="classroom-student-settings-facts">
+                    <div>
+                      <dt>Ученик</dt>
+                      <dd>{student.displayLabel}</dd>
+                    </div>
+                    <div>
+                      <dt>Рейтинг класса</dt>
+                      <dd>
+                        {metrics.score === null ? 'Нет данных' : metrics.score.toFixed(2)}
+                        {metrics.rank === null ? '' : ` · место ${metrics.rank}`}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="classroom-student-settings-actions">
+                    <button
+                      type="button"
+                      disabled={!seatActions || settingsLocked || controlsBusy}
+                      onClick={() => seatActions?.onSettings()}
+                    >
+                      Изменить имя и аватар
+                    </button>
+                    <label className="classroom-student-settings-select">
+                      Роль ученика
+                      <select
+                        aria-label="Роль ученика в настройках"
+                        value={metrics.role}
+                        disabled={settingsLocked || controlsBusy}
+                        onChange={(event) => updateRole(event.target.value)}
+                      >
+                        <option value="student">Учащийся</option>
+                        <option value="helper">Помощник</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={settingsLocked || controlsBusy}
+                      onClick={() => {
+                        setTab('merits');
+                        setFocusAvatar(true);
+                      }}
+                    >
+                      Аватары и заслуги класса
+                    </button>
+                  </div>
+                  {metrics.role === 'helper' ? (
+                    <div className="classroom-student-settings-helper-classes">
+                      <strong>Классы помощника</strong>
+                      {(profile.helperClasses ?? []).length === 0 ? (
+                        <p>Нет доступных общих классов.</p>
+                      ) : (
+                        <ul>
+                          {profile.helperClasses.map((entry) => (
+                            <li key={entry.id}>
+                              <a href={`#/classrooms/${entry.id}`}>{entry.title}</a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+              {settingsCategory === 'access' ? (
+                <>
+                  <p className="classroom-student-settings-fact">
+                    Доступ: {student.status === 'suspended' ? 'приостановлен' : 'активен'}
+                  </p>
+                  <div className="classroom-student-settings-actions">
+                    {seatActions?.studentCode ? (
+                      <button
+                        type="button"
+                        disabled={settingsLocked || controlsBusy}
+                        onClick={() => seatActions.onCode()}
+                      >
+                        Изменить Student Code
+                      </button>
+                    ) : (
+                      <p className="classroom-student-settings-note">
+                        {seatActions
+                          ? 'Вход через аккаунт — Student Code не используется.'
+                          : 'Управление Student Code недоступно.'}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      disabled={
+                        !seatActions || settingsLocked || controlsBusy || !seatActions.canOpenCard
+                      }
+                      onClick={() => seatActions?.onAccessCard()}
+                    >
+                      Карточка доступа
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!seatActions || readOnly || controlsBusy}
+                      onClick={() => seatActions?.onSuspend()}
+                    >
+                      {student.status === 'suspended' ? 'Вернуть доступ' : 'Приостановить доступ'}
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {settingsCategory === 'safety' ? (
+                <>
+                  <label className="classroom-student-settings-safety">
+                    <input
+                      type="checkbox"
+                      aria-label={`Защита ученика в настройках: ${student.displayLabel}`}
+                      checked={student.safeMode}
+                      disabled={!seatActions || settingsLocked || controlsBusy}
+                      onChange={(event) => updateSafeMode(event.target.checked)}
+                    />
+                    Защита ученика {student.safeMode ? 'включена' : 'выключена'}
+                  </label>
+                  <p className="classroom-student-settings-note">
+                    Это настройка ученика. Классная защита и доступ к играм управляются отдельно.
+                  </p>
+                </>
+              ) : null}
+              {settingsCategory === 'games' ? (
+                <>
+                  <p className="classroom-student-settings-note">
+                    Индивидуальный доступ к играм действует по сохранённому правилу класса.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      gameSettingsRef.current?.scrollIntoView({ block: 'center' });
+                      gameSettingsRef.current?.focus();
+                    }}
+                  >
+                    Перейти к действующим игровым разрешениям
+                  </button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
           {!seatActions || settingsLocked ? (
             <small role="status">Изменения недоступны для этого ученика.</small>
           ) : null}
