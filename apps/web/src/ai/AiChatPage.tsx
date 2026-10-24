@@ -570,7 +570,7 @@ export function AiChatPage({
     }
   }
 
-  async function newChat(): Promise<string | null> {
+  async function newChat(preserveAttachments = false): Promise<string | null> {
     if (requestBusy.current || threadMutationBusy.current) return null;
     requestBusy.current = true;
     setCreatingChat(true);
@@ -589,7 +589,7 @@ export function AiChatPage({
       setHistoryReady(true);
       pendingRequest.current = null;
       setPendingMessage(null);
-      clearFiles();
+      if (!preserveAttachments) clearFiles();
       setHistoryAttachments({});
       setCurrentId(result.data.id);
       setCurrentThread({
