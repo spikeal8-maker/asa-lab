@@ -39,7 +39,7 @@ function raster() {
   return { bytes, imageDataUrl: `data:image/png;base64,${bytes.toString('base64')}` };
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 1024, 390, 320]) {
   test(`verified platform admin visibly hides and restores a publication at ${width}px`, async ({
     browser,
   }) => {
