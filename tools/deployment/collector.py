@@ -240,6 +240,20 @@ def verify_windows_task(xml, identity, resolved_sid=None):
     actions = task.findall("t:Actions/t:Exec", NS)
     require(len(actions) == 1 and len(list(task.find('t:Actions', NS))) == 1 and len(task.findall('t:Principals/t:Principal', NS)) == 1,
             "COLLECTOR_RUNNER_IDENTITY", "Unexpected task actions or principals.")
+    principals = task.findall('t:Principals', NS)
+    principal_node = task.find('t:Principals/t:Principal', NS)
+    require(len(principals) == 1 and len(list(principals[0])) == 1 and
+            len(principal_node.findall('t:UserId', NS)) == 1 and
+            len(principal_node.findall('t:LogonType', NS)) == 1 and
+            all(child.tag in {f'{{{NS["t"]}}}{name}' for name in ('UserId', 'LogonType', 'RunLevel')}
+                for child in principal_node),
+            "COLLECTOR_RUNNER_IDENTITY", "Unexpected task principal fields.")
+    run_levels = principal_node.findall('t:RunLevel', NS)
+    # Task Scheduler may omit its default LUA value when exporting a task.
+    # Absence means LeastPrivilege; a present element must be unambiguous.
+    require(not run_levels or len(run_levels) == 1 and run_levels[0].text == 'LeastPrivilege' and
+            not list(run_levels[0]) and not run_levels[0].attrib,
+            "COLLECTOR_RUNNER_IDENTITY", "Unexpected task run level.")
     action = actions[0]
     root = identity["root"]
     principal = task.findtext('t:Principals/t:Principal/t:UserId', namespaces=NS) or ''
@@ -250,8 +264,7 @@ def verify_windows_task(xml, identity, resolved_sid=None):
             principal and (principal.lower() in
                 {identity["owner"].lower(), identity.get('ownerSid', '').lower()} or
                 bool(identity.get('ownerSid')) and resolved_sid == identity['ownerSid']) and
-            task.findtext("t:Principals/t:Principal/t:LogonType", namespaces=NS) == "InteractiveToken" and
-            task.findtext("t:Principals/t:Principal/t:RunLevel", namespaces=NS) == "LeastPrivilege",
+            task.findtext("t:Principals/t:Principal/t:LogonType", namespaces=NS) == "InteractiveToken",
             "COLLECTOR_RUNNER_IDENTITY", "Existing task is not this installation's least-privilege collector.")
 
 

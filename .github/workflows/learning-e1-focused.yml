@@ -30,8 +30,12 @@ env:
   NX_DAEMON: 'false'
 
 jobs:
-  learning-e1:
-    name: Learning fresh upgrade and real browser journeys
+  learning-e1-batch:
+    name: Learning E1 real journeys (${{ matrix.batch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        batch: [first, second]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -103,6 +107,7 @@ jobs:
           curl --fail --silent --show-error http://127.0.0.1:4613/healthz
       - name: Real author Account Seat and exact project journeys
         env:
+          LEARNING_E1_BATCH: ${{ matrix.batch }}
           ASA_WEB_PORT: '4612'
           ASA_WEB_ORIGIN: http://127.0.0.1:4612
           ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
@@ -119,9 +124,22 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: learning-e1-${{ github.event.pull_request.head.sha || github.sha }}
+          name: learning-e1-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.batch }}
           path: |
             e2e/artifacts/learning
             e2e/artifacts/courses
             reports/playwright
           retention-days: 14
+
+  learning-e1:
+    name: Learning fresh upgrade and real browser journeys
+    needs: [learning-e1-batch]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require both independent complete browser partitions
+        env:
+          LEARNING_E1_BATCH_RESULT: ${{ needs.learning-e1-batch.result }}
+        run: |
+          test "$LEARNING_E1_BATCH_RESULT" = success

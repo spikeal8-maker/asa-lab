@@ -52,6 +52,7 @@ export class ProductAnalyticsController {
   private async authenticated<T>(
     request: FastifyRequest,
     run: (actor: AnalyticsActor) => Promise<T>,
+    onContextDenied?: () => T,
   ): Promise<T> {
     try {
       return await this.analytics.authenticatedRequest(
@@ -61,6 +62,15 @@ export class ProductAnalyticsController {
       );
     } catch (cause) {
       if (cause instanceof HttpException) throw cause;
+      // The legacy session endpoints promise a non-acceptance result for a
+      // refused project/session context. Handle it after the queued operation
+      // has rejected, never as an apparently persisted SQL write.
+      if (
+        cause instanceof AnalyticsDeliveryError &&
+        cause.code === 'context_denied' &&
+        onContextDenied
+      )
+        return onContextDenied();
       const code = cause instanceof AnalyticsDeliveryError ? cause.code : 'telemetry_unavailable';
       throw new HttpException(
         error(code, 'telemetry delivery unavailable'),
@@ -111,18 +121,22 @@ export class ProductAnalyticsController {
       throw new HttpException(error('validation_error', 'invalid module session'), 400);
     }
     const connection = clientConnection(request);
-    return this.authenticated(request, async (actor) => {
-      const accepted = await this.analytics.startModuleSession({
-        sessionId,
-        projectId,
-        actor,
-        moduleKey: moduleKey as AnalyticsModuleKey,
-        address: connection.address,
-        networkKind: connection.networkKind,
-        userAgentSummary: userAgentSummary(request.headers['user-agent']),
-      });
-      return { accepted, sessionId };
-    });
+    return this.authenticated(
+      request,
+      async (actor) => {
+        const accepted = await this.analytics.startModuleSession({
+          sessionId,
+          projectId,
+          actor,
+          moduleKey: moduleKey as AnalyticsModuleKey,
+          address: connection.address,
+          networkKind: connection.networkKind,
+          userAgentSummary: userAgentSummary(request.headers['user-agent']),
+        });
+        return { accepted, sessionId };
+      },
+      () => ({ accepted: false, sessionId }),
+    );
   }
 
   @Post('module-session/touch')
@@ -138,13 +152,17 @@ export class ProductAnalyticsController {
     ) {
       throw new HttpException(error('validation_error', 'invalid module session heartbeat'), 400);
     }
-    return this.authenticated(request, async (actor) => {
-      const accepted = await this.analytics.touchModuleSession({
-        sessionId,
-        actor,
-        closed: closed === true,
-      });
-      return { accepted };
-    });
+    return this.authenticated(
+      request,
+      async (actor) => {
+        const accepted = await this.analytics.touchModuleSession({
+          sessionId,
+          actor,
+          closed: closed === true,
+        });
+        return { accepted };
+      },
+      () => ({ accepted: false }),
+    );
   }
 }

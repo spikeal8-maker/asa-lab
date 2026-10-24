@@ -81,6 +81,81 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-reverse-led-colour
+    parent_lane: electronics
+    worktree_id: electronics-reverse-led-colour-718
+    owned_paths:
+      - apps/web/src/electronics/production-asset-contracts.ts
+      - apps/web/src/electronics/testing/production-assets.spec.ts
+      - e2e/electronics-simulation.spec.ts
+      - docs/product/electronics/generated/component-coverage.json
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
+    task:
+      id: TASK-ELECTRONICS-REVERSE-LED-COLOUR-001
+      issue: 718
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: low
+      semantic_change: 'yes'
+      checkpoint: selected_source_mechanism_confirmed_native_before_and_preflight_pending
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner requested controller execution of all 23 Electronics corrections via
+        #452/#703 and canonical queue. L01 owner LED reverse colour is the
+        first available independent minimal UI slice after P0 read-only triage;
+        source publication only, no school deployment or real student data.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        Reverse-polarity currently forces grayscale in CSS AND substitutes a
+        red special warning SVG for every ordinary LED colour. Use the already
+        provided normal colour-specific owner SVG at zero brightness and
+        replace reverse grayscale with no filter (retain selector so an
+        independently owned presentation contract remains unchanged);
+        preserve diagnostic state and
+        true burned/overcurrent appearance. Adapt existing browser reverse
+        asset oracle surgically, retaining unrelated R3 mobile scenarios.
+        Regenerate only browserEvidenceSha256 in canonical generated coverage
+        after e2e source edits; preserve all other generated report bytes.
+        Preserve the mounted stopped-preview asset recovery test with a
+        distinct actual burned fault asset; reverse now correctly shares
+        the resident zero-brightness owner body SVG.
+        No electronics solver, Worker, asset, save, or foreign subsystem edit.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ed307209cb7d9f8bffa3fa1ff4c08a1fe80a86fc
+      head_sha: null
+      main:
+        branch: main
+        sha: ed307209cb7d9f8bffa3fa1ff4c08a1fe80a86fc
+      observed_at: '2026-10-23T22:50:32Z'
+      observation_note: >-
+        Historical controller selection for L01 is not a tested candidate; fetch main
+        anew before writes, check independent active lanes and exact final CI,
+        bundle and required native browser review before claiming completion.
+    execution_lease:
+      executor_id: electronics-reverse-led-colour-718
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-arduino-log-error
     parent_lane: electronics
     worktree_id: arduino-point4-20261023
@@ -6277,14 +6352,14 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-      issue: 702
+      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: pinned_catalog_scope_selected_after_692_source_merge
+      checkpoint: report_intake_selected_while_702_waits_external_general_ci
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -6292,7 +6367,12 @@ parallel_lanes:
         tested integration into main. Legacy Gallery publication retention is superseded;
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
+        Owner's 2026-10-24 continuation selects independent report-intake #713 while
+        #702/PR #704 remains OPEN/DRAFT and BLOCKED FOR MERGE by external General CI.
+        Do not modify #704 paths, merge #704, waive CI, or touch other product lanes.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
+        - docs/product/projects/tasks/PROJ-R8-03.md
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03B-EDITORIAL-FEATURED.md
         - docs/product/projects/tasks/PROJ-R8-03A-ADMIN-MODERATION.md
@@ -7391,13 +7471,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: short_visual_actual_fail_empty_serial_identity_repair_selected
+      checkpoint: late_ready_local_header_clock_projection_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Actual17 repeated short phases still fail;all8period coverage remains required. One bounded hook author removes demonstrated empty-to-empty Serial React-state churn, with real production callback ordering in mounted tests. Nonempty Serial updates and clearing remain immediate;canonical simulation state, clocks and all frozen native criteria unchanged. Separate independent review and actual browser AFTER required;this optimization alone is not acceptance.
+      selected_slice: Actual6b53 all eight native cycles still fail despite faster optical publication. Later edge requests arrive late and every RAF scalar clock state causes full Workbench reconciliation. Select one run-scoped local Header clock subscriber using existing projection port; remove only displayed-time root render dependency, preserving canonical refs, host demand, optical ACK and all eight unchanged timing criteria. No speculative future simulation or physics/cadence/origin/budget changes.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
@@ -8148,7 +8228,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: repair_actual_clock_journal_and_qualify_six_native_cases
+      checkpoint: actual995_committed_dom_attribution_repair_selected
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -8157,7 +8237,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: TEST HARNESS A repair of actual512 request501 observer guard through lossless durable Node journal and bounded active retention without throwing before real Worker dispatch. Preserve observer attribution, every native action/assertion/deadline, four widths and accepted541 product. Separately selected six-case technical qualification is additive and does not change the full Electronics gate or release blockers.
+      repair_scope: Passive public data-time-ms on the same existing Header span from actual committedSimulationTimeMs render input, with strict independent unique binding by document, DOM mount epoch, active worker/generation/session and horizon. Equivalent same-binding/horizon receipts retain all IDs; marker proves formatter input, not exact React frame. No math, core, hook, Worker, visible text or physics change.
       integration_candidate:
         pr: 695
         head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
@@ -8175,10 +8255,25 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: One bounded test-harness repair author for the two selected files; NEW exact source review. Separate bounded additive six-case runner/manual workflow author with exact discovery manifest, transport guard identity allowlist and adversarial tests; NEW independent review and final composition. One exact qualification run plus required General/focused/budget evidence, NEW actual six-case review, then technical issue closure only if all criteria pass. Full Electronics remains global verification; its cancellation is not PASS and global release/owner acceptance remain blocked. No repeated unchanged broad run.
+      next_action: One bounded Header marker and clock observer author, NEW independent source review and four complete actual clock cases before reclosure. Prior07 acceptance and closeout remain immutable history; new995 causal attribution follow-up is in progress. API remains separate.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
+      owner_targeted_acceptance:
+        evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
+        decision: API оставить отдельно; принять UI по целевым проверкам
+        source_sha: 07c90ff0001a4d281ab0a507441ecdc654f39617
+        integrated_main: c29eabd4fa7a3a9a04838b0f86df609ea5c43ab6
+        scoped_run: 40021587497
+        scoped_actual: FAILURE overall five of six complete; clock four complete and mouse complete, touch incomplete
+        general_run: 40021586839
+        general_actual: FAILURE; Governance and Code PASS, Data and Access FAIL categoryC foreign telemetry42501 to503, not a UI acceptance barrier under explicit owner decision
+        data_actual: 6724tests and533files PASS except two foreign telemetry API tests; owned20tests PASS
+        independent_actual_review_sha256: 708cc3e523bd6e1faf732c8efaeaa15b6bbe231df0fde8c69b1ab75a61a3c5a1
+        independent_actual_checks: 6424
+        clock_technical_acceptance: four widths1440/1024/390/320 each first/restart/cookies-only-reopen COMPLETE; issue557 technical scope accepted, physical owner acceptance remains pending
+        f2_technical_acceptance: mouse COMPLETE with one Save full independent PUT and CAS2to3, server GET and cookies-only fresh reopen, visual PASS; touch before-action hit UNKNOWN, issue679 NOT accepted
+        preservation: General API blocker and full Electronics non-PASS retained; no release, deployment, physical owner acceptance or foreign API repair selected
       qualification_selection:
         evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
         scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
@@ -8188,10 +8283,15 @@ parallel_lanes:
           scope: Separate bounded baseline author after the scoped infrastructure author freezes the shared guard; update only the exact published original workflow profile allowlist and meaningful negative tests in tools/test_ci_image_transport.py, preserving the independent scoped workflow identity changes.
           invariant: Preserve strict-real-time default and classroom-d13-v2/v3 plus published arduino-editor-error as the exact four allowed profiles. Reject unknown, narrowed or default-changed declarations; no workflow/profile deletion, identity spoof, relaxed image/runtime provenance or competing guard writer.
           execution: Fresh target overlap check and explicit author handoff, one baseline commit and NEW independent review; scoped author owns only additive six-case workflow identity. No source product, workflow, dependency, cap or native assertion changes.
-        registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
+        registration_boundary: Registered scoped command now exists in mainc29eabd4 package script and reviewed manual workflow; lane browser records it below, with unchanged full Electronics retained as global verification.
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
-        closure_boundary: Explicit owner-programme technical acceptance for679/557 uses reviewed six-case qualification plus exact focused, raw budget and full General gates and NEW independent actual review. This does not accept or relabel the full Electronics workflow, grant physical owner acceptance, deployment or release, or clear any global/foreign blocker.
+        closure_boundary: Owner explicitly decided API remains separate and UI is accepted on targeted checks. Issue557 requires all four complete clock cases and independent actual review; issue679 requires both complete real F2 cases and actual review. Programme completion still requires all six. Exact focused/raw budget remain required; General actual API failures remain recorded, not PASS, and no global/foreign blocker, physical owner acceptance, deployment or release is cleared.
+      causal_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-causal-repair-selection-20261024.md
+        actual_sha: 9957c9bc6b65ec4e1d6ac4cd1f42c056867f4d28
+        actual_run: 40023851278
+        independent_review_sha256: e3dbcf77190e0ee36262957b8feb47029c7dcfb549d24affb79b79426f5f8c89
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -8230,6 +8330,10 @@ parallel_lanes:
         commands:
         - pnpm gate:electronics-m1
       browser:
+        workflow: Electronics UI 679-557 scoped qualification
+        commands:
+        - pnpm gate:electronics-ui-679-557:browser
+      global_browser_verification:
         workflow: Electronics R4-M1 Focused
         commands:
         - pnpm gate:electronics-m1:browser
@@ -8310,6 +8414,7 @@ parallel_lanes:
           K0/T3/class/owner/deployment pending.'
       reason: Preserve complete accepted541 snapshot unchanged;557 is a separately selected test-observer
         baseline dependency, not reopened product.
+
   - id: electronics-field-grab
     parent_lane: electronics
     worktree_id: electronics-field-544-resume
@@ -8392,22 +8497,37 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: repair_actual_f2_preapp_and_qualify_six_native_cases
+      checkpoint: d8_functional_six_pass_actual_budget_fail111_two_hunk_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: TEST HARNESS A repair of actual512 missing pre-app snapshot by installing initialization before genuine full document navigation, not hash-only navigation in an already loaded realm; preserve primary helper failure evidence durably. Preserve complete F2 real authentication, independent full document, CAS, cookies-only reopen, PSU slider and wire/terminal/ordinary negatives. No product repair is selected.
-      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/dependency edits in the test-repair slice. The separately selected additive scoped qualification author has only the infrastructure scope below. Preserve original PR694 finite case budget; no timeout increase.
+      repair_scope: One bounded two-hunk repair against d8e215e7; extract only stop-event helper in selected knob factory/PSU down hunk and Stage owner/runtime selector constants in selected strict native routing hunk. Apply frozen stopVisual and strictStage proposal only; all other seven selected source blobs and all bytes outside these hunks remain exact d8.
+      source_budget: Owner retains218000. Actual d8 editor218111 RAW fails by111; scoped40035753201 all six SUCCESS does not grant acceptance. Frozen two-hunk proposal saves119 only in module-transform proxy, estimated217992 with8 margin; actual production fit UNKNOWN. No further blind variant, cap raise or meter compaction.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
-      interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One exact-SHA six-case qualification under the explicit technical acceptance contract below plus required focused/General/raw-budget gates; no blind unchanged full-suite reruns. Cancelled full Electronics remains non-PASS and global release blocked.
+      interaction_contract: Preserve native event, exact foreground owner and strict current ready/runtime true-or-false validation; absent or invalid evidence falls through without actuation. Route only an actual same-PSU switch under crossing wire, using existing pointerSequence and mutationEpoch fences, never synthetic events or private React. Preserve pending wire, terminal and ordinary precedence, wire paint and selection elsewhere.
+      execution_boundary: After canonical selection publication, one bounded source author applies only two frozen hunks, meaningful focused checks and necessary generated source metadata. NEW final-SHA source review precedes one justified actual Code/raw measurement and exactly six original native cases, then NEW actual/visual review. Preserve event receiver/order/throws, strict ready/runtime checks, pending-wire/terminal/ordinary priority and JSX identity.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
       real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: One bounded test-harness repair author for the two selected files; NEW exact source review. Separate bounded additive six-case runner/manual workflow author with exact discovery manifest, transport guard identity allowlist and adversarial tests; NEW independent review and final composition. One exact qualification run plus required General/focused/budget evidence, NEW actual six-case review, then technical issue closure only if all criteria pass. Full Electronics remains global verification; its cancellation is not PASS and global release/owner acceptance remain blocked. No repeated unchanged broad run.
+      next_action: Implement ONLY frozen stop-event extraction47 and Stage selector constants72 after canonical docs publication. Preserve other seven d8 source blobs byte-exact. Freeze one source SHA for NEW independent review; require actual RAW<=218000 and all six original cases plus NEW actual/visual review before679/557 closure. Actual d8 review NEEDS_FIX solely budget111; selected six functional cases PASS, no acceptance implied.
+      owner_targeted_acceptance:
+        evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
+        decision: API оставить отдельно; принять UI по целевым проверкам
+        source_sha: 07c90ff0001a4d281ab0a507441ecdc654f39617
+        integrated_main: c29eabd4fa7a3a9a04838b0f86df609ea5c43ab6
+        scoped_run: 40021587497
+        scoped_actual: FAILURE overall five of six complete; clock four complete and mouse complete, touch incomplete
+        general_run: 40021586839
+        general_actual: FAILURE; Governance and Code PASS, Data and Access FAIL categoryC foreign telemetry42501 to503, not a UI acceptance barrier under explicit owner decision
+        data_actual: 6724tests and533files PASS except two foreign telemetry API tests; owned20tests PASS
+        independent_actual_review_sha256: 708cc3e523bd6e1faf732c8efaeaa15b6bbe231df0fde8c69b1ab75a61a3c5a1
+        independent_actual_checks: 6424
+        clock_technical_acceptance: four widths1440/1024/390/320 each first/restart/cookies-only-reopen COMPLETE; issue557 technical scope accepted, physical owner acceptance remains pending
+        f2_technical_acceptance: mouse COMPLETE with one Save full independent PUT and CAS2to3, server GET and cookies-only fresh reopen, visual PASS; touch before-action hit UNKNOWN, issue679 NOT accepted
+        preservation: General API blocker and full Electronics non-PASS retained; no release, deployment, physical owner acceptance or foreign API repair selected
       qualification_selection:
         evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
         scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
@@ -8417,10 +8537,50 @@ parallel_lanes:
           scope: Separate bounded baseline author after the scoped infrastructure author freezes the shared guard; update only the exact published original workflow profile allowlist and meaningful negative tests in tools/test_ci_image_transport.py, preserving the independent scoped workflow identity changes.
           invariant: Preserve strict-real-time default and classroom-d13-v2/v3 plus published arduino-editor-error as the exact four allowed profiles. Reject unknown, narrowed or default-changed declarations; no workflow/profile deletion, identity spoof, relaxed image/runtime provenance or competing guard writer.
           execution: Fresh target overlap check and explicit author handoff, one baseline commit and NEW independent review; scoped author owns only additive six-case workflow identity. No source product, workflow, dependency, cap or native assertion changes.
-        registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
+        registration_boundary: Registered scoped command now exists in mainc29eabd4 package script and reviewed manual workflow; lane browser records it below, with unchanged full Electronics retained as global verification.
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
-        closure_boundary: Explicit owner-programme technical acceptance for679/557 uses reviewed six-case qualification plus exact focused, raw budget and full General gates and NEW independent actual review. This does not accept or relabel the full Electronics workflow, grant physical owner acceptance, deployment or release, or clear any global/foreign blocker.
+        closure_boundary: Owner explicitly decided API remains separate and UI is accepted on targeted checks. Issue557 requires all four complete clock cases and independent actual review; issue679 requires both complete real F2 cases and actual review. Programme completion still requires all six. Exact focused/raw budget remain required; General actual API failures remain recorded, not PASS, and no global/foreign blocker, physical owner acceptance, deployment or release is cleared.
+      budget_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-budget-preserving-repair-selection-20261024.md
+        independent_proposal_review_sha256: aa24e2eea1f761d225e29aaf8da5e9b90765076b3a41f721c930eb2c793787aa
+        owner_decision: Сохранить 218000 и отдельно уменьшать код
+        failed_source_sha: 925a4b8b7425d400a413dc2cab5f17b6ec6958d5
+        general_run: 40028712983
+        actual_editor_raw_bytes: 218418
+        accepted_cap_bytes: 218000
+      safe_budget_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-safe-budget-repair-selection-20261024.md
+        independent_proposal_review_sha256: d8e939280b0cc1e546154fc5b21782c67fe63e737fbf5981adc3ccf03e372b37
+        rejected_private_source_sha: f634597eabcba82cad3b01201ad29f4c6ca640c7
+        rejection_review_sha256: 16f4d520d759c7fd106f3f6db15cfa394655e93082f339ac39cf54f875b59168
+        knob_feasibility_sha256: fdc11a42ba298514dd0a693a59ab3a6133c7393a98216b1d26fe514347622581
+        svg_default_feasibility_sha256: 53235961a9b02340d620af87c7607305b68bba9a2e91c5ea592135f3ee2f9cb4
+        estimated_editor_raw_bytes: 217983
+        actual_full_bundle_fit: NOT_RUN_NOT_PROVEN
+      causal_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-causal-repair-selection-20261024.md
+        actual_sha: 9957c9bc6b65ec4e1d6ac4cd1f42c056867f4d28
+        actual_run: 40023851278
+        independent_review_sha256: e3dbcf77190e0ee36262957b8feb47029c7dcfb549d24affb79b79426f5f8c89
+      d8_111_budget_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-d8-111-budget-repair-selection-20261024.md
+        actual_source_sha: d8e215e7f017ef306335a9d251b0cdcc7e6db463
+        scoped_run: 40035753201
+        scoped_actual: SUCCESS all six original cases
+        general_run: 40035752095
+        general_actual: FAILURE own Code budget categoryA; Governance PASS; Data and Access SKIPPED
+        actual_editor_raw_bytes: 218111
+        accepted_cap_bytes: 218000
+        independent_proposal_review_sha256: a8cea7647f36444ca884443802d7ad71d896be8a5af14d4e265d76f40b3e15fa
+        feasibility_report_sha256: 5e50013624c5058026b401e818e1db247923e1688938b519ddd58730ef9971cc
+        selected_stop_visual_sha256: b1384970af625b7779a1c18de1e293506c0eacb2235db19799419408c18ae523
+        selected_strict_stage_sha256: 7d53d238f239a7e30a710a5a12a59e22f10d9d4c568560701064e17782565390
+        savings_proxy_bytes: 119
+        estimated_margin_bytes: 8
+        actual_full_bundle_fit: UNKNOWN
+        independent_actual_review_sha256: 9a1a719dfb7451660fae3e184690ede4e25cad1a0478da93afd08766225443b5
+        actual_functional_review: NEEDS_FIX solely budget111; selected six functional cases PASS
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -8433,6 +8593,10 @@ parallel_lanes:
         commands:
         - pnpm gate:electronics-m1
       browser:
+        workflow: Electronics UI 679-557 scoped qualification
+        commands:
+        - pnpm gate:electronics-ui-679-557:browser
+      global_browser_verification:
         workflow: Electronics R4-M1 Focused
         commands:
         - pnpm gate:electronics-m1:browser
@@ -8711,6 +8875,7 @@ parallel_lanes:
             acceptance/release claims pending exact evidence/NEW review; K0/T3/class/school/deployment pending.'
       reason: Preserved unchanged while independently proven wheel dependency554 is executed;544 acceptance
         remains pending548.
+
   - id: electronics-ci
     parent_lane: electronics
     worktree_id: electronics-hygiene-556
@@ -9121,7 +9286,6 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-spdt-shadow-547
     owned_paths:
-    - apps/web/src/electronics/workbench.css
     - e2e/electronics-switch-shadow.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
     task:
@@ -10832,7 +10996,6 @@ parallel_lanes:
     - apps/web/src/electronics/led-temporal-presentation.ts
     - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
     - apps/web/src/electronics/ProductionComponentVisual.tsx
-    - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - tools/run-electronics-classroom-browser.mjs
     - tests/electronics/classroom-qualification.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
@@ -11536,6 +11699,8 @@ integration:
   owner_lane: visual-programming
   shared_paths:
     - docs/execution/current.yaml
+    - apps/web/src/electronics/workbench.css
+    - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - AGENTS.md
     - START_HERE_FOR_AI.md
     - package.json
