@@ -178,3 +178,10 @@ The current binding flushes each row synchronously. Validate the entire nonempty
 Extract deterministic tests for original envelope byte equivalence,256rows/oneflush, observer-after-flush ordering, gap/NaN failure/no ACK and cached-original raw replay. Keep physics, controller, pace, tolerances, timeouts, coverage, labels, dependencies, workflows and222000 cap unchanged. Freeze unpublished implementation with focused checks/self-review; NEW independent exact-SHA review and controller publication precede one justified unchanged all-eight AFTER. Observer repair alone does not establish realtime or owner acceptance.
 
 Audit provenance and separate General failure are recorded in the dated selection receipt. Preserve foreign679/557 completion,548 budget blocker, owner KEEP544/547 OPEN and all546/R27 history; no deployment or acceptance authority is added.
+
+
+## Selected existing JSONL append mock follow-up
+
+Published471 observer source reached focused40093297609:894PASS/1FAIL, with the existing LED test mock at2609 parsing a whole multi-line append as one JSON value. Browser and benchmark were SKIPPED. All76 classroom checks pass alone; that does not replace the full focused gate. General40093295686 was CANCELLED after a foreign main push, classification E, not product PASS or FAIL. Actual all-eight qualification remains pending.
+
+Authorize exactly apps/web/src/electronics/testing/led-temporal-presentation.spec.ts existing append mock to parse ALL nonempty JSONL lines, preserving4096 durable originals,2048 long retention, ACK and all assertions. No interactions/product edits, skipped checks or timeout changes. Run full165 LED plus76 classroom tests before NEW exact review and one justified unchanged AFTER. Canonical docs review/publication precedes implementation; old receipts and failures remain intact.
