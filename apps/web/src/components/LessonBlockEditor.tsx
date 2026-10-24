@@ -714,9 +714,7 @@ export function LessonBlockEditor({
                 />
               </div>
             ) : null}
-              {isMediaLessonBlock(block) ? (
-                <InlineMediaPreview block={block} index={index} />
-              ) : null}
+            {isMediaLessonBlock(block) && <InlineMediaPreview block={block} index={index} />}
           </article>
         ))}
       </div>
