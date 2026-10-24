@@ -478,8 +478,11 @@ for (const width of [1440, 390, 320]) {
     if (await sections.isVisible()) {
       await sections.selectOption('settings');
       await expect(sections).toHaveValue('settings');
-      await main
-        .getByRole('region', { name: 'Настройки ученика', exact: true })
+      const sectionSettings = main.getByRole('region', { name: 'Настройки ученика', exact: true });
+      const identityCategory = sectionSettings.getByRole('button', { name: /^Данные и роль/ });
+      await expect(identityCategory).toHaveAttribute('aria-expanded', 'false');
+      await identityCategory.click();
+      await sectionSettings
         .getByRole('button', { name: 'Изменить имя и аватар', exact: true })
         .click();
     } else {
@@ -513,6 +516,9 @@ for (const width of [1440, 390, 320]) {
       ]),
     );
     await noOverflow(page);
+    // The compact mobile settings view hides redundant header controls.
+    // Return to works before exercising the legacy actions menu contract.
+    if (await sections.isVisible()) await sections.selectOption('all');
 
     const actions = () =>
       main.getByRole('button', { name: 'Действия: Сохранённый ученик', exact: true });
@@ -970,6 +976,9 @@ test('all nine sections, honest loaded-only filtering, private works, archive an
       else if (name === 'Настройки') {
         const region = page.getByRole('region', { name: 'Настройки ученика' });
         await expect(region).toBeVisible();
+        const identityCategory = region.getByRole('button', { name: /^Данные и роль/ });
+        if ((await identityCategory.getAttribute('aria-expanded')) !== 'true')
+          await identityCategory.click();
         await expect(region.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
       } else if (name !== 'Оценки')
         await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
@@ -1661,3 +1670,122 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
+
+test('UI-03: four real student settings categories preserve permissions and one active editor', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const state = await setup(page, { long: false, manual: 0, results: 0 });
+  let roleAction: { seatId: string; role: string } | null = null;
+  await page.route(`**/api/classrooms/${classId}/participants/actions/role`, (route) => {
+    roleAction = route.request().postDataJSON() as { seatId: string; role: string };
+    return route.fulfill({ json: { ok: true } });
+  });
+  await state.open();
+  await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const categories = region.getByRole('group', { name: 'Категории настроек ученика' });
+  await expect(categories.locator('button')).toHaveCount(4);
+  await expect(categories.locator('button[aria-expanded="true"]')).toHaveCount(0);
+  await expect(region.getByRole('group', { name: 'Активный редактор ученика' })).toHaveCount(0);
+
+  const identity = categories.getByRole('button', { name: /^Данные и роль/ });
+  await identity.click();
+  await expect(identity).toHaveAttribute('aria-expanded', 'true');
+  const role = region.getByRole('combobox', { name: 'Роль ученика в настройках' });
+  await expect(role).toHaveValue('student');
+  await role.selectOption('helper');
+  await expect.poll(() => roleAction).toMatchObject({ seatId: 'seat-0', role: 'helper' });
+  // The synthetic profile GET still reports "student"; the UI must not forge a role.
+  await expect(role).toHaveValue('student');
+  await expect(region).toContainText('Рейтинг класса');
+
+  const access = categories.getByRole('button', { name: /^Коды и доступ/ });
+  await access.click();
+  await expect(identity).toHaveAttribute('aria-expanded', 'false');
+  await expect(region.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveCount(0);
+  await expect(access).toHaveAttribute('aria-expanded', 'true');
+  await expect(region.getByRole('button', { name: 'Изменить Student Code' })).toBeEnabled();
+  await region.getByRole('button', { name: 'Карточка доступа' }).click();
+  const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+  await expect(cards).toBeVisible();
+  await cards.getByRole('button', { name: 'Закрыть', exact: true }).first().click();
+  await region.getByRole('button', { name: 'Приостановить доступ' }).click();
+  await expect(region.getByRole('button', { name: 'Вернуть доступ' })).toBeEnabled();
+  await region.getByRole('button', { name: 'Вернуть доступ' }).click();
+  await expect(region.getByRole('button', { name: 'Приостановить доступ' })).toBeEnabled();
+
+  await categories.getByRole('button', { name: /^Защита ученика/ }).click();
+  const protection = region.getByRole('checkbox', {
+    name: 'Защита ученика в настройках: Ученик 01',
+  });
+  await expect(protection).toBeChecked();
+  // The controlled checkbox follows the authoritative server acknowledgement.
+  await protection.click();
+  await expect.poll(() => state.students()[0]?.safeMode).toBe(false);
+  await expect(protection).not.toBeChecked();
+
+  const games = categories.getByRole('button', { name: /^Игровые разрешения/ });
+  await games.click();
+  await expect(categories.locator('button[aria-expanded="true"]')).toHaveCount(1);
+  await region.getByRole('button', { name: 'Перейти к действующим игровым разрешениям' }).click();
+  await expect(page.locator('.classroom-student-games-region')).toBeFocused();
+  await expect(page.getByRole('group', { name: 'Игры ученика', exact: true })).toBeVisible();
+  await noOverflow(page);
+  expect(state.errors).toEqual([]);
+});
+
+test('UI-03: archived student settings stay read-only including Code, protection and access', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await setup(page, { long: false, archived: true, manual: 0, results: 0 });
+  await state.open();
+  await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const categories = region.getByRole('group', { name: 'Категории настроек ученика' });
+  await categories.getByRole('button', { name: /^Данные и роль/ }).click();
+  await expect(region.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
+  await expect(region.getByRole('combobox', { name: 'Роль ученика в настройках' })).toBeDisabled();
+  await categories.getByRole('button', { name: /^Коды и доступ/ }).click();
+  await expect(region.getByRole('button', { name: 'Изменить Student Code' })).toBeDisabled();
+  await expect(region.getByRole('button', { name: 'Карточка доступа' })).toBeDisabled();
+  await expect(region.getByRole('button', { name: 'Приостановить доступ' })).toBeDisabled();
+  await categories.getByRole('button', { name: /^Защита ученика/ }).click();
+  await expect(
+    region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 01' }),
+  ).toBeDisabled();
+  expect(state.mutations).toEqual([]);
+  await noOverflow(page);
+});
+
+for (const settingsWidth of [390, 320]) {
+  test(`UI-03 mobile settings density remains within owner threshold at ${settingsWidth}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: settingsWidth, height: 900 });
+    const state = await setup(page, { long: false, manual: 0, results: 0 });
+    await state.open();
+    await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+    const heading = page.locator('.classroom-student-settings-entry > h2');
+    await expect(heading, 'No duplicate mobile Settings heading below SectionRail').toBeHidden();
+    const header = (await page.locator('.portal-header').boundingBox())!;
+    const category = (await page
+      .locator('.classroom-student-settings-category')
+      .first()
+      .boundingBox())!;
+    const offset = category.y - (header.y + header.height);
+    const threshold = settingsWidth === 390 ? 128 : 144;
+    console.log(
+      `UI03_SETTINGS_DENSITY width=${settingsWidth} offset=${offset.toFixed(1)} threshold=${threshold}`,
+    );
+    expect(
+      offset,
+      'First actionable Settings category after the global header',
+    ).toBeLessThanOrEqual(threshold);
+    expect(category.height).toBeGreaterThanOrEqual(44);
+    await noOverflow(page);
+    expect(state.errors).toEqual([]);
+  });
+}
