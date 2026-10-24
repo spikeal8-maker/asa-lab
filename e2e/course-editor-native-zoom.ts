@@ -21,7 +21,6 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
   const ownedDirectory = await mkdtemp(path.join(tmpdir(), 'asa-course-native-zoom-'));
   const extension = path.join(ownedDirectory, 'extension');
   let context: BrowserContext | undefined;
-  let tracingStarted = false;
   let zoomMayBeChanged = false;
   let resetZoom: (() => Promise<{ factor: number }>) | undefined;
   async function close(failure?: { error: unknown }): Promise<void> {
@@ -53,10 +52,8 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
     }
     const ownedContext = context;
     if (ownedContext) {
-      if (tracingStarted)
-        await attempt('trace', () =>
-          ownedContext.tracing.stop({ path: path.join(evidence, 'native-zoom-trace.zip') }),
-        );
+      // Playwright Test owns the trace for this persistent context. Do not
+      // stop its recorder or replace its original error during cleanup.
       await attempt('context close', () => ownedContext.close());
     }
     await attempt('owned profile removal', () =>
@@ -101,8 +98,25 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
         '--window-size=1440,900',
       ],
     });
-    await context.tracing.start({ screenshots: true, snapshots: true });
-    tracingStarted = true;
+    // Playwright Test's trace: retain-on-failure already instruments the
+    // separately launched persistent Chromium context. Starting another trace
+    // here throws "Tracing has been already started" and steals runner ownership.
+    // The runner's trace.zip retains screenshots/snapshots for failed native
+    // 200% checks, while ordinary CI evidence keeps explicit zoom screenshots.
+    await mkdir(evidence, { recursive: true });
+    await writeFile(
+      path.join(evidence, 'native-zoom-trace-ownership.json'),
+      JSON.stringify(
+        {
+          owner: 'Playwright Test',
+          mode: 'retain-on-failure',
+          browser: 'persistent Chromium with MV3 tabs zoom',
+          directTracingCalls: false,
+        },
+        null,
+        2,
+      ) + '\n',
+    );
     // Copy only the run-created author's cookies in memory; no storage-state file.
     await context.addCookies(await sourcePage.context().cookies());
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));

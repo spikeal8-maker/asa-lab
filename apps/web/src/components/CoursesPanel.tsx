@@ -843,7 +843,24 @@ function CourseEditor({
     if (!header || !(editor instanceof HTMLElement)) return;
     let resizeFrame: number | null = null;
     let settledResizeFrame: number | null = null;
+    let pointerReleaseFrame: number | null = null;
+    let blockPointerDown = false;
+    // Pointer focus occurs between pointerdown and click. Scrolling a <summary>
+    // at focusin changes its position before pointerup, so Chromium can finish
+    // the click outside the disclosure (observed at scrollY 604 -> 869).
+    // Keyboard focus still receives immediate sticky-header clearance.
+    const onBlockPointerDown = (event: PointerEvent) => {
+      if (
+        !(event.target instanceof Element) ||
+        !event.target.closest('.lesson-block-menu > summary')
+      )
+        return;
+      blockPointerDown = true;
+      if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
+      pointerReleaseFrame = null;
+    };
     const revealFocusedBlockAction = () => {
+      if (blockPointerDown) return;
       const active = document.activeElement;
       if (
         !(active instanceof HTMLElement) ||
@@ -863,6 +880,17 @@ function CourseEditor({
         // The summary's measured sticky-header scroll margin reserves room.
         active.scrollIntoView({ block: 'start', behavior: 'instant' });
       }
+    };
+    const settleBlockPointer = () => {
+      if (!blockPointerDown) return;
+      if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
+      // pointerup is followed by the native click/toggle in the same task.
+      // Only reveal the focused menu after that activation has completed.
+      pointerReleaseFrame = requestAnimationFrame(() => {
+        pointerReleaseFrame = null;
+        blockPointerDown = false;
+        revealFocusedBlockAction();
+      });
     };
     const updateOffset = () => {
       editor.style.setProperty(
@@ -889,13 +917,22 @@ function CourseEditor({
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOffset);
     observer?.observe(header);
     editor.addEventListener('focusin', revealFocusedBlockAction);
+    editor.addEventListener('pointerdown', onBlockPointerDown, true);
+    window.addEventListener('pointerup', settleBlockPointer, true);
+    window.addEventListener('pointercancel', settleBlockPointer, true);
+    window.addEventListener('blur', settleBlockPointer);
     window.addEventListener('resize', updateOffset);
     window.visualViewport?.addEventListener('resize', updateOffset);
     return () => {
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
       if (settledResizeFrame !== null) cancelAnimationFrame(settledResizeFrame);
+      if (pointerReleaseFrame !== null) cancelAnimationFrame(pointerReleaseFrame);
       observer?.disconnect();
       editor.removeEventListener('focusin', revealFocusedBlockAction);
+      editor.removeEventListener('pointerdown', onBlockPointerDown, true);
+      window.removeEventListener('pointerup', settleBlockPointer, true);
+      window.removeEventListener('pointercancel', settleBlockPointer, true);
+      window.removeEventListener('blur', settleBlockPointer);
       window.removeEventListener('resize', updateOffset);
       window.visualViewport?.removeEventListener('resize', updateOffset);
       editor.style.removeProperty('--course-compact-header-height');
