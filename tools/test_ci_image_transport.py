@@ -252,6 +252,20 @@ QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-in
     "e2e/electronics-native-wheel.spec.ts", "e2e/electronics-ready-cadence.spec.ts",
     "e2e/electronics-classroom-timing.spec.ts"]
 
+# Allowlist the published #722 matrix expression, not a broad bypass of
+# browser job controls. Its three profiles receive one whole-suite child;
+# the default strict gate receives both disjoint Playwright shards.
+QUALIFICATION_SHARD_MATRIX = """${{ fromJSON(
+    (inputs.qualification_profile == 'classroom-d13-v2' ||
+    inputs.qualification_profile == 'classroom-d13-v3' ||
+    inputs.qualification_profile == 'arduino-editor-error') &&
+    '[{"label":"whole","shard":""}]' ||
+    '[{"label":"s1","shard":"1/2"},{"label":"s2","shard":"2/2"}]'
+  ) }}"""
+QUALIFICATION_SHARD_CLI = " ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}"
+QUALIFICATION_SHARD_COMPOSE = "asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}"
+QUALIFICATION_SHARD_ARTIFACT = "electronics-r4-m1-browser-${{ github.run_id }}-${{ matrix.browser_case.label }}"
+
 
 def qualification_contract(contract):
     """Keep the published four-profile declaration and strict/classroom gate bindings."""
@@ -271,20 +285,36 @@ def qualification_contract(contract):
     controls["concurrency"]["group"] += "-" + QUALIFICATION_PROFILE
     contract["jobs"]["focused"]["required_steps"].append(deepcopy(QUALIFICATION_TEST))
     browser = contract["jobs"]["browser"]
-    browser["controls"]["env"]["ASA_ELECTRONICS_QUALIFICATION_PROFILE"] = QUALIFICATION_PROFILE
-    browser["controls"]["env"]["ASA_ELECTRONICS_BROWSER_GATE"] = QUALIFICATION_GATE
+    browser["controls"]["name"] = "Actual editor live simulation journey (${{ matrix.browser_case.label }})"
+    browser["controls"]["strategy"] = {
+        "fail-fast": False,
+        "matrix": {"browser_case": QUALIFICATION_SHARD_MATRIX},
+    }
+    browser_env = browser["controls"]["env"]
+    browser_env["ASA_ELECTRONICS_QUALIFICATION_PROFILE"] = QUALIFICATION_PROFILE
+    browser_env["ASA_ELECTRONICS_BROWSER_GATE"] = QUALIFICATION_GATE
+    browser_env["ASA_ELECTRONICS_BROWSER_SHARD"] = "${{ matrix.browser_case.shard }}"
+    browser_env["COMPOSE_PROJECT_NAME"] = QUALIFICATION_SHARD_COMPOSE
     old = ("run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA "
            "test-runner pnpm gate:electronics-m1:browser")
     new = ("run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA "
-           '-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"')
+           '-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"'
+           + QUALIFICATION_SHARD_CLI)
     replacements = 0
+    artifacts = 0
     for step in browser["required_steps"]:
         command = step.get("run", "")
         if old in command:
             require(command.count(old) == 1, "Duplicate browser gate in original step")
             step["run"] = command.replace(old, new)
             replacements += 1
+        if (step.get("uses") == "actions/upload-artifact@v4"
+                and step.get("with", {}).get("name")
+                == "electronics-r4-m1-browser-${{ github.run_id }}"):
+            step["with"]["name"] = QUALIFICATION_SHARD_ARTIFACT
+            artifacts += 1
     require(replacements == 1, "Qualification must replace exactly the original browser gate")
+    require(artifacts == 1, "Qualification must isolate exactly one browser evidence artifact")
     return contract
 
 
@@ -392,6 +422,12 @@ def check_workflow(path, contract, receipt, general_node, electronics):
     for job_id, expected in contract["jobs"].items():
         job = workflow.get("jobs", {}).get(job_id)
         require(isinstance(job, dict), "Missing required job: " + path + ":" + job_id)
+        if path == FOCUSED and job_id == "browser":
+            require("continue-on-error" not in job and "if" not in job,
+                    "Browser shards cannot be skipped or have failures ignored")
+            require(sum("ASA_ELECTRONICS_BROWSER_GATE" in step.get("run", "")
+                        for step in job.get("steps", [])) == 1,
+                    "Exactly one mandatory browser gate step is required per shard")
         for key, value in expected["controls"].items():
             require(job.get(key) == value, "Job control drift: " + job_id + ":" + key)
         # Required semantic steps must remain in order, with their actual gates,
@@ -1199,6 +1235,24 @@ def check_qualification_challenges(receipt):
         ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
         ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
         ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+        ("strict cannot omit s2 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('{"label":"s2","shard":"2/2"}', "")})),
+        ("strict cannot duplicate s1 shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/2"', '"shard":"1/2"')})),
+        ("strict cannot use empty second shard", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"shard":"2/2"', '"shard":""')})),
+        ("classroom v2 cannot be sharded", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace('"label":"whole","shard":""', '"label":"whole","shard":"1/2"')})),
+        ("classroom v3 cannot lose whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'classroom-d13-v3'", "'unapproved-classroom'")})),
+        ("editor must keep whole profile", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"browser_case": QUALIFICATION_SHARD_MATRIX.replace("'arduino-editor-error'", "'unknown'")})),
+        ("matrix cannot be removed", lambda w: w["jobs"]["browser"].pop("strategy")),
+        ("matrix cannot add unexpected child", lambda w: w["jobs"]["browser"]["strategy"]["matrix"].update({"include": [{"label": "bypass", "shard": ""}]})),
+        ("matrix cannot fail fast", lambda w: w["jobs"]["browser"]["strategy"].update({"fail-fast": True})),
+        ("browser cannot skip failed job", lambda w: w["jobs"]["browser"].update({"if": False})),
+        ("browser cannot ignore failed job", lambda w: w["jobs"]["browser"].update({"continue-on-error": True})),
+        ("browser shard must reach runner env", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_BROWSER_SHARD")),
+        ("browser shard cannot be hardcoded", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_SHARD": "1/2"})),
+        ("Compose project must isolate all children", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}"})),
+        ("Compose project cannot be static", lambda w: w["jobs"]["browser"]["env"].update({"COMPOSE_PROJECT_NAME": "asa-lab-electronics"})),
+        ("review-images must depend on browser", lambda w: w["jobs"]["review-images"].update({"needs": ["focused", "benchmark"]})),
+        ("upload artifact cannot be shared", lambda w: [step["with"].update({"name": "electronics-r4-m1-browser-${{ github.run_id }}"}) for step in w["jobs"]["browser"]["steps"] if step.get("uses") == "actions/upload-artifact@v4"]),
+        ("upload artifact cannot use constant name", lambda w: [step["with"].update({"name": "electronics-r4-m1-browser"}) for step in w["jobs"]["browser"]["steps"] if step.get("uses") == "actions/upload-artifact@v4"]),
     ]:
         changed = deepcopy(workflow)
         mutate(changed)
@@ -1207,6 +1261,11 @@ def check_qualification_challenges(receipt):
         ("profile reaches real test container", " -e ASA_ELECTRONICS_QUALIFICATION_PROFILE", ""),
         ("selected gate cannot ignore failure", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true'),
         ("selected gate cannot become strict-only", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', "pnpm gate:electronics-m1:browser"),
+        ("shard CLI must reach Playwright", QUALIFICATION_SHARD_CLI, ""),
+        ("shard CLI cannot be fixed at s1", QUALIFICATION_SHARD_CLI, " --shard=1/2"),
+        ("browser CLI cannot grep away cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep LED"),
+        ("browser CLI cannot skip cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --grep-invert E11"),
+        ("browser CLI cannot retry failed cases", QUALIFICATION_SHARD_CLI, QUALIFICATION_SHARD_CLI + " --retries=3"),
         ("qualification tests cannot be conditional", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        if: false"),
         ("qualification tests cannot ignore failure", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        continue-on-error: true"),
     ]:

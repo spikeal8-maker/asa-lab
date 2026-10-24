@@ -147,18 +147,32 @@ jobs:
           retention-days: 14
 
   browser:
-    name: Actual editor live simulation journey
+    name: Actual editor live simulation journey (${{ matrix.browser_case.label }})
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep the two classroom qualifications whole and preserve the
+        # arduino-editor-error dispatch. Default CI runs both required shards.
+        browser_case: >-
+          ${{ fromJSON(
+              (inputs.qualification_profile == 'classroom-d13-v2' ||
+              inputs.qualification_profile == 'classroom-d13-v3' ||
+              inputs.qualification_profile == 'arduino-editor-error') &&
+              '[{"label":"whole","shard":""}]' ||
+              '[{"label":"s1","shard":"1/2"},{"label":"s2","shard":"2/2"}]'
+            ) }}
     env:
       CI: 'true'
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
       ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
+      ASA_ELECTRONICS_BROWSER_SHARD: ${{ matrix.browser_case.shard }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-      COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
+      COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}-${{ matrix.browser_case.label }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
     steps:
@@ -212,7 +226,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
-          pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
+          pnpm "$ASA_ELECTRONICS_BROWSER_GATE" ${ASA_ELECTRONICS_BROWSER_SHARD:+--shard=$ASA_ELECTRONICS_BROWSER_SHARD}
 
       - name: Show isolated stack state
         if: always()
@@ -222,7 +236,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-r4-m1-browser-${{ github.run_id }}
+          name: electronics-r4-m1-browser-${{ github.run_id }}-${{ matrix.browser_case.label }}
           path: |
             e2e/artifacts/electronics-simulation
             reports
