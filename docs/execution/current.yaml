@@ -7591,13 +7591,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_private_epoch_bounded_feasibility
+      checkpoint: selected_private_epoch_permit_clarification
       kind: diagnostic
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE PRIVATE epoch-bounded controller feasibility experiment, not a proven runtime fix or product-main publication.
+      selected_slice: ONE PRIVATE epoch-permit accounting repair under explicit post-completion valid-sample clarification; no runtime attribution or product-main approval.
+      epoch_permit_clarification:
+        rule: One opportunity for a fresh host sample AFTER eligible ordinary completion per external epoch, not one total callback. A VALID existing normal retained refresh after that completion satisfies the captured epoch opportunity without changing its reads, validation, horizon or dispatch. Only unsatisfied eligible exhaustion adds one selected read.
+        fences: Bind completion eligibility before callbacks; capture generation/document/target/epoch before normal read. Only unchanged original fences and valid sample satisfy OLD epoch. Reentrant newer update/Stop/Reset/input retains newer state and permit. Initial update/startup/first-positive/input-only/yield/internal refreshed completion neither spend ordinary opportunity nor mint epochs.
+        invalid_samples: Invalid/null/discarded normal sample does not satisfy valid opportunity. Preserve original validation and normalization, including fractional normalization where baseline permits it. Exhaustion read consumes BEFORE callback even null/invalid/H<=C; no retry or self-renewal. No held-ACK special case or count masking.
+        preservation: Preserve complete8def safety contract, original87/private12 assertions byte-exact and14 new controls; add all9 concrete control categories in dated clarification before one private repair. Normal retained reads remain unchanged and finite slicing stays distinct.
+        evidence: Private unpublished e6d44e26973bbe870263f6217fbab997b321b54a reports112PASS1FAIL; original read-count4vs5 unchanged. Not accepted and not a runtime fix; request593 attribution unproven; native3of8PASS5FAIL.
+        delivery: Docs independent review then ordinary main publication; automatic existing General Governance exactHEAD must PASS before source repair. CI pending until observed; no duplicate full local governance or manual dispatch. Only controller and its spec private; NEW source review before measurement branch and one existing CI; no product-main or acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-epoch-permit-clarification-20261024.md
       epoch_bounded_feasibility_contract:
         scope: ONLY apps/web/src/electronics/live-simulation-worker-controller.ts and apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts; preserve original87 and private5f1d twelve tests/assertions.
         permit: One permit per admitted valid EXTERNAL update epoch; internal read/pump/completion/input/yield/cancel NEVER rearm. Capture ordinary processed completion epoch BEFORE callbacks; old completion cannot consume or clear newer permit/target. Only ordinary positive completion after full startup settlement; startup release callback/timing exact. Input priority first.
