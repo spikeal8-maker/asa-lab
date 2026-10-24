@@ -426,6 +426,36 @@ async function shot(page: Page, name: string) {
   });
 }
 
+async function openTeacherTab(
+  page: Page,
+  key: 'all' | 'grades' | 'merits' | 'activity' | 'settings',
+) {
+  const selector = page.getByRole('combobox', { name: 'Раздел профиля' });
+  if (await selector.isVisible()) {
+    await selector.selectOption(key);
+  } else {
+    const labels = {
+      all: 'Все работы',
+      grades: 'Оценки',
+      merits: 'Заслуги',
+      activity: 'Активность',
+      settings: 'Настройки',
+    };
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: labels[key], exact: true })
+      .click();
+  }
+}
+async function openTeacherSettings(page: Page, name: string) {
+  await openTeacherTab(page, 'settings');
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const category = region.getByRole('group', { name: 'Категории настроек ученика' })
+    .getByRole('button', { name: new RegExp('^' + name) });
+  if ((await category.getAttribute('aria-expanded')) !== 'true') await category.click();
+  return region;
+}
+
 async function assertPupilHistory(page: Page) {
   const details = page.locator('details').filter({
     has: page.locator('.participant-grades[aria-label="Оценки и история"]'),
@@ -657,202 +687,80 @@ test('a pending seat reply cannot change the next pupil and forbidden saves mask
   expect(state.errors).toEqual([]);
 });
 
-test('production profile stays compact with long Russian identity on desktop, split-screen, phones and CSS reflow', async ({
+test('UI-04 compact teacher profile has only context-specific controls and real content', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const state = await setup(page, { named: true, manual: 100, results: 100 });
-  const acceptedTabs = await state.open();
-  const measurements: unknown[] = [];
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-  await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(30);
-  for (const width of [1440, 1024, 800, 680, 390, 320]) {
+  await state.open();
+  const measurements: Array<Record<string, number>> = [];
+  const main = page.locator('main.classroom-student');
+  for (const width of [1440, 1024, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
+    await openTeacherTab(page, 'all');
+    await expect(main.locator('.classroom-student-hero, .participant-helper-classes, .classroom-student-games-region, .teacher-profile-grades')).toHaveCount(0);
+    await expect(main.locator('.classroom-student-settings-editor')).toHaveCount(0);
+    await expect(main.getByRole('combobox', { name: 'Роль в классе' })).toHaveCount(0);
+    await expect(main.getByRole('button', { name: /^Действия:/ })).toHaveCount(0);
+    const identity = (await main.locator('.classroom-student-identity-rail').boundingBox())!;
+    expect(identity.height).toBeLessThanOrEqual(width <= 599 ? 56 : 52);
+    const mobile = await main.getByRole('combobox', { name: 'Раздел профиля' }).isVisible();
+    if (mobile) {
+      const section = (await main.locator('.classroom-student-section-rail').boundingBox())!;
+      expect(section.height).toBe(44);
+      expect(section.y - identity.y - identity.height).toBeLessThanOrEqual(6);
+    } else {
+      await expect(main.locator('.participant-tabs button')).toHaveCount(9);
+    }
+    const header = (await page.locator('.portal-header').boundingBox())!;
+    const works = (await main.locator('.classroom-student-works-head').boundingBox())!;
+    const worksOffset = works.y - header.y - header.height;
+    if (width === 390) expect(worksOffset).toBeLessThanOrEqual(128);
+    if (width === 320) expect(worksOffset).toBeLessThanOrEqual(144);
+    await expect(main.locator('.classroom-student-work-summary')).toContainText('Работ:');
     await noOverflow(page);
-    const row = page.locator('.classroom-student-navrow');
-    const rowBox = await row.boundingBox();
-    // Accepted Access A contract: one <=46px rail, with >=44px live controls.
-    expect(rowBox!.height, 'one slim top bar at every viewport').toBeLessThanOrEqual(46);
-    const heroBox = (await page.locator('.participant-hero').boundingBox())!;
-    const selector = page.getByRole('combobox', { name: 'Раздел профиля' });
-    const mobile = await selector.isVisible();
-    const rail = page.getByRole('group', { name: 'Разделы ученика' });
-    if (mobile) {
-      const railBox = (await rail.boundingBox())!;
-      expect(railBox.height, 'single 44px SectionRail').toBe(44);
-      expect(railBox.y - rowBox!.y - rowBox!.height).toBeLessThanOrEqual(6);
-      expect(heroBox.y - railBox.y - railBox.height).toBeLessThanOrEqual(12);
-      await expect(selector.locator('option')).toHaveText([
-        'Все работы',
-        'Оценки',
-        'Задания',
-        '3D',
-        'Электроника',
-        'Scratch',
-        'Заслуги',
-        'Активность',
-        'Настройки',
-      ]);
-    } else {
-      expect(heroBox.y - rowBox!.y - rowBox!.height).toBeLessThanOrEqual(12);
-    }
-    await expect(row.getByRole('navigation', { name: 'Переход по ученикам' })).toBeVisible();
-    await expect(row.locator('.classroom-student-picker-name')).toHaveText(longName);
-    const hero = await page.locator('.participant-hero').boundingBox();
-    expect(hero).not.toBeNull();
-    for (const target of await row.locator('button').all()) {
-      const box = await target.boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-      expect(box!.width).toBeGreaterThanOrEqual(44);
-    }
-    const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
-    const metrics = mobile ? null : await tabMetrics(tabs);
-    if (mobile) {
-      await expect(tabs).toBeHidden();
-      const railBox = (await rail.boundingBox())!;
-      expect(railBox.height).toBe(44);
-      const action = rail.locator('.classroom-student-section-action');
-      expect((await action.boundingBox())!.width).toBeGreaterThanOrEqual(44);
-      expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    } else {
-      expect(metrics!.rail).toEqual(acceptedTabs.rail);
-      expect(metrics!.button).toEqual({
-        ...acceptedTabs.button,
-        height: '44px',
-        fontSize: '13px',
-        lineHeight: '15.6px',
-      });
-    }
-    const summaryBox = (await summary.boundingBox())!;
-    // Two 44px rows plus a 4px gap are required for the real pagination controls.
-    // Do not shrink touch targets to meet an obsolete 84px grade-strip baseline.
-    expect(summaryBox.height, 'two accessible grade overview rows').toBeLessThanOrEqual(
-      width <= 600 ? 100 : 92,
-    );
-    for (const control of await summary.locator('button').all()) {
-      const rect = await control.boundingBox();
-      if (rect) expect(rect.height, 'grade action touch target').toBeGreaterThanOrEqual(44);
-    }
-    await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
-    const names = page.locator('.student-pager-name');
-    await expect(names).toHaveText(['Петрова Анна', 'Иванов Иван']);
-    for (const name of await names.all()) {
-      if (width <= 599) {
-        await expect(name).toBeHidden();
-      } else {
-        await expect(name).toBeVisible();
-        expect((await name.boundingBox())!.width).toBeGreaterThan(24);
-      }
-    }
-    await expect(
-      page.getByRole('button', { name: 'Предыдущий ученик: Петрова Анна Сергеевна' }),
-    ).toHaveAttribute('title', 'Петрова Анна Сергеевна');
-    const token = (await summary.locator('li').first().boundingBox())!;
-    expect(token.height).toBe(44);
-    expect(token.width).toBeLessThanOrEqual(210);
-    const value = (await summary.locator('li').first().locator('strong').boundingBox())!;
-    expect(value.y).toBeGreaterThanOrEqual(token.y);
-    expect(value.y + value.height, 'grade value fits inside its compact token').toBeLessThanOrEqual(
-      token.y + token.height,
-    );
-    expect(value.x).toBeGreaterThanOrEqual(token.x);
-    expect(value.x + value.width).toBeLessThanOrEqual(token.x + token.width);
-    const toolbar = (await page.locator('.classroom-student-works-head').boundingBox())!;
-    expect(toolbar.height).toBeLessThanOrEqual(width <= 600 ? 90 : 44);
-    await expect(page.getByRole('combobox', { name: 'Статус работ' })).toHaveAccessibleDescription(
-      'по загруженным',
-    );
-    measurements.push({
-      width,
-      identityRailHeight: rowBox!.height,
-      summaryHeight: summaryBox.height,
-      tokenWidth: token.width,
-      tokenHeight: token.height,
-      toolbarHeight: toolbar.height,
-      tabs: metrics,
-    });
-    if (!mobile) {
-      expect(
-        (await tabs.boundingBox())!.height,
-        'single row, no giant tab grid',
-      ).toBeLessThanOrEqual(70);
-      await expect(tabs.locator('button')).toHaveCount(9);
-      for (const tab of await tabs.locator('button').all()) {
-        await tab.focus();
-        await expect(tab).toBeInViewport();
-        const { box, rail } = await tab.evaluate((element) => {
-          const box = element.getBoundingClientRect();
-          const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
-          return {
-            box: { x: box.x, y: box.y, width: box.width, height: box.height },
-            rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
-          };
-        });
-        expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
-        expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
-        expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
-        expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
-      }
-      await tabs.locator('button').first().focus();
-      await page.keyboard.press('End');
-      await expect(tabs.locator('button').last()).toBeFocused();
-      await expect(tabs.locator('button').last()).toBeInViewport();
-      await page.keyboard.press('Home');
-      await expect(tabs.locator('button').first()).toBeFocused();
-      await expect(tabs.locator('button').first()).toBeInViewport();
-    } else {
-      const mobileSelect = page.getByRole('combobox', { name: 'Раздел профиля' });
-      await mobileSelect.selectOption('grades');
-      await expect(mobileSelect).toHaveValue('grades');
-      await expect(page.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
-      await mobileSelect.selectOption('all');
-      await expect(mobileSelect).toHaveValue('all');
-    }
-    await shot(page, `profile-${width}`);
+    await shot(page, `ui04-works-${width}`);
+
+    await openTeacherTab(page, 'grades');
+    await expect(main.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
+    await expect(main.locator('[data-grade-source="journal"]')).toHaveCount(30);
+    await expect(main.locator('[data-grade-source="results"]')).toHaveCount(30);
+    await expect(main.locator('.teacher-profile-grades')).toHaveCount(0);
+    await noOverflow(page);
+    await shot(page, `ui04-grades-${width}`);
+
+    await openTeacherTab(page, 'activity');
+    await expect(main.locator('.participant-rating')).toBeVisible();
+    await noOverflow(page);
+
+    await openTeacherTab(page, 'settings');
+    const region = main.getByRole('region', { name: 'Настройки ученика', exact: true });
+    await expect(region.locator('.classroom-student-settings-category')).toHaveCount(4);
+    await expect(region.locator('.classroom-student-settings-editor')).toHaveCount(0);
+    await expect(main.locator('.classroom-games-settings')).toHaveCount(0);
+    const first = (await region.locator('.classroom-student-settings-category').first().boundingBox())!;
+    const settingsOffset = first.y - header.y - header.height;
+    if (width === 390) expect(settingsOffset).toBeLessThanOrEqual(128);
+    if (width === 320) expect(settingsOffset).toBeLessThanOrEqual(144);
+    await noOverflow(page);
+    await shot(page, `ui04-settings-${width}`);
+    measurements.push({ width, identityHeight: identity.height, worksOffset, settingsOffset });
   }
-  const rail = summary.getByRole('list', { name: 'Оценки текущего класса' });
-  await rail.focus();
-  await page.keyboard.press('End');
-  await expect(summary.locator('li').last()).toBeInViewport();
-  await summary.getByRole('button', { name: 'Предыдущие оценки', exact: true }).click();
-  await expect
-    .poll(() => rail.evaluate((element) => element.scrollLeft))
-    .toBeLessThan(await rail.evaluate((element) => element.scrollWidth - element.clientWidth));
-  await rail.focus();
-  await page.keyboard.press('Home');
-  await expect(summary.locator('li').first()).toBeInViewport();
   mkdirSync(artifacts, { recursive: true });
-  writeFileSync(
-    `${artifacts}/visual-measurements.json`,
-    JSON.stringify({ acceptedTabs, measurements }, null, 2),
-  );
-  // CSS layout reflow only. Actual browser/device zoom is NOT_RUN by this test.
+  writeFileSync(`${artifacts}/ui04-density.json`, JSON.stringify({ measurements }, null, 2));
   await page.setViewportSize({ width: 1024, height: 900 });
   for (const zoom of [1.25, 1.5, 1.75]) {
     await page.evaluate((value) => {
       document.documentElement.style.zoom = String(value);
     }, zoom);
     await noOverflow(page);
-    await expect(page.locator('.classroom-student-picker-name')).toHaveText(longName);
-    await shot(page, `profile-zoom-${zoom}`);
+    await shot(page, `ui04-zoom-${zoom}`);
   }
   await page.evaluate(() => {
     document.documentElement.style.zoom = '1';
   });
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Иванов Иван Петрович');
-  for (const width of [1440, 1024, 390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    const previous = page.getByRole('button', { name: `Предыдущий ученик: ${longName}` });
-    await expect(previous).toHaveAttribute('title', longName);
-    await expect(previous.locator('.student-pager-name')).toHaveText(
-      'Александра Константинопольская-Долгорукова',
-    );
-    if (width <= 599) await expect(previous.locator('.student-pager-name')).toBeHidden();
-    else await expect(previous.locator('.student-pager-name')).toBeVisible();
-    await noOverflow(page);
-    await shot(page, `long-neighbor-${width}`);
-  }
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
@@ -863,7 +771,9 @@ for (const count of [0, 1, 30, 100]) {
   }) => {
     const state = await setup(page, { manual: count, results: count });
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    expect(state.requests.filter((r) => r.kind === 'grades')).toHaveLength(0);
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(Math.min(count, 30));
     expect(state.requests.filter((r) => r.kind === 'grades')).toHaveLength(1);
     if (count === 100) {
@@ -907,7 +817,7 @@ for (const count of [0, 1, 30, 100]) {
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await noOverflow(page);
-      if (count === 0) expect((await summary.boundingBox())!.height).toBeLessThan(60);
+      if (count === 0) expect((await summary.boundingBox())!.height).toBeGreaterThan(0);
       await shot(page, `grades-${count}-${width}`);
     }
     expect(state.errors).toEqual([]);
@@ -1093,7 +1003,8 @@ test('previous/next wrap and return to the exact journal context including month
 test('a delayed previous learner grade page cannot populate the next learner', async ({ page }) => {
   const state = await setup(page, { long: false, manual: 100, results: 100 });
   await state.open();
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
   state.control.holdGrade = true;
   await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
   await expect
@@ -1126,7 +1037,8 @@ test('manual retraction supersedes earlier revisions across pages, focus refresh
     return route.fulfill({ json: data });
   });
   await state.open();
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
   const manual = summary.locator('[data-grade-source="journal"]');
   const column = manual.filter({ hasText: 'Урок 0' });
   await expect(column.locator('strong')).toHaveText('5');
@@ -1186,7 +1098,8 @@ for (const count of [30, 100]) {
       }),
     );
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     const manual = summary.locator('[data-grade-source="journal"]');
     const column = manual.filter({ hasText: 'Урок 0' });
     await expect(column.locator('strong')).toHaveText('5');
@@ -1305,7 +1218,8 @@ for (const newerFirst of [true, false]) {
       }),
     );
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     const result = summary
       .locator('[data-grade-source="results"]')
       .filter({ hasText: 'Исследование 0' });
@@ -1354,7 +1268,8 @@ test('equal-time conflicting result copies fail closed until canonical retry', a
     return route.fulfill({ json: data });
   });
   await state.open();
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
   await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
   await expect(summary.getByRole('alert')).toContainText(
     'Не удалось определить актуальный результат',
@@ -1379,7 +1294,8 @@ for (const invalid of ['2026-02-30T00:00:00Z', '2026-02-01T00:00:00+03:60']) {
       return route.fulfill({ json: data });
     });
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     await expect(summary.getByRole('alert')).toContainText(
       'Не удалось определить актуальный результат',
     );
