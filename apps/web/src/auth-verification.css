@@ -15,6 +15,18 @@
 .auth-provider-status p {
   margin: 0 0 0.35rem;
 }
+.auth-field-help summary,
+.auth-provider-status .link-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.4rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 .auth-field-help {
   min-width: 0;
   font-size: 0.8rem;
