@@ -220,6 +220,10 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       completed: 1,
       unavailable: 1,
     });
+    // A missing server occurrence is unknown, not evidence the work was excused
+    // or successfully completed. Keep the known required denominator unchanged.
+    expect(lessonComplete(studentLesson)).toBe(false);
+    expect(courseCompletion([studentLesson]).complete).toBe(false);
   });
 
   it('counts standalone required and excused assignment lessons alongside embedded practices', () => {
