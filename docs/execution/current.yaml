@@ -2958,7 +2958,7 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: ui01_integrated_main_75b5791_ui02_nine_section_rail_selected
+      checkpoint: ui02_integrated_main_54d6585_ui03_settings_categories_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
@@ -2968,7 +2968,11 @@ parallel_lanes:
         Issue 715 comment 6384209463 and Issue 589 comment 6384219085.
         UI-01 integrated in main at 75b579157f40220f668b2972cf38800460da8c28
         from source f1c29ab6eec1bd71270980201187cb6b441724bf.
-        Select UI-02 nine-section mobile selector with real settings action;
+        UI-02 integrated as main 54d6585909091494d7b348a3f97e0cf1c94233a9
+        from source b913f0bfaef9d0e002f4afbc35f8b8c2911cbb2d after
+        six SUCCESS workflow checks and exact-SHA independent review.
+        Select UI-03 functional four-category student settings in the ninth
+        tab, relying on existing authorized seat/class/game API operations;
         never deploy or modify school data.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
@@ -2977,14 +2981,17 @@ parallel_lanes:
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6384219085
         - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
       scope: >-
-        UI-02 is the single selected bounded product slice after accepted UI-01:
-        build a mobile SectionRail immediately below the integrated IdentityRail
-        with one live nine-section selector and one real contextual action.
-        Preserve all eight existing sections, works/grades paging, navigation,
-        roles, awards, safeMode, games and teacher-only permission checks.
-        The ninth Settings entry must invoke authorized existing seat settings
-        until UI-03 introduces its full server-backed settings tab.
-        No decorative permissions, backend or shared-tab redesign.
+        UI-03 selected bounded product slice after UI-02 main acceptance:
+        replace the temporary ninth-tab settings entry with four compact
+        real categories for profile/role/avatars, Student Code/access,
+        seat protection and per-student game access. Reuse existing
+        seatActions and participantsApi authorization/commands, and existing
+        ClassroomGamesSettings; one active editor at a time, honest disabled
+        and retry states, no decorative toggles, preserve unsaved panel state.
+        Preserve all eight prior sections and accepted IdentityRail/SectionRail,
+        grades/history and works/paging; avoid global auth and game backend.
+        UI-04 may remove duplicate permanent panels and relocate remaining
+        summary controls in a separate reviewed slice.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
