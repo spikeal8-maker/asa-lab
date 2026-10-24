@@ -204,6 +204,8 @@ interface CourseActivityOccurrenceView {
   snapshotRevision: number | null;
   updatedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  /** Authoritative exact-seat, exact-run published block assignment eligibility. */
+  requirement: 'required' | 'excused' | 'not_assigned' | 'unknown';
   workOriginAmbiguous: boolean;
 }
 
@@ -249,6 +251,24 @@ function courseActivityOccurrenceMap(
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
+    const projection = projections.get(canonicalProjectionKey(row.seat_id, row.classroom_assignment_id));
+    const provenance = projection?.state.provenance;
+    const participation =
+      provenance?.seatId === row.seat_id &&
+      provenance.classroomAssignmentId === row.classroom_assignment_id &&
+      provenance.activityRunId === row.activity_run_id
+        ? (projection?.participationApplicability ?? null)
+        : null;
+    // The assigned/excused decision must not depend on whether legacy project
+    // origin, editable work or a selected attempt is available to this viewer.
+    const requirement =
+      participation === null
+        ? 'unknown'
+        : !participation.applicable
+          ? 'not_assigned'
+          : participation.excused
+            ? 'excused'
+            : 'required';
     const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
     const originPresent =
       origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id) ?? false;
@@ -268,6 +288,7 @@ function courseActivityOccurrenceMap(
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
       classroomAssignmentId: row.classroom_assignment_id,
+      requirement,
       learningActivityVersionId: row.learning_activity_version_id,
       title: row.title,
       goal: exact

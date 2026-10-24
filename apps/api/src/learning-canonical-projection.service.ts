@@ -57,6 +57,8 @@ export interface CanonicalLearningProjection {
   key: string;
   state: CanonicalLearningState;
   surface: CanonicalLearningSurfaceState;
+  /** Assigned/excused facts come from the exact participation, not a Project/Attempt. */
+  participationApplicability: { applicable: boolean; excused: boolean } | null;
   compatibilityGradingUnknown: boolean;
   reusableAuthoredContent: boolean;
   projectId: string | null;
@@ -162,6 +164,12 @@ export function canonicalProjectionFromEvidence(
   return {
     key,
     state,
+    participationApplicability: evidence.participation
+      ? {
+          applicable: evidence.participation.applicable === true,
+          excused: evidence.participation.excused === true,
+        }
+      : null,
     surface: {
       ...surfaceState(state, audience),
       effectiveDueAt: evidence.dueAt,

@@ -71,6 +71,7 @@ interface ScenarioPractice {
   submittedAt?: string | null;
   excused?: boolean;
   canonicalMissing?: boolean;
+  requirement?: 'required' | 'excused' | 'not_assigned' | 'unknown';
 }
 
 /** Pinned published mixed lesson: block identity, not module/title or latest author draft. */
@@ -90,6 +91,7 @@ function mixedLesson(
     })),
     activityOccurrences: practices.map((practice) => ({
       blockId: practice.blockId,
+      requirement: practice.requirement ?? (practice.excused ? 'excused' : 'required'),
       submittedAt: practice.submittedAt ?? null,
       canonicalState: practice.canonicalMissing
         ? null
@@ -182,6 +184,45 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       excused: 1,
     });
     expect(lessonComplete(excused)).toBe(true);
+  });
+
+  it('honors authoritative excusal when no canonical work state exists', () => {
+    const excused = mixedLesson(true, [
+      accepted,
+      { ...unstarted, excused: true, canonicalMissing: true },
+    ]);
+    expect(lessonPracticeProgress(excused)).toMatchObject({
+      total: 1,
+      completed: 1,
+      excused: 1,
+      unavailable: 0,
+    });
+    expect(lessonComplete(excused)).toBe(true);
+    const notAssigned = mixedLesson(true, [
+      accepted,
+      { ...unstarted, requirement: 'not_assigned', canonicalMissing: true },
+    ]);
+    expect(lessonPracticeProgress(notAssigned)).toMatchObject({
+      total: 1,
+      completed: 1,
+      excused: 0,
+      unavailable: 0,
+    });
+    expect(lessonComplete(notAssigned)).toBe(true);
+  });
+
+  it('does not complete a lesson when applicability has no exact provenance', () => {
+    const unknown = mixedLesson(true, [
+      accepted,
+      { ...unstarted, requirement: 'unknown', canonicalMissing: true },
+    ]);
+    expect(lessonPracticeProgress(unknown)).toMatchObject({
+      total: 1,
+      completed: 1,
+      excused: 0,
+      unavailable: 1,
+    });
+    expect(lessonComplete(unknown)).toBe(false);
   });
 
   it('retains the pinned old version while a new version hides a practice', () => {

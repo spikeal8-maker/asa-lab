@@ -38,8 +38,19 @@ export function lessonPracticeProgress(lesson: SeatCourseRunLesson): PracticePro
     if (!visibleBlockIds.has(occurrence.blockId) || seenBlockIds.has(occurrence.blockId)) continue;
     seenBlockIds.add(occurrence.blockId);
     const state = occurrence.canonicalState;
-    if (state?.flags.includes('excused')) {
+    const requirement = occurrence.requirement;
+    if (requirement === 'not_assigned') continue;
+    if (requirement === 'excused' || (requirement === undefined && state?.flags.includes('excused'))) {
       result.excused += 1;
+      continue;
+    }
+    if (
+      requirement === 'unknown' ||
+      (requirement === undefined && state === null && occurrence.submittedAt === null)
+    ) {
+      // No exact participation or result provenance: neither fabricated due
+      // work nor a false completion is allowed.
+      result.unavailable += 1;
       continue;
     }
     result.total += 1;
@@ -60,7 +71,7 @@ export function lessonPracticeProgress(lesson: SeatCourseRunLesson): PracticePro
 
   // No assignment means no charge against the learner. Keep the missing
   // projection distinguishable so the UI can explain unavailable practices.
-  result.unavailable = visibleBlockIds.size - seenBlockIds.size;
+  result.unavailable += visibleBlockIds.size - seenBlockIds.size;
   return result;
 }
 

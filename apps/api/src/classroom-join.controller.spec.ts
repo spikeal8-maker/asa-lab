@@ -856,6 +856,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         ...evidenceBase,
         classroomAssignmentId: assignmentA,
         activityRunId: activityRunA,
+        participation: { applicable: true, status: 'active', excused: false },
         legacyWork: {
           projectId: projectA,
           startedAt: '2026-09-20T21:00:00.000Z',
@@ -866,6 +867,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         ...evidenceBase,
         classroomAssignmentId: assignmentB,
         activityRunId: activityRunB,
+        participation: { applicable: true, status: 'active', excused: false },
         legacyWork: null,
       },
     ];
@@ -948,6 +950,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroomAssignmentId: assignmentA,
         learningActivityVersionId: versionA,
         moduleKey: 'electronics',
+        requirement: 'required',
         projectId: projectA,
         snapshotRevision: 7,
         workOriginAmbiguous: false,
@@ -962,6 +965,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroomAssignmentId: assignmentB,
         learningActivityVersionId: versionB,
         moduleKey: 'three-d',
+        requirement: 'required',
         projectId: null,
         workOriginAmbiguous: false,
         canonicalState: {
@@ -970,6 +974,62 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    // A teacher excused 3D BEFORE the student started, so no Project/Attempt
+    // or valid modern work origin exists. Both learner surfaces must keep the
+    // authoritative participation decision, but never synthesize work access.
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'active', excused: true },
+    });
+    Object.assign(occurrenceRows[1], {
+      modern_provenance: { modernCourseRun: false, projectReadable: false },
+      not_started_visible: false,
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        blockId: 'activity-b',
+        requirement: 'excused',
+        canonicalState: null,
+        projectId: null,
+      });
+    }
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: false, status: 'active', excused: false },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        requirement: 'not_assigned',
+        canonicalState: null,
+      });
+    }
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'active', excused: false },
+      activityRunId: activityRunA,
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        requirement: 'unknown',
+        canonicalState: null,
+      });
+    }
+    Object.assign(evidenceRows[1], { activityRunId: activityRunB });
+    Object.assign(occurrenceRows[1], {
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunB,
+        projectReadable: false,
+      },
+      not_started_visible: true,
+    });
+
     Object.assign(occurrenceRows[1], { task_blocks: { present: true, blocks: null } });
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),
