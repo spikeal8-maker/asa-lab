@@ -2120,3 +2120,19 @@
     scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 16px);
   }
 }
+
+/* On a short native Chromium zoom viewport (e.g. 720×380 CSS pixels at
+   200% browser zoom) a sticky multirow Course toolbar can occupy nearly the
+   entire visible document. Let the document scroll past the toolbar rather
+   than leave keyboard-focused lesson fields outside the visual viewport.
+   Keep the global portal header sticky and preserve normal focus hit tests. */
+@media (max-height: 560px) {
+  .course-document-editor .course-compact-header {
+    position: static;
+    top: auto;
+  }
+
+  .course-document-editor .course-lesson-editor :is(input, textarea, select) {
+    scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 16px);
+  }
+}
