@@ -256,7 +256,7 @@ test('AI composer uploads a real file once and restores the saved attachment aft
   let uploadId: string | null = null;
   let uploadCount = 0;
   let sentIds: readonly string[] = [];
-  await page.route('**/api/ai/attachments**', async (route) => {
+  await page.route(/\/api\/ai\/attachments(?:\/|$)/, async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     if (path === '/api/ai/attachments' && request.method() === 'POST') {
@@ -291,7 +291,7 @@ test('AI composer uploads a real file once and restores the saved attachment aft
     }
     return route.fallback();
   });
-  await page.route('**/api/ai/threads/*/attachments*', async (route) => {
+  await page.route(/\/api\/ai\/threads\/[0-9a-f-]+\/attachments(?:\?|$)/, async (route) => {
     const ids = new URL(route.request().url()).searchParams.get('requestIds')?.split(',') ?? [];
     return route.fulfill({
       json: {
