@@ -11,6 +11,7 @@ import {
 } from '../engine';
 
 import * as simulation from '../domain/simulation';
+import * as inputDigest from '../domain/simulation-input-digest';
 import * as solver from '../domain/solver';
 import * as arduinoRuntime from '../domain/arduino-program-runtime';
 import { ARDUINO_GROUND_TERMINALS } from '../domain/arduino-model';
@@ -692,6 +693,90 @@ describe('event execution request ownership and physical barriers', () => {
     }
     throw new Error('bounded reference did not finish');
   };
+  it('hashes the immutable owned document once at the original engine validation boundary', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(20);digitalWrite(13,LOW);delay(20);}',
+    );
+    const digest = vi.spyOn(inputDigest, 'simulationInputDigest');
+    try {
+      const actual = finish(document, { requestedHorizonMicroseconds: 1000, maxEvents: 1024 });
+      expect(actual.result.executionStatus).toBe('ready');
+      expect(digest).toHaveBeenCalledTimes(1);
+    } finally {
+      digest.mockRestore();
+    }
+  });
+
+  it('keeps direct public scheduler validation independent of the owned digest', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(20);}',
+    );
+    const digest = vi.spyOn(inputDigest, 'simulationInputDigest');
+    try {
+      const actual = advanceElectronicsToHorizon(document, {
+        requestedHorizonMicroseconds: 1000,
+        maxEvents: 1024,
+      });
+      expect(actual.executionStatus).toBe('ready');
+      expect(digest).toHaveBeenCalledTimes(2);
+    } finally {
+      digest.mockRestore();
+    }
+  });
+
+  it('does not reuse the validation digest for a request with live inputs', () => {
+    const document = eventCircuit('void setup(){Serial.begin(9600);}void loop(){delay(1);}');
+    const request = {
+      requestedHorizonMicroseconds: 1000,
+      maxEvents: 1024,
+      inputEvents: [
+        { atMicroseconds: 500, targetId: 'uno', operation: 'serialRx' as const, payload: 'A' },
+      ],
+    };
+    const expected = advanceElectronicsToHorizon(document, request);
+    const digest = vi.spyOn(inputDigest, 'simulationInputDigest');
+    try {
+      expect(finish(document, request).result).toEqual(expected);
+      expect(digest).toHaveBeenCalledTimes(2);
+    } finally {
+      digest.mockRestore();
+    }
+  });
+
+  it('revalidates edited source and inputs for every independently owned request', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(20);}',
+    );
+    const digest = vi.spyOn(inputDigest, 'simulationInputDigest');
+    try {
+      const first = finish(document, {
+        requestedHorizonMicroseconds: 1000,
+        maxEvents: 1024,
+      }).result;
+      (document.components[0]!.stateProperties as Record<string, unknown>).arduinoSource =
+        'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,LOW);delay(20);}';
+      Object.assign(document.components[1]!, { value: 220 });
+      const second = finish(document, {
+        requestedHorizonMicroseconds: 1000,
+        maxEvents: 1024,
+      }).result;
+      expect(digest).toHaveBeenCalledTimes(2);
+      expect(digest.mock.results[0]!.value).not.toBe(digest.mock.results[1]!.value);
+      expect(second.state.continuation!.documentDigest).not.toBe(
+        first.state.continuation!.documentDigest,
+      );
+      digest.mockClear();
+      expect(second).toEqual(
+        advanceElectronicsToHorizon(document, {
+          requestedHorizonMicroseconds: 1000,
+          maxEvents: 1024,
+        }),
+      );
+    } finally {
+      digest.mockRestore();
+    }
+  });
+
   it.each([7, 256])(
     'retains owned execution across public requests with committed GPIO history, budget %i',
     (budget) => {
