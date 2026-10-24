@@ -1,3 +1,4 @@
+import { NativeOpticalProvider } from '../electronics/NativeOpticalComponentVisual';
 import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { PublicUser } from '../api';
 import { catalogEntry } from '../electronics/component-catalog';
@@ -344,7 +345,9 @@ export function SchematicEditor({
       />
       <div className="workbench-main" data-project-save-status={controller.saveStatus}>
         {view === 'breadboard' ? (
-          <WorkbenchStage controller={controller} showGrid={showGrid} />
+          <NativeOpticalProvider port={controller.nativeOpticalPresentation}>
+            <WorkbenchStage controller={controller} showGrid={showGrid} />
+          </NativeOpticalProvider>
         ) : (
           <Suspense fallback={null}>
             {view === 'schematic' ? (

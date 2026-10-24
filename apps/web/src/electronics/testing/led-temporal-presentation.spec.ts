@@ -1302,6 +1302,9 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
         frame: { arduinoLStates: ReadonlyMap<string, boolean> };
       } | null,
     };
+    Object.assign(state, {
+      nativeOpticalPresentation: { getSnapshot: () => ({ committed: state.liveObservation }) },
+    });
     const active = runInNewContext(
       ts.transpileModule(`${declarations.join('\n')}\ncomponentArduinoLActive;`, {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
@@ -1617,15 +1620,8 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       ts.isArrowFunction(node.initializer)
     )
       hostClosures.set('raf', node.initializer.getText(host));
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'useLayoutEffect' &&
-      node.arguments[0] &&
-      ts.isArrowFunction(node.arguments[0]) &&
-      node.arguments[0].getText(host).includes('const publication = opticalPublicationRef.current;')
-    )
-      hostClosures.set('layout', node.arguments[0].getText(host));
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'finishNativeLayout' && node.body)
+      hostClosures.set('layout', `() => ${node.body.getText(host)}`);
     if (ts.isFunctionDeclaration(node) && node.name?.text === 'rollbackComponentLedAsset')
       hostClosures.set('rollbackSelector', node.getText(host));
     if (ts.isFunctionDeclaration(node) && node.name?.text === 'clearDisplayedObservation')
@@ -1761,6 +1757,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
+    state.nativeOpticalPresentation = { commit: () => {} };
     if (name === 'raf') {
       // Bind the real RAF's new display-only metric dependencies. The actual
       // mounted suite separately verifies source mismatch and lifecycle cancellation;
@@ -1845,6 +1842,14 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       opticalPublicationRef: { current: publication as typeof publication | null },
       rollbackLedAssets: assets,
     };
+    Object.assign(state, {
+      nativeOpticalPresentation: {
+        getSnapshot: () => ({
+          observation: state.liveObservation,
+          rollback: state.rollbackLedAssets,
+        }),
+      },
+    });
     const select = runInNewContext(
       ts.transpileModule(`${hostClosures.get('rollbackSelector')!}; rollbackComponentLedAsset;`, {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },

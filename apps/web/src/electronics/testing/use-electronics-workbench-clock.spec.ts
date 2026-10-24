@@ -1,5 +1,13 @@
 /* @vitest-environment jsdom */
-import { act, createElement, startTransition, StrictMode, Suspense, useLayoutEffect } from 'react';
+import {
+  act,
+  createElement,
+  startTransition,
+  StrictMode,
+  Suspense,
+  useLayoutEffect,
+  useSyncExternalStore,
+} from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRoot, type Root } from 'react-dom/client';
@@ -16,7 +24,7 @@ import { loadSimulationWorkerController } from '../load-simulation-worker-contro
 import { SimulationFailure } from '../simulation-failure';
 import { catalogEntry } from '../component-catalog';
 import { configureProductionLibrary } from '../production-manifest-adapter';
-import { ProductionComponentVisual } from '../ProductionComponentVisual';
+import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
 import { evaluateSimulationWorkerRequestBatched } from '../simulation-worker-evaluator';
 import {
@@ -127,50 +135,70 @@ let suspendRender: Promise<void> | null;
 let onLayoutCommit: (() => void) | null;
 let frameSequence = 0;
 const frameCallbacks = new Map<number, FrameRequestCallback>();
+function NativeProjectionOutput() {
+  const snapshot = useSyncExternalStore(
+    workbench.nativeOpticalPresentation.subscribe,
+    workbench.nativeOpticalPresentation.getSnapshot,
+    workbench.nativeOpticalPresentation.getSnapshot,
+  );
+  useLayoutEffect(() => onLayoutCommit?.(), [snapshot]);
+  if (suspendRender) throw suspendRender;
+  return createElement(
+    'output',
+    {
+      'data-source': workbench.document?.components.find((c) => c.id === 'uno')?.stateProperties
+        ?.arduinoSource,
+    },
+    `${workbench.simulationTimeMs}:${workbench.result?.current}`,
+  );
+}
 function Probe({ id = 'clock-project' }: { id?: string }) {
   workbench = useElectronicsWorkbench(id, 'clock-pupil');
-  useLayoutEffect(() => onLayoutCommit?.());
   renders += 1;
   if (suspendRender) throw suspendRender;
   return createElement(
-    'div',
-    null,
+    NativeOpticalProvider,
+    { port: workbench.nativeOpticalPresentation },
     createElement(
-      'output',
-      {
-        'data-source': workbench.document?.components.find((component) => component.id === 'uno')
-          ?.stateProperties?.arduinoSource,
-      },
-      `${workbench.simulationTimeMs}:${workbench.result?.current}`,
-    ),
-    createElement(
-      'svg',
+      'div',
       null,
-      ...(workbench.document?.components ?? [])
-        .filter((component) => component.kind === 'led')
-        .map((component) => {
-          const entry = catalogEntry(component);
-          if (!entry) throw new Error('Mounted LED fixture requires its real catalogue entry');
-          return createElement(
-            'g',
-            { key: component.id, 'data-testid': `clock-led-${component.id}` },
-            createElement(ProductionComponentVisual, {
-              entry,
-              component,
-              width: 40,
-              height: 60,
-              visualState: workbench.componentVisualState(component),
-              effectiveBrightness: workbench.componentLedBrightness(component),
-              simulationRunning: workbench.simulationRunning,
-              simulationTimeMs: workbench.simulationTimeMs,
-              preparedLedAsset: workbench.preparedComponentLedAsset(component),
-              committedLedAsset: workbench.committedComponentLedAsset(component),
-              rollbackLedAsset: workbench.rollbackComponentLedAsset(component),
-              onLedAssetReadiness: workbench.onLedAssetReadiness,
-              result: workbench.runtimePresentationResultByComponent.get(component.id),
-            }),
-          );
-        }),
+      createElement(NativeProjectionOutput),
+      createElement(
+        'svg',
+        null,
+        ...(workbench.document?.components ?? [])
+          .filter(
+            (component) => component.kind === 'led' || component.componentTypeId === 'arduino-uno',
+          )
+          .map((component) => {
+            const entry = catalogEntry(component);
+            if (!entry) {
+              if (component.kind === 'led')
+                throw new Error('Mounted LED fixture requires its real catalogue entry');
+              return null;
+            }
+            return createElement(
+              'g',
+              { key: component.id, 'data-testid': `clock-led-${component.id}` },
+              createElement(ProductionComponentVisual, {
+                entry,
+                component,
+                width: 40,
+                height: 60,
+                visualState: workbench.componentVisualState(component),
+                effectiveBrightness: workbench.componentLedBrightness(component),
+                effectiveArduinoLActive: workbench.componentArduinoLActive(component),
+                simulationRunning: workbench.simulationRunning,
+                simulationTimeMs: workbench.simulationTimeMs,
+                preparedLedAsset: workbench.preparedComponentLedAsset(component),
+                committedLedAsset: workbench.committedComponentLedAsset(component),
+                rollbackLedAsset: workbench.rollbackComponentLedAsset(component),
+                onLedAssetReadiness: workbench.onLedAssetReadiness,
+                result: workbench.runtimePresentationResultByComponent.get(component.id),
+              }),
+            );
+          }),
+      ),
     ),
   );
 }
@@ -1453,6 +1481,36 @@ describe('mounted workbench LED temporal display', () => {
       expect(workbench.simulationTimeMs).toBe(0);
     },
   );
+
+  it('prepares a real native HIGH resource without rerendering the whole Workbench', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    await tick(10);
+    const before = renders;
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 2, brightness: 70, current: 0.01 },
+        { atMicroseconds: 1000, brightness: 70, current: 0.01 },
+      ]),
+    );
+    expect(renders - before).toBe(0);
+    expect(host.querySelector('image[href$="_i070.svg"]')).not.toBeNull();
+    expect(
+      workbench.componentLedBrightness(openedDocument.components.find((c) => c.kind === 'led')!),
+    ).toBe(0);
+    await frame(8);
+    const beforePublication = renders;
+    await loadMountedImages();
+    expect(renders - beforePublication).toBe(0);
+    expect(workbench.componentLedBrightness(led)).toBe(70);
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
+    expect(workbench.simulationTimeMs).toBe(1);
+    assertCommitted(70, 'lit');
+  });
 
   it('coalesces four actual held receipts into one real RAF metric without four full Workbench renders', async () => {
     await mount();
