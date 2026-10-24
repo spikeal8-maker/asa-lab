@@ -274,3 +274,25 @@ selection/receipt stays historical. Accepted222000 cap unchanged. NEW exact-sour
 review, ONE qualified Code/scoped-six/General cycle and NEW actual review are
 required. Preserve557 target, all foreign/blocker state, old receipts and native
 assertions. No alternate variants, cap increase, extra paths, deployment or closure.
+
+
+## Final targeted technical closeout — 24 October 2026
+
+[The final dated receipt](../evidence/ui679-557-final-technical-closeout-20261024.md)
+records qualified source `5b5f2cf549d94473e0365c8938093d8026ac67f4` integrated in main
+`380d35bc67d22d2eb6e96c92dbdbb75a4211928c`, NEW independent source/integration and
+APPROVE_TARGETED actual/visual reviews, all six original native cases complete,
+and actual221965 RAW against unchanged accepted222000 cap (35 bytes remaining).
+Both F2 whole-document one-Save/CAS2→3/cookies-only R3 journeys and all12 clock
+phases completed.679 closed2026-10-24T11:40:48Z;557 closed11:40:51Z.
+General40089881977 SUCCESS, all four jobs on exact qualified5b5f2cf5;
+no new main or documentation-SHA General result is claimed. Historical selections and prior
+NOT_RUN/failure records remain immutable history; current completion is recorded
+only in current.yaml and this receipt. No new documentation-SHA runtime claim.
+
+Owner API-separate targeted UI acceptance covers these technical closures only.
+Physical owner acceptance, release and deployment remain pending. Mobile hidden
+clock visibility NOT_OBSERVED;568px NOT_RUN. Preserve552 blocker byte-exact,
+682 partial/all-eight pending,548 and owner KEEP544/547OPEN,681 already closed
+and every foreign state. Historical6db218000-cap evidence is not new fit proof.
+Source publication is not deployment. NEXT_ALLOWED_TASK: STOP.
