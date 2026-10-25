@@ -32,6 +32,7 @@
  * No separate Archive tab or always-visible archive stripe is shown. */
 .asa-ai-layout .chat-sidebar-head-actions {
   display: flex;
+  flex-direction: row-reverse;
   align-items: center;
   gap: 2px;
 }
