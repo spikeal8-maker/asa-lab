@@ -1202,6 +1202,11 @@ test('AI history drawer traps focus, paginates and closes after selection on nar
   await dialog.getByRole('button', { name: 'Поиск по чатам' }).click();
   await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('Не существует');
   await expect(dialog.getByText('Ничего не найдено в истории')).toBeVisible();
+  // Escape first dismisses the temporary search panel, then the history drawer.
+  await page.keyboard.press('Escape');
+  await expect(dialog.getByRole('searchbox', { name: 'Найти диалог' })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Поиск по чатам' })).toBeFocused();
+  await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(toggle).toBeFocused();
