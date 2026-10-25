@@ -117,12 +117,6 @@ it('Ollama Cloud uses encrypted credentials, paid admission and durable usage on
     ),
   ).toBe(true);
   await save({ provider: 'ollama-cloud', model: 'gemma4:31b', enabled: false, clearApiKey: true });
-  await save({
-    provider: previousConfig.provider,
-    model: previousConfig.model,
-    enabled: previousConfig.enabled,
-    paidOperationsPerHour: previousConfig.paidOperationsPerHour,
-  });
   expect(
     (
       await admin.query(
@@ -130,6 +124,14 @@ it('Ollama Cloud uses encrypted credentials, paid admission and durable usage on
       )
     ).rows,
   ).toEqual(existing);
+  // Restoring the prior active provider deliberately updates its own timestamp;
+  // compare preservation before that separate cleanup operation.
+  await save({
+    provider: previousConfig.provider,
+    model: previousConfig.model,
+    enabled: previousConfig.enabled,
+    paidOperationsPerHour: previousConfig.paidOperationsPerHour,
+  });
 });
 
 async function used(): Promise<number> {
