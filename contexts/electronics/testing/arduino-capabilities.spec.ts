@@ -197,7 +197,7 @@ void loop(){foo.write(90);}`);
     );
   });
 
-  it('fails closed for unsupported text types and else-if chains', () => {
+  it('fails closed for unsupported text types', () => {
     const diagnostics = analyseArduinoSourceSupport(`
       String message = "ready";
       char marker = 'A';
@@ -207,7 +207,7 @@ void loop(){foo.write(90);}`);
       }
     `);
 
-    expect(diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toHaveLength(3);
+    expect(diagnostics.filter((entry) => entry.code === 'unsupported-syntax')).toHaveLength(2);
     expect(diagnostics.every((entry) => entry.status === 'unsupported')).toBe(true);
   });
 });

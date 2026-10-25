@@ -76,11 +76,23 @@ describe('original Arduino diagnostic coordinates', () => {
   });
 
   it('locates malformed control syntax and trimmed for-header instructions', () => {
-    check('void loop(){ if(1) {} else delay(1); }', 'else');
+    check('void loop(){ if(1) {} else delay(1) }', 'else');
     check('void loop(){ if 1 {} }', 'if');
     check('void loop(){ for( int x = unknown; x < 1; x++ ){} }', 'int x = unknown');
     check('void loop(){ for( int x = 0; x < 1; digitalWrite(13) ){} }', 'digitalWrite(13)');
   });
+
+  it.each(['\n', '\r\n'])(
+    'locates single-statement loop bodies and control errors with %j',
+    (newline) => {
+      check(
+        `// 😀${newline}void setup(){${newline}for(int i=0;i<2;i++)${newline}  if(i==1) digitalWrite(13);${newline}}`,
+        'digitalWrite(13)',
+      );
+      check(`void setup(){while(false) {break;} ${newline}continue;}`, 'continue');
+      check(`void setup(){for(int i=0;i<2;unknown()) delay(1);}`, 'unknown()');
+    },
+  );
 
   it('keeps valid comments and nested source accepted and free of syntax diagnostics', () => {
     for (const source of [

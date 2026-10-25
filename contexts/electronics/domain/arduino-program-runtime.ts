@@ -254,6 +254,7 @@ interface BranchInstruction {
 interface JumpInstruction {
   readonly kind: 'jump';
   target: number;
+  readonly unwindScopes?: number;
 }
 
 type ScopeInstruction = { readonly kind: 'enter-scope' } | { readonly kind: 'exit-scope' };
@@ -1623,6 +1624,58 @@ function structuralCompileError(source: string): CompileMessage | null {
   };
 }
 
+// Keep a dangling else attached to its nearest if when locating a loop body.
+function controlledStatement(
+  source: string,
+  start: number,
+): { content: string; end: number; offset: number } | null {
+  start = skipWhitespace(source, start);
+  if (source[start] === '{') {
+    const block = balancedSlice(source, start, '{', '}');
+    return block ? { ...block, offset: start + 1 } : null;
+  }
+  const control = /^(if|while|for)\b/.exec(source.slice(start));
+  if (control) {
+    const header = balancedSlice(
+      source,
+      skipWhitespace(source, start + control[0].length),
+      '(',
+      ')',
+    );
+    if (!header) return null;
+    const body = controlledStatement(source, header.end);
+    if (!body) return null;
+    let end = body.end;
+    const next = skipWhitespace(source, end);
+    if (control[1] === 'if' && /^else\b/.test(source.slice(next))) {
+      const alternate = controlledStatement(source, next + 4);
+      if (!alternate) return null;
+      end = alternate.end;
+    }
+    return { content: source.slice(start, end), offset: start, end };
+  }
+  let depth = 0;
+  let quoted = false;
+  for (let end = start; end < source.length; end += 1) {
+    const character = source[end];
+    if (character === '"' && (source.slice(0, end).match(/\\*$/)?.[0].length ?? 0) % 2 === 0)
+      quoted = !quoted;
+    if (quoted) continue;
+    if (character === '(') depth += 1;
+    if (character === ')') depth -= 1;
+    if (character === '{' || character === '}' || depth < 0) return null;
+    if (character === ';' && depth === 0)
+      return { content: source.slice(start, end + 1), offset: start, end: end + 1 };
+  }
+  return null;
+}
+
+interface CompilingLoop {
+  readonly scopeDepth: number;
+  readonly breaks: JumpInstruction[];
+  readonly continues: JumpInstruction[];
+}
+
 function compileStatements(
   source: string,
   instructions: CompiledInstruction[] = [],
@@ -1632,10 +1685,18 @@ function compileStatements(
   forHeaderName?: string,
   firstOffset = 0,
   locations = new Map<object, { start: number; length: number }>(),
+  loop?: CompilingLoop,
+  scopeDepth = 0,
 ): readonly CompiledInstruction[] {
   const lineAt = (offset: number): number =>
     firstLine + (source.slice(0, offset).match(/\n/g)?.length ?? 0);
-  const compileBlock = (body: string, offset: number, headerName?: string): void => {
+  const compileBlock = (
+    body: string,
+    offset: number,
+    headerName?: string,
+    bodyLoop = loop,
+    parentDepth = scopeDepth,
+  ): void => {
     instructions.push({ kind: 'enter-scope' });
     compileStatements(
       body,
@@ -1646,6 +1707,8 @@ function compileStatements(
       headerName,
       firstOffset + offset,
       locations,
+      bodyLoop,
+      parentDepth + 1,
     );
     instructions.push({ kind: 'exit-scope' });
   };
@@ -1692,23 +1755,25 @@ function compileStatements(
         break;
       }
       cursor = skipWhitespace(source, condition.end);
-      const body = balancedSlice(source, cursor, '{', '}');
+      const body = controlledStatement(source, cursor);
       if (!body) {
-        error(
-          `Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается блок в фигурных скобках.`,
-        );
+        error(`Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается команда или блок.`);
         break;
       }
       cursor = skipWhitespace(source, body.end);
-      let elseBody: { readonly content: string; readonly end: number } | null = null;
+      let elseBody: {
+        readonly content: string;
+        readonly end: number;
+        readonly offset: number;
+      } | null = null;
       if (control[1] === 'if' && /^else\b/.test(source.slice(cursor))) {
         const elseStart = cursor;
         cursor = skipWhitespace(source, cursor + 4);
-        elseBody = balancedSlice(source, cursor, '{', '}');
+        elseBody = controlledStatement(source, cursor);
         if (elseBody) cursor = elseBody.end;
         else if (!/^if\b/.test(source.slice(cursor))) {
           error(
-            `Ошибка синтаксиса в ${scope}(): после else ожидается блок в фигурных скобках.`,
+            `Ошибка синтаксиса в ${scope}(): после else ожидается команда или блок.`,
             elseStart,
             4,
           );
@@ -1722,16 +1787,20 @@ function compileStatements(
         index,
         condition.end - index,
       );
-      compileBlock(body.content, body.end - body.content.length - 1);
+      const bodyLoop: CompilingLoop | undefined =
+        control[1] === 'while' ? { scopeDepth, breaks: [], continues: [] } : loop;
+      compileBlock(body.content, body.offset, undefined, bodyLoop);
       if (diagnostics.length > 0) break;
       if (control[1] === 'while') {
         instructions.push({ kind: 'jump', target: branchIndex });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+        for (const jump of bodyLoop!.breaks) jump.target = instructions.length;
+        for (const jump of bodyLoop!.continues) jump.target = branchIndex;
       } else if (elseBody) {
         const jumpIndex = instructions.length;
         instructions.push({ kind: 'jump', target: -1 });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
-        compileBlock(elseBody.content, elseBody.end - elseBody.content.length - 1);
+        compileBlock(elseBody.content, elseBody.offset);
         if (diagnostics.length > 0) break;
         (instructions[jumpIndex] as JumpInstruction).target = instructions.length;
       } else {
@@ -1748,9 +1817,9 @@ function compileStatements(
         break;
       }
       cursor = skipWhitespace(source, header.end);
-      const body = balancedSlice(source, cursor, '{', '}');
+      const body = controlledStatement(source, cursor);
       if (!body) {
-        error(`Ошибка синтаксиса в ${scope}(): после for ожидается блок в фигурных скобках.`);
+        error(`Ошибка синтаксиса в ${scope}(): после for ожидается команда или блок.`);
         break;
       }
       if ((header.content.match(/;/g) ?? []).length !== 2) {
@@ -1773,12 +1842,16 @@ function compileStatements(
         index,
         header.end - index,
       );
+      const bodyLoop: CompilingLoop = { scopeDepth: scopeDepth + 1, breaks: [], continues: [] };
       compileBlock(
         body.content,
-        body.end - body.content.length - 1,
+        body.offset,
         parseDeclaration(initialization)?.name,
+        bodyLoop,
+        scopeDepth + 1,
       );
       if (diagnostics.length > 0) break;
+      for (const jump of bodyLoop.continues) jump.target = instructions.length;
       if (increment)
         record(
           { kind: 'simple', statement: increment, line },
@@ -1787,6 +1860,7 @@ function compileStatements(
         );
       instructions.push({ kind: 'jump', target: branchIndex });
       (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+      for (const jump of bodyLoop.breaks) jump.target = instructions.length;
       instructions.push({ kind: 'exit-scope' });
       index = body.end;
       continue;
@@ -1810,7 +1884,19 @@ function compileStatements(
       error(`Повторное объявление «${forHeaderName}» в теле его цикла for.`);
       break;
     }
-    if (statement) record({ kind: 'simple', statement, line });
+    if (statement === 'break' || statement === 'continue') {
+      if (!loop) {
+        error(`Команда ${statement} допустима только внутри цикла.`);
+        break;
+      }
+      const jump: JumpInstruction = {
+        kind: 'jump',
+        target: -1,
+        unwindScopes: scopeDepth - loop.scopeDepth,
+      };
+      record(jump);
+      (statement === 'break' ? loop.breaks : loop.continues).push(jump);
+    } else if (statement) record({ kind: 'simple', statement, line });
     index = end + 1;
   }
   return instructions;
@@ -1848,7 +1934,7 @@ function declareVariable(
   const scope = state.scopes[state.scopes.length - 1]!;
   if (scope.has(name)) throw new SyntaxError(`Повторное объявление «${name}» в одной области.`);
   if (
-    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while)$/.test(
+    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|break|continue)$/.test(
       name,
     )
   )
@@ -2746,6 +2832,8 @@ function advanceRuntime(
     const instruction = instructions[programCounter];
     if (!instruction) break;
     if (instruction.kind === 'jump') {
+      for (let count = 0; count < (instruction.unwindScopes ?? 0); count += 1)
+        applyScopeInstruction({ kind: 'exit-scope' }, scopes, owned?.inactiveScopes);
       programCounter = instruction.target;
       consumeClockInstruction();
       continue;
