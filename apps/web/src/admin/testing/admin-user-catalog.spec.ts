@@ -75,7 +75,9 @@ it('keeps server ordering, typed same-UUID Account and Seat entries, and account
   );
   expect(renderAccount).toHaveBeenCalledTimes(1);
   expect(host.textContent!.includes(seat.login)).toBe(false);
-  expect(host.querySelector('[data-actor-key^="student:"] button')).toBeNull();
+  expect(host.querySelector('[data-actor-key^="student:"] button')?.textContent).toBe(
+    'История проектов, публикаций и ИИ',
+  );
   expect(host.textContent).toContain('Выдано');
 });
 it('loads every server page with its opaque cursor, no first-50 client sort', async () => {

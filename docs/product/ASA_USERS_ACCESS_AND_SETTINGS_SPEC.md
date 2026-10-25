@@ -1174,6 +1174,33 @@ MVCC snapshot имён, статусов или прочих меняющихс�
 
 <a id="persona-p19"></a>
 
+#### Постраничная история пользователя
+
+`GET /api/admin/v1/users/:kind/:targetId/history` отдельно читает `projects`,
+`publications`, `ai`. Kind+UUID остаётся точной identity; Seat/Account linking
+не объединяет их историю. Только platform admin получает retained metadata:
+текущие принадлежащие identity проекты (включая архивные), immutable сохранённые
+версии, все retained publication revisions, отдельно помеченные legacy gallery
+rows и private AI usage journal с его начала. Тексты чатов, document_json,
+credentials, preview bytes и произвольные provider errors не раскрываются.
+NULL token usage означает неизвестное значение, не ноль; bigint выводится строкой.
+Статусы проектов/публикаций/AI являются текущими, а не историческим snapshot.
+Не заявляется восстановление удалённых строк, каждого autosave, прошлых владельцев
+или полной хронологии переходов публикации, которые ранее не журналировались.
+
+History limit 1..100 применяется сервером, default 50 (UI 25). Порядок time DESC,
+typed record key ASC, cursor сохраняет microseconds, fingerprint actor/scope/
+typed target/category, cutoff asOf и срок час. Каждый page read заново проверяет
+grant и exact target. Cutoff не является MVCC snapshot mutable metadata или
+поздно committed backdated records. Ошибка продолжения сохраняет уже загруженные
+строки; смена раздела/identity/scope сбрасывает cursor и игнорирует поздний ответ.
+Success audit записывается после успешного SQL read и до выдачи данных.
+
+Account membership не даёт org admin доступ к personal project/AI history.
+Пока у источников нет точной organization workspace lineage, возвращается
+`coverage=unavailable_scope`, а не ложный пустой полный каталог. Совпадение tenant
+не расширяет полномочия. StudentSeat за пределами platform scope запрещён.
+
 ### P19 — Поддержка (R14)
 
 **Цель:** помочь по обращению. **Основание:** approved временная session, actor/ticket/scope/actions/expiry. **Данные:** только согласованные объекты. **Кабинет:** case/session с постоянным banner. **CTA:** разрешённая помощь/завершить/безопасная сводка. **Настройки:** не продлевает/расширяет себе доступ. **Запрет:** чужой cookie, скрытый impersonation, читать другие работы, UPDATE grade. **Ошибка:** expiry/revoke закрывает новые действия, история помощи остаётся. **PERSONA-AC-19:** scoped помощь и отказ после окончания.

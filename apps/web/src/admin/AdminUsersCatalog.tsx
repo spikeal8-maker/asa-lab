@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode, type FormEvent } from 'react';
+import { AdminUserHistory } from './AdminUserHistory';
 import {
   adminApi,
   type AdminScope,
@@ -225,6 +226,12 @@ export function AdminUsersCatalog({
               user.kind === 'account' && user.account ? (
                 <div key={user.actorKey} className="admin-catalog-account">
                   {renderAccount(user)}
+                  <AdminUserHistory
+                    kind={user.kind}
+                    targetId={user.id}
+                    scope={scope}
+                    onAccessDenied={onAccessDenied}
+                  />
                 </div>
               ) : (
                 <article
@@ -264,6 +271,12 @@ export function AdminUsersCatalog({
                       {!user.principalId ? <small>Идентификатор входа ещё не создан</small> : null}
                     </span>
                   </div>
+                  <AdminUserHistory
+                    kind={user.kind}
+                    targetId={user.id}
+                    scope={scope}
+                    onAccessDenied={onAccessDenied}
+                  />
                 </article>
               ),
             )}

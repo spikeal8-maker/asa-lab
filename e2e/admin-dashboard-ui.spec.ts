@@ -127,6 +127,39 @@ async function fixture(page: Page) {
         ? reply({ error: { code: 'offline', message: 'Недоступно' } }, 503)
         : reply(dashboard);
     }
+    if (/^\/api\/admin\/v1\/users\/(account|student)\/[^/]+\/history$/.test(path)) {
+      const category = url.searchParams.get('category');
+      const next = url.searchParams.has('cursor');
+      return reply({
+        coverage: 'retained',
+        asOf: '2026-10-25T12:00:00.123456Z',
+        next: next ? null : 'history-next',
+        items: [
+          {
+            key: `${category}:${next ? 'second' : 'first'}`,
+            id: next ? 'second' : 'first',
+            occurredAt: '2026-10-24T12:00:00.000001Z',
+            type:
+              category === 'ai' ? 'ai' : category === 'publications' ? 'publication' : 'version',
+            title:
+              category === 'ai'
+                ? null
+                : 'Очень длинное название сохранённой учебной работы по электронике и программированию',
+            projectId: '20000000-0000-4000-8000-000000000003',
+            module: 'electronics',
+            revision: 3,
+            provider: 'ollama',
+            requestedModel: 'long-model-name-for-responsive-layout:latest',
+            model: null,
+            inputTokens: null,
+            outputTokens: '0',
+            status: 'failed',
+            errorCode: 'ai_ollama_timeout',
+            durationMs: '15000',
+          },
+        ],
+      });
+    }
     if (path === '/api/admin/v1/users') {
       catalogQueries.push(url.searchParams);
       if (!catalogMode) return reply(catalogPageFixture());
@@ -457,8 +490,20 @@ for (const width of [1440, 1024, 390, 320]) {
     const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
     await expect(account).toBeVisible();
     await expect(student).toBeVisible();
-    await expect(student.getByRole('button')).toHaveCount(0);
+    await expect(student.getByRole('button')).toHaveCount(1);
     await expect(student).toContainText('Выдано');
+    await noPageOverflow(page);
+    await student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }).click();
+    const history = student.getByRole('region', { name: 'История пользователя' });
+    await expect(history.getByText('Сохранённая версия', { exact: false })).toBeVisible();
+    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('publications');
+    await expect(history.getByText('Версия публикации', { exact: false })).toBeVisible();
+    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('ai');
+    await expect(history.getByText('Входные токены: Неизвестно', { exact: false })).toBeVisible();
+    await expect(history.getByText('Код ошибки: ai_ollama_timeout')).toBeVisible();
+    await history.getByRole('button', { name: 'Показать ещё записи' }).click();
+    await expect(history.getByText('Загружено записей: 2.')).toBeVisible();
+    await expect(history.getByRole('button', { name: 'Показать ещё записи' })).toHaveCount(0);
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/users-${width}.png`, fullPage: true });
