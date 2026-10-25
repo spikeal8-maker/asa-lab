@@ -41,3 +41,18 @@ CI183 timed ownership scheduling remains source-integrated with exact Data/RLS
 PASS but full workflow cancelled by subsequent unrelated main publication.
 Owner explicitly paused that CI activity before selecting this programme.
 No server, deployment or database operation is authorized by the programme.
+
+L03 budget dependency: a fresh67ecc2de web build executed6 tasks without cache
+and passed the checker at221965/222000 bytes. Native BEFORE at1440/1024/390/320
+shows native title and no immediate DOM help; no product edits were made then.
+The queue was authored inad35d724 at2026-10-24T01:29+03 before owner-approved
+6b534da6 at10:44+03 changed the cap to222000. Correcting the queue/card to that
+already accepted cap changes no checker/budget/product contract.
+
+Read-only proxies found Stage transform duplication(-158 module bytes) and
+marker-shell duplication(-209), not actual production savings or acceptance.
+Icons already share IconBase; Arduino definitions/support are already lazy and
+cannot free this Editor chunk. PR685 remains unmerged, Data-failing and browser-
+cancelled at42f0949c; global preload recovery changes cannot be auto-pulled.
+One unpublished L03 prototype is selected to quantify the actual complete feature
+cost and prepare a concrete decision; source publication stays budget-blocked.
