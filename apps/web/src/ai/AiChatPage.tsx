@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
+import { aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import {
@@ -1395,6 +1395,15 @@ export function AiChatPage({
           ) : null}
           <div className="chat-composer-dock">
             <div className="chat-composer-wrap">
+              <form
+                className="chat-composer"
+                onSubmit={(event) => void send(event)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  addFiles(Array.from(event.dataTransfer.files));
+                }}
+              >
               {attachments.length ? (
                 <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
                   {attachments.map((item) => (
@@ -1425,15 +1434,6 @@ export function AiChatPage({
                   ))}
                 </div>
               ) : null}
-              <form
-                className="chat-composer"
-                onSubmit={(event) => void send(event)}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  addFiles(Array.from(event.dataTransfer.files));
-                }}
-              >
                 <input
                   ref={fileInput}
                   type="file"
