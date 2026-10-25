@@ -1292,7 +1292,10 @@ export function AiChatPage({
                                   onClick={() => void downloadAttachment(file)}
                                   title="Получить сохранённое вложение"
                                 >
-                                  <AiChatIcon name={file.kind === 'image' ? 'image' : 'file'} size={17} />
+                                  <AiChatIcon
+                                    name={file.kind === 'image' ? 'image' : 'file'}
+                                    size={17}
+                                  />
                                   {file.fileName ?? 'Вложение'}
                                 </button>
                               ))}
@@ -1343,7 +1346,9 @@ export function AiChatPage({
                                   .writeText(message.content)
                                   .catch(() => setError('Не удалось скопировать ответ.'))
                               }
-                             aria-label="Копировать" title="Копировать">
+                              aria-label="Копировать"
+                              title="Копировать"
+                            >
                               <AiChatIcon name="copy" size={17} />
                             </button>
                             {sourceFor(message) ? (
@@ -1354,7 +1359,8 @@ export function AiChatPage({
                                 }
                                 onClick={() => void regenerate(message)}
                                 title="Новый запрос к модели расходует лимит. Вопрос и все прежние ответы останутся в истории."
-                               aria-label="Новый вариант ответа">
+                                aria-label="Новый вариант ответа"
+                              >
                                 <AiChatIcon name="refresh" size={18} />
                               </button>
                             ) : null}
