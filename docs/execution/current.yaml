@@ -7591,13 +7591,23 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_epoch_controller_measurement_only
+      checkpoint: selected_private_engine_harness_baseline_dependency
       kind: diagnostic
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE measurement-only composition of original reviewed f1 two-path production candidate; no storage aliases or new diagnostic ports, product-main or realtime acceptance.
+      selected_slice: ONE separate PRIVATE TEST-ONLY engine ownership/null harness baseline cleanup dependency for category C General failure; failed bd3 production experiment preserved separately, never included in this baseline repair.
+      engine_harness_baseline_contract:
+        scope: ONLY contexts/electronics/testing/engine-timed-api.spec.ts baseline blob9914bd5464b41073870b912af424f80bf9803db0; target ownership/null test budgets1/7/256/1024. Separate category C baseline slice under AGENTS2.1/7, not repair inside f1 production slice.
+        deletion: Remove ONLY unused generic advance spy setup/clear/restore and newly unused originalAdvance binding in this target test. Keep owned capture/spies and every oracle, loop, mutation, input, core call, receiver identity, null/descriptor check, horizon2050, four budgets and5000ms unchanged; adjacent tests and all production/core/API HTTP/controller files excluded.
+        basis: General40174456664 exact bd3caad0e896322a8491e72fdcbbc3c8787b1ac8 FAILURE; Governance/Code/Access PASS, Data category C preexisting budget1 timeout5000,7068PASS1FAIL43SKIP. Independent proposal b5ee3178a952de66316b261969ee3463f2eeb2244ab882629176e2769d23bcc0 approves redundant instrumentation hypothesis only; performance magnitude and CI sufficiency UNKNOWN.
+        private_proof: NEW author performs paired identical-environment baseline/candidate focused probes for all four budgets with no timeout override; static inverse/semantic preservation, self-review and light checks. Infeasible or harness uncertainty STOP, no blind variants or deadline raise. Freeze PRIVATE UNPUBLISHED for NEW exact source review.
+        conditional_measurement: After source APPROVE controller composes ONE General-only baseline branch on fresh accepted main with ONLY the reviewed engine test diff; NO f1/bd3 production blobs. Every other source remains exact fresh accepted main. NEW composition review before publication; automatic General ONCE. No strict dispatch for test-harness-only cleanup because product is unchanged. Future real Arduino fix/integration requires a separate canonical selection and native gates; no failed-native evidence reuse or gate waiver.
+        failed_native: Exact bd3 strict40174461848 completed FAILURE,183PASS86FAIL; reporter lists all10 original native cases failed. Raw actual independent review pending; no causal-regression claim before raw review. Preserve failed source/ref as experiment only, not main or qualified. No accepted native evidence exists to reuse from bd3.
+        acceptance: Test-only baseline publication after actual General Data PASS is not an Arduino timing solution or runtime-fix/closure claim. No f1 production main/integration/closure/release until separately selected fix, actual all8 timing, complete mixed/buttonSerial/ResetStop, full required gates, NEW actual review and actual Editor RAW<=222000. Current General failure remains open until actual Data PASS; no waiver or claim timeout fixed. Lazy controller uncapped; proxy is not Editor overflow. Known historical Editor221965/222000 PASS is not new candidate proof. Withdrawn private ffa4 storage and935 diagnostic ports unused.
+        delivery: Light CP with requireGithub/taskrefs/format/diff, PRIVATE docs freeze and NEW independent docs review, controller ordinary main publication, then automatic General Governance exact published HEAD PASS BEFORE source edits. No local full governance, CI dispatch, push, Docker/browser/DB/install/deploy by this author.
+        receipt: docs/product/electronics/evidence/arduino-682-engine-harness-baseline-selection-20261025.md
       epoch_measurement_contract:
         source: "PRIVATE unpublished f1e5aa30f4b388638924e8b6813235a5a9a369c8 controller and spec; independent functional APPROVE095a0fe0477efa699d3fbea5d5a9a75bb621d0f7cc5159d88e664848078a4272,127 controller PASS and author368 focused PASS. Not a proven request593/native repair."
         budget_correction: "Independent eligibility review99b40a94eb454295ed3eadf2da053ef86efc6e6eb2a0211f63af389522f468ab confirms controller is a lazy post-Start chunk. Guard222000 applies to SchematicEditor-, not controller; isolated controller+1069 proxy is not evidence of editor overflow. Actual full budget remains UNKNOWN until CI; ceiling unchanged."
