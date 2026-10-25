@@ -24,6 +24,7 @@ DECLARE
     v_result_completed boolean;
     v_root_excused boolean;
     v_lesson_completed boolean;
+    v_lesson_structure_valid boolean;
     v_lesson_excused boolean;
     v_block_count integer;
     v_excused_block_count integer;
@@ -70,6 +71,7 @@ BEGIN
         v_block_count := 0;
         v_excused_block_count := 0;
         v_lesson_completed := (v_seat_count = 1);
+        v_lesson_structure_valid := (v_seat_count = 1);
 
         IF v_lesson.kind = 'material' THEN
             SELECT progress.id INTO v_progress_id
@@ -94,6 +96,9 @@ BEGIN
                AND run.source_classroom_assignment_id = v_lesson.classroom_assignment_id;
 
             v_lesson_completed := v_lesson_completed AND v_runtime_count = 1;
+            IF v_runtime_count <> 1 THEN
+                v_lesson_structure_valid := false;
+            END IF;
             IF v_runtime_count = 1 THEN
                 SELECT part.id, part.status, part.excused
                   INTO v_participation_id, v_participation_status, v_participation_excused
@@ -122,12 +127,14 @@ BEGIN
             END IF;
         ELSE
             v_lesson_completed := false;
+            v_lesson_structure_valid := false;
         END IF;
 
         -- A malformed historical snapshot must not be mistaken for zero work.
         IF v_lesson.blocks IS NOT NULL
            AND jsonb_typeof(v_lesson.blocks) <> 'array' THEN
             v_lesson_completed := false;
+            v_lesson_structure_valid := false;
         END IF;
 
         FOR v_block IN
@@ -155,6 +162,7 @@ BEGIN
 
             IF v_runtime_count <> 1 OR v_version_matches IS DISTINCT FROM true THEN
                 v_lesson_completed := false;
+                v_lesson_structure_valid := false;
                 CONTINUE;
             END IF;
 
@@ -215,12 +223,16 @@ BEGIN
                )
         ) THEN
             v_lesson_completed := false;
+            v_lesson_structure_valid := false;
         END IF;
 
         -- An excused standalone assignment contributes no required lesson.
         -- A mixed material lesson still requires reading even if all its
         -- practices are excused.
+        -- Excusal cannot mask an orphan run, duplicate block or missing pin.
+        -- Structural validity is separate from incomplete academic work.
         v_lesson_excused := v_lesson.kind = 'assignment'
+                           AND v_lesson_structure_valid
                            AND v_root_excused
                            AND v_block_count = v_excused_block_count;
         IF v_lesson_excused THEN
