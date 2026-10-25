@@ -18,6 +18,8 @@ components:
     - apps/web/src/electronics/testing/arduino-value-inputs.spec.ts
     - apps/web/src/electronics/testing/arduino-value-inputs.browser.mjs
     - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+    - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
+    - apps/web/src/electronics/testing/arduino-inactive-blocks.browser.mjs
     - apps/web/src/electronics/testing/arduino-editor-ui.browser.mjs
     - e2e/electronics-interactions.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
@@ -31,6 +33,7 @@ components:
     - configureArduinoPaletteScroll
     - arduinoBlockTooltip
     - literalArduinoPin
+    - activeArduinoGraph
     notes: Blockly message initialization and editor lifecycle; preserve generated code and saved workspace.
   electronics.ui.workbench:
     ownership: asa

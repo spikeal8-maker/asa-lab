@@ -1,3 +1,4 @@
+import { activeArduinoGraph } from './arduino-pin-inputs';
 import {
   ARDUINO_SCRATCH_THEME,
   ARDUINO_WORKSPACE_PLUGINS,
@@ -660,13 +661,27 @@ export function ScratchWorkspace({
       ScratchBlocks.svgResize(workspace);
     });
 
+    const originalBlockOpacity = new Map<SVGElement, string>();
+    const updateBlockActivity = (): void => {
+      const { active } = activeArduinoGraph(workspace);
+      for (const block of workspace.getAllBlocks(false)) {
+        const svg = block.getSvgRoot();
+        if (!svg) continue;
+        if (!originalBlockOpacity.has(svg)) originalBlockOpacity.set(svg, svg.style.opacity);
+        const parent = block.getParent();
+        const inactiveRoot = !active.has(block) && (!parent || active.has(parent));
+        svg.style.opacity = inactiveRoot ? '0.45' : originalBlockOpacity.get(svg)!;
+      }
+    };
     const publish = (): void => {
+      updateBlockActivity();
       const state = ScratchBlocks.serialization.workspaces.save(workspace);
       changeRef.current(JSON.stringify(state), generateArduinoCode(workspace));
     };
     publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
       if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
+      updateBlockActivity();
       if (
         event.type === ScratchBlocks.Events.VAR_CREATE ||
         event.type === ScratchBlocks.Events.VAR_DELETE ||
@@ -690,6 +705,7 @@ export function ScratchWorkspace({
       window.removeEventListener('pointerdown', closeFloatingUi, true);
       window.removeEventListener('keydown', closeWithEscape, true);
       workspace.removeChangeListener(listener);
+      for (const [svg, opacity] of originalBlockOpacity) svg.style.opacity = opacity;
       workspace.dispose();
       workspaceRef.current = null;
       refreshToolboxRef.current = null;
