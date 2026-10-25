@@ -1035,9 +1035,9 @@ describe('resident LED body preparation and joint DOM commit', () => {
     const offAsset = f.asset(0);
     const off = f.imageFor(offAsset);
     await f.load(off);
-    await f.render({ fault: 'reverse', brightness: 70 });
+    await f.render({ fault: 'burned', brightness: 70 });
     const faultAsset = f.asset(0);
-    expect(faultAsset).toMatch(/led_red_reverse_polarity\.svg$/);
+    expect(faultAsset).toMatch(/led_red_burned\.svg$/);
     const preview = f.imageFor(faultAsset);
     expect(f.images()[0]).toBe(preview);
     expect(f.images()).toHaveLength(2);
