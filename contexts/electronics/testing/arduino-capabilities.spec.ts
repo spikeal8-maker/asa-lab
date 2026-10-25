@@ -179,7 +179,7 @@ void loop(){foo.write(90);}`);
       expect.objectContaining({
         code: 'syntax-error',
         status: 'unsupported',
-        line: 3,
+        line: 4,
         message: expect.stringContaining('точкой с запятой'),
       }),
     );
