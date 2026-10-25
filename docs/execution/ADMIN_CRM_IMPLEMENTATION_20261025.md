@@ -20,8 +20,20 @@ the administration interface. Do not claim live mail delivery before configured.
 - Preserve immutable learning and publication history; read-only project preview
   does not grant an editor mutation or change grading/review authority.
 
+Accepted core source: `a143178cbc24b3d92a7b24e87bdc2fcf5d289c77`.
+Controller accepted independent source review and the exact-source
+[focused run](https://github.com/spikeal8-maker/asa-lab/actions/runs/40204580489)
+(API, isolated PostgreSQL and built-browser checks passed). Integrated baseline
+`ce2773e01bea3db4ad849bb5cadb23adb9468442` adds disjoint Electronics documentation.
+This pointer records slice 1 acceptance, not slice 2 verification or deployment.
+
 ## 2. SMTP settings and verified email change
 
+- Owner placement decision: mail belongs to **Администрирование → Подтверждения**.
+  Show a concise global rule and keyboard-accessible MAX / Telegram / Почта tabs;
+  keep connection diagnostics and deployment explanation in collapsed details.
+  Config/save/test actions belong to their provider. Preserve long-label usability
+  and all applicable states at 1440/1024/390/320, with evidence at 1440/390.
 - Platform-only SMTP configuration/status/test UI, encrypted password, redacted
   readback/logs/audit, explicit sender/transport validation and timeouts.
 - Admin requests a new address; existing verified email/login stays effective
@@ -29,6 +41,13 @@ the administration interface. Do not claim live mail delivery before configured.
   CRM, logs or exports. Expiry, cancellation, duplicate address, concurrency,
   delivery failure/retry and session consequences are explicit and tested.
 - No fake verification or successful-delivery claim when SMTP is unconfigured.
+  Connection verification alone does not prove inbox delivery; only consumed
+  current-configuration proof establishes enforcement eligibility. Global policy
+  remains unchanged. Own existing-email confirmation does not revoke sessions.
+- Use the existing installation settings key and explicitly persisted validated
+  site origin; never infer proof links from Host/forwarded headers. Raw proof is
+  only in the email and temporary browser memory, removed from the fragment before
+  diagnostics; no admin readback, audit, export or access-log token.
 
 ## 3. Catalog filters, export and factual acquisition analytics
 

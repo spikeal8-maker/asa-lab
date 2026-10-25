@@ -1,3 +1,4 @@
+import { CrmEmailChange } from './CrmEmailChange';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   crmApi,
@@ -384,6 +385,18 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                   </li>
                 ))}
               </ul>
+              {profile.canEdit && profile.kind === 'account' ? (
+                <CrmEmailChange
+                  key={`${profile.id}:${profile.version}`}
+                  accountId={profile.id}
+                  version={profile.version}
+                  onChanged={() => {
+                    setReload((value) => value + 1);
+                    subject.onChanged?.();
+                  }}
+                  onDenied={subject.onAccessDenied}
+                />
+              ) : null}
               {profile.canEdit && profile.kind === 'student' && profile.status !== 'removed' ? (
                 <div>
                   <button

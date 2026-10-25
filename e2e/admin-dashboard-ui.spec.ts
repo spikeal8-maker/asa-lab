@@ -44,6 +44,21 @@ async function fixture(page: Page) {
     const path = url.pathname;
     if (path.startsWith('/api/crm/v1/users/')) {
       const kind = path.includes('/student/') ? 'student' : 'account';
+      if (path.endsWith('/email') || path.endsWith('/email/cancel'))
+        return reply({
+          accountId: OTHER,
+          email: 'profile@example.test',
+          verified: true,
+          pending: {
+            id: WORKSPACE,
+            email: 'new.long.pending.email.for.layout.review@example.test',
+            purpose: 'change',
+            state: path.endsWith('/cancel') ? 'cancelled' : 'sent',
+            expiresAt: '2030-01-01T12:00:00Z',
+            createdAt: '2026-10-25T10:00:00Z',
+          },
+        });
+
       if (path.endsWith('/profile'))
         return crmConflict
           ? reply(
@@ -437,6 +452,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(
       'Изменённое полное имя пользователя',
     );
+    await expect(
+      card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
+    ).toContainText('Ожидает подтверждения: new.long.pending.email.for.layout.review@example.test');
+    await expect(
+      card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
+    ).toContainText('Текущий адрес: profile@example.test');
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/crm-profile-${width}.png`, fullPage: true });

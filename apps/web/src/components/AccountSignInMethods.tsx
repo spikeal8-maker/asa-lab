@@ -1,3 +1,4 @@
+import { EmailVerification } from './EmailVerification';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type MaxAccountStatus, type SessionPayload, type SocialAuthProvider } from '../api';
 import { SocialAuthButtons, SOCIAL_PROVIDER_LABELS, useAuthProviders } from '../auth-providers';
@@ -222,6 +223,7 @@ export function AccountSignInMethods({
         </button>
       </div>
       <p>Подключите MAX или Telegram к текущему аккаунту для подтверждения и быстрого входа.</p>
+      <EmailVerification accountId={accountId} />
       <div className="account-sign-in-method-list">
         {METHODS.map((provider) => {
           const status = statuses[provider];

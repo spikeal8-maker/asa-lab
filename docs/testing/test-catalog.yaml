@@ -1194,3 +1194,24 @@ tests:
     timeout_seconds: 300
     owner: admin-auth
     artifacts: [vitest-report, isolated-postgresql-crm-report]
+
+  - id: TST-EMAIL-PROOF-UNIT-001
+    title: Secret storage, strict SMTP transport, honest readiness, proof redaction and current Account confirmation UI
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/email.service.spec.ts apps/api/src/email.controller.spec.ts apps/web/src/email-api.spec.ts apps/web/src/admin/testing/email-settings.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-EMAIL-PROOF-PG-001
+    title: Atomic one-use email changes, exact Account authority, races, expiry, duplicate email and immutable safe audit
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:email-verification:pg
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-email-proof-report]

@@ -119,6 +119,11 @@ const upgradeArtifacts = [
     '0247_crm_user_cards.sql',
     '82b6a82c1e3a71fed096de87fa068a54fa052c707ea1a5e4166bc91dc0038b29',
   ],
+  [
+    '0248',
+    '0248_verified_email_smtp.sql',
+    'e8a1932af2b356614db98ea52af861803992fba6c09f48ab849c632af0ef3a56',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

@@ -259,6 +259,24 @@ async function fixture(
     if (path === '/api/diagnostics/client' && method === 'POST') {
       return reply({ accepted: true }, 202);
     }
+    if (path === '/api/auth/email')
+      return reply({
+        accountId: identity().id,
+        email: identity().email,
+        verified: false,
+        pending: null,
+      });
+    if (path === '/api/admin/v1/auth/email')
+      return reply({
+        config: {},
+        version: 1,
+        passwordConfigured: false,
+        encryptionReady: true,
+        testedVersion: null,
+        testedAt: null,
+        testOk: false,
+        deliveryVerifiedVersion: null,
+      });
     if (path === '/api/auth/me')
       return reply(state.signedIn ? session() : { authenticated: false });
     if (path === '/api/class-join/me') return reply({ authenticated: false });
@@ -810,6 +828,11 @@ for (const width of [1440, 1024, 390, 320]) {
       page.getByRole('switch', { name: 'Обязательное подтверждение входа', exact: true }),
     ).toBeChecked();
     await expect(page.getByLabel('Имя бота', { exact: true })).toHaveCount(2);
+    await expect(page.getByRole('tab', { name: 'MAX', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByRole('form', { name: 'Telegram', exact: true })).toBeHidden();
     await screenshot(page, `admin-required-${width}`);
     expect(
       state.requests.filter((request) => request.path === '/api/admin/v1/dashboard'),
@@ -1324,6 +1347,7 @@ test('an administrator checks transport then confirms the current configuration 
   });
   await visit(page, '/admin/confirmations');
   const max = page.getByRole('form', { name: 'MAX', exact: true });
+  await max.getByText('Подробности подключения', { exact: true }).click();
   const native = max.locator('dl > div').filter({ hasText: 'Подтверждение человеком' });
   await expect(native).toContainText('Ещё не проверено');
   await expect(max).toContainText('https://asa.example.test/api/auth/max/webhook');
@@ -1373,6 +1397,7 @@ test('an HTTP administration address is not prefilled as the public HTTPS receiv
     ),
   });
   await visit(page, '/admin/confirmations');
+  await page.getByRole('tab', { name: 'Telegram', exact: true }).click();
   const telegram = page.getByRole('form', { name: 'Telegram', exact: true });
   const receiver = telegram.getByLabel('Публичный HTTPS-адрес ASA Lab', { exact: true });
   await expect(receiver).toHaveValue('');
@@ -1696,7 +1721,7 @@ async function expectReadableProviderSaveActions(page: Page, width: number): Pro
   const buttons = page
     .locator('.auth-admin-provider > footer')
     .getByRole('button', { name: 'Проверить и сохранить', exact: true });
-  await expect(buttons).toHaveCount(2);
+  await expect(buttons).toHaveCount(1);
   const measurements = await buttons.evaluateAll((elements) =>
     elements.map((button) => {
       const lines = (range: Range): number =>
@@ -1774,12 +1799,16 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       max.getByRole('button', { name: 'Подтвердить в боте MAX', exact: true }),
     ).toBeEnabled();
+    await max.getByText('Подробности подключения', { exact: true }).click();
     await expect(
       max.locator('dl > div').filter({ hasText: 'Подтверждение человеком' }),
     ).toContainText('Ещё не проверено');
     await screenshot(page, `admin-readiness-${width}-normal`);
     await enlargeText(page);
     await screenshot(page, `admin-readiness-${width}-font150`);
+    await expectReadableProviderSaveActions(page, width);
+    await page.getByRole('tab', { name: 'Telegram', exact: true }).click();
+    await screenshot(page, `admin-telegram-${width}-font150`);
     await expectReadableProviderSaveActions(page, width);
     expect(state.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
   });
@@ -2149,3 +2178,198 @@ for (const provider of METHODS) {
     expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
   });
 }
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`mail settings in confirmations are concise, accessible and responsive at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page, { signedIn: true, admin: true });
+    let smtp = {
+      config: {} as Record<string, unknown>,
+      version: 1,
+      passwordConfigured: false,
+      encryptionReady: true,
+      testedVersion: null as number | null,
+      testedAt: null as string | null,
+      testOk: false,
+      deliveryVerifiedVersion: null,
+    };
+    const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
+    let fail = false;
+    await page.route('**/api/admin/v1/auth/email*', async (route) => {
+      const path = new URL(route.request().url()).pathname,
+        body = route.request().postData() ? route.request().postDataJSON() : {};
+      calls.push({ path, body });
+      if (route.request().method() === 'PUT') {
+        smtp = {
+          ...smtp,
+          config: body.config,
+          version: smtp.version + 1,
+          passwordConfigured: !!body.password || smtp.passwordConfigured,
+          testOk: false,
+        };
+      }
+      if (path.endsWith('/test')) {
+        smtp = {
+          ...smtp,
+          testedVersion: smtp.version,
+          testedAt: '2026-10-25T10:00:00Z',
+          testOk: !fail,
+        };
+        if (fail)
+          return route.fulfill({
+            status: 503,
+            json: {
+              error: {
+                code: 'mail_test_failed',
+                message:
+                  'Подключение не прошло проверку. Проверьте сервер, пароль и доступ к почте.',
+              },
+            },
+          });
+      }
+      return route.fulfill({ json: smtp });
+    });
+    await visit(page, '/admin/confirmations');
+    await expect(page.getByRole('tab', { name: 'MAX', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByText('Подробности подключения', { exact: true }).first()).toBeVisible();
+    await page.getByRole('tab', { name: 'MAX', exact: true }).focus();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('tab', { name: 'Почта', exact: true })).toBeFocused();
+    const mail = page.getByRole('region', { name: 'Почта', exact: true });
+    await expect(
+      mail.getByRole('button', { name: 'Проверить подключение', exact: true }),
+    ).toBeDisabled();
+    await screenshot(page, `smtp-unconfigured-${width}`);
+    await mail
+      .getByLabel('Почтовый сервер', { exact: true })
+      .fill('smtp.a-very-long-mail-configuration.example.test');
+    await mail
+      .getByLabel('Адрес отправителя', { exact: true })
+      .fill('long-sender-name-for-layout-review@example.test');
+    await mail
+      .getByLabel('Имя для входа в почту', { exact: true })
+      .fill('long-smtp-user-for-layout-review@example.test');
+    await mail
+      .getByLabel('Пароль почты', { exact: true })
+      .fill('fixture-password-must-not-be-returned');
+    await mail
+      .getByLabel('Адрес сайта для ссылок', { exact: true })
+      .fill('https://portal.example.test');
+    await mail.getByLabel('Отправлять письма подтверждения', { exact: true }).check();
+    await mail.getByRole('button', { name: 'Сохранить почту', exact: true }).click();
+    await expect(mail.getByLabel('Пароль почты', { exact: true })).toHaveValue('');
+    await expect(mail).not.toContainText('fixture-password-must-not-be-returned');
+    fail = true;
+    await mail.getByRole('button', { name: 'Проверить подключение', exact: true }).click();
+    await expect(mail.getByRole('alert')).toContainText('Подключение не прошло');
+    await screenshot(page, `smtp-error-${width}`);
+    fail = false;
+    await mail.getByRole('button', { name: 'Проверить подключение', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Подключение и вход');
+    await mail
+      .getByLabel('Получатель проверочного письма', { exact: true })
+      .fill('one-recipient@example.test');
+    await mail.getByRole('button', { name: 'Отправить проверочное письмо', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Сервер принял');
+    expect(calls.filter((x) => x.path.endsWith('/test')).at(-1)?.body.to).toBe(
+      'one-recipient@example.test',
+    );
+    await screenshot(page, `smtp-configured-${width}`);
+  });
+  test(`public email proof erases the token and confirms once at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page);
+    const token = 'B'.repeat(43),
+      calls: unknown[] = [];
+    await page.route('**/api/auth/email/confirm', (route) => {
+      calls.push(route.request().postDataJSON());
+      return route.fulfill({ json: { confirmed: true, changed: true } });
+    });
+    await page.goto('/confirm-email#' + token);
+    await expect(page).toHaveURL(/\/confirm-email$/);
+    await expect(page.getByRole('heading', { name: 'Подтверждение адреса' })).toBeVisible();
+    await screenshot(page, `email-proof-ready-${width}`);
+    await page.getByRole('button', { name: 'Подтвердить адрес', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Почта подтверждена', exact: true }),
+    ).toBeVisible();
+    expect(calls).toEqual([{ token }]);
+    await expect(page.locator('body')).not.toContainText(token);
+    await screenshot(page, `email-proof-confirmed-${width}`);
+    await page.reload();
+    await expect(page.getByRole('alert')).toContainText('Ссылка недействительна');
+    expect(calls).toHaveLength(1);
+    await screenshot(page, `email-proof-invalid-${width}`);
+  });
+}
+test('current account email verification sends a link without a social bot or changing login', async ({
+  page,
+}) => {
+  const state = await fixture(page, {
+    signedIn: true,
+    providers: healthyProviders().map((p) =>
+      p.id === 'email'
+        ? {
+            ...p,
+            available: true,
+            reason: 'ready',
+            enforcementEligible: false,
+            enforcementReason: 'delivery_unverified',
+          }
+        : p,
+    ),
+  });
+  const email = 'existing-email@example.test';
+  let pending = false;
+  await page.route('**/api/auth/email', (route) =>
+    route.fulfill({
+      json: {
+        accountId: ACCOUNT_ID,
+        email,
+        verified: false,
+        pending: pending
+          ? {
+              id: WORKSPACE_ID,
+              email,
+              purpose: 'verify',
+              state: 'sent',
+              expiresAt: '2030-01-01T12:00:00Z',
+              createdAt: '2026-10-25T10:00:00Z',
+            }
+          : null,
+      },
+    }),
+  );
+  await page.route('**/api/auth/email/request', (route) => {
+    const body = route.request().postDataJSON();
+    expect(body.accountId).toBe(ACCOUNT_ID);
+    expect(body.requestId).toMatch(/^[a-f0-9-]{36}$/);
+    pending = true;
+    return route.fulfill({
+      json: {
+        accountId: ACCOUNT_ID,
+        email,
+        verified: false,
+        pending: {
+          id: WORKSPACE_ID,
+          email,
+          purpose: 'verify',
+          state: 'sent',
+          expiresAt: '2030-01-01T12:00:00Z',
+          createdAt: '2026-10-25T10:00:00Z',
+        },
+      },
+    });
+  });
+  await visit(page, '/account/security');
+  const mail = page.getByRole('region', { name: 'Подтверждение почты', exact: true });
+  await expect(mail).toContainText(email);
+  await mail.getByRole('button', { name: 'Подтвердить почту по письму', exact: true }).click();
+  await expect(mail).toContainText('Письмо отправлено');
+  expect(state.requests.filter((r) => r.path.endsWith('/pairing/start'))).toHaveLength(0);
+});

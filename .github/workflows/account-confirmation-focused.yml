@@ -6,6 +6,8 @@ on:
     paths:
       - 'apps/api/src/**'
       - 'apps/web/src/**'
+      - 'apps/web/index.html'
+      - 'apps/web/public/email-proof-bootstrap.js'
       - 'migrations/**'
       - 'tests/account/**'
       - 'tests/admin/admin-user-catalog.pg.spec.ts'
@@ -32,6 +34,8 @@ on:
     paths:
       - 'apps/api/src/**'
       - 'apps/web/src/**'
+      - 'apps/web/index.html'
+      - 'apps/web/public/email-proof-bootstrap.js'
       - 'migrations/**'
       - 'tests/account/**'
       - 'tests/admin/admin-user-catalog.pg.spec.ts'
@@ -117,6 +121,8 @@ jobs:
         run: pnpm exec vitest run apps/api/src/admin-user-catalog.spec.ts apps/api/src/admin-user-history.spec.ts apps/api/src/crm-user.controller.spec.ts
       - name: Real database, session and HTTP regressions
         run: pnpm test:auth-confirmation:pg --reporter=default --reporter=json --outputFile=reports/auth-confirmation-postgres.json
+      - name: Verified email isolated PostgreSQL proof
+        run: pnpm test:email-verification:pg
       - name: Unified user catalog isolated PostgreSQL proof
         run: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/admin-user-history.pg.spec.ts tests/admin/crm-user-cards.pg.spec.ts
       - uses: actions/upload-artifact@v4
@@ -145,7 +151,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Administrator overview unit regression
-        run: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts
+        run: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts apps/web/src/admin/testing/email-settings.spec.ts apps/web/src/email-api.spec.ts
       - run: pnpm exec nx run web:typecheck --skip-nx-cache
       - run: pnpm exec playwright install --with-deps chromium
       - name: Build the exact web application
