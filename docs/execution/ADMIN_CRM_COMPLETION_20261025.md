@@ -53,4 +53,21 @@ Repair `04e05a0d06a214bf573362bc8a73abebd028a327` closes it and received
 independent SOURCEPASS. Initial 26 focused units and 15 repair-focused tests passed;
 these are overlapping suites, not 41 distinct cases. New regression is explicitly
 registered in the GitHub workflow. Exact integrated Main browser evidence remains
-required before selecting the next implementation slice.
+was supplied by integrated Main `9548e9194b257224c55ec1325532b0aa2408b2b8`
+[run 40217277341](https://github.com/spikeal8-maker/asa-lab/actions/runs/40217277341).
+PostgreSQL/install jobs passed on attempt 1; a slow Ubuntu package mirror caused
+the browser preparation to exceed ten minutes. Only that job was retried, and
+attempt 2 passed browser/type/build checks. Controller inspected mobile profile
+and desktop transcript screenshots; no page-level overflow was observed.
+
+## Scope decisions for operations
+
+Organization membership controls do not widen the full Account content reader.
+Platform administrators may manage organization roles, including owner, while
+preserving the last active owner. Organization owners manage only non-owner
+memberships; school administrators manage only member/educator memberships and
+cannot modify administrative memberships or promote themselves. Personal
+workspaces are excluded. Class co-teacher operations preserve existing educator
+eligibility, active Account, five-colleague limit and canonical legacy links;
+primary ownership is unchanged. These are explicit conservative control rules,
+not a new global user-role hierarchy.
