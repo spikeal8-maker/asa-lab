@@ -23,6 +23,7 @@ const expectedPending = [
   '0241', // Native MAX external-only registration preserves canonical account bootstrap.
   '0242', // Local Ollama binds immutable attachments without paid quota.
   '0243', // Recover original owned attachments for regenerated responses.
+  '0244', // Current-only private per-owner usage journal.
 ];
 
 interface Identity {

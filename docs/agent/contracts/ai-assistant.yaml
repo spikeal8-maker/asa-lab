@@ -4,6 +4,13 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-USAGE-001
+    statement: Every new admitted chat operation has one durable immutable-owner usage row before provider generation. Provider-only counts and actual model remain NULL when unknown. Crashes remain pending, exact terminal retries are idempotent, conflicts fail, deletion does not erase usage, and replay never calls a provider. Safe operational projections contain no owner identity, prompts, content, keys or endpoint URLs; telemetry failure preserves paid answers and primary errors.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: Закрытый журнал использования ИИ
+    applies_to: [ai_usage_admission, ai_usage_finalize, provider_usage, usage_projection]
+    forbid: [estimated_tokens_as_actual, unknown_as_zero, historical_usage_guess, usage_erased_on_chat_delete, replayed_provider_operation, raw_usage_logging]
   - id: AI-ATTACHMENT-OWNER-001
     statement: Each private attachment belongs to the same immutable canonical Account or Seat principal as chat history. Every HTTP read or mutation proves that owner; teacher permission never exposes private bytes. Exact AI routes use existing-only Seat identity even after the shared mutation budget saturates; proof caches follow resolver policy and the actual credential while all rate-budget keys and limits remain unchanged.
     master_refs:

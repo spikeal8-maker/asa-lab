@@ -3,6 +3,7 @@
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
  */
 import { isIP } from 'node:net';
+import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 
 export const OLLAMA_SELECTION = 'ollama-local' as const;
 export interface OllamaSettings {
@@ -23,6 +24,7 @@ export class OllamaError extends Error {
     readonly status: number,
     message: string,
     readonly partialText = '',
+    readonly usage?: AiProviderUsage,
   ) {
     super(message);
     this.name = 'OllamaError';
@@ -223,7 +225,7 @@ export interface OllamaStreamArgs {
 }
 export async function streamOllamaText(
   args: OllamaStreamArgs,
-): Promise<{ text: string; stopped: boolean }> {
+): Promise<{ text: string; stopped: boolean; usage?: AiProviderUsage }> {
   const origin = ollamaBaseUrl(args.baseUrl);
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
@@ -266,6 +268,7 @@ export async function streamOllamaText(
   let buffer = '';
   let text = '';
   let done = false;
+  let usage: AiProviderUsage | undefined;
   const frame = (line: string): void => {
     if (!line.trim()) return;
     let data: unknown;
@@ -277,6 +280,7 @@ export async function streamOllamaText(
     if (!data || typeof data !== 'object')
       throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
     const packet = data as { message?: { content?: unknown }; done?: unknown; error?: unknown };
+    usage = mergeProviderUsage(usage, providerUsage('ollama', packet));
     if (packet.error)
       throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
     if (typeof packet.message?.content === 'string') {
@@ -309,24 +313,25 @@ export async function streamOllamaText(
     }
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
   } catch (error) {
-    if (args.signal.aborted) return { text, stopped: true };
+    if (args.signal.aborted) return { text, stopped: true, ...(usage ? { usage } : {}) };
     if (error instanceof OllamaError)
-      throw new OllamaError(error.code, error.status, error.message, text);
+      throw new OllamaError(error.code, error.status, error.message, text, usage);
     throw new OllamaError(
       timeout.aborted ? 'ai_ollama_timeout' : 'ai_ollama_interrupted',
       timeout.aborted ? 504 : 503,
       timeout.aborted ? 'Ollama не ответила вовремя.' : 'Поток Ollama прервался.',
       text,
+      usage,
     );
   } finally {
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
   if (timeout.aborted && !args.signal.aborted)
-    throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text);
+    throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text, usage);
   if (!done && !args.signal.aborted && text.length < 8192)
-    throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text);
+    throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text, usage);
   if (!text.trim() && !args.signal.aborted)
-    throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.');
-  return { text, stopped: args.signal.aborted || text.length >= 8192 };
+    throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.', '', usage);
+  return { text, stopped: args.signal.aborted || text.length >= 8192, ...(usage ? { usage } : {}) };
 }

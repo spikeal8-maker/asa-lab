@@ -8,6 +8,13 @@ import { AiTextHistoryStore } from './ai-text-history.js';
 import { AiAttachmentService } from './ai-attachments/service.js';
 import { AI_ATTACHMENT_LIMITS, AiAttachmentError } from './ai-attachments/contracts.js';
 import {
+  AiUsageJournal,
+  AiUsageUnavailable,
+  usageFailureCode,
+  type AiUsageAttempt,
+} from './ai-usage-journal.js';
+import type { AiProviderUsage } from './ai-provider-usage.js';
+import {
   OLLAMA_SELECTION,
   OllamaError,
   ollamaBaseUrl,
@@ -177,6 +184,7 @@ export class AiChatService {
   private readonly fetchImpl: typeof fetch;
   private readonly history: AiTextHistoryStore;
   private readonly attachments: AiAttachmentService | undefined;
+  private readonly usage: AiUsageJournal;
   private readonly activeStreams = new Map<
     string,
     { principalId: string; threadId: string; abort: AbortController }
@@ -190,6 +198,7 @@ export class AiChatService {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.history = new AiTextHistoryStore(pool);
     this.attachments = options.attachments;
+    this.usage = new AiUsageJournal(pool);
   }
 
   private async ollamaRuntime(): Promise<OllamaRow> {
@@ -805,7 +814,19 @@ export class AiChatService {
       return { messages: await this.messages(principalId, threadId), replayed: true };
     }
 
+    let usageAttempt: AiUsageAttempt | undefined;
+    let usageFinished = false;
+    let capturedUsage: AiProviderUsage | undefined;
     try {
+      usageAttempt = await this.usage.begin(
+        principalId,
+        threadId,
+        requestId,
+        'chat',
+        'json',
+        useLocal ? 'ollama' : runtime.provider,
+        useLocal ? local!.model : runtime.model,
+      );
       const context = await this.history.generationContext(principalId, threadId, requestId);
       const reply = useLocal
         ? await streamOllamaText({
@@ -818,6 +839,7 @@ export class AiChatService {
             fetchImpl: this.fetchImpl,
           })
         : await this.generate(runtime, apiKey, context);
+      capturedUsage = reply.usage;
       await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
         principalId,
         threadId,
@@ -825,8 +847,29 @@ export class AiChatService {
         reply.text,
         reply.stopped ? 'stopped' : 'complete',
       ]);
+      await this.usage.finish(
+        principalId,
+        requestId,
+        reply.stopped ? 'stopped' : 'succeeded',
+        null,
+        capturedUsage,
+        usageAttempt,
+      );
+      usageFinished = true;
       return { messages: await this.messages(principalId, threadId), replayed: false };
     } catch (problem) {
+      if (usageAttempt && !usageFinished)
+        await this.usage.finish(
+          principalId,
+          requestId,
+          'failed',
+          usageFailureCode(problem),
+          capturedUsage ??
+            (problem instanceof ProviderStreamError || problem instanceof OllamaError
+              ? problem.usage
+              : undefined),
+          usageAttempt,
+        );
       if (
         (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
         problem.partialText.trim()
@@ -843,6 +886,12 @@ export class AiChatService {
           .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
           .catch(() => undefined);
       }
+      if (problem instanceof AiUsageUnavailable)
+        throw new AiServiceError(
+          'ai_usage_unavailable',
+          503,
+          'Журнал операций ИИ временно недоступен. Запрос к модели не отправлен.',
+        );
       if (problem instanceof ProviderStreamError || problem instanceof OllamaError) {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
@@ -1201,7 +1250,19 @@ export class AiChatService {
     const operationKey = principalId + ':' + requestId;
     const combined = AbortSignal.any([clientSignal, abort.signal]);
     this.activeStreams.set(operationKey, { principalId, threadId, abort });
+    let usageAttempt: AiUsageAttempt | undefined;
+    let usageFinished = false;
+    let capturedUsage: AiProviderUsage | undefined;
     try {
+      usageAttempt = await this.usage.begin(
+        principalId,
+        threadId,
+        requestId,
+        sourceId ? 'regeneration' : 'chat',
+        'sse',
+        useLocal ? 'ollama' : runtime.provider,
+        useLocal ? local!.model : model,
+      );
       const historyContext = await this.history.generationContext(principalId, threadId, requestId);
       const context = files?.text
         ? historyContext.map((item, index) =>
@@ -1238,6 +1299,7 @@ export class AiChatService {
             onDelta,
           });
 
+      capturedUsage = result.usage;
       if (result.text.trim()) {
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
@@ -1249,6 +1311,19 @@ export class AiChatService {
       } else {
         await this.pool.query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId]);
       }
+      await this.usage.finish(
+        principalId,
+        requestId,
+        clientSignal.aborted || abort.signal.aborted
+          ? 'cancelled'
+          : result.stopped
+            ? 'stopped'
+            : 'succeeded',
+        null,
+        capturedUsage,
+        usageAttempt,
+      );
+      usageFinished = true;
       return {
         messages: sourceId
           ? await this.requestMessages(principalId, threadId, requestId)
@@ -1257,6 +1332,18 @@ export class AiChatService {
         stopped: result.stopped,
       };
     } catch (problem) {
+      if (usageAttempt && !usageFinished)
+        await this.usage.finish(
+          principalId,
+          requestId,
+          'failed',
+          usageFailureCode(problem),
+          capturedUsage ??
+            (problem instanceof ProviderStreamError || problem instanceof OllamaError
+              ? problem.usage
+              : undefined),
+          usageAttempt,
+        );
       if (
         (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
         problem.partialText.trim()
@@ -1274,6 +1361,12 @@ export class AiChatService {
           .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
           .catch(() => undefined);
       }
+      if (problem instanceof AiUsageUnavailable)
+        throw new AiServiceError(
+          'ai_usage_unavailable',
+          503,
+          'Журнал операций ИИ временно недоступен. Запрос к модели не отправлен.',
+        );
       if (problem instanceof ProviderStreamError || problem instanceof OllamaError) {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }

@@ -1,3 +1,4 @@
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,6 +33,8 @@ function attachmentService(bytes: Buffer, kind: 'text' | 'image' = 'text') {
 function mockPool(source?: { items?: readonly { uploadId: string }[]; denied?: boolean }) {
   const sqlCalls: Array<{ sql: string; params: unknown[] }> = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+    const journal = aiUsageQueryFixture(sql);
+    if (journal) return journal;
     sqlCalls.push({ sql, params });
     if (sql.includes('ai_runtime_config'))
       return { rows: [{ enabled: false, provider: 'openai', model: 'gpt-5-mini' }] };

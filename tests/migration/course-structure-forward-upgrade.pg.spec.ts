@@ -114,6 +114,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0241', // Native MAX external-only registration preserves canonical account bootstrap.
         '0242', // Local Ollama atomic attachment binding leaves Courses history unchanged.
         '0243', // Source attachment recovery for answer variants is additive.
+        '0244', // Private usage journal is additive and preserves historic quota.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -387,6 +388,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0241', // Native MAX external-only registration preserves canonical account bootstrap.
           '0242', // Independent local model attachment binding.
           '0243', // Immutable source attachment recovery.
+          '0244', // Current-only AI usage admissions.
         ]);
         expect(
           await applyIsolatedTestPlan(
