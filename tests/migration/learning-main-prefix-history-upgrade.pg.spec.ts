@@ -111,7 +111,12 @@ const upgradeArtifacts = [
   ],
   [
     '0246',
-    '0246_learning_mixed_course_completion.sql',
+    '0246_admin_user_history.sql',
+    '0f6794d87818d734de2b866c4f0a293387cba7058f4be9967c04855108ea1e01',
+  ],
+  [
+    '0247',
+    '0247_learning_mixed_course_completion.sql',
     '0b9a958ecd190cfd19f82fc5e6c9dabeeb9508f4d2de18214768b250f0c9bf38',
   ],
 ] as const;

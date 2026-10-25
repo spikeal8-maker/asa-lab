@@ -27,6 +27,7 @@ import {
 import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } from './admin-model';
 import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from './AdminDashboard';
 import { AdminUsersCatalog } from './AdminUsersCatalog';
+import { AdminUserHistoryPanel } from './AdminUserHistory';
 import {
   adminSectionLabel,
   scopeSupportsAdminSection,
@@ -564,7 +565,7 @@ function mutationMessage(result: Extract<AdminApiResult<unknown>, { ok: false }>
   return result.error.message || 'Изменение не выполнено.';
 }
 
-type AccountCrmTab = 'overview' | 'activity' | 'security' | 'management' | 'notes';
+type AccountCrmTab = 'overview' | 'history' | 'activity' | 'security' | 'management' | 'notes';
 
 type AccountCrmState =
   | { readonly kind: 'loading' }
@@ -819,6 +820,16 @@ function UserCrmPanel({
         <button
           type="button"
           role="tab"
+          id={`admin-user-${account.accountId}-tab-history`}
+          aria-controls={`admin-user-${account.accountId}-panel-history`}
+          aria-selected={activeTab === 'history'}
+          onClick={() => setActiveTab('history')}
+        >
+          История
+        </button>
+        <button
+          type="button"
+          role="tab"
           id={`admin-user-${account.accountId}-tab-activity`}
           aria-controls={`admin-user-${account.accountId}-panel-activity`}
           aria-selected={activeTab === 'activity'}
@@ -926,6 +937,21 @@ function UserCrmPanel({
         </div>
       ) : null}
 
+      {activeTab === 'history' ? (
+        <section
+          className="admin-crm-card admin-crm-tab-panel admin-user-history"
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-history`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-history`}
+        >
+          <AdminUserHistoryPanel
+            kind="account"
+            targetId={account.accountId}
+            scope={scope}
+            onAccessDenied={onAccessDenied}
+          />
+        </section>
+      ) : null}
       {activeTab === 'activity' ? (
         <section
           className="admin-crm-card admin-crm-tab-panel"

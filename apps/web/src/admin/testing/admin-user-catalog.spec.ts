@@ -75,7 +75,9 @@ it('keeps server ordering, typed same-UUID Account and Seat entries, and account
   );
   expect(renderAccount).toHaveBeenCalledTimes(1);
   expect(host.textContent!.includes(seat.login)).toBe(false);
-  expect(host.querySelector('[data-actor-key^="student:"] button')).toBeNull();
+  expect(host.querySelector('[data-actor-key^="student:"] button')?.textContent).toBe(
+    'История проектов, публикаций и ИИ',
+  );
   expect(host.textContent).toContain('Выдано');
 });
 it('loads every server page with its opaque cursor, no first-50 client sort', async () => {
@@ -165,4 +167,25 @@ it.each([401, 403])('revokes rows on %s rather than retaining prior page', async
   await button('Показать ещё');
   expect(denied).toHaveBeenCalledOnce();
   expect(host.querySelector('[data-actor-key]')).toBeNull();
+});
+
+it('uses structured device fields once and keeps the fallback when they are absent', async () => {
+  const seat = {
+    ...catalogUserFixture('student'),
+    browser: 'Chrome',
+    operatingSystem: 'Windows',
+    deviceCategory: 'desktop',
+    lastDevice: 'Chrome · Windows',
+  };
+  vi.spyOn(adminApi, 'users').mockResolvedValue(ok(catalogPageFixture([seat])));
+  await show();
+  expect(host.textContent).toContain('Chrome · Windows · Компьютер');
+  expect(host.textContent!.match(/Chrome/g)).toHaveLength(1);
+  vi.mocked(adminApi.users).mockResolvedValue(
+    ok(
+      catalogPageFixture([{ ...seat, browser: null, operatingSystem: null, deviceCategory: null }]),
+    ),
+  );
+  await select('Тип записи', 'students');
+  expect(host.textContent).toContain('Chrome · Windows');
 });

@@ -116,7 +116,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0243', // Source attachment recovery for answer variants is additive.
         '0244', // Private usage journal is additive and preserves historic quota.
         '0245', // Typed admin catalog and bounded server keyset continuation.
-        '0246', // Frozen lesson and ActivityRun server completion, additive only.
+        '0246', // Read-only retained per-user history.
+        '0247', // Canonical frozen mixed Course completion, additive only.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -392,7 +393,8 @@ describe('Course Builder structure forward upgrade', () => {
           '0243', // Immutable source attachment recovery.
           '0244', // Current-only AI usage admissions.
           '0245', // Typed admin catalog and bounded server keyset continuation.
-          '0246', // Frozen Course completion override, preserves historical lessons.
+          '0246', // Read-only retained per-user history.
+          '0247', // Course completion formula from exact frozen lesson practices.
         ]);
         expect(
           await applyIsolatedTestPlan(

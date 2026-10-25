@@ -66,6 +66,7 @@ function controller(options: {
       asOf: '2026-10-25T12:00:00.123456Z',
     })),
     accountCrm: vi.fn(async (_access, input) => ({ accountId: input.targetAccountId })),
+    userHistory: vi.fn(async () => ({ items: [], next: null, coverage: 'retained' })),
     addAccountNote: vi.fn(async () => ({ id: '60000000-0000-4000-8000-000000000001' })),
     setAccountIpLabel: vi.fn(async () => ({ id: '70000000-0000-4000-8000-000000000001' })),
     clearAccountIpLabel: vi.fn(async () => ({ cleared: true })),
@@ -120,6 +121,57 @@ function controller(options: {
   };
 }
 
+it('keeps typed history behind admin authentication and validates scope/query/target before dispatch', async () => {
+  const scope: ResolvedAdminAccess['scopes'][number] = {
+    kind: 'platform',
+    id: null,
+    title: 'ASA Lab',
+    role: 'platform_admin',
+    permissions: ['administration.open', 'administration.accounts.read'],
+  };
+  const target = controller({ context: CONTEXT, access: access([scope]) });
+  const args: Parameters<AdminController['userHistory']> = [
+    request(),
+    'student',
+    CONTEXT.accountId,
+    'platform',
+    undefined,
+    'ai',
+    '25',
+    undefined,
+  ];
+  await target.value.userHistory(...args);
+  expect(target.controlPlane.userHistory).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({
+      kind: 'student',
+      targetId: CONTEXT.accountId,
+      category: 'ai',
+      limit: 25,
+      cursor: null,
+      requestId: 'admin-request-1',
+    }),
+  );
+  for (const [position, bad] of [
+    [1, 'person'],
+    [2, 'not-uuid'],
+    [3, ['platform']],
+    [5, ['ai']],
+    [6, '101'],
+    [7, 'a=='],
+  ] as const) {
+    const invalid: unknown[] = [...args];
+    invalid[position] = bad;
+    await expect(
+      target.value.userHistory(...(invalid as Parameters<AdminController['userHistory']>)),
+    ).rejects.toMatchObject({ status: 400 });
+  }
+  expect(target.controlPlane.userHistory).toHaveBeenCalledOnce();
+  await expect(controller({}).value.userHistory(...args)).rejects.toMatchObject({ status: 401 });
+  await expect(
+    controller({ context: CONTEXT, access: access() }).value.userHistory(...args),
+  ).rejects.toMatchObject({ status: 403 });
+});
 it('validates the unified catalog query without coercing duplicate keys and forwards only canonical admin access', async () => {
   const scope: ResolvedAdminAccess['scopes'][number] = {
     kind: 'platform',
