@@ -28,6 +28,7 @@ import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } f
 import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from './AdminDashboard';
 import { AdminUsersCatalog } from './AdminUsersCatalog';
 import { AdminUserHistoryPanel } from './AdminUserHistory';
+import { CrmUserCard } from './CrmUserCard';
 import {
   adminSectionLabel,
   scopeSupportsAdminSection,
@@ -565,7 +566,8 @@ function mutationMessage(result: Extract<AdminApiResult<unknown>, { ok: false }>
   return result.error.message || 'Изменение не выполнено.';
 }
 
-type AccountCrmTab = 'overview' | 'history' | 'activity' | 'security' | 'management' | 'notes';
+type AccountCrmTab =
+  'overview' | 'profile' | 'history' | 'activity' | 'security' | 'management' | 'notes';
 
 type AccountCrmState =
   | { readonly kind: 'loading' }
@@ -817,6 +819,18 @@ function UserCrmPanel({
         >
           Обзор
         </button>
+        {scope.kind === 'platform' ? (
+          <button
+            type="button"
+            role="tab"
+            id={`admin-user-${account.accountId}-tab-profile`}
+            aria-controls={`admin-user-${account.accountId}-panel-profile`}
+            aria-selected={activeTab === 'profile'}
+            onClick={() => setActiveTab('profile')}
+          >
+            Полная карточка
+          </button>
+        ) : null}
         <button
           type="button"
           role="tab"
@@ -937,6 +951,20 @@ function UserCrmPanel({
         </div>
       ) : null}
 
+      {activeTab === 'profile' && scope.kind === 'platform' ? (
+        <section
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-profile`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-profile`}
+        >
+          <CrmUserCard
+            kind="account"
+            targetId={account.accountId}
+            onAccessDenied={onAccessDenied}
+            onChanged={onChanged}
+          />
+        </section>
+      ) : null}
       {activeTab === 'history' ? (
         <section
           className="admin-crm-card admin-crm-tab-panel admin-user-history"
