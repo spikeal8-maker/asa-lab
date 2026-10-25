@@ -78,10 +78,15 @@ Legacy acquisition source/UTM/geo remain honestly unknown; existing bounded safe
 referrer collection continues for future visits. Analytics includes retained
 legacy AI admissions without journal duplication and labels token coverage.
 
-Final acceptance still requires independent review and exact-SHA CI for the new
-SQL and four-width browser cases. Local source units/type results are recorded
-in `docs/review/ADMIN_CRM_DIRECTORY_20261025.md`; browser/PG results must not be
-inferred from written tests. Export bounds are explicit errors, not partial files.
+Slice 3 independent source review passed at
+`872e35f446695c740b16eb3eae7884e2671eb19a`; its
+[focused run](https://github.com/spikeal8-maker/asa-lab/actions/runs/40213298987)
+passed. The integrated Main `c53c848c25327893df29ab1cff54a1d1c2daf6df`
+also received [successful exact-Main verification](https://github.com/spikeal8-maker/asa-lab/actions/runs/40213995670).
+These runs include isolated SQL and four-width browser evidence, not production
+deployment or a 5000-user capacity proof. Local source results are recorded in
+`docs/review/ADMIN_CRM_DIRECTORY_20261025.md`. Export bounds are explicit errors,
+not partial files.
 Native project-version editing is outside this read-only CRM; existing stored
 version viewing remains available through retained history.
 
