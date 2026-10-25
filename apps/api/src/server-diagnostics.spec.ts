@@ -148,6 +148,7 @@ describe('structured server error evidence', () => {
       headers: {
         'x-asa-diagnostic-module': 'scratch',
         'x-asa-diagnostic-instance': '20000000-0000-4000-8000-000000000001',
+        'x-asa-client-attempt-id': '30000000-0000-4000-8000-000000000001',
       },
     } as unknown as FastifyRequest;
     const host = {
@@ -167,6 +168,8 @@ describe('structured server error evidence', () => {
         module: 'scratch',
         revision: 'abcdef0',
         status: 500,
+        clientAttemptId: request.headers['x-asa-client-attempt-id'],
+        untrustedClientContext: true,
       });
       expect(JSON.stringify(event)).not.toContain('private-value');
       expect(reply.mock.calls[0]![1]).toEqual({
@@ -183,9 +186,25 @@ describe('structured server error evidence', () => {
           headers: {
             'x-asa-diagnostic-instance': 'private-value',
             'x-asa-diagnostic-module': 'secret',
+            'x-asa-client-attempt-id': 'private-value',
           },
         } as FastifyRequest),
       ).toEqual({});
+      expect(
+        diagnosticContext({
+          ...request,
+          headers: { 'x-asa-client-attempt-id': ['30000000-0000-4000-8000-000000000001'] },
+        } as unknown as FastifyRequest),
+      ).toEqual({});
+      expect(
+        diagnosticContext({
+          ...request,
+          headers: { 'x-asa-client-attempt-id': '30000000-0000-4000-8000-000000000001' },
+        } as unknown as FastifyRequest),
+      ).toEqual({
+        clientAttemptId: '30000000-0000-4000-8000-000000000001',
+        untrustedClientContext: true,
+      });
     } finally {
       out.mockRestore();
     }
