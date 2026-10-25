@@ -2427,23 +2427,38 @@ for (const width of [
       const order = await sidebar.evaluate((element) => {
         const nav = element.querySelector('.portal-nav')!,
           footer = element.querySelector('.portal-sidebar-footer')!;
-        const links = [...footer.querySelectorAll('a, button')].map((child) => {
+        const bounds = (child: Element) => {
           const r = child.getBoundingClientRect();
-          return { top: r.top, bottom: r.bottom, height: r.height };
-        });
+          return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height };
+        };
+        const links = [...footer.querySelectorAll('a, button')].map(bounds);
+        const rows = [...footer.children].map(bounds);
+        const help = footer.querySelector('.portal-sidebar-help-row > .portal-nav-item');
+        const vk = footer.querySelector('.portal-sidebar-help-row > .portal-sidebar-vk');
+        if (!help || !vk) throw new Error('Help and VK controls must both be in the footer');
         return {
           navBottom: nav.getBoundingClientRect().bottom,
           links,
+          rows,
+          help: bounds(help),
+          vk: bounds(vk),
+          footerRight: footer.getBoundingClientRect().right,
           navOrder: getComputedStyle(nav).order,
           footerBottomMargin: getComputedStyle(footer).marginBottom,
         };
       });
       expect(order.navOrder).toBe('0');
       expect(order.footerBottomMargin).toBe('0px');
-      expect(order.links[0]!.top).toBeGreaterThanOrEqual(order.navBottom);
-      for (let i = 1; i < order.links.length; i++)
-        expect(order.links[i]!.top).toBeGreaterThanOrEqual(order.links[i - 1]!.bottom);
+      expect(order.rows[0]!.top).toBeGreaterThanOrEqual(order.navBottom);
+      for (let i = 1; i < order.rows.length; i++)
+        expect(order.rows[i]!.top).toBeGreaterThanOrEqual(order.rows[i - 1]!.bottom);
       for (const link of order.links) expect(link.height).toBeGreaterThanOrEqual(44);
+      // Help and VK intentionally share one row. Keep distinct 44px targets
+      // without weakening the vertical separation of the surrounding footer rows.
+      expect(order.help.right).toBeLessThanOrEqual(order.vk.left);
+      expect(order.help.top).toBeLessThanOrEqual(order.vk.bottom);
+      expect(order.vk.top).toBeLessThanOrEqual(order.help.bottom);
+      expect(order.vk.right).toBeLessThanOrEqual(order.footerRight + 1);
       await page.screenshot({ path: `${shellEvidence}/drawer-${width}-short.png` });
       const exit = sidebar.getByRole('button', { name: 'Выход', exact: true });
       await exit.scrollIntoViewIfNeeded();

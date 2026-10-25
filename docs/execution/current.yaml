@@ -6457,32 +6457,38 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-      issue: 702
+      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
       branch: main
-      candidate_branch: codex/projects-pin-20261023
+      candidate_branch: codex/public-reports-20261024
       base_branch: main
-      pr: 704
+      pr: 717
       pr_draft: true
       status: in_progress
-      checkpoint: restore_migration_sequence_0242_after_published_max_0241
+      checkpoint: b1_real_http_e2e_isolated_postgresql_only
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-24 the owner explicitly reselected bounded pinning migration
-        integration repair for existing PR #704 after published main
-        0241_max_external_only_registration.sql. Do not rewrite pin business SQL.
-        Renumber the unpublished pin migration 0241 to 0242, preserve its SQL
-        bytes and digest, and compose exact full migration-history fixtures with
-        published 0239 Ollama, 0240 Courses and 0241 MAX, without changing their
-        SQL or weakening history validation. Existing reports B1 #713 / Draft
-        PR #717 head 18a79c0db6469bc7b9ecf45b7b53b433de556fed is
-        preserved and not merged; its provisional 0240 will require a new
-        successor after actual #704 integration, anticipated 0243.
-        Run isolated PostgreSQL, applicable native browser, focused and General
-        CI on the final candidate, then separate independent Code/Security
-        acceptance. PR #704 remains SECURITY_ACCEPTANCE_PENDING and Draft with
-        no owner-authorized waiver, Draft removal or merge yet. No production,
-        school DB, unrelated module or 717 branch changes.
+        On 2026-10-25 the owner selected ONLY Public Projects report intake B1
+        Issue #713 and existing Draft PR #717 for one bounded real HTTP E2E slice.
+        Keep pinning PR #704 frozen at 7035c3873913db897bc9cb8fe70ba8d337434f59:
+        its exact-SHA focused Public Projects CI succeeded, General Code was blocked
+        by foreign e2e/auth-confirmation-ui.spec.ts formatting, and independent
+        Security APPROVE and owner merge permission are absent. Retain the
+        PROJECTS-704-SECURITY-ACCEPTANCE blocker; no merge, waiver or rerun
+        without a material change. Report PR #717 stays OPEN/DRAFT and
+        unmerged at prior HEAD 18a79c0db6469bc7b9ecf45b7b53b433de556fed
+        until bounded B1 HTTP tests are published on that existing branch.
+        Add tests exclusively in Public Projects owned scope for real
+        POST /api/public-projects/:publicationId/reports over a real listener,
+        genuine disposable PostgreSQL 16, supported account/seat fixtures,
+        negative and concurrency cases, safe private receipt and preservation
+        of original Projects/Drafts/Versions; do not modify Identity, Auth,
+        Courses, Scratch, Electronics, AI, workflows, or other modules.
+        Maintain B1 provisional SQL migration 0240 in Draft only; no renumber
+        or merge until #704 has entered main and actual migration frontier is
+        rechecked (expected future B1 successor 0243). B2 #721 and B3 #723
+        remain dependent and may not start or merge yet. No working database,
+        production/school deployment, forced pushes or synthetic reviews.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -7585,13 +7591,32 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_private_epoch_bounded_feasibility
+      checkpoint: selected_private_controller_storage_size_feasibility
       kind: diagnostic
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE PRIVATE epoch-bounded controller feasibility experiment, not a proven runtime fix or product-main publication.
+      selected_slice: ONE PRIVATE seven-field storage representation size experiment atop functionally reviewed f1; no product-main or realtime acceptance.
+      storage_size_feasibility_contract:
+        functional_base: PRIVATE unpublished f1e5aa30f4b388638924e8b6813235a5a9a369c8; independent functional APPROVE095a0fe0477efa699d3fbea5d5a9a75bb621d0f7cc5159d88e664848078a4272;127 controller PASS and author368 focused PASS. Not main, not runtime cause or acceptance.
+        scope: Relative to f1 ONLY apps/web/src/electronics/live-simulation-worker-controller.ts may change; entire controller.spec127 tests EXACT f1. Fresh branch inherits published canonical main before transplanting reviewed f1 two-path diff only if current baseline is unchanged; conflict STOP. Final candidate versus main has the two f1 source paths, while size delta versus f1 is controller-only.
+        mapping: One readable local const enum PrivateSlot for exactly latestTarget=a,lastInputEventAtMicroseconds=b,horizonOffsetMicroseconds=c,pendingInputEvents=d,continuationTarget=e,canonicalDocument=f,generationId=g. Replace only these TS-private declarations and this-field accesses; no method/public snapshot key/constructor order/callback identity or functionality change.
+        preservation: Preserve f1 epoch/reentrant/input/startup/normal-host/one-inflight/no-self-chain guards and host-read counts; no math/clock/pacer/hook/Worker/API/tolerance/cadence/timeout/cap/assets/tool/dependency changes, arbitrary rename, whole-class rewrite or JS-private-field variant.
+        proof: Repeat exact-f1 consumer/collision/inverse byte or AST plus compiled-class equivalence and constructor/public snapshot preservation. Audit278 typed consumers found no private external reads/reflection; private runtime storage names remain observable to unsupported JavaScript reflection. Include bounded enum allocation/overhead and type evidence; do not imply universal reflection equivalence.
+        size_evidence: Audit96b4a07f8b6999325b4fe2d9b6f842e048fb6a9ed374f531fd615f22926c1006 used actual Vite6.4.3 defaults es2020/edge88/firefox78/chrome87/safari14; enum overhead included. Baseline13023 to11728 and e6d14008 to12533 RAW module proxy, not fullEditor. Functional f1 es2022 proxy adds1069; f1 mapping and full bundle NOT measured. Known935 editor221965/222000 margin35 is historical, not current fit proof.
+        gates: Short focused127 controller plus165 LED plus76 classroom; lint/format/type where possible; exact unit-file preservation and inverse; actual-default-target RAW proxy only, no full local build. Unsafe/type/inverse failure or unproven meaningful size candidate STOP, no variants/cap raise or weakened tests. Freeze PRIVATE UNPUBLISHED and obtain NEW exact source review.
+        delivery: Light docs CP/taskrefs/format/diff then NEW docs review and ordinary main publication; automatic existing General Governance exact published HEAD must PASS BEFORE source writes. Pending until observed, no duplicate local full governance or manual governance dispatch. After source APPROVE/focused checks, controller may compose measurement-only branch with approved functional/storage code and exact935 diagnostic ports/original ten oracles; NEW composition review then ONE existing strict CI. No product main/closure until all eight actual plus mixed/buttonSerial/StopReset complete, full gates, actual RAW editor<=222000 and NEW actual review.
+        acceptance: Native timing remains3of8PASS5FAIL; request593 source attribution and full C++ capability unproven. Preserve owner pending and all old546/R27/phase/epoch history and blockers. Source publication is not deployment, release or owner acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-storage-size-feasibility-selection-20261025.md
+      epoch_permit_clarification:
+        rule: One opportunity for a fresh host sample AFTER eligible ordinary completion per external epoch, not one total callback. A VALID existing normal retained refresh after that completion satisfies the captured epoch opportunity without changing its reads, validation, horizon or dispatch. Only unsatisfied eligible exhaustion adds one selected read.
+        fences: Bind completion eligibility before callbacks; capture generation/document/target/epoch before normal read. Only unchanged original fences and valid sample satisfy OLD epoch. Reentrant newer update/Stop/Reset/input retains newer state and permit. Initial update/startup/first-positive/input-only/yield/internal refreshed completion neither spend ordinary opportunity nor mint epochs.
+        invalid_samples: Invalid/null/discarded normal sample does not satisfy valid opportunity. Preserve original validation and normalization, including fractional normalization where baseline permits it. Exhaustion read consumes BEFORE callback even null/invalid/H<=C; no retry or self-renewal. No held-ACK special case or count masking.
+        preservation: Preserve complete8def safety contract, original87/private12 assertions byte-exact and14 new controls; add all9 concrete control categories in dated clarification before one private repair. Normal retained reads remain unchanged and finite slicing stays distinct.
+        evidence: Private unpublished e6d44e26973bbe870263f6217fbab997b321b54a reports112PASS1FAIL; original read-count4vs5 unchanged. Not accepted and not a runtime fix; request593 attribution unproven; native3of8PASS5FAIL.
+        delivery: Docs independent review then ordinary main publication; automatic existing General Governance exactHEAD must PASS before source repair. CI pending until observed; no duplicate full local governance or manual dispatch. Only controller and its spec private; NEW source review before measurement branch and one existing CI; no product-main or acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-epoch-permit-clarification-20261024.md
       epoch_bounded_feasibility_contract:
         scope: ONLY apps/web/src/electronics/live-simulation-worker-controller.ts and apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts; preserve original87 and private5f1d twelve tests/assertions.
         permit: One permit per admitted valid EXTERNAL update epoch; internal read/pump/completion/input/yield/cancel NEVER rearm. Capture ordinary processed completion epoch BEFORE callbacks; old completion cannot consume or clear newer permit/target. Only ordinary positive completion after full startup settlement; startup release callback/timing exact. Input priority first.
