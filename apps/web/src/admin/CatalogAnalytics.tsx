@@ -131,7 +131,7 @@ function Distribution({
   literal = false,
 }: {
   title: string;
-  groups?: Record<string, number>;
+  groups?: Record<string, number> | undefined;
   literal?: boolean;
 }) {
   return (
