@@ -179,7 +179,9 @@ export class BotProviderWebhook {
         );
         const accepted = approval.rows[0]?.result === 'approved';
         const text = accepted
-          ? 'Подтверждение получено. Вернитесь в ASA Lab, чтобы завершить вход или заполнить профиль.'
+          ? this.runtimeProvider.provider === 'max'
+            ? 'Подтверждение получено. Вернитесь в ASA Lab, чтобы завершить вход или выбрать дальнейшее действие.'
+            : 'Подтверждение получено. Вернитесь в ASA Lab, чтобы завершить вход или заполнить профиль.'
           : 'Запрос недействителен или истёк. Вернитесь в ASA Lab и начните заново.';
         if (update.callbackId) {
           await this.runtimeProvider.request(
@@ -188,7 +190,10 @@ export class BotProviderWebhook {
               ? `answers?callback_id=${encodeURIComponent(update.callbackId)}`
               : 'answerCallbackQuery',
             this.runtimeProvider.provider === 'max'
-              ? { notification: text }
+              ? // MAX binds this edit to the current native callback message.
+                // An empty attachment array removes its stale approval keyboard;
+                // no second message or client-supplied message ID is needed.
+                { notification: text, message: { text, attachments: [] } }
               : { callback_query_id: update.callbackId, text },
           );
         } else {

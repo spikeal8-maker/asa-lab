@@ -5,6 +5,9 @@ import {
   hashPassword,
   hashSessionToken,
   verifyPasswordAsync,
+  AccountLoginUseCase,
+  PgAccountDirectory,
+  PgSessionV2Store,
 } from '../../contexts/identity/dist/index.js';
 import { testAdminPool } from '../portal/helpers';
 import { planMigrations } from '../../tools/migrate.mjs';
@@ -224,6 +227,25 @@ async function registerPair(
   return result.rows[0]!;
 }
 
+async function registerExternalMax(
+  pair: Pairing,
+  options: { nonce?: string; birthDate?: string | null } = {},
+) {
+  const username = `u_${randomBytes(16).toString('hex')}`;
+  const sessionHash = hash();
+  const result = await runtime.query<{ result: string; account_id: string | null }>(
+    "SELECT * FROM auth_max_pairing_register_external($1,$2,'External MAX',$3,$4::date,'RU','provider-test',$5,24)",
+    [
+      pair.tokenHash,
+      options.nonce ?? pair.nonceHash,
+      username,
+      options.birthDate === undefined ? '1990-04-12' : options.birthDate,
+      sessionHash,
+    ],
+  );
+  return { ...result.rows[0]!, username, sessionHash };
+}
+
 async function nativeReceipt(provider: Provider) {
   const proofAccount = await account();
   const pair = await start(provider, proofAccount);
@@ -296,6 +318,155 @@ afterAll(async () => {
 });
 
 describe('provider lifecycle PostgreSQL authority and atomicity', () => {
+  it('creates native MAX external-only canonical identity, personal scope and teaching without fake credentials', async () => {
+    const pair = await start('max');
+    expect(await approve(pair, subject())).toBe('approved');
+    const created = await registerExternalMax(pair);
+    expect(created.result).toBe('authenticated');
+    const record = (
+      await admin.query(
+        'SELECT email,password_hash,password_configured FROM accounts WHERE id=$1',
+        [created.account_id],
+      )
+    ).rows[0];
+    expect(record).toEqual({ email: null, password_hash: null, password_configured: false });
+    const context = (
+      await runtime.query('SELECT * FROM session_v2_context($1)', [created.sessionHash])
+    ).rows[0];
+    expect(context).toMatchObject({
+      account_id: created.account_id,
+      email: null,
+      workspace_kind: 'personal',
+    });
+    const login = new AccountLoginUseCase(
+      new PgAccountDirectory(runtime),
+      new PgSessionV2Store(runtime),
+    );
+    await expect(
+      login.execute({ identifier: created.username, password: PASSWORD }),
+    ).resolves.toEqual({ ok: false, code: 'invalid_credentials' });
+    await admin.query(
+      "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'educator','verified','provider-test','self_attestation')",
+      [created.account_id],
+    );
+    const teaching = (
+      await runtime.query('SELECT * FROM classroom_ensure_personal_teacher($1)', [
+        created.account_id,
+      ])
+    ).rows[0];
+    expect(teaching?.tenant_id).toBe(context.tenant_id);
+    const actor = (
+      await admin.query('SELECT email,password_hash FROM users WHERE id=$1 AND tenant_id=$2', [
+        teaching.user_id,
+        teaching.tenant_id,
+      ])
+    ).rows[0];
+    expect(actor).toEqual({ email: null, password_hash: null });
+    expect(await revoke({ ...context, sessionHash: created.sessionHash } as Account, 'max')).toBe(
+      'last_sign_in_method',
+    );
+    expect((await registerExternalMax(pair)).result).toBe('unavailable');
+    expect(
+      (
+        await runtime.query('SELECT auth_account_password_set($1,$2,$3) AS changed', [
+          created.account_id,
+          created.sessionHash,
+          passwordHash,
+        ])
+      ).rows[0].changed,
+    ).toBe(true);
+    await expect(
+      login.execute({ identifier: created.username, password: PASSWORD }),
+    ).resolves.toMatchObject({ ok: true, accountId: created.account_id });
+    expect(await revoke({ ...context, sessionHash: created.sessionHash } as Account, 'max')).toBe(
+      'unlinked',
+    );
+  });
+
+  it('enforces native MAX age, nonce, approval, generation, expiry and link-purpose before any account write', async () => {
+    const pending = await start('max');
+    const before = await authorityCounts();
+    expect((await registerExternalMax(pending)).result).toBe('unavailable');
+    expect(await approve(pending, subject())).toBe('approved');
+    expect((await registerExternalMax(pending, { birthDate: null })).result).toBe(
+      'validation_error',
+    );
+    expect((await registerExternalMax(pending, { birthDate: '2020-01-01' })).result).toBe(
+      'age_routed',
+    );
+    expect((await registerExternalMax(pending, { nonce: hash() })).result).toBe('unavailable');
+    await admin.query(
+      "UPDATE auth_provider_pairings SET created_at=now()-interval '20 minutes',expires_at=now()-interval '1 minute' WHERE token_hash=$1",
+      [pending.tokenHash],
+    );
+    expect((await registerExternalMax(pending)).result).toBe('unavailable');
+    expect(await authorityCounts()).toEqual(before);
+    const current = await account();
+    const linkPair = await start('max', current);
+    expect(await approve(linkPair, subject())).toBe('approved');
+    const afterAccount = await authorityCounts();
+    expect((await registerExternalMax(linkPair)).result).toBe('unavailable');
+    const changed = await start('max');
+    expect(await approve(changed, subject())).toBe('approved');
+    await changeConfiguration('max', true);
+    expect((await registerExternalMax(changed)).result).toBe('unavailable');
+    expect(await authorityCounts()).toEqual(afterAccount);
+  });
+
+  it('serializes concurrent native MAX registration and denies app access to the private null-credential bootstrap', async () => {
+    const pair = await start('max');
+    expect(await approve(pair, subject())).toBe('approved');
+    const before = await authorityCounts();
+    const outcomes = await Promise.all([registerExternalMax(pair), registerExternalMax(pair)]);
+    expect(outcomes.map((value) => value.result).sort()).toEqual(['authenticated', 'unavailable']);
+    const after = await authorityCounts();
+    expect(BigInt(after.accounts) - BigInt(before.accounts)).toBe(1n);
+    expect(BigInt(after.identities) - BigInt(before.identities)).toBe(1n);
+    const args = [
+      null,
+      null,
+      'Unsafe direct',
+      'unsafe_direct',
+      '1990-01-01',
+      'RU',
+      'provider-test',
+      hash(),
+      24,
+    ];
+    await expect(
+      runtime.query(
+        'SELECT * FROM auth_account_bootstrap_internal($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+        args,
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query('SELECT * FROM auth_register_account($1,$2,$3,$4,$5,$6,$7,$8,$9)', args),
+    ).rejects.toMatchObject({ code: '22023' });
+  });
+  it('rolls back the entire native MAX bootstrap on a real username uniqueness conflict', async () => {
+    const existing = await account();
+    const username = (
+      await admin.query('SELECT username FROM profiles WHERE account_id=$1', [existing.account_id])
+    ).rows[0].username;
+    const pair = await start('max');
+    expect(await approve(pair, subject())).toBe('approved');
+    const before = await authorityCounts();
+    await expect(
+      runtime.query(
+        "SELECT * FROM auth_max_pairing_register_external($1,$2,'External MAX',$3,DATE '1990-04-12','RU','provider-test',$4,24)",
+        [pair.tokenHash, pair.nonceHash, username, hash()],
+      ),
+    ).rejects.toMatchObject({ code: '23505' });
+    expect(await authorityCounts()).toEqual(before);
+    expect(
+      (
+        await admin.query('SELECT consumed_at FROM auth_provider_pairings WHERE token_hash=$1', [
+          pair.tokenHash,
+        ])
+      ).rows[0].consumed_at,
+    ).toBeNull();
+    expect((await registerExternalMax(pair)).result).toBe('authenticated');
+  });
   it.each(['max', 'telegram'] as const)(
     'records %s delivery only after successful native browser consumption and clears it on every config write',
     async (provider) => {

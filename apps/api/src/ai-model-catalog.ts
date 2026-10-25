@@ -146,6 +146,7 @@ export function buildAiTextRequest(
     : {
         url: 'https://api.deepseek.com/chat/completions',
         body: {
+          ...(stream ? { stream_options: { include_usage: true } } : {}),
           model,
           messages: [{ role: 'system', content: instructions }, ...context],
           max_tokens: 1600,

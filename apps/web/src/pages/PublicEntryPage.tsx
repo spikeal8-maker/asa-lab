@@ -125,9 +125,6 @@ export function PublicEntryPage({
             <a href="#projects">Проекты</a>
             <a href="#development">Развитие</a>
             <a href="#about">О проекте</a>
-            <button type="button" onClick={() => onChoose('sign-in')}>
-              Войти
-            </button>
             <button type="button" className="is-primary" onClick={() => onChoose('sign-up')}>
               Создать аккаунт
             </button>
@@ -151,7 +148,7 @@ export function PublicEntryPage({
                 className="public-home-button public-home-button-primary"
                 onClick={() => onChoose('sign-up')}
               >
-                Начать создавать
+                Создать аккаунт
               </button>
               <a className="public-home-button public-home-button-secondary" href="#community">
                 Смотреть проекты

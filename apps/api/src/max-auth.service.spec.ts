@@ -313,7 +313,56 @@ describe('MAX browser capability and account lifecycle', () => {
     expect(query.mock.calls[0]?.[1]?.[6]).toBe('same-account');
   });
 
-  it('requires a real fallback password and preserves ordinary registration hashing', async () => {
+  it('registers a native MAX Account without manufacturing email or password credentials', async () => {
+    const { service, query } = readyService(
+      vi.fn(async () => ({ rows: [{ result: 'authenticated', account_id: 'external-account' }] })),
+    );
+    const input = {
+      username: 'u_external',
+      displayName: 'Имя MAX',
+      birthDate: '1990-04-12',
+      country: 'RU',
+    };
+    await expect(
+      service.registerPairing(PAIRING, NONCE, { ...input, birthDate: '' }),
+    ).resolves.toMatchObject({ status: 'validation_error' });
+    await expect(
+      service.registerPairing(PAIRING, NONCE, { ...input, birthDate: '2020-01-01' }),
+    ).resolves.toMatchObject({ status: 'age_routed' });
+    await expect(service.registerPairing(PAIRING, undefined, input)).resolves.toMatchObject({
+      status: 'unavailable',
+    });
+    await expect(
+      service.registerPairing(PAIRING, NONCE, {
+        ...input,
+        email: 'unused@example.test',
+        password: 'not-configured-secret',
+      }),
+    ).resolves.toMatchObject({ status: 'validation_error' });
+    expect(query).not.toHaveBeenCalled();
+    await expect(service.registerPairing(PAIRING, NONCE, input)).resolves.toMatchObject({
+      status: 'authenticated',
+      accountId: 'external-account',
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('auth_max_pairing_register_external'),
+      [
+        expect.any(String),
+        expect.any(String),
+        'Имя MAX',
+        'u_external',
+        '1990-04-12',
+        'RU',
+        expect.any(String),
+        expect.any(String),
+        SESSION_TTL_HOURS,
+      ],
+    );
+    expect(JSON.stringify(query.mock.calls)).not.toContain('@');
+    expect(JSON.stringify(query.mock.calls)).not.toContain('scrypt-');
+  });
+
+  it('keeps the legacy raw Mini App contract strict and preserves its ordinary registration hashing', async () => {
     const { service, query } = readyService(
       vi.fn(async () => ({ rows: [{ result: 'authenticated', account_id: 'new-account' }] })),
     );
@@ -399,6 +448,95 @@ describe('MAX browser capability and account lifecycle', () => {
         /auth_provider_(link|register|session_create)/.test(String(call[0])),
       ),
     ).toBe(false);
+    const answer = fetchImpl.mock.calls.find(([url]) => String(url).includes('/answers?'));
+    const feedback = JSON.parse(String(answer?.[1]?.body));
+    expect(feedback).toEqual({
+      notification: expect.stringContaining('Подтверждение получено'),
+      message: {
+        text: expect.stringContaining('Вернитесь в ASA Lab'),
+        attachments: [],
+      },
+    });
+    expect(feedback.message.text).toBe(feedback.notification);
+    expect(JSON.stringify(feedback)).not.toContain(PAIRING);
+    expect(JSON.stringify(feedback)).not.toContain(BOT_TOKEN);
+  });
+
+  it.each(['invalid', 'identity_revoked'])(
+    'persists a clear refused result for %s and removes the approval keyboard',
+    async (result) => {
+      const { service, query, fetchImpl } = readyService(
+        vi.fn(async (sql: string) => ({
+          rows: [sql.includes('event_claim') ? { claimed: true } : { result }],
+        })),
+      );
+      const secret = createHmac('sha256', KEY)
+        .update('max-webhook:asa_test_bot:1')
+        .digest('base64url');
+      await expect(
+        service.handleWebhook(secret, {
+          update_type: 'message_callback',
+          callback: {
+            callback_id: 'refused-callback',
+            user: { user_id: 123 },
+            payload: `approve:pair_${PAIRING}`,
+          },
+          message: { sender: { user_id: 999, is_bot: true } },
+        }),
+      ).resolves.toBe('accepted');
+      const answers = fetchImpl.mock.calls.filter(([url]) => String(url).includes('/answers?'));
+      expect(answers).toHaveLength(1);
+      expect(JSON.parse(String(answers[0]?.[1]?.body))).toEqual({
+        notification: 'Запрос недействителен или истёк. Вернитесь в ASA Lab и начните заново.',
+        message: {
+          text: 'Запрос недействителен или истёк. Вернитесь в ASA Lab и начните заново.',
+          attachments: [],
+        },
+      });
+      expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/messages?'))).toBe(false);
+      expect(
+        query.mock.calls.filter(([sql]) => String(sql).includes('pairing_approve')),
+      ).toHaveLength(1);
+      expect(
+        query.mock.calls.some(([sql]) =>
+          /auth_provider_(link|register|session_create)/.test(String(sql)),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it('does not edit or send another message when the same native callback is redelivered', async () => {
+    let claimed = false;
+    const { service, query, fetchImpl } = readyService(
+      vi.fn(async (sql: string) => {
+        if (sql.includes('event_claim')) {
+          const first = !claimed;
+          claimed = true;
+          return { rows: [{ claimed: first }] };
+        }
+        return { rows: [{ result: 'approved' }] };
+      }),
+    );
+    const secret = createHmac('sha256', KEY)
+      .update('max-webhook:asa_test_bot:1')
+      .digest('base64url');
+    const callback = {
+      update_type: 'message_callback',
+      callback: {
+        callback_id: 'deduplicated-callback',
+        user: { user_id: 123 },
+        payload: `approve:pair_${PAIRING}`,
+      },
+    };
+    await expect(service.handleWebhook(secret, callback)).resolves.toBe('accepted');
+    await expect(service.handleWebhook(secret, callback)).resolves.toBe('duplicate');
+    expect(fetchImpl.mock.calls.filter(([url]) => String(url).includes('/answers?'))).toHaveLength(
+      1,
+    );
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/messages?'))).toBe(false);
+    expect(
+      query.mock.calls.filter(([sql]) => String(sql).includes('pairing_approve')),
+    ).toHaveLength(1);
   });
   it('keeps the existing signed Mini App session/link entry usable when native delivery is absent', async () => {
     const { service, query, fetchImpl } = readyService(
@@ -475,5 +613,11 @@ describe('MAX browser capability and account lifecycle', () => {
       enforcementEligible: false,
     });
     expect(query.mock.calls.some(([sql]) => String(sql).includes('event_release'))).toBe(false);
+    const answer = fetchImpl.mock.calls.find(([url]) => String(url).includes('/answers?'));
+    expect(JSON.parse(String(answer?.[1]?.body)).message).toEqual({
+      text: expect.stringContaining('Подтверждение получено'),
+      attachments: [],
+    });
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/messages?'))).toBe(false);
   });
 });

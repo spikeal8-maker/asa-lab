@@ -84,6 +84,36 @@ const upgradeArtifacts = [
     '0240_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
+  [
+    '0241',
+    '0241_max_external_only_registration.sql',
+    '859c003111fafed508271fff05205aafe63cb15edc030986e27fc90ed8191e85',
+  ],
+  [
+    '0242',
+    '0242_ai_attachment_local_binding.sql',
+    '742ad7fbb6ccb137b1f0cc06fc965e84f12d2156d32bf9bebcc6805353412cc4',
+  ],
+  [
+    '0243',
+    '0243_ai_attachment_regeneration_context.sql',
+    '8b7cb925dea3402fe2242648c725aac0a90a4e2274fa13bab5ce73011121a8c9',
+  ],
+  [
+    '0244',
+    '0244_ai_usage_journal.sql',
+    '8a1a8956cbc39d0623f1f72f635cf4d2ac2a7f3937aad3e8a580f16167c5da92',
+  ],
+  [
+    '0245',
+    '0245_admin_user_catalog.sql',
+    'a632b0a9acdb797bd36d2761a41c382e89e40536ba47db139e569ff82a5acd3e',
+  ],
+  [
+    '0246',
+    '0246_admin_user_history.sql',
+    '0f6794d87818d734de2b866c4f0a293387cba7058f4be9967c04855108ea1e01',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -473,7 +503,7 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
 }
 
 describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all fifteen migrations without losing history or refunding quota', async () => {
+  it('upgrades real 0225 data through all pinned migrations without losing history or refunding quota', async () => {
     await withPrefixDatabase(async (pool, client, plan) => {
       const fixture = await seedOldContracts(pool, client);
       const beforeLedger = await ledger(pool);
@@ -525,7 +555,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         ),
       ).toEqual(upgradeArtifacts.map(([version]) => version));
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(15);
+      expect(await applyIsolatedTestPlan(client, plan)).toBe(upgradeArtifacts.length);
       const afterLedger = await ledger(pool);
       expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
       expect(

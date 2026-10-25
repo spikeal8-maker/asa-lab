@@ -2606,7 +2606,13 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
         writeFileSync: () => {},
         appendFileSync: (_path: string, line: string, options: { flush: boolean }) => {
           expect(options.flush).toBe(true);
-          durable.push(JSON.parse(line));
+          expect(line.endsWith('\n')).toBe(true);
+          durable.push(
+            ...line
+              .slice(0, -1)
+              .split('\n')
+              .map((row) => JSON.parse(row)),
+          );
         },
       }) as (
         page: unknown,
@@ -2650,10 +2656,11 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
       expect(journal.records[0]!.sequence).toBe(phase === null ? 1 : 2049);
       expect(observed).toBe(phase === null ? 0 : 4096);
       expect(limit).toBe(phase === null ? 30_000 : 76_000);
+      expect(journal.errors).toEqual([]);
       expect(() => binding!({}, [{ sequence: 4098, kind: 'diagnostic', at: 4098 }])).toThrow(
         'sequence gap',
       );
-      expect(journal.errors).toEqual([]);
+      expect(journal.errors).toEqual(['Error: Baseline journal sequence gap']);
     }
   });
 });

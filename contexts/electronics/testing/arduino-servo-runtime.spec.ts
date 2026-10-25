@@ -34,6 +34,59 @@ function through(
 }
 
 describe('bounded Arduino Servo.h adapter', () => {
+  it('retains the first pupil numeric declaration immediately after Servo include', () => {
+    const result = advanceArduinoRuntime(`#include <Servo.h>
+float port=0;
+Servo motor;
+void setup(){port=9;motor.attach(port);motor.write(25);}
+void loop(){delay(100);}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables.port).toBe(9);
+    expect(result.state.servo!.objects.motor).toMatchObject({
+      attached: true,
+      pin: 'd9',
+      commandedAngle: 25,
+    });
+  });
+  it('type-checks Servo.read without mistaking its default angle for a runtime pin value', () => {
+    const result = advanceArduinoRuntime(`#include <Servo.h>
+Servo motor;
+int observed=0;
+void setup(){motor.attach(9);motor.write(9);pinMode(motor.read(),OUTPUT);observed=motor.read();}
+void loop(){delay(100);}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables.observed).toBe(9);
+  });
+  it('validates mutually exclusive computed-pin attaches without executing unreachable branches', () => {
+    const result = advanceArduinoRuntime(`#include <Servo.h>
+Servo left; Servo right;
+int pin = 9;
+void setup(){
+  if (pin == 9) { left.attach(pin); left.write(25); }
+  if (pin == 10) { right.attach(pin); right.write(75); }
+}
+void loop(){delay(100);}`);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.servo!.objects.left).toMatchObject({
+      attached: true,
+      pin: 'd9',
+      commandedAngle: 25,
+    });
+    expect(result.state.servo!.objects.right).toMatchObject({
+      attached: false,
+      commandedAngle: 90,
+    });
+  });
+
+  it('still rejects conflicting Servo attachments when both branches actually execute', () => {
+    const result = advanceArduinoRuntime(`#include <Servo.h>
+Servo left; Servo right;
+int pin = 9;
+void setup(){left.attach(pin);right.attach(pin);}
+void loop(){delay(100);}`);
+    expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(true);
+    expect(result.state.outputVoltages).toEqual({});
+  });
   it('recognizes only top-level Servo declarations', () => {
     expect(
       arduinoServoDeclarationNames(

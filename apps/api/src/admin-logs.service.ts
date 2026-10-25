@@ -44,6 +44,14 @@ export class AdminLogsService {
       checkedAt: string;
       lastSuccessAt: string | null;
       detail: string;
+      historyAudit?: {
+        state: string;
+        generation: string;
+        checked: number;
+        total: number;
+        deadline: number;
+        lastCompletedAt: string | null;
+      };
     } | null = null;
     try {
       const path = join(this.root, 'collector-health.json');
@@ -61,6 +69,34 @@ export class AdminLogsService {
         lastSuccessAt: typeof value.lastSuccessAt === 'string' ? value.lastSuccessAt : null,
         detail: typeof value.detail === 'string' ? value.detail.slice(0, 500) : '',
       };
+      const audit = value.historyAudit;
+      if (audit !== undefined) {
+        if (
+          !audit ||
+          !['running', 'complete', 'overdue', 'error'].includes(audit.state) ||
+          typeof audit.generation !== 'string' ||
+          !Number.isSafeInteger(audit.checked) ||
+          audit.checked < 0 ||
+          !Number.isSafeInteger(audit.total) ||
+          audit.total < 0 ||
+          !Number.isFinite(audit.deadline)
+        )
+          throw new Error('LOG_HEALTH_INVALID');
+        const overdue = audit.state !== 'complete' && Date.now() > audit.deadline * 1000;
+        collectorHealth.historyAudit = {
+          state: overdue ? 'overdue' : audit.state,
+          generation: audit.generation.slice(0, 64),
+          checked: audit.checked,
+          total: audit.total,
+          deadline: audit.deadline,
+          lastCompletedAt: typeof audit.lastCompletedAt === 'string' ? audit.lastCompletedAt : null,
+        };
+        if (overdue || audit.state === 'error') {
+          collectorHealth.state = 'error';
+          collectorHealth.detail =
+            'Retained history audit incomplete; integrity verification required';
+        }
+      }
     } catch (failure) {
       if ((failure as NodeJS.ErrnoException).code !== 'ENOENT')
         collectorHealth = {

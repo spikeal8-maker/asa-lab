@@ -3,6 +3,7 @@
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
  */
 import { isIP } from 'node:net';
+import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 
 export const OLLAMA_SELECTION = 'ollama-local' as const;
 export interface OllamaSettings {
@@ -15,6 +16,7 @@ export interface OllamaSettings {
 export interface OllamaModel {
   readonly name: string;
   readonly size: number;
+  readonly capabilities?: readonly string[];
 }
 export class OllamaError extends Error {
   constructor(
@@ -22,6 +24,7 @@ export class OllamaError extends Error {
     readonly status: number,
     message: string,
     readonly partialText = '',
+    readonly usage?: AiProviderUsage,
   ) {
     super(message);
     this.name = 'OllamaError';
@@ -164,10 +167,57 @@ export async function discoverOllama(
   });
 }
 
+/** Capabilities are verified from Ollama itself, never inferred from a model name. */
+export async function describeOllamaModel(
+  baseUrl: string,
+  model: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<readonly string[]> {
+  const origin = ollamaBaseUrl(baseUrl);
+  if (!validOllamaModel(model))
+    throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
+  let response: Response;
+  try {
+    response = await fetchImpl(origin + '/api/show', {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+  } catch {
+    throw new OllamaError(
+      'ai_ollama_capability_unknown',
+      503,
+      'Не удалось подтвердить возможности модели в Ollama.',
+    );
+  }
+  if (!response.ok) throw failure(response.status);
+  const detail = await limitedJson(response);
+  if (
+    !detail ||
+    typeof detail !== 'object' ||
+    !Array.isArray((detail as { capabilities?: unknown }).capabilities)
+  )
+    throw new OllamaError(
+      'ai_ollama_capability_unknown',
+      503,
+      'Ollama не сообщила достоверные возможности модели.',
+    );
+  return (detail as { capabilities: unknown[] }).capabilities
+    .filter(
+      (capability): capability is string =>
+        typeof capability === 'string' && capability.length > 0 && capability.length <= 40,
+    )
+    .slice(0, 32);
+}
+
 export interface OllamaStreamArgs {
   readonly baseUrl: string;
   readonly model: string;
   readonly context: readonly { role: 'user' | 'assistant'; content: string }[];
+  /** Already owner-verified, integrity-checked and bounded base64 images. */
+  readonly images?: readonly string[];
   readonly instructions: string;
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
@@ -175,7 +225,7 @@ export interface OllamaStreamArgs {
 }
 export async function streamOllamaText(
   args: OllamaStreamArgs,
-): Promise<{ text: string; stopped: boolean }> {
+): Promise<{ text: string; stopped: boolean; usage?: AiProviderUsage }> {
   const origin = ollamaBaseUrl(args.baseUrl);
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
@@ -191,7 +241,15 @@ export async function streamOllamaText(
       headers: { 'content-type': 'application/json', accept: 'application/x-ndjson' },
       body: JSON.stringify({
         model: args.model,
-        messages: [{ role: 'system', content: args.instructions }, ...args.context],
+        messages: [
+          { role: 'system', content: args.instructions },
+          ...args.context.map((item, index) => ({
+            ...item,
+            ...(index === args.context.length - 1 && item.role === 'user' && args.images?.length
+              ? { images: args.images }
+              : {}),
+          })),
+        ],
         stream: true,
         // Donor IZO_ASA also disables thinking for short school-facing inference.
         // Some reasoning models otherwise spend the token/time budget without visible text.
@@ -210,6 +268,7 @@ export async function streamOllamaText(
   let buffer = '';
   let text = '';
   let done = false;
+  let usage: AiProviderUsage | undefined;
   const frame = (line: string): void => {
     if (!line.trim()) return;
     let data: unknown;
@@ -221,6 +280,7 @@ export async function streamOllamaText(
     if (!data || typeof data !== 'object')
       throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
     const packet = data as { message?: { content?: unknown }; done?: unknown; error?: unknown };
+    usage = mergeProviderUsage(usage, providerUsage('ollama', packet));
     if (packet.error)
       throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
     if (typeof packet.message?.content === 'string') {
@@ -253,24 +313,25 @@ export async function streamOllamaText(
     }
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
   } catch (error) {
-    if (args.signal.aborted) return { text, stopped: true };
+    if (args.signal.aborted) return { text, stopped: true, ...(usage ? { usage } : {}) };
     if (error instanceof OllamaError)
-      throw new OllamaError(error.code, error.status, error.message, text);
+      throw new OllamaError(error.code, error.status, error.message, text, usage);
     throw new OllamaError(
       timeout.aborted ? 'ai_ollama_timeout' : 'ai_ollama_interrupted',
       timeout.aborted ? 504 : 503,
       timeout.aborted ? 'Ollama не ответила вовремя.' : 'Поток Ollama прервался.',
       text,
+      usage,
     );
   } finally {
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
   if (timeout.aborted && !args.signal.aborted)
-    throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text);
+    throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text, usage);
   if (!done && !args.signal.aborted && text.length < 8192)
-    throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text);
+    throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text, usage);
   if (!text.trim() && !args.signal.aborted)
-    throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.');
-  return { text, stopped: args.signal.aborted || text.length >= 8192 };
+    throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.', '', usage);
+  return { text, stopped: args.signal.aborted || text.length >= 8192, ...(usage ? { usage } : {}) };
 }

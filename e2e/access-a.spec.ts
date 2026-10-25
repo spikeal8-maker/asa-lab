@@ -48,7 +48,6 @@ async function register(page: Page, label: string) {
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@access-browser.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill(`a${unique}`);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill(label);
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill(`Strong-${unique}-Password`);

@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { AdminHistoryPage, HistoryCategory } from './admin-user-history.js';
 import type { RuntimeMetrics, RuntimeMetricsSnapshot } from '@asa-lab/observability';
 import { runtimeBuildMetadata } from './build-metadata.js';
 import {
@@ -10,6 +11,7 @@ import {
   type AdminSubject,
 } from '@asa-lab/authz';
 import type { AccountDirectoryPort, ActiveContext } from '@asa-lab/identity';
+import type { AdminCatalogQuery, AdminCatalogPage } from './admin-user-catalog.js';
 
 export interface ResolvedAdminAccess {
   readonly subject: AdminSubject;
@@ -48,7 +50,7 @@ export interface AdminListCursor {
 export interface AdminAccountView {
   readonly accountId: string;
   readonly principalId: string;
-  readonly email: string;
+  readonly email: string | null;
   readonly displayName: string;
   readonly username: string;
   readonly status: string;
@@ -553,6 +555,120 @@ export class AdminControlPlaneService {
     }));
   }
 
+  async listUsers(
+    access: ResolvedAdminAccess,
+    input: AdminCatalogQuery & {
+      scope: { kind: AdminScopeKind; id: string | null };
+      search: string | null;
+      requestId: string;
+    },
+  ): Promise<AdminCatalogPage> {
+    this.requirePermission(access, 'administration.accounts.read', input.scope);
+    await this.auditRead(access, input, 'administration.accounts.read', 'users');
+    const client = await this.pool.connect();
+    let discardClient = false;
+    try {
+      await client.query('BEGIN READ ONLY');
+      await client.query("SET LOCAL statement_timeout = '8s'");
+      const result = await client.query<{
+        value: Omit<AdminCatalogPage, 'next'> & { next: Record<string, unknown> | null };
+      }>('SELECT admin_user_catalog($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb) AS value', [
+        access.subject.principalId,
+        input.scope.kind,
+        input.scope.id,
+        input.search,
+        input.kind,
+        input.status,
+        input.sort,
+        input.direction,
+        input.limit,
+        input.cursor === null ? null : JSON.stringify(input.cursor),
+      ]);
+      const value = result.rows[0]?.value;
+      if (!value) throw new Error('ADMIN_CATALOG_UNAVAILABLE');
+      await client.query('COMMIT');
+      return {
+        ...value,
+        next:
+          value.next === null
+            ? null
+            : Buffer.from(JSON.stringify(value.next), 'utf8').toString('base64url'),
+      };
+    } catch (problem) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        discardClient = true;
+      }
+      throw problem;
+    } finally {
+      client.release(discardClient ? true : undefined);
+    }
+  }
+
+  async userHistory(
+    access: ResolvedAdminAccess,
+    input: {
+      scope: { kind: AdminScopeKind; id: string | null };
+      kind: 'account' | 'student';
+      targetId: string;
+      category: HistoryCategory;
+      limit: number;
+      cursor: Record<string, unknown> | null;
+      requestId: string;
+    },
+  ): Promise<AdminHistoryPage> {
+    this.requirePermission(access, 'administration.accounts.read', input.scope);
+    const client = await this.pool.connect();
+    let discard = false;
+    let page: AdminHistoryPage;
+    try {
+      await client.query('BEGIN READ ONLY');
+      await client.query("SET LOCAL statement_timeout = '8s'");
+      const result = await client.query<{
+        value: Omit<AdminHistoryPage, 'next'> & { next: Record<string, unknown> | null };
+      }>('SELECT admin_user_history($1,$2,$3,$4,$5,$6,$7,$8::jsonb) AS value', [
+        access.subject.principalId,
+        input.scope.kind,
+        input.scope.id,
+        input.kind,
+        input.targetId,
+        input.category,
+        input.limit,
+        input.cursor === null ? null : JSON.stringify(input.cursor),
+      ]);
+      const value = result.rows[0]?.value;
+      if (!value) throw new Error('ADMIN_HISTORY_UNAVAILABLE');
+      await client.query('COMMIT');
+      page = {
+        ...value,
+        next:
+          value.next === null
+            ? null
+            : Buffer.from(JSON.stringify(value.next), 'utf8').toString('base64url'),
+      };
+    } catch (failure) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        discard = true;
+      }
+      throw failure;
+    } finally {
+      client.release(discard ? true : undefined);
+    }
+    // Audit only an authorized successful read. Release first: auditing uses
+    // the pool too, and must not deadlock when all read clients are occupied.
+    await this.auditRead(
+      access,
+      input,
+      'administration.accounts.read',
+      `user_history_${input.kind}_${input.category}`,
+      input.targetId,
+    );
+    return page;
+  }
+
   async accountCrm(
     access: ResolvedAdminAccess,
     input: {
@@ -1010,11 +1126,12 @@ export class AdminControlPlaneService {
     },
     action: AdminPermission,
     targetType: string,
+    targetId: string | null = null,
   ): Promise<void> {
     await this.pool.query(
       `SELECT admin_append_audit_event(
          $1, $2, $3, $4,
-         $5, NULL, 'admin_console', NULL, NULL, $6, $6, 'succeeded', NULL, NULL
+         $5, $7, 'admin_console', NULL, NULL, $6, $6, 'succeeded', NULL, NULL
        )`,
       [
         access.subject.principalId,
@@ -1023,6 +1140,7 @@ export class AdminControlPlaneService {
         action,
         targetType,
         input.requestId,
+        targetId,
       ],
     );
   }

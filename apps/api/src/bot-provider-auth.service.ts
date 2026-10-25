@@ -42,8 +42,8 @@ const PAIRING_TTL_MINUTES = 10;
 const CAPABILITY_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 interface NormalizedRegistration {
-  readonly email: string;
-  readonly password: string;
+  readonly email: string | null;
+  readonly password: string | null;
   readonly username: string;
   readonly displayName: string;
   readonly birthDate: string;
@@ -191,13 +191,20 @@ export class BotProviderAuthService {
 
   private registration(
     input: ProviderRegistrationInput,
+    externalOnly = false,
   ): { input: NormalizedRegistration } | { error: ProviderRegisterResult } {
     const invalid = (message: string) => ({
       error: { status: 'validation_error' as const, message },
     });
-    const email = typeof input.email === 'string' ? normalizeEmail(input.email) : input.email;
-    if (!isValidEmail(email)) return invalid('Введите корректный email.');
-    if (!isValidPassword(input.password))
+    if (externalOnly && (input.email !== undefined || input.password !== undefined))
+      return invalid('Для регистрации через MAX почта и пароль не нужны. Обновите страницу.');
+    const email = externalOnly
+      ? null
+      : typeof input.email === 'string'
+        ? normalizeEmail(input.email)
+        : input.email;
+    if (!externalOnly && !isValidEmail(email)) return invalid('Введите корректный email.');
+    if (!externalOnly && !isValidPassword(input.password))
       return invalid('Пароль должен быть не короче 10 символов.');
     if (!isValidUsername(input.username))
       return invalid(
@@ -219,8 +226,8 @@ export class BotProviderAuthService {
     const username = (input.username as string).trim().toLowerCase();
     return {
       input: {
-        email,
-        password: input.password as string,
+        email: email as string | null,
+        password: externalOnly ? null : (input.password as string),
         username,
         displayName: providerText(input.displayName, 255) ?? username,
         birthDate: input.birthDate as string,
@@ -262,7 +269,7 @@ export class BotProviderAuthService {
           identity.username,
           identity.displayName,
           profile.email,
-          await hashPasswordAsync(profile.password),
+          profile.password === null ? null : await hashPasswordAsync(profile.password),
           profile.displayName,
           profile.username,
           profile.birthDate,
@@ -388,27 +395,41 @@ export class BotProviderAuthService {
     )
       return { status: 'unavailable' };
     if (!(await this.availability()).available) return { status: 'unavailable' };
-    const parsed = this.registration(input);
+    const parsed = this.registration(input, this.provider === 'max');
     if ('error' in parsed) return parsed.error;
     const profile = parsed.input;
     const token = createSessionToken();
     try {
       const result = await this.pool.query(
-        'SELECT result, account_id FROM auth_provider_pairing_register($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12)',
-        [
-          this.provider,
-          hashSessionToken(pairingToken),
-          hashSessionToken(browserNonce),
-          profile.email,
-          await hashPasswordAsync(profile.password),
-          profile.displayName,
-          profile.username,
-          profile.birthDate,
-          profile.country,
-          AGE_POLICY_VERSION,
-          hashSessionToken(token),
-          SESSION_TTL_HOURS,
-        ],
+        this.provider === 'max'
+          ? 'SELECT result, account_id FROM auth_max_pairing_register_external($1,$2,$3,$4,$5::date,$6,$7,$8,$9)'
+          : 'SELECT result, account_id FROM auth_provider_pairing_register($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12)',
+        this.provider === 'max'
+          ? [
+              hashSessionToken(pairingToken),
+              hashSessionToken(browserNonce),
+              profile.displayName,
+              profile.username,
+              profile.birthDate,
+              profile.country,
+              AGE_POLICY_VERSION,
+              hashSessionToken(token),
+              SESSION_TTL_HOURS,
+            ]
+          : [
+              this.provider,
+              hashSessionToken(pairingToken),
+              hashSessionToken(browserNonce),
+              profile.email,
+              profile.password === null ? null : await hashPasswordAsync(profile.password),
+              profile.displayName,
+              profile.username,
+              profile.birthDate,
+              profile.country,
+              AGE_POLICY_VERSION,
+              hashSessionToken(token),
+              SESSION_TTL_HOURS,
+            ],
       );
       const status = String(
         result.rows[0]?.result ?? 'unavailable',

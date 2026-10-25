@@ -6,6 +6,7 @@ import {
   type SocialAuthProvider,
   type SocialPairing,
 } from './api';
+import { newRegistrationUsername, registrationDisplayName } from './registration-profile';
 
 export const SOCIAL_PROVIDER_LABELS: Readonly<Record<SocialAuthProvider, string>> = {
   max: 'MAX',
@@ -21,11 +22,39 @@ export function availableSocialProviders(
   );
 }
 
+export type AuthProviderLoadState = 'loading' | 'ready' | 'error';
+
+export function AuthProviderStatus({
+  status,
+  onRetry,
+}: {
+  status: AuthProviderLoadState;
+  onRetry: () => void;
+}): JSX.Element | null {
+  if (status === 'ready') return null;
+  return (
+    <div className="auth-provider-status" role="status" aria-live="polite">
+      <p>
+        {status === 'loading'
+          ? 'Проверяем способы входа…'
+          : 'Не удалось проверить вход через мессенджеры. Войдите по почте и паролю или повторите проверку.'}
+      </p>
+      {status === 'error' ? (
+        <button type="button" className="link-button" onClick={onRetry}>
+          Проверить ещё раз
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export function useAuthProviders(): {
   providers: AuthProviderAvailability[];
+  status: AuthProviderLoadState;
   refresh: () => Promise<void>;
 } {
   const [providers, setProviders] = useState<AuthProviderAvailability[]>([]);
+  const [status, setStatus] = useState<AuthProviderLoadState>('loading');
   const request = useRef(0);
   const inFlight = useRef<AbortController | null>(null);
   const refresh = useCallback(async (): Promise<void> => {
@@ -33,10 +62,21 @@ export function useAuthProviders(): {
     const controller = new AbortController();
     inFlight.current = controller;
     const current = ++request.current;
-    const result = await api.authProviders(controller.signal);
-    if (inFlight.current === controller) inFlight.current = null;
-    if (current === request.current && !controller.signal.aborted) {
-      setProviders(result.ok && Array.isArray(result.data.providers) ? result.data.providers : []);
+    setStatus((previous) => (previous === 'ready' ? previous : 'loading'));
+    try {
+      const result = await api.authProviders(controller.signal);
+      if (current === request.current && !controller.signal.aborted) {
+        const valid = result.ok && Array.isArray(result.data.providers);
+        setProviders(valid ? result.data.providers : []);
+        setStatus(valid ? 'ready' : 'error');
+      }
+    } catch {
+      if (current === request.current && !controller.signal.aborted) {
+        setProviders([]);
+        setStatus('error');
+      }
+    } finally {
+      if (inFlight.current === controller) inFlight.current = null;
     }
   }, []);
   useEffect(() => {
@@ -56,7 +96,7 @@ export function useAuthProviders(): {
       document.removeEventListener('visibilitychange', refreshVisible);
     };
   }, [refresh]);
-  return { providers, refresh };
+  return { providers, status, refresh };
 }
 
 /** Display/format only; the server validates this origin against deployment settings. */
@@ -92,6 +132,7 @@ type ProviderFlow = {
   generation: number;
 } & (
   | { phase: 'pending' }
+  | { phase: 'choice'; profile: { displayName: string | null; username: string | null } }
   | { phase: 'registration'; profile: { displayName: string | null; username: string | null } }
 );
 
@@ -149,7 +190,7 @@ export function SocialAuthButtons({
   const labelId = useId();
 
   useEffect(() => {
-    onRegistrationActiveChange?.(flow?.phase === 'registration');
+    onRegistrationActiveChange?.(flow?.phase === 'choice' || flow?.phase === 'registration');
   }, [flow?.phase, onRegistrationActiveChange]);
   useEffect(() => {
     onFlowActiveChange?.(flow !== null || starting !== null);
@@ -248,7 +289,11 @@ export function SocialAuthButtons({
           setFlow(null);
           setMessage('Не удалось связать способ с текущим аккаунтом. Повторите подтверждение.');
         } else {
-          setFlow({ ...flow, phase: 'registration', profile: result.data.profile });
+          setFlow({
+            ...flow,
+            phase: flow.provider === 'max' ? 'registration' : 'choice',
+            profile: result.data.profile,
+          });
           setMessage(null);
         }
         return;
@@ -331,13 +376,53 @@ export function SocialAuthButtons({
   return (
     <section className="auth-social" aria-labelledby={labelId}>
       <p className="auth-social-label" id={labelId}>
-        {flow?.phase === 'registration'
-          ? `Регистрация через ${SOCIAL_PROVIDER_LABELS[flow.provider]}`
-          : purpose === 'link'
-            ? 'Подтвердить одним способом'
-            : 'Или продолжить через'}
+        {flow?.phase === 'choice'
+          ? `${SOCIAL_PROVIDER_LABELS[flow.provider]} подтверждён`
+          : flow?.phase === 'registration'
+            ? `Регистрация через ${SOCIAL_PROVIDER_LABELS[flow.provider]}`
+            : purpose === 'link'
+              ? 'Подтвердить одним способом'
+              : 'Или продолжить через'}
       </p>
-      {flow?.phase === 'registration' ? (
+      {flow?.phase === 'choice' ? (
+        <div className="auth-social-pending" role="region" aria-label="Выбор аккаунта ASA Lab">
+          <h2>У вас уже есть аккаунт ASA Lab?</h2>
+          <p>Выберите, как продолжить. Новый аккаунт пока не создан.</p>
+          <div className="auth-social-buttons">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                cancel();
+                onUsePassword?.();
+              }}
+            >
+              Войти в существующий аккаунт
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                if (
+                  flow.generation !== generation.current ||
+                  Date.parse(flow.pairing.expiresAt) <= Date.now()
+                )
+                  return;
+                setFlow({ ...flow, phase: 'registration' });
+              }}
+            >
+              Создать новый аккаунт
+            </button>
+          </div>
+          <p>
+            В существующий аккаунт войдите по паролю. После входа подключите{' '}
+            {SOCIAL_PROVIDER_LABELS[flow.provider]} в разделе «Учётная запись» → «Способы входа».
+          </p>
+          <button type="button" className="link-button" onClick={cancel}>
+            Отмена
+          </button>
+        </div>
+      ) : flow?.phase === 'registration' ? (
         <SocialRegistrationForm
           key={flow.pairing.pairingToken}
           flow={flow}
@@ -429,12 +514,13 @@ function SocialRegistrationForm({
   onUsePassword?: () => void;
 }): JSX.Element {
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState(flow.profile.username ?? '');
+  const [username, setUsername] = useState(newRegistrationUsername);
   const [displayName, setDisplayName] = useState(flow.profile.displayName ?? '');
   const [birthDate, setBirthDate] = useState('');
   const [country, setCountry] = useState('RU');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const externalOnly = flow.provider === 'max';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
@@ -451,7 +537,7 @@ function SocialRegistrationForm({
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     if (pending.current) return;
-    if (password.length < 10 || password !== confirmPassword) {
+    if (!externalOnly && (password.length < 10 || password !== confirmPassword)) {
       setError(
         password.length < 10
           ? 'Пароль должен содержать не меньше 10 символов.'
@@ -467,12 +553,11 @@ function SocialRegistrationForm({
       flow.provider,
       {
         pairingToken: flow.pairing.pairingToken,
-        email: email.trim(),
-        username: username.trim().toLowerCase(),
-        displayName: displayName.trim(),
+        ...(!externalOnly ? { email: email.trim(), password } : {}),
+        username,
+        displayName: registrationDisplayName(displayName),
         birthDate,
         country,
-        password,
       },
       controller.signal,
     );
@@ -483,13 +568,18 @@ function SocialRegistrationForm({
       onRegistered(result.data);
       return;
     }
+    if (result.status === 409 && result.error.code === 'username_taken') {
+      setUsername(newRegistrationUsername());
+      setError('Не удалось завершить регистрацию. Повторите отправку формы.');
+      return;
+    }
     if (result.status === 0 || result.status >= 500) onUnavailable?.();
     setError(result.error.message || 'Не удалось создать аккаунт. Проверьте данные.');
   }
 
   return (
     <form
-      className="auth-social-registration"
+      className={`auth-social-registration${externalOnly ? ' auth-social-registration--max' : ''}`}
       onSubmit={(event) => void submit(event)}
       aria-busy={busy}
     >
@@ -506,30 +596,26 @@ function SocialRegistrationForm({
             onUsePassword();
           }}
         >
-          У меня уже есть аккаунт — войти по паролю
+          {externalOnly ? 'Другой способ входа' : 'У меня уже есть аккаунт — войти по паролю'}
         </button>
       ) : null}
-      <label htmlFor={`${id}-email`}>Email</label>
-      <input
-        id={`${id}-email`}
-        type="email"
-        autoComplete="email"
-        required
-        disabled={busy}
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
-      <label htmlFor={`${id}-username`}>Имя пользователя</label>
-      <input
-        id={`${id}-username`}
-        autoComplete="username"
-        required
-        minLength={3}
-        maxLength={40}
-        disabled={busy}
-        value={username}
-        onChange={(event) => setUsername(event.target.value)}
-      />
+      {!externalOnly ? (
+        <>
+          <label htmlFor={`${id}-email`}>Email</label>
+          <input
+            id={`${id}-email`}
+            type="email"
+            autoComplete="email"
+            required
+            disabled={busy}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <p className="field-hint">Почта будет вашим логином.</p>
+        </>
+      ) : (
+        <p className="field-hint">Вход в этот аккаунт — через MAX. Почта и пароль не нужны.</p>
+      )}
       <label htmlFor={`${id}-display-name`}>Отображаемое имя</label>
       <input
         id={`${id}-display-name`}
@@ -569,31 +655,35 @@ function SocialRegistrationForm({
           </select>
         </div>
       </div>
-      <label htmlFor={`${id}-password`}>Пароль для входа</label>
-      <input
-        id={`${id}-password`}
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
-        disabled={busy}
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
-      <p className="field-hint">
-        Пароль для входа, если мессенджер недоступен. Не меньше 10 символов.
-      </p>
-      <label htmlFor={`${id}-confirm-password`}>Повторите пароль</label>
-      <input
-        id={`${id}-confirm-password`}
-        type="password"
-        autoComplete="new-password"
-        minLength={10}
-        required
-        disabled={busy}
-        value={confirmPassword}
-        onChange={(event) => setConfirmPassword(event.target.value)}
-      />
+      {!externalOnly ? (
+        <>
+          <label htmlFor={`${id}-password`}>Пароль для входа</label>
+          <input
+            id={`${id}-password`}
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+            disabled={busy}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+          <p className="field-hint">
+            Пароль для входа, если мессенджер недоступен. Не меньше 10 символов.
+          </p>
+          <label htmlFor={`${id}-confirm-password`}>Повторите пароль</label>
+          <input
+            id={`${id}-confirm-password`}
+            type="password"
+            autoComplete="new-password"
+            minLength={10}
+            required
+            disabled={busy}
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
+        </>
+      ) : null}
       <p className="field-hint">
         Личный аккаунт доступен с 18 лет. Подтверждение почты отдельно не требуется.
       </p>

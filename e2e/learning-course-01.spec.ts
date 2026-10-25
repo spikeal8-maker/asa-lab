@@ -372,7 +372,6 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@course01.test`);
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('c' + unique);
   await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор и преподаватель');
   await page.getByLabel('Дата рождения').fill('1990-04-12');
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
@@ -3639,6 +3638,76 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const initialRun = await openCourse();
   const player = learner.page.getByTestId('seat-course-player');
   const learnerBlocks = player.locator('.lesson-blocks').first().locator(':scope > *');
+  // LRN-UX-01A: exercise rendered practice links and exact occurrence focus in Chromium.
+  const practiceLinks = player.locator(
+    'aside[aria-label="Содержание курса"] .seat-course-practice-links button',
+  );
+  const outlinePractices = [
+    occurrenceFromCourseRun(initialRun, electronicsTitle),
+    occurrenceFromCourseRun(initialRun, threeDTitle),
+  ];
+  await expect(practiceLinks).toHaveCount(outlinePractices.length);
+  for (const [index, occurrence] of outlinePractices.entries()) {
+    await expect(practiceLinks.nth(index)).toContainText(occurrence.title);
+    await expect(practiceLinks.nth(index)).toContainText(
+      index === 0 ? 'Electronics · Не начато' : '3D · Не начато',
+    );
+  }
+  const navigationWrites: string[] = [];
+  const captureNavigationWrites = (request: import('@playwright/test').Request) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) return;
+    const path = new URL(request.url()).pathname;
+    if (
+      /^\/api\/(?:projects(?:\/|$)|class-join(?:\/|$)|learning(?:\/|$)|courses(?:\/|$))/.test(path)
+    ) {
+      navigationWrites.push(`${request.method()} ${path}`);
+    }
+  };
+  learner.page.on('request', captureNavigationWrites);
+  try {
+    for (const width of [1440, 1024, 390, 320]) {
+      await learner.page.setViewportSize({ width, height: 900 });
+      for (const [index, occurrence] of outlinePractices.entries()) {
+        await practiceLinks.nth(index).click();
+        const target = player.locator(
+          `.seat-course-activity[data-assignment-id="${occurrence.classroomAssignmentId}"]`,
+        );
+        await expect(target).toBeFocused();
+        await expect(target).toBeInViewport();
+        await expect(target).toHaveCSS('outline-width', '2px');
+        const bounds = await target.boundingBox();
+        expect(bounds, `Exact ${occurrence.title} focus at ${width}px`).not.toBeNull();
+        expect(bounds!.x).toBeGreaterThanOrEqual(0);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+        await learner.page.screenshot({
+          path: `${evidenceDir}/course-learner-practice-${width}-${index}.png`,
+        });
+      }
+    }
+    // Enter must select the same practice but never start its project.
+    await practiceLinks.first().focus();
+    await practiceLinks.first().press('Enter');
+    await expect(
+      player.locator(
+        `.seat-course-activity[data-assignment-id="${outlinePractices[0]!.classroomAssignmentId}"]`,
+      ),
+    ).toBeFocused();
+    await learner.page.reload();
+    await expect(player).toBeVisible();
+    await expect(practiceLinks).toHaveCount(2);
+  } finally {
+    learner.page.off('request', captureNavigationWrites);
+  }
+  expect(navigationWrites, 'Outline navigation must never mutate learner work').toEqual([]);
+  const afterOutlineNavigation = await learner.page.request.get('/api/class-join/me/course-runs');
+  expect(afterOutlineNavigation.ok()).toBe(true);
+  const afterOutlineRuns = (await afterOutlineNavigation.json()) as { items: D5CourseRunRead[] };
+  const afterOutlineRun = afterOutlineRuns.items.find((run) => run.id === initialRun.id);
+  expect(afterOutlineRun).toBeDefined();
+  for (const occurrence of outlinePractices) {
+    expect(occurrenceFromCourseRun(afterOutlineRun!, occurrence.title)).toEqual(occurrence);
+  }
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
   await expect(learnerBlocks).toHaveCount(5);
   await expect(learnerBlocks.nth(0)).toContainText('Перед Electronics');
   await expect(learnerBlocks.nth(1)).toContainText(electronicsTitle);

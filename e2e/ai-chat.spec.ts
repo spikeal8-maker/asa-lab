@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
@@ -245,6 +245,238 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     submittedKey: () => keyWasSubmitted,
   };
 }
+
+test('AI composer uploads a real file once and restores the saved attachment after reload', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const fake = await fixture(page, 'В коде указан INPUT, нужен OUTPUT.');
+  const bytes = Buffer.from('void setup() { pinMode(13, INPUT); }\n');
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  let uploadId: string | null = null;
+  let uploadCount = 0;
+  let sentIds: readonly string[] = [];
+  await page.route(/\/api\/ai\/attachments(?:\/|$)/, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/ai/attachments' && request.method() === 'POST') {
+      const descriptor = request.postDataJSON() as {
+        uploadId: string;
+        fileName: string;
+        sizeBytes: number;
+        sha256: string;
+      };
+      expect(descriptor).toMatchObject({
+        fileName: 'sketch.ino',
+        sizeBytes: bytes.length,
+        sha256: hash,
+      });
+      expect(descriptor.uploadId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+      uploadId = descriptor.uploadId;
+      return route.fulfill({
+        json: { uploadId, sha256: hash, state: 'reserved' },
+      });
+    }
+    if (
+      uploadId &&
+      path === '/api/ai/attachments/' + uploadId + '/bytes' &&
+      request.method() === 'PUT'
+    ) {
+      uploadCount += 1;
+      expect(request.postDataBuffer()).toEqual(bytes);
+      expect(request.headers()['content-type']).toBe('application/vnd.asa.ai-attachment');
+      return route.fulfill({ json: { uploadId, sha256: hash, state: 'ready' } });
+    }
+    return route.fallback();
+  });
+  await page.route(/\/api\/ai\/threads\/[0-9a-f-]+\/attachments(?:\?|$)/, async (route) => {
+    const ids = new URL(route.request().url()).searchParams.get('requestIds')?.split(',') ?? [];
+    return route.fulfill({
+      json: {
+        items: ids.map((requestId) => ({
+          requestId,
+          attachments:
+            requestId === fake.requests[0]
+              ? [
+                  {
+                    uploadId,
+                    fileName: 'sketch.ino',
+                    sizeBytes: bytes.length,
+                    mediaType: 'text/plain',
+                    kind: 'text',
+                  },
+                ]
+              : [],
+        })),
+      },
+    });
+  });
+  await page.route('**/api/ai/threads/*/messages/stream', async (route) => {
+    sentIds = (route.request().postDataJSON() as { attachmentIds?: string[] }).attachmentIds ?? [];
+    return route.fallback();
+  });
+
+  fake.release();
+  await page.goto('/#/ai');
+  await page.locator('input[type=file][accept]').setInputFiles({
+    name: 'sketch.ino',
+    mimeType: 'text/plain',
+    buffer: bytes,
+  });
+  await expect(page.locator('.chat-attachment-drafts')).toContainText('sketch.ino');
+  await expect(page.locator('.chat-attachment-drafts')).toContainText('text/plain');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Найди ошибку в коде');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
+  expect(uploadCount).toBe(1);
+  expect(uploadId).not.toBeNull();
+  expect(sentIds).toEqual([uploadId]);
+  expect(fake.requests).toHaveLength(1);
+  await page.reload();
+  await page.getByRole('button', { name: 'Найди ошибку в коде', exact: true }).click();
+  await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
+  await expect(page.locator('.chat-turns')).toContainText('В коде указан INPUT, нужен OUTPUT.');
+  // Reselecting the same current thread clears the rendered history; it must
+  // also invalidate its loaded-ID cache so its file chips are fetched again.
+  await page.getByRole('button', { name: 'Найди ошибку в коде', exact: true }).click();
+  await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
+  expect(uploadCount).toBe(1);
+});
+
+test('AI clears bound file chips when a saved answer is recovered after SSE loss', async ({
+  page,
+}) => {
+  const fake = await fixture(page, 'Ответ сохранён при обрыве сети');
+  fake.setCompletion('recovery');
+  const bytes = Buffer.from('pinMode(13, INPUT);\n');
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  let uploadId: string | null = null;
+  let uploads = 0;
+  const sent: Array<{ message: string; attachmentIds?: readonly string[] }> = [];
+  await page.route(/\/api\/ai\/attachments(?:\/|$)/, async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/ai/attachments' && request.method() === 'POST') {
+      const descriptor = request.postDataJSON() as { uploadId: string };
+      uploadId = descriptor.uploadId;
+      return route.fulfill({ json: { uploadId, sha256: hash, state: 'reserved' } });
+    }
+    if (
+      uploadId &&
+      path === '/api/ai/attachments/' + uploadId + '/bytes' &&
+      request.method() === 'PUT'
+    ) {
+      uploads += 1;
+      expect(request.postDataBuffer()).toEqual(bytes);
+      return route.fulfill({ json: { uploadId, sha256: hash, state: 'ready' } });
+    }
+    return route.fallback();
+  });
+  await page.route('**/api/ai/threads/*/messages/stream', async (route) => {
+    sent.push(route.request().postDataJSON() as (typeof sent)[number]);
+    return route.fallback();
+  });
+  fake.release();
+  await page.goto('/#/ai');
+  await page.locator('input[type=file][accept]').setInputFiles({
+    name: 'arduino.ino',
+    mimeType: 'text/plain',
+    buffer: bytes,
+  });
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Исправь код из файла');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.locator('.chat-turns')).toContainText('Ответ сохранён при обрыве сети');
+  await expect(page.locator('.chat-attachment-drafts')).toHaveCount(0);
+  await expect(composer).toHaveValue('');
+  await expect(page.locator('.asa-ai-error')).toHaveCount(0);
+  fake.setCompletion('current');
+  await composer.fill('Новый вопрос без файла');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.locator('.chat-turns > article')).toHaveCount(4);
+  expect(uploads).toBe(1);
+  expect(sent).toHaveLength(2);
+  expect(sent[0]?.attachmentIds).toEqual([uploadId]);
+  expect(sent[1]?.attachmentIds).toBeUndefined();
+  expect(fake.requests[1]).not.toBe(fake.requests[0]);
+});
+
+test('AI retains all attachment chips while paging over 125 user messages', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const fake = await fixture(page);
+  const threadId = randomUUID();
+  fake.threads.push({ id: threadId, title: 'История файлов', updatedAt: NOW });
+  const history: Message[] = Array.from({ length: 125 }, (_, index) => ({
+    id: randomUUID(),
+    role: 'user',
+    content: 'Вопрос с номером ' + index,
+    createdAt: new Date(Date.parse(NOW) - (125 - index) * 1000).toISOString(),
+    requestId: randomUUID(),
+  }));
+  fake.messages.set(threadId, history);
+  const names = new Map([
+    [history[0]!.requestId, 'oldest.png'],
+    [history[60]!.requestId, 'middle.png'],
+    [history[124]!.requestId, 'newest.png'],
+  ]);
+  const fetched: string[][] = [];
+  await page.route(/\/api\/ai\/threads\/[0-9a-f-]+\/attachments(?:\?|$)/, async (route) => {
+    const ids = new URL(route.request().url()).searchParams.get('requestIds')?.split(',') ?? [];
+    fetched.push(ids);
+    return route.fulfill({
+      json: {
+        items: ids.map((requestId) => ({
+          requestId,
+          attachments: names.has(requestId)
+            ? [
+                {
+                  uploadId: randomUUID(),
+                  fileName: names.get(requestId),
+                  sizeBytes: 512,
+                  mediaType: 'image/png',
+                  kind: 'image',
+                },
+              ]
+            : [],
+        })),
+      },
+    });
+  });
+  fake.release();
+  await page.goto('/#/ai');
+  await page.getByRole('button', { name: 'История файлов', exact: true }).click();
+  const turns = page.locator('.chat-turns > article');
+  const older = page.getByRole('button', { name: 'Загрузить предыдущие сообщения' });
+  await expect(turns).toHaveCount(50);
+  await expect(page.locator('.chat-attached-history')).toContainText('newest.png');
+  await older.click();
+  await expect(turns).toHaveCount(100);
+  await expect(page.locator('.chat-attached-history')).toHaveCount(2);
+  await older.click();
+  await expect(turns).toHaveCount(125);
+  await expect(page.locator('.chat-attached-history')).toHaveCount(3);
+  const namesOnScreen = await page.locator('.chat-attached-history').allTextContents();
+  expect(namesOnScreen.join(' ')).toContain('oldest.png');
+  expect(namesOnScreen.join(' ')).toContain('middle.png');
+  expect(namesOnScreen.join(' ')).toContain('newest.png');
+  expect(fetched.every((batch) => batch.length > 0 && batch.length <= 50)).toBe(true);
+  expect(new Set(fetched.flat()).size).toBe(125);
+  // Reopen the same selected conversation and paginate again. All historical
+  // attachments must reappear rather than remain marked loaded but hidden.
+  await page.getByRole('button', { name: 'История файлов', exact: true }).click();
+  await expect(turns).toHaveCount(50);
+  await expect(page.locator('.chat-attached-history')).toContainText('newest.png');
+  await older.click();
+  await expect(turns).toHaveCount(100);
+  await older.click();
+  await expect(turns).toHaveCount(125);
+  const reopened = (await page.locator('.chat-attached-history').allTextContents()).join(' ');
+  for (const filename of ['oldest.png', 'middle.png', 'newest.png']) {
+    expect(reopened).toContain(filename);
+  }
+});
 
 for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) {
   test(`AI waits for selected history before sending: ${selection}`, async ({ page }) => {
@@ -678,19 +910,18 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: 750 });
       const fake = await fixture(page);
       await page.goto('/#/ai');
-      await expect(
-        page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
-      ).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
       await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Прикреп/ })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /Прикреп/ })).toBeVisible();
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
         'background-color',
         theme === 'dark' ? 'rgb(18, 33, 45)' : 'rgb(255, 255, 255)',
       );
       await expectChatFits(page);
       await page.screenshot({ path: test.info().outputPath(`ai-empty-${theme}-${width}.png`) });
-      await page.getByRole('button', { name: /Написать код/ }).click();
       const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await composer.focus();
+      await composer.fill('Помоги написать или улучшить код. Я хочу сделать: ');
       await expect(composer).toBeFocused();
       await expect(composer).toHaveValue('Помоги написать или улучшить код. Я хочу сделать: ');
       expect(fake.requests).toHaveLength(0);
@@ -984,7 +1215,14 @@ test('AI preserves automatic portal collapse as chat history closes and the scre
   await fixture(page);
   await page.goto('/#/ai');
   await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
-  await expect(page.locator('.portal-sidebar-collapse')).toHaveCount(0);
+  const expandSite = page.getByRole('button', { name: 'Развернуть боковую панель' });
+  await expect(expandSite).toBeVisible();
+  await expandSite.click();
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/collapsed/);
+  await expect(page.getByRole('button', { name: 'Открыть историю диалогов' })).toBeVisible();
+  await page.getByRole('button', { name: 'Свернуть боковую панель' }).click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
   await page.getByRole('button', { name: 'Свернуть историю' }).click();
   for (const viewport of [
     { width: 1024, height: 750 },
@@ -1004,6 +1242,20 @@ test('AI preserves automatic portal collapse as chat history closes and the scre
     await expectChatFits(page);
     await page.screenshot({ path: test.info().outputPath(`ai-collapsed-${viewport.width}.png`) });
   }
+
+  // Crossing the desktop breakpoint must not reopen history while ASA is open.
+  await page.setViewportSize({ width: 1024, height: 850 });
+  await page.getByRole('button', { name: 'Развернуть боковую панель' }).click();
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/collapsed/);
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const historyButton = page.getByRole('button', { name: 'Открыть историю диалогов' });
+  await expect(historyButton).toBeVisible();
+  await expectChatFits(page);
+  // Opening chat history deliberately gives it the width by collapsing ASA.
+  await historyButton.click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await expect(page.getByRole('button', { name: 'Свернуть историю' })).toBeVisible();
+  await expectChatFits(page);
 });
 
 test('AI confines long code and tables to message scrollers and copies the original source', async ({
@@ -1081,9 +1333,7 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 750 });
     const fake = await fixture(page);
     await page.goto('/#/ai');
-    await expect(
-      page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
@@ -1161,7 +1411,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect(
     sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'От идеи к работающему проекту' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
@@ -1269,3 +1519,41 @@ for (const width of [1440, 600, 390, 320]) {
     });
   });
 }
+
+test('AI composer frame and Send stay fully visible at ordinary viewport heights', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 750 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 750 });
+    await expect(page.locator('.chat-start-state h1')).toBeVisible();
+    await expectChatFits(page);
+    const geometry = await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>('.chat-composer-dock')!;
+      const form = document.querySelector<HTMLFormElement>('form.chat-composer')!;
+      const send = document.querySelector<HTMLButtonElement>('.chat-send-button')!;
+      const dockBox = dock.getBoundingClientRect();
+      const formBox = form.getBoundingClientRect();
+      const sendBox = send.getBoundingClientRect();
+      return {
+        dockTop: dockBox.top,
+        dockBottom: dockBox.bottom,
+        formTop: formBox.top,
+        formBottom: formBox.bottom,
+        sendBottom: sendBox.bottom,
+        dockScrollTop: dock.scrollTop,
+        dockScrollHeight: dock.scrollHeight,
+        dockClientHeight: dock.clientHeight,
+      };
+    });
+    // The grid already reserves the toolbar. A second 52px subtraction once
+    // clipped both the rounded composer border and the Send button.
+    expect(geometry.formTop).toBeGreaterThanOrEqual(geometry.dockTop - 1);
+    expect(geometry.formBottom).toBeLessThanOrEqual(geometry.dockBottom + 1);
+    expect(geometry.sendBottom).toBeLessThanOrEqual(geometry.formBottom + 1);
+    expect(geometry.dockScrollTop).toBe(0);
+    expect(geometry.dockScrollHeight).toBeLessThanOrEqual(geometry.dockClientHeight + 1);
+  }
+});
