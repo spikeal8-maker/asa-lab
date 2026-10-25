@@ -1,3 +1,4 @@
+import { CrmResponsibilitiesController } from './crm-responsibilities.controller.js';
 import { EmailService } from './email.service.js';
 import { EmailController } from './email.controller.js';
 import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
@@ -207,6 +208,7 @@ export class AppModule {
       module: AppModule,
       controllers: [
         CrmUserController,
+        CrmResponsibilitiesController,
         EmailController,
         ProductAnalyticsV2Controller,
         DiagnosticsQualityController,

@@ -5,6 +5,7 @@ import { OrganizationClassBindings } from './OrganizationClassBindings';
 import './crm-directory.css';
 import { adminScopeResponsibilityKey } from './admin-model';
 import { AdminUserHistoryPanel } from './AdminUserHistory';
+import { CrmResponsibilities } from './CrmResponsibilities';
 import { CrmUserCardLauncher } from './CrmUserCard';
 import {
   adminApi,
@@ -67,11 +68,22 @@ export function AdminUsersCatalog({
   const [exporting, setExporting] = useState(false),
     [exportError, setExportError] = useState<string | null>(null);
   const exportLock = useRef(false);
+  const exportSequence = useRef(0);
+  const exportAbort = useRef<AbortController | null>(null);
+  function cancelExport() {
+    exportSequence.current++;
+    exportAbort.current?.abort();
+    exportAbort.current = null;
+    exportLock.current = false;
+    setExporting(false);
+  }
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
+      exportSequence.current++;
+      exportAbort.current?.abort();
     };
   }, []);
   const scopeKind = scope.kind,
@@ -95,6 +107,9 @@ export function AdminUsersCatalog({
     currentKey = useRef(key),
     denied = useRef(onAccessDenied);
   currentKey.current = key;
+  useEffect(() => {
+    cancelExport();
+  }, [key]);
   denied.current = onAccessDenied;
   const load = useCallback(
     async (cursor: string | null, append = false) => {
@@ -169,19 +184,30 @@ export function AdminUsersCatalog({
     setExporting(true);
     setExportError(null);
     const startedKey = key;
+    const exportRequest = ++exportSequence.current;
+    const controller = new AbortController();
+    exportAbort.current = controller;
     try {
-      const result = await adminApi.exportUsers({
-        scope: { kind: scopeKind, id: scopeId },
-        search,
-        kind,
-        status,
-        sort,
-        direction,
-        limit: 50,
-        cursor: null,
-        filters,
-      });
-      if (!alive.current || currentKey.current !== startedKey) return;
+      const result = await adminApi.exportUsers(
+        {
+          scope: { kind: scopeKind, id: scopeId },
+          search,
+          kind,
+          status,
+          sort,
+          direction,
+          limit: 50,
+          cursor: null,
+          filters,
+        },
+        controller.signal,
+      );
+      if (
+        !alive.current ||
+        currentKey.current !== startedKey ||
+        exportRequest !== exportSequence.current
+      )
+        return;
       if (!result.ok) {
         if (result.status === 401 || result.status === 403) {
           setState({ kind: 'loading', key });
@@ -208,8 +234,11 @@ export function AdminUsersCatalog({
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } finally {
-      exportLock.current = false;
-      setExporting(false);
+      if (exportRequest === exportSequence.current) {
+        exportAbort.current = null;
+        exportLock.current = false;
+        setExporting(false);
+      }
     }
   };
   const submit = (event: FormEvent) => {
@@ -436,6 +465,15 @@ export function AdminUsersCatalog({
           {exporting ? 'Готовим таблицу…' : 'Скачать все результаты (CSV)'}
         </button>
       </form>
+      {exporting ? (
+        <button type="button" onClick={cancelExport}>
+          Отменить выгрузку
+        </button>
+      ) : null}
+      <p className="admin-catalog-note">
+        CSV: до 10 000 записей, 16 МиБ; запрос до 8 секунд. Отмена прекращает ожидание и скачивание
+        файла.
+      </p>
       {exportError ? (
         <p role="alert">
           {exportError}{' '}
@@ -495,6 +533,15 @@ export function AdminUsersCatalog({
               user.kind === 'account' && user.account ? (
                 <div key={user.actorKey} className="admin-catalog-account">
                   {renderAccount(user)}
+                  {scope.kind === 'organization' ? (
+                    <CrmResponsibilities
+                      key={responsibilityKey}
+                      scopeKind="organization"
+                      scopeId={scope.id}
+                      targetId={user.id}
+                      onDenied={onAccessDenied}
+                    />
+                  ) : null}
                 </div>
               ) : (
                 <article

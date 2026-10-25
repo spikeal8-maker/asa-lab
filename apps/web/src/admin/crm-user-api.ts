@@ -71,7 +71,46 @@ function query(subject: CrmSubject) {
   if (subject.classroomId) value.set('classroomId', subject.classroomId);
   return value;
 }
+export interface CrmSeatDetailItem {
+  id: string;
+  key?: string;
+  text?: string;
+  title?: string;
+  occurredAt: string;
+  type?: string;
+  projectId?: string;
+  revision?: number;
+  status?: string;
+  provider?: string;
+  model?: string | null;
+  requestedModel?: string | null;
+  inputTokens?: string | null;
+  outputTokens?: string | null;
+  errorCode?: string | null;
+  durationMs?: string | null;
+}
+export interface CrmSeatDetailPage {
+  canWrite?: boolean;
+  items: CrmSeatDetailItem[];
+  next: string | null;
+  version?: string;
+}
 export const crmApi = {
+  seatDetail: (
+    subject: CrmSubject,
+    category: 'notes' | 'projects' | 'publications' | 'ai',
+    cursor: string | null,
+  ) => {
+    const params = query(subject);
+    params.set('category', category);
+    if (cursor) params.set('cursor', cursor);
+    return call<CrmSeatDetailPage>(`${crmSubjectPath(subject)}/detail?${params}`);
+  },
+  addSeatNote: (subject: CrmSubject, input: { version: string; text: string; reason: string }) =>
+    call<CrmSeatDetailPage>(`${crmSubjectPath(subject)}/notes`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...input, classroomId: subject.classroomId }),
+    }),
   studentStatus: (
     subject: CrmSubject,
     input: { version: string; status: 'active' | 'suspended'; reason: string },

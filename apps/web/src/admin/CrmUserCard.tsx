@@ -1,3 +1,5 @@
+import { CrmResponsibilities } from './CrmResponsibilities';
+import { CrmSeatDetail } from './CrmSeatDetail';
 import { CrmEmailChange } from './CrmEmailChange';
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
@@ -30,7 +32,7 @@ const stateLabel: Record<string, string> = {
   owner: 'Владелец класса',
   co_teacher: 'Совместное преподавание',
 };
-type CrmPane = 'profile' | 'access' | 'history' | 'activity' | CrmContentCategory;
+type CrmPane = 'profile' | 'access' | 'history' | 'notes' | 'activity' | CrmContentCategory;
 type CrmCardProps = CrmSubject & {
   onAccessDenied: () => void;
   onChanged?: () => void;
@@ -111,19 +113,87 @@ export function CrmProjectReader({
       {failure ? <p role="alert">{failure}</p> : null}
       {value ? (
         <div>
-          <p>
-            {value.title} · версия {value.revision} · только просмотр
-          </p>
-          <details open>
-            <summary>Полные данные проекта</summary>
-            <pre className="crm-document">{JSON.stringify(value.document, null, 2)}</pre>
-          </details>
+          <CrmDocumentView value={value} />
           <button type="button" onClick={() => setValue(null)}>
             Закрыть данные проекта
           </button>
         </div>
       ) : null}
     </div>
+  );
+}
+export function CrmDocumentView({ value }: { value: CrmDocument }) {
+  const root =
+    value.document && typeof value.document === 'object'
+      ? (value.document as Record<string, unknown>)
+      : null;
+  const sections = root
+    ? Object.entries(root)
+        .slice(0, 12)
+        .map(([name, data]) => ({
+          name,
+          count: Array.isArray(data)
+            ? `${data.length} элементов`
+            : data && typeof data === 'object'
+              ? `${Object.keys(data).length} полей`
+              : typeof data,
+        }))
+    : [];
+  function download() {
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(value.document, null, 2)], { type: 'application/json' }),
+    );
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `project-${value.projectId}-revision-${value.revision}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  return (
+    <section aria-label="Сохранённые данные проекта">
+      <h4>{value.title}</h4>
+      <p>
+        {value.module} · версия {value.revision} ·{' '}
+        {value.source === 'saved_version' ? 'сохранённая версия' : 'текущий черновик'} · только
+        просмотр
+      </p>
+      <p>
+        Сохранено:{' '}
+        <time dateTime={value.updatedAt}>{new Date(value.updatedAt).toLocaleString('ru-RU')}</time>
+      </p>
+      {value.source !== 'saved_version' && value.preview ? (
+        <figure>
+          <img
+            className="crm-project-preview"
+            src={value.preview.dataUrl}
+            alt={`Сохранённый вид проекта «${value.title}»`}
+          />
+          <figcaption>
+            Изображение сохранения № {value.preview.revision}
+            {value.preview.revision !== value.revision ? ' — может отличаться от документа' : ''}
+          </figcaption>
+        </figure>
+      ) : (
+        <p>Для этой версии изображение не сохранено.</p>
+      )}
+      {sections.length ? (
+        <dl>
+          {sections.map((section) => (
+            <div key={section.name}>
+              <dt>{section.name}</dt>
+              <dd>{section.count}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      <button type="button" onClick={download}>
+        Скачать документ JSON
+      </button>
+      <details>
+        <summary>Полные данные проекта — только просмотр</summary>
+        <pre className="crm-document">{JSON.stringify(value.document, null, 2)}</pre>
+      </details>
+    </section>
   );
 }
 function CrmCardBody(subject: CrmCardProps) {
@@ -267,7 +337,10 @@ function CrmCardBody(subject: CrmCardProps) {
                 [
                   ['profile', 'Профиль'],
                   ['projects', 'Проекты'],
-                  ...(subject.history ? [['history', 'Публикации и история'] as const] : []),
+                  ...(subject.history || subject.kind === 'student'
+                    ? [['history', 'Публикации и история'] as const]
+                    : []),
+                  ...(subject.kind === 'student' ? [['notes', 'Заметки'] as const] : []),
                   ['messages', 'Переписка с ИИ'],
                   ['activity', 'Входы и действия'],
                   ['access', 'Безопасность и доступ'],
@@ -393,6 +466,14 @@ function CrmCardBody(subject: CrmCardProps) {
           ) : tab === 'access' ? (
             <>
               <h4>Права и доступ</h4>
+              {subject.kind === 'account' ? (
+                <CrmResponsibilities
+                  scopeKind="platform"
+                  scopeId={null}
+                  targetId={subject.targetId}
+                  onDenied={revoke}
+                />
+              ) : null}
               {profile.canEdit ? (
                 <label className="crm-full-reason">
                   Причина изменения доступа
@@ -543,8 +624,29 @@ function CrmCardBody(subject: CrmCardProps) {
                 </>
               ) : null}
             </>
+          ) : tab === 'notes' ? (
+            <CrmSeatDetail
+              subject={{ ...subject, classroomId: profile.classId ?? subject.classroomId }}
+              notes
+              onAccessDenied={revoke}
+            />
           ) : tab === 'history' ? (
-            subject.history
+            subject.kind === 'student' ? (
+              <CrmSeatDetail
+                subject={{ ...subject, classroomId: profile.classId ?? subject.classroomId }}
+                onAccessDenied={revoke}
+                renderProject={(projectId, versionId) => (
+                  <CrmProjectReader
+                    subject={{ ...subject, classroomId: profile.classId ?? subject.classroomId }}
+                    projectId={projectId}
+                    versionId={versionId}
+                    onAccessDenied={revoke}
+                  />
+                )}
+              />
+            ) : (
+              subject.history
+            )
           ) : tab === 'activity' ? (
             <>
               <h4>Все входы и устройства</h4>
@@ -733,31 +835,7 @@ export function CrmContent({
       ) : null}
       {document ? (
         <section aria-label="Просмотр проекта">
-          <h4>{document.title}</h4>
-          <p>
-            {document.module} · версия {document.revision} · только просмотр
-          </p>
-          {document.preview ? (
-            <figure>
-              <img
-                className="crm-project-preview"
-                src={document.preview.dataUrl}
-                alt={`Сохранённый вид проекта «${document.title}»`}
-              />
-              <figcaption>
-                Изображение сохранения № {document.preview.revision}
-                {document.preview.revision !== document.revision
-                  ? ' — может отличаться от текущего проекта'
-                  : ''}
-              </figcaption>
-            </figure>
-          ) : (
-            <p>Изображение проекта не сохранено.</p>
-          )}
-          <details>
-            <summary>Полные данные проекта — только просмотр</summary>
-            <pre className="crm-document">{JSON.stringify(document.document, null, 2)}</pre>
-          </details>
+          <CrmDocumentView value={document} />
           <button type="button" onClick={() => setDocument(null)}>
             Закрыть просмотр
           </button>

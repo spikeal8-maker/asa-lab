@@ -711,16 +711,16 @@ surfaces:
     tests: [TST-ADMIN-HISTORY-UNIT-001, TST-ADMIN-HISTORY-PG-001, TST-ADMIN-OVERVIEW-UI-001]
 
 - id: SURF-CRM-FULL-USER-CARD
-  routes: ['/api/crm/v1/users/:kind/:target', '#/admin/users', '#/classrooms/:classroomId/students/:seatId']
+  routes: ['/api/crm/v1/users/:kind/:target', '/api/crm/v1/responsibilities/:kind/:scope/:target', '#/admin/users', '#/classrooms/:classroomId/students/:seatId']
   implementation:
-    files: [apps/api/src/crm-user.controller.ts, apps/api/src/app.module.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/admin/crm-user-api.ts, apps/web/src/admin/crm-user-card.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+    files: [apps/api/src/crm-user.controller.ts, apps/api/src/app.module.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, migrations/0250_crm_retained_detail.sql, migrations/0251_crm_responsibilities.sql, apps/api/src/crm-responsibilities.controller.ts, apps/web/src/admin/CrmResponsibilities.tsx, apps/web/src/admin/CrmSeatDetail.tsx, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/admin/crm-user-api.ts, apps/web/src/admin/crm-user-card.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
   invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
   tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
   controls:
   - id: CTRL-CRM-EXACT-IDENTITY-CARD
     label: Read full exact identity CRM, platform-only versioned profile mutations and exact-class teacher or explicitly bound organization educational content
     change_class: L3_CRITICAL
-    files: [apps/api/src/crm-user.controller.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+    files: [apps/api/src/crm-user.controller.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, migrations/0250_crm_retained_detail.sql, migrations/0251_crm_responsibilities.sql, apps/api/src/crm-responsibilities.controller.ts, apps/web/src/admin/CrmResponsibilities.tsx, apps/web/src/admin/CrmSeatDetail.tsx, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
     invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
     tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
 

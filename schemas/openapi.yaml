@@ -7436,6 +7436,99 @@ paths:
             minimum: 0
             maximum: 100000
             default: 0
+  /api/crm/v1/users/student/{target}/detail:
+    parameters:
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: classroomId, required: true, schema: { type: string, format: uuid } }
+      - {
+          in: query,
+          name: category,
+          required: true,
+          schema: { type: string, enum: [notes, projects, publications, ai] },
+        }
+      - { in: query, name: cursor, schema: { type: string } }
+    get:
+      operationId: getCrmSeatRetainedDetail
+      summary: Read exact-class authorized retained Seat notes and history
+      description: Fresh CRM subject authorization; bounded cursor pages; linked Account content never included. Successful reads audited.
+      responses:
+        '200': { description: Retained items and opaque continuation cursor }
+        '400': { description: Invalid or expired continuation }
+        '401': { description: Current session required }
+        '403': { description: Exact Seat/class scope denied }
+  /api/crm/v1/users/student/{target}/notes:
+    parameters:
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: appendCrmSeatEducationalNote
+      summary: Append immutable educational note with reason and expected list version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [classroomId, version, text, reason]
+              properties:
+                classroomId: { type: string, format: uuid }
+                version: { type: string, minLength: 64, maxLength: 64 }
+                text: { type: string, minLength: 1, maxLength: 2000 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Current first note page }
+        '400': { description: Invalid note }
+        '401': { description: Current session required }
+        '403': { description: Exact Seat/class scope denied }
+        '409': { description: Note list changed; nothing appended }
+  /api/crm/v1/responsibilities/{kind}/{scope}/{target}:
+    parameters:
+      - {
+          in: path,
+          name: kind,
+          required: true,
+          schema: { type: string, enum: [organization, classroom] },
+        }
+      - { in: path, name: scope, required: true, schema: { type: string, format: uuid } }
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getCrmScopedResponsibility
+      summary: Read scoped responsibility and server-authorized role ceiling
+      responses:
+        '200':
+          {
+            description: Exact membership with version and allowed roles; no private Account content,
+          }
+        '401': { description: Current session required }
+        '403': { description: Scope denied }
+    put:
+      operationId: updateCrmScopedResponsibility
+      summary: Apply versioned audited organization membership or exact-class co-teacher command
+      description: Server role ceiling; legacy student memberships read-only; primary class owner preserved; last active organization owner and administrator protected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, role, state, reason]
+              properties:
+                version: { type: string, minLength: 64, maxLength: 64 }
+                role:
+                  {
+                    type: string,
+                    enum:
+                      [owner, school_admin, member, educator, billing_admin, moderator, co_teacher],
+                  }
+                state: { type: string, enum: [active, suspended, revoked] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Current scoped responsibility }
+        '400': { description: Invalid command or protected responsibility }
+        '401': { description: Current session required }
+        '403': { description: Current actor scope denied }
+        '409': { description: Membership changed; nothing overwritten }
 components:
   responses:
     AuthValidationError:

@@ -397,3 +397,28 @@ it('replaces a ready Seat card when same-scope responsibilities change and ignor
   expect(host.querySelector('.crm-full-card')).toBeNull();
   expect(profile).toHaveBeenCalledTimes(3);
 });
+
+it('cancels an export and ignores its late completion while a replacement export runs', async () => {
+  vi.spyOn(adminApi, 'users').mockResolvedValue(ok(catalogPageFixture([])));
+  let finish!: (value: AdminApiResult<{ csv: string; count: number }>) => void;
+  const api = vi
+    .spyOn(adminApi, 'exportUsers')
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockImplementationOnce(() => new Promise(() => {}));
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  await show();
+  await button('Скачать все результаты (CSV)');
+  const firstSignal = api.mock.calls[0][1]!;
+  await button('Отменить выгрузку');
+  expect(firstSignal.aborted).toBe(true);
+  await button('Скачать все результаты (CSV)');
+  await act(async () => finish({ ok: true, status: 200, data: { csv: 'late', count: 1 } }));
+  expect(click).not.toHaveBeenCalled();
+  expect(host.textContent).toContain('Готовим таблицу…');
+  expect(host.textContent).toContain('16 МиБ');
+});
