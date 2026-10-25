@@ -129,6 +129,16 @@ const upgradeArtifacts = [
     '0249_crm_directory.sql',
     '5ea5756bb4e61a926f48e67469b799395b2f3c19e068569a3b8e809031961b12',
   ],
+  [
+    '0250', // Exact Seat retained detail and immutable educational notes.
+    '0250_crm_retained_detail.sql',
+    '75930bd42af22fcd61ceaf6f034cb4852e2248f921ccead56e8765f79ff3472f',
+  ],
+  [
+    '0251', // Scoped organization and exact-class responsibilities.
+    '0251_crm_responsibilities.sql',
+    '847fd9120c2db9615358be2547540569b6aa800e13e953ac0f8459cbe9cd66fd',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
