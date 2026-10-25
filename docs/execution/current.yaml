@@ -12184,10 +12184,12 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: native_before_pass_budget35_unpublished_prototype_only
+      checkpoint: prototype_functional_pass_owner_retains_cap_cleanup_prerequisite
       owner_acceptance: pending
       execution_role: unpublished_prototype_executor_then_independent_review
       publication: blocked_pending_actual_budget_safe_candidate
+      owner_budget_decision: Owner explicitly retained222000 bytes and requested a separate cleanup prerequisite on2026-10-25. No cap increase authorized.
+      prototype_result: Unpublished3e706b5e03b40415d1b4d67aef4557e393bae818 passed independent functional/native review; actual224410/222000 bytes FAIL. Not technical or installed acceptance.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
         - docs/product/electronics/components/ui-assets-persistence.yaml
@@ -12251,7 +12253,7 @@ blocking:
       - focused_regression
       - budget_measurement
       - read_only_hygiene_diagnosis
-    reason: Fresh67ecc2de native BEFORE and web build pass at221965/222000 bytes, leaving35 bytes. No adequate room for the complete accessible toolbar feature is established. One unpublished prototype may quantify exact cost without changing the checker/cap or touching other modules; no publishing an over-budget feature.
+    reason: Unpublished prototype3e706b5e passed independent functional/native review but actual224410/222000 bytes FAIL. Owner explicitly retained222000 and requested separate cleanup first on2026-10-25. Preserve prototype and require actual measured headroom before feature publication.
     unblock_requires: A fully reviewed L03 candidate that actually passes the existing budget, or an accepted bounded prerequisite establishing enough measured room. Any different cap requires a separate explicit owner decision after concrete evidence; no automatic waiver.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
   - id: PROJECTS-704-SECURITY-ACCEPTANCE
