@@ -10,6 +10,7 @@ import {
 import { aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
+import { AiChatIcon } from './AiChatIcon';
 import {
   AI_CHAT_FILE_ACCEPT,
   checkAiChatFiles,
@@ -1069,12 +1070,12 @@ export function AiChatPage({
               disabled={interactionBusy || loading}
               onClick={() => void newChat()}
             >
-              <span aria-hidden="true">+</span>
+              <AiChatIcon name="new-chat" size={19} />
               <span>Новый чат</span>
             </button>
             <label className="chat-search-box">
               <span className="sr-only">Найти диалог</span>
-              <span aria-hidden="true">⌕</span>
+              <AiChatIcon name="search" size={19} />
               <input
                 type="search"
                 value={search}
@@ -1232,7 +1233,7 @@ export function AiChatPage({
                 aria-expanded={sideOpen}
                 title="История диалогов"
               >
-                <span aria-hidden="true">☰</span>
+                <AiChatIcon name="sidebar" size={20} />
               </button>
             ) : null}
             <span className="sr-only asa-ai-current-title">{currentTitle}</span>
@@ -1244,7 +1245,7 @@ export function AiChatPage({
               aria-label="Создать новый диалог"
               title="Новый диалог"
             >
-              <span aria-hidden="true">✎</span>
+              <AiChatIcon name="new-chat" size={20} />
             </button>
           </div>
 
@@ -1291,7 +1292,8 @@ export function AiChatPage({
                                   onClick={() => void downloadAttachment(file)}
                                   title="Получить сохранённое вложение"
                                 >
-                                  {file.kind === 'image' ? '▧' : '▤'} {file.fileName ?? 'Вложение'}
+                                  <AiChatIcon name={file.kind === 'image' ? 'image' : 'file'} size={17} />
+                                  {file.fileName ?? 'Вложение'}
                                 </button>
                               ))}
                             </div>
@@ -1341,8 +1343,8 @@ export function AiChatPage({
                                   .writeText(message.content)
                                   .catch(() => setError('Не удалось скопировать ответ.'))
                               }
-                            >
-                              Копировать
+                             aria-label="Копировать" title="Копировать">
+                              <AiChatIcon name="copy" size={17} />
                             </button>
                             {sourceFor(message) ? (
                               <button
@@ -1352,8 +1354,8 @@ export function AiChatPage({
                                 }
                                 onClick={() => void regenerate(message)}
                                 title="Новый запрос к модели расходует лимит. Вопрос и все прежние ответы останутся в истории."
-                              >
-                                Новый вариант ответа
+                               aria-label="Новый вариант ответа">
+                                <AiChatIcon name="refresh" size={18} />
                               </button>
                             ) : null}
                           </div>
@@ -1466,7 +1468,7 @@ export function AiChatPage({
                         {item.preview ? (
                           <img src={item.preview} alt="" />
                         ) : (
-                          <span aria-hidden="true">▤</span>
+                          <AiChatIcon name="file" size={20} />
                         )}
                         <span title={item.file.name}>
                           {item.file.name}
@@ -1558,7 +1560,7 @@ export function AiChatPage({
                           imageInput.current?.click();
                         }}
                       >
-                        <span aria-hidden="true">▧</span> Добавить изображение
+                        <AiChatIcon name="image" size={20} /> Добавить изображение
                       </button>
                       <button
                         type="button"
@@ -1568,11 +1570,11 @@ export function AiChatPage({
                           fileInput.current?.click();
                         }}
                       >
-                        <span aria-hidden="true">▤</span> Фото и файлы
+                        <AiChatIcon name="file" size={20} /> Фото и файлы
                       </button>
                       <div className="chat-tools-divider" />
                       <button type="button" disabled title="Интернет-поиск пока не реализован">
-                        <span aria-hidden="true">⌕</span> Поиск в интернете
+                        <AiChatIcon name="search" size={19} /> Поиск в интернете
                         <small>Скоро</small>
                       </button>
                       <button
@@ -1580,7 +1582,7 @@ export function AiChatPage({
                         disabled
                         title="Генерация изображений пока не реализована"
                       >
-                        <span aria-hidden="true">◇</span> Создать изображение
+                        <AiChatIcon name="sparkles" size={20} /> Создать изображение
                         <small>Скоро</small>
                       </button>
                     </div>
