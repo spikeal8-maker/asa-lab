@@ -546,6 +546,30 @@
   }
 }
 
+/* The entire composer, including file chips and Send, must fit above a
+ * mobile software keyboard. Keep the attachment list scrollable instead of
+ * letting an oversized auto-sized form escape the clipped chat canvas.
+ * Tool popups remain free to float outside the composer border. */
+.asa-ai-layout .chat-composer.expanded {
+  max-height: max(120px, calc(var(--ai-available-height, 600px) - 26px));
+  grid-template-rows: minmax(0, auto) minmax(32px, auto) minmax(40px, auto);
+}
+
+.asa-ai-layout .chat-composer.expanded textarea {
+  max-height: min(160px, max(32px, calc(var(--ai-available-height, 600px) - 155px)));
+}
+
+.asa-ai-layout .chat-composer.expanded .chat-attachment-drafts {
+  min-height: 0;
+  max-height: min(164px, max(32px, calc(var(--ai-available-height, 600px) - 180px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.asa-ai-layout .chat-composer.expanded:has(.chat-attachment-drafts) textarea {
+  max-height: min(160px, max(32px, calc(var(--ai-available-height, 600px) - 220px)));
+}
+
 /* Narrow viewports cannot fit +, scope, model and Send next to a useful
  * textarea. Keep the same composer but stack input above the actions. */
 @media (max-width: 600px) {
