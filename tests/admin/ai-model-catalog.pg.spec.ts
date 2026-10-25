@@ -22,6 +22,7 @@ let originalProviders: Record<string, unknown>[] | undefined;
 const credentials: Record<AiProvider, string> = {
   openai: 'test-openai-pg-independent-key',
   deepseek: 'test-deepseek-pg-independent-key',
+  'ollama-cloud': 'test-ollama-cloud-pg-independent-key',
 };
 const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
   const provider: AiProvider = String(url).includes('openai.com') ? 'openai' : 'deepseek';
@@ -46,6 +47,89 @@ const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
   return new Response(
     'data: {"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
   );
+});
+
+it('Ollama Cloud uses encrypted credentials, paid admission and durable usage on real PostgreSQL', async () => {
+  const existing = (
+    await admin.query(
+      "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+    )
+  ).rows;
+  const upstream = vi.fn<typeof fetch>(async (url, options) => {
+    expect(url).toBe('https://ollama.com/v1/chat/completions');
+    expect(options?.redirect).toBe('error');
+    expect(new Headers(options?.headers).get('authorization')).toBe(
+      'Bearer ' + credentials['ollama-cloud'],
+    );
+    const packet = {
+      model: 'gemma4:31b',
+      choices: [
+        { delta: { content: 'Cloud PG' }, message: { content: 'Cloud PG' }, finish_reason: 'stop' },
+      ],
+      usage: { prompt_tokens: 7, completion_tokens: 3 },
+    };
+    return JSON.parse(String(options?.body)).stream
+      ? new Response('data: ' + JSON.stringify(packet) + '\n\ndata: [DONE]\n\n')
+      : new Response(JSON.stringify(packet));
+  });
+  const service = new AiChatService(first, { encryptionKey: '4c'.repeat(32), fetchImpl: upstream });
+  const previousConfig = await service.adminConfig(administrator);
+  const before = await used();
+  const config = await save({
+    provider: 'ollama-cloud',
+    model: 'gemma4:31b',
+    apiKey: credentials['ollama-cloud'],
+    enabled: true,
+    paidOperationsPerHour: before + 10,
+  });
+  expect(JSON.stringify(config)).not.toContain(credentials['ollama-cloud']);
+  const thread = await service.createThread(administrator);
+  const request = randomUUID();
+  await service.send(administrator, thread.id, 'Cloud PG JSON', request);
+  expect((await service.send(administrator, thread.id, 'Cloud PG JSON', request)).replayed).toBe(
+    true,
+  );
+  await service.sendStream(
+    administrator,
+    thread.id,
+    'Cloud PG SSE',
+    randomUUID(),
+    () => undefined,
+    new AbortController().signal,
+    'gemma4:31b',
+  );
+  expect(upstream).toHaveBeenCalledTimes(2);
+  expect(await used()).toBe(before + 2);
+  const usage = (
+    await admin.query(
+      'SELECT provider,status,input_tokens,output_tokens FROM ai_usage_journal WHERE thread_id=$1',
+      [thread.id],
+    )
+  ).rows;
+  expect(usage).toHaveLength(2);
+  expect(
+    usage.every(
+      (row) =>
+        row.provider === 'ollama-cloud' &&
+        row.status === 'succeeded' &&
+        Number(row.input_tokens) === 7 &&
+        Number(row.output_tokens) === 3,
+    ),
+  ).toBe(true);
+  await save({ provider: 'ollama-cloud', model: 'gemma4:31b', enabled: false, clearApiKey: true });
+  await save({
+    provider: previousConfig.provider,
+    model: previousConfig.model,
+    enabled: previousConfig.enabled,
+    paidOperationsPerHour: previousConfig.paidOperationsPerHour,
+  });
+  expect(
+    (
+      await admin.query(
+        "SELECT * FROM ai_provider_settings WHERE provider IN ('openai','deepseek') ORDER BY provider",
+      )
+    ).rows,
+  ).toEqual(existing);
 });
 
 async function used(): Promise<number> {
@@ -163,7 +247,11 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
       first.query("SELECT ai_model_available('openai','gpt-6-luna',now())"),
     ).rejects.toMatchObject({ code: '42501' });
     const config = await serviceA.adminConfig(administrator);
-    expect(config.providerConfigurations.every((slot) => slot.apiKeyConfigured)).toBe(true);
+    expect(
+      config.providerConfigurations
+        .filter((slot) => slot.provider !== 'ollama-cloud')
+        .every((slot) => slot.apiKeyConfigured),
+    ).toBe(true);
     for (const slot of config.providerConfigurations) {
       expect(Object.keys(slot).sort()).toEqual([
         'apiKeyConfigured',

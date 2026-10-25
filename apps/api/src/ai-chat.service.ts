@@ -1584,6 +1584,7 @@ export class AiChatService {
     try {
       response = await this.fetchImpl(request.url, {
         method: 'POST',
+        ...(runtime.provider === 'ollama-cloud' ? { redirect: 'error' as const } : {}),
         headers: {
           authorization: 'Bearer ' + apiKey,
           'content-type': 'application/json',

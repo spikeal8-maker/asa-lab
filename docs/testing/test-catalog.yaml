@@ -56,6 +56,16 @@ tests:
     timeout_seconds: 180
     owner: ai-assistant
     artifacts: [vitest-report, private-storage-reconciliation-report]
+  - id: TST-AI-CLOUD-PG-001
+    title: Separate encrypted cloud provider credentials, Ollama Cloud transport, paid admission and durable usage
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-*.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TEXT-CORE-001
     title: Complete owner history, immutable answer receipts, provider usage journal, safe math and forward upgrade
     suite: authorization

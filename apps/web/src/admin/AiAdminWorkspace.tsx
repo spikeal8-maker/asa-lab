@@ -17,6 +17,7 @@ interface LocalState {
 
 const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string }> = [
   { id: 'ollama', label: 'Ollama', hint: 'Локально · без ключа' },
+  { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
 ];

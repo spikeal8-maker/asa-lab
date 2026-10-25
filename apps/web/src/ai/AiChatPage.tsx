@@ -69,7 +69,7 @@ interface AiStatus {
   readonly canGenerate?: boolean;
   readonly providerEnabled?: boolean;
   readonly enabled: boolean;
-  readonly provider: 'openai' | 'deepseek' | 'ollama';
+  readonly provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud';
   readonly ollamaModel?: string | null;
   readonly model: string;
   readonly availableModels?: readonly string[];
