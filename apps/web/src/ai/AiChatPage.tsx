@@ -90,7 +90,7 @@ function positionToolsMenu(details: HTMLDetailsElement): void {
     canvasBounds.bottom,
     (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight),
   );
-  const spaceAbove = Math.max(0, triggerBounds.top - top - 12);
+  const spaceAbove = Math.max(0, triggerBounds.top - top - 18);
   const spaceBelow = Math.max(0, bottom - triggerBounds.bottom - 12);
   const placeBelow = spaceAbove < 242 && spaceBelow > spaceAbove;
   details.dataset.menuPlacement = placeBelow ? 'below' : 'above';
