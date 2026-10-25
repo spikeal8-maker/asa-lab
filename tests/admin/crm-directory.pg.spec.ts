@@ -39,7 +39,7 @@ afterAll(async () => {
   await runtime?.end();
   await admin?.end();
 });
-async function fixture() {
+async function fixture(options: { linkedSecondClass?: boolean } = {}) {
   const actor = await aiIdentity(admin),
     other = await aiIdentity(admin),
     prefix = 'catalog-' + randomUUID().slice(0, 8);
@@ -108,8 +108,17 @@ async function fixture() {
       [tenant, school, period, `${prefix} class`, teacher],
     )
   ).rows[0].id;
+  // A linked Account can have one Seat per class, not two Seats in one class.
+  const secondClass = options.linkedSecondClass
+    ? (
+        await admin.query(
+          'INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id',
+          [tenant, school, period, `${prefix} second class`, teacher],
+        )
+      ).rows[0].id
+    : null;
   const seats = [];
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < (options.linkedSecondClass ? 6 : 5); i++) {
     const credential = randomUUID().replaceAll('-', '');
     const id = i === 0 ? accounts[0]!.id : randomUUID(),
       principal = i === 4 ? null : randomUUID();
@@ -118,12 +127,12 @@ async function fixture() {
       [
         id,
         tenant,
-        classroom,
+        i === 5 ? secondClass : classroom,
         `${prefix} ${String(i % 7).padStart(2, '0')}`,
         credential,
         i === 0 ? 'issued' : i === 1 ? 'suspended' : 'active',
         teacher,
-        i === 0 ? accounts[0]!.id : null,
+        i === 0 || i === 5 ? accounts[0]!.id : null,
       ],
     );
     if (principal)
@@ -153,15 +162,11 @@ async function fixture() {
         ],
       )
     ).rows[0].value;
-  return { actor, other, accounts, seats, prefix, workspace, tenant, classroom, call };
+  return { actor, other, accounts, seats, prefix, workspace, tenant, classroom, secondClass, call };
 }
 
 it('filters the complete >50 set before pages and exports all filtered rows with matching aggregates', async () => {
-  const f = await fixture();
-  await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
-    f.accounts[0]!.id,
-    f.seats[1]!.id,
-  ]);
+  const f = await fixture({ linkedSecondClass: true });
   const page = await f.call({
     limit: 17,
     filters: { age: 'known', ageMin: '18', email: 'present' },
@@ -184,15 +189,21 @@ it('filters the complete >50 set before pages and exports all filtered rows with
   });
   expect(download.items).toHaveLength(61);
   const linked = await f.call({ limit: 100 });
+  expect(linked.matchedCount).toBe(67);
+  expect(linked.analytics.accounts).toBe(61);
+  expect(linked.analytics.students).toBe(6);
   expect((linked.analytics as unknown as Record<string, unknown>).linkedRecords).toBe(3);
   expect(
     linked.items.find((i) => i.kind === 'account' && i.id === f.accounts[0]!.id)?.linkedRecordCount,
   ).toBe(2);
+  expect(
+    linked.items.find((i) => i.kind === 'account' && i.id === f.accounts[0]!.id)?.classIds,
+  ).toEqual(expect.arrayContaining([f.classroom, f.secondClass]));
   expect(download.next).toBeNull();
   expect(catalogCsv(download.items).split('\r\n')).toHaveLength(62);
   expect(download.analytics.daily).toHaveLength(30);
-  expect((await f.call({ filters: { age: 'unknown', role: 'learner' } })).matchedCount).toBe(5);
-  expect((await f.call({ filters: { source: 'unknown' } })).matchedCount).toBe(66);
+  expect((await f.call({ filters: { age: 'unknown', role: 'learner' } })).matchedCount).toBe(6);
+  expect((await f.call({ filters: { source: 'unknown' } })).matchedCount).toBe(67);
   expect((await f.call({ filters: { classId: f.classroom } })).matchedCount).toBe(6);
   expect((await f.call({ filters: { registeredAfter: '2099-01-01' } })).matchedCount).toBe(0);
   await expect(f.call({ cursor: page.next, filters: { age: 'unknown' } })).rejects.toMatchObject({
