@@ -12122,50 +12122,47 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-value-inputs
     owned_paths:
-      - apps/web/src/electronics/arduino-blocks.ts
-      - apps/web/src/electronics/testing/arduino-value-inputs.spec.ts
-      - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
-      - apps/web/src/electronics/testing/arduino-servo-blocks.spec.ts
+      - vitest.config.ts
     task:
-      id: TASK-ELECTRONICS-VALUE-INPUTS-001
+      id: TASK-ELECTRONICS-TIMED-API-CI-001
       issue: 703
       branch: main
       base_branch: main
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: owner_followup_pin_values_palette_scroll_and_tooltips
+      checkpoint: profile_cpu_contention_preserve_all_ownership_oracles
       owner_acceptance: pending
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-VALUE-INPUTS-001.md
-        - docs/product/electronics/components/ui-assets-persistence.yaml
-      owner_authorization: Owner explicitly requested a clean worktree from current main, all appropriate expression sockets, rounded shapes and old-project compatibility. Preserve every foreign change.
-      owner_followup: Extend this editor slice to computed pin inputs, mixed Boolean/numeric reporters, data/variable palette scrolling, compact pin menus and educational hover descriptions. Preserve previous independently approved local candidate7cd0efdc and all foreign work.
-      preflight_exception: Existing workflow overlaps in foreign worktrees are outside this slice; do not edit either workflow or claim a global SAFE_TO_START.
-      deployment: not_requested
-      database_actions: none
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-TIMED-API-CI-001.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+      owner_authorization: Owner explicitly requests investigation and repair of the preexisting engine-timed-api timeout, green common CI and main integration. Preserve all foreign work and do not touch servers.
+      deployment: prohibited_by_owner
+      database_actions: none_local
+    previous_task:
+      id: TASK-ELECTRONICS-VALUE-INPUTS-001
+      issue: 703
+      source_status: integrated_main
+      owner_acceptance: pending
+      observation_note: Source4cf71f8a independently approved and integrated; General CI has the preexisting ownership timeout now explicitly selected for separate bounded repair. No release or Issue closure claimed.
     gates:
       focused:
         workflow: ASA Lab Electronics R4 M1 Focused
         commands:
           - pnpm gate:electronics-m1
-      browser:
-        workflow: ASA Lab Electronics R4 M1 Focused
-        commands:
-          - pnpm gate:electronics-m1:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-25T09:00:00Z'
+      observed_at: '2026-10-25T12:13:07Z'
       main:
         branch: main
-        sha: 91587fe47ee635ef745fca368ab384bf27a6a26d
-      convergence_baseline_sha: 91587fe47ee635ef745fca368ab384bf27a6a26d
+        sha: 4cf71f8a15bf083e31c5ddfdbebba6ed7dcecdec
+      convergence_baseline_sha: 4cf71f8a15bf083e31c5ddfdbebba6ed7dcecdec
       head_sha: null
-      observation_note: Clean detached worktree selected by owner from fetched main. Baseline General workflow was in progress at observation; no exact-head CI, integration, owner acceptance or deployment is claimed. Fresh fetch main is required before integration.
+      observation_note: Fresh fetch main is required before integration. General40189774578 failed the same budget1 ownership5000ms timeout as pre-slice main523552a1; its other jobs passed. Selected test-scheduling repair only, no product semantics or deployment authority.
 
 integration:
   owner_lane: visual-programming
