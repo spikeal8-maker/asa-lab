@@ -263,13 +263,21 @@
   z-index: 20;
   display: grid;
   width: min(365px, calc(100vw - 42px));
-  max-height: min(360px, calc(var(--ai-available-height, 600px) - 155px));
+  max-height: var(
+    --ai-tools-menu-max-height,
+    min(360px, calc(var(--ai-available-height, 600px) - 155px))
+  );
   padding: 8px;
   overflow-y: auto;
   border: 1px solid var(--ai-border);
   border-radius: 19px;
   background: var(--ai-surface);
   box-shadow: 0 12px 36px #0000001a;
+}
+
+.asa-ai-layout .chat-tools-menu[data-menu-placement='below'] .chat-tools-popup {
+  top: calc(100% + 8px);
+  bottom: auto;
 }
 
 .asa-ai-layout .chat-tools-popup button {
