@@ -1,0 +1,489 @@
+/* ASA AI — compact GPT-like layout.
+ * The ASA shell still owns global navigation, identity and routing.
+ * Only the conversation surface, history rail and composer are styled here. */
+.portal-shell > .asa-ai-layout {
+  --ai-surface: #fff;
+  --ai-sidebar-bg: #f8f8f8;
+  --ai-bg: #f3f3f3;
+  --ai-text: #202123;
+  --ai-muted: #737373;
+  --ai-border: #e5e5e5;
+  --ai-accent: #202123;
+  --ai-on-accent: #fff;
+  color-scheme: light;
+  background: var(--ai-surface);
+}
+
+.asa-ai-layout .asa-ai-chat.sidebar-open {
+  grid-template-columns: 264px minmax(0, 1fr);
+}
+
+.asa-ai-layout .chat-sidebar {
+  background: var(--ai-sidebar-bg);
+  border-right: 1px solid var(--ai-border);
+}
+
+.asa-ai-layout .chat-sidebar-head {
+  flex-basis: 52px;
+  padding-inline: 16px 10px;
+}
+
+.asa-ai-layout .chat-sidebar-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.asa-ai-layout .chat-sidebar-actions {
+  gap: 9px;
+  padding: 0 10px 8px;
+}
+
+.asa-ai-layout .chat-sidebar-actions > button {
+  justify-content: flex-start;
+  min-height: 40px;
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-weight: 500;
+}
+
+.asa-ai-layout .chat-search-box {
+  border-color: transparent;
+  background: transparent;
+}
+
+.asa-ai-layout .chat-search-box:focus-within {
+  border-color: var(--ai-border);
+  background: var(--ai-surface);
+}
+
+.asa-ai-layout .chat-search-box input {
+  min-height: 35px;
+}
+
+.asa-ai-layout .chat-side-section {
+  padding: 12px 16px 7px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.asa-ai-layout .chat-history-list {
+  padding-inline: 8px;
+}
+
+.asa-ai-layout .asa-ai-thread-row {
+  position: relative;
+  border-radius: 9px;
+}
+
+.asa-ai-layout .asa-ai-thread-row:has(.active) {
+  background: #eaeaea;
+}
+
+.asa-ai-layout .chat-history-item {
+  min-height: 39px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.asa-ai-layout .chat-history-item.active {
+  color: var(--ai-text);
+  font-weight: 550;
+}
+
+.asa-ai-layout .asa-ai-thread-action {
+  flex: 0 0 26px;
+  width: 26px;
+  min-height: 36px;
+  font-size: 15px;
+  opacity: 0;
+}
+
+.asa-ai-layout .asa-ai-thread-row:is(:hover, :focus-within) .asa-ai-thread-action {
+  opacity: 1;
+}
+
+.asa-ai-layout .chat-main {
+  position: relative;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-areas: 'conversation' 'error' 'composer';
+  background: var(--ai-surface);
+}
+
+/* Functional history/new controls without an additional horizontal toolbar. */
+.asa-ai-layout .chat-utility-strip {
+  position: absolute;
+  inset: 9px 14px auto;
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.asa-ai-layout .chat-utility-strip > button {
+  pointer-events: auto;
+}
+
+.asa-ai-layout .chat-utility-strip .chat-sidebar-open {
+  margin-right: auto;
+}
+
+.asa-ai-layout .chat-utility-strip .chat-icon-button {
+  width: 36px;
+  min-height: 36px;
+  flex-basis: 36px;
+  font-size: 19px;
+}
+
+.asa-ai-layout .chat-start-state {
+  overflow: hidden;
+  padding: 0;
+}
+
+.asa-ai-layout .chat-column {
+  width: min(100%, 850px);
+  padding-top: 64px;
+  padding-bottom: 14px;
+}
+
+.asa-ai-layout .chat-turn {
+  margin-bottom: 26px;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.asa-ai-layout .chat-user-bubble {
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-composer-dock {
+  overflow: visible;
+  padding: 12px 20px max(14px, env(safe-area-inset-bottom));
+  background: var(--ai-surface);
+}
+
+.asa-ai-layout .chat-composer-wrap {
+  flex: 0 1 auto;
+  width: min(100%, 850px);
+  margin-inline: auto;
+}
+
+.asa-ai-layout .chat-composer {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(30px, auto) auto;
+  grid-template-areas: 'files' 'input' 'controls';
+  gap: 5px;
+  min-height: 94px;
+  padding: 12px 12px 10px;
+  border: 1px solid var(--ai-border);
+  border-radius: 28px;
+  background: var(--ai-surface);
+  box-shadow: 0 2px 14px #0000000c;
+}
+
+.asa-ai-layout .chat-composer:focus-within {
+  border-color: #c5c5c5;
+  box-shadow: 0 2px 16px #00000013;
+}
+
+.asa-ai-layout .chat-composer textarea {
+  grid-area: input;
+  min-height: 32px;
+  max-height: clamp(32px, calc(var(--ai-available-height, 350px) - 150px), 160px);
+  padding: 4px 10px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.asa-ai-layout .chat-composer textarea::placeholder {
+  color: #929292;
+}
+
+.asa-ai-layout .chat-composer-controls {
+  grid-area: controls;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 40px;
+  gap: 8px;
+}
+
+.asa-ai-layout .chat-composer-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
+}
+
+.asa-ai-layout .chat-tools-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.asa-ai-layout .chat-attach-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ai-text);
+  font-size: 29px;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+
+.asa-ai-layout .chat-attach-button::-webkit-details-marker {
+  display: none;
+}
+
+.asa-ai-layout .chat-attach-button:hover,
+.asa-ai-layout .chat-tools-menu[open] .chat-attach-button,
+.asa-ai-layout .chat-microphone:hover:not(:disabled) {
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-tools-popup {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  width: min(365px, calc(100vw - 42px));
+  max-height: min(360px, calc(var(--ai-available-height, 600px) - 155px));
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--ai-border);
+  border-radius: 19px;
+  background: var(--ai-surface);
+  box-shadow: 0 12px 36px #0000001a;
+}
+
+.asa-ai-layout .chat-tools-popup button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 43px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ai-text);
+  font-size: 13px;
+  text-align: left;
+}
+
+.asa-ai-layout .chat-tools-popup button:hover:not(:disabled) {
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-tools-popup button:disabled {
+  opacity: 0.55;
+}
+
+.asa-ai-layout .chat-tools-popup button > span {
+  width: 22px;
+  text-align: center;
+  font-size: 20px;
+}
+
+.asa-ai-layout .chat-tools-popup button small {
+  margin-left: auto;
+  color: var(--ai-muted);
+  font-size: 11px;
+}
+
+.asa-ai-layout .chat-tools-divider {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--ai-border);
+}
+
+.asa-ai-layout .asa-ai-provider-label {
+  flex: 0 1 auto;
+  max-width: min(35vw, 235px);
+  margin: 0;
+  color: var(--ai-muted);
+}
+
+.asa-ai-layout .asa-ai-model-picker,
+.asa-ai-layout .asa-ai-model-single {
+  display: block;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ai-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asa-ai-layout .asa-ai-model-picker:hover:not(:disabled) {
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-composer-end .chat-scope {
+  display: flex;
+  min-width: 0;
+  max-width: 165px;
+  margin: 0;
+}
+
+.asa-ai-layout .chat-composer-end .chat-scope select {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ai-muted);
+  font-size: 12px;
+}
+
+.asa-ai-layout .chat-composer-end .asa-ai-school-scope-label {
+  display: none;
+}
+
+.asa-ai-layout .chat-microphone {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ai-text);
+}
+
+.asa-ai-layout .chat-send-button {
+  flex: 0 0 39px;
+  width: 39px;
+  min-height: 39px;
+  border: 0;
+  border-radius: 50%;
+  background: #141414;
+  color: #fff;
+  font-size: 25px;
+}
+
+/* The same composer moves, rather than creating another fake greeting screen. */
+.asa-ai-layout .asa-ai-chat.is-empty .chat-composer-dock {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  z-index: 3;
+  transform: translateY(-50%);
+  padding-inline: 24px;
+  background: transparent;
+}
+
+.asa-ai-layout .chat-attachment-drafts {
+  grid-area: files;
+  flex-wrap: wrap;
+  max-height: 164px;
+  padding: 0 3px 6px;
+}
+
+.asa-ai-layout .chat-attachment-chip {
+  max-width: min(100%, 280px);
+  border-color: var(--ai-border);
+  border-radius: 12px;
+}
+
+.asa-ai-layout .chat-attachment-chip img {
+  width: 52px;
+  height: 52px;
+  border-radius: 9px;
+}
+
+@media (hover: none) {
+  .asa-ai-layout .asa-ai-thread-action {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1119px) {
+  .asa-ai-layout .asa-ai-chat.sidebar-open {
+    grid-template-columns: 0 minmax(0, 1fr);
+  }
+  .asa-ai-layout .chat-sidebar {
+    width: min(310px, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 600px) {
+  .asa-ai-layout .chat-column {
+    padding: 58px 14px 8px;
+  }
+  .asa-ai-layout .chat-composer-dock {
+    padding: 10px 8px max(10px, env(safe-area-inset-bottom));
+  }
+  .asa-ai-layout .asa-ai-chat.is-empty .chat-composer-dock {
+    padding-inline: 10px;
+  }
+  .asa-ai-layout .chat-composer {
+    min-height: 90px;
+    padding: 10px 9px 8px;
+    border-radius: 24px;
+  }
+  .asa-ai-layout .chat-composer-end {
+    gap: 2px;
+  }
+  .asa-ai-layout .asa-ai-provider-label {
+    max-width: min(43vw, 170px);
+  }
+  .asa-ai-layout .asa-ai-model-picker,
+  .asa-ai-layout .asa-ai-model-single {
+    font-size: 12px;
+    padding-inline: 4px;
+  }
+  .asa-ai-layout .chat-composer-end .chat-scope {
+    max-width: 92px;
+  }
+  .asa-ai-layout .chat-tools-popup {
+    bottom: calc(100% + 8px);
+  }
+}
+
+/* Preserve established theme behavior when dark mode is explicitly active. */
+.portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *) {
+  --ai-surface: #1d1d1f;
+  --ai-sidebar-bg: #161618;
+  --ai-bg: #303033;
+  --ai-text: #f5f5f5;
+  --ai-muted: #b2b2b5;
+  --ai-border: #3a3a3d;
+  --ai-accent: #f5f5f5;
+  --ai-on-accent: #1d1d1f;
+  color-scheme: dark;
+}
+.portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
+  .asa-ai-thread-row:has(.active) {
+  background: #323235;
+}
+.portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
+  .chat-send-button {
+  background: #f5f5f5;
+  color: #1d1d1f;
+}
