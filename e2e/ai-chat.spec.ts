@@ -1080,6 +1080,13 @@ test('AI Escape closes mobile history and clears a search typed after the drawer
   const id = randomUUID();
   fake.threads.push({ id, title: 'Схема проекта', updatedAt: NOW });
   fake.messages.set(id, []);
+  // The common UI fixture does not filter search requests on the server.
+  // Model the genuine search endpoint here; clearing q must fall through to
+  // the original fixture and restore the regular conversation list.
+  await page.route(/\/api\/ai\/threads\?/, (route) => {
+    if (!new URL(route.request().url()).searchParams.get('q')) return route.fallback();
+    return route.fulfill({ json: { items: [], nextCursor: null } });
+  });
   await page.goto('/#/ai');
   const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
   const dialog = page.getByRole('dialog', { name: 'История диалогов' });
