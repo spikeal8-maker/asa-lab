@@ -20,7 +20,14 @@ already present; produce actual failing BEFORE before repairing that path.
 Allowed production: arduino-program-runtime.ts, arduino-circuit-scheduler.ts and
 solver.ts in contexts/electronics/domain, narrowly necessary existing preparation/
 observation type owner; ArduinoSerialMonitor.tsx only for a demonstrated display
-defect. One small ADC observation helper allowed if essential new feature logic,
+defect. A narrow UI-only generation tag in existing
+live-simulation-worker-controller.ts and its existing targeted tests is allowed
+to distinguish identical sequence0/time/text after actual Reset/source changes.
+Keep engine/Worker projection protocol unchanged; optional UI structural metadata
+must not change electrical payload or persisted state. Clear then Reset must show
+fresh output even if React batches away an intermediate empty stream. Preserve
+clear on an unchanged stopped stream, board isolation and close/reopen.
+One small ADC observation helper allowed if essential new feature logic,
 not file redistribution. Supporting runtime/scheduler/Worker/monitor tests and
 one actual native Worker-to-monitor fixture. No general parser/solver/Serial
 refactoring, physics equations, dependencies/workflows/assets/schema changes.
