@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: toolbar_single_row_done_select_analog_serial_and_floating_adc
+      checkpoint: analog_serial_done_select_urgent_seven_segment_with_independent_ui
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12149,8 +12149,9 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
-      current_slice: TASK-ELECTRONICS-ANALOG-SERIAL-001
+      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-REPAIR-001
       parallel_slice: TASK-ELECTRONICS-BLOCK-PRESENTATION-001
+      next_requested_work: Owner urgently reports Servo not rotating; planned bounded causal task765 follows selected raw display764. IndependentUI763 continues its exact final gate without source overlap. Heavy local gates and timing probes must be serialized to avoid resource-contention false timeouts. No paused682 candidate reuse, server or refactoring.
       parallel_coordination: Latest owner screenshot explicitly requests palette arrow removal plus compact RGB and readable fonts. Read-only cause proof complete. Select independent UI763 concurrently with analog762, separate worktrees and disjoint production files; preserve both bounded scopes, final convergence and exact budget proof. No refactoring or server changes.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -12590,16 +12591,20 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_connected_serial_causal_proof_and_declared_floating_adc
+      checkpoint: source_ui_worker_verified_main_analog_and_monitor_reset
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ANALOG-SERIAL-001.md
       owner_authorization: Owner explicitly requests analog A0-A5 potentiometer divider diode button-ladder measurements in real Serial Monitor and varying unconnected-input readings, after toolbar which is now integrated. Deterministic educational ADC interference observation allowed, never fabricated solved voltage or current. No refactoring server foreign changes.
+      source_integrated_sha: 28ee24c0f43547cd28edd36ccf799ee52b7ef2b7
+      source_ui_worker_completed_at: '2026-10-25T20:38:37Z'
+      source_ui_worker_review: NEW independent PASS exact28ee24c0;123focused tests and native1440/390 actualWorker client controller realmonitor51responses each, connected circuits noise parity Reset source Clear RX and board isolation. ADC transient Symbol metadata leaves numeric electrical results untouched; accepted MCU fingerprints identify fresh identical Serial streams. Full installed SaveCAS owner acceptance separate.
+      focused_evidence: Freshgateactualexit0 1042core plus993web2035tests,70freshNxexecutions literalcacheSkiptrue, type/build lint formatPASS. BundleSchematic221984of222000 andArduino1999213of2000000. No engine Workerprotocol stateversion solverphysics dependency or asset changes. Model is declared educational disconnectedADCinterference, not predicted ambientnoise.
       scope_overlap_check: All worktrees show zero dirty solver runtime scheduler and SerialMonitor paths before selection; no actual overlap. Preserve foreign workflows and paused682 candidates, existing digital18 loops1 diagnostic5 functionality.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -12658,6 +12663,47 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-25T20:25:41Z'
       observation_note: Fresh fetch main required before edits and integration. Actual native RGB231x296 external six rows, CSSArial50016px matching measured width and active shadow, explicit overlay arrows proven. No invented font-size mismatch or full installed acceptance. Parallel analog paths remain disjoint.
+
+  - id: electronics-owner23-seven-segment
+    parent_lane: electronics
+    worktree_id: electronics-owner23-seven-segment
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-REPAIR-001.md
+    task:
+      id: TASK-ELECTRONICS-SEVEN-SEGMENT-REPAIR-001
+      issue: 764
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_raw_display_causal_worker_timeout_reproduction
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_reviewer
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-REPAIR-001.md
+      owner_authorization: Explicit urgent owner report raw seven-segment display and actual timeout screenshot. Reproduce exact tight multipleHIGHblock path and actual component model before minimal repair; Servo765 separate next. No refactoring server foreign edits or old682 experimental reuse.
+      scope_overlap_check: Analog762 is committed and independentUI763 owns onlyCodePanel blockdefinitions blocktheme CSS. Display task must not touch these four paths; no actual dirty core overlap allowed. Recheck concrete cause paths before production writes.
+      local_runner_coordination: UI763 owns heavy local gate until completion. Display author may inspect and prepare tests, but actual CPU timing Worker probes and full gates wait root signal to avoid concurrent-load misdiagnosis. Preserve all original timeouts and accuracy.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 28ee24c0f43547cd28edd36ccf799ee52b7ef2b7
+      convergence_baseline_sha: 28ee24c0f43547cd28edd36ccf799ee52b7ef2b7
+      head_sha: null
+      observed_at: '2026-10-25T20:38:37Z'
+      observation_note: Fresh fetch main required before edits and integration. Existing rawdisplay eightbranch model and renderer verified in source inventory, screenshot shows30sWorker timeout but exact endpoints unknown. No cause claimed until actual isolated reproduction. Source UIproof not installed release owner acceptance.
 
 integration:
   owner_lane: visual-programming
