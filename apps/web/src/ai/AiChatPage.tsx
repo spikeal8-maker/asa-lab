@@ -106,6 +106,7 @@ export function AiChatPage({
   const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
+  const [composerExpanded, setComposerExpanded] = useState(false);
   const [attachments, setAttachments] = useState<readonly AiChatFileDraft[]>([]);
   const [historyAttachments, setHistoryAttachments] = useState<
     Record<string, readonly AiHistoryAttachment[]>
@@ -372,9 +373,19 @@ export function AiChatPage({
   useLayoutEffect(() => {
     const node = composer.current;
     if (!node) return;
-    node.style.height = 'auto';
-    node.style.height = `${Math.min(node.scrollHeight, 160)}px`;
-  }, [draft]);
+    const measure = (): void => {
+      node.style.height = 'auto';
+      const naturalHeight = node.scrollHeight;
+      node.style.height = `${Math.min(naturalHeight, 160)}px`;
+      setComposerExpanded((previous) => {
+        if (attachments.length > 0 || draft.includes('\n') || naturalHeight > 44) return true;
+        return draft.length <= 12 ? false : previous;
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [draft, attachments.length]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1120px)');
@@ -1394,7 +1405,7 @@ export function AiChatPage({
           <div className="chat-composer-dock">
             <div className="chat-composer-wrap">
               <form
-                className="chat-composer"
+                className={composerExpanded ? 'chat-composer expanded' : 'chat-composer compact'}
                 onSubmit={(event) => void send(event)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
