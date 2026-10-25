@@ -395,7 +395,7 @@ export function AiChatPage({
         // A new overflow menu must not steal the initial keyboard focus
         // from the primary close action in the modal history drawer.
         panel
-          .querySelector<HTMLButtonElement>('.chat-sidebar-head-actions .chat-icon-button')
+          .querySelector<HTMLButtonElement>('.chat-sidebar-head-actions .chat-sidebar-close')
           ?.focus();
       }
     }
@@ -1142,7 +1142,7 @@ export function AiChatPage({
                 <AiChatIcon name="search" size={20} />
               </button>
               <button
-                className="chat-icon-button"
+                className="chat-icon-button chat-sidebar-close"
                 type="button"
                 onClick={closeHistory}
                 aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
@@ -1717,11 +1717,11 @@ export function AiChatPage({
                         type="button"
                         disabled={interactionBusy || archived}
                         onClick={() => {
-                          toolsMenu.current?.removeAttribute('open');
                           if (fileInput.current) {
                             fileInput.current.accept = 'image/png,image/jpeg,image/webp';
                             fileInput.current.click();
                           }
+                          toolsMenu.current?.removeAttribute('open');
                         }}
                       >
                         <AiChatIcon name="image" size={20} /> Добавить изображение
@@ -1730,11 +1730,11 @@ export function AiChatPage({
                         type="button"
                         disabled={interactionBusy || archived}
                         onClick={() => {
-                          toolsMenu.current?.removeAttribute('open');
                           if (fileInput.current) {
                             fileInput.current.accept = AI_CHAT_FILE_ACCEPT;
                             fileInput.current.click();
                           }
+                          toolsMenu.current?.removeAttribute('open');
                         }}
                       >
                         <AiChatIcon name="file" size={20} /> Фото и файлы
