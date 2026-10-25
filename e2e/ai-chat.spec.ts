@@ -1072,6 +1072,33 @@ for (const width of [320, 600, 1440]) {
   }
 }
 
+test('AI Escape closes mobile history and clears a search typed after the drawer opened', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 750 });
+  const fake = await fixture(page);
+  const id = randomUUID();
+  fake.threads.push({ id, title: 'Схема проекта', updatedAt: NOW });
+  fake.messages.set(id, []);
+  await page.goto('/#/ai');
+  const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+  const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+  await toggle.click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Поиск по чатам' }).click();
+  await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('Нет такого текста');
+  await expect(dialog.getByText('Ничего не найдено в истории')).toBeVisible();
+  // The Escape is handled by the modal after focus leaves the search panel.
+  // Its listener must clear the hook's live query, not a stale render value.
+  await dialog.getByRole('button', { name: 'Новый чат' }).focus();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await toggle.click();
+  await expect(dialog.getByRole('searchbox', { name: 'Найти диалог' })).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Схема проекта', exact: true })).toBeVisible();
+  expect(fake.requests).toHaveLength(0);
+});
+
 test('AI composer sends with Enter, adds a line with Shift+Enter and respects IME', async ({
   page,
 }) => {
