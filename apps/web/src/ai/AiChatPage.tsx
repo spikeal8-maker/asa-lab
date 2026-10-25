@@ -166,6 +166,7 @@ export function AiChatPage({
     Record<string, readonly AiHistoryAttachment[]>
   >({});
   const searchInput = useRef<HTMLInputElement>(null);
+  const searchTrigger = useRef<HTMLButtonElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const toolsMenu = useRef<HTMLDetailsElement>(null);
   const previewUrls = useRef(new Set<string>());
@@ -247,9 +248,10 @@ export function AiChatPage({
     }
   }, [chatTheme]);
 
-  function closeSearch(): void {
+  function closeSearch(restoreFocus = false): void {
     setSearchOpen(false);
     if (search) setSearch('');
+    if (restoreFocus) requestAnimationFrame(() => searchTrigger.current?.focus());
   }
 
   useEffect(() => {
@@ -1130,6 +1132,7 @@ export function AiChatPage({
               <button
                 type="button"
                 className="chat-icon-button chat-search-trigger"
+                ref={searchTrigger}
                 aria-label="Поиск по чатам"
                 title="Поиск по чатам и сообщениям"
                 aria-expanded={searchOpen}
@@ -1185,7 +1188,7 @@ export function AiChatPage({
                     if (event.key === 'Escape') {
                       event.preventDefault();
                       event.stopPropagation();
-                      closeSearch();
+                      closeSearch(true);
                     }
                   }}
                   placeholder="Название или текст сообщения"
