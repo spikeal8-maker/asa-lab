@@ -1596,6 +1596,45 @@ test('AI compact composer preserves readable input and actions at 320px', async 
   expect(bounds.sendRight).toBeLessThanOrEqual(bounds.formRight + 1);
 });
 
+test('AI tools popup remains within short desktop and mobile canvases', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 480 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  const tools = page.locator('details.chat-tools-menu');
+  await tools.locator('summary').click();
+  await expect(tools).toHaveAttribute('open', '');
+
+  const assertBounds = async () => {
+    const bounds = await page.evaluate(() => {
+      const canvas = document.querySelector('.asa-ai-chat')!.getBoundingClientRect();
+      const popup = document.querySelector('.chat-tools-popup')!.getBoundingClientRect();
+      const first = document.querySelector('.chat-tools-popup button')!.getBoundingClientRect();
+      const viewportBottom = window.visualViewport
+        ? window.visualViewport.offsetTop + window.visualViewport.height
+        : window.innerHeight;
+      return {
+        top: popup.top,
+        bottom: popup.bottom,
+        firstTop: first.top,
+        canvasTop: canvas.top,
+        bottomLimit: Math.min(canvas.bottom, viewportBottom),
+        scrollable: (document.querySelector('.chat-tools-popup') as HTMLElement).scrollHeight >
+          (document.querySelector('.chat-tools-popup') as HTMLElement).clientHeight,
+      };
+    });
+    expect(bounds.top).toBeGreaterThanOrEqual(bounds.canvasTop - 1);
+    expect(bounds.bottom).toBeLessThanOrEqual(bounds.bottomLimit + 1);
+    expect(bounds.firstTop).toBeGreaterThanOrEqual(bounds.top - 1);
+    await expect(tools.getByRole('button', { name: 'Добавить изображение' })).toBeVisible();
+    await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
+  };
+
+  await assertBounds();
+  await page.setViewportSize({ width: 390, height: 480 });
+  await expect.poll(() => tools.getAttribute('data-menu-placement')).not.toBeNull();
+  await assertBounds();
+});
+
 test('AI shows no internal provider setup notice on the empty consumer screen', async ({
   page,
 }) => {
