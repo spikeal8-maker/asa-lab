@@ -12483,7 +12483,7 @@ parallel_lanes:
       convergence_baseline_sha: ae26448f236f9ec6508863ce6c6809d54a205263
       head_sha: null
       observed_at: '2026-10-25T19:14:56Z'
-      observation_note: Fresh remote source snapshot; actual General40224159510 failed, not PASS. Source UI5 and11 independently verified; no repository release installed or owner acceptance implied. New loop repair does not resume old timing682 experiments.
+      observation_note: Fresh fetch main is required before edits and integration. Actual General40224159510 failed, not PASS. Source UI5 and11 independently verified; no repository release installed or owner acceptance implied. New loop repair does not resume old timing682 experiments.
 
 integration:
   owner_lane: visual-programming
