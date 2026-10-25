@@ -1567,6 +1567,35 @@ test('AI composer keeps one centered input and shows only real attachment tools'
   await expect(page.getByLabel('Выбранные вложения')).toHaveCount(0);
 });
 
+test('AI compact composer preserves readable input and actions at 320px', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 680 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  const form = page.locator('form.chat-composer');
+  await expect(form).toHaveClass(/compact/);
+  await expectChatFits(page);
+  const bounds = await form.evaluate((node) => {
+    const formBox = node.getBoundingClientRect();
+    const input = node.querySelector('textarea')!.getBoundingClientRect();
+    const tools = node.querySelector('.chat-attach-button')!.getBoundingClientRect();
+    const send = node.querySelector('.chat-send-button')!.getBoundingClientRect();
+    return {
+      inputWidth: input.width,
+      inputLeft: input.left,
+      inputRight: input.right,
+      toolsLeft: tools.left,
+      sendRight: send.right,
+      formLeft: formBox.left,
+      formRight: formBox.right,
+    };
+  });
+  expect(bounds.inputWidth).toBeGreaterThan(130);
+  expect(bounds.inputLeft).toBeGreaterThanOrEqual(bounds.formLeft - 1);
+  expect(bounds.inputRight).toBeLessThanOrEqual(bounds.formRight + 1);
+  expect(bounds.toolsLeft).toBeGreaterThanOrEqual(bounds.formLeft - 1);
+  expect(bounds.sendRight).toBeLessThanOrEqual(bounds.formRight + 1);
+});
+
 test('AI shows no internal provider setup notice on the empty consumer screen', async ({
   page,
 }) => {
