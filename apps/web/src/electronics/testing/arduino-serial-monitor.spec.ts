@@ -109,3 +109,36 @@ describe('Arduino real Serial Monitor', () => {
     expect(host!.textContent).toContain('Ожидает Serial.begin');
   });
 });
+
+it('shows new TX after Clear then stopped/reset runtime and Run', () => {
+  renderMonitor();
+  act(() =>
+    Array.from(host!.querySelectorAll('button'))
+      .find((button) => button.textContent === 'Очист.')!
+      .click(),
+  );
+  renderMonitor({ running: false, serial: undefined });
+  renderMonitor({ serial: projection('a', ['512\n']) });
+  expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('512\n');
+});
+
+it.each([1, 2])(
+  'distinguishes identical reset/source generations after clearing %i TX entries',
+  (count) => {
+    const tx = projection('a', Array(count).fill('512\n'));
+    renderMonitor({ serial: { ...tx, streamGeneration: 'project:1' } });
+    act(() =>
+      Array.from(host!.querySelectorAll('button'))
+        .find((b) => b.textContent === 'Очист.')!
+        .click(),
+    );
+    renderMonitor({ running: false, serial: { ...tx, streamGeneration: 'project:1' } });
+    expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('');
+    renderMonitor({ open: false, serial: { ...tx, streamGeneration: 'project:1' } });
+    renderMonitor({ open: true, serial: { ...tx, streamGeneration: 'project:1' } });
+    expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('');
+    // Reset/source replay has exactly the same sequence, time and text; no empty render.
+    renderMonitor({ serial: { ...tx, streamGeneration: 'project:2' } });
+    expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('512\n'.repeat(count));
+  },
+);

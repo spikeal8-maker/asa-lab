@@ -6,8 +6,11 @@ import {
   type ArduinoRuntimeEvent,
   type ArduinoRuntimeState,
   type ArduinoToneState,
+  type ArduinoTerminalVoltages,
+  type ArduinoPinMode,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
+import { observeArduinoInputs } from './arduino-adc-observation.js';
 import {
   ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT,
   enqueueArduinoSerialRx,
@@ -1196,6 +1199,20 @@ export function advanceArduinoCircuitClock(
   };
   const operatingPointReuse =
     ownedPreparation?.operatingPoint ?? createArduinoOperatingPointReuse();
+  const adcInputs = (
+    boardId: string,
+    time: number,
+    voltages: ArduinoTerminalVoltages,
+    ownModes?: ReadonlyMap<string, ArduinoPinMode>,
+  ) =>
+    observeArduinoInputs(
+      voltages,
+      activeDocument,
+      preparation()(activeDocument)!.terminalNodes,
+      boardId,
+      time,
+      (id, pin) => (id === boardId && ownModes ? ownModes.get(pin) : states.get(id)?.pinModes[pin]),
+    );
   const advancePhysics = (time: number) =>
     withQuality(
       solveRcCircuitWithHeldArduino(
@@ -1483,12 +1500,15 @@ export function advanceArduinoCircuitClock(
             {},
             Math.min(targetMicroseconds, electricalBarrier - 1) / 1000,
             currentRuntime,
-            ({ simulationTimeMs }) => {
+            ({ simulationTimeMs, pinModes }) => {
               const at = Math.round(simulationTimeMs * 1000);
               if (!commitPhysics(at)) readFailed = true;
-              return (
+              return adcInputs(
+                onlyBoard.id,
+                at,
                 sample(at).components.find((c) => c.componentId === onlyBoard.id)
-                  ?.terminalVoltages ?? {}
+                  ?.terminalVoltages ?? {},
+                pinModes,
               );
             },
             { instructionBudget: budget - clockEvents, stopAtElectricalBoundary: true },
@@ -1658,11 +1678,15 @@ export function advanceArduinoCircuitClock(
               {},
             time / 1000,
             state,
-            lazyPhysicsObservation
-              ? () =>
-                  observe().components.find((entry) => entry.componentId === board.id)
-                    ?.terminalVoltages ?? {}
-              : undefined,
+            ({ pinModes }) =>
+              adcInputs(
+                board.id,
+                time,
+                (lazyPhysicsObservation ? observe() : frame)?.components.find(
+                  (entry) => entry.componentId === board.id,
+                )?.terminalVoltages ?? {},
+                pinModes,
+              ),
             { instructionBudget: 1, pulseInputSample },
           );
       // A failed lazy read precedes any interpreter failure and discards all of

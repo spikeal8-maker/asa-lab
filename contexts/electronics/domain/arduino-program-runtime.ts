@@ -1,3 +1,8 @@
+import {
+  ADC_OBSERVATION,
+  unconnectedAdcReading,
+  type ObservedArduinoInputs,
+} from './arduino-adc-observation.js';
 import type { Terminal } from './document.js';
 import {
   advanceArduinoPulseWait,
@@ -836,6 +841,8 @@ function referenceVoltage(inputs: ArduinoTerminalVoltages): number {
 }
 
 export function arduinoAnalogReading(inputs: ArduinoTerminalVoltages, terminal: Terminal): number {
+  const context = (inputs as ObservedArduinoInputs)[ADC_OBSERVATION];
+  if (context?.unconnected.has(terminal)) return unconnectedAdcReading(context, terminal);
   const voltage = Number(inputs[terminal]) - groundVoltage(inputs);
   return Math.round(
     (clamp(voltage, 0, referenceVoltage(inputs)) / referenceVoltage(inputs)) * 1023,

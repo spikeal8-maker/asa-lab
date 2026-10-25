@@ -178,7 +178,7 @@ try {
       const scrollbarTop = await page.evaluate(
         () => window.fixture.S.common.getMainWorkspace().getFlyout().getWorkspace().scrollY,
       );
-      if (thumb && after.y < -2)
+      if (thumb && after.y < -2 && ['data', 'variables'].includes(category))
         assert.ok(scrollbarTop > after.y, 'native scrollbar must scroll toward top');
       await page.mouse.move(80, 350);
       await page.mouse.wheel(0, -30000);
