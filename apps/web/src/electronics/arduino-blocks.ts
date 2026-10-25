@@ -281,15 +281,16 @@ export function registerArduinoBlocks(): void {
     },
     {
       type: 'asa_rgb_write',
-      message0: 'назначить светодиодам RGB',
-      message1: 'на выводах %1 %2 %3',
-      args1: [
+      inputsInline: true,
+      message0: 'RGB: выводы R %1 G %2 B %3 %4',
+      args0: [
         { type: 'field_dropdown', name: 'R_PIN', options: PWM_PINS },
         { type: 'field_dropdown', name: 'G_PIN', options: PWM_PINS },
         { type: 'field_dropdown', name: 'B_PIN', options: PWM_PINS },
+        { type: 'input_end_row' },
       ],
-      message2: 'значения R %1 G %2 B %3',
-      args2: [
+      message1: 'яркость R %1 G %2 B %3',
+      args1: [
         { type: 'input_value', name: 'R', check: 'Number' },
         { type: 'input_value', name: 'G', check: 'Number' },
         { type: 'input_value', name: 'B', check: 'Number' },

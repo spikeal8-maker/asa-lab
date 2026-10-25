@@ -2,7 +2,6 @@ import { activeArduinoGraph } from './arduino-pin-inputs';
 import {
   ARDUINO_SCRATCH_THEME,
   ARDUINO_WORKSPACE_PLUGINS,
-  scrollArduinoPalette,
   configureArduinoPaletteScroll,
   configureArduinoConnections,
 } from './arduino-block-ui';
@@ -775,26 +774,6 @@ export function ScratchWorkspace({
   return (
     <>
       <div className="arduino-scratch-host" ref={hostRef} data-testid="arduino-block-workspace" />
-      <div className="arduino-palette-scroll" role="group" aria-label="Прокрутка палитры блоков">
-        <button
-          type="button"
-          aria-label="Прокрутить палитру вверх"
-          onClick={() => {
-            if (workspaceRef.current) scrollArduinoPalette(workspaceRef.current, -1);
-          }}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          aria-label="Прокрутить палитру вниз"
-          onClick={() => {
-            if (workspaceRef.current) scrollArduinoPalette(workspaceRef.current, 1);
-          }}
-        >
-          ↓
-        </button>
-      </div>
       {blockContextMenu
         ? createPortal(
             <div
