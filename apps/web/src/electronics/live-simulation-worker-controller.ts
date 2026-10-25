@@ -248,6 +248,8 @@ export class ElectronicsLiveSimulationWorkerController {
   private horizonOffsetMicroseconds = 0;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private firstPositiveObservation = false;
+  private demandEpoch: object | null = null;
+  private refreshPermit: object | null = null;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
 
@@ -300,6 +302,7 @@ export class ElectronicsLiveSimulationWorkerController {
     ) {
       return;
     }
+    this.refreshPermit = this.demandEpoch = {};
     this.latestTarget = {
       requestedHorizonMicroseconds: Math.max(
         requestedHorizonMicroseconds,
@@ -386,6 +389,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastInputEventAtMicroseconds = -1;
     this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
     this.firstPositiveObservation = false;
+    this.demandEpoch = this.refreshPermit = null;
     this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
@@ -414,6 +418,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastInputEventAtMicroseconds = -1;
     this.horizonOffsetMicroseconds = 0;
     this.firstPositiveObservation = false;
+    this.demandEpoch = this.refreshPermit = null;
     this.inFlight = false;
     this.inFlightKind = null;
   }
@@ -458,15 +463,20 @@ export class ElectronicsLiveSimulationWorkerController {
     }
   }
 
-  private pump(): void {
+  private pump(snapshot?: SimulationTarget, completedEpoch?: object | null): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
     let pendingTarget =
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
     if (generationId === null || !document || this.inFlight || !pendingTarget) return;
-    if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
+    if (
+      pendingTarget !== snapshot &&
+      pendingTarget === this.latestTarget &&
+      this.callbacks?.readHostHorizonMicroseconds
+    ) {
       // A native RAF may acknowledge new progress between the last host tick
       // and this serial dispatch. Refresh the same bounded demand at its use.
+      const sampledEpoch = this.demandEpoch;
       const hostHorizon = this.callbacks.readHostHorizonMicroseconds();
       if (
         generationId !== this.generationId ||
@@ -485,6 +495,12 @@ export class ElectronicsLiveSimulationWorkerController {
         ),
       };
       this.latestTarget = pendingTarget;
+      if (
+        completedEpoch === sampledEpoch &&
+        completedEpoch === this.demandEpoch &&
+        completedEpoch === this.refreshPermit
+      )
+        this.refreshPermit = null;
     }
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     const isStartup = pendingTarget === this.startupTarget;
@@ -524,6 +540,12 @@ export class ElectronicsLiveSimulationWorkerController {
       // Keep the full host demand until ready responses actually satisfy it.
     }
     const inputEvents = isStartup ? [] : this.pendingInputEvents;
+    const ordinary =
+      pendingTarget === this.latestTarget &&
+      pendingTarget !== snapshot &&
+      target.requestedHorizonMicroseconds > 0 &&
+      !this.firstPositiveObservation &&
+      inputEvents.length === 0;
     if (!isStartup) this.pendingInputEvents = [];
     this.inFlight = true;
     this.inFlightKind = 'advance';
@@ -536,7 +558,7 @@ export class ElectronicsLiveSimulationWorkerController {
         target.requestedHorizonMicroseconds,
         inputEvents,
       )
-      .then((advance) => this.completeAdvance(generationId, target, advance))
+      .then((advance) => this.completeAdvance(generationId, target, advance, ordinary))
       .catch((error) => this.fail(generationId, error));
   }
 
@@ -556,8 +578,12 @@ export class ElectronicsLiveSimulationWorkerController {
     generationId: number,
     target: SimulationTarget,
     advance: SimulationTimedAdvancePayload,
+    ordinary: boolean,
   ): void {
     if (generationId !== this.generationId) return;
+    // Bind before public callbacks: an old completion cannot spend a new update's permit.
+    const epoch = ordinary ? this.demandEpoch : null;
+    const completedDocument = this.dispatchedDocument;
     this.inFlight = false;
     this.inFlightKind = null;
     if (advance.executionStatus === 'fault') {
@@ -620,7 +646,6 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     if (advance.committedHorizonMicroseconds > 0) this.firstPositiveObservation = false;
     const isStartup = target === this.startupTarget;
-    const completedDocument = this.dispatchedDocument;
     if (isStartup) {
       this.firstPositiveObservation = this.callbacks?.readHostHorizonMicroseconds !== undefined;
       this.startupTarget = null;
@@ -672,7 +697,36 @@ export class ElectronicsLiveSimulationWorkerController {
           pull();
         });
     }
-    this.pump();
+    if (
+      epoch !== null &&
+      epoch === this.refreshPermit &&
+      epoch === this.demandEpoch &&
+      generationId === this.generationId &&
+      completedDocument === this.canonicalDocument &&
+      !this.inFlight &&
+      !this.startupTarget &&
+      !this.inputTarget &&
+      !this.continuationTarget &&
+      !this.latestTarget &&
+      this.pendingInputEvents.length === 0
+    ) {
+      this.refreshPermit = null;
+      const host = this.callbacks?.readHostHorizonMicroseconds?.();
+      if (
+        generationId === this.generationId &&
+        completedDocument === this.canonicalDocument &&
+        epoch === this.demandEpoch &&
+        !this.inFlight &&
+        typeof host === 'number' &&
+        Number.isSafeInteger(host) &&
+        host - this.horizonOffsetMicroseconds > advance.committedHorizonMicroseconds
+      ) {
+        this.latestTarget = { requestedHorizonMicroseconds: host - this.horizonOffsetMicroseconds };
+        this.pump(this.latestTarget);
+        return;
+      }
+    }
+    this.pump(undefined, epoch);
   }
 
   private fail(generationId: number, reason: unknown): void {

@@ -2530,3 +2530,675 @@ describe('Ready cadence preserves the production canonical engine', () => {
     },
   );
 });
+
+// Private proposed scheduling criterion: these tests do not attribute native CI lag.
+describe('private exhausted ordinary demand probe', () => {
+  async function ordinaryFixture(
+    afterOrdinary: (fixture: {
+      controller: ElectronicsLiveSimulationWorkerController;
+      setElapsed: (value: number | null) => void;
+      acknowledge: (value: number) => void;
+    }) => void,
+  ) {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let elapsed: number | null = 0;
+    let acknowledged = 0;
+    let delivered = 0;
+    const failures = vi.fn();
+    const readHost = vi.fn(() =>
+      elapsed === null ? null : Math.min(elapsed, acknowledged + 50_000),
+    );
+    const fixture = {
+      controller,
+      setElapsed: (value: number | null) => {
+        elapsed = value;
+      },
+      acknowledge: (value: number) => {
+        expect(value).toBeGreaterThanOrEqual(acknowledged);
+        expect(value).toBeLessThanOrEqual(delivered);
+        acknowledged = value;
+      },
+    };
+    controller.start('private-exhausted-demand', serialCircuit, {
+      readHostHorizonMicroseconds: readHost,
+      onCommittedHorizon: (value) => {
+        delivered = value;
+      },
+      onResult: () => {
+        if (delivered === 2_000) afterOrdinary(fixture);
+      },
+      onFailure: failures,
+    });
+    await completeCanonicalStart(executor, 1);
+    await flush();
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([0]);
+    // Finish the first positive release and all startup microtasks before probing
+    // an ordinary saved target. H0 alone could exercise the special startup pull.
+    fixture.setElapsed(1_000);
+    controller.update(serialCircuit, 1_000);
+    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(1_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 1_000, 1_000));
+    await flush();
+    await flush();
+    const settledReads = readHost.mock.calls.length;
+    await flush();
+    expect(readHost).toHaveBeenCalledTimes(settledReads);
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([0, 1_000]);
+    fixture.acknowledge(1_000);
+    fixture.setElapsed(2_000);
+    controller.update(serialCircuit, 2_000);
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]).toMatchObject({
+      generationId: 1,
+      requestedHorizonMicroseconds: 2_000,
+      inputEvents: [],
+    });
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(1_000);
+    return { ...fixture, executor, readHost, failures };
+  }
+
+  it.each([
+    { elapsed: 3_000, expected: 3_000 },
+    { elapsed: 100_000, expected: 27_000 },
+  ])(
+    'proposed fresh read after ordinary exhaustion, elapsed=$elapsed',
+    async ({ elapsed, expected }) => {
+      const fixture = await ordinaryFixture(({ setElapsed, acknowledge }) => {
+        acknowledge(2_000);
+        setElapsed(elapsed);
+      });
+      try {
+        const readsBefore = fixture.readHost.mock.calls.length;
+        fixture.executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+        await flush();
+        await flush();
+        // Expected is declared independently: min(elapsed, ACK+50000), then
+        // the existing 25000us complete-observation slice from committed 2000.
+        expect.soft(fixture.readHost.mock.calls.length - readsBefore).toBe(1);
+        expect.soft(fixture.executor.advances).toHaveLength(4);
+        expect.soft(fixture.executor.advances[3]?.requestedHorizonMicroseconds).toBe(expected);
+        expect(fixture.failures).not.toHaveBeenCalled();
+      } finally {
+        fixture.controller.dispose();
+      }
+    },
+  );
+
+  it.each([2_000, null, NaN, -1, 0.5])(
+    'does not invent demand or busy-loop for unchanged/null/invalid host %s',
+    async (host) => {
+      const fixture = await ordinaryFixture(({ setElapsed }) => setElapsed(host));
+      try {
+        fixture.executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+        await flush();
+        const settledReads = fixture.readHost.mock.calls.length;
+        for (let index = 0; index < 8; index += 1) await flush();
+        expect(fixture.executor.advances).toHaveLength(3);
+        expect(fixture.readHost).toHaveBeenCalledTimes(settledReads);
+        expect(fixture.failures).not.toHaveBeenCalled();
+      } finally {
+        fixture.controller.dispose();
+      }
+    },
+  );
+
+  it('keeps one in-flight request and no work when legal held-ACK demand equals committed', async () => {
+    const fixture = await ordinaryFixture(() => undefined);
+    try {
+      fixture.setElapsed(80_000);
+      // ACK remains 1000, so the legal cap is 51000: finite catch-up is allowed.
+      // This positive update is a control, not the no-external-update regression.
+      fixture.controller.update(serialCircuit, 51_000);
+      expect(fixture.executor.advances).toHaveLength(3);
+      fixture.executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+      await flush();
+      expect(fixture.executor.advances[3]!.requestedHorizonMicroseconds).toBe(27_000);
+      fixture.executor.advances[3]!.deferred.resolve(timedAdvance('ready', 27_000, 27_000));
+      await flush();
+      expect(fixture.executor.advances[4]!.requestedHorizonMicroseconds).toBe(51_000);
+      fixture.executor.advances[4]!.deferred.resolve(timedAdvance('ready', 51_000, 51_000));
+      await flush();
+      // H=min(80000,1000+50000)=51000, exactly committed: held ACK now
+      // implies no work; greater wall elapsed does not increase its legal cap.
+      fixture.setElapsed(1_000_000);
+      const count = fixture.executor.advances.length;
+      const reads = fixture.readHost.mock.calls.length;
+      for (let index = 0; index < 8; index += 1) await flush();
+      expect(fixture.executor.advances).toHaveLength(count);
+      expect(fixture.readHost).toHaveBeenCalledTimes(reads);
+    } finally {
+      fixture.controller.dispose();
+    }
+  });
+
+  it.each(['Stop', 'Reset'] as const)(
+    'does not dispatch stale demand after callback %s',
+    async (action) => {
+      const fixture = await ordinaryFixture(({ controller, setElapsed }) => {
+        setElapsed(0);
+        if (action === 'Stop') controller.stop();
+        else controller.restart(serialCircuit);
+      });
+      try {
+        fixture.executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+        for (let index = 0; index < 8; index += 1) await flush();
+        expect(fixture.executor.advances).toHaveLength(3);
+        if (action === 'Reset') {
+          expect(fixture.executor.preflights).toHaveLength(2);
+          await completeCanonicalStart(fixture.executor, 2);
+          expect(fixture.executor.advances.at(-1)).toMatchObject({
+            generationId: 2,
+            requestedHorizonMicroseconds: 0,
+          });
+        }
+        expect(fixture.failures).not.toHaveBeenCalled();
+      } finally {
+        fixture.controller.dispose();
+      }
+    },
+  );
+
+  it('preserves callback button/Serial priority and serial one-in-flight ordering', async () => {
+    const pressed: SchematicDocument = {
+      ...serialCircuit,
+      components: serialCircuit.components.map((component) =>
+        component.id === 'button' ? { ...component, state: true } : component,
+      ),
+    };
+    const fixture = await ordinaryFixture(({ controller }) => {
+      controller.update(pressed, 2_000);
+      controller.sendSerialRx('uno', 'A', 2_000);
+    });
+    try {
+      fixture.executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+      await flush();
+      expect(fixture.executor.advances).toHaveLength(4);
+      expect(fixture.executor.advances[3]!.inputEvents).toEqual([
+        { atMicroseconds: 2_001, targetId: 'button', operation: 'state', payload: true },
+      ]);
+      fixture.executor.advances[3]!.deferred.resolve(timedAdvance('ready', 2_001, 2_001));
+      await flush();
+      expect(fixture.executor.advances).toHaveLength(5);
+      expect(fixture.executor.advances[4]!.inputEvents).toEqual([
+        { atMicroseconds: 2_002, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+      ]);
+      fixture.executor.advances[4]!.deferred.resolve(timedAdvance('ready', 2_002, 2_002));
+      for (let index = 0; index < 8; index += 1) await flush();
+      expect(fixture.executor.advances).toHaveLength(5);
+      expect(fixture.failures).not.toHaveBeenCalled();
+    } finally {
+      fixture.controller.dispose();
+    }
+  });
+  it('finishes a yielded committed checkpoint before the remaining ordinary demand', async () => {
+    const fixture = await ordinaryFixture(() => undefined);
+    try {
+      fixture.executor.advances[2]!.deferred.resolve(timedAdvance('yielded', 2_000, 1_500));
+      await flush();
+      expect(fixture.executor.advances).toHaveLength(4);
+      expect(fixture.executor.advances[3]).toMatchObject({
+        requestedHorizonMicroseconds: 1_500,
+        inputEvents: [],
+      });
+      expect(fixture.executor.advances[3]!.state.continuation?.committedHorizonMicroseconds).toBe(
+        1_500,
+      );
+      fixture.executor.advances[3]!.deferred.resolve(timedAdvance('ready', 1_500, 1_500));
+      await flush();
+      expect(fixture.executor.advances).toHaveLength(5);
+      expect(fixture.executor.advances[4]!.requestedHorizonMicroseconds).toBe(2_000);
+      fixture.executor.advances[4]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+      for (let index = 0; index < 8; index += 1) await flush();
+      expect(fixture.executor.advances).toHaveLength(5);
+      expect(fixture.failures).not.toHaveBeenCalled();
+    } finally {
+      fixture.controller.dispose();
+    }
+  });
+});
+
+// Private feasibility controls; all earlier tests remain byte-exact.
+describe('private external-epoch exhaustion safety', () => {
+  async function settled() {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let host: number | null = 0;
+    let delivered = 0;
+    let afterCommit: (value: number) => void = () => {};
+    let afterResult = () => {};
+    let duringRead = () => {};
+    const failures = vi.fn();
+    const read = vi.fn(() => {
+      const sample = host;
+      duringRead();
+      return sample;
+    });
+    controller.start('epoch-private', serialCircuit, {
+      readHostHorizonMicroseconds: read,
+      onCommittedHorizon: (value) => {
+        delivered = value;
+        afterCommit(value);
+      },
+      onResult: () => afterResult(),
+      onFailure: failures,
+    });
+    await completeCanonicalStart(executor, 1);
+    await flush();
+    host = 1000;
+    controller.update(serialCircuit, 1000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 1000, 1000));
+    await flush();
+    await flush();
+    host = 2000;
+    controller.update(serialCircuit, 2000);
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 2000,
+    ]);
+    return {
+      executor,
+      controller,
+      read,
+      failures,
+      committed: () => delivered,
+      host: (value: number | null) => {
+        host = value;
+      },
+      onCommit: (callback: typeof afterCommit) => {
+        afterCommit = callback;
+      },
+      onResult: (callback: typeof afterResult) => {
+        afterResult = callback;
+      },
+      onRead: (callback: typeof duringRead) => {
+        duringRead = callback;
+      },
+      finish: async (index: number) => {
+        const call = executor.advances[index]!;
+        call.deferred.resolve(
+          timedAdvance(
+            'ready',
+            call.requestedHorizonMicroseconds,
+            call.requestedHorizonMicroseconds,
+          ),
+        );
+        await flush();
+        await flush();
+      },
+    };
+  }
+
+  it.each([null, NaN, -1, 0.5, 2000])(
+    'reaches exactly one refresh read for invalid/unchanged sample %s',
+    async (sample) => {
+      const f = await settled();
+      try {
+        f.host(sample);
+        const reads = f.read.mock.calls.length;
+        await f.finish(2);
+        expect(f.read.mock.calls.length - reads).toBe(1);
+        expect(f.executor.advances).toHaveLength(3);
+        for (let i = 0; i < 12; i++) await flush();
+        expect(f.read.mock.calls.length - reads).toBe(1);
+        expect(f.failures).not.toHaveBeenCalled();
+      } finally {
+        f.controller.dispose();
+      }
+    },
+  );
+
+  it('does not self-chain with a host moving on every read and completion; external update rearms once', async () => {
+    const f = await settled();
+    try {
+      let elapsed = 3000;
+      f.host(elapsed);
+      f.onRead(() => f.host(++elapsed));
+      f.onCommit(() => f.host(++elapsed));
+      const reads = f.read.mock.calls.length;
+      await f.finish(2);
+      expect(f.read.mock.calls.length - reads).toBe(1);
+      expect(f.executor.advances).toHaveLength(4);
+      await f.finish(3);
+      for (let i = 0; i < 12; i++) await flush();
+      expect(f.executor.advances).toHaveLength(4);
+      expect(f.read.mock.calls.length - reads).toBe(1);
+      elapsed = 5000;
+      f.host(elapsed);
+      f.controller.update(serialCircuit, 5000);
+      expect(f.executor.advances).toHaveLength(5);
+      elapsed = 6000;
+      f.host(elapsed);
+      const nextReads = f.read.mock.calls.length;
+      await f.finish(4);
+      expect(f.read.mock.calls.length - nextReads).toBe(1);
+      expect(f.executor.advances).toHaveLength(6);
+      await f.finish(5);
+      expect(f.executor.advances).toHaveLength(6);
+      expect(f.failures).not.toHaveBeenCalled();
+    } finally {
+      f.controller.dispose();
+    }
+  });
+
+  it.each(['onCommit', 'onResult', 'onRead'] as const)(
+    'preserves newer update and its permit during %s reentry',
+    async (boundary) => {
+      const f = await settled();
+      try {
+        f.host(3000);
+        let entered = false;
+        f[boundary](() => {
+          if (entered) return;
+          entered = true;
+          f.host(4000);
+          f.controller.update(serialCircuit, 4000);
+        });
+        await f.finish(2);
+        expect(entered).toBe(true);
+        expect(f.executor.advances).toHaveLength(4);
+        expect(f.executor.advances[3]!.requestedHorizonMicroseconds).toBe(4000);
+        f.host(5000);
+        const reads = f.read.mock.calls.length;
+        await f.finish(3);
+        expect(f.read.mock.calls.length - reads).toBe(1);
+        expect(f.executor.advances).toHaveLength(5);
+        expect(f.executor.advances[4]!.requestedHorizonMicroseconds).toBe(5000);
+        await f.finish(4);
+        expect(f.executor.advances).toHaveLength(5);
+        expect(f.failures).not.toHaveBeenCalled();
+      } finally {
+        f.controller.dispose();
+      }
+    },
+  );
+
+  it.each(['Stop', 'Reset', 'document', 'input'] as const)(
+    'fences refresh sample after host callback %s',
+    async (action) => {
+      const f = await settled();
+      try {
+        f.host(3000);
+        let entered = false;
+        f.onRead(() => {
+          if (entered) return;
+          entered = true;
+          if (action === 'Stop') f.controller.stop();
+          else if (action === 'Reset') f.controller.restart(serialCircuit);
+          else if (action === 'document')
+            f.controller.update({ ...serialCircuit, components: [] }, 3000);
+          else
+            f.controller.update(
+              {
+                ...serialCircuit,
+                components: serialCircuit.components.map((c) =>
+                  c.id === 'button' ? { ...c, state: true } : c,
+                ),
+              },
+              3000,
+            );
+        });
+        await f.finish(2);
+        expect(entered).toBe(true);
+        if (action === 'Stop') expect(f.executor.advances).toHaveLength(3);
+        else if (action === 'input') {
+          expect(f.executor.advances).toHaveLength(4);
+          expect(f.executor.advances[3]!.inputEvents).toEqual([
+            { atMicroseconds: 2001, targetId: 'button', operation: 'state', payload: true },
+          ]);
+        } else {
+          expect(f.executor.advances).toHaveLength(3);
+          expect(f.executor.preflights).toHaveLength(2);
+        }
+        expect(f.failures).not.toHaveBeenCalled();
+      } finally {
+        f.controller.dispose();
+      }
+    },
+  );
+
+  it('coalesces updates while inflight without accumulating credits and retains ordinary slicing', async () => {
+    const f = await settled();
+    try {
+      f.host(62000);
+      f.controller.update(serialCircuit, 42000);
+      f.controller.update(serialCircuit, 52000);
+      f.controller.update(serialCircuit, 62000);
+      expect(f.executor.advances).toHaveLength(3);
+      await f.finish(2);
+      expect(f.executor.advances[3]!.requestedHorizonMicroseconds).toBe(27000);
+      await f.finish(3);
+      expect(f.executor.advances[4]!.requestedHorizonMicroseconds).toBe(52000);
+      await f.finish(4);
+      expect(f.executor.advances[5]!.requestedHorizonMicroseconds).toBe(62000);
+      f.host(63000);
+      const reads = f.read.mock.calls.length;
+      await f.finish(5);
+      expect(f.read.mock.calls.length - reads).toBe(0);
+      expect(f.executor.advances).toHaveLength(6);
+      f.host(100000);
+      for (let i = 0; i < 12; i++) await flush();
+      expect(f.executor.advances).toHaveLength(6);
+      expect(f.read.mock.calls.length - reads).toBe(0);
+      expect(f.failures).not.toHaveBeenCalled();
+    } finally {
+      f.controller.dispose();
+    }
+  });
+
+  it.each(['normal', 'held ACK'] as const)(
+    'valid unchanged post-completion sample spends opportunity without a value special case (%s)',
+    async (mode) => {
+      const f = await settled();
+      try {
+        // Synthetic retained-target control: the sample is independently bounded by elapsed and ACK.
+        const elapsed = 2000;
+        const ack = 0;
+        const h = mode === 'held ACK' ? Math.min(elapsed, ack + 50000) : 2000;
+        f.controller.update(serialCircuit, 6000);
+        f.host(h);
+        const before = f.read.mock.calls.length;
+        await f.finish(2);
+        expect(f.read.mock.calls.length - before).toBe(1);
+        expect(f.executor.advances[3]!.requestedHorizonMicroseconds).toBe(6000);
+        f.host(10000);
+        await f.finish(3);
+        expect(f.executor.advances).toHaveLength(4);
+        expect(f.read.mock.calls.length - before).toBe(1);
+      } finally {
+        f.controller.dispose();
+      }
+    },
+  );
+
+  it.each(['update', 'Stop', 'Reset', 'document', 'input'] as const)(
+    'fences the selected normal retained read across reentrant %s',
+    async (action) => {
+      const f = await settled();
+      try {
+        f.controller.update(serialCircuit, 6000);
+        f.host(6000);
+        let entered = false;
+        f.onRead(() => {
+          if (entered) return;
+          entered = true;
+          f.host(7000);
+          if (action === 'update') f.controller.update(serialCircuit, 7000);
+          else if (action === 'Stop') f.controller.stop();
+          else if (action === 'Reset') f.controller.restart(serialCircuit);
+          else if (action === 'document')
+            f.controller.update({ ...serialCircuit, components: [] }, 7000);
+          else {
+            f.controller.update(
+              {
+                ...serialCircuit,
+                components: serialCircuit.components.map((c) =>
+                  c.id === 'button' ? { ...c, state: true } : c,
+                ),
+              },
+              7000,
+            );
+            f.controller.sendSerialRx('uno', 'A', 7000);
+          }
+        });
+        await f.finish(2);
+        expect(entered).toBe(true);
+        if (action === 'update') {
+          expect(f.executor.advances).toHaveLength(4);
+          expect(f.executor.advances[3]!.requestedHorizonMicroseconds).toBe(7000);
+          f.host(8000);
+          const reads = f.read.mock.calls.length;
+          await f.finish(3);
+          // Old discarded normal sample did not consume the reentrant epoch.
+          expect(f.read.mock.calls.length - reads).toBe(1);
+          expect(f.executor.advances[4]!.requestedHorizonMicroseconds).toBe(8000);
+          await f.finish(4);
+          expect(f.executor.advances).toHaveLength(5);
+        } else if (action === 'input') {
+          expect(f.executor.advances).toHaveLength(4);
+          expect(f.executor.advances[3]!.inputEvents).toEqual([
+            { atMicroseconds: 2001, targetId: 'button', operation: 'state', payload: true },
+          ]);
+          await f.finish(3);
+          expect(f.executor.advances[4]!.inputEvents).toEqual([
+            { atMicroseconds: 7001, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+          ]);
+          expect(f.executor.advances).toHaveLength(5);
+        } else if (action === 'Stop') expect(f.executor.advances).toHaveLength(3);
+        else {
+          expect(f.executor.advances).toHaveLength(3);
+          expect(f.executor.preflights).toHaveLength(2);
+        }
+        expect(f.failures).not.toHaveBeenCalled();
+      } finally {
+        f.controller.dispose();
+      }
+    },
+  );
+
+  it.each([null, NaN, -1, 0.5])(
+    'invalid normal sample %s is actually reached and input-only resume cannot consume opportunity',
+    async (sample) => {
+      const f = await settled();
+      try {
+        f.controller.update(serialCircuit, 6000);
+        f.host(sample);
+        const before = f.read.mock.calls.length;
+        await f.finish(2);
+        expect(f.read.mock.calls.length - before).toBe(1);
+        expect(f.executor.advances).toHaveLength(3);
+        for (let i = 0; i < 8; i++) await flush();
+        expect(f.read.mock.calls.length - before).toBe(1);
+        f.host(6000);
+        f.controller.sendSerialRx('uno', 'X', 2000);
+        expect(f.executor.advances[3]!.inputEvents).toEqual([
+          { atMicroseconds: 2001, targetId: 'uno', operation: 'serialRx', payload: 'X' },
+        ]);
+        await f.finish(3);
+        expect(f.executor.advances[4]!.requestedHorizonMicroseconds).toBe(6000);
+        f.host(7000);
+        const endReads = f.read.mock.calls.length;
+        await f.finish(4);
+        expect(f.read.mock.calls.length - endReads).toBe(1);
+        expect(f.executor.advances[5]!.requestedHorizonMicroseconds).toBe(7000);
+        await f.finish(5);
+        expect(f.executor.advances).toHaveLength(6);
+        expect(f.failures).not.toHaveBeenCalled();
+      } finally {
+        f.controller.dispose();
+      }
+    },
+  );
+
+  it('no callback remains idle and invalid public updates do not create work', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    try {
+      controller.start('no-host', serialCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+      await completeCanonicalStart(executor, 1);
+      controller.update(serialCircuit, 2000);
+      executor.advances[1]!.deferred.resolve(timedAdvance('ready', 2000, 2000));
+      await flush();
+      for (const h of [NaN, -1, 0.5]) controller.update(serialCircuit, h);
+      for (let i = 0; i < 12; i++) await flush();
+      expect(executor.advances).toHaveLength(2);
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('moving every normal read/completion still drains a finite admitted horizon and does not rearm', async () => {
+    const f = await settled();
+    try {
+      // Host is independently ahead of C but remains below already admitted62000.
+      let elapsed = 60000;
+      f.host(elapsed);
+      f.controller.update(serialCircuit, 62000);
+      f.onRead(() => f.host(++elapsed));
+      f.onCommit(() => f.host(++elapsed));
+      const reads = f.read.mock.calls.length;
+      await f.finish(2);
+      expect(f.executor.advances[3]!.requestedHorizonMicroseconds).toBe(27000);
+      await f.finish(3);
+      expect(f.executor.advances[4]!.requestedHorizonMicroseconds).toBe(52000);
+      await f.finish(4);
+      expect(f.executor.advances[5]!.requestedHorizonMicroseconds).toBe(62000);
+      await f.finish(5);
+      expect(f.read.mock.calls.length - reads).toBe(3);
+      for (let i = 0; i < 12; i++) await flush();
+      expect(f.executor.advances).toHaveLength(6);
+      expect(f.read.mock.calls.length - reads).toBe(3);
+      elapsed = 70000;
+      f.host(elapsed);
+      f.controller.update(serialCircuit, 70000);
+      elapsed = 71000;
+      f.host(elapsed);
+      const nextReads = f.read.mock.calls.length;
+      await f.finish(6);
+      expect(f.read.mock.calls.length - nextReads).toBe(1);
+      expect(f.executor.advances).toHaveLength(8);
+      await f.finish(7);
+      expect(f.executor.advances).toHaveLength(8);
+    } finally {
+      f.controller.dispose();
+    }
+  });
+
+  it('held ACK uses the independent delivered+50000 ceiling and no completion mints more credit', async () => {
+    const f = await settled();
+    try {
+      let acknowledged = 1000;
+      let elapsed = 100000;
+      const bounded = () => Math.min(elapsed, acknowledged + 50000);
+      f.onCommit(() => {
+        expect(acknowledged).toBeLessThanOrEqual(f.committed());
+        f.host(bounded());
+      });
+      f.onRead(() => {
+        elapsed += 1000;
+        f.host(bounded());
+      });
+      f.host(bounded());
+      await f.finish(2);
+      expect(f.executor.advances[3]!.requestedHorizonMicroseconds).toBe(27000);
+      await f.finish(3);
+      expect(f.executor.advances[4]!.requestedHorizonMicroseconds).toBe(51000);
+      await f.finish(4);
+      expect(f.executor.advances).toHaveLength(5);
+      const reads = f.read.mock.calls.length;
+      for (let i = 0; i < 12; i++) await flush();
+      expect(f.read.mock.calls.length).toBe(reads);
+      acknowledged = 51000;
+      expect(acknowledged).toBeLessThanOrEqual(f.committed());
+      f.host(bounded());
+      f.controller.update(serialCircuit, bounded());
+      expect(f.executor.advances[5]!.requestedHorizonMicroseconds).toBe(76000);
+      await f.finish(5);
+      expect(f.executor.advances[6]!.requestedHorizonMicroseconds).toBe(101000);
+      await f.finish(6);
+      expect(f.executor.advances).toHaveLength(7);
+      expect(f.failures).not.toHaveBeenCalled();
+    } finally {
+      f.controller.dispose();
+    }
+  });
+});
