@@ -503,6 +503,36 @@
   }
 }
 
+/* Narrow viewports cannot fit +, scope, model and Send next to a useful
+ * textarea. Keep the same composer but stack input above the actions. */
+@media (max-width: 600px) {
+  .asa-ai-layout .chat-composer.compact {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(32px, auto) auto;
+    grid-template-areas: 'input' 'controls';
+    gap: 6px;
+    min-height: 88px;
+    padding: 10px 9px 8px;
+    border-radius: 24px;
+  }
+  .asa-ai-layout .chat-composer.compact .chat-composer-controls {
+    display: flex;
+    grid-area: controls;
+  }
+  .asa-ai-layout .chat-composer.compact .chat-tools-menu {
+    grid-area: auto;
+  }
+  .asa-ai-layout .chat-composer.compact .chat-composer-end {
+    grid-area: auto;
+    flex: 1 1 auto;
+  }
+  .asa-ai-layout .chat-composer.compact textarea {
+    grid-area: input;
+    max-height: 44px;
+    padding: 4px 10px;
+  }
+}
+
 @media (max-width: 420px) {
   .asa-ai-layout .chat-attach-button {
     width: 36px;
