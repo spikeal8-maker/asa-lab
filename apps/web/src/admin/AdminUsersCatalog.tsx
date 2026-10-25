@@ -3,7 +3,7 @@ import { CatalogScopeFilters } from './CatalogScopeFilters';
 import { CatalogAnalytics } from './CatalogAnalytics';
 import { OrganizationClassBindings } from './OrganizationClassBindings';
 import './crm-directory.css';
-import { AdminUserHistory } from './AdminUserHistory';
+import { AdminUserHistoryPanel } from './AdminUserHistory';
 import { CrmUserCardLauncher } from './CrmUserCard';
 import {
   adminApi,
@@ -531,16 +531,18 @@ export function AdminUsersCatalog({
                       {!user.principalId ? <small>Идентификатор входа ещё не создан</small> : null}
                     </span>
                   </div>
-                  {scope.kind === 'platform' ? (
-                    <AdminUserHistory
-                      kind={user.kind}
-                      targetId={user.id}
-                      scope={scope}
-                      onAccessDenied={onAccessDenied}
-                    />
-                  ) : null}
                   {scope.kind === 'platform' || user.classId ? (
                     <CrmUserCardLauncher
+                      history={
+                        scope.kind === 'platform' ? (
+                          <AdminUserHistoryPanel
+                            kind={user.kind}
+                            targetId={user.id}
+                            scope={scope}
+                            onAccessDenied={onAccessDenied}
+                          />
+                        ) : undefined
+                      }
                       kind={user.kind}
                       targetId={user.id}
                       classroomId={

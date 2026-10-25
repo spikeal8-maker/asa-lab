@@ -76,7 +76,7 @@ it('keeps server ordering, typed same-UUID Account and Seat entries, and account
   expect(renderAccount).toHaveBeenCalledTimes(1);
   expect(host.textContent!.includes(seat.login)).toBe(false);
   expect(host.querySelector('[data-actor-key^="student:"] button')?.textContent).toBe(
-    'История проектов, публикаций и ИИ',
+    'Полная карточка пользователя',
   );
   expect(host.textContent).toContain('Выдано');
 });

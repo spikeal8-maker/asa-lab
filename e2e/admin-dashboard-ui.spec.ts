@@ -519,10 +519,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.goto('/#/admin/users');
     const account = page.locator('[data-actor-key="account:20000000-0000-4000-8000-000000000002"]');
     await account.locator('button.admin-user-row').click();
-    await account.getByRole('tab', { name: 'Полная карточка', exact: true }).click();
+    await account.getByRole('tab', { name: 'Профиль', exact: true }).click();
     const card = account.getByRole('region', { name: 'Полная карточка пользователя', exact: true });
     await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(/Полное имя/);
     await expect(card.getByText('36 лет', { exact: true })).toBeVisible();
+    await expect(account.getByRole('tab')).toHaveCount(7);
+    await expect(card.getByRole('navigation', { name: 'Разделы CRM' })).toHaveCount(0);
     await card
       .getByRole('textbox', { name: 'Имя', exact: true })
       .fill('Изменённое полное имя пользователя');
@@ -535,6 +537,13 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(
       'Изменённое полное имя пользователя',
     );
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-profile-${width}.png`, fullPage: true });
+    await account.getByRole('tab', { name: 'Безопасность и доступ', exact: true }).click();
+    await expect(
+      account.getByRole('button', { name: 'Назначить администратором', exact: true }),
+    ).toBeVisible();
     await expect(
       card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
     ).toContainText('Ожидает подтверждения: new.long.pending.email.for.layout.review@example.test');
@@ -543,21 +552,32 @@ for (const width of [1440, 1024, 390, 320]) {
     ).toContainText('Текущий адрес: profile@example.test');
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
-      await page.screenshot({ path: `${evidence}/crm-profile-${width}.png`, fullPage: true });
-    await card.getByRole('button', { name: 'Переписка с ИИ', exact: true }).click();
-    await expect(card.getByText('Очень длинный вопрос ученика:', { exact: false })).toBeVisible();
-    await card.getByRole('button', { name: 'Ещё записи', exact: true }).click();
+      await page.screenshot({ path: `${evidence}/crm-access-${width}.png`, fullPage: true });
+    await account.getByRole('tab', { name: 'Переписка с ИИ', exact: true }).click();
     await expect(
-      card.getByText('Полный ответ искусственного интеллекта', { exact: true }),
+      account.getByText('Очень длинный вопрос ученика:', { exact: false }),
+    ).toBeVisible();
+    await account.getByRole('button', { name: 'Ещё записи', exact: true }).click();
+    await expect(
+      account.getByText('Полный ответ искусственного интеллекта', { exact: true }),
     ).toBeVisible();
     expect(await page.evaluate(() => '__crmInjected' in window)).toBe(false);
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/crm-transcript-${width}.png`, fullPage: true });
-    await card.getByRole('button', { name: 'Все проекты', exact: true }).click();
-    await card.getByRole('button', { name: 'Просмотр проекта', exact: true }).click();
-    await card.getByText('Полные данные проекта — только просмотр', { exact: true }).click();
-    await expect(card.locator('pre')).toContainText('Полное сохранённое содержимое');
+    await account.getByRole('tab', { name: 'Проекты', exact: true }).click();
+    await account.getByRole('button', { name: 'Просмотр проекта', exact: true }).click();
+    await account.getByText('Полные данные проекта — только просмотр', { exact: true }).click();
+    await expect(account.locator('pre')).toContainText('Полное сохранённое содержимое');
+    await account.getByRole('tab', { name: 'Входы и действия', exact: true }).click();
+    await expect(
+      account.getByRole('heading', { name: 'Все входы и устройства', exact: true }),
+    ).toBeVisible();
+    await expect(account.getByRole('heading', { name: 'Все действия', exact: true })).toBeVisible();
+    await noPageOverflow(page);
+    await account.getByRole('tab', { name: 'Заметки', exact: true }).click();
+    await expect(account.getByPlaceholder('Добавить внутренний комментарий')).toBeVisible();
+    await noPageOverflow(page);
     const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
     await student
       .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
@@ -566,6 +586,17 @@ for (const width of [1440, 1024, 390, 320]) {
       student
         .getByRole('region', { name: 'Полная карточка пользователя', exact: true })
         .getByText('11 лет', { exact: true }),
+    ).toBeVisible();
+    await student.getByRole('button', { name: 'Безопасность и доступ', exact: true }).click();
+    await expect(
+      student.getByRole('button', { name: 'Приостановить доступ ученика', exact: true }),
+    ).toBeDisabled();
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-seat-access-${width}.png`, fullPage: true });
+    await student.getByRole('button', { name: 'Входы и действия', exact: true }).click();
+    await expect(
+      student.getByRole('heading', { name: 'Все входы и устройства', exact: true }),
     ).toBeVisible();
     await noPageOverflow(page);
   });
@@ -716,10 +747,13 @@ for (const width of [1440, 1024, 390, 320]) {
     const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
     await expect(account).toBeVisible();
     await expect(student).toBeVisible();
-    await expect(student.getByRole('button')).toHaveCount(2);
+    await expect(student.getByRole('button')).toHaveCount(1);
     await expect(student).toContainText('Выдано');
     await noPageOverflow(page);
-    await student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }).click();
+    await student
+      .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
+      .click();
+    await student.getByRole('button', { name: 'Публикации и история', exact: true }).click();
     const history = student.getByRole('region', { name: 'История пользователя' });
     await expect(history.getByText('Сохранённая версия', { exact: false })).toBeVisible();
     await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('publications');
@@ -740,8 +774,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect.poll(() => f.catalogQueries().at(-1)!.get('sort')).toBe('name');
     expect(f.catalogQueries().at(-1)!.has('cursor')).toBe(false);
     await account.locator('button.admin-user-row').click();
-    await expect(account.getByRole('tab', { name: 'Управление', exact: true })).toBeVisible();
-    await account.getByRole('tab', { name: 'История', exact: true }).click();
+    await expect(
+      account.getByRole('tab', { name: 'Безопасность и доступ', exact: true }),
+    ).toBeVisible();
+    await account.getByRole('tab', { name: 'Публикации и история', exact: true }).click();
     await expect(
       account
         .getByRole('region', { name: 'История пользователя' })
@@ -842,6 +878,17 @@ for (const width of [1440, 1024, 390, 320]) {
       .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
       .click();
     await expect(student.locator('.crm-full-card')).toBeVisible();
+    await expect(student.getByRole('textbox', { name: 'Имя', exact: true })).toBeDisabled();
+    await expect(
+      student.getByRole('button', { name: 'Публикации и история', exact: true }),
+    ).toHaveCount(0);
+    await student.getByRole('button', { name: 'Безопасность и доступ', exact: true }).click();
+    await expect(
+      student.getByRole('button', { name: 'Приостановить доступ ученика', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      student.getByText('Изменение доступа недоступно.', { exact: false }),
+    ).toBeVisible();
     await noPageOverflow(page);
   });
 }

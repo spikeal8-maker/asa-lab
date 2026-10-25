@@ -153,7 +153,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Administrator overview unit regression
-        run: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts apps/web/src/admin/testing/email-settings.spec.ts apps/web/src/email-api.spec.ts
+        run: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-crm-panel.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts apps/web/src/admin/testing/email-settings.spec.ts apps/web/src/email-api.spec.ts
       - run: pnpm exec nx run web:typecheck --skip-nx-cache
       - run: pnpm exec playwright install --with-deps chromium
       - name: Build the exact web application

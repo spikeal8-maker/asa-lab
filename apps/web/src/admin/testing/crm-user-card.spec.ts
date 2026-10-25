@@ -122,7 +122,7 @@ it('renders transcript as literal text, preserves pages on retry and ignores lat
   await button('Повторить');
   expect(host.querySelectorAll('li')).toHaveLength(2);
   expect(content.mock.calls[2][2]).toBe('next');
-  await button('Все проекты');
+  await button('Проекты');
   await show('account', '20000000-0000-4000-8000-000000000003');
   await act(async () =>
     finish(
@@ -133,4 +133,70 @@ it('renders transcript as literal text, preserves pages on retry and ignores lat
     ),
   );
   expect(host.textContent).not.toContain('OLD IDENTITY');
+});
+it('retains the visible access pane during refresh and scrubs it when access is denied', async () => {
+  const denied = vi.fn();
+  let resolve!: (value: Awaited<ReturnType<typeof crmApi.profile>>) => void;
+  vi.spyOn(crmApi, 'profile')
+    .mockResolvedValueOnce(ok(crmProfileFixture('student')))
+    .mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+  await show('student', CRM_ID, denied);
+  await button('Безопасность и доступ');
+  const field = host.querySelector('.crm-full-reason textarea');
+  expect(host.textContent).toContain('Приостановить доступ ученика');
+  await button('Обновить карточку');
+  expect(host.querySelector('.crm-full-reason textarea')).toBe(field);
+  await act(async () =>
+    resolve({ ok: false, status: 403, error: { code: 'denied', message: 'Недоступно' } }),
+  );
+  expect(denied).toHaveBeenCalledOnce();
+  expect(host.querySelector('.crm-full-reason textarea')).toBeNull();
+  expect(host.textContent).not.toContain('Приостановить доступ ученика');
+});
+it('ignores a profile response after the subject changes, even when Account and Seat share an ID', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof crmApi.profile>>) => void;
+  vi.spyOn(crmApi, 'profile')
+    .mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    )
+    .mockResolvedValueOnce(ok(crmProfileFixture('student')));
+  await show();
+  await show('student');
+  await act(async () => resolve(ok({ ...crmProfileFixture(), name: 'OLD PRIVATE ACCOUNT' })));
+  expect(host.textContent).not.toContain('OLD PRIVATE ACCOUNT');
+  expect(host.textContent).toContain('11 лет');
+});
+it('does not restore a card from an older profile refresh after content access is revoked', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof crmApi.profile>>) => void;
+  const denied = vi.fn();
+  vi.spyOn(crmApi, 'profile')
+    .mockResolvedValueOnce(ok(crmProfileFixture('student')))
+    .mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    );
+  vi.spyOn(crmApi, 'content').mockResolvedValue({
+    ok: false,
+    status: 403,
+    error: { code: 'denied', message: 'Доступ отозван' },
+  });
+  await show('student', CRM_ID, denied);
+  await button('Обновить карточку');
+  await button('Входы и действия');
+  await act(async () =>
+    resolve(ok({ ...crmProfileFixture('student'), name: 'OLD PRIVATE PROFILE' })),
+  );
+  expect(denied).toHaveBeenCalled();
+  expect(host.textContent).not.toContain('OLD PRIVATE PROFILE');
+  expect(host.querySelector('nav')).toBeNull();
 });

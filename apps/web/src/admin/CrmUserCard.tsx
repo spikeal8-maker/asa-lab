@@ -1,5 +1,5 @@
 import { CrmEmailChange } from './CrmEmailChange';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
   crmApi,
   type CrmSubject,
@@ -30,9 +30,14 @@ const stateLabel: Record<string, string> = {
   owner: 'Владелец класса',
   co_teacher: 'Совместное преподавание',
 };
-export function CrmUserCardLauncher(
-  props: CrmSubject & { onAccessDenied: () => void; onChanged?: () => void },
-) {
+type CrmPane = 'profile' | 'access' | 'history' | 'activity' | CrmContentCategory;
+type CrmCardProps = CrmSubject & {
+  onAccessDenied: () => void;
+  onChanged?: () => void;
+  pane?: CrmPane;
+  history?: ReactNode;
+};
+export function CrmUserCardLauncher(props: CrmCardProps) {
   const [open, setOpen] = useState(false);
   return (
     <div className="admin-user-history">
@@ -48,9 +53,7 @@ export function CrmUserCardLauncher(
     </div>
   );
 }
-export function CrmUserCard(
-  props: CrmSubject & { onAccessDenied: () => void; onChanged?: () => void },
-) {
+export function CrmUserCard(props: CrmCardProps) {
   return (
     <CrmCardBody
       key={`${props.kind}:${props.targetId}:${props.classroomId ?? 'platform'}`}
@@ -123,12 +126,13 @@ export function CrmProjectReader({
     </div>
   );
 }
-function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChanged?: () => void }) {
+function CrmCardBody(subject: CrmCardProps) {
   const [profile, setProfile] = useState<CrmProfile | null>(null),
     [failure, setFailure] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [reload, setReload] = useState(0);
-  const [tab, setTab] = useState<'profile' | CrmContentCategory>('profile');
+  const [selectedTab, setTab] = useState<CrmPane>('profile');
+  const tab = subject.pane ?? selectedTab;
   const [name, setName] = useState(''),
     [birth, setBirth] = useState(''),
     [country, setCountry] = useState(''),
@@ -140,6 +144,13 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
     sequence = useRef(0);
   const denied = useRef(subject.onAccessDenied);
   denied.current = subject.onAccessDenied;
+  function revoke() {
+    sequence.current++;
+    live.current = false;
+    setProfile(null);
+    setBusy(false);
+    denied.current();
+  }
   function apply(value: CrmProfile) {
     setProfile(value);
     setName(value.name ?? '');
@@ -151,13 +162,16 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
   useEffect(() => {
     live.current = true;
     const request = ++sequence.current;
-    setProfile(null);
+    setBusy(true);
     setFailure(null);
     void crmApi.profile(subject).then((result) => {
       if (!live.current || request !== sequence.current) return;
+      setBusy(false);
       if (!result.ok) {
         setFailure(result.error.message);
-        if (result.status === 401 || result.status === 403) denied.current();
+        if (result.status === 401 || result.status === 403) {
+          revoke();
+        }
         return;
       }
       apply(result.data);
@@ -185,8 +199,7 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
     if (!result.ok) {
       setFailure(result.error.message);
       if (result.status === 401 || result.status === 403) {
-        setProfile(null);
-        denied.current();
+        revoke();
       }
       return;
     }
@@ -207,8 +220,7 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
     if (!result.ok) {
       setFailure(result.error.message);
       if (result.status === 401 || result.status === 403) {
-        setProfile(null);
-        denied.current();
+        revoke();
       }
       return;
     }
@@ -230,8 +242,7 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
     if (!result.ok) {
       setFailure(result.error.message);
       if (result.status === 401 || result.status === 403) {
-        setProfile(null);
-        denied.current();
+        revoke();
       }
       return;
     }
@@ -250,26 +261,29 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
       {!profile && !failure ? <p role="status">Загружаем карточку…</p> : null}
       {profile ? (
         <>
-          <nav className="crm-full-nav" aria-label="Разделы CRM">
-            {(
-              [
-                ['profile', 'Профиль и доступ'],
-                ['projects', 'Все проекты'],
-                ['messages', 'Переписка с ИИ'],
-                ['sessions', 'Все входы'],
-                ['events', 'Все действия'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                type="button"
-                key={key}
-                aria-pressed={tab === key}
-                onClick={() => setTab(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+          {subject.pane === undefined ? (
+            <nav className="crm-full-nav" aria-label="Разделы CRM">
+              {(
+                [
+                  ['profile', 'Профиль'],
+                  ['projects', 'Проекты'],
+                  ...(subject.history ? [['history', 'Публикации и история'] as const] : []),
+                  ['messages', 'Переписка с ИИ'],
+                  ['activity', 'Входы и действия'],
+                  ['access', 'Безопасность и доступ'],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  type="button"
+                  key={key}
+                  aria-pressed={tab === key}
+                  onClick={() => setTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
           {tab === 'profile' ? (
             <>
               <dl className="crm-full-summary">
@@ -288,13 +302,19 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                 <div>
                   <dt>Класс</dt>
                   <dd>
-                    {profile.classTitle ??
+                    {profile.classId ? (
+                      <a href={`#/classrooms/${encodeURIComponent(profile.classId)}`}>
+                        {profile.classTitle ?? 'Открыть класс'}
+                      </a>
+                    ) : (
+                      (profile.classTitle ??
                       (profile.kind === 'account'
                         ? profile.linkedIdentities.some((i) => i.kind === 'student') ||
                           profile.teachingClasses?.length
-                          ? 'Связанные учебные места и преподавательские классы перечислены ниже'
+                          ? 'Учебные места и преподавательские классы — в разделе «Безопасность и доступ»'
                           : 'Связанные учебные места и преподавательские классы не найдены'
-                        : 'Не указан')}
+                        : 'Не указан'))
+                    )}
                   </dd>
                 </div>
                 <div>
@@ -369,7 +389,27 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                   <p>Просмотр учебной карточки в пределах вашего класса.</p>
                 )}
               </form>
-              <h4>Права и роли</h4>
+            </>
+          ) : tab === 'access' ? (
+            <>
+              <h4>Права и доступ</h4>
+              {profile.canEdit ? (
+                <label className="crm-full-reason">
+                  Причина изменения доступа
+                  <textarea
+                    value={reason}
+                    minLength={3}
+                    maxLength={500}
+                    rows={2}
+                    disabled={busy}
+                    onChange={(event) => setReason(event.target.value)}
+                  />
+                </label>
+              ) : (
+                <p>
+                  Просмотр учебной карточки в пределах вашего класса. Изменение доступа недоступно.
+                </p>
+              )}
               <ul>
                 {profile.capabilities.map((item) => (
                   <li key={item.capability}>
@@ -385,18 +425,28 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                     : 'Дополнительные права не назначены.'}
                 </p>
               ) : null}
+              {profile.canEdit ? (
+                <p>
+                  <a href="/#/admin/organizations">Каталог организаций — только просмотр</a>
+                </p>
+              ) : null}
+              <p>
+                Состав организаций доступен в каталоге только для просмотра. Назначение участников и
+                ролей организации в этой карточке недоступно. Ссылки классов открывают
+                соответствующую учебную область; действия зависят от ваших прав в ней.
+              </p>
               <ul>
                 {profile.memberships.map((item) => (
                   <li key={item.id}>
-                    {item.title}: {item.role} · {item.state}
+                    {item.title}: {item.role} · {stateLabel[item.state] ?? item.state}
                   </li>
                 ))}
               </ul>
               <ul>
                 {(profile.teachingClasses ?? []).map((item) => (
                   <li key={item.id}>
-                    Класс «{item.title}»:{' '}
-                    {item.role === 'owner' ? 'Ответственный преподаватель' : 'Преподаватель'} ·{' '}
+                    <a href={`#/classrooms/${encodeURIComponent(item.id)}`}>Класс «{item.title}»</a>
+                    : {item.role === 'owner' ? 'Ответственный преподаватель' : 'Преподаватель'} ·{' '}
                     {item.status}
                   </li>
                 ))}
@@ -410,7 +460,7 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                     setReload((value) => value + 1);
                     subject.onChanged?.();
                   }}
-                  onDenied={subject.onAccessDenied}
+                  onDenied={revoke}
                 />
               ) : null}
               {profile.canEdit && profile.kind === 'student' && profile.status !== 'removed' ? (
@@ -436,6 +486,7 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                     Право
                     <select
                       value={capability}
+                      disabled={busy}
                       onChange={(event) => setCapability(event.target.value)}
                     >
                       {Object.entries(roleLabel)
@@ -451,10 +502,11 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                     Состояние права
                     <select
                       value={capabilityState}
+                      disabled={busy}
                       onChange={(event) => setCapabilityState(event.target.value)}
                     >
                       {Object.entries(stateLabel)
-                        .filter(([key]) => key !== 'provisional')
+                        .filter(([key]) => ['verified', 'suspended', 'revoked'].includes(key))
                         .map(([key, label]) => (
                           <option key={key} value={key}>
                             {label}
@@ -470,8 +522,8 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                     Изменить право
                   </button>
                   <p>
-                    Причина берётся из поля изменения профиля. Роль администратора управляется в
-                    разделе «Управление».
+                    Причина обязательна. Доступ администратора платформы управляется в разделе
+                    «Безопасность и доступ» карточки аккаунта.
                   </p>
                 </div>
               ) : null}
@@ -491,20 +543,24 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                 </>
               ) : null}
             </>
+          ) : tab === 'history' ? (
+            subject.history
+          ) : tab === 'activity' ? (
+            <>
+              <h4>Все входы и устройства</h4>
+              <CrmContent subject={subject} category="sessions" onAccessDenied={revoke} />
+              <h4>Все действия</h4>
+              <CrmContent subject={subject} category="events" onAccessDenied={revoke} />
+            </>
           ) : (
-            <CrmContent
-              key={tab}
-              subject={subject}
-              category={tab}
-              onAccessDenied={subject.onAccessDenied}
-            />
+            <CrmContent key={tab} subject={subject} category={tab} onAccessDenied={revoke} />
           )}
         </>
       ) : null}
     </section>
   );
 }
-function CrmContent({
+export function CrmContent({
   subject,
   category,
   onAccessDenied,

@@ -117,3 +117,9 @@
     padding: 10px;
   }
 }
+
+.crm-full-reason {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
