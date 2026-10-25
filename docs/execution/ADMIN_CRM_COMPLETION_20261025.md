@@ -14,13 +14,17 @@ deployment, live database mutation and SMTP activation are excluded.
 2. Unified CRM navigation and authorized management: reduce duplicated card tabs,
    provide clear access-management entry points without inventing global roles or
    widening teacher/organization scope. Preserve profile conflict/audit safeguards.
-3. Analytics and sources: concise responsive summaries, accurate separate event
+3. Complete scoped CRM operations and retained detail: explicit audited controls
+   for existing organization/class responsibilities, educational Seat notes,
+   retained versions/publications/AI receipts through exact authorized lineage,
+   safe read-only project inspection and clear export cancellation/limits. Never
+   invent global teacher roles, merge identities, transfer class ownership
+   implicitly or create editor mutation grants. Preserve last-owner/admin access,
+   concurrency and audit safeguards; retain legacy readers for old clients.
+4. Analytics and sources: concise responsive summaries, accurate separate event
    and registration charts with usable time labels, known/unknown coverage and
    factual future acquisition observations rather than invented historic facts.
-4. Project/history and export usability: expose retained versions/publication
-   context and safe authorized read-only project inspection; make export limits,
-   progress and errors explicit. Do not create editor mutation grants or promise
-   unbounded exports/5000-user capacity without evidence.
+   Do not promise unbounded exports/5000-user capacity without evidence.
 
 Each slice has one author, focused cheap checks before expensive GitHub evidence,
 an independent challenge review when required, one bounded integration cycle and
@@ -40,3 +44,13 @@ passed PostgreSQL/browser/install checks. Controller inspected desktop/mobile
 SMTP screenshots; controls remain readable and contained. Integration adds only
 acceptance documents and disjoint Electronics execution-state documentation.
 No SMTP settings, credentials or live state changed.
+
+## Slice 2 source evidence
+
+Unified card `ba97fb8581cb83fe4c17fbb2585d7bef188df9a1` received a source
+challenge finding for retained Seat state after a responsibility downgrade.
+Repair `04e05a0d06a214bf573362bc8a73abebd028a327` closes it and received
+independent SOURCEPASS. Initial 26 focused units and 15 repair-focused tests passed;
+these are overlapping suites, not 41 distinct cases. New regression is explicitly
+registered in the GitHub workflow. Exact integrated Main browser evidence remains
+required before selecting the next implementation slice.
