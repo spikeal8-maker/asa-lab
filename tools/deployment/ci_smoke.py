@@ -49,6 +49,26 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
     try:
         install.compose("up", "-d", "--no-build")
         install.wait_ready(release["revision"], release["schema"])
+        if "search" in release["images"]:
+            # Execute the real pinned SearXNG loader, without an upstream query.
+            # Never print the signing secret or whole effective configuration.
+            metadata = json.loads(install.compose("exec", "-T", "search", "/usr/local/searxng/.venv/bin/python", "-c",
+                "import json; from asa_search_app import upstream_app; from searx import settings; from searx.engines import engines; print(json.dumps({'engines':list(engines),'formats':settings['search']['formats'],'safeSearch':settings['search']['safe_search'],'defaultLanguage':settings['search']['default_lang'],'supportsRussian': 'ru-RU' in settings['search']['languages']}))",
+                capture=True))
+            require(set(metadata["engines"]) == {"bing", "duckduckgo", "wikipedia", "bing images", "duckduckgo images"}
+                    and metadata["formats"] == ["json"] and metadata["safeSearch"] == 2
+                    and metadata["defaultLanguage"] == "ru-RU" and metadata["supportsRussian"] is True,
+                    "SEARCH_COMPONENT", "Search runtime differs from the closed free-engine configuration.")
+            install.compose("exec", "-T", "search", "/usr/local/searxng/.venv/bin/python", "-c",
+                            "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz?asa_privacy=synthetic-search-log-canary',timeout=3).read()", capture=True)
+            require("synthetic-search-log-canary" not in install.compose("logs", "--no-color", "search", capture=True),
+                    "SEARCH_PRIVACY", "Search access logging exposes query values.")
+            search_probe = json.loads(install.compose("exec", "-T", "search", "/usr/local/searxng/.venv/bin/python", "-c",
+                "import json,urllib.parse,urllib.request; q=urllib.parse.urlencode({'q':'Москва','format':'json','language':'ru-RU','safesearch':'2','categories':'general'}); print(urllib.request.urlopen('http://127.0.0.1:8080/search?'+q,timeout=20).read().decode())", capture=True))
+            require(search_probe.get("query") == "Москва" and isinstance(search_probe.get("results"), list),
+                    "SEARCH_JSON", "Russian search request did not return the documented JSON response.")
+            print("SEARCH_COMPONENT_SMOKE PASS: pinned runtime, closed free engines, ru-RU JSON and safe-search")
+            print("SEARCH_UPSTREAM_RESULT_COUNT " + str(len(search_probe["results"])) + "; availability is not a quality/SLA acceptance")
         # Test actual systemd registration, process identity and non-1000 host
         # reader group before the later intentional restored-test DB override.
         run(collector_cli + ['reconcile', '--root', str(root), '--profile', 'dev'])

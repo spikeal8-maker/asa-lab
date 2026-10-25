@@ -4,6 +4,14 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-WEB-SEARCH-001
+    statement: Free server retrieval uses only internal SearxNG, bounded manual city geocoding and attributed MET Norway forecasts. Immutable owner admission precedes network access; UUID replay and variants reuse stored evidence. Typed raster previews require owner-bound same-origin closed-CDN proxy, actual byte validation and bounded global concurrency. Arbitrary Markdown images remain forbidden. No paid search keys or subscriptions exist.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: Бесплатный серверный интернет-поиск
+    applies_to: [internet_search, internet_evidence, weather_forecast, search_image_proxy]
+    forbid: [paid_search_provider, arbitrary_image_fetch, fresh_search_on_replay, cross_owner_evidence, unbounded_geocoding, invented_weather]
+
   - id: AI-CLOUD-CREDENTIAL-001
     statement: Cloud provider keys remain separate encrypted server-only slots. Provider/model admission uses the closed server and SQL catalog, current configuration revision and shared paid quota; cloud Ollama uses only the fixed HTTPS ollama.com endpoint without redirects. Official-site sign-in/key creation is not an ASA OAuth grant. Adding, switching or clearing one provider preserves other keys and history.
     master_refs:
@@ -104,7 +112,7 @@ invariants:
     applies_to: [answer_regeneration, immutable_source_receipt, generation_context, saved_request_read]
     forbid: [synthetic_user_turn, overwritten_original_answer, future_context_in_regeneration, replay_as_new_answer, source_mutation, automatic_paid_retry]
   - id: AI-CONTENT-001
-    statement: Markdown and inline/block math render without raw HTML or automatic external images. HTTP(S) links and untrusted bounded KaTeX preserve safe display; a malformed formula or plugin error falls back to escaped content within its message and never crashes the conversation.
+    statement: Markdown and inline/block math render without raw HTML or automatic external images. Explicit typed retrieval image cards alone may use the owner-bound validated raster proxy governed by AI-WEB-SEARCH-001. HTTP(S) links and untrusted bounded KaTeX preserve safe display; a malformed formula or plugin error falls back to escaped content within its message and never crashes the conversation.
     master_refs:
       - document: AI-ASSISTANT-SPEC
         section: 4. Диалоги и история

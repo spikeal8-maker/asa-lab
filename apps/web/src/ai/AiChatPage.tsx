@@ -13,6 +13,8 @@ import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './st
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
 import { AiAnswerDownloads } from './AiAnswerDownloads';
+import type { AiWebSearchEvidence, AiWebSearchMode, AiWebSearchStatus } from '@asa-lab/contracts';
+import { AiWebEvidence } from './AiWebEvidence';
 import { AiHistoryAttachment as SavedAttachmentCard } from './AiHistoryAttachment';
 import {
   AI_CHAT_FILE_ACCEPT,
@@ -35,7 +37,13 @@ interface AiMessage {
   readonly sourceUserMessageId?: string;
   readonly sourcePrompt?: string;
   readonly regenerated?: boolean;
+  readonly webSearch?: AiWebSearchEvidence;
 }
+
+type WebRequestArguments = [
+  attachmentIds?: readonly string[],
+  webSearch?: { readonly mode: AiWebSearchMode },
+];
 
 interface AiHistoryAttachment {
   readonly uploadId: string;
@@ -128,6 +136,8 @@ export function AiChatPage({
   const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
+  const [webSearchStatus, setWebSearchStatus] = useState<AiWebSearchStatus | null>(null);
+  const [webSearchMode, setWebSearchMode] = useState<AiWebSearchMode>('auto');
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyWidth, setHistoryWidth] = useState(() => {
     try {
@@ -206,7 +216,12 @@ export function AiChatPage({
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
-  const pendingRequest = useRef<{ threadId: string; requestId: string; text: string } | null>(null);
+  const pendingRequest = useRef<{
+    threadId: string;
+    requestId: string;
+    text: string;
+    webSearch: { readonly mode: AiWebSearchMode } | undefined;
+  } | null>(null);
   const [streamedText, setStreamedText] = useState('');
   const [pendingRegeneration, setPendingRegeneration] = useState<{
     threadId: string;
@@ -556,6 +571,25 @@ export function AiChatPage({
 
   useEffect(() => {
     let active = true;
+    setWebSearchStatus(null);
+    void call<AiWebSearchStatus>('/api/ai/web-search/status')
+      .then((reply) => {
+        if (
+          active &&
+          reply.ok &&
+          reply.data &&
+          reply.data.schemaVersion === 1 &&
+          reply.data.provider === 'searxng' &&
+          typeof reply.data.weatherConfigured === 'boolean' &&
+          typeof reply.data.configured === 'boolean' &&
+          typeof reply.data.enabled === 'boolean'
+        ) {
+          setWebSearchStatus(reply.data);
+        }
+      })
+      .catch(() => {
+        if (active) setWebSearchStatus(null);
+      });
     void call<AiStatus>('/api/ai/status')
       .then((model) => {
         if (!active) return;
@@ -830,7 +864,18 @@ export function AiChatPage({
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const text = draft.trim();
-    const requestKey = text + '\u0000' + attachments.map((item) => item.uploadId).join(',');
+    const requestedWebMode =
+      webSearchStatus?.enabled &&
+      (webSearchStatus.configured ||
+        (webSearchMode === 'weather' && webSearchStatus.weatherConfigured))
+        ? webSearchMode
+        : 'off';
+    const requestKey =
+      text +
+      '\u0000' +
+      attachments.map((item) => item.uploadId).join(',') +
+      '\u0000' +
+      webSearchMode;
     if (
       !text ||
       text.length > 3000 ||
@@ -843,10 +888,13 @@ export function AiChatPage({
       return;
     }
     const previous = pendingRequest.current;
-    const requestId =
-      previous?.threadId === currentId && previous.text === requestKey
-        ? previous.requestId
-        : crypto.randomUUID();
+    const samePending = previous?.threadId === currentId && previous.text === requestKey;
+    const frozenWebSearch = samePending
+      ? previous.webSearch
+      : webSearchStatus
+        ? { mode: requestedWebMode }
+        : undefined;
+    const requestId = samePending ? previous.requestId : crypto.randomUUID();
     requestBusy.current = true;
     setPendingRegeneration(null);
     setPendingMessage({ requestId, text });
@@ -876,7 +924,12 @@ export function AiChatPage({
         setMessageCursor(null);
         if (!desktop) setSideOpen(false);
       }
-      pendingRequest.current = { threadId: id, requestId, text: requestKey };
+      pendingRequest.current = {
+        threadId: id,
+        requestId,
+        text: requestKey,
+        webSearch: frozenWebSearch,
+      };
       const controller = new AbortController();
       activeStream.current = { threadId: id, requestId, controller };
       try {
@@ -895,7 +948,11 @@ export function AiChatPage({
           controller.signal,
           selectedModel || status.model,
           aiScopeHeaders(seatId),
-          ...(uploadIds.length ? ([uploadIds] as const) : ([] as const)),
+          ...((frozenWebSearch
+            ? [uploadIds, frozenWebSearch]
+            : uploadIds.length
+              ? [uploadIds]
+              : []) as WebRequestArguments),
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -1564,7 +1621,19 @@ export function AiChatPage({
                               </p>
                             </details>
                           ) : null}
-                          <AiMessageContent content={message.content} />
+                          <AiMessageContent
+                            content={message.content}
+                            webSearch={message.webSearch}
+                          />
+                          <AiWebEvidence
+                            evidence={message.webSearch}
+                            seatId={seatId}
+                            onChooseLocation={(location) => {
+                              setDraft('Погода в ' + location);
+                              setWebSearchMode('weather');
+                              composer.current?.focus();
+                            }}
+                          />
                           {message.state === 'stopped' ? (
                             <span className="chat-runtime-note" role="status">
                               Ответ остановлен.
@@ -1641,7 +1710,9 @@ export function AiChatPage({
                   ) : null}
                   {busy ? (
                     <div className="chat-runtime-note" role="status">
-                      Модель формирует ответ…
+                      {webSearchStatus && webSearchMode !== 'off'
+                        ? 'Готовлю ответ…'
+                        : 'Модель формирует ответ…'}
                     </div>
                   ) : null}
                 </div>
@@ -1838,9 +1909,25 @@ export function AiChatPage({
                         <AiChatIcon name="file" size={20} /> Фото и файлы
                       </button>
                       <div className="chat-tools-divider" />
-                      <button type="button" disabled title="Интернет-поиск пока не реализован">
+                      <button
+                        type="button"
+                        disabled={
+                          interactionBusy ||
+                          !webSearchStatus?.enabled ||
+                          !webSearchStatus.configured
+                        }
+                        title={
+                          webSearchStatus?.enabled && webSearchStatus.configured
+                            ? 'Включить поиск с источниками'
+                            : 'Интернет-поиск не подключён администратором'
+                        }
+                        onClick={() => {
+                          setWebSearchMode('web');
+                          toolsMenu.current?.removeAttribute('open');
+                          composer.current?.focus();
+                        }}
+                      >
                         <AiChatIcon name="search" size={19} /> Поиск в интернете
-                        <small>Скоро</small>
                       </button>
                       <button
                         type="button"
@@ -1852,6 +1939,46 @@ export function AiChatPage({
                       </button>
                     </div>
                   </details>
+                  {webSearchStatus ? (
+                    <label className="asa-ai-internet-control">
+                      <span className="sr-only">Режим интернет-поиска</span>
+                      <AiChatIcon name="search" size={15} />
+                      <select
+                        aria-label="Режим интернет-поиска"
+                        value={
+                          !webSearchStatus.configured && webSearchMode !== 'weather'
+                            ? 'off'
+                            : webSearchMode
+                        }
+                        disabled={
+                          interactionBusy ||
+                          !webSearchStatus.enabled ||
+                          (!webSearchStatus.configured && !webSearchStatus.weatherConfigured)
+                        }
+                        title={
+                          webSearchStatus.enabled &&
+                          (webSearchStatus.configured || webSearchStatus.weatherConfigured)
+                            ? 'Поиск через сервер ASA · SearxNG'
+                            : 'Поиск не подключён администратором'
+                        }
+                        onChange={(event) =>
+                          setWebSearchMode(event.target.value as AiWebSearchMode)
+                        }
+                      >
+                        <option value="auto" disabled={!webSearchStatus.configured}>
+                          Интернет · Авто
+                        </option>
+                        <option value="off">Без интернета</option>
+                        <option value="web" disabled={!webSearchStatus.configured}>
+                          Веб-поиск
+                        </option>
+                        <option value="images" disabled={!webSearchStatus.configured}>
+                          Картинки
+                        </option>
+                        <option value="weather">Погода</option>
+                      </select>
+                    </label>
+                  ) : null}
                   <div className="chat-composer-end">
                     {scopeControl}
                     <div className="asa-ai-provider-label">

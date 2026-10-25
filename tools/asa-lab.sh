@@ -214,6 +214,11 @@ environment_value() {
 }
 
 ready() {
+  if grep -q '^ASA_SEARCH_SECRET=' .env; then
+    search_revision=$(compose exec -T search cat /usr/local/share/asa-search/asa-commit.txt 2>/dev/null || true)
+    [ "$search_revision" = "$ASA_BUILD_REVISION" ] || return 1
+    compose exec -T search /usr/local/searxng/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()" >/dev/null 2>&1 || return 1
+  fi
   output=$(compose exec -T web wget -q -O - http://127.0.0.1:8080/health/ready 2>/dev/null || true)
   case "$output" in
     *'"status":"ready"'*|*'"status": "ready"'*)
@@ -271,10 +276,12 @@ case "$action" in
   up)
     require_docker
     assert_startup_identity
+    command -v python3 >/dev/null 2>&1 || { echo 'Python 3 is required for private configuration.' >&2; exit 69; }
     create_environment
+    python3 tools/deployment/search_secret.py --create
     if [ "$profile" != test ]; then python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile"; fi
     compose config --quiet
-    for service in minio scratch api web; do compose build "$service"; done
+    for service in minio search scratch api web; do compose build "$service"; done
     assert_startup_identity
     compose up -d --no-build
     wait_for_ready

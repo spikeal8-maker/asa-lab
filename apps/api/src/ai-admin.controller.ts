@@ -1,3 +1,5 @@
+import type { AiWebSearchAdminUpdate } from '@asa-lab/contracts';
+import { AiWebSearchError } from './ai-web-search.js';
 import {
   Body,
   Controller,
@@ -66,6 +68,7 @@ export class AiAdminController {
     } catch (problem) {
       if (
         problem instanceof AiServiceError ||
+        problem instanceof AiWebSearchError ||
         problem instanceof OllamaError ||
         problem instanceof ComfyUiError
       ) {
@@ -76,6 +79,21 @@ export class AiAdminController {
       }
       throw problem;
     }
+  }
+
+  @Get('web-search')
+  async webSearchConfig(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.webSearchAdmin(actor));
+  }
+
+  @Put('web-search')
+  async saveWebSearch(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      return reject('ai_web_config_invalid', 'Нужны настройки поиска.', 400);
+    return this.safe(() => this.ai.saveWebSearch(actor, raw as AiWebSearchAdminUpdate, request.id));
   }
 
   @Get()

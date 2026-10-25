@@ -1,3 +1,9 @@
+import type {
+  AiWebSearchAdminUpdate,
+  AiWebSearchEvidence,
+  AiWebSearchMode,
+} from '@asa-lab/contracts';
+import { AiWebSearchService } from './ai-web-search.js';
 import {
   classifyProviderHttpFailure,
   classifyProviderTransportFailure,
@@ -97,6 +103,7 @@ export interface AiThread {
 }
 
 export interface AiMessage {
+  readonly webSearch?: AiWebSearchEvidence;
   readonly id: string;
   readonly role: 'user' | 'assistant';
   readonly content: string;
@@ -189,6 +196,7 @@ export class AiChatService {
   private readonly history: AiTextHistoryStore;
   private readonly attachments: AiAttachmentService | undefined;
   private readonly usage: AiUsageJournal;
+  private readonly web: AiWebSearchService;
   private readonly activeStreams = new Map<
     string,
     { principalId: string; threadId: string; abort: AbortController }
@@ -203,6 +211,20 @@ export class AiChatService {
     this.history = new AiTextHistoryStore(pool);
     this.attachments = options.attachments;
     this.usage = new AiUsageJournal(pool);
+    this.web = new AiWebSearchService(pool, this.fetchImpl);
+  }
+
+  webSearchStatus() {
+    return this.web.status();
+  }
+  webSearchAdmin(actor: string) {
+    return this.web.admin(actor);
+  }
+  saveWebSearch(actor: string, input: AiWebSearchAdminUpdate, requestId: string) {
+    return this.web.save(actor, input, requestId);
+  }
+  webSearchImage(owner: string, thread: string, request: string, id: number) {
+    return this.web.image(owner, thread, request, id);
   }
 
   private async ollamaRuntime(): Promise<OllamaRow> {
@@ -749,6 +771,8 @@ export class AiChatService {
     threadId: string,
     text: string,
     clientRequestId: string,
+    webSearchMode?: AiWebSearchMode,
+    weatherCity?: string,
   ): Promise<{ readonly messages: readonly AiMessage[]; readonly replayed: boolean }> {
     const prompt = text.trim();
     if (prompt.length < 1 || prompt.length > 3000) {
@@ -775,15 +799,20 @@ export class AiChatService {
     let accepted: boolean;
     try {
       const admitted = await this.pool.query<{ admitted: boolean }>(
-        useLocal
-          ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
-          : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        webSearchMode !== undefined
+          ? 'SELECT ai_web_text_begin($1,$2,$3,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::uuid[],$9::boolean) AS admitted'
+          : useLocal
+            ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
+            : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
         [
           principalId,
           threadId,
           requestId,
           prompt,
           useLocal ? local!.revision : runtime.configuration_version,
+          ...(webSearchMode !== undefined
+            ? [webSearchMode, weatherCity ?? null, [], useLocal]
+            : []),
         ],
       );
       accepted = admitted.rows[0]?.admitted === true;
@@ -830,6 +859,15 @@ export class AiChatService {
         'json',
         useLocal ? 'ollama' : runtime.provider,
         useLocal ? local!.model : runtime.model,
+      );
+      await this.web.prepare(
+        principalId,
+        threadId,
+        requestId,
+        prompt,
+        webSearchMode ?? 'off',
+        new AbortController().signal,
+        weatherCity,
       );
       const context = await this.history.generationContext(principalId, threadId, requestId);
       const reply = useLocal
@@ -1050,6 +1088,8 @@ export class AiChatService {
     selectedModel?: AiChatModel,
     regenerateFrom?: string,
     attachmentIds: readonly string[] = [],
+    webSearchMode?: AiWebSearchMode,
+    weatherCity?: string,
   ): Promise<{
     readonly messages: readonly AiMessage[];
     readonly replayed: boolean;
@@ -1059,6 +1099,12 @@ export class AiChatService {
     threadId = threadId.toLowerCase();
     requestId = requestId.toLowerCase();
     const sourceId = regenerateFrom?.toLowerCase();
+    if (sourceId && (webSearchMode !== undefined || weatherCity !== undefined))
+      throw new AiServiceError(
+        'ai_request_id_reused',
+        409,
+        'Вариант ответа использует интернет-источники исходного вопроса.',
+      );
     if (sourceId && attachmentIds.length)
       throw new AiServiceError(
         'ai_attachment_invalid',
@@ -1178,20 +1224,26 @@ export class AiChatService {
           ? useLocal
             ? 'SELECT ai_text_regenerate_begin_local($1,$2,$3,$4,$5::bigint) AS admitted'
             : 'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5::bigint) AS admitted'
-          : attachmentIds.length
-            ? useLocal
-              ? 'SELECT ai_attachment_begin_message_local($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
-              : 'SELECT ai_attachment_begin_message($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
-            : useLocal
-              ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
-              : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+          : webSearchMode !== undefined
+            ? 'SELECT ai_web_text_begin($1,$2,$3,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::uuid[],$9::boolean) AS admitted'
+            : attachmentIds.length
+              ? useLocal
+                ? 'SELECT ai_attachment_begin_message_local($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
+                : 'SELECT ai_attachment_begin_message($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
+              : useLocal
+                ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
+                : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
         [
           principalId,
           threadId,
           requestId,
           sourceId ?? prompt,
           useLocal ? local!.revision : runtime.configuration_version,
-          ...(attachmentIds.length && !sourceId ? [attachmentIds] : []),
+          ...(webSearchMode !== undefined && !sourceId
+            ? [webSearchMode, weatherCity ?? null, attachmentIds, useLocal]
+            : attachmentIds.length && !sourceId
+              ? [attachmentIds]
+              : []),
         ],
       );
       admitted = result.rows[0]?.admitted === true;
@@ -1267,6 +1319,16 @@ export class AiChatService {
         useLocal ? 'ollama' : runtime.provider,
         useLocal ? local!.model : model,
       );
+      if (!sourceId)
+        await this.web.prepare(
+          principalId,
+          threadId,
+          requestId,
+          prompt,
+          attachmentIds.length && webSearchMode === 'auto' ? 'off' : (webSearchMode ?? 'off'),
+          combined,
+          weatherCity,
+        );
       const historyContext = await this.history.generationContext(principalId, threadId, requestId);
       const context = files?.text
         ? historyContext.map((item, index) =>

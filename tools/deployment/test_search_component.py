@@ -1,0 +1,132 @@
+"""Pure source/temporary-file tests; never touches Docker or an installation."""
+
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from deployment.contracts import Blocked, LEGACY_SERVICES, REGISTRY, SERVICES, validate_release
+from deployment.search_secret import ensure_secret, inspect_secret
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def candidate(version=2):
+    services = LEGACY_SERVICES if version == 1 else SERVICES
+    return {"format": f"asa-deployment-v{version}", "repository": "spikeal8-maker/asa-lab",
+            "revision": "a" * 40, "schema": 253, "platform": "linux/amd64", "publicationRunId": 1,
+            "images": {name: f"{REGISTRY}/{name}@sha256:" + "b" * 64 for name in services}}
+
+
+class SearchComponentTests(unittest.TestCase):
+    def test_manifest_versions_preserve_legacy_and_require_new_component(self):
+        self.assertEqual(validate_release(candidate(1)), candidate(1))
+        self.assertEqual(validate_release(candidate(2)), candidate(2))
+        for version, changed in ((1, candidate(2)), (2, candidate(1))):
+            changed["format"] = f"asa-deployment-v{version}"
+            with self.assertRaises(Blocked):
+                validate_release(changed)
+        changed = candidate(2)
+        changed["images"]["search"] = "searxng/searxng:latest"
+        with self.assertRaises(Blocked):
+            validate_release(changed)
+
+    def test_component_has_closed_free_engines_and_no_query_log_or_plugins(self):
+        settings = json.loads((ROOT / "infra/search/settings.json").read_text())
+        names = ["bing", "duckduckgo", "wikipedia", "bing images", "duckduckgo images"]
+        self.assertEqual(settings["use_default_settings"]["engines"]["keep_only"], names)
+        self.assertEqual([x["name"] for x in settings["engines"]], names)
+        self.assertEqual(settings["search"]["safe_search"], 2)
+        self.assertEqual(settings["search"]["formats"], ["json"])
+        self.assertEqual(settings["search"]["default_lang"], "ru-RU")
+        self.assertEqual(settings["search"]["autocomplete"], "")
+        self.assertFalse(settings["server"]["image_proxy"])
+        self.assertFalse(settings["server"]["public_instance"])
+        self.assertTrue(all(not p["active"] for p in settings["plugins"].values()))
+        self.assertLessEqual(settings["outgoing"]["max_request_timeout"], 8)
+        self.assertNotIn("secret_key", settings["server"])
+        dockerfile = (ROOT / "infra/search/Dockerfile").read_text()
+        self.assertRegex(dockerfile, r"FROM .*:2026\.10\.25-54ca1d9cf@sha256:[a-f0-9]{64}")
+        self.assertIn('org.opencontainers.image.revision="${ASA_BUILD_REVISION}"', dockerfile)
+        self.assertIn("GRANIAN_ACCESS_LOG=false", dockerfile)
+
+    def test_private_secret_created_once_preserves_bytes_and_check_is_read_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ".env"
+            original = b"# synthetic fixture\r\nEXISTING=preserve\r\n"
+            path.write_bytes(original)
+            self.assertEqual(inspect_secret(path), ("missing", original))
+            result = subprocess.run([sys.executable, str(ROOT / "tools/deployment/search_secret.py"),
+                                     "--file", str(path)], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("MISSING", result.stdout)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertEqual(list(Path(directory).iterdir()), [path])
+            self.assertTrue(ensure_secret(path))
+            saved = path.read_bytes()
+            self.assertTrue(saved.startswith(original))
+            self.assertRegex(saved, rb"ASA_SEARCH_SECRET=[a-f0-9]{64}\r\n$")
+            self.assertFalse(ensure_secret(path))
+            self.assertEqual(path.read_bytes(), saved)
+            self.assertEqual(inspect_secret(path)[0], "valid")
+            if os.name != "nt":
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_invalid_or_duplicate_key_never_rotated(self):
+        for raw in (b"ASA_SEARCH_SECRET=\n", b"ASA_SEARCH_SECRET=bad\n",
+                    b"ASA_SEARCH_SECRET=" + b"a" * 64 + b"\nASA_SEARCH_SECRET=" + b"b" * 64 + b"\n"):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / ".env"
+                path.write_bytes(raw)
+                with self.assertRaises(ValueError):
+                    ensure_secret(path)
+                self.assertEqual(path.read_bytes(), raw)
+                self.assertEqual(list(Path(directory).iterdir()), [path])
+
+    def test_runtime_template_never_gets_default_or_shared_key(self):
+        spec = importlib.util.spec_from_file_location("asa_search_start", ROOT / "infra/search/start.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        template = (ROOT / "infra/search/settings.json").read_text()
+        for value in (None, "", "test", "a" * 63):
+            with self.assertRaises(ValueError):
+                module.configuration(template, value)
+        configured = module.configuration(template, "a" * 64)
+        self.assertEqual(configured["server"]["secret_key"], "a" * 64)
+        self.assertNotIn("secret_key", json.loads(template)["server"])
+        source = (ROOT / "infra/search/start.py").read_text()
+        self.assertNotIn("ASA_SETTINGS_ENCRYPTION_KEY", source)
+        self.assertNotIn("CLASSROOM_CODE_SECRET", source)
+
+    def test_source_updaters_provision_only_after_verified_backup(self):
+        for path, backup, create, switch in (
+            ("tools/docker-update.sh", 'backup_database "$backup_path"',
+             'python3 tools/deployment/search_secret.py --create', 'compose up -d --no-build'),
+            ("tools/docker-update.ps1", 'New-DatabaseBackup $backupPath',
+             "Invoke-Native python @('tools/deployment/search_secret.py', '--create')",
+             "Invoke-Compose -Arguments @('up', '-d', '--no-build')"),
+        ):
+            with self.subTest(path=path):
+                source = (ROOT / path).read_text()
+                self.assertLess(source.index(backup), source.index(create))
+                self.assertLess(source.index(create), source.index(switch))
+                # The preflight invocation does not carry --create.
+                self.assertIn('search_secret.py', source[:source.index(backup)])
+
+    def test_private_search_has_no_volume_or_public_port(self):
+        compose = (ROOT / "compose.yaml").read_text()
+        section = compose.split("  search:\n", 1)[1].split("\n  web:", 1)[0]
+        self.assertNotIn("\n    ports:", section)
+        self.assertNotIn("\n    volumes:", section)
+        self.assertNotIn("database", section)
+        self.assertIn("ASA_SEARCH_SECRET: ${ASA_SEARCH_SECRET:-}", section)
+        self.assertIn("read_only: true", section)
+
+
+if __name__ == "__main__":
+    unittest.main()

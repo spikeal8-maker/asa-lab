@@ -214,6 +214,12 @@ function Test-Ready {
   $output = & docker compose @ComposeFiles exec -T web wget -q -O - http://127.0.0.1:8080/health/ready 2>$null
   if ($LASTEXITCODE -ne 0 -or -not $output) { return $false }
   try {
+    if (Get-EnvironmentValue 'ASA_SEARCH_SECRET') {
+      $searchRevision = & docker compose @ComposeFiles exec -T search cat /usr/local/share/asa-search/asa-commit.txt 2>$null
+      if ($LASTEXITCODE -ne 0 -or ($searchRevision | Out-String).Trim() -ne $env:ASA_BUILD_REVISION) { return $false }
+      & docker compose @ComposeFiles exec -T search /usr/local/searxng/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()" *> $null
+      if ($LASTEXITCODE -ne 0) { return $false }
+    }
     $ready = $output | Out-String | ConvertFrom-Json
     $metadata = & docker compose @ComposeFiles exec -T web wget -q -O - http://127.0.0.1:8080/build-metadata.json 2>$null
     if ($LASTEXITCODE -ne 0 -or -not $metadata) { return $false }
@@ -272,14 +278,17 @@ switch ($Action) {
   'up' {
     Assert-Docker
     Assert-StartupIdentity
+    if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 is required for private configuration.' }
     New-PrivateEnvironment
+    & python tools/deployment/search_secret.py --create
+    if ($LASTEXITCODE -ne 0) { throw 'Search private configuration is invalid; no replacement was generated.' }
     if ($Profile -ne 'test') {
       & python tools/log_collector.py prepare --root $RepoRoot --profile $Profile
       if ($LASTEXITCODE -ne 0) { throw 'Collector preparation failed before service replacement.' }
     }
     Invoke-Compose @('config', '--quiet')
     # Build sequentially: a failed build never replaces healthy running containers.
-    foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
+    foreach ($service in @('minio', 'search', 'scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
     Assert-StartupIdentity
     Invoke-Compose @('up', '-d', '--no-build')
     Wait-Ready

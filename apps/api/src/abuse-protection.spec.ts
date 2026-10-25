@@ -107,6 +107,7 @@ describe('AI mutation budget identity boundary', () => {
     ['POST', '/api/ai/threads/:threadId/regenerations/stream'],
     ['PUT', '/api/ai/classrooms/:classroomId/access'],
     ['PUT', '/api/admin/v1/ai'],
+    ['PUT', '/api/admin/v1/ai/web-search'],
     ['POST', '/api/admin/v1/ai/test'],
     ['POST', '/api/ai/attachments'],
     ['PUT', '/api/ai/attachments/:uploadId/bytes'],

@@ -1,3 +1,5 @@
+import type { AiWebSearchEvidence } from '@asa-lab/contracts';
+import { webEvidenceContext } from './ai-web-search.js';
 import type pg from 'pg';
 import type { AiCursor, AiMessage, AiPage, AiThread } from './ai-chat.service.js';
 
@@ -11,6 +13,7 @@ interface ThreadRow {
 }
 
 interface MessageRow {
+  web_search?: AiWebSearchEvidence | null;
   id: string;
   role: 'user' | 'assistant';
   content: string;
@@ -45,6 +48,7 @@ function message(row: MessageRow): AiMessage {
       ? { sourceUserMessageId: row.source_user_message_id, sourcePrompt: row.source_prompt ?? '' }
       : {}),
     ...(row.regenerated ? { regenerated: true } : {}),
+    ...(row.web_search ? { webSearch: row.web_search } : {}),
   };
 }
 
@@ -83,7 +87,7 @@ export class AiTextHistoryStore {
 
   async messages(owner: string, threadId: string): Promise<readonly AiMessage[]> {
     const result = await this.pool.query<MessageRow>(
-      'SELECT * FROM ai_text_messages_page($1,$2,NULL,NULL,80)',
+      'SELECT page.*, ai_web_search_evidence($1,$2,page.request_id,true) AS web_search FROM ai_text_messages_page($1,$2,NULL,NULL,80) page',
       [owner, threadId],
     );
     return result.rows.map(message);
@@ -95,7 +99,7 @@ export class AiTextHistoryStore {
     cursor: AiCursor | null,
   ): Promise<AiPage<AiMessage>> {
     const result = await this.pool.query<MessageRow>(
-      `SELECT page.*,
+      `SELECT page.*, ai_web_search_evidence($1,$2,page.request_id,true) AS web_search,
           to_char(page.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
         FROM ai_text_messages_page($1,$2,$3::timestamptz,$4::uuid,$5) AS page`,
       [owner, threadId, cursor?.at ?? null, cursor?.id ?? null, 51],
@@ -114,7 +118,7 @@ export class AiTextHistoryStore {
     requestId: string,
   ): Promise<readonly AiMessage[]> {
     const result = await this.pool.query<MessageRow>(
-      'SELECT * FROM ai_text_request_messages($1,$2,$3)',
+      'SELECT page.*, ai_web_search_evidence($1,$2,page.request_id,true) AS web_search FROM ai_text_request_messages($1,$2,$3) page',
       [owner, threadId, requestId],
     );
     return result.rows.map(message);
@@ -125,11 +129,20 @@ export class AiTextHistoryStore {
     threadId: string,
     requestId: string,
   ): Promise<readonly { role: 'user' | 'assistant'; content: string }[]> {
-    const result = await this.pool.query<{ role: 'user' | 'assistant'; content: string }>(
-      'SELECT * FROM ai_text_generation_context($1,$2,$3)',
+    const result = await this.pool.query<{
+      role: 'user' | 'assistant';
+      content: string;
+      web_search?: AiWebSearchEvidence | null;
+    }>(
+      'SELECT context.*, ai_web_search_evidence($1,$2,$3,false) AS web_search FROM ai_text_generation_context($1,$2,$3) context',
       [owner, threadId, requestId],
     );
     if (result.rows.length === 0) throw new Error('AI_CONTEXT_UNAVAILABLE');
-    return result.rows.map((row) => ({ role: row.role, content: row.content.slice(0, 3000) }));
+    return result.rows.map((row, index) => ({
+      role: row.role,
+      content:
+        row.content.slice(0, 3000) +
+        (index === result.rows.length - 1 ? webEvidenceContext(row.web_search) : ''),
+    }));
   }
 }

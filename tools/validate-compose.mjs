@@ -18,6 +18,11 @@ const REQUIRED_FILES = [
   ...new Set(Object.values(OVERLAYS).flat()),
   'Dockerfile.api',
   'Dockerfile.web',
+  'infra/search/Dockerfile',
+  'infra/search/settings.json',
+  'infra/search/start.py',
+  'infra/search/asa_search_app.py',
+  'tools/deployment/search_secret.py',
   '.dockerignore',
   '.env.docker.example',
   'docker/api-entrypoint.sh',
@@ -136,7 +141,7 @@ const guardedUpdaterSources = [
       'backup_database "$backup_path"',
       'git pull --ff-only origin main',
       'ASA_BUILD_REVISION=$new_revision',
-      'for service in minio scratch api web',
+      'for service in minio search scratch api web',
       'compose up -d --no-build',
       '&& wait_exact_readiness',
     ],
@@ -153,7 +158,7 @@ const guardedUpdaterSources = [
       'New-DatabaseBackup $backupPath',
       'Invoke-Native git pull --ff-only origin main',
       '$env:ASA_BUILD_REVISION = $newRevision',
-      "foreach ($service in @('minio', 'scratch', 'api', 'web'))",
+      "foreach ($service in @('minio', 'search', 'scratch', 'api', 'web'))",
       "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
       '[void](Wait-ExactReadiness',
     ],
@@ -286,7 +291,16 @@ if (
   errors.push('Scratch runtime must not share API/database networks');
 if (baseServices.web?.depends_on?.scratch?.condition !== 'service_healthy')
   errors.push('Web startup must wait for healthy Scratch');
-const expectedServices = ['api', 'migration', 'minio', 'minio-init', 'postgres', 'scratch', 'web'];
+const expectedServices = [
+  'api',
+  'migration',
+  'minio',
+  'minio-init',
+  'postgres',
+  'scratch',
+  'search',
+  'web',
+];
 if (JSON.stringify(serviceNames) !== JSON.stringify(expectedServices)) {
   errors.push(
     `base services must be exactly ${expectedServices.join(', ')}, got ${serviceNames.join(', ')}`,
@@ -335,6 +349,21 @@ if ((baseServices.postgres?.ports ?? []).length > 0) {
 }
 if ((baseServices.api?.ports ?? []).length > 0) {
   errors.push('base/staging API must remain internal; publish it only in compose.dev.yaml');
+}
+if (
+  (baseServices.search?.ports ?? []).length > 0 ||
+  JSON.stringify(baseServices.search?.networks) !== JSON.stringify(['application'])
+) {
+  errors.push('Search must stay private on the application network, with no host port');
+}
+if (baseServices.api?.depends_on?.search) {
+  errors.push('Search availability must not prevent ordinary API/chat startup');
+}
+if (
+  baseServices.api?.environment?.ASA_SEARCH_SECRET !== undefined ||
+  baseServices.web?.environment?.ASA_SEARCH_SECRET !== undefined
+) {
+  errors.push('Dedicated search signing secret must not be passed to API/Web');
 }
 
 // `docker compose config` needs a Docker CLI. It is always present in CI; on a

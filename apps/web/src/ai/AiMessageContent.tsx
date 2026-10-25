@@ -6,6 +6,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import './ai-text-complete.css';
 import { codeDownloadFormat, downloadBlob } from './ai-download';
+import { readWebEvidence } from './ai-web-evidence';
 
 function flattenText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -28,6 +29,7 @@ function safeLink(href?: string): { href: string; external: boolean } | null {
 interface ContentProps {
   readonly content: string;
   readonly pending?: boolean;
+  readonly webSearch?: unknown;
 }
 
 // A malformed formula normally becomes KaTeX's escaped source fallback. An
@@ -59,7 +61,12 @@ class ContentBoundary extends Component<ContentProps & { children: ReactNode }> 
   }
 }
 
-export function AiMessageContent({ content, pending = false }: ContentProps): JSX.Element {
+export function AiMessageContent({
+  content,
+  pending = false,
+  webSearch,
+}: ContentProps): JSX.Element {
+  const evidence = readWebEvidence(webSearch);
   return (
     <div className="asa-ai-rich-text">
       <ContentBoundary content={content}>
@@ -81,11 +88,18 @@ export function AiMessageContent({ content, pending = false }: ContentProps): JS
           components={{
             a: ({ href, children }) => {
               const safe = safeLink(href);
+              const number = flattenText(children).replace(/^\[|\]$/g, '');
+              const cited = evidence?.sources.find(
+                (source) => String(source.id) === number && safe?.href === source.url,
+              );
               return safe ? (
                 <a
                   href={safe.href}
                   target={safe.external ? '_blank' : undefined}
                   rel={safe.external ? 'noreferrer noopener' : undefined}
+                  className={cited ? 'asa-ai-citation' : undefined}
+                  aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
+                  title={cited?.hostname}
                 >
                   {children}
                 </a>

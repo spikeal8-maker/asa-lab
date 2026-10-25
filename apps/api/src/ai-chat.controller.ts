@@ -1,3 +1,5 @@
+import type { AiWebSearchMode } from '@asa-lab/contracts';
+import { AiWebSearchError, isWebSearchMode } from './ai-web-search.js';
 import {
   Body,
   Controller,
@@ -72,7 +74,7 @@ export class AiChatController {
     try {
       return await call();
     } catch (problem) {
-      if (problem instanceof AiServiceError) {
+      if (problem instanceof AiServiceError || problem instanceof AiWebSearchError) {
         return reject(problem.code, problem.message, problem.status);
       }
       throw problem;
@@ -90,6 +92,57 @@ export class AiChatController {
     )
       return reject('ai_attachment_invalid', 'Выберите не более четырёх разных файлов.', 400);
     return (value as string[]).map((id) => id.toLowerCase());
+  }
+
+  private internetMode(body: Record<string, unknown>): AiWebSearchMode | undefined {
+    if (body['webSearchMode'] === undefined) return undefined;
+    if (!isWebSearchMode(body['webSearchMode']))
+      return reject('ai_web_mode_invalid', 'Выберите режим интернет-поиска.', 400);
+    return body['webSearchMode'];
+  }
+  private weatherCity(body: Record<string, unknown>): string | undefined {
+    const value = body['weatherCity'];
+    if (value === undefined) return undefined;
+    if (
+      typeof value !== 'string' ||
+      value.trim().length < 1 ||
+      value.length > 100 ||
+      /\p{Cc}/u.test(value)
+    )
+      return reject('ai_web_city_invalid', 'Укажите город до 100 символов.', 400);
+    return value.trim();
+  }
+
+  @Get('web-search/status')
+  async webSearchStatus(@Req() request: FastifyRequest) {
+    await this.requireOwner(request);
+    return this.safe(() => this.ai.webSearchStatus());
+  }
+
+  @Get('threads/:threadId/web-search/:requestId/images/:imageId')
+  async webSearchImage(
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+    @Param('threadId') thread: string,
+    @Param('requestId') requestId: string,
+    @Param('imageId') imageId: string,
+  ) {
+    const owner = await this.requireOwner(request);
+    if (!UUID.test(requestId) || !/^[1-6]$/.test(imageId))
+      return reject('ai_web_image_missing', 'Изображение недоступно.', 404);
+    const image = await this.safe(() =>
+      this.ai.webSearchImage(
+        owner.principalId,
+        this.threadId(thread),
+        requestId.toLowerCase(),
+        Number(imageId),
+      ),
+    );
+    reply
+      .header('Cache-Control', 'private, no-store')
+      .header('X-Content-Type-Options', 'nosniff')
+      .type(image.mediaType)
+      .send(image.bytes);
   }
 
   private threadId(value: string): string {
@@ -316,6 +369,8 @@ export class AiChatController {
         400,
       );
     }
+    if (body['webSearchMode'] !== undefined || body['weatherCity'] !== undefined)
+      return reject('ai_request_id_reused', 'Вариант использует источники исходного вопроса.', 409);
     const model = body['model'];
     if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
@@ -369,6 +424,8 @@ export class AiChatController {
       model as AiChatModel | undefined,
       undefined,
       this.attachmentIds(body['attachmentIds']),
+      this.internetMode(body),
+      this.weatherCity(body),
     );
   }
 
@@ -381,6 +438,8 @@ export class AiChatController {
     model?: AiChatModel,
     sourceId?: string,
     attachmentIds: readonly string[] = [],
+    webSearchMode?: AiWebSearchMode,
+    weatherCity?: string,
   ): Promise<void> {
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -407,7 +466,9 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
-        ...(attachmentIds.length ? ([attachmentIds] as const) : ([] as const)),
+        attachmentIds,
+        webSearchMode,
+        weatherCity,
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
@@ -417,9 +478,12 @@ export class AiChatController {
         ),
       });
     } catch (problem) {
-      const code = problem instanceof AiServiceError ? problem.code : 'ai_provider_unavailable';
+      const code =
+        problem instanceof AiServiceError || problem instanceof AiWebSearchError
+          ? problem.code
+          : 'ai_provider_unavailable';
       const message =
-        problem instanceof AiServiceError
+        problem instanceof AiServiceError || problem instanceof AiWebSearchError
           ? problem.message
           : 'Не удалось получить ответ модели. Сообщение сохранено.';
       event('error', { code, message });
@@ -454,6 +518,8 @@ export class AiChatController {
         threadId,
         body['message'] as string,
         (body['requestId'] as string).toLowerCase(),
+        this.internetMode(body),
+        this.weatherCity(body),
       ),
     );
   }
