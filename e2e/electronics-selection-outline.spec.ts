@@ -1544,11 +1544,17 @@ for (const width of [1440, 1024, 390, 320])
           const supply = part(page, 'supply').getByTestId('regulated-power-supply-runtime');
           await expect(supply).toHaveAttribute('data-output-enabled', 'true');
           for (const enabled of ['false', 'true']) {
-            await supply
-              .locator(
-                'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
-              )
-              .click();
+            const powerSwitch = supply.locator(
+              'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
+            );
+            const nativeBounds = await powerSwitch.boundingBox();
+            expect(nativeBounds).not.toBeNull();
+            if (!nativeBounds) throw new Error('Real PSU control has no bounding box');
+            const x = nativeBounds.x + nativeBounds.width / 2;
+            const y = nativeBounds.y + nativeBounds.height / 2;
+            await page.mouse.move(x, y);
+            await page.mouse.down();
+            await page.mouse.up();
             await expect(supply).toHaveAttribute('data-output-enabled', enabled);
           }
           await checkpoint('running-supply-controls');
