@@ -206,11 +206,6 @@ try {
           const off = await sample(`${zoom}-off`);
           assert.match(off.filter, /drop-shadow/);
           assert.equal(off.dark, colorScheme === 'dark');
-          const offPng = await page.screenshot({ path: resolve(output, `${key}-${zoom}-off.png`) });
-          samples.push({
-            label: `${zoom}-off-screenshot`,
-            sha256: createHash('sha256').update(offPng).digest('hex'),
-          });
           const mouse = await gesture('mouse');
           const on = await sample(`${zoom}-on`);
           assert.equal(on.active, true);
@@ -240,6 +235,11 @@ try {
           const unselectedOff = await sample(`${zoom}-off-unselected`);
           assert.ok(!unselectedOff.active && !unselectedOff.selection);
           assert.equal(unselectedOff.filter, unselectedOn.filter);
+          const offPng = await page.screenshot({ path: resolve(output, `${key}-${zoom}-off.png`) });
+          samples.push({
+            label: `${zoom}-off-screenshot`,
+            sha256: createHash('sha256').update(offPng).digest('hex'),
+          });
           const part = page.locator('[data-component-id="switch"] > .workbench-part');
           await part.focus();
           await page.keyboard.press('Enter');
