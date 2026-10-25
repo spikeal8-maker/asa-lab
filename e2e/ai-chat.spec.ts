@@ -1540,7 +1540,9 @@ test('AI composer keeps one centered input and shows only real attachment tools'
   await expect(form).toHaveClass(/compact/);
   await composer.fill('Привет');
   await expect(form).toHaveClass(/compact/);
-  await composer.fill('Помоги разобраться с этой электронной схемой и проверить подключение светодиода к источнику питания.');
+  await composer.fill(
+    'Помоги разобраться с этой электронной схемой и проверить подключение светодиода к источнику питания.',
+  );
   await expect(form).toHaveClass(/expanded/);
   await composer.fill('');
   await expect(form).toHaveClass(/compact/);
