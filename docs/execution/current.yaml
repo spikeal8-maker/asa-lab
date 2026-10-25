@@ -2957,7 +2957,7 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: technical_accepted
+      status: done
       checkpoint: ui04a_b_c_merged_main_28e05dde_technical_accepted
       owner_acceptance: pending
       normative_refs:
