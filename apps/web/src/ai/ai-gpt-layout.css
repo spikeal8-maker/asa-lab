@@ -822,6 +822,7 @@
   --ai-selected-bg: #eaeaea;
   --ai-send-bg: #141414;
   --ai-send-text: #fff;
+  --ai-danger: #b3261e;
   --ai-accent: #202123;
   --ai-on-accent: #fff;
   color-scheme: light;
@@ -838,6 +839,7 @@
   --ai-selected-bg: #323235;
   --ai-send-bg: #f5f5f5;
   --ai-send-text: #1d1d1f;
+  --ai-danger: #ff9c98;
   --ai-accent: #f5f5f5;
   --ai-on-accent: #1d1d1f;
   color-scheme: dark;
