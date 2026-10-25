@@ -1,4 +1,13 @@
 import { newClientId } from './client-id';
+import { isAuthRequest } from './auth-request';
+import {
+  REQUEST_OPERATIONS,
+  REQUEST_METHODS,
+  REQUEST_FAILURE_KINDS,
+  requestMethod,
+  requestOperation,
+  requestFailureKind,
+} from './request-diagnostic-details';
 import { diagnosticQuality } from './telemetry-quality';
 import { isTelemetryPath } from './telemetry-contract';
 import {
@@ -25,6 +34,7 @@ export type DiagnosticCode =
   | 'autosave_failed'
   | 'session_refresh_failed'
   | 'request_failed'
+  | 'request_cancelled'
   | 'request_slow'
   | 'editor_ready'
   | 'editor_heartbeat'
@@ -32,6 +42,10 @@ export type DiagnosticCode =
   | 'editor_recovered';
 export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth';
 export interface DiagnosticDetail {
+  readonly operation?: string;
+  readonly method?: string;
+  readonly clientAttemptId?: string;
+  readonly failureKind?: string;
   readonly exception?: ClientException;
   readonly category?: string;
   readonly failureCode?: string;
@@ -87,7 +101,12 @@ export function reportClientDiagnostic(
       windowStarted = now;
       count = 0;
     }
-    const health = ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(code);
+    const health = [
+      'editor_ready',
+      'editor_heartbeat',
+      'editor_recovered',
+      'request_cancelled',
+    ].includes(code);
     const baseKey = `${context.instanceId}:${module}:${code}`;
     const scratchSave =
       code === 'autosave_failed' &&
@@ -100,11 +119,16 @@ export function reportClientDiagnostic(
         ? detail.exception
         : undefined;
     const frame = exception?.frames[0];
-    const key = scratchSave
-      ? `${baseKey}:${detail.failureCode}`
-      : exception
-        ? `${baseKey}:${exception.kind}:${exception.capture}:${frame?.script}:${frame?.line}:${frame?.column}`
-        : baseKey;
+    const key =
+      code === 'request_cancelled'
+        ? baseKey
+        : detail.clientAttemptId && UUID.test(detail.clientAttemptId)
+          ? `${baseKey}:${detail.clientAttemptId}`
+          : scratchSave
+            ? `${baseKey}:${detail.failureCode}`
+            : exception
+              ? `${baseKey}:${exception.kind}:${exception.capture}:${frame?.script}:${frame?.line}:${frame?.column}`
+              : baseKey;
     if (!health && count >= 12) {
       quality.increment('suppressed');
       return;
@@ -123,6 +147,20 @@ export function reportClientDiagnostic(
         ? __ASA_BUILD_REVISION__
         : 'unknown';
     const safe = {
+      ...(REQUEST_OPERATIONS.includes(detail.operation as (typeof REQUEST_OPERATIONS)[number])
+        ? { operation: detail.operation }
+        : {}),
+      ...(REQUEST_METHODS.includes(detail.method as (typeof REQUEST_METHODS)[number])
+        ? { method: detail.method }
+        : {}),
+      ...(REQUEST_FAILURE_KINDS.includes(
+        detail.failureKind as (typeof REQUEST_FAILURE_KINDS)[number],
+      )
+        ? { failureKind: detail.failureKind }
+        : {}),
+      ...(detail.clientAttemptId && UUID.test(detail.clientAttemptId)
+        ? { clientAttemptId: detail.clientAttemptId }
+        : {}),
       ...(exception
         ? {
             exception: {
@@ -262,14 +300,23 @@ export function installClientDiagnostics(): void {
     )
       return original(input, init);
     const active = context;
+    const module = isAuthRequest(url.pathname) ? 'auth' : active.module;
+    const method = requestMethod(init?.method ?? (input instanceof Request ? input.method : 'GET'));
+    const operation = requestOperation(url.pathname, method, module);
+    const clientAttemptId = newClientId();
+    const requestDetail = { operation, method, clientAttemptId };
+    const signal =
+      init?.signal !== undefined
+        ? init.signal
+        : input instanceof Request
+          ? input.signal
+          : undefined;
     const headers = new Headers(
       init?.headers ?? (input instanceof Request ? input.headers : undefined),
     );
     headers.set('x-asa-diagnostic-instance', active.instanceId);
-    headers.set(
-      'x-asa-diagnostic-module',
-      url.pathname.includes('/auth/') ? 'auth' : active.module,
-    );
+    headers.set('x-asa-diagnostic-module', module);
+    headers.set('x-asa-client-attempt-id', clientAttemptId);
     const started = performance.now();
     try {
       const response = await original(input, { ...init, headers });
@@ -279,26 +326,30 @@ export function installClientDiagnostics(): void {
         active.instanceId === context.instanceId &&
         (response.status >= 500 || durationMs >= 10_000)
       )
-        reportClientDiagnostic(
-          response.status >= 500 ? 'request_failed' : 'request_slow',
-          active.module,
-          {
-            phase: 'request',
-            httpStatus: response.status,
-            durationMs,
-            relatedRequestId: response.headers.get('x-request-id') ?? undefined,
-          },
-        );
+        reportClientDiagnostic(response.status >= 500 ? 'request_failed' : 'request_slow', module, {
+          ...requestDetail,
+          ...(response.status >= 500 ? { failureKind: 'http' } : {}),
+          phase: 'request',
+          httpStatus: response.status,
+          durationMs,
+          relatedRequestId: response.headers.get('x-request-id') ?? undefined,
+        });
       return response;
     } catch (failure) {
-      if (
-        active.instanceId === context.instanceId &&
-        !(failure instanceof DOMException && failure.name === 'AbortError')
-      )
-        reportClientDiagnostic('request_failed', active.module, {
-          phase: 'request',
-          durationMs: performance.now() - started,
-        });
+      const failureKind = requestFailureKind(failure, signal);
+      if (active.instanceId === context.instanceId)
+        reportClientDiagnostic(
+          failureKind === 'cancelled' && ['GET', 'HEAD'].includes(method)
+            ? 'request_cancelled'
+            : 'request_failed',
+          module,
+          {
+            ...requestDetail,
+            failureKind,
+            phase: 'request',
+            durationMs: performance.now() - started,
+          },
+        );
       throw failure;
     }
   };

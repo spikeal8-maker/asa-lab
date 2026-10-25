@@ -22,13 +22,28 @@ from deployment import ci_collector_cleanup as ci_cleanup
 
 def fixture(root):
     (root / 'tools').mkdir()
-    for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py'):
+    for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py', 'memory_sampling.py'):
         (root / 'tools' / name).write_text('fixture-' + name)
     (root / '.env').write_text('COMPOSE_PROJECT_NAME=asa-lab-dev\n')
     return Installation(root, 'dev')
 
 
 class CollectorLifecycleTests(unittest.TestCase):
+    def test_packaged_collector_imports_memory_module_and_digest_tracks_it(self):
+        from deployment.ci_collector_fixture import copy_collector_fixture
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            copy_collector_fixture(Path(__file__).resolve().parents[2], root)
+            result = subprocess.run([sys.executable, '-E', str(root / 'tools/collect_logs.py'), '--help'],
+                                    cwd=root, capture_output=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', errors='replace'))
+            before = lifecycle.digest(root)
+            module = root / 'tools/memory_sampling.py'
+            module.write_bytes(module.read_bytes() + b'\n# fixture change\n')
+            self.assertNotEqual(before, lifecycle.digest(root))
+            module.unlink()
+            with self.assertRaises(FileNotFoundError): lifecycle.digest(root)
+
     def test_status_and_manager_doctor_check_do_not_create_state(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); install = fixture(root)

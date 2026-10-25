@@ -11,6 +11,43 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it('logs safe cancelled reads as info and rejects malformed or private request fields', () => {
+    const controller = new ClientDiagnosticsController();
+    const body = {
+      code: 'request_cancelled',
+      module: 'auth',
+      revision: 'abcdef0',
+      phase: 'request',
+      method: 'GET',
+      operation: 'auth_me',
+      failureKind: 'cancelled',
+      clientAttemptId: '30000000-0000-4000-8000-000000000001',
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      controller.report(reportRequest(), body);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject({
+        ...body,
+        level: 'info',
+        requestId: reportRequest().id,
+        untrustedClientReport: true,
+      });
+      for (const extra of [
+        { operation: '/api/auth/me?token=PRIVATE' },
+        { method: 'PRIVATE' },
+        { failureKind: 'PRIVATE' },
+        { clientAttemptId: 'PRIVATE' },
+        { clientAttemptId: ['30000000-0000-4000-8000-000000000001'] },
+        { url: '/api/PRIVATE' },
+        { method: 'PUT' },
+        { failureKind: 'timeout' },
+      ])
+        expect(() => controller.report(reportRequest(), { ...body, ...extra })).toThrow();
+      expect(out).toHaveBeenCalledTimes(1);
+    } finally {
+      out.mockRestore();
+    }
+  });
   it('accepts safe generated Worker asset coordinates as well as ordinary chunks', () => {
     const controller = new ClientDiagnosticsController();
     const frame = { script: '/assets/simulation.worker-1234abcd.js', line: 1, column: 20 };

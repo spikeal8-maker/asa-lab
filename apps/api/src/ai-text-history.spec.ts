@@ -1,3 +1,4 @@
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { createCipheriv } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -32,6 +33,8 @@ function fixture() {
   let receipt: { request: string; source: string } | null = null;
   let messages: Record<string, unknown>[] = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+    const journal = aiUsageQueryFixture(sql);
+    if (journal) return journal;
     events.push(sql);
     if (sql.includes('ai_text_regeneration_replay')) {
       if (receipt && (receipt.source !== params[3] || receipt.request !== params[2])) {

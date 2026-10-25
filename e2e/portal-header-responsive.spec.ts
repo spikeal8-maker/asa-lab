@@ -369,3 +369,65 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
   expect(state.mutations).toEqual([]);
   expect(state.errors).toEqual([]);
 });
+
+for (const sidebar of ['expanded', 'collapsed'] as const) {
+  test(`VK community links remain accessible in the ${sidebar} sidebar, profile menu, and mobile drawer`, async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const state = await fixture(page, 0, { sidebar });
+    const sidebarVk = page.locator('#portal-sidebar a.portal-sidebar-vk');
+    const menuVk = page.locator('.portal-account-menu a.portal-account-vk');
+    const destination = 'https://vk.ru/asalabru';
+
+    for (const width of [1440, 390, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/#/home');
+      if (width <= 1023) {
+        await page.getByRole('button', { name: 'Открыть меню' }).click();
+        await expect(page.locator('#portal-sidebar.mobile-open')).toBeVisible();
+      }
+      await expect(sidebarVk).toBeVisible();
+      await expect(sidebarVk).toHaveAttribute('href', destination);
+      await expect(sidebarVk).toHaveAttribute('target', '_blank');
+      await expect(sidebarVk).toHaveAttribute('rel', 'noopener noreferrer');
+      await expect(sidebarVk.locator('.portal-vk-glyph')).toHaveCSS('fill', 'rgb(0, 119, 255)');
+      const helpBox = await page.locator('.portal-sidebar-help-row .portal-nav-item').boundingBox();
+      const vkBox = await sidebarVk.boundingBox();
+      expect(helpBox).not.toBeNull();
+      expect(vkBox).not.toBeNull();
+      expect(vkBox!.width).toBeGreaterThanOrEqual(44);
+      expect(vkBox!.height).toBeGreaterThanOrEqual(44);
+      if (width >= 1024 && sidebar === 'collapsed') {
+        expect(vkBox!.y).toBeGreaterThanOrEqual(helpBox!.y + helpBox!.height - 1);
+      } else {
+        expect(vkBox!.x).toBeGreaterThanOrEqual(helpBox!.x + helpBox!.width - 1);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width + 1,
+      );
+      if (width <= 1023) {
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#portal-sidebar.mobile-open')).toHaveCount(0);
+      }
+
+      await page.locator('.portal-account > summary').click();
+      await expect(menuVk).toBeVisible();
+      await expect(menuVk).toContainText('ASA Lab ВКонтакте');
+      await expect(menuVk).toHaveAttribute('href', destination);
+      await expect(menuVk).toHaveAttribute('target', '_blank');
+      await expect(menuVk).toHaveAttribute('rel', 'noopener noreferrer');
+      await expect(menuVk.locator('.portal-vk-glyph')).toHaveCSS('fill', 'rgb(0, 119, 255)');
+      const menuBox = await page.locator('.portal-account-menu').boundingBox();
+      expect(menuBox).not.toBeNull();
+      expect(menuBox!.x).toBeGreaterThanOrEqual(0);
+      expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(width + 1);
+      await menuVk.focus();
+      await expect(menuVk).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(menuVk).toBeHidden();
+    }
+    expect(state.errors).toEqual([]);
+    expect(state.mutations).toEqual([]);
+  });
+}
