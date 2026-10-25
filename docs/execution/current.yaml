@@ -2957,20 +2957,21 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: ui03_merged_main_292dc974_ui04a_games_embedded_selected
+      status: technical_accepted
+      checkpoint: ui04a_b_c_merged_main_28e05dde_technical_accepted
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner Issue #734 and comment 6387720711 (2026-10-24) explicitly authorizes
-        UI-04A then separately reviewed UI-04B and UI-04C in the teacher-facing
-        student profile only. UI-03 PR #733 source
-        0779aa66aeb132c57d41b1fde8f5d5e67b72925f was integrated in main
-        as 292dc97412066104c8f774b95954bb52192f6ce4. UI-04A is the
-        currently selected games-editor relocation; code, CI, review and main
-        acceptance are not claimed by this governance selection.
+        Owner Issue #734 and comment 6387720711 authorized complete UI-04A/B/C
+        teacher-facing student-settings consolidation. Owner explicitly authorized
+        publishing the finished result in main on 2026-10-25. PR #736 source
+        9a130a22de1836dbc262b54e7ed3a0c1c5082733 passed six exact-SHA
+        workflows and independent Codex review, then GitHub merged it as
+        28e05dde76f838357975477c91f1f0fbc8cac300. Issue #734 is closed
+        completed. No school installation or production database action was
+        authorized; separate owner visual acceptance remains pending.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
@@ -2980,13 +2981,15 @@ parallel_lanes:
         - https://github.com/spikeal8-maker/asa-lab/issues/734
         - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
       scope: >-
-        UI-04A (first bounded slice) selected after accepted UI-03 PR #733:
-        embed the existing single ClassroomGamesSettings editor exclusively in
-        Settings / Игровые разрешения, remove its always-mounted legacy region
-        and scroll workaround, preserve class-level consumer, dirty/navigation
-        protection, version/409/readback and Seat isolation. Do not start
-        UI-04B or UI-04C in this executor slice until separate acceptance.
-        Follow Issue #734 and preserve unrelated parallel lanes.
+        UI-04A/B/C product code and real React/UI tests are integrated in main
+        through PR #736: single lazy server-backed games editor and permissions
+        solely under Settings, authorized pupil management and Safe Mode grouped
+        in four closed-by-default categories, no persistent external controls,
+        grade/rating/awards in their respective nine profile tabs, compact mobile
+        controls and accessible work-visibility disclosure. Owner visual
+        acceptance, deployment and next programme slice are separate decisions.
+        Do not reimplement UI-04; the next classroom task must be selected
+        independently under Issue #715 after its own governance preflight.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
