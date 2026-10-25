@@ -386,7 +386,10 @@ export function AiChatPage({
     // Opening the ASA/history sidebar changes the chat width without a window
     // resize. Observe that container rather than waiting for the next keystroke.
     const widthTarget = node.closest('.chat-main');
-    const observer = widthTarget ? new ResizeObserver(measure) : null;
+    // ResizeObserver is unavailable in some embedded/WebView and test runtimes.
+    // Keep the input functional there; window resize remains a safe fallback.
+    const observer =
+      widthTarget && typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
     if (widthTarget) observer?.observe(widthTarget);
     window.addEventListener('resize', measure);
     return () => {
