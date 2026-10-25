@@ -1,11 +1,7 @@
-name: ASA Portable Release
-run-name: Release ${{ github.event.workflow_run.head_sha || github.sha }}
+name: ASA Owner Approved Pinned Release
+run-name: Owner approved release 0d182b88
 
 "on":
-  workflow_run:
-    workflows: ['ASA Lab Governance and Code Gates']
-    branches: [main]
-    types: [completed]
   workflow_dispatch: {}
 
 permissions:
@@ -13,7 +9,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: asa-stable-release
+  group: asa-owner-release-0d182b88
   cancel-in-progress: false
 
 jobs:
@@ -32,7 +28,6 @@ jobs:
       - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
       - run: python tools/test_collect_logs.py
   gate:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     outputs:
       revision: ${{ steps.source.outputs.revision }}
@@ -40,19 +35,17 @@ jobs:
       - id: source
         env:
           GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-          REVISION: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          gh api "repos/$REPOSITORY/actions/runs?head_sha=$REVISION&branch=main&per_page=100" > /tmp/runs.json
-          python - <<'PY'
+          gh api repos/spikeal8-maker/asa-lab/actions/runs/40228416329 > /tmp/focused.json
+          python - <<'PYVERIFY'
           import json, os
-          runs = json.load(open('/tmp/runs.json'))['workflow_runs']
-          required = [r for r in runs if r['name'] == 'ASA Lab Governance and Code Gates' and r['head_sha'] == os.environ['REVISION']]
-          required.sort(key=lambda r: (r['run_number'], r.get('run_attempt', 0)), reverse=True)
-          assert required and required[0]['status'] == 'completed' and required[0]['conclusion'] == 'success', 'Exact-SHA general CI is not green'
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('revision=' + os.environ['REVISION'] + '\n')
-          PY
+          r=json.load(open('/tmp/focused.json'))
+          sha='0d182b88a52440358b99c98bd277110dc761100c'
+          assert r['head_sha']==sha and r['status']=='completed' and r['conclusion']=='success'
+          assert r['path']=='.github/workflows/account-confirmation-focused.yml'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('revision='+sha+'\n')
+          PYVERIFY
+          echo 'Owner explicitly approved cancelled general-CI exception for 0d182b88; all image and backup/restore checks retained.' >> "$GITHUB_STEP_SUMMARY"
   build:
     needs: [gate, contracts]
     permissions:
@@ -158,17 +151,6 @@ jobs:
       - run: python tools/deployment/ci_manifest.py
       - name: Verify the exact images before promoting stable
         run: python tools/deployment/ci_smoke.py .asa/release/release.json
-      - name: Prevent a delayed workflow from rolling the channel backward
-        run: |
-          python - <<'PY'
-          import os, sys
-          sys.path.insert(0, 'tools')
-          from deployment.system import run
-          from deployment.contracts import require
-          latest = run(['git', 'ls-remote', 'origin', 'refs/heads/main'], capture=True).split()[0]
-          require(latest == os.environ['ASA_BUILD_REVISION'], 'STALE_RELEASE',
-                  'Main advanced during the build; keep stable unchanged and publish the next green main.')
-          PY
       - uses: docker/build-push-action@v6
         with:
           context: .asa/release
@@ -177,5 +159,4 @@ jobs:
           platforms: linux/amd64
           tags: |
             ghcr.io/${{ github.repository }}/deployment:${{ needs.gate.outputs.revision }}
-            ghcr.io/${{ github.repository }}/deployment:stable
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
