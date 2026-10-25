@@ -250,7 +250,9 @@ export function AiChatPage({
 
   function closeSearch(restoreFocus = false): void {
     setSearchOpen(false);
-    if (search) setSearch('');
+    // The document-level Escape handler may have captured an older render;
+    // the history hook itself deduplicates this against its live query ref.
+    setSearch('');
     if (restoreFocus) requestAnimationFrame(() => searchTrigger.current?.focus());
   }
 
