@@ -367,13 +367,11 @@ export function analyseArduinoSourceSupport(
   };
 
   for (const syntaxDiagnostic of analyseArduinoProgramSyntax(source)) {
-    const scope = syntaxDiagnostic.message.includes('setup()') ? 'setup' : 'loop';
-    const scopeStart = clean.search(new RegExp(`\\bvoid\\s+${scope}\\b`, 'i'));
     add(
       'syntax-error',
       'unsupported',
-      scopeStart >= 0 ? scopeStart : 0,
-      scopeStart >= 0 ? scope.length : 1,
+      syntaxDiagnostic.start ?? 0,
+      syntaxDiagnostic.length ?? 0,
       syntaxDiagnostic.message,
     );
   }

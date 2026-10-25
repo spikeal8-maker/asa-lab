@@ -7,7 +7,7 @@
  * https://api-docs.deepseek.com/guides/thinking_mode/
  * Migration 0227 mirrors only the closed SQL boundary; a regression checks parity.
  * Ollama Cloud names verified 2026-10-25 at https://ollama.com/api/tags.
- * https://docs.ollama.com/api/openai-compatibility; migration 0250 extends the same guards.
+ * https://docs.ollama.com/api/openai-compatibility; migration 0252 extends the same guards.
  */
 const MODELS = [
   {

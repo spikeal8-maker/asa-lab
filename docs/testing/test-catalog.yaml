@@ -1190,7 +1190,7 @@ tests:
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec vitest run apps/api/src/crm-user.controller.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts
+    command: pnpm exec vitest run apps/api/src/crm-user.controller.spec.ts apps/api/src/crm-responsibilities.controller.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/crm-seat-detail.spec.ts apps/web/src/admin/testing/crm-responsibilities.spec.ts
     timeout_seconds: 120
     owner: admin-auth
     artifacts: [vitest-report]
@@ -1200,7 +1200,7 @@ tests:
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec vitest run tests/admin/crm-user-cards.pg.spec.ts
+    command: pnpm exec vitest run tests/admin/crm-user-cards.pg.spec.ts tests/admin/crm-retained-detail.pg.spec.ts tests/admin/crm-responsibilities.pg.spec.ts
     timeout_seconds: 300
     owner: admin-auth
     artifacts: [vitest-report, isolated-postgresql-crm-report]

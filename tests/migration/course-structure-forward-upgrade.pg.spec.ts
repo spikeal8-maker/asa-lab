@@ -120,7 +120,9 @@ describe('Course Builder structure forward upgrade', () => {
         '0247', // Full typed CRM cards and exact teacher educational reads.
         '0248', // Encrypted SMTP and one-use verified Account email proof.
         '0249', // Filtered CRM aggregates/export and explicit organization class binding.
-        '0250', // Additive Ollama Cloud credentials preserve course data.
+        '0250', // Exact Seat retained detail and immutable educational notes.
+        '0251', // Scoped organization and exact-class responsibilities.
+        '0252', // Additive Ollama Cloud credentials preserve course data.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -400,7 +402,9 @@ describe('Course Builder structure forward upgrade', () => {
           '0247', // Full typed CRM cards and exact teacher educational reads.
           '0248', // Encrypted SMTP and one-use verified Account email proof.
           '0249', // Filtered CRM aggregates/export and explicit organization class binding.
-          '0250', // Additive Ollama Cloud credentials preserve course data.
+          '0250', // Exact Seat retained detail and immutable educational notes.
+          '0251', // Scoped organization and exact-class responsibilities.
+          '0252', // Additive Ollama Cloud credentials preserve course data.
         ]);
         expect(
           await applyIsolatedTestPlan(

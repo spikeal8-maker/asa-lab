@@ -123,3 +123,26 @@
   gap: 6px;
   margin-bottom: 14px;
 }
+
+.crm-full-card section > form,
+.crm-responsibilities form {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.crm-full-card section > form label,
+.crm-responsibilities label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.crm-responsibilities {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.crm-responsibilities input,
+.crm-responsibilities select,
+.crm-responsibilities textarea {
+  min-width: 0;
+  max-width: 100%;
+}

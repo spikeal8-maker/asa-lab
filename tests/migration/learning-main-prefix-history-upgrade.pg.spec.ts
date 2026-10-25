@@ -130,8 +130,18 @@ const upgradeArtifacts = [
     '5ea5756bb4e61a926f48e67469b799395b2f3c19e068569a3b8e809031961b12',
   ],
   [
-    '0250',
-    '0250_ai_ollama_cloud.sql',
+    '0250', // Exact Seat retained detail and immutable educational notes.
+    '0250_crm_retained_detail.sql',
+    '4f305043bb40aea37c4ee33afb3fea87775df6855c9f9941eb50a9e7c0b04ff7',
+  ],
+  [
+    '0251', // Scoped organization and exact-class responsibilities.
+    '0251_crm_responsibilities.sql',
+    'b25d2cc12e0f75ee98a90d8e574ad38d9b66eb213b01add1c5341f831130a094',
+  ],
+  [
+    '0252',
+    '0252_ai_ollama_cloud.sql',
     '575c4b4bf41e0bdb5a4652f141289f6c0bfaa8171fd7feec60f519776ae53957',
   ],
 ] as const;
@@ -633,7 +643,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       const providerCatalogAppliedAt = afterLedger.find(
         (row) => row.version === '0227',
       )!.applied_at;
-      const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0250')!.applied_at;
+      const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0252')!.applied_at;
       const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(migratedConfig).toEqual({
         ...config,

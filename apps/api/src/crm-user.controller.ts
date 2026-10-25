@@ -288,4 +288,74 @@ export class CrmUserController {
       request.id,
     ]);
   }
+  @Get('users/student/:target/detail')
+  async seatDetail(
+    @Req() request: FastifyRequest,
+    @Param('target') target: string,
+    @Query('classroomId') classroom: unknown,
+    @Query('category') category: unknown,
+    @Query('cursor') cursor: unknown,
+  ) {
+    const actor = await this.actor(request),
+      subject = crmIdentity('student', target, classroom);
+    if (
+      !subject.classroom ||
+      typeof category !== 'string' ||
+      !['notes', 'projects', 'publications', 'ai'].includes(category)
+    )
+      invalid();
+    let page: ReturnType<typeof parseCatalogQuery>;
+    try {
+      page = parseCatalogQuery({ limit: '25', cursor: cursor as string | undefined });
+    } catch {
+      invalid();
+    }
+    const continuation = page.cursor === null ? null : JSON.stringify(page.cursor);
+    const value = await this.query<{ items: unknown[]; next: object | null }>(
+      category === 'notes'
+        ? 'SELECT crm_seat_notes_page($1,$2,$3,$4,$5::jsonb,$6) AS value'
+        : 'SELECT crm_seat_history($1,$2,$3,$4,$5,$6::jsonb,$7) AS value',
+      category === 'notes'
+        ? [actor, target, subject.classroom, page.limit, continuation, request.id]
+        : [actor, target, subject.classroom, category, page.limit, continuation, request.id],
+    );
+    return {
+      ...value,
+      next:
+        value.next === null ? null : Buffer.from(JSON.stringify(value.next)).toString('base64url'),
+    };
+  }
+  @Put('users/student/:target/notes')
+  async seatNote(
+    @Req() request: FastifyRequest,
+    @Param('target') target: string,
+    @Body() raw: unknown,
+  ) {
+    sameOrigin(request);
+    const actor = await this.actor(request);
+    id(target);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) invalid();
+    const body = raw as Record<string, unknown>;
+    if (
+      Object.keys(body).some((key) => !['classroomId', 'version', 'text', 'reason'].includes(key))
+    )
+      invalid();
+    const value = await this.query<{ items: unknown[]; next: object | null }>(
+      'SELECT crm_seat_note_add($1,$2,$3,$4,$5,$6,$7) AS value',
+      [
+        actor,
+        target,
+        id(body['classroomId']),
+        text(body['version'], 64, 64),
+        text(body['text'], 1, 2000),
+        text(body['reason'], 3, 500),
+        request.id,
+      ],
+    );
+    return {
+      ...value,
+      next:
+        value.next === null ? null : Buffer.from(JSON.stringify(value.next)).toString('base64url'),
+    };
+  }
 }
