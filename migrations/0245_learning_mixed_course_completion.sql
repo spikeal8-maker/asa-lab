@@ -210,7 +210,6 @@ BEGIN
                                THEN v_lesson.blocks ELSE '[]'::jsonb END
                          ) block
                         WHERE block ->> 'type' = 'activity'
-                          AND block ->> 'hidden' IS DISTINCT FROM 'true'
                           AND block ->> 'id' = run.source_course_block_id
                    ))
                )
