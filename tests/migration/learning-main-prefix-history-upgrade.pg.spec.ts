@@ -152,7 +152,7 @@ const upgradeArtifacts = [
   [
     '0254',
     '0254_ai_web_search.sql',
-    '15099063880971f1f773c9d0d8a2ecd2cfe7fd149e67d2793d55ed4e1926f5e2',
+    'f308015796eb1ccfcfa43c4015bb2b6b78cc141bc41a6e94354c02c3878df2d5',
   ],
 ] as const;
 
