@@ -24,6 +24,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
 from resource_sampling import ResourceSampler
+from memory_sampling import capture_memory
 
 UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
@@ -1552,7 +1553,8 @@ class Collector:
                 memory = Memory(); memory.length = ctypes.sizeof(memory)
                 if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
                     metrics["host"].update(memoryTotalBytes=memory.total, memoryAvailableBytes=memory.available,
-                        commitLimitBytes=memory.pageTotal, commitAvailableBytes=memory.pageAvailable)
+                        commitLimitBytes=memory.pageTotal, commitAvailableBytes=memory.pageAvailable,
+                        memoryCommittedBytes=memory.pageTotal-memory.pageAvailable)
                 idle, kernel, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
                 if ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
                     value = lambda v: v.dwHighDateTime*2**32+v.dwLowDateTime
@@ -1569,6 +1571,7 @@ class Collector:
                 metrics["host"]["loadAverage"] = list(os.getloadavg())
             else:
                 metrics.setdefault('failedComponents', []).append('host')
+            metrics['host']['memoryDiagnostics'] = capture_memory()
             warnings = resource_warnings(metrics['host'])
             if warnings: metrics.update(resourceWarnings=warnings, level='warn')
             if ids:
