@@ -302,6 +302,41 @@
   opacity: 0.55;
 }
 
+.asa-ai-layout .chat-tools-popup button > svg {
+  flex: 0 0 22px;
+  color: var(--ai-muted);
+}
+
+.asa-ai-layout .chat-sidebar-actions > button > svg {
+  flex: 0 0 20px;
+}
+
+.asa-ai-layout .chat-search-box > svg {
+  flex: 0 0 19px;
+}
+
+.asa-ai-layout .chat-attached-history button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.asa-ai-layout .chat-message-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.asa-ai-layout .chat-message-actions > button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 9px;
+  color: var(--ai-muted);
+}
+
 .asa-ai-layout .chat-tools-popup button > span {
   width: 22px;
   text-align: center;
