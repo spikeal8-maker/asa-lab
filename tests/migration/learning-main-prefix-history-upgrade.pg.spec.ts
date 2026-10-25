@@ -129,6 +129,11 @@ const upgradeArtifacts = [
     '0249_crm_directory.sql',
     '5ea5756bb4e61a926f48e67469b799395b2f3c19e068569a3b8e809031961b12',
   ],
+  [
+    '0250',
+    '0250_ai_ollama_cloud.sql',
+    '575c4b4bf41e0bdb5a4652f141289f6c0bfaa8171fd7feec60f519776ae53957',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
