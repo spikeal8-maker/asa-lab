@@ -1,0 +1,106 @@
+name: Electronics E11 native targeted QA
+
+on:
+  push:
+    branches:
+      - agent/e11-549-3pr-targeted-qa-20261025
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NX_SKIP_NX_CACHE: 'true'
+
+concurrency:
+  group: electronics-e11-targeted-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e11-targeted:
+    name: E11 real Worker + native PSU + save/CAS + cookie reopen
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CI: 'true'
+      ASA_BUILD_REVISION: 3366b925529f1bb00d6c7367760f0662e51cef8a
+      ASA_ELECTRONICS_EXPECTED_SHA: 3366b925529f1bb00d6c7367760f0662e51cef8a
+      ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
+      ASA_IMAGE_TAG: 3366b925529f1bb00d6c7367760f0662e51cef8a
+      COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
+      ASA_TEST_UID: '1000'
+      ASA_TEST_GID: '1000'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: 3366b925529f1bb00d6c7367760f0662e51cef8a
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare writable evidence directories
+        run: |
+          mkdir -p e2e/artifacts/electronics-simulation reports
+          chmod -R 0777 e2e/artifacts reports
+
+      - name: Prepare and verify image-only PostgreSQL transport
+        run: |
+          python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
+          python3 tools/test_ci_image_transport.py --electronics-compose-model-check
+
+      - name: Build isolated Electronics browser images
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+
+      - name: Verify original base layers and exact source revision
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
+
+      - name: Start isolated PostgreSQL
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 120 postgres
+
+      - name: Verify original PostgreSQL image identity
+        run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres
+
+      - name: Apply isolated migrations
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps migration
+
+      - name: Start Electronics API and Web without unrelated media services
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
+
+      # Identical to the command registered in docs/testing/active-task-tests.yaml.
+      # Named as its own gate because `gate:electronics-m1` deliberately does not
+      # include it: that gate needs no browser stack, this one does.
+      - name: Selected Electronics browser qualification
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
+          pnpm exec playwright test e2e/electronics-selection-outline.spec.ts --grep "E11 " --workers=1 --retries=0
+
+      - name: Show isolated stack state
+        if: always()
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-e11-targeted-${{ github.run_id }}
+          path: |
+            e2e/artifacts/electronics-simulation
+            reports
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Remove isolated test stack
+        if: always()
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          down -v --remove-orphans
+
