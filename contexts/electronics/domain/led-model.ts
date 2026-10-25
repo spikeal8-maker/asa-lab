@@ -184,6 +184,17 @@ export const SEVEN_SEGMENT_LED_PROFILE: LedJunctionProfile = {
   brightnessExponent: 0.65,
 };
 
+const sevenSegmentDefinitionIsOriginal = captureDeviceModelDefinition([
+  SEVEN_SEGMENT_LED_PROFILE,
+  SEVEN_SEGMENT_TERMINALS,
+  SEVEN_SEGMENT_COMMON_TERMINALS,
+]);
+
+/** Package-internal origin check captured before consumers can mutate the public literals. */
+export function sevenSegmentProfileHasOriginalDefinition(): boolean {
+  return sevenSegmentDefinitionIsOriginal();
+}
+
 export function ordinaryLedProfile(colour: string): LedJunctionProfile {
   return ORDINARY_LED_PROFILES[colour as OrdinaryLedColour] ?? ORDINARY_LED_PROFILES.red;
 }
