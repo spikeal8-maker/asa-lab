@@ -1,8 +1,10 @@
 """Bounded host memory attribution. Never reads argv, paths, environment or titles."""
 import os
+import json
 from pathlib import Path
 import re
 import sys
+import subprocess
 import time
 
 MAX_PROCESSES = 4096
@@ -127,7 +129,7 @@ def windows_pagefile():
                 usedBytes=totals[1] * mmap.PAGESIZE)
 
 
-def capture_memory(proc=Path('/proc'), clock=time.monotonic):
+def capture_native_memory(proc=Path('/proc'), clock=time.monotonic):
     deadline = clock() + CAPTURE_SECONDS
     result = dict(units='bytes', captureLimitSeconds=CAPTURE_SECONDS, processLimit=MAX_PROCESSES,
                   topNamesLimit=TOP_NAMES, workingSetSemantics='includes_shared_pages_not_unique_physical_memory',
@@ -158,3 +160,46 @@ def capture_memory(proc=Path('/proc'), clock=time.monotonic):
     finally:
         if rows is not None: rows.close()
     return result
+
+
+def unavailable(reason):
+    return dict(units='bytes', processes=dict(state='unavailable', reason=reason),
+                pagefile=dict(state='unavailable', reason=reason),
+                paging=dict(state='unavailable', reason=reason))
+
+
+def capture_memory(deadline=None, clock=time.monotonic):
+    """Isolate synchronous native calls; only our fresh helper may be terminated."""
+    started = clock()
+    deadline = min(deadline if deadline is not None else started + CAPTURE_SECONDS,
+                   started + CAPTURE_SECONDS)
+    if deadline <= started:
+        return unavailable('deadline')
+    try:
+        child = subprocess.Popen([sys.executable, '-E', str(Path(__file__).resolve()), '--capture'],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            creationflags=0x08000000 if os.name == 'nt' else 0)
+    except OSError:
+        return unavailable('helper_start_failed')
+    try:
+        remaining = deadline - clock()  # Includes helper startup in the shared budget.
+        if remaining <= 0:
+            raise subprocess.TimeoutExpired('memory_helper', 0)
+        output, _ = child.communicate(timeout=remaining)
+    except subprocess.TimeoutExpired:
+        child.kill()
+        child.communicate()  # Reap only this owned child; never leave a helper behind.
+        return unavailable('deadline')
+    if child.returncode != 0 or len(output) > 8192:
+        return unavailable('helper_failed')
+    try:
+        result = json.loads(output)
+        if not isinstance(result, dict) or not isinstance(result.get('processes'), dict):
+            raise ValueError('invalid envelope')
+        return result
+    except (ValueError, UnicodeError):
+        return unavailable('helper_failed')
+
+
+if __name__ == '__main__' and sys.argv[1:] == ['--capture']:
+    print(json.dumps(capture_native_memory(), separators=(',', ':')))

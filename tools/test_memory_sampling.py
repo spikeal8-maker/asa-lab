@@ -2,15 +2,64 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import subprocess
+import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import memory_sampling as memory
 from collect_logs import normalize, now
 
 
 class MemorySamplingTests(unittest.TestCase):
+    def test_hung_owned_helper_is_killed_and_reaped_without_native_scan(self):
+        real_popen = subprocess.Popen
+        children = []
+        def start_fixture(args, **kwargs):
+            self.assertEqual(args[-1], '--capture')
+            child = real_popen([memory.sys.executable, '-c', 'import time; time.sleep(60)'], **kwargs)
+            children.append(child)
+            return child
+        started = time.monotonic()
+        with patch.object(memory.subprocess, 'Popen', side_effect=start_fixture):
+            result = memory.capture_memory(deadline=started + 0.15)
+        self.assertEqual(result['processes'], dict(state='unavailable', reason='deadline'))
+        self.assertNotIn('leaders', result['processes'])
+        self.assertEqual(len(children), 1)
+        self.assertIsNotNone(children[0].returncode)
+        self.assertIsNotNone(children[0].poll())
+        self.assertLess(time.monotonic() - started, 3)
+
+    def test_helper_startup_uses_remaining_budget_and_expired_budget_never_spawns(self):
+        child = Mock(returncode=0)
+        child.communicate.return_value = (b'{"processes":{"state":"available","leaders":[]}}', None)
+        with patch.object(memory.subprocess, 'Popen', return_value=child):
+            result = memory.capture_memory(deadline=11, clock=Mock(side_effect=[10, 10.4]))
+        self.assertEqual(result['processes']['state'], 'available')
+        self.assertAlmostEqual(child.communicate.call_args.kwargs['timeout'], 0.6)
+        child.kill.assert_not_called()
+        with patch.object(memory.subprocess, 'Popen') as spawn:
+            self.assertEqual(memory.capture_memory(deadline=10, clock=lambda: 10)['processes']['reason'], 'deadline')
+        spawn.assert_not_called()
+
+    def test_deadline_exhausted_by_startup_still_reaps_owned_helper(self):
+        child = Mock()
+        with patch.object(memory.subprocess, 'Popen', return_value=child):
+            result = memory.capture_memory(deadline=11, clock=Mock(side_effect=[10, 12]))
+        self.assertEqual(result['processes']['reason'], 'deadline')
+        child.kill.assert_called_once_with()
+        child.communicate.assert_called_once_with()
+
+    def test_helper_failure_and_invalid_output_are_typed_unavailable(self):
+        for code, output in ((1, b''), (0, b'not-json'), (0, b'[]'), (0, b'x' * 8193)):
+            child = Mock(returncode=code)
+            child.communicate.return_value = output, None
+            with patch.object(memory.subprocess, 'Popen', return_value=child):
+                self.assertEqual(memory.capture_memory()['processes']['reason'], 'helper_failed')
+        with patch.object(memory.subprocess, 'Popen', side_effect=OSError('private-value')):
+            self.assertNotIn('private-value', json.dumps(memory.capture_memory()))
+
     def test_aggregation_ranking_bounds_and_private_unknown(self):
         rows = [('chrome.exe', 100, 50), ('CHROME.EXE', 200, 80), ('other', 1, None)]
         rows += [(f'app{i}', i, i) for i in range(20)]
@@ -44,7 +93,7 @@ class MemorySamplingTests(unittest.TestCase):
             (proc / '123/environ').write_text('private-env')
             (proc / 'vmstat').write_text('pswpin 12\npswpout 34\n')
             with patch.object(memory, 'os', SimpleNamespace(name='posix', scandir=os.scandir)), patch.object(memory.sys, 'platform', 'linux'):
-                sample = memory.capture_memory(proc)
+                sample = memory.capture_native_memory(proc)
             self.assertEqual(sample['processes']['leaders'][0]['workingSetBytes'], 12 * 1024)
             self.assertIsNone(sample['processes']['leaders'][0]['privateCommitBytes'])
             self.assertEqual(sample['paging']['pagesOut'], 34)
@@ -59,7 +108,7 @@ class MemorySamplingTests(unittest.TestCase):
         for name in ('C:\\Users\\owner\\app.exe', '/home/owner/app', 'https://private', 'user@example.com', 'x' * 65):
             self.assertEqual(memory.process_name(name), 'other')
         with patch.object(memory, 'os', SimpleNamespace(name='posix')), patch.object(memory.sys, 'platform', 'unknown'):
-            sample = memory.capture_memory()
+            sample = memory.capture_native_memory()
         self.assertEqual(sample['processes'], dict(state='unavailable', reason='unsupported'))
         self.assertNotIn('leaders', sample['processes'])
 

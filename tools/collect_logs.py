@@ -24,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
 from resource_sampling import ResourceSampler
-from memory_sampling import capture_memory
+from memory_sampling import CAPTURE_SECONDS, capture_memory
 
 UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
@@ -1539,6 +1539,7 @@ class Collector:
 
     def sample_resources(self, ids, postgres, previous):
         # Runs on producer thread: never access state()/db/status()/add().
+        memory_deadline = time.monotonic() + CAPTURE_SECONDS
         previous = dict(previous)
         measured = now()
         metrics = dict(kind="runtime_metrics", module="system", sampledAt=measured, host={},
@@ -1571,7 +1572,7 @@ class Collector:
                 metrics["host"]["loadAverage"] = list(os.getloadavg())
             else:
                 metrics.setdefault('failedComponents', []).append('host')
-            metrics['host']['memoryDiagnostics'] = capture_memory()
+            metrics['host']['memoryDiagnostics'] = capture_memory(deadline=memory_deadline)
             warnings = resource_warnings(metrics['host'])
             if warnings: metrics.update(resourceWarnings=warnings, level='warn')
             if ids:
