@@ -132,12 +132,12 @@ const upgradeArtifacts = [
   [
     '0250', // Exact Seat retained detail and immutable educational notes.
     '0250_crm_retained_detail.sql',
-    '75930bd42af22fcd61ceaf6f034cb4852e2248f921ccead56e8765f79ff3472f',
+    '4f305043bb40aea37c4ee33afb3fea87775df6855c9f9941eb50a9e7c0b04ff7',
   ],
   [
     '0251', // Scoped organization and exact-class responsibilities.
     '0251_crm_responsibilities.sql',
-    '847fd9120c2db9615358be2547540569b6aa800e13e953ac0f8459cbe9cd66fd',
+    'b25d2cc12e0f75ee98a90d8e574ad38d9b66eb213b01add1c5341f831130a094',
   ],
 ] as const;
 

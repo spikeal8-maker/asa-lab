@@ -20,7 +20,7 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM public.accounts WHERE id=p_target) THEN RAISE EXCEPTION 'target unavailable' USING ERRCODE='22023'; END IF;
  v_value:=public.crm_responsibility_value(p_kind,p_scope,p_target);
  IF v_value->>'role'='student' OR (v_role='owner' AND v_value->>'role'='owner') OR (v_role='school_admin' AND coalesce(v_value->>'role','member') NOT IN('member','educator')) OR (p_kind='classroom' AND v_value->>'role'='owner') THEN v_roles:='[]'::jsonb; END IF;
- RETURN v_value||jsonb_build_object('version',encode(public.digest(v_value::text,'sha256'),'hex'),'allowedRoles',v_roles);
+ RETURN v_value||jsonb_build_object('version',encode(public.digest(convert_to(v_value::text,'UTF8'),'sha256'),'hex'),'allowedRoles',v_roles);
 END;
 $$;
 CREATE FUNCTION public.crm_responsibility_update(p_actor uuid,p_kind varchar,p_scope uuid,p_target uuid,p_version varchar,p_role varchar,p_state varchar,p_reason varchar,p_request varchar)

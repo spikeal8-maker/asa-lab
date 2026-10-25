@@ -66,6 +66,12 @@ it('retains paginated immutable educational notes with reasons, concurrency chec
     code: '42501',
   });
   const page = await read();
+  await expect(
+    read({ ...page.next, last: { ...page.next.last, unexpected: true } }),
+  ).rejects.toMatchObject({ code: '22023' });
+  await expect(read({ ...page.next, last: { ...page.next.last, at: 42 } })).rejects.toMatchObject({
+    code: '22023',
+  });
   await expect(read({ ...page.next, fingerprint: 'wrong' })).rejects.toMatchObject({
     code: '22023',
   });
@@ -112,11 +118,11 @@ it('reads retained Seat versions, publications and exact AI receipts without lin
     [linked.tenant_id, linked.principal_id],
   );
   await admin.query(
-    "INSERT INTO ai_usage_journal(owner_principal_id,request_id,seat_id,status,input_tokens,output_tokens) VALUES($1,$2,$3,'admitted',NULL,0)",
+    "INSERT INTO ai_usage_journal(owner_principal_id,request_id,seat_id,admitted_at,status,input_tokens,output_tokens) VALUES($1,$2,$3,clock_timestamp(),'admitted',NULL,0)",
     [f.principalId, randomUUID(), f.seatId],
   );
   await admin.query(
-    "INSERT INTO ai_usage_journal(owner_principal_id,request_id,account_id,status) VALUES($1,$2,$3,'admitted')",
+    "INSERT INTO ai_usage_journal(owner_principal_id,request_id,account_id,admitted_at,status) VALUES($1,$2,$3,clock_timestamp(),'admitted')",
     [linked.principal_id, randomUUID(), linked.account_id],
   );
   const read = async (category: string, cursor: unknown = null) =>

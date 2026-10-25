@@ -88,3 +88,20 @@ receipt facts and two-page continuation. Its fixture now supplies category-speci
 records and a real continuation instead of returning a version for every category.
 A focused Seat-reader unit regression covers the same category/pagination facts;
 all four tests in that affected suite passed. Product behavior is unchanged.
+
+
+## Bounded PostgreSQL CI repair
+
+Pinned run `40220960694` reached the new PostgreSQL suites and exposed three
+current-slice defects. Responsibility fingerprints now pass UTF-8 bytea to the
+existing public digest wrapper. The note cursor's nested last-object projection
+is parenthesized before subtracting its allowed-key array, preserving strict
+shape checks without PostgreSQL arithmetic/JSON operator precedence ambiguity.
+The retained AI fixture now seeds admitted_at explicitly, as required by the
+canonical journal schema. Additional cursor negatives retain rejection of extra
+last-object keys and non-string timestamps. Both changed new migration hashes
+are updated in the immutable upgrade fixture; old migrations are untouched.
+
+Focused formatting/lint and read-only digest/cursor/checksum inspection passed.
+No local PostgreSQL or browser execution was performed; behavior evidence remains
+required from the final pinned CI run.
