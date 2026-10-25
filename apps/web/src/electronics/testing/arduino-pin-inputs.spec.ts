@@ -458,6 +458,7 @@ describe('Arduino replaceable pin menus', () => {
     pixels.nextConnection!.connect(color.previousConnection!);
     const display = w.newBlock('asa_7seg_print');
     color.nextConnection!.connect(display.previousConnection!);
+    connect(display, 'VALUE', variable('display_1'));
     applyArduinoBlockDefaults(w);
     const source = generateArduinoCode(w);
     expect(source).toContain('LiquidCrystal *lcd_1 = nullptr;');
