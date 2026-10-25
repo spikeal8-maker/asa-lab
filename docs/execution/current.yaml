@@ -6453,45 +6453,44 @@ parallel_lanes:
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
       - migrations/0238_project_publication_editorial.sql
-      - migrations/0242_project_publication_pins.sql
+      - migrations/0247_project_publication_pins.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-      issue: 713
+      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+      issue: 702
       branch: main
-      candidate_branch: codex/public-reports-20261024
+      candidate_branch: codex/projects-pin-20261023
       base_branch: main
-      pr: 717
+      pr: 704
       pr_draft: true
       status: in_progress
-      checkpoint: b1_real_http_e2e_isolated_postgresql_only
+      checkpoint: renumber_unpublished_pins_after_published_0246
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-25 the owner selected ONLY Public Projects report intake B1
-        Issue #713 and existing Draft PR #717 for one bounded real HTTP E2E slice.
-        Keep pinning PR #704 frozen at 7035c3873913db897bc9cb8fe70ba8d337434f59:
-        its exact-SHA focused Public Projects CI succeeded, General Code was blocked
-        by foreign e2e/auth-confirmation-ui.spec.ts formatting, and independent
-        Security APPROVE and owner merge permission are absent. Retain the
-        PROJECTS-704-SECURITY-ACCEPTANCE blocker; no merge, waiver or rerun
-        without a material change. Report PR #717 stays OPEN/DRAFT and
-        unmerged at prior HEAD 18a79c0db6469bc7b9ecf45b7b53b433de556fed
-        until bounded B1 HTTP tests are published on that existing branch.
-        Add tests exclusively in Public Projects owned scope for real
-        POST /api/public-projects/:publicationId/reports over a real listener,
-        genuine disposable PostgreSQL 16, supported account/seat fixtures,
-        negative and concurrency cases, safe private receipt and preservation
-        of original Projects/Drafts/Versions; do not modify Identity, Auth,
-        Courses, Scratch, Electronics, AI, workflows, or other modules.
-        Maintain B1 provisional SQL migration 0240 in Draft only; no renumber
-        or merge until #704 has entered main and actual migration frontier is
-        rechecked (expected future B1 successor 0243). B2 #721 and B3 #723
-        remain dependent and may not start or merge yet. No working database,
-        production/school deployment, forced pushes or synthetic reviews.
+        On 2026-10-25 owner requested publication of all finished Public Projects
+        work to main, allowing ordinary Draft transition and merge ONLY after
+        all mandatory exact-SHA focused/General CI, independent Code/Security
+        reviews and other branch/security controls actually pass. No waiver or
+        force push. Existing #704 currently has 0242_project_publication_pins.sql
+        but main already published foreign 0242-0246 migrations, so only the
+        unpublished pins migration may receive the next free number (expected
+        0247, subject to actual frontier). Preserve its exact SQL bytes and
+        checksum; extend strict own/required migration-history contracts while
+        retaining published checksum identity and rejecting corrupt histories.
+        Public Projects only: do not modify Identity, Auth, MAX, AI, Courses,
+        Scratch, Electronics, Analytics, other product tests or workflows.
+        Preserve existing B1 reports Draft #717 at
+        c420833c0b1aa5e2cf98a2d4bd46e233c19eca48, still unmerged, with
+        provisional migration 0240; prepare B1 as dependent successor only
+        once #704 integrates (expected 0248 if frontier remains unchanged).
+        Current pinning Security approval is missing and cannot be
+        self-issued; keep SECURITY_ACCEPTANCE_PENDING and no merge until
+        genuine independent reviewer and required green checks.
+        No school database, working production instance or deployment work.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -12271,10 +12270,11 @@ blocking:
       - independent_source_review
       - documentation_update
     reason: >-
-      Public Projects pinning PR #704 previously passed focused and General CI
-      on HEAD 8835cf2f304a77d86f7b592552c158d8364235e1, but the published
-      MAX 0241 migration invalidates that history. Bounded 0242 migration repair
-      and regression verification are permitted, NOT merge/release/acceptance.
+      Public Projects pinning PR #704 passed focused CI on 7035c3873913db897bc9cb8fe70ba8d337434f59 but lacks
+      independent Security verdict and required General CI. Main has published
+      unrelated 0242-0246 migrations; 0242 pin version now conflicts and must be
+      renumbered to the next free version before refreshed exact-SHA CI.
+      Bounded repair/verification is allowed, NOT merge/release/acceptance.
       A new exact-SHA independent Security verdict and owner-authorized Draft
       transition/merge are still required. Existing security handoff
       is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
