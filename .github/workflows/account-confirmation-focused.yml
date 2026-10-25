@@ -11,6 +11,7 @@ on:
       - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
       - 'e2e/access-account-ui.spec.ts'
+      - 'e2e/admin-dashboard-ui.spec.ts'
       - 'e2e/classroom-owner-ui.spec.ts'
       - 'playwright.auth-confirmation.config.ts'
       - 'playwright.settings-ui.config.ts'
@@ -33,6 +34,7 @@ on:
       - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
       - 'e2e/access-account-ui.spec.ts'
+      - 'e2e/admin-dashboard-ui.spec.ts'
       - 'e2e/classroom-owner-ui.spec.ts'
       - 'playwright.auth-confirmation.config.ts'
       - 'playwright.settings-ui.config.ts'
@@ -132,6 +134,8 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Administrator overview unit regression
+        run: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts
       - run: pnpm exec nx run web:typecheck --skip-nx-cache
       - run: pnpm exec playwright install --with-deps chromium
       - name: Build the exact web application
@@ -140,6 +144,8 @@ jobs:
         run: pnpm e2e:auth-confirmation
       - name: Existing Account security and settings composition
         run: pnpm e2e:settings-ui --grep 'R3 Account compact composition'
+      - name: Administrator navigation, overview and responsive evidence
+        run: pnpm e2e:settings-ui e2e/admin-dashboard-ui.spec.ts
       - name: Existing classroom mobile header and drawer
         run: >-
           pnpm e2e:settings-ui e2e/classroom-owner-ui.spec.ts
