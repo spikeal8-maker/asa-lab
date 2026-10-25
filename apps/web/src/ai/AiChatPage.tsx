@@ -1174,6 +1174,13 @@ export function AiChatPage({
               className="chat-history-search-popover"
               role="search"
               aria-label="Поиск по чатам и сообщениям"
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeSearch(true);
+                }
+              }}
             >
               <label className="chat-search-box">
                 <span className="sr-only">Найти диалог</span>
@@ -1184,13 +1191,6 @@ export function AiChatPage({
                   value={search}
                   maxLength={200}
                   onChange={(event) => setSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      closeSearch(true);
-                    }
-                  }}
                   placeholder="Название или текст сообщения"
                 />
               </label>
