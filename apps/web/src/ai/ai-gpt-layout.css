@@ -487,3 +487,26 @@
   background: #f5f5f5;
   color: #1d1d1f;
 }
+
+@media (prefers-color-scheme: dark) {
+  .portal-shell > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *)) {
+    --ai-surface: #1d1d1f;
+    --ai-sidebar-bg: #161618;
+    --ai-bg: #303033;
+    --ai-text: #f5f5f5;
+    --ai-muted: #b2b2b5;
+    --ai-border: #3a3a3d;
+    --ai-accent: #f5f5f5;
+    --ai-on-accent: #1d1d1f;
+    color-scheme: dark;
+  }
+  .portal-shell > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
+    .asa-ai-thread-row:has(.active) {
+    background: #323235;
+  }
+  .portal-shell > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
+    .chat-send-button {
+    background: #f5f5f5;
+    color: #1d1d1f;
+  }
+}
