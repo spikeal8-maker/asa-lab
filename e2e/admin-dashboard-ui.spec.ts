@@ -477,9 +477,16 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(page.getByRole('status')).toContainText(
       'связь классов с организацией не подтверждена',
     );
+    await expect(page.getByRole('combobox', { name: 'Тип записи', exact: true })).toHaveValue(
+      'all',
+    );
+    await expect(account).toBeVisible();
+    await expect(student).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
     await expect(
       page.getByText('Каталог ученических мест в этой области недоступен', { exact: true }),
     ).toBeVisible();
+    await expect(account).toHaveCount(0);
     await expect(student).toHaveCount(0);
     await noPageOverflow(page);
   });
