@@ -1535,6 +1535,15 @@ test('AI composer keeps one centered input and shows only real attachment tools'
   await expect(page.locator('.chat-toolbar')).toHaveCount(0);
   await expect(page.locator('.chat-history-filters')).toHaveCount(0);
   await expect(page.getByText('Чем помочь?')).toHaveCount(0);
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  const form = page.locator('form.chat-composer');
+  await expect(form).toHaveClass(/compact/);
+  await composer.fill('Привет');
+  await expect(form).toHaveClass(/compact/);
+  await composer.fill('Помоги разобраться с этой электронной схемой и проверить подключение светодиода к источнику питания.');
+  await expect(form).toHaveClass(/expanded/);
+  await composer.fill('');
+  await expect(form).toHaveClass(/compact/);
   await expectChatFits(page);
   const tools = page.locator('details.chat-tools-menu');
   await tools.locator('summary').click();
