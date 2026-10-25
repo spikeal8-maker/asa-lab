@@ -465,12 +465,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.getByRole('button', { name: 'Показать ещё', exact: true }).click();
     await expect(page.getByText('Показано записей: 3.', { exact: false })).toBeVisible();
     expect(f.catalogQueries().at(-1)!.get('cursor')).toBe('fixture-next');
-    await page.getByLabel('Сортировка', { exact: true }).selectOption('name');
+    await page.getByRole('combobox', { name: 'Сортировка', exact: true }).selectOption('name');
     await expect.poll(() => f.catalogQueries().at(-1)!.get('sort')).toBe('name');
     expect(f.catalogQueries().at(-1)!.has('cursor')).toBe(false);
     await account.locator('button.admin-user-row').click();
     await expect(account.getByRole('tab', { name: 'Управление', exact: true })).toBeVisible();
-    await page.getByLabel('Тип записи', { exact: true }).selectOption('students');
+    await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
     await expect(account).toHaveCount(0);
     await expect(student).toBeVisible();
     await page.getByRole('combobox', { name: 'Область управления' }).selectOption({ index: 1 });

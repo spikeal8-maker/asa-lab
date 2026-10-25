@@ -23,6 +23,19 @@ const statusLabel: Record<string, string> = {
   archived: 'В архиве',
   deleted: 'Удалено',
 };
+const deviceCategoryLabel: Record<string, string> = {
+  desktop: 'Компьютер',
+  mobile: 'Телефон',
+  tablet: 'Планшет',
+};
+function deviceDescription(user: AdminCatalogUser) {
+  const structured = [
+    user.browser,
+    user.operatingSystem,
+    user.deviceCategory ? (deviceCategoryLabel[user.deviceCategory] ?? user.deviceCategory) : null,
+  ].filter(Boolean);
+  return structured.join(' · ') || user.lastDevice || 'Устройство не зафиксировано';
+}
 export function AdminUsersCatalog({
   scope,
   version,
@@ -234,11 +247,7 @@ export function AdminUsersCatalog({
                     </span>
                     <span>
                       <strong>{user.lastIpAddress ?? 'IP не зафиксирован'}</strong>
-                      <small>
-                        {[user.browser, user.operatingSystem, user.deviceCategory, user.lastDevice]
-                          .filter(Boolean)
-                          .join(' · ') || 'Устройство не зафиксировано'}
-                      </small>
+                      <small>{deviceDescription(user)}</small>
                     </span>
                     <span>
                       <strong>{date(user.lastActivityAt)}</strong>

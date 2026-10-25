@@ -166,3 +166,24 @@ it.each([401, 403])('revokes rows on %s rather than retaining prior page', async
   expect(denied).toHaveBeenCalledOnce();
   expect(host.querySelector('[data-actor-key]')).toBeNull();
 });
+
+it('uses structured device fields once and keeps the fallback when they are absent', async () => {
+  const seat = {
+    ...catalogUserFixture('student'),
+    browser: 'Chrome',
+    operatingSystem: 'Windows',
+    deviceCategory: 'desktop',
+    lastDevice: 'Chrome · Windows',
+  };
+  vi.spyOn(adminApi, 'users').mockResolvedValue(ok(catalogPageFixture([seat])));
+  await show();
+  expect(host.textContent).toContain('Chrome · Windows · Компьютер');
+  expect(host.textContent!.match(/Chrome/g)).toHaveLength(1);
+  vi.mocked(adminApi.users).mockResolvedValue(
+    ok(
+      catalogPageFixture([{ ...seat, browser: null, operatingSystem: null, deviceCategory: null }]),
+    ),
+  );
+  await select('Тип записи', 'students');
+  expect(host.textContent).toContain('Chrome · Windows');
+});
