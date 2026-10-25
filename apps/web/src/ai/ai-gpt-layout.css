@@ -334,6 +334,13 @@
   box-shadow: 0 12px 36px #0000001a;
 }
 
+/* A short viewport can place the tools popup below the centered composer.
+ * Raise the entire grid item above the floating utility buttons, otherwise
+ * the theme switch intercepts taps meant for the first attachment action. */
+.asa-ai-layout .chat-composer-dock:has(.chat-tools-menu[open]) {
+  z-index: 10;
+}
+
 .asa-ai-layout .chat-tools-menu[data-menu-placement='below'] .chat-tools-popup {
   top: calc(100% + 8px);
   bottom: auto;
