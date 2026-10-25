@@ -1173,3 +1173,24 @@ tests:
     timeout_seconds: 300
     owner: admin-auth
     artifacts: [vitest-report, isolated-postgresql-history-report]
+
+  - id: TST-CRM-CARD-UNIT-001
+    title: Typed full CRM request validation, profile conflicts, literal transcript rendering and stale response guards
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/crm-user.controller.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-CRM-CARD-PG-001
+    title: Full retained CRM contents, exact teacher scope, immutable profile audit and concurrent administrator protection
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/crm-user-cards.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-crm-report]

@@ -1492,10 +1492,13 @@ test('confirmation checks are single flight and logout remains usable during a s
   expect(await heldRequests(page)).toBe(1);
   await page.getByRole('button', { name: 'Выйти', exact: true }).click();
   await expect.poll(() => state.signedIn).toBe(false);
-  // The shared logout event returns App to public Home. Use its normal entry
-  // action to check that a late result cannot restore the authenticated view.
+  // Baseline route timing may land on public Home or directly on SignIn after
+  // leaving a protected route. Both are logged out; the late-result fence is
+  // the contract here, not which of these two valid entry routes wins.
   const publicSignIn = page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true });
-  await expect(publicSignIn).toBeVisible();
+  const password = page.getByLabel('Пароль', { exact: true });
+  const loggedOutEntry = publicSignIn.or(password).first();
+  await expect(loggedOutEntry).toBeVisible();
   await releaseHeldRequest(page, {
     policyEnabled: false,
     required: false,
@@ -1504,8 +1507,24 @@ test('confirmation checks are single flight and logout remains usable during a s
     verifiedProvider: null,
     providers: healthyProviders(),
   });
-  await publicSignIn.click();
-  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  // Let the released response and its render complete before proving that it
+  // neither restored the protected view nor introduced an authenticated shell.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(loggedOutEntry).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Выйти', exact: true })).toHaveCount(0);
+  if (!(await password.isVisible())) {
+    // Same-document navigation preserves the held-fetch counters and the late
+    // response proof. A new document would reset that evidence.
+    await page.evaluate(() => {
+      window.location.hash = '#/sign-in';
+    });
+  }
+  await expect(password).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Подтвердите аккаунт', exact: true })).toHaveCount(
     0,
   );

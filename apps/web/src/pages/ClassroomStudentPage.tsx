@@ -30,6 +30,7 @@ import type { ClassroomStudentNavigation } from '../components/classroom-student
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
+import { CrmUserCard } from '../admin/CrmUserCard';
 import { registerAuxiliarySettingsDraft } from '../components/settings-navigation';
 import '../modules/classroom-mobile.css';
 
@@ -72,6 +73,7 @@ const TABS = [
   { key: 'blocks', label: 'Scratch', module: 'blocks' },
   { key: 'merits', label: 'Заслуги', module: null },
   { key: 'activity', label: 'Активность', module: null },
+  { key: 'crm', label: 'Карточка и ИИ', module: null },
   { key: 'settings', label: 'Настройки', module: null },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
@@ -155,7 +157,9 @@ export function ClassroomStudentPage({
   scope.current = `${classroomId}:${seatId}`;
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
-  const showsWorks = !['assignments', 'merits', 'grades', 'activity', 'settings'].includes(tab);
+  const showsWorks = !['assignments', 'merits', 'grades', 'activity', 'settings', 'crm'].includes(
+    tab,
+  );
   const gamesChanged = useCallback((dirty: boolean) => {
     gamesDirtyRef.current = dirty;
     setGamesDirty(dirty);
@@ -1146,6 +1150,15 @@ export function ClassroomStudentPage({
             </button>
           ) : null}
         </section>
+      ) : null}
+      {tab === 'crm' ? (
+        <CrmUserCard
+          key={`${classroomId}:${seatId}`}
+          kind="student"
+          targetId={seatId}
+          classroomId={classroomId}
+          onAccessDenied={onBack}
+        />
       ) : null}
       {tab === 'assignments' ? (
         <ParticipantAssignmentsList

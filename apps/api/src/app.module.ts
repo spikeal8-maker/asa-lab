@@ -1,5 +1,6 @@
 import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
 import { PresentationPreferencesController } from './presentation-preferences.controller.js';
+import { CrmUserController } from './crm-user.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import type pg from 'pg';
@@ -201,6 +202,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        CrmUserController,
         ProductAnalyticsV2Controller,
         DiagnosticsQualityController,
         HealthController,
