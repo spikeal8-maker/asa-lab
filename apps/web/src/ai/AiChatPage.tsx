@@ -6,11 +6,13 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
+  type CSSProperties,
 } from 'react';
 import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
+import { AiAnswerDownloads } from './AiAnswerDownloads';
 import { AiHistoryAttachment as SavedAttachmentCard } from './AiHistoryAttachment';
 import {
   AI_CHAT_FILE_ACCEPT,
@@ -127,6 +129,22 @@ export function AiChatPage({
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [historyWidth, setHistoryWidth] = useState(() => {
+    try {
+      const value = Number(localStorage.getItem('asa-ai-history-width'));
+      return value >= 240 && value <= 420 ? value : 264;
+    } catch {
+      return 264;
+    }
+  });
+  const resizingHistory = useRef(false);
+  useEffect(() => {
+    try {
+      localStorage.setItem('asa-ai-history-width', String(historyWidth));
+    } catch {
+      /* Storage is optional. */
+    }
+  }, [historyWidth]);
   // The ASA portal currently uses a light shell. An explicit local choice must
   // not inherit the workstation's dark OS preference by accident.
   const [chatTheme, setChatTheme] = useState<'light' | 'dark'>(() => {
@@ -1106,6 +1124,7 @@ export function AiChatPage({
     <main
       id="main-content"
       className="asa-ai-layout"
+      style={{ '--ai-history-width': historyWidth + 'px' } as CSSProperties}
       data-chat-theme={chatTheme}
       tabIndex={-1}
       ref={layout}
@@ -1138,6 +1157,58 @@ export function AiChatPage({
             }
           }}
         >
+          {desktop ? (
+            <div
+              className="chat-history-resizer"
+              role="separator"
+              aria-label="Ширина истории диалогов"
+              aria-orientation="vertical"
+              aria-valuemin={240}
+              aria-valuemax={420}
+              aria-valuenow={historyWidth}
+              tabIndex={0}
+              onPointerDown={(event) => {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                resizingHistory.current = true;
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                if (!resizingHistory.current) return;
+                const panel = historyPanel.current;
+                if (panel)
+                  setHistoryWidth(
+                    Math.max(
+                      240,
+                      Math.min(420, Math.round(event.clientX - panel.getBoundingClientRect().left)),
+                    ),
+                  );
+              }}
+              onPointerUp={() => {
+                resizingHistory.current = false;
+              }}
+              onLostPointerCapture={() => {
+                resizingHistory.current = false;
+              }}
+              onPointerCancel={() => {
+                resizingHistory.current = false;
+              }}
+              onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                setHistoryWidth((value) =>
+                  event.key === 'Home'
+                    ? 240
+                    : event.key === 'End'
+                      ? 420
+                      : Math.max(
+                          240,
+                          Math.min(420, value + (event.key === 'ArrowRight' ? 20 : -20)),
+                        ),
+                );
+              }}
+            />
+          ) : null}
           <header className="chat-sidebar-head">
             <strong className="chat-sidebar-title">Чаты</strong>
             <div className="chat-sidebar-head-actions">
@@ -1511,6 +1582,7 @@ export function AiChatPage({
                               title="Копировать"
                             >
                               <AiChatIcon name="copy" size={17} />
+                              <span>Копировать</span>
                             </button>
                             {sourceFor(message) ? (
                               <button
@@ -1523,8 +1595,10 @@ export function AiChatPage({
                                 aria-label="Новый вариант ответа"
                               >
                                 <AiChatIcon name="refresh" size={18} />
+                                <span>Попробовать снова</span>
                               </button>
                             ) : null}
+                            <AiAnswerDownloads content={message.content} />
                           </div>
                         </div>
                       )}
@@ -1561,7 +1635,7 @@ export function AiChatPage({
                             <p>{pendingRegeneration.prompt}</p>
                           </details>
                         ) : null}
-                        <AiMessageContent content={streamedText} />
+                        <AiMessageContent content={streamedText} pending />
                       </div>
                     </article>
                   ) : null}

@@ -5,6 +5,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import './ai-text-complete.css';
+import { codeDownloadFormat, downloadBlob } from './ai-download';
 
 function flattenText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -26,6 +27,7 @@ function safeLink(href?: string): { href: string; external: boolean } | null {
 
 interface ContentProps {
   readonly content: string;
+  readonly pending?: boolean;
 }
 
 // A malformed formula normally becomes KaTeX's escaped source fallback. An
@@ -57,7 +59,7 @@ class ContentBoundary extends Component<ContentProps & { children: ReactNode }> 
   }
 }
 
-export function AiMessageContent({ content }: ContentProps): JSX.Element {
+export function AiMessageContent({ content, pending = false }: ContentProps): JSX.Element {
   return (
     <div className="asa-ai-rich-text">
       <ContentBoundary content={content}>
@@ -93,15 +95,36 @@ export function AiMessageContent({ content }: ContentProps): JSX.Element {
             },
             pre: ({ children }) => {
               const code = flattenText(children).replace(/\n$/, '');
+              const child = Array.isArray(children) ? children[0] : children;
+              const language = isValidElement<{ className?: string }>(child)
+                ? (child.props.className?.match(/language-([^\s]+)/)?.[1] ?? '')
+                : '';
+              const file = codeDownloadFormat(language, code);
               return (
                 <div className="asa-ai-code-block">
-                  <button
-                    type="button"
-                    onClick={() => void navigator.clipboard.writeText(code).catch(() => undefined)}
-                    aria-label="Копировать код"
-                  >
-                    Копировать код
-                  </button>
+                  <div className="asa-ai-code-actions">
+                    <span>{language || file.name.split('.').at(-1)}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void navigator.clipboard.writeText(code).catch(() => undefined)
+                      }
+                      aria-label="Копировать код"
+                    >
+                      Копировать код
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pending}
+                      title={
+                        pending ? 'Скачивание доступно после завершения ответа' : 'Скачать файл'
+                      }
+                      onClick={() => downloadBlob(new Blob([code], { type: file.mime }), file.name)}
+                      aria-label={'Скачать код: ' + file.name}
+                    >
+                      Скачать {file.name.split('.').at(-1)?.toUpperCase()}
+                    </button>
+                  </div>
                   <pre>{children}</pre>
                 </div>
               );

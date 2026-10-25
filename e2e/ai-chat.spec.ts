@@ -378,6 +378,89 @@ test('AI expands a long prompt without losing its draft or covering Send', async
   }
 });
 
+test('AI downloads code and complete answers as real local files', async ({ page }) => {
+  const html =
+    '<!doctype html>\n<html lang="ru"><meta charset="utf-8"><title>Змейка</title><body><h1>Змейка</h1><button onclick="this.textContent=\'Игра началась\'">Играть</button></body></html>';
+  const answer =
+    '# Игра «Змейка»\n\nСохраните страницу и откройте её в браузере.\n\n```html\n' +
+    html +
+    '\n```\n\n| Клавиша | Действие |\n| --- | --- |\n| Стрелка | Движение |';
+  const fake = await fixture(page, answer);
+  fake.release();
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.goto('/#/ai');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Сделай игру змейка');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.getByRole('button', { name: 'Копировать', exact: true })).toHaveText(
+    'Копировать',
+  );
+  await expect(page.getByRole('button', { name: 'Новый вариант ответа', exact: true })).toHaveText(
+    'Попробовать снова',
+  );
+  let pending = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Скачать код: index.html', exact: true }).click();
+  let downloaded = await pending;
+  expect(downloaded.suggestedFilename()).toBe('index.html');
+  expect(readFileSync((await downloaded.path())!, 'utf8')).toBe(html);
+  await expect(page.getByRole('heading', { name: 'Змейка', exact: true })).toHaveCount(0);
+  for (const format of ['PDF', 'DOCX', 'MD', 'TXT']) {
+    await page.getByText('Скачать ответ', { exact: true }).click();
+    pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: format, exact: true }).click();
+    downloaded = await pending;
+    expect(downloaded.suggestedFilename()).toBe('asa-answer.' + format.toLowerCase());
+    const bytes = readFileSync((await downloaded.path())!);
+    expect(bytes.length).toBeGreaterThan(50);
+    if (format === 'PDF') expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
+    if (format === 'DOCX') expect(bytes.subarray(0, 2).toString()).toBe('PK');
+    if (format === 'MD') expect(bytes.toString('utf8')).toBe(answer);
+    if (format === 'TXT') expect(bytes.toString('utf8')).toContain('Игра «Змейка»');
+    await downloaded.saveAs(test.info().outputPath('asa-answer.' + format.toLowerCase()));
+  }
+  await expectChatFits(page);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 850 });
+    await page.getByText('Скачать ответ', { exact: true }).click();
+    await expect(page.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
+    await expectChatFits(page);
+    await page.screenshot({ path: test.info().outputPath(`ai-answer-downloads-${width}.png`) });
+    await page.getByText('Скачать ответ', { exact: true }).click();
+  }
+  expect(fake.requests).toHaveLength(1);
+});
+
+test('AI history is white and resizes by pointer and keyboard without page overflow', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  const sidebar = page.locator('.chat-sidebar');
+  await expect(sidebar).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  const separator = page.getByRole('separator', { name: 'Ширина истории диалогов' });
+  await separator.focus();
+  await separator.press('End');
+  await expect(separator).toHaveAttribute('aria-valuenow', '420');
+  await separator.press('ArrowLeft');
+  await expect(separator).toHaveAttribute('aria-valuenow', '400');
+  const bounds = (await separator.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x - 80, bounds.y + 200, { steps: 5 });
+  await page.mouse.up();
+  expect(Number(await separator.getAttribute('aria-valuenow'))).toBeLessThan(400);
+  await expectChatFits(page);
+  const width = await separator.getAttribute('aria-valuenow');
+  await page.reload();
+  await expect(separator).toHaveAttribute('aria-valuenow', width!);
+  await page.mouse.move(900, 100);
+  await separator.blur();
+  await page.screenshot({ path: test.info().outputPath('ai-white-resizable-history-1440.png') });
+  await page.setViewportSize({ width: 320, height: 750 });
+  await expect(separator).toHaveCount(0);
+  await expectChatFits(page);
+});
+
 test('AI composer uploads a real file once and restores the saved attachment after reload', async ({
   page,
 }) => {

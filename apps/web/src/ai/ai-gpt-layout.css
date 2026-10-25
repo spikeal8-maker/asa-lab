@@ -3,7 +3,7 @@
  * Only the conversation surface, history rail and composer are styled here. */
 .portal-shell > .asa-ai-layout {
   --ai-surface: #fff;
-  --ai-sidebar-bg: #f8f8f8;
+  --ai-sidebar-bg: #fff;
   --ai-bg: #f3f3f3;
   --ai-text: #202123;
   --ai-muted: #737373;
@@ -15,7 +15,7 @@
 }
 
 .asa-ai-layout .asa-ai-chat.sidebar-open {
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: var(--ai-history-width, 264px) minmax(0, 1fr);
 }
 
 .asa-ai-layout .chat-sidebar {
@@ -405,11 +405,13 @@
 }
 
 .asa-ai-layout .chat-message-actions > button {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   place-items: center;
-  width: 34px;
+  width: auto;
   min-height: 34px;
-  padding: 0;
+  padding: 4px 8px;
   border-radius: 9px;
   color: var(--ai-muted);
 }
@@ -954,7 +956,7 @@
 
 .portal-shell > .asa-ai-layout[data-chat-theme='light'] {
   --ai-surface: #fff;
-  --ai-sidebar-bg: #f8f8f8;
+  --ai-sidebar-bg: #fff;
   --ai-bg: #f3f3f3;
   --ai-text: #202123;
   --ai-muted: #737373;

@@ -583,7 +583,7 @@ test('AI creates a fresh variant of the chosen earlier answer without changing l
     .locator('.chat-turn-assistant')
     .filter({ hasText: 'Вариант 1: новый ответ' });
   await expect(variant).toBeVisible();
-  await variant.locator('summary').click();
+  await variant.locator('.chat-variant-source > summary').click();
   await expect(variant.locator('.chat-variant-source p')).toHaveText(source.content);
   await expect(draft).toHaveValue('Мой неотправленный вопрос');
   expect(f.messages.get(thread.id)!.slice(0, original.length)).toEqual(original);
