@@ -1181,7 +1181,9 @@ MVCC snapshot имён, статусов или прочих меняющихс�
 не объединяет их историю. Только platform admin получает retained metadata:
 текущие принадлежащие identity проекты (включая архивные), immutable сохранённые
 версии, все retained publication revisions, отдельно помеченные legacy gallery
-rows и private AI usage journal с его начала. Тексты чатов, document_json,
+rows, private AI usage journal и retained pre-journal quota admissions без
+выдуманных model/token/result facts. Совпадающий owner+request уже из журнала
+не дублируется. Тексты чатов, document_json,
 credentials, preview bytes и произвольные provider errors не раскрываются.
 NULL token usage означает неизвестное значение, не ноль; bigint выводится строкой.
 Статусы проектов/публикаций/AI являются текущими, а не историческим snapshot.

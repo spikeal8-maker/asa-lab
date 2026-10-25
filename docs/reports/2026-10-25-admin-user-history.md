@@ -9,7 +9,8 @@ Admin → Users. Main publication only; no deployment or live DB migration.
   newest first, limit 1..100 (UI 25), typed stable keys and microsecond keyset.
 - Sources: currently owned projects including archived rows, saved versions,
   immutable publication revisions, separately labelled retained legacy gallery
-  rows and AI usage journal from its introduction. No first-50 truncation.
+  rows, AI usage journal and retained pre-journal quota admissions (unknown
+  model/token/result, no duplicates). No first-50 truncation.
 - Metadata only: no project documents, conversation text, preview bytes,
   credentials or arbitrary upstream error text. Unknown tokens stay unknown;
   bigint token values remain strings. Current statuses are labelled as current.

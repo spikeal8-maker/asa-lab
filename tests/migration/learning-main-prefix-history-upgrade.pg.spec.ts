@@ -112,7 +112,7 @@ const upgradeArtifacts = [
   [
     '0246',
     '0246_admin_user_history.sql',
-    'a2de169ab89d1ac785aebd0ab75d7a3e20bdea419edbb6cbf41f7ca3d64ffe4f',
+    '0f6794d87818d734de2b866c4f0a293387cba7058f4be9967c04855108ea1e01',
   ],
 ] as const;
 

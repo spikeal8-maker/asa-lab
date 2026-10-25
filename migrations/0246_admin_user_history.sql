@@ -52,6 +52,13 @@ BEGIN
     UNION ALL
     SELECT 'ai:'||u.request_id,u.admitted_at,jsonb_build_object('type','ai','id',u.request_id,'title',NULL,'projectId',NULL,'module','ai','status',u.status,'provider',u.provider,'model',u.actual_model,'requestedModel',u.requested_model,'inputTokens',u.input_tokens::text,'outputTokens',u.output_tokens::text,'errorCode',u.error_code,'durationMs',u.duration_ms::text)
     FROM public.ai_usage_journal u WHERE p_category='ai' AND ((p_kind='account' AND u.account_id=p_target AND u.seat_id IS NULL) OR (p_kind='student' AND u.seat_id=p_target AND u.account_id IS NULL))
+    UNION ALL
+    -- Historic quota admissions are retained facts too. They do not prove a
+    -- successful generation or any model/token usage; never invent those values.
+    SELECT 'ai:'||q.request_id,q.created_at,jsonb_build_object('type','ai','id',q.request_id,'title','Сохранённый запрос без подробных сведений','module','ai','status','legacy_unknown')
+    FROM public.ai_assistant_request_quota q JOIN public.principals actor ON actor.id=q.owner_principal_id
+    WHERE p_category='ai' AND ((p_kind='account' AND actor.kind='account' AND actor.account_id=p_target) OR (p_kind='student' AND actor.kind='student_seat' AND actor.seat_id=p_target))
+      AND NOT EXISTS(SELECT 1 FROM public.ai_usage_journal u WHERE u.owner_principal_id=q.owner_principal_id AND u.request_id=q.request_id)
   ), page AS (
     SELECT * FROM entries WHERE at<=v_at AND (v_last IS NULL OR at<(v_last->>'at')::timestamptz OR (at=(v_last->>'at')::timestamptz AND key COLLATE "C">(v_last->>'key') COLLATE "C"))
     ORDER BY at DESC,key COLLATE "C" LIMIT p_limit+1
