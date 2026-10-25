@@ -743,6 +743,12 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           ).rows,
         ).toEqual([{ archived_at: null, next_message_ordinal: ordinal }]);
       }
+      // Slot timestamps belong to the transaction that created each provider, not
+      // whichever migration happens to be last in the complete upgrade plan.
+      const providerCatalogAppliedAt = ledgerAfter.find(
+        (row) => row.version === '0227',
+      )!.applied_at;
+      const cloudProviderAppliedAt = ledgerAfter.find((row) => row.version === '0250')!.applied_at;
       const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       expect(configAfter).toEqual({
@@ -751,7 +757,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         enabled: false,
         migrated_from_model: 'deepseek-chat',
         configuration_version: configBefore.configuration_version + 1,
-        updated_at: expect.any(String),
+        updated_at: providerCatalogAppliedAt,
       });
       expect(
         (
@@ -768,13 +774,22 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           updated_at: configAfter.updated_at,
         },
         {
+          provider: 'ollama-cloud',
+          model: 'gemma4:31b',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: cloudProviderAppliedAt,
+        },
+        {
           provider: 'openai',
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,
           api_key_auth_tag: null,
           key_fingerprint: null,
-          updated_at: expect.any(String),
+          updated_at: providerCatalogAppliedAt,
         },
       ]);
 
