@@ -622,9 +622,9 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
             seat_id,learner_identity_id,activity_participation_id,attempt_number,state,
             revision_of_attempt_id,started_at,submitted_at,evaluated_at)
          SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
-                run.learning_activity_version_id,$2,part.learner_identity_id,part.id,$3,$4,
+                run.learning_activity_version_id,$2,part.learner_identity_id,part.id,$3,$4::varchar,
                 $5::uuid,now()-interval '4 minutes',now()-interval '2 minutes',
-                CASE WHEN $4='closed' THEN now()-interval '1 minute' END
+                CASE WHEN $4::varchar='closed' THEN now()-interval '1 minute' END
            FROM activity_runs run
            JOIN activity_participations part ON part.activity_run_id=run.id
           WHERE run.id=$1 AND part.source_course_enrollment_id=$6
