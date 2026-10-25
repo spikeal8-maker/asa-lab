@@ -569,10 +569,24 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     );
     expect(marked.rows[0].result_code).toBe('ok');
 
-    const completion = (
-      await admin.query('SELECT learning_course_completion_internal($1) AS value', [enrollment.id])
-    ).rows[0].value;
-    expect(completion).toMatchObject({
+    const completion = async () =>
+      (
+        await admin.query('SELECT learning_course_completion_internal($1) AS value', [
+          enrollment.id,
+        ])
+      ).rows[0].value;
+    const countCompletedNotifications = async () =>
+      Number(
+        (
+          await admin.query(
+            "SELECT count(*)::int AS count FROM learning_notifications WHERE course_run_id=$1 AND event_kind='NF15' AND category='NC06'",
+            [delivery.run_id],
+          )
+        ).rows[0].count,
+      );
+    const sweep = async () => admin.query('SELECT learning_notification_sweep()');
+
+    expect(await completion()).toMatchObject({
       completed: false,
       total: 1,
       lessonCount: 1,
@@ -581,6 +595,114 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       reason: 'required_lessons_pending',
       resultPolicy: 'no_course_grade',
     });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    const practiceRuns = (
+      await admin.query(
+        'SELECT id,source_course_block_id FROM activity_runs WHERE source_course_lesson_id=$1 ORDER BY source_course_block_id',
+        [runLesson.id],
+      )
+    ).rows as { id: string; source_course_block_id: string }[];
+    expect(practiceRuns.map((row) => row.source_course_block_id)).toEqual([
+      'electronics-nightlight',
+      'three-d-nightlight',
+    ]);
+
+    const addAttempt = async (
+      runId: string,
+      attemptNumber: number,
+      state: 'submitted' | 'closed',
+      previousAttempt: string | null = null,
+    ) => {
+      const result = await admin.query(
+        `INSERT INTO learning_attempts
+           (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+            seat_id,learner_identity_id,activity_participation_id,attempt_number,state,
+            revision_of_attempt_id,started_at,submitted_at,evaluated_at)
+         SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+                run.learning_activity_version_id,$2,part.learner_identity_id,part.id,$3,$4,
+                $5::uuid,now()-interval '4 minutes',now()-interval '2 minutes',
+                CASE WHEN $4='closed' THEN now()-interval '1 minute' END
+           FROM activity_runs run
+           JOIN activity_participations part ON part.activity_run_id=run.id
+          WHERE run.id=$1 AND part.source_course_enrollment_id=$6
+         RETURNING id`,
+        [runId, seat, attemptNumber, state, previousAttempt, enrollment.id],
+      );
+      expect(result.rows).toHaveLength(1);
+      return result.rows[0].id as string;
+    };
+    const publishReview = async (attemptId: string, decision: 'accepted' | 'changes_requested') => {
+      const result = await admin.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         SELECT tenant_id,id,20,$2::varchar,$3::varchar,$4::boolean
+           FROM learning_attempts WHERE id=$1 RETURNING id`,
+        [
+          attemptId,
+          decision === 'accepted' ? 'passed' : 'incomplete',
+          decision,
+          decision === 'accepted',
+        ],
+      );
+      expect(result.rows).toHaveLength(1);
+    };
+
+    const electronicsAttempt = await addAttempt(practiceRuns[0].id, 1, 'closed');
+    await publishReview(electronicsAttempt, 'accepted');
+    expect(await completion()).toMatchObject({ completed: false, total: 1, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    const threeDPending = await addAttempt(practiceRuns[1].id, 1, 'submitted');
+    expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    await admin.query(
+      "UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1",
+      [threeDPending],
+    );
+    await publishReview(threeDPending, 'changes_requested');
+    expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    const threeDCorrected = await addAttempt(practiceRuns[1].id, 2, 'closed', threeDPending);
+    await publishReview(threeDCorrected, 'accepted');
+    expect(await completion()).toMatchObject({
+      completed: true,
+      total: 1,
+      lessonCount: 1,
+      completedCount: 1,
+      reason: 'required_lessons_completed',
+    });
+
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,false)', [
+        seat,
+        delivery.run_id,
+        runLesson.id,
+      ]),
+    );
+    expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,true)', [
+        seat,
+        delivery.run_id,
+        runLesson.id,
+      ]),
+    );
+    expect(await completion()).toMatchObject({ completed: true, total: 1, completedCount: 1 });
+    await sweep();
+    const firstNotificationCount = await countCompletedNotifications();
+    expect(firstNotificationCount).toBeGreaterThan(0);
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(firstNotificationCount);
   });
 
   it('assigns inherited participation to an issued named learner before first login', async () => {
