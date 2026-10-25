@@ -1143,12 +1143,12 @@ tests:
     owner: admin-auth
     artifacts: [vitest-report]
   - id: TST-ADMIN-CATALOG-PG-001
-    title: Full Account and Seat server sort and keyset pages, exact scope denial and microsecond cursor proof
+    title: Full typed CRM filtering, aggregates, CSV bounds, exact organization bindings, revocation and microsecond cursor proof
     suite: authorization
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts
+    command: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/crm-directory.pg.spec.ts
     timeout_seconds: 300
     owner: admin-auth
     artifacts: [vitest-report, isolated-postgresql-catalog-report]

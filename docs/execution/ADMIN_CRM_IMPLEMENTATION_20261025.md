@@ -49,6 +49,12 @@ This pointer records slice 1 acceptance, not slice 2 verification or deployment.
   only in the email and temporary browser memory, removed from the fragment before
   diagnostics; no admin readback, audit, export or access-log token.
 
+Accepted slice 2 source: `9a49dad2acace00cb04adb62f4b0ccd0972e2737`, with
+independent source acceptance and [exact-source focused proof](https://github.com/spikeal8-maker/asa-lab/actions/runs/40209048818)
+(API/SMTP, isolated PostgreSQL and built browser checks passed). Integrated
+`d4fe9f6ff8d1d69b0fc95f27a65c5b71037728f9` includes only disjoint Electronics docs.
+This is acceptance evidence, not a claim of configured SMTP or deployment.
+
 ## 3. Catalog filters, export and factual acquisition analytics
 
 - Server filtering/sorting includes typed users, access/role/class, age where
@@ -62,6 +68,22 @@ This pointer records slice 1 acceptance, not slice 2 verification or deployment.
   proxy IP, no counting a linked Seat and Account as two known unique people.
 - Capture future acquisition observations with bounded/sanitized fields;
   separate declared referrer/UTM observations from authenticated identity.
+
+Slice 3 authored implementation: additive `0249_crm_directory.sql` reader shares
+one filtered authorized base between keyset page, exact count, aggregates and
+full CSV. It adds explicit audited organization-class binding, searchable filter
+values/manager, same-criteria refresh retention and default full Account card.
+No tenant inference, person merge, SMTP/proof change or old receipt-body extension.
+Legacy acquisition source/UTM/geo remain honestly unknown; existing bounded safe
+referrer collection continues for future visits. Analytics includes retained
+legacy AI admissions without journal duplication and labels token coverage.
+
+Final acceptance still requires independent review and exact-SHA CI for the new
+SQL and four-width browser cases. Local source units/type results are recorded
+in `docs/review/ADMIN_CRM_DIRECTORY_20261025.md`; browser/PG results must not be
+inferred from written tests. Export bounds are explicit errors, not partial files.
+Native project-version editing is outside this read-only CRM; existing stored
+version viewing remains available through retained history.
 
 ## Acceptance for each slice and final program
 

@@ -15,6 +15,319 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/admin/v1/users:
+    get:
+      operationId: getFilteredCrmUsers
+      summary: Read typed authorized filtered catalog and full-base factual aggregates
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: kind
+          required: false
+          schema: { type: string, enum: [all, accounts, students] }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, active, inactive] }
+        - in: query
+          name: sort
+          required: false
+          schema: { type: string, enum: [name, last_activity, activity, created] }
+        - in: query
+          name: direction
+          required: false
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 4096 }
+        - in: query
+          name: role
+          required: false
+          schema:
+            {
+              type: string,
+              enum:
+                [
+                  all,
+                  learner,
+                  creator,
+                  educator,
+                  registered_student,
+                  guardian,
+                  platform_admin,
+                  owner,
+                  school_admin,
+                  member,
+                ],
+            }
+        - in: query
+          name: classId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: organizationId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: age
+          required: false
+          schema: { type: string, enum: [all, known, unknown] }
+        - in: query
+          name: ageMin
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: ageMax
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: email
+          required: false
+          schema: { type: string, enum: [all, present, absent, verified, unverified] }
+        - in: query
+          name: activity
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: registeredAfter
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: registeredBefore
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: source
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, enum: [7, 30, 90] }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryPage' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/users-export:
+    get:
+      operationId: prepareFilteredCrmCsv
+      summary: Prepare all authorized filtered rows as BOM semicolon CSV in JSON; reject oversize exports
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: kind
+          required: false
+          schema: { type: string, enum: [all, accounts, students] }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, active, inactive] }
+        - in: query
+          name: sort
+          required: false
+          schema: { type: string, enum: [name, last_activity, activity, created] }
+        - in: query
+          name: direction
+          required: false
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: role
+          required: false
+          schema:
+            {
+              type: string,
+              enum:
+                [
+                  all,
+                  learner,
+                  creator,
+                  educator,
+                  registered_student,
+                  guardian,
+                  platform_admin,
+                  owner,
+                  school_admin,
+                  member,
+                ],
+            }
+        - in: query
+          name: classId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: organizationId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: age
+          required: false
+          schema: { type: string, enum: [all, known, unknown] }
+        - in: query
+          name: ageMin
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: ageMax
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: email
+          required: false
+          schema: { type: string, enum: [all, present, absent, verified, unverified] }
+        - in: query
+          name: activity
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: registeredAfter
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: registeredBefore
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: source
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, enum: [7, 30, 90] }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryCsv' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/users-filter-options:
+    get:
+      operationId: getCrmFilterOptions
+      summary: Search current authorized class and organization filter values (up to 100 each)
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryOptions' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/organization-class-bindings:
+    get:
+      operationId: searchExplicitOrganizationClassBindings
+      summary: Platform-only search of classes and organizations (100 matches each)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Authorized candidates and current explicit bindings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryOptions' }
+        '403':
+          description: Platform administrator required
+    put:
+      operationId: setExplicitOrganizationClassBinding
+      summary: Platform-only audited compare-and-set of one class organization; no ownership transfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [classId, workspaceId, expectedWorkspaceId, reason]
+              properties:
+                classId: { type: string, format: uuid }
+                workspaceId: { type: [string, 'null'], format: uuid }
+                expectedWorkspaceId: { type: [string, 'null'], format: uuid }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: Binding saved and audited; next reads use current mapping
+        '400':
+          description: Invalid class, organization or reason
+        '403':
+          description: Platform administrator required
+        '409':
+          description: Current binding differs from expected; submitted UI input is retained
   /api/admin/v1/auth/email:
     get:
       operationId: getAdminEmailConfig
@@ -7212,6 +7525,69 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    CrmDirectoryPage:
+      type: object
+      required: [items, matchedCount, analytics, asOf, next, studentCoverage]
+      properties:
+        items: { type: array, maxItems: 100, items: { type: object } }
+        matchedCount: { type: integer, minimum: 0 }
+        asOf: { type: string, format: date-time }
+        next: { type: [string, 'null'] }
+        studentCoverage:
+          type: object
+          properties:
+            state: { type: string, enum: [complete, unavailable] }
+        analytics:
+          type: object
+          description: Full filtered base; Account and Seat are separate records, never asserted unique people. Registration source and IP geography unavailable. First retained referrer is client-declared. Org AI covers only authorized Seats; private Account AI is unavailable. Retained quota admissions are deduplicated with journal requests and have unknown tokens.
+          properties:
+            accounts: { type: integer, minimum: 0 }
+            students: { type: integer, minimum: 0 }
+            linkedRecords: { type: [integer, 'null'], minimum: 0 }
+            aiCoverage: { type: string, enum: [all_authorized, students_only_accounts_unavailable] }
+            aiRequests: { type: [integer, 'null'] }
+            aiLegacyRequests: { type: [integer, 'null'] }
+            aiTokenCovered: { type: [integer, 'null'] }
+            periodDays: { type: integer, enum: [7, 30, 90] }
+            daily:
+              type: array
+              maxItems: 90
+              items:
+                type: object
+                properties:
+                  date: { type: string, format: date }
+                  registrations: { type: integer, minimum: 0 }
+                  events: { type: integer, minimum: 0 }
+    CrmDirectoryCsv:
+      type: object
+      required: [csv, count]
+      description: Entire filtered table or explicit error; final exact-row mapping and role checks and fresh session check occur after buffering. Audit means prepared, not confirmed download. Secrets and credentials excluded; formula prefixes neutralized.
+      properties:
+        csv: { type: string }
+        count: { type: integer, minimum: 0, maximum: 10000 }
+    CrmDirectoryOptions:
+      type: object
+      required: [classes, organizations]
+      properties:
+        classes:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              workspaceId: { type: [string, 'null'], format: uuid }
+        organizations:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
     SmtpConfig:
       type: object
       additionalProperties: false

@@ -11,7 +11,7 @@ import {
   type AdminSubject,
 } from '@asa-lab/authz';
 import type { AccountDirectoryPort, ActiveContext } from '@asa-lab/identity';
-import type { AdminCatalogQuery, AdminCatalogPage } from './admin-user-catalog.js';
+import { catalogCsv, type AdminCatalogQuery, type AdminCatalogPage } from './admin-user-catalog.js';
 
 export interface ResolvedAdminAccess {
   readonly subject: AdminSubject;
@@ -555,12 +555,15 @@ export class AdminControlPlaneService {
     }));
   }
 
+  private catalogExports = new Set<string>();
+
   async listUsers(
     access: ResolvedAdminAccess,
     input: AdminCatalogQuery & {
       scope: { kind: AdminScopeKind; id: string | null };
       search: string | null;
       requestId: string;
+      mode?: 'page' | 'export';
     },
   ): Promise<AdminCatalogPage> {
     this.requirePermission(access, 'administration.accounts.read', input.scope);
@@ -572,18 +575,23 @@ export class AdminControlPlaneService {
       await client.query("SET LOCAL statement_timeout = '8s'");
       const result = await client.query<{
         value: Omit<AdminCatalogPage, 'next'> & { next: Record<string, unknown> | null };
-      }>('SELECT admin_user_catalog($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb) AS value', [
-        access.subject.principalId,
-        input.scope.kind,
-        input.scope.id,
-        input.search,
-        input.kind,
-        input.status,
-        input.sort,
-        input.direction,
-        input.limit,
-        input.cursor === null ? null : JSON.stringify(input.cursor),
-      ]);
+      }>(
+        'SELECT admin_user_catalog_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12) AS value',
+        [
+          access.subject.principalId,
+          input.scope.kind,
+          input.scope.id,
+          input.search,
+          input.kind,
+          input.status,
+          input.sort,
+          input.direction,
+          input.mode === 'export' ? 10001 : input.limit,
+          input.cursor === null ? null : JSON.stringify(input.cursor),
+          JSON.stringify(input.filters ?? {}),
+          input.mode ?? 'page',
+        ],
+      );
       const value = result.rows[0]?.value;
       if (!value) throw new Error('ADMIN_CATALOG_UNAVAILABLE');
       await client.query('COMMIT');
@@ -604,6 +612,116 @@ export class AdminControlPlaneService {
     } finally {
       client.release(discardClient ? true : undefined);
     }
+  }
+
+  private async directoryStatement<T extends pg.QueryResultRow = pg.QueryResultRow>(
+    sql: string,
+    args: unknown[],
+  ): Promise<pg.QueryResult<T>> {
+    const client = await this.pool.connect();
+    let discard = false;
+    try {
+      await client.query('BEGIN');
+      await client.query("SET LOCAL statement_timeout = '8s'");
+      await client.query("SET LOCAL lock_timeout = '2s'");
+      const result = await client.query<T>(sql, args);
+      await client.query('COMMIT');
+      return result;
+    } catch (problem) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        discard = true;
+      }
+      throw problem;
+    } finally {
+      client.release(discard ? true : undefined);
+    }
+  }
+  async exportUsers(
+    access: ResolvedAdminAccess,
+    input: Parameters<AdminControlPlaneService['listUsers']>[1],
+  ): Promise<{ csv: string; count: number }> {
+    const actor = access.subject.principalId;
+    this.requirePermission(access, 'administration.accounts.read', input.scope);
+    if (this.catalogExports.has(actor) || this.catalogExports.size >= 2)
+      throw new Error('CRM_EXPORT_BUSY');
+    this.catalogExports.add(actor);
+    try {
+      const page = await this.listUsers(access, { ...input, cursor: null, mode: 'export' });
+      if (page.next !== null || page.items.length > 10000) throw new Error('CRM_EXPORT_TOO_LARGE');
+      const csv = catalogCsv(page.items);
+      if (Buffer.byteLength(csv, 'utf8') > 16 * 1024 * 1024)
+        throw new Error('CRM_EXPORT_TOO_LARGE');
+      // Fresh statement after buffering; no held read client while writing the audit.
+      const fresh = await this.directoryStatement<{ allowed: boolean }>(
+        'SELECT crm_export_prepared($1,$2,$3,$4,$5::jsonb,$6,$7::jsonb) AS allowed',
+        [
+          actor,
+          input.scope.kind,
+          input.scope.id,
+          page.items.length,
+          JSON.stringify({
+            filters: input.filters,
+            search: input.search,
+            kind: input.kind,
+            status: input.status,
+            sort: input.sort,
+            direction: input.direction,
+          }),
+          input.requestId,
+          JSON.stringify(page.items.map(({ kind, id }) => ({ kind, id }))),
+        ],
+      );
+      if (!fresh.rows[0]?.allowed)
+        throw Object.assign(new Error('ADMIN_SCOPE_DENIED'), { code: '42501' });
+      return { csv, count: page.items.length };
+    } finally {
+      this.catalogExports.delete(actor);
+    }
+  }
+  async catalogFilterOptions(
+    access: ResolvedAdminAccess,
+    input: {
+      scope: { kind: AdminScopeKind; id: string | null };
+      search: string | null;
+      requestId: string;
+    },
+  ) {
+    this.requirePermission(access, 'administration.accounts.read', input.scope);
+    await this.auditRead(access, input, 'administration.accounts.read', 'crm_filter_options');
+    const result = await this.directoryStatement<{ value: unknown }>(
+      'SELECT crm_catalog_filter_options($1,$2,$3,$4) AS value',
+      [access.subject.principalId, input.scope.kind, input.scope.id, input.search],
+    );
+    return result.rows[0]?.value;
+  }
+  async classBindings(access: ResolvedAdminAccess, search: string | null) {
+    const result = await this.directoryStatement<{ value: unknown }>(
+      'SELECT crm_class_bindings($1,$2) AS value',
+      [access.subject.principalId, search],
+    );
+    return result.rows[0]?.value;
+  }
+  async bindClass(
+    access: ResolvedAdminAccess,
+    input: {
+      classId: string;
+      workspaceId: string | null;
+      expectedWorkspaceId: string | null;
+      reason: string;
+      requestId: string;
+    },
+  ) {
+    await this.directoryStatement('SELECT crm_bind_class($1,$2,$3,$4,$5,$6)', [
+      access.subject.principalId,
+      input.classId,
+      input.workspaceId,
+      input.expectedWorkspaceId,
+      input.reason,
+      input.requestId,
+    ]);
+    return { ok: true };
   }
 
   async userHistory(

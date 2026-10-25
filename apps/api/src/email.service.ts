@@ -39,6 +39,7 @@ interface MailTransport {
 }
 export interface MailOptions {
   encryptionKey?: string;
+  now?: () => number;
   transport?: (config: MailConfig, password: string) => Promise<MailTransport>;
 }
 export function mailFailure(code: string, status = 400): never {
@@ -187,13 +188,21 @@ export function smtpTransportOptions(config: MailConfig, password: string) {
   };
 }
 
+const MAIL_HEALTH_CACHE_MS = 1000;
+
 export class EmailService {
   private readonly key: Buffer | null;
+  private healthGeneration = 0;
+  private healthCache: { expiresAt: number; value: AuthProviderAvailability } | null = null;
+  private healthFlight: { generation: number; promise: Promise<AuthProviderAvailability> } | null =
+    null;
+  private readonly now: () => number;
   constructor(
     private readonly pool: pg.Pool,
     private readonly options: MailOptions = {},
   ) {
     this.key = mailKey(options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY']);
+    this.now = options.now ?? Date.now;
   }
   async query<T>(sql: string, params: unknown[] = []): Promise<T> {
     try {
@@ -255,6 +264,7 @@ export class EmailService {
       v['clearPassword'] === true,
       request,
     ]);
+    this.invalidateHealth();
     return this.adminConfig(actor);
   }
   private configured(runtime: Runtime): { config: MailConfig; password: string } {
@@ -326,10 +336,36 @@ export class EmailService {
       ok,
       request,
     ]);
+    this.invalidateHealth();
     if (!ok) mailFailure('mail_test_failed', 503);
     return { ...(await this.adminConfig(actor)), testKind: to === null ? 'connection' : 'message' };
   }
-  async availability(): Promise<AuthProviderAvailability> {
+  private invalidateHealth(): void {
+    this.healthGeneration++;
+    this.healthCache = null;
+    this.healthFlight = null;
+  }
+  availability(): Promise<AuthProviderAvailability> {
+    if (this.healthCache && this.healthCache.expiresAt > this.now())
+      return Promise.resolve(this.healthCache.value);
+    const generation = this.healthGeneration;
+    if (this.healthFlight?.generation === generation) return this.healthFlight.promise;
+    const promise: Promise<AuthProviderAvailability> = this.readAvailability()
+      .then((value) => {
+        // A committed configuration/proof mutation retires both cached and pending
+        // observations. Old callers join the new generation rather than enforce it.
+        if (generation !== this.healthGeneration) return this.availability();
+        const publicValue = Object.freeze(value);
+        this.healthCache = { value: publicValue, expiresAt: this.now() + MAIL_HEALTH_CACHE_MS };
+        return publicValue;
+      })
+      .finally(() => {
+        if (this.healthFlight?.promise === promise) this.healthFlight = null;
+      });
+    this.healthFlight = { generation, promise };
+    return promise;
+  }
+  private async readAvailability(): Promise<AuthProviderAvailability> {
     let runtime: Runtime | null = null,
       available = false;
     try {
@@ -409,15 +445,21 @@ export class EmailService {
       /* Secret and token never escape through an error. */
     }
     await this.query('SELECT mail_intent_delivery($1,$2,$3) AS value', [id, hash, sent]);
+    this.invalidateHealth();
     if (!sent) mailFailure('mail_delivery_failed', 503);
     const status = (await this.status(actor, account, admin)) as { pending?: { state: string } };
     if (!['sent', 'consumed'].includes(status.pending?.state ?? ''))
       mailFailure('mail_conflict', 409);
     return status;
   }
-  consume(token: unknown) {
+  async consume(token: unknown) {
     if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token))
       mailFailure('mail_invalid');
-    return this.query('SELECT mail_intent_consume($1) AS value', [emailTokenHash(token)]);
+    const result = await this.query<{ confirmed?: boolean }>(
+      'SELECT mail_intent_consume($1) AS value',
+      [emailTokenHash(token)],
+    );
+    if (result?.confirmed === true) this.invalidateHealth();
+    return result;
   }
 }

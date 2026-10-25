@@ -13,6 +13,7 @@ on:
       - 'tests/admin/admin-user-catalog.pg.spec.ts'
       - 'tests/admin/admin-user-history.pg.spec.ts'
       - 'tests/admin/crm-user-cards.pg.spec.ts'
+      - 'tests/admin/crm-directory.pg.spec.ts'
       - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
       - 'e2e/access-account-ui.spec.ts'
@@ -41,6 +42,7 @@ on:
       - 'tests/admin/admin-user-catalog.pg.spec.ts'
       - 'tests/admin/admin-user-history.pg.spec.ts'
       - 'tests/admin/crm-user-cards.pg.spec.ts'
+      - 'tests/admin/crm-directory.pg.spec.ts'
       - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
       - 'e2e/access-account-ui.spec.ts'
@@ -124,7 +126,7 @@ jobs:
       - name: Verified email isolated PostgreSQL proof
         run: pnpm test:email-verification:pg
       - name: Unified user catalog isolated PostgreSQL proof
-        run: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/admin-user-history.pg.spec.ts tests/admin/crm-user-cards.pg.spec.ts
+        run: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/admin-user-history.pg.spec.ts tests/admin/crm-user-cards.pg.spec.ts tests/admin/crm-directory.pg.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:

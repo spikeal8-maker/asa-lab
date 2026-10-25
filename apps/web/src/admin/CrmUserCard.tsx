@@ -21,6 +21,14 @@ const stateLabel: Record<string, string> = {
   suspended: 'Приостановлено',
   revoked: 'Отозвано',
   provisional: 'Предварительно',
+  active: 'Действует',
+  issued: 'Выдано',
+  removed: 'Удалено',
+  closed: 'Закрыто',
+  archived: 'В архиве',
+  deleted: 'Удалено',
+  owner: 'Владелец класса',
+  co_teacher: 'Совместное преподавание',
 };
 export function CrmUserCardLauncher(
   props: CrmSubject & { onAccessDenied: () => void; onChanged?: () => void },
@@ -279,7 +287,15 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                 </div>
                 <div>
                   <dt>Класс</dt>
-                  <dd>{profile.classTitle ?? 'Не относится к классу'}</dd>
+                  <dd>
+                    {profile.classTitle ??
+                      (profile.kind === 'account'
+                        ? profile.linkedIdentities.some((i) => i.kind === 'student') ||
+                          profile.teachingClasses?.length
+                          ? 'Связанные учебные места и преподавательские классы перечислены ниже'
+                          : 'Связанные учебные места и преподавательские классы не найдены'
+                        : 'Не указан')}
+                  </dd>
                 </div>
                 <div>
                   <dt>Почта</dt>
@@ -287,7 +303,7 @@ function CrmCardBody(subject: CrmSubject & { onAccessDenied: () => void; onChang
                 </div>
                 <div>
                   <dt>Состояние</dt>
-                  <dd>{profile.status}</dd>
+                  <dd>{stateLabel[profile.status] ?? profile.status}</dd>
                 </div>
               </dl>
               <form className="crm-full-form" onSubmit={(event) => void save(event)}>
