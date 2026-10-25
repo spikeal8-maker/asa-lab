@@ -267,7 +267,7 @@ export function catalogCsv(items: readonly AdminCatalogUser[]): string {
   return (
     '\uFEFF' +
     [
-      columns.map(([_, title]) => cell(title)).join(';'),
+      columns.map(([, title]) => cell(title)).join(';'),
       ...items.map((item) => columns.map(([key]) => cell(display(item, key))).join(';')),
     ].join('\r\n')
   );
