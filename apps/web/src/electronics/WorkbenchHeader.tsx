@@ -440,17 +440,6 @@ export function WorkbenchHeader({
           >
             <CodeIcon /> Код
           </button>
-          <ToolButton
-            className="workbench-pill save"
-            label="Сохранить проект"
-            aria-label="Сохранить проект"
-            title="Сохранить проект сейчас"
-            touchCommand
-            onClick={() => void c.saveNow()}
-            disabled={c.busy || c.saveStatus === 'saved' || c.saveStatus === 'saving'}
-          >
-            <SaveIcon /> Сохранить
-          </ToolButton>
           <button
             type="button"
             className={`workbench-pill simulate${c.simulationStatus === 'running' ? ' running' : ''}`}
@@ -466,6 +455,17 @@ export function WorkbenchHeader({
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
           </button>
+          <ToolButton
+            className="workbench-pill save"
+            label="Сохранить проект"
+            aria-label="Сохранить проект"
+            title="Сохранить проект сейчас"
+            touchCommand
+            onClick={() => void c.saveNow()}
+            disabled={c.busy || c.saveStatus === 'saved' || c.saveStatus === 'saving'}
+          >
+            <SaveIcon /> Сохранить
+          </ToolButton>
           <button
             type="button"
             className="workbench-pill"
