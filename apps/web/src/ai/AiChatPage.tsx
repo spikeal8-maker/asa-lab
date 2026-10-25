@@ -345,7 +345,12 @@ export function AiChatPage({
     if (panel.open) panel.close();
     if (sideOpen) {
       if (desktop) panel.show();
-      else panel.showModal();
+      else {
+        panel.showModal();
+        // A new overflow menu must not steal the initial keyboard focus
+        // from the primary close action in the modal history drawer.
+        panel.querySelector<HTMLButtonElement>('.chat-sidebar-head-actions .chat-icon-button')?.focus();
+      }
     }
   }, [desktop, sideOpen]);
 
@@ -365,7 +370,7 @@ export function AiChatPage({
         return;
       }
       if (event.key !== 'Tab') return;
-      const controls = [...panel.querySelectorAll<HTMLElement>('button, input, [tabindex]')].filter(
+      const controls = [...panel.querySelectorAll<HTMLElement>('button, input, summary, [tabindex]')].filter(
         (node) =>
           node.tabIndex >= 0 && !node.matches(':disabled') && node.getClientRects().length > 0,
       );
@@ -1067,6 +1072,15 @@ export function AiChatPage({
           <header className="chat-sidebar-head">
             <strong className="chat-sidebar-title">Чаты</strong>
             <div className="chat-sidebar-head-actions">
+              <button
+                className="chat-icon-button"
+                type="button"
+                onClick={closeHistory}
+                aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
+                title={desktop ? 'Свернуть историю' : 'Закрыть историю'}
+              >
+                <span aria-hidden="true">{desktop ? '‹' : '×'}</span>
+              </button>
               <details className="chat-history-overflow">
                 <summary aria-label="Дополнительно" title="Дополнительно">
                   <span aria-hidden="true">⋯</span>
@@ -1083,15 +1097,6 @@ export function AiChatPage({
                   </button>
                 </div>
               </details>
-              <button
-                className="chat-icon-button"
-                type="button"
-                onClick={closeHistory}
-                aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
-                title={desktop ? 'Свернуть историю' : 'Закрыть историю'}
-              >
-                <span aria-hidden="true">{desktop ? '‹' : '×'}</span>
-              </button>
             </div>
           </header>
           <div className="chat-sidebar-actions">
