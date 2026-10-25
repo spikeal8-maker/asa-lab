@@ -693,51 +693,153 @@
   }
 }
 
-/* Preserve established theme behavior when dark mode is explicitly active. */
-.portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *) {
+
+/* A single, edge-to-edge chat canvas. The global ASA sidebar stays owned by
+ * the portal; the old framed workspace used an unnecessary 12px gutter. */
+.portal-shell > .asa-ai-layout {
+  width: calc(100% - 240px);
+  margin: 0 0 0 240px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--ai-surface);
+}
+
+.portal-shell:has(.portal-sidebar.collapsed) > .asa-ai-layout {
+  width: calc(100% - 72px);
+  margin: 0 0 0 72px;
+}
+
+@media (max-width: 1023px) {
+  .portal-shell > .asa-ai-layout,
+  .portal-shell:has(.portal-sidebar.collapsed) > .asa-ai-layout {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+/* Search is represented by one icon until explicitly requested. The
+ * existing server query includes saved message content as well as titles. */
+.asa-ai-layout .chat-search-trigger {
+  flex: 0 0 34px;
+  width: 34px;
+  min-height: 34px;
+  color: var(--ai-muted);
+}
+
+.asa-ai-layout .chat-search-trigger:hover,
+.asa-ai-layout .chat-search-trigger[aria-expanded='true'] {
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-history-search-popover {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 4px 10px 10px;
+  padding: 5px 6px;
+  border: 1px solid var(--ai-border);
+  border-radius: 13px;
+  background: var(--ai-surface);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--ai-text) 6%, transparent);
+}
+
+.asa-ai-layout .chat-history-search-popover .chat-search-box {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 6px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
+.asa-ai-layout .chat-history-search-popover .chat-search-box input {
+  min-width: 0;
+  min-height: 36px;
+  background: transparent;
+  font-size: 13px;
+}
+
+.asa-ai-layout .chat-history-search-popover > button {
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ai-muted);
+  font-size: 23px;
+}
+
+.asa-ai-layout .chat-history-search-popover > button:hover {
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .chat-history-preview mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ai-text) 15%, var(--ai-surface));
+  color: var(--ai-text);
+  font-weight: 650;
+}
+
+.asa-ai-layout .chat-utility-strip .chat-theme-toggle {
+  color: var(--ai-muted);
+}
+
+.asa-ai-layout .chat-utility-strip .chat-theme-toggle:hover {
+  background: var(--ai-bg);
+}
+
+.asa-ai-layout .asa-ai-thread-row:has(.active) {
+  background: var(--ai-selected-bg);
+}
+
+.asa-ai-layout .chat-send-button {
+  background: var(--ai-send-bg);
+  color: var(--ai-send-text);
+}
+
+.asa-ai-layout .chat-composer:focus-within {
+  border-color: var(--ai-border-focus);
+}
+
+.portal-shell > .asa-ai-layout[data-chat-theme='light'] {
+  --ai-surface: #fff;
+  --ai-sidebar-bg: #f8f8f8;
+  --ai-bg: #f3f3f3;
+  --ai-text: #202123;
+  --ai-muted: #737373;
+  --ai-border: #e5e5e5;
+  --ai-border-focus: #c5c5c5;
+  --ai-selected-bg: #eaeaea;
+  --ai-send-bg: #141414;
+  --ai-send-text: #fff;
+  --ai-accent: #202123;
+  --ai-on-accent: #fff;
+  color-scheme: light;
+}
+
+.portal-shell > .asa-ai-layout[data-chat-theme='dark'] {
   --ai-surface: #1d1d1f;
   --ai-sidebar-bg: #161618;
   --ai-bg: #303033;
   --ai-text: #f5f5f5;
   --ai-muted: #b2b2b5;
   --ai-border: #3a3a3d;
+  --ai-border-focus: #606066;
+  --ai-selected-bg: #323235;
+  --ai-send-bg: #f5f5f5;
+  --ai-send-text: #1d1d1f;
   --ai-accent: #f5f5f5;
   --ai-on-accent: #1d1d1f;
   color-scheme: dark;
-}
-.portal-shell
-  > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
-  .asa-ai-thread-row:has(.active) {
-  background: #323235;
-}
-.portal-shell
-  > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
-  .chat-send-button {
-  background: #f5f5f5;
-  color: #1d1d1f;
-}
-
-@media (prefers-color-scheme: dark) {
-  .portal-shell > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *)) {
-    --ai-surface: #1d1d1f;
-    --ai-sidebar-bg: #161618;
-    --ai-bg: #303033;
-    --ai-text: #f5f5f5;
-    --ai-muted: #b2b2b5;
-    --ai-border: #3a3a3d;
-    --ai-accent: #f5f5f5;
-    --ai-on-accent: #1d1d1f;
-    color-scheme: dark;
-  }
-  .portal-shell
-    > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
-    .asa-ai-thread-row:has(.active) {
-    background: #323235;
-  }
-  .portal-shell
-    > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
-    .chat-send-button {
-    background: #f5f5f5;
-    color: #1d1d1f;
-  }
 }
