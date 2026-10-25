@@ -1252,7 +1252,15 @@
 
 .admin-dashboard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 10px;
+}
+
+/* The ready-state wrapper is a grid item too. Its automatic min-content
+   width must not promote the intentionally wide, locally scrollable plot. */
+.admin-dashboard > * {
+  min-width: 0;
 }
 
 .admin-dashboard-toolbar {
@@ -1420,6 +1428,9 @@
 
 .admin-chart-canvas {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 2px;
   overflow-x: auto;
   overscroll-behavior-x: contain;

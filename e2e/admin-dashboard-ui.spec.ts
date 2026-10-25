@@ -162,10 +162,34 @@ async function fixture(page: Page) {
 const learning = (page: Page) =>
   page.getByRole('heading', { name: 'Учебные инструменты — запуски', exact: true });
 async function noPageOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    page: {
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    },
+    layout: [
+      ...document.querySelectorAll(
+        '.admin-page, .admin-dashboard, .admin-dashboard > *, .admin-dashboard-grid, .admin-chart-card, .admin-chart-canvas',
+      ),
+    ].map((element) => {
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        className: element.className,
+        width: Math.round(bounds.width),
+        right: Math.round(bounds.right),
+        client: element.clientWidth,
+        scroll: element.scrollWidth,
+        minWidth: style.minWidth,
+        overflowX: style.overflowX,
+      };
+    }),
+  }));
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     ),
+    JSON.stringify(dimensions),
   ).toBe(true);
 }
 
@@ -207,6 +231,7 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(
       await learning(page).evaluate((node) => node.getBoundingClientRect().width),
     ).toBeGreaterThan(180);
+    await plot.blur();
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/overview-${width}.png`, fullPage: true });
     if (width === 390 || width === 320) {
