@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const ACCOUNT = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE = '30000000-0000-4000-8000-000000000001';
@@ -357,6 +357,15 @@ async function openHistory(page: Page) {
   await expect(dialog).toBeVisible();
   return dialog;
 }
+async function openSearch(history: Locator): Promise<Locator> {
+  const field = history.getByRole('searchbox', { name: 'Найти диалог' });
+  if ((await field.count()) === 0) {
+    await history.getByRole('button', { name: 'Поиск по чатам' }).click();
+  }
+  await expect(field).toBeVisible();
+  return field;
+}
+
 async function closeMobileHistory(page: Page) {
   if ((page.viewportSize()?.width ?? 1440) < 1120)
     await page.getByRole('button', { name: 'Закрыть историю', exact: true }).click();
@@ -376,13 +385,22 @@ async function fits(page: Page) {
       scroll: document.documentElement.scrollWidth,
       rootLeft: root.getBoundingClientRect().left,
       rootRight: root.getBoundingClientRect().right,
+      expectedLeft:
+        window.innerWidth >= 1024
+          ? document.querySelector('.portal-sidebar')?.classList.contains('collapsed')
+            ? 72
+            : 240
+          : 0,
+      border: getComputedStyle(root).borderTopWidth,
       bottom: form.getBoundingClientRect().bottom,
       viewport: window.visualViewport?.height ?? window.innerHeight,
     };
   });
   expect(bounds.scroll).toBeLessThanOrEqual(bounds.width + 1);
-  expect(bounds.rootLeft).toBeGreaterThanOrEqual(11);
-  expect(bounds.rootRight).toBeLessThanOrEqual(bounds.width - 11);
+  // The full-bleed chat deliberately has no legacy 11px external gutters.
+  expect(Math.abs(bounds.rootLeft - bounds.expectedLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(bounds.rootRight - bounds.width)).toBeLessThanOrEqual(1);
+  expect(bounds.border).toBe('0px');
   expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewport + 1);
   await expect(page.locator('.portal-global-error')).toHaveCount(0);
 }
@@ -407,7 +425,9 @@ for (const width of [320, 390, 1024, 1440]) {
     const history = await openHistory(page);
     await history.getByRole('button', { name: 'В архив: ' + thread.title, exact: true }).click();
     await expect(history.getByRole('button', { name: thread.title, exact: true })).toHaveCount(0);
-    await history.getByRole('button', { name: 'Архив', exact: true }).click();
+    // Archival remains supported but is deliberately outside the primary chat rail.
+    await history.locator('details.chat-history-overflow > summary').click();
+    await history.getByRole('button', { name: 'Архивные диалоги', exact: true }).click();
     await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
     await closeMobileHistory(page);
     await expect(page.getByText('Диалог в архиве. Переписка и черновик сохранены.')).toBeVisible();
@@ -452,9 +472,10 @@ test('AI searches a message older than the latest 80 in a thread beyond the init
     draft = page.getByRole('textbox', { name: 'Сообщение ИИ' });
   await draft.fill('Черновик перед поиском');
   await expect(history.getByRole('button', { name: older.title, exact: true })).toHaveCount(0);
-  await history.getByRole('searchbox', { name: 'Найти диалог' }).fill('ключевой');
+  await (await openSearch(history)).fill('ключевой');
   await expect(history.getByRole('button', { name: older.title, exact: true })).toBeVisible();
   await expect(history.locator('.chat-history-preview')).toContainText('ключевой термин');
+  await expect(history.locator('.chat-history-preview mark')).toHaveText('ключевой');
   expect(f.searches.at(-1)?.query).toBe('ключевой');
   await history.getByRole('button', { name: older.title, exact: true }).click();
   await expect(page.locator('.chat-turn')).toHaveCount(50);
@@ -503,7 +524,7 @@ for (const oldOperation of ['search', 'pagination']) {
     const draft = page.getByRole('textbox', { name: 'Сообщение ИИ' });
     await draft.fill('Не терять при смене поиска');
     const history = await openHistory(page),
-      search = history.getByRole('searchbox', { name: 'Найти диалог' });
+      search = await openSearch(history);
     if (oldOperation === 'search') await search.fill('Старый');
     else await history.getByRole('button', { name: 'Показать больше диалогов' }).click();
     await expect.poll(() => intercepted).toBe(true);
@@ -562,7 +583,7 @@ test('AI creates a fresh variant of the chosen earlier answer without changing l
     .locator('.chat-turn-assistant')
     .filter({ hasText: 'Вариант 1: новый ответ' });
   await expect(variant).toBeVisible();
-  await variant.locator('summary').click();
+  await variant.locator('.chat-variant-source > summary').click();
   await expect(variant.locator('.chat-variant-source p')).toHaveText(source.content);
   await expect(draft).toHaveValue('Мой неотправленный вопрос');
   expect(f.messages.get(thread.id)!.slice(0, original.length)).toEqual(original);
@@ -631,7 +652,7 @@ test('AI archive completion refreshes the current search without replacing the s
   const history = await openHistory(page);
   await history.getByRole('button', { name: 'В архив: ' + current.title }).click();
   await expect.poll(() => f.archives.length).toBe(1);
-  await history.getByRole('searchbox', { name: 'Найти диалог' }).fill('Другой');
+  await (await openSearch(history)).fill('Другой');
   await expect(history.getByRole('button', { name: other.title, exact: true })).toBeVisible();
   await expect(history.getByRole('button', { name: other.title, exact: true })).toBeDisabled();
   f.releaseArchive();
@@ -700,11 +721,13 @@ test('Seat text history keeps one school owner for search, archive, regeneration
     'Сохранённый школьный вариант',
   );
   const history = await openHistory(page);
-  await history.getByRole('searchbox', { name: 'Найти диалог' }).fill('школьный вопрос');
+  await (await openSearch(history)).fill('школьный вопрос');
   await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
   await expect.poll(() => f.searches.at(-1)?.query).toBe('школьный вопрос');
   await history.getByRole('button', { name: 'В архив: ' + thread.title }).click();
-  await history.getByRole('button', { name: 'Архив', exact: true }).click();
+  // Archival remains supported but is deliberately outside the primary chat rail.
+  await history.locator('details.chat-history-overflow > summary').click();
+  await history.getByRole('button', { name: 'Архивные диалоги', exact: true }).click();
   await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
   await closeMobileHistory(page);
   await page.getByRole('button', { name: 'Восстановить диалог', exact: true }).click();

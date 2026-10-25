@@ -138,13 +138,11 @@ it.each(['organization', 'classroom'] as const)(
           organizations: [{ id: 'org-153', title: 'Северная школа' }],
         },
       });
-    const read = vi
-      .spyOn(responsibilitiesApi, 'read')
-      .mockResolvedValue({
-        ok: true,
-        status: 200,
-        data: { ...record, kind, scopeId: kind === 'organization' ? 'org-153' : 'class-153' },
-      });
+    const read = vi.spyOn(responsibilitiesApi, 'read').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { ...record, kind, scopeId: kind === 'organization' ? 'org-153' : 'class-153' },
+    });
     await act(async () => root.render(platformView()));
     if (kind === 'classroom') await select(host.querySelector('select')!, 'classroom');
     await searchName('');

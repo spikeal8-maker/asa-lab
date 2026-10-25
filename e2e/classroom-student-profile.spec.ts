@@ -8,6 +8,18 @@ import type {
 
 const artifacts = 'e2e/artifacts/owner-preview/student-profile';
 const longName = 'Александра Константинопольская-Долгорукова Екатерина Александровна';
+const profileSectionLabels = [
+  'Все работы',
+  'Оценки',
+  'Задания',
+  '3D',
+  'Электроника',
+  'Scratch',
+  'Заслуги',
+  'Активность',
+  'Карточка и ИИ',
+  'Настройки',
+];
 
 async function tabMetrics(rail: Locator) {
   return rail.evaluate((element) => {
@@ -672,8 +684,11 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
       const section = (await main.locator('.classroom-student-section-rail').boundingBox())!;
       expect(section.height).toBe(44);
       expect(section.y - identity.y - identity.height).toBeLessThanOrEqual(6);
+      await expect(
+        main.getByRole('combobox', { name: 'Раздел профиля' }).locator('option'),
+      ).toHaveText(profileSectionLabels);
     } else {
-      await expect(main.locator('.participant-tabs button')).toHaveCount(9);
+      await expect(main.locator('.participant-tabs button')).toHaveText(profileSectionLabels);
     }
     const header = (await page.locator('.portal-header').boundingBox())!;
     const works = (await main.locator('.classroom-student-works-head').boundingBox())!;
@@ -790,7 +805,7 @@ for (const count of [0, 1, 30, 100]) {
   });
 }
 
-test('all nine sections, honest loaded-only filtering, private works, archive and failed next-page retry', async ({
+test('all ten section labels, honest loaded-only filtering, private works, archive and failed next-page retry', async ({
   page,
 }) => {
   const state = await setup(page, {
@@ -832,6 +847,23 @@ test('all nine sections, honest loaded-only filtering, private works, archive an
       ['Все работы', 'all'],
     ] as const;
     const mobile = page.getByRole('combobox', { name: 'Раздел профиля' });
+    if (await mobile.isVisible()) {
+      await expect(mobile.locator('option')).toHaveText(profileSectionLabels);
+    } else {
+      const buttons = tabs.getByRole('button');
+      await expect(buttons).toHaveText(profileSectionLabels);
+      await buttons.first().focus();
+      await page.keyboard.press('End');
+      await expect(tabs.getByRole('button', { name: 'Настройки', exact: true })).toBeFocused();
+      await page.keyboard.press('Home');
+      await expect(buttons.first()).toBeFocused();
+      for (const label of profileSectionLabels) {
+        await expect(tabs.getByRole('button', { name: label, exact: true })).toBeFocused();
+        await page.keyboard.press('ArrowRight');
+      }
+      await expect(buttons.first()).toBeFocused();
+    }
+    // CRM retained reads have their own suite; keep the work/settings content journey intact.
     for (const [name, key] of choices) {
       if (await mobile.isVisible()) {
         await mobile.selectOption(key);

@@ -139,6 +139,11 @@ const upgradeArtifacts = [
     '0251_crm_responsibilities.sql',
     'b25d2cc12e0f75ee98a90d8e574ad38d9b66eb213b01add1c5341f831130a094',
   ],
+  [
+    '0252',
+    '0252_ai_ollama_cloud.sql',
+    '575c4b4bf41e0bdb5a4652f141289f6c0bfaa8171fd7feec60f519776ae53957',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -634,6 +639,11 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (await pool.query('SELECT * FROM ai_assistant_request_quota ORDER BY request_id')).rows,
       ).toEqual(quota.map((row) => ({ ...row, owner_principal_id: fixture.principal })));
+      // Adding a provider must not retimestamp the slots created by migration 0227.
+      const providerCatalogAppliedAt = afterLedger.find(
+        (row) => row.version === '0227',
+      )!.applied_at;
+      const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0252')!.applied_at;
       const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(migratedConfig).toEqual({
         ...config,
@@ -641,7 +651,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         enabled: false,
         configuration_version: String(Number(config.configuration_version) + 1),
         migrated_from_model: 'deepseek-chat',
-        updated_at: expect.any(Date),
+        updated_at: providerCatalogAppliedAt,
       });
       expect(migratedConfig.updated_at.getTime()).toBeGreaterThanOrEqual(
         config.updated_at.getTime(),
@@ -659,13 +669,22 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           updated_at: migratedConfig.updated_at,
         },
         {
+          provider: 'ollama-cloud',
+          model: 'gemma4:31b',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: cloudProviderAppliedAt,
+        },
+        {
           provider: 'openai',
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,
           api_key_auth_tag: null,
           key_fingerprint: null,
-          updated_at: expect.any(Date),
+          updated_at: providerCatalogAppliedAt,
         },
       ]);
       expect(

@@ -6,7 +6,7 @@ import {
 } from './ai-provider-errors.js';
 import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
-export type StreamProvider = 'openai' | 'deepseek';
+export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud';
 
 export class ProviderStreamError extends Error {
   constructor(
@@ -47,8 +47,8 @@ function completionState(
   partialText = '',
 ): 'complete' | 'stopped' {
   if (provider === 'openai' && terminal === 'completed') return 'complete';
-  if (provider === 'deepseek' && terminal === 'stop') return 'complete';
-  if (provider === 'deepseek' && terminal === 'length') return 'stopped';
+  if (provider !== 'openai' && terminal === 'stop') return 'complete';
+  if (provider !== 'openai' && terminal === 'length') return 'stopped';
   throw new ProviderStreamError(
     provider === 'openai' && terminal === 'failed' ? 'ai_provider_error' : 'ai_response_incomplete',
     503,
@@ -164,6 +164,7 @@ export async function streamProviderText({
   try {
     response = await fetchImpl(request.url, {
       method: 'POST',
+      ...(provider === 'ollama-cloud' ? { redirect: 'error' as const } : {}),
       headers: {
         authorization: 'Bearer ' + apiKey,
         'content-type': 'application/json',
@@ -212,7 +213,7 @@ export async function streamProviderText({
       .join('\n');
     if (!data) return;
     if (data === '[DONE]') {
-      if (provider === 'deepseek') {
+      if (provider !== 'openai') {
         if (providerState === null) completionState(provider, null);
         finished = true;
       }
@@ -247,7 +248,7 @@ export async function streamProviderText({
     ) {
       completionState(provider, 'incomplete');
     }
-    if (provider === 'deepseek' && payload && typeof payload === 'object') {
+    if (provider !== 'openai' && payload && typeof payload === 'object') {
       const reason = (payload as { choices?: Array<{ finish_reason?: string | null }> })
         .choices?.[0]?.finish_reason;
       if (reason !== null && reason !== undefined) {
