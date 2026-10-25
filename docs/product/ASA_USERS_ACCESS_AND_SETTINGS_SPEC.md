@@ -1136,6 +1136,42 @@ P — сценарии и fixtures, не global userType. Каждый пасп�
 
 **Цель:** эксплуатация ASA Lab. **Основание:** защищённый global grant, не регистрация/школа. **Данные:** разрешённые operations/security/identity, не автоматически academic content. **Кабинет:** existing platform admin shell. **CTA:** health/jobs/allowed account actions/roles по grants и step-up. **Настройки:** platform policy в принятом объёме. **Запрет:** bypass immutable history, собственная оценка, credentials других людей. **Ошибка:** degraded не green; missing step-up блокирует операцию. **PERSONA-AC-18:** authorized platform operation и отказ academic self-review/неразрешённого content.
 
+### Каталог пользователей администратора
+
+Служебный каталог различает Account и StudentSeat по паре kind+UUID; связанное
+ученическое место не превращается в Account и не объединяется с ним. Principal
+берётся только из канонической identity, отсутствие обозначается NULL без
+создания нового владельца. Account сохраняет существующую CRM и разрешённые
+действия; StudentSeat в этом срезе имеет только read-only сведения о классе,
+состоянии, активности и наблюдаемом IP/устройстве, без account controls.
+
+StudentCode не является публичным username: login_handle ученика исключён из
+projection и search, чтобы каталог не раскрывал credential и не был oracle.
+Публичный username Account остаётся доступен; NULL email внешнего входа
+сохраняется NULL, не мешая поиску по имени и username.
+
+Platform admin видит оба типа в полном каталоге. Org scope использует прежнюю
+авторизацию account membership; совпадение tenant, названия школы или teacher
+membership не доказывает связь класса с organization workspace. Пока такой
+связи нет, studentCoverage явно unavailable и каталог не объявляет ноль учеников
+в организации. Личные контакты и чужие классы/IP не расширяют scope.
+
+Поиск, тип, состояние записи, сортировка и направление выполняются сервером
+до limit 1..100 и keyset pagination. Действующие записи: Account active,
+StudentSeat issued/active; это не online и не обещание разрешения конкретного
+учебного действия. Фактические статусы сохраняются отдельно. Порядок по имени,
+зафиксированной активности, числу событий за 30 дней или created time имеет
+детерминированные kind+UUID ties и NULL last. Mutable heartbeat показывается
+отдельно; якорь активности — сохранённые события и начало сессии.
+
+Cursor — недоверенное продолжение, а не полномочие: закрытая версия/tuple,
+fingerprint actor/scope/filters/sort/direction, точные microseconds и cutoff
+asOf с максимальным возрастом час. Каждый запрос заново проверяет server scope.
+Менять criteria означает сбросить cursor; старый ответ не заполняет новый scope.
+Cutoff ограничивает окно событий и excludes позднюю persistence, но не является
+MVCC snapshot имён, статусов или прочих меняющихся данных. Метаданные устройства
+являются наблюдением со слов клиента, а не доказанной физической моделью.
+
 <a id="persona-p19"></a>
 
 ### P19 — Поддержка (R14)
