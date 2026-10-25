@@ -720,7 +720,9 @@ function UserCrmPanel({
   const [version, setVersion] = useState(0);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
-  const [activeTab, setActiveTab] = useState<AccountCrmTab>('overview');
+  const [activeTab, setActiveTab] = useState<AccountCrmTab>(
+    scope.kind === 'platform' ? 'profile' : 'overview',
+  );
   const [busy, setBusy] = useState<'access' | 'role' | 'max' | 'note' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const isSelf = account.accountId === currentAccountId;
@@ -1202,6 +1204,7 @@ function AccountsCrmSection({
   return (
     <AdminUsersCatalog
       scope={scope}
+      actorId={currentAccountId}
       version={version}
       onAccessDenied={onAccessDenied}
       renderAccount={(user) => (

@@ -113,12 +113,52 @@ export interface AdminCatalogUser {
   readonly classId: string | null;
   readonly classTitle: string | null;
   readonly classStatus: string | null;
+  birthDate?: string | null;
+  age?: number | null;
+  country?: string | null;
+  roles?: readonly string[];
+  classIds?: readonly string[];
+  linkedRecordCount?: number | null;
+  emailVerificationState?: string | null;
+  firstObservedReferrer?: string | null;
+  firstObservedAt?: string | null;
+  aiRequests?: number | null;
+  aiLegacyRequests?: number | null;
+  aiTokenCovered?: number | null;
+  aiInputTokens?: string | null;
+  aiOutputTokens?: string | null;
+  aiPeriodDays?: number;
   readonly account: AdminAccount | null;
 }
 export interface AdminCatalogPage {
   readonly items: readonly AdminCatalogUser[];
   readonly next: string | null;
   readonly asOf: string;
+  readonly matchedCount?: number;
+  readonly analytics?: {
+    accounts: number;
+    students: number;
+    linkedRecords: number | null;
+    ageUnknown: number;
+    emailAbsent: number;
+    sourceUnknown: number;
+    activeObserved: number;
+    aiCoverage?: 'all_authorized' | 'students_only_accounts_unavailable';
+    aiLegacyRequests?: number | null;
+    aiRequests: number | null;
+    aiTokenCovered: number | null;
+    periodDays: number;
+    roles: Record<string, number>;
+    referrers: Record<string, number>;
+    aiInputTokens?: string | null;
+    aiOutputTokens?: string | null;
+    activityEvents?: number;
+    loginMethods?: Record<string, number>;
+    tools?: Record<string, number>;
+    devices?: Record<string, number>;
+    ageGroups?: Record<string, number>;
+    daily?: { date: string; registrations: number; events: number }[];
+  };
   readonly studentCoverage: {
     readonly state: 'complete' | 'unavailable';
     readonly reason?: 'organization_class_mapping_unavailable';
@@ -149,7 +189,29 @@ export interface AdminHistoryPage {
   asOf: string;
   coverage: 'retained' | 'unavailable_scope';
 }
+export type CatalogFilters = Partial<
+  Record<
+    | 'role'
+    | 'classId'
+    | 'organizationId'
+    | 'age'
+    | 'ageMin'
+    | 'ageMax'
+    | 'email'
+    | 'activity'
+    | 'registeredAfter'
+    | 'registeredBefore'
+    | 'source'
+    | 'days',
+    string
+  >
+>;
+export interface ClassBindings {
+  classes: { id: string; title: string; workspaceId: string | null }[];
+  organizations: { id: string; title: string }[];
+}
 export interface AdminCatalogInput {
+  readonly filters?: CatalogFilters;
   readonly scope: Pick<AdminScope, 'kind' | 'id'>;
   readonly search: string;
   readonly kind: 'all' | 'accounts' | 'students';
@@ -640,8 +702,46 @@ export const adminApi = {
     });
     if (input.scope.id !== null) query.set('scopeId', input.scope.id);
     if (input.cursor !== null) query.set('cursor', input.cursor);
+    for (const [key, value] of Object.entries(input.filters ?? {}))
+      if (value) query.set(key, value);
     return call<AdminCatalogPage>(`/api/admin/v1/users?${query.toString()}`);
   },
+  exportUsers: (input: AdminCatalogInput) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      search: input.search,
+      kind: input.kind,
+      status: input.status,
+      sort: input.sort,
+      direction: input.direction,
+    });
+    if (input.scope.id) query.set('scopeId', input.scope.id);
+    for (const [key, value] of Object.entries(input.filters ?? {}))
+      if (value) query.set(key, value);
+    return call<{ csv: string; count: number }>(`/api/admin/v1/users-export?${query}`);
+  },
+  catalogFilterOptions: (scope: Pick<AdminScope, 'kind' | 'id'>, search: string) => {
+    const query = new URLSearchParams({ scopeKind: scope.kind, search });
+    if (scope.id) query.set('scopeId', scope.id);
+    return call<{
+      classes: { id: string; title: string }[];
+      organizations: { id: string; title: string }[];
+    }>(`/api/admin/v1/users-filter-options?${query}`);
+  },
+  classBindings: (search: string) =>
+    call<ClassBindings>(
+      `/api/admin/v1/organization-class-bindings?${new URLSearchParams({ search })}`,
+    ),
+  bindClass: (input: {
+    classId: string;
+    workspaceId: string | null;
+    expectedWorkspaceId: string | null;
+    reason: string;
+  }) =>
+    call<{ ok: true }>('/api/admin/v1/organization-class-bindings', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   accountCrm: (
     accountId: string,
     scope: Pick<AdminScope, 'kind' | 'id'>,

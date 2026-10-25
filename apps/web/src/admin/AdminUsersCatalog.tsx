@@ -1,4 +1,8 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode, type FormEvent } from 'react';
+import { CatalogScopeFilters } from './CatalogScopeFilters';
+import { CatalogAnalytics } from './CatalogAnalytics';
+import { OrganizationClassBindings } from './OrganizationClassBindings';
+import './crm-directory.css';
 import { AdminUserHistory } from './AdminUserHistory';
 import { CrmUserCardLauncher } from './CrmUserCard';
 import {
@@ -7,6 +11,7 @@ import {
   type AdminCatalogInput,
   type AdminCatalogPage,
   type AdminCatalogUser,
+  type CatalogFilters,
 } from './admin-api';
 
 type State =
@@ -40,11 +45,13 @@ function deviceDescription(user: AdminCatalogUser) {
 }
 export function AdminUsersCatalog({
   scope,
+  actorId,
   version,
   onAccessDenied,
   renderAccount,
 }: {
   scope: AdminScope;
+  actorId?: string;
   version: number;
   onAccessDenied: () => void;
   renderAccount: (user: AdminCatalogUser) => ReactNode;
@@ -55,9 +62,30 @@ export function AdminUsersCatalog({
     [status, setStatus] = useState<AdminCatalogInput['status']>('all'),
     [sort, setSort] = useState<AdminCatalogInput['sort']>('last_activity'),
     [direction, setDirection] = useState<AdminCatalogInput['direction']>('desc');
+  const [filters, setFilters] = useState<CatalogFilters>({});
+  const [exporting, setExporting] = useState(false),
+    [exportError, setExportError] = useState<string | null>(null);
+  const exportLock = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const scopeKind = scope.kind,
     scopeId = scope.id;
-  const key = JSON.stringify([scopeKind, scopeId, search, kind, status, sort, direction, version]);
+  const key = JSON.stringify([
+    actorId,
+    scopeKind,
+    scopeId,
+    search,
+    kind,
+    status,
+    sort,
+    direction,
+    filters,
+  ]);
   const [stored, setState] = useState<State>({ kind: 'loading', key });
   const state: State = stored.key === key ? stored : { kind: 'loading', key };
   const sequence = useRef(0),
@@ -69,7 +97,7 @@ export function AdminUsersCatalog({
     async (cursor: string | null, append = false) => {
       const request = ++sequence.current;
       setState((current) =>
-        append && current.kind === 'ready' && current.key === key
+        current.kind === 'ready' && current.key === key
           ? { ...current, more: true, moreError: null }
           : { kind: 'loading', key },
       );
@@ -82,6 +110,7 @@ export function AdminUsersCatalog({
         direction,
         limit: 50,
         cursor,
+        filters,
       });
       if (request !== sequence.current || currentKey.current !== key) return;
       if (!result.ok) {
@@ -117,14 +146,69 @@ export function AdminUsersCatalog({
         moreError: null,
       }));
     },
-    [key, scopeKind, scopeId, search, kind, status, sort, direction],
+    [key, scopeKind, scopeId, search, kind, status, sort, direction, filters],
   );
   useEffect(() => {
     void load(null);
     return () => {
       sequence.current++;
     };
-  }, [load]);
+  }, [load, version]);
+  const setFilter = (name: keyof CatalogFilters, value: string) =>
+    setFilters((current) =>
+      name === 'age' && value === 'unknown'
+        ? { ...current, age: value, ageMin: '', ageMax: '' }
+        : { ...current, [name]: value },
+    );
+  const download = async () => {
+    if (exportLock.current) return;
+    exportLock.current = true;
+    setExporting(true);
+    setExportError(null);
+    const startedKey = key;
+    try {
+      const result = await adminApi.exportUsers({
+        scope: { kind: scopeKind, id: scopeId },
+        search,
+        kind,
+        status,
+        sort,
+        direction,
+        limit: 50,
+        cursor: null,
+        filters,
+      });
+      if (!alive.current || currentKey.current !== startedKey) return;
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+          setState({ kind: 'loading', key });
+          denied.current();
+          return;
+        }
+        setExportError(
+          result.status === 413
+            ? 'Слишком большая выгрузка. Уточните фильтры (до 10 000 записей и 16 МБ).'
+            : result.status === 429
+              ? 'Выгрузка уже выполняется. Повторите позже.'
+              : 'Не удалось подготовить выгрузку. Повторите или уточните фильтры.',
+        );
+        return;
+      }
+      const url = URL.createObjectURL(
+        new Blob([result.data.csv], { type: 'text/csv;charset=utf-8' }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'пользователи.csv';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } finally {
+      exportLock.current = false;
+      setExporting(false);
+    }
+  };
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (search === query.trim()) void load(null);
@@ -187,7 +271,183 @@ export function AdminUsersCatalog({
             <option value="asc">По возрастанию</option>
           </select>
         </label>
+        <details className="crm-directory-advanced">
+          <summary>Дополнительные фильтры</summary>
+          <div className="crm-directory-fields">
+            <label>
+              <span>Возможность или роль</span>
+              <select
+                value={filters.role ?? 'all'}
+                onChange={(e) => setFilter('role', e.target.value)}
+              >
+                {[
+                  ['all', 'Все'],
+                  ['learner', 'Ученическое место'],
+                  ['creator', 'Автор'],
+                  ['educator', 'Преподаватель'],
+                  ['registered_student', 'Учащийся (аккаунт)'],
+                  ['guardian', 'Представитель'],
+                  ['platform_admin', 'Администратор платформы'],
+                  ['owner', 'Владелец организации'],
+                  ['school_admin', 'Администратор организации'],
+                  ['member', 'Участник организации'],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Возраст</span>
+              <select
+                value={filters.age ?? 'all'}
+                onChange={(e) => setFilter('age', e.target.value)}
+              >
+                <option value="all">Любой / неизвестный</option>
+                <option value="known">Известен</option>
+                <option value="unknown">Неизвестен</option>
+              </select>
+            </label>
+            <label>
+              <span>Возраст от</span>
+              <input
+                type="number"
+                min="0"
+                max="120"
+                disabled={filters.age === 'unknown'}
+                value={filters.ageMin ?? ''}
+                onChange={(e) => setFilter('ageMin', e.target.value)}
+              />
+            </label>
+            <label>
+              <span>Возраст до</span>
+              <input
+                type="number"
+                min="0"
+                max="120"
+                disabled={filters.age === 'unknown'}
+                value={filters.ageMax ?? ''}
+                onChange={(e) => setFilter('ageMax', e.target.value)}
+              />
+            </label>
+            <label>
+              <span>Почта</span>
+              <select
+                value={filters.email ?? 'all'}
+                onChange={(e) => setFilter('email', e.target.value)}
+              >
+                {[
+                  ['all', 'Любое состояние'],
+                  ['present', 'Указана'],
+                  ['absent', 'Не указана'],
+                  ['verified', 'Подтверждена'],
+                  ['unverified', 'Не подтверждена'],
+                ].map(([v, t]) => (
+                  <option key={v} value={v}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Наблюдавшаяся активность</span>
+              <select
+                value={filters.activity ?? 'all'}
+                onChange={(e) => setFilter('activity', e.target.value)}
+              >
+                <option value="all">Любая</option>
+                <option value="observed">Есть наблюдения</option>
+                <option value="unknown">Не зафиксирована</option>
+              </select>
+            </label>
+            <label>
+              <span>Источник первого известного визита</span>
+              <select
+                value={filters.source ?? 'all'}
+                onChange={(e) => setFilter('source', e.target.value)}
+              >
+                <option value="all">Любой</option>
+                <option value="observed">Зафиксирован</option>
+                <option value="unknown">Неизвестен</option>
+              </select>
+            </label>
+            <label>
+              <span>Создано с</span>
+              <input
+                type="date"
+                value={filters.registeredAfter ?? ''}
+                onChange={(e) => setFilter('registeredAfter', e.target.value)}
+              />
+            </label>
+            <label>
+              <span>Создано по</span>
+              <input
+                type="date"
+                value={filters.registeredBefore ?? ''}
+                onChange={(e) => setFilter('registeredBefore', e.target.value)}
+              />
+            </label>
+            <CatalogScopeFilters
+              key={JSON.stringify([actorId, scopeKind, scopeId])}
+              scope={scope}
+              filters={filters}
+              onChange={setFilter}
+              onAccessDenied={onAccessDenied}
+            />
+            <label>
+              <span>Период ИИ</span>
+              <select
+                value={filters.days ?? '30'}
+                onChange={(e) => setFilter('days', e.target.value)}
+              >
+                <option value="7">7 дней</option>
+                <option value="30">30 дней</option>
+                <option value="90">90 дней</option>
+              </select>
+            </label>
+          </div>
+        </details>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => {
+            setQuery('');
+            setSearch('');
+            setKind('all');
+            setStatus('all');
+            setSort('last_activity');
+            setDirection('desc');
+            setFilters({});
+            setExportError(null);
+          }}
+        >
+          Сбросить фильтры
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={exporting || state.kind !== 'ready'}
+          onClick={() => void download()}
+        >
+          {exporting ? 'Готовим таблицу…' : 'Скачать все результаты (CSV)'}
+        </button>
       </form>
+      {exportError ? (
+        <p role="alert">
+          {exportError}{' '}
+          <button type="button" disabled={exporting} onClick={() => void download()}>
+            Повторить выгрузку
+          </button>
+        </p>
+      ) : null}
+      {scope.kind === 'platform' ? (
+        <OrganizationClassBindings
+          key={actorId ?? scopeKind}
+          onAccessDenied={onAccessDenied}
+          onChanged={() => void load(null)}
+        />
+      ) : null}
       <p className="admin-catalog-note">
         Состояние записи не означает, что пользователь сейчас онлайн. Аккаунты и ученические места
         учитываются отдельно.
@@ -207,6 +467,11 @@ export function AdminUsersCatalog({
       ) : null}
       {state.kind === 'ready' ? (
         <>
+          <p aria-live="polite">
+            Найдено записей: {state.page.matchedCount ?? 'подсчёт недоступен'}. Загружено:{' '}
+            {state.page.items.length}.
+          </p>
+          {state.page.analytics ? <CatalogAnalytics value={state.page.analytics} /> : null}
           {state.page.studentCoverage.state === 'unavailable' ? (
             <p className="admin-catalog-note" role="status">
               Ученические места для этой области недоступны: связь классов с организацией не
@@ -266,16 +531,21 @@ export function AdminUsersCatalog({
                       {!user.principalId ? <small>Идентификатор входа ещё не создан</small> : null}
                     </span>
                   </div>
-                  <AdminUserHistory
-                    kind={user.kind}
-                    targetId={user.id}
-                    scope={scope}
-                    onAccessDenied={onAccessDenied}
-                  />
                   {scope.kind === 'platform' ? (
+                    <AdminUserHistory
+                      kind={user.kind}
+                      targetId={user.id}
+                      scope={scope}
+                      onAccessDenied={onAccessDenied}
+                    />
+                  ) : null}
+                  {scope.kind === 'platform' || user.classId ? (
                     <CrmUserCardLauncher
                       kind={user.kind}
                       targetId={user.id}
+                      classroomId={
+                        scope.kind === 'organization' ? (user.classId ?? undefined) : undefined
+                      }
                       onAccessDenied={onAccessDenied}
                       onChanged={() => void load(null)}
                     />

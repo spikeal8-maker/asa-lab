@@ -1,0 +1,54 @@
+.crm-directory-advanced,
+.crm-directory-analytics,
+.crm-directory-bindings {
+  min-width: 0;
+  max-width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  margin-block: 12px;
+  overflow-wrap: anywhere;
+}
+.crm-directory-advanced {
+  flex-basis: 100%;
+  grid-column: 1/-1;
+}
+.crm-directory-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  min-width: 0;
+}
+.crm-directory-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.crm-directory-fields input,
+.crm-directory-fields select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.crm-directory-fields button {
+  align-self: end;
+  white-space: normal;
+}
+.crm-directory-advanced summary,
+.crm-directory-analytics summary,
+.crm-directory-bindings summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.crm-directory-scope-fields {
+  grid-column: 1/-1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 12px;
+  min-width: 0;
+  align-items: end;
+}
