@@ -19,7 +19,7 @@ Baseline: `8a31dde2608b9c0cb016d26d419642357b5330cd`.
   Account history. Legacy Account history reader remains unchanged.
 - Unified cards expose these controls. Organization Account rows expose only
   scoped responsibilities, not private personal content. Platform scope selection
-  offers existing names and an explicit code fallback for the bounded list.
+  offers server-side name search, named selection and visible bounded-list guidance.
 - Project inspection displays saved metadata and available snapshot, on-demand
   JSON and JSON download without running code or granting editor access. A saved
   version never displays a current snapshot as its historical image.
@@ -51,3 +51,22 @@ or SMTP changes. PostgreSQL/browser proof and independent L3 review are pending
 on the final commit. This is implemented and locally checked, not deployed or
 owner-accepted. Existing server CSV work may finish after client cancellation;
 the client discards the result and does not download it.
+
+## Bounded source-review repair
+
+Source review of `27365953` found that the note writer reused archived-class read
+permission, and that the first-100 scope chooser still needed resource codes.
+The repair adds a separate active-class write check and server-issued `canWrite`;
+archived history remains readable while the form and append command are denied.
+Notes lock the same platform privilege fence, exact class, current actor class/
+organization membership rows and target Seat before fresh authorization. This
+also fences legacy co-teacher row deletion, which does not lock the class.
+New isolated PostgreSQL cases cover archived read/write separation, learner denial,
+both orders of append versus legacy co-teacher revocation, and an archive transaction
+barrier. They are queued for CI, not claimed as locally executed evidence.
+
+Organization/class selection now searches the bounded server list by name,
+shows loading, empty-result and first-100 refinement guidance, and discards stale
+search results. Resource code entry was removed. Three note UI cases and six focused
+responsibility UI cases passed, including finding an organization/class outside the initial 100.
+The existing four-width browser journey now uses named search/selection.

@@ -1529,7 +1529,9 @@ is never reassigned by this command. Membership changes grant no global teacher
 role and do not merge identities.
 
 Seat CRM notes are append-only educational observations with an expected note-list
-version, reason and audit. Exact-class teachers and explicitly bound organization
+version, reason and audit. Archived classes preserve read-only notes/history;
+append requires the current active-class write grant and the server canWrite flag
+controls the form. Exact-class teachers and explicitly bound organization
 managers use the same fresh crm_subject_allowed authorization for notes and the
 new retained-history reader. Retained history follows exact Seat/class project
 ownership, saved versions, publication revisions and Seat AI receipts; it never

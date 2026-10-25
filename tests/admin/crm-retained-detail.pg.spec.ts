@@ -184,6 +184,31 @@ it('uses explicit organization-class binding and current membership, never linke
     [f.classroomId, workspace, manager.principal_id],
   );
   expect((await read()).coverage).toBe('retained');
+  const notes = async () =>
+    (
+      await runtime.query('SELECT crm_seat_notes_page($1,$2,$3,25,NULL,$4) value', [
+        manager.principal_id,
+        f.seatId,
+        f.classroomId,
+        randomUUID(),
+      ])
+    ).rows[0].value;
+  expect((await notes()).canWrite).toBe(true);
+  await admin.query("UPDATE classrooms SET status='archived' WHERE id=$1", [f.classroomId]);
+  const archived = await notes();
+  expect(archived.canWrite).toBe(false);
+  await expect(
+    runtime.query('SELECT crm_seat_note_add($1,$2,$3,$4,$5,$6,$7)', [
+      manager.principal_id,
+      f.seatId,
+      f.classroomId,
+      archived.version,
+      'No archived write',
+      'Archived scope proof',
+      randomUUID(),
+    ]),
+  ).rejects.toMatchObject({ code: '42501' });
+  await admin.query("UPDATE classrooms SET status='active' WHERE id=$1", [f.classroomId]);
   await admin.query(
     "UPDATE workspace_memberships SET state='revoked' WHERE workspace_id=$1 AND account_id=$2",
     [workspace, manager.account_id],
@@ -227,5 +252,191 @@ it('rolls back the append if its administrative audit fails', async () => {
   } finally {
     await admin.query(`DROP TRIGGER IF EXISTS ${fn} ON administrative_audit_events`);
     await admin.query(`DROP FUNCTION public.${fn}()`);
+  }
+});
+it('keeps archived notes visible while withholding append permission from every actor and learners', async () => {
+  const f = await aiClassFixture(admin, runtime),
+    platform = await aiIdentity(admin);
+  await admin.query(
+    "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'platform_admin','verified','test','admin')",
+    [platform.account_id],
+  );
+  const read = async (actor: string) =>
+    (
+      await runtime.query('SELECT crm_seat_notes_page($1,$2,$3,25,NULL,$4) value', [
+        actor,
+        f.seatId,
+        f.classroomId,
+        randomUUID(),
+      ])
+    ).rows[0].value;
+  const add = async (actor: string, version: string) =>
+    runtime.query('SELECT crm_seat_note_add($1,$2,$3,$4,$5,$6,$7)', [
+      actor,
+      f.seatId,
+      f.classroomId,
+      version,
+      'Учебная заметка',
+      'Причина наблюдения',
+      randomUUID(),
+    ]);
+  const current = await read(f.teacher.principal_id);
+  expect(current.canWrite).toBe(true);
+  await add(f.teacher.principal_id, current.version);
+  await admin.query("UPDATE classrooms SET status='archived' WHERE id=$1", [f.classroomId]);
+  for (const actor of [f.teacher.principal_id, platform.principal_id]) {
+    const page = await read(actor);
+    expect(page.canWrite).toBe(false);
+    expect(page.items).toHaveLength(1);
+    await expect(add(actor, page.version)).rejects.toMatchObject({ code: '42501' });
+  }
+  await expect(read(f.principalId)).rejects.toMatchObject({ code: '42501' });
+  await expect(add(f.principalId, current.version)).rejects.toMatchObject({ code: '42501' });
+  await admin.query("UPDATE classrooms SET status='active' WHERE id=$1", [f.classroomId]);
+  await expect(
+    add(f.principalId, (await read(f.teacher.principal_id)).version),
+  ).rejects.toMatchObject({ code: '42501' });
+});
+async function waitForBlock(waiter: number, blocker: number) {
+  for (let attempts = 0; attempts < 100; attempts++) {
+    const blocked = (
+      await admin.query('SELECT $2::integer=ANY(pg_blocking_pids($1)) blocked', [waiter, blocker])
+    ).rows[0].blocked;
+    if (blocked) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error('Expected PostgreSQL privilege lock barrier was not reached');
+}
+it('rechecks a queued note after legacy co-teacher grant deletion and holds a used grant until append commit', async () => {
+  for (const revokeFirst of [true, false]) {
+    const f = await aiClassFixture(admin, runtime);
+    // The exact row deletion is the legacy writer behavior; use a co-teacher row
+    // so this proof does not delete a primary classroom owner.
+    const colleague = await aiIdentity(admin);
+    await admin.query(
+      "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'educator','verified','test','admin')",
+      [colleague.account_id],
+    );
+    const token = randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '');
+    await admin.query(
+      "SELECT * FROM classroom_teacher_invitation_create($1,$2,$3,now()+interval '1 day')",
+      [f.teacher.account_id, f.classroomId, token],
+    );
+    await admin.query('SELECT * FROM classroom_teacher_invitation_accept($1,$2)', [
+      colleague.account_id,
+      token,
+    ]);
+    const version = (
+      await runtime.query('SELECT crm_seat_notes_page($1,$2,$3,25,NULL,$4) value', [
+        colleague.principal_id,
+        f.seatId,
+        f.classroomId,
+        randomUUID(),
+      ])
+    ).rows[0].value.version;
+    const app = await runtime.connect(),
+      revoker = await admin.connect();
+    try {
+      const appPid = (await app.query('SELECT pg_backend_pid() pid')).rows[0].pid,
+        revokerPid = (await revoker.query('SELECT pg_backend_pid() pid')).rows[0].pid;
+      await app.query('BEGIN');
+      await revoker.query('BEGIN');
+      const append = () =>
+        app.query('SELECT crm_seat_note_add($1,$2,$3,$4,$5,$6,$7)', [
+          colleague.principal_id,
+          f.seatId,
+          f.classroomId,
+          version,
+          'Race proof note',
+          'Privilege lock proof',
+          randomUUID(),
+        ]);
+      const remove = () =>
+        revoker.query(
+          "DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2 AND member_role='co_teacher'",
+          [f.classroomId, colleague.account_id],
+        );
+      if (revokeFirst) {
+        await remove();
+        const pending = append().then(
+          () => null,
+          (problem) => problem,
+        );
+        await waitForBlock(appPid, revokerPid);
+        await revoker.query('COMMIT');
+        expect(await pending).toMatchObject({ code: '42501' });
+        await app.query('ROLLBACK');
+        expect(
+          (
+            await admin.query('SELECT count(*)::int n FROM crm_seat_notes WHERE seat_id=$1', [
+              f.seatId,
+            ])
+          ).rows[0].n,
+        ).toBe(0);
+      } else {
+        await append();
+        const pending = remove();
+        await waitForBlock(revokerPid, appPid);
+        await app.query('COMMIT');
+        await pending;
+        await revoker.query('COMMIT');
+        expect(
+          (
+            await admin.query('SELECT count(*)::int n FROM crm_seat_notes WHERE seat_id=$1', [
+              f.seatId,
+            ])
+          ).rows[0].n,
+        ).toBe(1);
+      }
+    } finally {
+      await Promise.all([app.query('ROLLBACK'), revoker.query('ROLLBACK')]);
+      app.release();
+      revoker.release();
+    }
+  }
+});
+it('rechecks active class write authority after waiting behind an archive transaction', async () => {
+  const f = await aiClassFixture(admin, runtime);
+  const version = (
+    await runtime.query('SELECT crm_seat_notes_page($1,$2,$3,25,NULL,$4) value', [
+      f.teacher.principal_id,
+      f.seatId,
+      f.classroomId,
+      randomUUID(),
+    ])
+  ).rows[0].value.version;
+  const app = await runtime.connect(),
+    archiver = await admin.connect();
+  try {
+    const appPid = (await app.query('SELECT pg_backend_pid() pid')).rows[0].pid,
+      archivePid = (await archiver.query('SELECT pg_backend_pid() pid')).rows[0].pid;
+    await archiver.query('BEGIN');
+    await archiver.query('SELECT id FROM classrooms WHERE id=$1 FOR UPDATE', [f.classroomId]);
+    const pending = app
+      .query('SELECT crm_seat_note_add($1,$2,$3,$4,$5,$6,$7)', [
+        f.teacher.principal_id,
+        f.seatId,
+        f.classroomId,
+        version,
+        'No stale archive append',
+        'Archive race proof',
+        randomUUID(),
+      ])
+      .then(
+        () => null,
+        (problem) => problem,
+      );
+    await waitForBlock(appPid, archivePid);
+    await archiver.query("UPDATE classrooms SET status='archived' WHERE id=$1", [f.classroomId]);
+    await archiver.query('COMMIT');
+    expect(await pending).toMatchObject({ code: '42501' });
+    expect(
+      (await admin.query('SELECT count(*)::int n FROM crm_seat_notes WHERE seat_id=$1', [f.seatId]))
+        .rows[0].n,
+    ).toBe(0);
+  } finally {
+    await Promise.all([app.query('ROLLBACK'), archiver.query('ROLLBACK')]);
+    app.release();
+    archiver.release();
   }
 });

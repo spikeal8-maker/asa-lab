@@ -29,6 +29,8 @@ export function CrmResponsibilities({
     [reason, setReason] = useState(''),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
+    [search, setSearch] = useState(''),
+    [searching, setSearching] = useState(false),
     [options, setOptions] = useState<ClassBindings | null>(null);
   const generation = useRef(0),
     denied = useRef(onDenied);
@@ -42,6 +44,8 @@ export function CrmResponsibilities({
     setMessage('');
     setBusy(false);
     setOptions(null);
+    setSearch('');
+    setSearching(false);
   }, [scopeKind, scopeId, targetId]);
   useEffect(
     () => () => {
@@ -51,11 +55,14 @@ export function CrmResponsibilities({
   );
   async function loadOptions() {
     const token = ++generation.current;
-    setBusy(true);
+    setSearching(true);
     setData(null);
-    const result = await adminApi.classBindings('');
+    setOptions(null);
+    setScope('');
+    setMessage('');
+    const result = await adminApi.classBindings(search.trim());
     if (token !== generation.current) return;
-    setBusy(false);
+    setSearching(false);
     if (result.ok) setOptions(result.data);
     else {
       setMessage('Не удалось загрузить области.');
@@ -124,9 +131,6 @@ export function CrmResponsibilities({
       <h3>Ответственность и доступ</h3>
       {scopeKind === 'platform' && (
         <>
-          <button type="button" disabled={busy} onClick={() => void loadOptions()}>
-            Выбрать организацию или класс
-          </button>
           <label>
             Область{' '}
             <select
@@ -135,6 +139,10 @@ export function CrmResponsibilities({
               onChange={(e) => {
                 generation.current++;
                 setData(null);
+                setOptions(null);
+                setScope('');
+                setSearching(false);
+                setMessage('');
                 setKind(e.target.value as 'organization' | 'classroom');
               }}
             >
@@ -142,40 +150,61 @@ export function CrmResponsibilities({
               <option value="classroom">Класс</option>
             </select>
           </label>
-          {options && (
-            <label>
-              Название области{' '}
-              <select
-                value={scope}
-                disabled={busy}
-                onChange={(e) => {
-                  generation.current++;
-                  setData(null);
-                  setScope(e.target.value);
-                }}
-              >
-                <option value="">Выберите область</option>
-                {(kind === 'organization' ? options.organizations : options.classes).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
           <label>
-            Код области (если её нет в списке){' '}
+            Поиск организации или класса по названию{' '}
             <input
-              value={scope}
+              value={search}
+              maxLength={100}
               disabled={busy}
               onChange={(e) => {
                 generation.current++;
+                setSearch(e.target.value);
                 setData(null);
-                setScope(e.target.value);
+                setOptions(null);
+                setScope('');
+                setSearching(false);
+                setMessage('');
               }}
-              style={{ maxWidth: '100%', boxSizing: 'border-box' }}
             />
           </label>
+          <button type="button" disabled={busy} onClick={() => void loadOptions()}>
+            Найти по названию
+          </button>
+          {searching && <p role="status">Поиск областей…</p>}
+          {options && (
+            <>
+              <label>
+                Название области{' '}
+                <select
+                  value={scope}
+                  disabled={busy}
+                  onChange={(e) => {
+                    generation.current++;
+                    setData(null);
+                    setScope(e.target.value);
+                  }}
+                >
+                  <option value="">Выберите область</option>
+                  {(kind === 'organization' ? options.organizations : options.classes).map(
+                    (item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.title}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              {(kind === 'organization' ? options.organizations : options.classes).length === 0 && (
+                <p role="status">Ничего не найдено. Уточните название и повторите поиск.</p>
+              )}
+              {(kind === 'organization' ? options.organizations : options.classes).length >=
+                100 && (
+                <p role="status">
+                  Показаны первые 100 результатов. Уточните название, чтобы найти нужную область.
+                </p>
+              )}
+            </>
+          )}
         </>
       )}
       <button type="button" disabled={busy || !scope} onClick={() => void load()}>

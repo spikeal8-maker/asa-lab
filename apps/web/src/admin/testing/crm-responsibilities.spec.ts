@@ -1,3 +1,4 @@
+import { adminApi, type ClassBindings } from '../admin-api';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -83,4 +84,110 @@ it('clears authorization on denial without exposing old membership data', async 
   await load();
   expect(denied).toHaveBeenCalledOnce();
   expect(host.textContent).not.toContain('Текущая роль');
+});
+const platformView = () =>
+  createElement(CrmResponsibilities, {
+    scopeKind: 'platform',
+    scopeId: null,
+    targetId: 'target',
+    onDenied: vi.fn(),
+  });
+async function searchName(value: string) {
+  await act(async () => {
+    const input = host.querySelector('input')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    Array.from(host.querySelectorAll('button'))
+      .find((b) => b.textContent === 'Найти по названию')!
+      .click();
+  });
+}
+async function select(element: HTMLSelectElement, value: string) {
+  await act(async () => {
+    element.value = value;
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+it.each(['organization', 'classroom'] as const)(
+  'finds a named %s beyond the first 100 and loads only the selected exact resource',
+  async (kind) => {
+    const bindings = vi
+      .spyOn(adminApi, 'classBindings')
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: {
+          classes: Array.from({ length: 100 }, (_, n) => ({
+            id: `c${n}`,
+            title: `Класс ${n}`,
+            workspaceId: null,
+          })),
+          organizations: Array.from({ length: 100 }, (_, n) => ({
+            id: `o${n}`,
+            title: `Организация ${n}`,
+          })),
+        },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: {
+          classes: [{ id: 'class-153', title: 'Северный класс', workspaceId: null }],
+          organizations: [{ id: 'org-153', title: 'Северная школа' }],
+        },
+      });
+    const read = vi
+      .spyOn(responsibilitiesApi, 'read')
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { ...record, kind, scopeId: kind === 'organization' ? 'org-153' : 'class-153' },
+      });
+    await act(async () => root.render(platformView()));
+    if (kind === 'classroom') await select(host.querySelector('select')!, 'classroom');
+    await searchName('');
+    expect(host.textContent).toContain('Показаны первые 100 результатов');
+    await searchName('Север');
+    expect(bindings).toHaveBeenLastCalledWith('Север');
+    expect(host.textContent).not.toContain('Код области');
+    const chooser = host.querySelectorAll('select')[1]!;
+    const chosen = kind === 'organization' ? 'org-153' : 'class-153';
+    await select(chooser, chosen);
+    await load();
+    expect(read).toHaveBeenCalledWith(kind, chosen, 'target');
+  },
+);
+it('discards stale search results after scope change and explains empty results', async () => {
+  let finish!: (value: { ok: true; status: number; data: ClassBindings }) => void;
+  vi.spyOn(adminApi, 'classBindings')
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({ ok: true, status: 200, data: { classes: [], organizations: [] } });
+  await act(async () => root.render(platformView()));
+  await searchName('Старая школа');
+  expect(host.textContent).toContain('Поиск областей');
+  await select(host.querySelector('select')!, 'classroom');
+  await act(async () =>
+    finish({
+      ok: true,
+      status: 200,
+      data: {
+        classes: [{ id: 'stale', title: 'Устаревший класс', workspaceId: null }],
+        organizations: [],
+      },
+    }),
+  );
+  expect(host.textContent).not.toContain('Устаревший класс');
+  await searchName('Несуществующий класс');
+  expect(host.textContent).toContain('Ничего не найдено');
+  expect(
+    Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Загрузить доступ')!
+      .disabled,
+  ).toBe(true);
 });

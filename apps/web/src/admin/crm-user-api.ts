@@ -90,6 +90,7 @@ export interface CrmSeatDetailItem {
   durationMs?: string | null;
 }
 export interface CrmSeatDetailPage {
+  canWrite?: boolean;
   items: CrmSeatDetailItem[];
   next: string | null;
   version?: string;

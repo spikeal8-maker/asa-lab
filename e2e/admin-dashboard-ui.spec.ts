@@ -99,6 +99,7 @@ async function fixture(page: Page) {
                 },
               ],
           next: null,
+          canWrite: notes,
           version: 'a'.repeat(64),
         });
       }
@@ -595,8 +596,12 @@ for (const width of [1440, 1024, 390, 320]) {
       exact: true,
     });
     await responsibilities
-      .getByRole('textbox', { name: 'Код области (если её нет в списке)', exact: true })
-      .fill(WORKSPACE);
+      .getByRole('textbox', { name: 'Поиск организации или класса по названию', exact: true })
+      .fill('Организация цифровых лабораторий');
+    await responsibilities.getByRole('button', { name: 'Найти по названию', exact: true }).click();
+    await responsibilities
+      .getByRole('combobox', { name: 'Название области', exact: true })
+      .selectOption(SCHOOL);
     await responsibilities.getByRole('button', { name: 'Загрузить доступ', exact: true }).click();
     await responsibilities
       .getByRole('combobox', { name: 'Роль', exact: true })

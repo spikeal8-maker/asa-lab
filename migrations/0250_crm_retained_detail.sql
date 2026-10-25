@@ -76,6 +76,19 @@ CREATE FUNCTION public.crm_seat_note_version(p_seat uuid) RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT encode(public.digest(convert_to(coalesce((SELECT revision::text FROM public.crm_seat_note_revisions WHERE seat_id=p_seat),'0'),'UTF8'),'sha256'),'hex');
 $$;
+-- Reading an archived educational record does not grant permission to append.
+CREATE FUNCTION public.crm_seat_notes_writable(p_actor uuid,p_target uuid,p_class uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ SELECT EXISTS(SELECT 1 FROM public.principals actor
+ JOIN public.accounts account ON account.id=actor.account_id AND account.status='active'
+ JOIN public.classrooms classroom ON classroom.id=p_class AND classroom.status='active'
+ JOIN public.classroom_student_seats seat ON seat.id=p_target AND seat.classroom_id=classroom.id AND seat.tenant_id=classroom.tenant_id
+ WHERE actor.id=p_actor AND actor.kind='account' AND
+ (public.admin_authorized_role(p_actor,'platform',NULL)='platform_admin'
+ OR public.ai_classroom_access_teacher(p_actor,p_class,true)
+ OR EXISTS(SELECT 1 FROM public.crm_organization_classes binding WHERE binding.classroom_id=p_class
+ AND public.admin_authorized_role(p_actor,'organization',binding.workspace_id) IN('owner','school_admin'))));
+$$;
 CREATE FUNCTION public.crm_seat_notes_page(p_actor uuid,p_target uuid,p_class uuid,p_limit integer,p_cursor jsonb,p_request varchar)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE v_at timestamptz:=clock_timestamp();v_last jsonb;v_fingerprint text;v_result jsonb;
@@ -92,7 +105,7 @@ BEGIN
  END IF;
  WITH page AS(SELECT * FROM public.crm_seat_notes WHERE seat_id=p_target AND created_at<=v_at AND (v_last IS NULL OR (created_at,id)<((v_last->>'at')::timestamptz,(v_last->>'id')::uuid)) ORDER BY created_at DESC,id DESC LIMIT p_limit+1),
  visible AS(SELECT * FROM page ORDER BY created_at DESC,id DESC LIMIT p_limit)
- SELECT jsonb_build_object('items',coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'text',body,'occurredAt',created_at) ORDER BY created_at DESC,id DESC) FROM visible),'[]'::jsonb),'version',public.crm_seat_note_version(p_target),'next',CASE WHEN (SELECT count(*) FROM page)>p_limit THEN(SELECT jsonb_build_object('v',1,'fingerprint',v_fingerprint,'asOf',v_at,'last',jsonb_build_object('at',created_at,'id',id)) FROM visible ORDER BY created_at,id LIMIT 1) ELSE NULL END) INTO v_result;
+ SELECT jsonb_build_object('items',coalesce((SELECT jsonb_agg(jsonb_build_object('id',id,'text',body,'occurredAt',created_at) ORDER BY created_at DESC,id DESC) FROM visible),'[]'::jsonb),'version',public.crm_seat_note_version(p_target),'canWrite',public.crm_seat_notes_writable(p_actor,p_target,p_class),'next',CASE WHEN (SELECT count(*) FROM page)>p_limit THEN(SELECT jsonb_build_object('v',1,'fingerprint',v_fingerprint,'asOf',v_at,'last',jsonb_build_object('at',created_at,'id',id)) FROM visible ORDER BY created_at,id LIMIT 1) ELSE NULL END) INTO v_result;
  PERFORM public.crm_audit(p_actor,'student',p_target,p_class,'crm.notes.read',NULL,p_request,NULL,NULL);
  RETURN v_result;
 END;$$;
@@ -100,8 +113,22 @@ CREATE FUNCTION public.crm_seat_note_add(p_actor uuid,p_target uuid,p_class uuid
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE v_id uuid;v_before text;
 BEGIN
+ -- Match platform/organization privilege writers, then exact class/binding writers.
+ PERFORM pg_advisory_xact_lock(68174329,247);
+ PERFORM id FROM public.classrooms WHERE id=p_class FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'CRM_DENIED' USING ERRCODE='42501'; END IF;
+ -- Legacy co-teacher removal deletes this row without a class lock. Keep that
+ -- grant until commit, or wait for its deletion before the fresh authorization.
+ PERFORM membership.id FROM public.classroom_memberships membership
+ JOIN public.principals actor ON actor.account_id=membership.account_id AND actor.kind='account'
+ WHERE actor.id=p_actor AND membership.classroom_id=p_class FOR SHARE OF membership;
+ PERFORM membership.id FROM public.workspace_memberships membership
+ JOIN public.principals actor ON actor.account_id=membership.account_id AND actor.kind='account'
+ JOIN public.crm_organization_classes binding ON binding.workspace_id=membership.workspace_id AND binding.classroom_id=p_class
+ JOIN public.workspaces workspace ON workspace.id=membership.workspace_id
+ WHERE actor.id=p_actor FOR SHARE OF membership,workspace;
  PERFORM id FROM public.classroom_student_seats WHERE id=p_target AND classroom_id=p_class FOR UPDATE;
- IF NOT FOUND OR NOT coalesce(public.crm_subject_allowed(p_actor,'student',p_target,p_class),false) THEN RAISE EXCEPTION 'CRM_DENIED' USING ERRCODE='42501'; END IF;
+ IF NOT FOUND OR NOT coalesce(public.crm_seat_notes_writable(p_actor,p_target,p_class),false) THEN RAISE EXCEPTION 'CRM_DENIED' USING ERRCODE='42501'; END IF;
  IF p_body IS NULL OR length(trim(p_body)) NOT BETWEEN 1 AND 2000 OR p_reason IS NULL OR length(trim(p_reason)) NOT BETWEEN 3 AND 500 THEN RAISE EXCEPTION 'CRM_INVALID' USING ERRCODE='22023'; END IF;
  v_before:=public.crm_seat_note_version(p_target);
  IF v_before IS DISTINCT FROM p_version THEN RAISE EXCEPTION 'CRM_CONFLICT' USING ERRCODE='40001'; END IF;
@@ -111,6 +138,6 @@ BEGIN
  PERFORM public.crm_audit(p_actor,'student',p_target,p_class,'crm.notes.add',trim(p_reason),p_request,jsonb_build_object('version',v_before),jsonb_build_object('version',public.crm_seat_note_version(p_target),'noteId',v_id));
  RETURN public.crm_seat_notes_page(p_actor,p_target,p_class,25,NULL,p_request);
 END;$$;
-REVOKE ALL ON FUNCTION public.crm_seat_note_version(uuid) FROM PUBLIC,asalab_app;
+REVOKE ALL ON FUNCTION public.crm_seat_notes_writable(uuid,uuid,uuid),public.crm_seat_note_version(uuid) FROM PUBLIC,asalab_app;
 REVOKE ALL ON FUNCTION public.crm_seat_history(uuid,uuid,uuid,varchar,integer,jsonb,varchar),public.crm_seat_notes_page(uuid,uuid,uuid,integer,jsonb,varchar),public.crm_seat_note_add(uuid,uuid,uuid,varchar,varchar,varchar,varchar) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.crm_seat_history(uuid,uuid,uuid,varchar,integer,jsonb,varchar),public.crm_seat_notes_page(uuid,uuid,uuid,integer,jsonb,varchar),public.crm_seat_note_add(uuid,uuid,uuid,varchar,varchar,varchar,varchar) TO asalab_app;

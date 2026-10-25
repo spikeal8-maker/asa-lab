@@ -67,15 +67,14 @@ it('renders immutable note text literally, clears retained data after denial and
       items: [{ id: 'note', text: '<script>literal</script>', occurredAt: '2026-10-25T10:00:00Z' }],
       next: null,
       version: 'a'.repeat(64),
+      canWrite: true,
     }),
   );
-  const add = vi
-    .spyOn(crmApi, 'addSeatNote')
-    .mockResolvedValue({
-      ok: false,
-      status: 403,
-      error: { code: 'crm_forbidden', message: 'Нет доступа' },
-    });
+  const add = vi.spyOn(crmApi, 'addSeatNote').mockResolvedValue({
+    ok: false,
+    status: 403,
+    error: { code: 'crm_forbidden', message: 'Нет доступа' },
+  });
   await act(async () =>
     root.render(createElement(CrmSeatDetail, { subject, notes: true, onAccessDenied: denied })),
   );
@@ -89,4 +88,30 @@ it('renders immutable note text literally, clears retained data after denial and
   expect(add.mock.calls[0][1].version).toBe('a'.repeat(64));
   expect(denied).toHaveBeenCalledOnce();
   expect(host.textContent).not.toContain('<script>literal</script>');
+});
+it('keeps archived note history readable but never offers a form without current canWrite', async () => {
+  const add = vi.spyOn(crmApi, 'addSeatNote');
+  const read = vi
+    .spyOn(crmApi, 'seatDetail')
+    .mockResolvedValue(
+      ok({
+        items: [
+          { id: 'retained', text: 'Сохранённая заметка', occurredAt: '2026-10-25T10:00:00Z' },
+        ],
+        next: null,
+        version: 'a'.repeat(64),
+        canWrite: false,
+      }),
+    );
+  await act(async () =>
+    root.render(createElement(CrmSeatDetail, { subject, notes: true, onAccessDenied: vi.fn() })),
+  );
+  expect(host.textContent).toContain('Сохранённая заметка');
+  expect(host.querySelector('form')).toBeNull();
+  expect(add).not.toHaveBeenCalled();
+  read.mockResolvedValue(ok({ items: [], next: null, version: 'a'.repeat(64) }));
+  await act(async () =>
+    [...host.querySelectorAll('button')].find((x) => x.textContent === 'Обновить')!.click(),
+  );
+  expect(host.querySelector('form')).toBeNull();
 });

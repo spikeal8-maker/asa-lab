@@ -63,7 +63,7 @@ export function CrmSeatDetail({
   }
   async function add(event: FormEvent) {
     event.preventDefault();
-    if (!page?.version) return;
+    if (!page?.version || !page.canWrite) return;
     const request = ++sequence.current;
     setBusy(true);
     setFailure(null);
@@ -148,7 +148,7 @@ export function CrmSeatDetail({
           Показать ещё
         </button>
       ) : null}
-      {notes && page?.version ? (
+      {notes && page?.version && page.canWrite ? (
         <form onSubmit={(event) => void add(event)}>
           <label>
             Новая учебная заметка
