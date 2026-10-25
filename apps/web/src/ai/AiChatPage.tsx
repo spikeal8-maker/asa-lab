@@ -1219,7 +1219,9 @@ export function AiChatPage({
                       className="asa-ai-thread-action legacy-archive-action"
                       type="button"
                       disabled={interactionBusy}
-                      aria-label={(thread.archivedAt ? 'Восстановить: ' : 'В архив: ') + thread.title}
+                      aria-label={
+                        (thread.archivedAt ? 'Восстановить: ' : 'В архив: ') + thread.title
+                      }
                       title={thread.archivedAt ? 'Восстановить диалог' : 'В архив'}
                       onClick={() => void archiveThread(thread.id, !thread.archivedAt)}
                     >

@@ -707,8 +707,8 @@ test('Seat text history keeps one school owner for search, archive, regeneration
   await expect.poll(() => f.searches.at(-1)?.query).toBe('школьный вопрос');
   await history.getByRole('button', { name: 'В архив: ' + thread.title }).click();
   // Archival remains supported but is deliberately outside the primary chat rail.
-    await history.locator('details.chat-history-overflow > summary').click();
-    await history.getByRole('button', { name: 'Архивные диалоги', exact: true }).click();
+  await history.locator('details.chat-history-overflow > summary').click();
+  await history.getByRole('button', { name: 'Архивные диалоги', exact: true }).click();
   await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
   await closeMobileHistory(page);
   await page.getByRole('button', { name: 'Восстановить диалог', exact: true }).click();

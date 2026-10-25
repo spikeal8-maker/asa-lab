@@ -28,7 +28,6 @@
   padding-inline: 16px 10px;
 }
 
-
 /* Legacy archive remains reachable under a discreet overflow control.
  * No separate Archive tab or always-visible archive stripe is shown. */
 .asa-ai-layout .chat-sidebar-head-actions {
