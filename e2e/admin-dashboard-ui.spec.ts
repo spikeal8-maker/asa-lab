@@ -2,6 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { adminDashboardFixture } from '../apps/web/src/admin/testing/admin-dashboard.fixture';
+import {
+  catalogUserFixture,
+  catalogPageFixture,
+} from '../apps/web/src/admin/testing/admin-user-catalog.fixture';
 import type { AdminDashboardRange } from '../apps/web/src/admin/admin-api';
 
 const ACCOUNT = '20000000-0000-4000-8000-000000000001';
@@ -19,6 +23,8 @@ async function fixture(page: Page) {
     failDashboard = false,
     empty = false;
   let accessCalls = 0;
+  let catalogMode = false;
+  const catalogQueries: URLSearchParams[] = [];
   const accessQueue: Array<(status?: number) => Promise<void>> = [];
   const dashboardQueue: Array<() => Promise<void>> = [];
   await page.route('**/*', async (route) => {
@@ -73,6 +79,7 @@ async function fixture(page: Page) {
         'administration.open',
         'administration.scopes.read',
         'administration.accounts.read',
+        'administration.accounts.manage',
         'administration.organizations.read',
         'administration.security.read',
         'administration.audit.read',
@@ -120,6 +127,93 @@ async function fixture(page: Page) {
         ? reply({ error: { code: 'offline', message: 'Недоступно' } }, 503)
         : reply(dashboard);
     }
+    if (/^\/api\/admin\/v1\/users\/(account|student)\/[^/]+\/history$/.test(path)) {
+      const category = url.searchParams.get('category');
+      const next = url.searchParams.has('cursor');
+      return reply({
+        coverage: 'retained',
+        asOf: '2026-10-25T12:00:00.123456Z',
+        next: next ? null : 'history-next',
+        items: [
+          {
+            key: `${category}:${next ? 'second' : 'first'}`,
+            id: next ? 'second' : 'first',
+            occurredAt: '2026-10-24T12:00:00.000001Z',
+            type:
+              category === 'ai' ? 'ai' : category === 'publications' ? 'publication' : 'version',
+            title:
+              category === 'ai'
+                ? null
+                : 'Очень длинное название сохранённой учебной работы по электронике и программированию',
+            projectId: '20000000-0000-4000-8000-000000000003',
+            module: 'electronics',
+            revision: 3,
+            provider: 'ollama',
+            requestedModel: 'long-model-name-for-responsive-layout:latest',
+            model: null,
+            inputTokens: null,
+            outputTokens: '0',
+            status: 'failed',
+            errorCode: 'ai_ollama_timeout',
+            durationMs: '15000',
+          },
+        ],
+      });
+    }
+    if (path === '/api/admin/v1/users') {
+      catalogQueries.push(url.searchParams);
+      if (!catalogMode) return reply(catalogPageFixture());
+      const organization = url.searchParams.get('scopeKind') === 'organization';
+      const shared = '20000000-0000-4000-8000-000000000002';
+      const accountUser = catalogUserFixture(
+        'account',
+        shared,
+        'Яков — длинное русское имя пользователя административного каталога',
+      );
+      const student = catalogUserFixture(
+        'student',
+        shared,
+        'Анна — длинное имя ученицы цифровой лаборатории',
+      );
+      let items = url.searchParams.has('cursor')
+        ? [
+            catalogUserFixture(
+              'student',
+              '20000000-0000-4000-8000-000000000003',
+              'Следующая ученица',
+            ),
+          ]
+        : [accountUser, ...(organization ? [] : [student])];
+      const kind = url.searchParams.get('kind');
+      if (kind === 'accounts') items = items.filter((item) => item.kind === 'account');
+      if (kind === 'students') items = items.filter((item) => item.kind === 'student');
+      if (url.searchParams.get('status') === 'inactive') items = [];
+      const search = url.searchParams.get('search')?.toLowerCase();
+      if (search) items = items.filter((item) => item.displayName.toLowerCase().includes(search));
+      return reply(
+        catalogPageFixture(
+          items,
+          url.searchParams.has('cursor') || kind !== 'all' || organization || search
+            ? null
+            : 'fixture-next',
+          organization,
+        ),
+      );
+    }
+    if (path.startsWith('/api/admin/v1/accounts/') && path.endsWith('/crm')) {
+      const user = catalogUserFixture('account', '20000000-0000-4000-8000-000000000002');
+      return reply({
+        ...user.account,
+        firstAuthenticatedAt: user.createdAt,
+        organizations: [],
+        sessions: [],
+        activity: [],
+        ipAddresses: [],
+        notes: [],
+        max: { linked: false, verifiedAt: null },
+        moduleUsage: [],
+      });
+    }
     if (
       path === '/api/admin/v1/accounts' ||
       path === '/api/admin/v1/organizations' ||
@@ -129,6 +223,10 @@ async function fixture(page: Page) {
     return reply({ items: [], next: null });
   });
   return {
+    catalog: (value: boolean) => {
+      catalogMode = value;
+    },
+    catalogQueries: () => catalogQueries,
     holdAccess: (value: boolean) => {
       holdAccess = value;
     },
@@ -162,10 +260,34 @@ async function fixture(page: Page) {
 const learning = (page: Page) =>
   page.getByRole('heading', { name: 'Учебные инструменты — запуски', exact: true });
 async function noPageOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    page: {
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    },
+    layout: [
+      ...document.querySelectorAll(
+        '.admin-page, .admin-dashboard, .admin-dashboard > *, .admin-dashboard-grid, .admin-chart-card, .admin-chart-canvas',
+      ),
+    ].map((element) => {
+      const bounds = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return {
+        className: element.className,
+        width: Math.round(bounds.width),
+        right: Math.round(bounds.right),
+        client: element.clientWidth,
+        scroll: element.scrollWidth,
+        minWidth: style.minWidth,
+        overflowX: style.overflowX,
+      };
+    }),
+  }));
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     ),
+    JSON.stringify(dimensions),
   ).toBe(true);
 }
 
@@ -207,6 +329,7 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(
       await learning(page).evaluate((node) => node.getBoundingClientRect().width),
     ).toBeGreaterThan(180);
+    await plot.blur();
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/overview-${width}.png`, fullPage: true });
     if (width === 390 || width === 320) {
@@ -354,3 +477,71 @@ test('scope change discards old refresh data and ignores its late dashboard resp
   await expect(learning(page)).toBeVisible();
   await expect(page.locator('.admin-dashboard-kpis strong').first()).toHaveText('42');
 });
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`unified users catalog typed rows server filters pagination and layout at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.catalog(true);
+    await page.goto('/#/admin/users');
+    const account = page.locator('[data-actor-key="account:20000000-0000-4000-8000-000000000002"]');
+    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
+    await expect(account).toBeVisible();
+    await expect(student).toBeVisible();
+    await expect(student.getByRole('button')).toHaveCount(1);
+    await expect(student).toContainText('Выдано');
+    await noPageOverflow(page);
+    await student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }).click();
+    const history = student.getByRole('region', { name: 'История пользователя' });
+    await expect(history.getByText('Сохранённая версия', { exact: false })).toBeVisible();
+    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('publications');
+    await expect(history.getByText('Версия публикации', { exact: false })).toBeVisible();
+    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('ai');
+    await expect(history.getByText('Входные токены: Неизвестно', { exact: false })).toBeVisible();
+    await expect(history.getByText('Код ошибки: ai_ollama_timeout')).toBeVisible();
+    await history.getByRole('button', { name: 'Показать ещё записи' }).click();
+    await expect(history.getByText('Загружено записей: 2.')).toBeVisible();
+    await expect(history.getByRole('button', { name: 'Показать ещё записи' })).toHaveCount(0);
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/users-${width}.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Показать ещё', exact: true }).click();
+    await expect(page.getByText('Показано записей: 3.', { exact: false })).toBeVisible();
+    expect(f.catalogQueries().at(-1)!.get('cursor')).toBe('fixture-next');
+    await page.getByRole('combobox', { name: 'Сортировка', exact: true }).selectOption('name');
+    await expect.poll(() => f.catalogQueries().at(-1)!.get('sort')).toBe('name');
+    expect(f.catalogQueries().at(-1)!.has('cursor')).toBe(false);
+    await account.locator('button.admin-user-row').click();
+    await expect(account.getByRole('tab', { name: 'Управление', exact: true })).toBeVisible();
+    await account.getByRole('tab', { name: 'История', exact: true }).click();
+    await expect(
+      account
+        .getByRole('region', { name: 'История пользователя' })
+        .getByText('Сохранённая версия', { exact: false }),
+    ).toBeVisible();
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/account-history-${width}.png`, fullPage: true });
+    await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
+    await expect(account).toHaveCount(0);
+    await expect(student).toBeVisible();
+    await page.getByRole('combobox', { name: 'Область управления' }).selectOption({ index: 1 });
+    await expect(page.getByRole('status')).toContainText(
+      'связь классов с организацией не подтверждена',
+    );
+    await expect(page.getByRole('combobox', { name: 'Тип записи', exact: true })).toHaveValue(
+      'all',
+    );
+    await expect(account).toBeVisible();
+    await expect(student).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
+    await expect(
+      page.getByText('Каталог ученических мест в этой области недоступен', { exact: true }),
+    ).toBeVisible();
+    await expect(account).toHaveCount(0);
+    await expect(student).toHaveCount(0);
+    await noPageOverflow(page);
+  });
+}

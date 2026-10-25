@@ -6,6 +6,55 @@
   --admin-soft: #f4f9fb;
 }
 
+.admin-catalog-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) auto repeat(4, minmax(130px, 1fr));
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+}
+.admin-catalog-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-catalog-filters input,
+.admin-catalog-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.admin-catalog-note {
+  color: var(--ink-muted);
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+.admin-user-row-readonly {
+  cursor: default;
+}
+.admin-user-row-readonly .admin-user-identity small {
+  white-space: normal;
+}
+.admin-catalog-account {
+  min-width: 0;
+}
+@media (max-width: 1200px) {
+  .admin-catalog-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-catalog-search {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 620px) {
+  .admin-catalog-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-catalog-search {
+    grid-column: auto;
+  }
+}
+
 .admin-heading {
   display: flex;
   align-items: flex-start;
@@ -1027,6 +1076,36 @@
   font-size: 11px;
 }
 
+.admin-user-history {
+  padding: 10px 15px;
+  min-width: 0;
+}
+
+.admin-user-history section {
+  padding-top: 12px;
+  min-width: 0;
+}
+
+.admin-user-history button,
+.admin-user-history select {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.admin-user-history-list {
+  display: grid;
+  gap: 12px;
+  padding-left: 22px;
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-history-list li > * {
+  display: block;
+  margin-top: 4px;
+}
+
 .admin-crm-timeline {
   max-height: 330px;
   overflow-y: auto;
@@ -1252,7 +1331,15 @@
 
 .admin-dashboard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 10px;
+}
+
+/* The ready-state wrapper is a grid item too. Its automatic min-content
+   width must not promote the intentionally wide, locally scrollable plot. */
+.admin-dashboard > * {
+  min-width: 0;
 }
 
 .admin-dashboard-toolbar {
@@ -1420,6 +1507,9 @@
 
 .admin-chart-canvas {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 2px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
@@ -1968,5 +2058,46 @@
 @media (prefers-reduced-motion: reduce) {
   .admin-loading-mark {
     animation-duration: 1.8s;
+  }
+}
+
+/* Catalog slots: Account rows retain their action chevron; Seat rows have four
+   read-only data slots and keep every field reachable at small widths. */
+.admin-users-catalog {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+.admin-users-catalog .admin-user-row {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.9fr) 22px;
+}
+.admin-users-catalog .admin-user-row-readonly {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+.admin-users-catalog .admin-user-row-readonly > span {
+  display: grid;
+}
+.admin-users-catalog .admin-user-identity strong {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.admin-users-catalog .admin-user-row-readonly small {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .admin-users-catalog .admin-user-row-readonly {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 620px) {
+  .admin-users-catalog .admin-user-row {
+    grid-template-columns: minmax(0, 1fr) 22px;
+  }
+  .admin-users-catalog .admin-user-row-readonly {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

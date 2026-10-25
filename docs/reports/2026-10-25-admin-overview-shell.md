@@ -80,3 +80,30 @@ testMatch и явные unit/browser steps; старые проверки не �
 GitHub evidence и просмотра снимков контроллером. Локальные browser/server/
 Docker и live account mutations не запускались. Автор формирует commit и STOP;
 независимый source review, публикация и ожидание CI остаются контроллеру.
+
+## Ограниченное исправление собственного CSS overflow после CI
+
+На source-reviewed main `0c22a332` workflow `40188668358`, browser job
+`121154766622`, новые browser cases дали 5 PASS / 4 FAIL. Desktop 1440 и
+auth/lifecycle проверки прошли; 1024/390/320 и mobile refresh обнаружили настоящий
+page-level overflow прежним assertion. Web typecheck, policy PG и installation
+проверки прошли; существующие auth/settings browser checks также прошли.
+
+Readonly разбор скачанного 390 trace подтвердил viewport 390, SVG min-width 960
+и расширение ready layout вместе с KPI/toolbar. Причина: `.admin-dashboard`
+имел неявную auto grid column, а ready wrapper с `aria-busy` — automatic
+min-content width. Intrinsic ширина локального plot/KPI проходила через этот
+ancestor раньше, чем canvas мог ограничить собственную прокрутку.
+
+Исправлены только shrinkable layout boundaries: явный minmax(0,1fr),
+min-width:0 у dashboard/direct children и width/max-width:100% у canvas.
+Широкий SVG остаётся внутри overflow-x:auto; body clipping и исключений из
+исходного page-overflow assertion нет. Assertion дополнен диагностическими
+размерами элементов. После проверки keyboard scroll plot теряет focus перед
+normal screenshot; focus outline и клавиатурная доступность не отключены.
+
+Formatter и diff checks — PASS. Неизменные unit12 и typecheck повторно не
+запускались. Реальная проверка CSS repair и mobile screenshot требуют нового
+GitHub browser run. Desktop 1440 просмотрен контроллером: читаемые подписи и
+группы без visual blocker. Mobile 390 PNG в первом run не создан из-за честного
+раннего assertion; визуальная приёмка mobile ещё не получена. Сайт не обновлялся.

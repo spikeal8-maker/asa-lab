@@ -977,7 +977,10 @@ class ExpressionParser {
         );
       if (!this.take('(') || !this.take(')'))
         throw new SyntaxError(`${token.value}.read() не принимает аргументы.`);
-      return numericValue('int', readArduinoServo(this.state.servo, token.value));
+      return numericValue(
+        'int',
+        this.state.validateOnly ? 0 : readArduinoServo(this.state.servo, token.value),
+      );
     }
     if (this.current()?.value === '(') {
       this.take('(');
@@ -1340,6 +1343,7 @@ function executeServoMemberStatement(statement: string, state: RuntimeState): bo
   if (method === 'detach') {
     if (argumentsList.length !== 0)
       throw new SyntaxError(`${name}.detach() не принимает аргументы.`);
+    if (state.validateOnly) return true;
     const pin = state.servo.objects[name]?.pin;
     state.servo = detachArduinoServo(state.servo, name);
     if (pin)
@@ -1352,10 +1356,12 @@ function executeServoMemberStatement(statement: string, state: RuntimeState): bo
   if (method === 'attach') {
     const terminal = digitalTerminalFromPin(value);
     if (!terminal) throw new SyntaxError(`${name}.attach() требует цифровой вывод D0–D13.`);
+    if (state.validateOnly) return true;
     state.servo = attachArduinoServo(state.servo, name, terminal, atMicroseconds);
     state.actions.push({ kind: 'pin-mode', terminal, mode: 'OUTPUT' });
     return true;
   }
+  if (state.validateOnly) return true;
   state.servo = writeArduinoServo(state.servo, name, value, atMicroseconds);
   return true;
 }
@@ -1819,7 +1825,14 @@ function globalDeclarations(source: string): readonly GlobalDeclaration[] {
       continue;
     }
     if (source[index] === ';' && depth === 0) {
-      statements.push(source.slice(start, index).trim());
+      // A supported #include must not hide the first numeric declaration when
+      // both precede the first semicolon. Keep the original source for lines.
+      statements.push(
+        source
+          .slice(start, index)
+          .replace(/^[\t ]*#[^\r\n]*/gm, '')
+          .trim(),
+      );
       start = index + 1;
     }
   }
