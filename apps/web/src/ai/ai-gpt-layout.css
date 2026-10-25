@@ -466,6 +466,28 @@
   }
 }
 
+@media (max-width: 420px) {
+  .asa-ai-layout .chat-attach-button {
+    width: 36px;
+    min-height: 36px;
+  }
+  .asa-ai-layout .chat-composer-end .chat-scope {
+    max-width: 68px;
+  }
+  .asa-ai-layout .asa-ai-provider-label {
+    max-width: 96px;
+  }
+  .asa-ai-layout .chat-microphone {
+    flex-basis: 30px;
+    width: 30px;
+  }
+  .asa-ai-layout .chat-send-button {
+    flex-basis: 36px;
+    width: 36px;
+    min-height: 36px;
+  }
+}
+
 /* Preserve established theme behavior when dark mode is explicitly active. */
 .portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *) {
   --ai-surface: #1d1d1f;
