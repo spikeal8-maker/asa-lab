@@ -1,5 +1,5 @@
 name: Electronics R4-M1 Focused
-run-name: Electronics R4-M1 ${{ inputs.qualification_profile || 'strict-real-time' }} ${{ github.event.pull_request.head.sha || github.sha }}
+run-name: Electronics R4-M1 ${{ inputs.qualification_profile || 'strict-real-time' }} ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
 
 on:
   pull_request:
@@ -34,6 +34,9 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/electronics-r4-m1-focused.yml'
+  push:
+    branches:
+      - agent/e11-549-3pr-official-targeted-qa-20261025
   workflow_dispatch:
     inputs:
       qualification_profile:
@@ -69,7 +72,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -107,7 +110,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -147,17 +150,17 @@ jobs:
           retention-days: 14
 
   browser:
-    name: Actual editor live simulation journey
+    name: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && 'E11 QA ONLY (not full suite)' || 'Actual editor live simulation journey' }}
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_BUILD_REVISION: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
+      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
       ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -165,7 +168,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -209,10 +212,17 @@ jobs:
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Selected Electronics browser qualification
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
-          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
-          pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
+        run: |
+          if [ "$GITHUB_REF" = "refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025" ]; then
+            echo "DIAGNOSTIC: E11 targeted only; this is not mandatory full Electronics browser acceptance"
+            docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test \
+              run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner \
+              pnpm exec playwright test e2e/electronics-selection-outline.spec.ts --grep 'E11 ' --workers=1 --retries=0
+          else
+            docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test \
+              run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner \
+              pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
+          fi
 
       - name: Show isolated stack state
         if: always()
@@ -241,13 +251,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_BUILD_REVISION: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.ref == 'refs/heads/agent/e11-549-3pr-official-targeted-qa-20261025' && '3366b925529f1bb00d6c7367760f0662e51cef8a' || github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Build exact API and Web review images
