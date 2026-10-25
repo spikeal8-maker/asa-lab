@@ -1198,7 +1198,7 @@ export function AiChatPage({
                 type="button"
                 aria-label="Закрыть поиск"
                 title="Закрыть поиск"
-                onClick={closeSearch}
+                onClick={() => closeSearch()}
               >
                 ×
               </button>
