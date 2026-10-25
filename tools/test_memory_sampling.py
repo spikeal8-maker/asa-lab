@@ -122,6 +122,25 @@ class MemorySamplingTests(unittest.TestCase):
         if sample['pagefile']['state'] == 'available':
             self.assertGreaterEqual(sample['pagefile']['totalBytes'], sample['pagefile']['usedBytes'])
 
+    @unittest.skipUnless(memory.sys.platform.startswith('linux'), 'Linux native /proc helper')
+    def test_linux_native_helper_returns_bounded_private_projection(self):
+        sample = memory.capture_memory()
+        processes = sample['processes']
+        self.assertIn(processes['state'], ('available', 'partial'))
+        self.assertGreater(processes['inspectedProcesses'], 0)
+        self.assertLessEqual(processes['inspectedProcesses'], memory.MAX_PROCESSES)
+        self.assertLessEqual(len(processes['leaders']), memory.TOP_NAMES)
+        for group in processes['leaders']:
+            self.assertEqual(set(group), {'name', 'count', 'workingSetBytes', 'privateCommitBytes'})
+            self.assertRegex(group['name'], r'^[a-z0-9_. -]{1,64}$')
+            self.assertGreater(group['count'], 0)
+            self.assertGreaterEqual(group['workingSetBytes'], 0)
+            self.assertIsNone(group['privateCommitBytes'])
+        self.assertEqual(processes['privateCommitReason'], 'unsupported_linux_semantics')
+        self.assertEqual(sample['pagefile'], dict(state='unavailable', reason='unsupported'))
+        self.assertIn(sample['paging']['state'], ('available', 'unavailable'))
+        self.assertLess(len(json.dumps(sample).encode('utf-8')), 8192)
+
 
 if __name__ == '__main__':
     unittest.main()
