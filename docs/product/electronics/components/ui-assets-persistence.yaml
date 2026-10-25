@@ -11,13 +11,26 @@ components:
     sources:
     - apps/web/src/electronics/ArduinoCodePanel.tsx
     - apps/web/src/electronics/arduino-blocks.ts
+    - apps/web/src/electronics/arduino-block-ui.ts
+    - apps/web/src/electronics/arduino-pin-inputs.ts
     tests:
     - apps/web/src/electronics/testing/arduino-block-messages.spec.ts
+    - apps/web/src/electronics/testing/arduino-value-inputs.spec.ts
+    - apps/web/src/electronics/testing/arduino-value-inputs.browser.mjs
+    - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+    - apps/web/src/electronics/testing/arduino-editor-ui.browser.mjs
     - e2e/electronics-interactions.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
     symbols:
     - ArduinoCodePanel
+    - registerArduinoBlocks
+    - migrateLegacyArduinoWorkspaceState
+    - generateArduinoCode
+    - ScratchWorkspace
+    - configureArduinoPaletteScroll
+    - arduinoBlockTooltip
+    - literalArduinoPin
     notes: Blockly message initialization and editor lifecycle; preserve generated code and saved workspace.
   electronics.ui.workbench:
     ownership: asa

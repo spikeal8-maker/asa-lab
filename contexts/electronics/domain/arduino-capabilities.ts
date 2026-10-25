@@ -45,6 +45,9 @@ const UNSUPPORTED = (summary: string): ArduinoBlockSupport => ({
  * command that the simulator silently ignores.
  */
 export const ARDUINO_BLOCK_SUPPORT = {
+  asa_pin: SUPPORTED('Номер цифрового вывода, включая A0–A5 в цифровом режиме.'),
+  asa_pwm_pin: SUPPORTED('Номер аппаратного ШИМ-вывода Uno.'),
+  asa_analog_pin: SUPPORTED('Номер аналогового входа Uno.'),
   asa_setup: LIMITED(
     'setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.',
   ),
@@ -57,7 +60,7 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_while: LIMITED('Условие повторяется в пределах защитного лимита операций.'),
   asa_for: LIMITED('Заголовок и тело повторяются в пределах защитного лимита операций.'),
   asa_builtin_led: SUPPORTED('Управляет цифровым выводом D13.'),
-  asa_digital_write: SUPPORTED('Устанавливает цифровой уровень на D0–D13.'),
+  asa_digital_write: SUPPORTED('Устанавливает цифровой уровень на D0–D13 и A0–A5.'),
   asa_analog_write: LIMITED('ШИМ представлен средним постоянным напряжением.'),
   asa_servo_write: LIMITED('Servo.write() управляет canonical 50 Hz waveform на attached GPIO.'),
   asa_tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
@@ -77,7 +80,7 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_7seg_clear: UNSUPPORTED('Библиотека семисегментного индикатора ещё не исполняется.'),
   asa_neopixel_setup: UNSUPPORTED('Библиотека NeoPixel ещё не исполняется.'),
   asa_neopixel_set: UNSUPPORTED('Библиотека NeoPixel ещё не исполняется.'),
-  asa_digital_read: SUPPORTED('Считывает электрический уровень с D0–D13.'),
+  asa_digital_read: SUPPORTED('Считывает электрический уровень с D0–D13 и A0–A5.'),
   asa_analog_read: SUPPORTED('Считывает напряжение A0–A5 как значение 0–1023.'),
   asa_ultrasonic: LIMITED(
     'Поддержан exact adapter readUltrasonicCm(triggerPin, echoPin) поверх canonical GPIO/delay/pulseIn.',
@@ -135,9 +138,9 @@ export function arduinoBlockSupport(blockType: string): ArduinoBlockSupport {
 export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   setup: LIMITED('Точка входа поддерживается ограниченным runtime state.'),
   loop: LIMITED('Цикл моделируется в пределах детерминированного шага.'),
-  pinMode: SUPPORTED('Поддерживаются INPUT, INPUT_PULLUP и OUTPUT на D0–D13.'),
-  digitalWrite: SUPPORTED('Устанавливает цифровой уровень на D0–D13.'),
-  digitalRead: SUPPORTED('Считывает электрический уровень с D0–D13.'),
+  pinMode: SUPPORTED('Поддерживаются INPUT, INPUT_PULLUP и OUTPUT на D0–D13 и A0–A5.'),
+  digitalWrite: SUPPORTED('Устанавливает цифровой уровень на D0–D13 и A0–A5.'),
+  digitalRead: SUPPORTED('Считывает электрический уровень с D0–D13 и A0–A5.'),
   analogRead: SUPPORTED('Считывает A0–A5 как значение 0–1023.'),
   analogWrite: LIMITED('ШИМ представлен средним постоянным напряжением.'),
   delay: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
