@@ -10,6 +10,13 @@ function render(content: string): string {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AI mathematical Markdown', () => {
+  it('does not download incomplete streamed code', () => {
+    const html = renderToStaticMarkup(
+      createElement(AiMessageContent, { content: '```html\n<!doctype html>\n```', pending: true }),
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Скачать код: index.html"/);
+    expect(render('```html\n<!doctype html>\n```')).not.toContain('disabled=""');
+  });
   it('renders inline and block formulae with accessible MathML', () => {
     const html = render('Энергия $E = mc^2$.\n\n$$\n\\frac{a+b}{2} = \\sqrt{x}\n$$');
     expect(html).toContain('class="katex"');
