@@ -141,7 +141,22 @@ factory suite could not load the missing local shared `@asa-lab/module-sdk`
 runtime dependency; its new lifecycle case is registered in the focused CI.
 After convergence, 45 affected catalog/runtime/acquisition cases passed; these
 overlap the earlier tests and are not an additional distinct total. API typecheck,
-contracts and the no-database migration-file check passed. Browser screenshots,
-new PostgreSQL cases, full factory lifecycle and independent final-SHA review
-remain unverified until the controller's isolated GitHub gate. No deployment,
-live database mutation or SMTP activation is claimed.
+contracts and the no-database migration-file check passed.
+
+Independent final source review found two encoding regressions; reviewed repair
+`45c95b137ec08806a3eddff5ffcb2c374640ac3a` restores readable API text and the
+CSV disclaimer assertion. Its isolated SQL/factory/install jobs passed, while
+Web typecheck found one optional-prop mismatch. Reviewed type-only repair
+`611a52c13ca822aea891625c73a47f966118f889` explicitly permits the absent
+distribution input without changing runtime behavior or strict type settings.
+Exact-source [run 40227773771](https://github.com/spikeal8-maker/asa-lab/actions/runs/40227773771)
+passed all PostgreSQL, receipt/binding/retention, lifecycle, type/build, browser
+and installation jobs. Controller inspected desktop/mobile catalog analytics
+screenshots with separate charts, time ticks, grouped detail and per-record
+claims. Earlier obsolete organization-role copy is corrected.
+
+Final integration preserves subsequent disjoint Electronics Uno qualification
+tests and execution documentation from `ad749a17`. All four selected CRM slices
+have technical acceptance evidence; this is not owner acceptance, a production
+deployment, real SMTP delivery proof or a 5000-user capacity claim. No live
+database mutation or SMTP activation is claimed.
