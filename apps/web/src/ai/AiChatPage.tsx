@@ -19,6 +19,7 @@ import {
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { useAiThreadHistory, type AiHistoryThread as AiThread } from './use-ai-thread-history';
 import './izo-chat-design.css';
+import './ai-gpt-layout.css';
 
 interface AiMessage {
   readonly id: string;
@@ -92,8 +93,6 @@ export function AiChatPage({
     loadMore: loadMoreThreads,
     search,
     setSearch,
-    archived: archivedFilter,
-    setArchived: setArchivedFilter,
   } = useAiThreadHistory(call);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -112,6 +111,8 @@ export function AiChatPage({
     Record<string, readonly AiHistoryAttachment[]>
   >({});
   const fileInput = useRef<HTMLInputElement>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const toolsMenu = useRef<HTMLDetailsElement>(null);
   const previewUrls = useRef(new Set<string>());
   const attachmentHistoryScope = useRef<{
     threadId: string | null;
@@ -152,6 +153,22 @@ export function AiChatPage({
   const historyPanel = useRef<HTMLDialogElement>(null);
   const historyToggle = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const dismissMenu = (event: PointerEvent): void => {
+      if (toolsMenu.current && !toolsMenu.current.contains(event.target as Node)) {
+        toolsMenu.current.removeAttribute('open');
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') toolsMenu.current?.removeAttribute('open');
+    };
+    document.addEventListener('pointerdown', dismissMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', dismissMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, []);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
 
   useEffect(() => {
@@ -976,7 +993,7 @@ export function AiChatPage({
           }}
         >
           <header className="chat-sidebar-head">
-            <strong className="chat-sidebar-title">История диалогов</strong>
+            <strong className="chat-sidebar-title">Чаты</strong>
             <div className="chat-sidebar-head-actions">
               <button
                 className="chat-icon-button"
@@ -1009,22 +1026,6 @@ export function AiChatPage({
                 placeholder="Поиск по истории"
               />
             </label>
-            <div className="chat-history-filters" role="group" aria-label="Раздел истории">
-              <button
-                type="button"
-                aria-pressed={!archivedFilter}
-                onClick={() => setArchivedFilter(false)}
-              >
-                Диалоги
-              </button>
-              <button
-                type="button"
-                aria-pressed={archivedFilter}
-                onClick={() => setArchivedFilter(true)}
-              >
-                Архив
-              </button>
-            </div>
           </div>
           {!desktop && visibleError ? (
             <div className="asa-ai-error asa-ai-history-error" role="alert">
@@ -1041,7 +1042,7 @@ export function AiChatPage({
             </button>
           ) : null}
           <strong className="chat-side-section">
-            {search.trim() ? 'Результаты поиска' : archivedFilter ? 'Архив' : 'Недавние'}
+            {search.trim() ? 'Результаты поиска' : 'Недавние'}
           </strong>
           <nav className="chat-history-list" aria-label="Диалоги" aria-busy={loadingThreads}>
             {loadingThreads ? (
@@ -1129,18 +1130,6 @@ export function AiChatPage({
                     <button
                       className="asa-ai-thread-action"
                       type="button"
-                      disabled={interactionBusy}
-                      aria-label={
-                        (thread.archivedAt ? 'Восстановить: ' : 'В архив: ') + thread.title
-                      }
-                      title={thread.archivedAt ? 'Восстановить диалог' : 'В архив'}
-                      onClick={() => void archiveThread(thread.id, !thread.archivedAt)}
-                    >
-                      <span aria-hidden="true">{thread.archivedAt ? '↑' : '↓'}</span>
-                    </button>
-                    <button
-                      className="asa-ai-thread-action"
-                      type="button"
                       disabled={interactionBusy || threadActionBusy}
                       aria-label={'Удалить: ' + thread.title}
                       title="Удалить"
@@ -1169,21 +1158,19 @@ export function AiChatPage({
               <p className="asa-ai-empty-list">
                 {search.trim()
                   ? 'Ничего не найдено в истории'
-                  : archivedFilter
-                    ? 'В архиве пока нет диалогов'
-                    : 'Здесь появятся ваши диалоги'}
+                  : 'Здесь появятся ваши диалоги'}
               </p>
             ) : null}
           </nav>
         </dialog>
 
         <div className="chat-main">
-          <header className="chat-toolbar">
+          <div className="chat-utility-strip">
             {!sideOpen || !desktop ? (
               <button
                 ref={historyToggle}
-                type="button"
                 className="chat-icon-button chat-sidebar-open"
+                type="button"
                 onClick={openHistory}
                 aria-label="Открыть историю диалогов"
                 aria-controls="ai-chat-history"
@@ -1193,62 +1180,25 @@ export function AiChatPage({
                 <span aria-hidden="true">☰</span>
               </button>
             ) : null}
-            <div className="asa-ai-provider-label">
-              {(status?.availableModels?.length ?? 0) > 1 ? (
-                <select
-                  className="asa-ai-model-picker"
-                  aria-label="Модель ИИ"
-                  title="Выбрать модель"
-                  value={selectedModel || status?.model}
-                  onChange={(event) => setSelectedModel(event.target.value)}
-                  disabled={interactionBusy || !status?.enabled}
-                >
-                  {status?.availableModels?.map((name) => (
-                    <option key={name} value={name}>
-                      {name === 'ollama-local'
-                        ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
-                        : name}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <strong className="asa-ai-model-single">
-                  {loading
-                    ? 'Подключение…'
-                    : status?.enabled
-                      ? status.model === 'ollama-local'
-                        ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
-                        : status.model
-                      : status?.providerEnabled
-                        ? 'Доступ закрыт'
-                        : 'ИИ не подключён'}
-                </strong>
-              )}
-            </div>
             <span className="sr-only asa-ai-current-title">{currentTitle}</span>
-            {scopeControl}
             <button
-              type="button"
               className="chat-icon-button asa-ai-new-chat"
+              type="button"
               disabled={interactionBusy || loading}
               onClick={() => void newChat()}
               aria-label="Создать новый диалог"
               title="Новый диалог"
             >
-              <span aria-hidden="true">+</span>
+              <span aria-hidden="true">✎</span>
             </button>
-          </header>
+          </div>
 
           {!historyReady && !error ? (
             <div className="chat-start-state" role="status">
               Загрузка переписки…
             </div>
           ) : empty ? (
-            <div className="chat-start-state">
-              <div className="asa-ai-start-copy">
-                <h1>Чем помочь?</h1>
-              </div>
-            </div>
+            <div className="chat-start-state" aria-hidden="true" />
           ) : (
             <div className="chat-scroll" ref={chatScroll}>
               <div className="chat-column">
@@ -1400,25 +1350,12 @@ export function AiChatPage({
               </div>
             </div>
           )}
-          {visibleError ||
-          archived ||
-          (!busy && pendingRegeneration) ||
-          (!status?.enabled && !loading) ? (
+          {visibleError || archived || (!busy && pendingRegeneration) ? (
             <div
               className={'asa-ai-error' + (visibleError ? '' : ' chat-history-notice')}
               role={visibleError ? 'alert' : 'status'}
             >
-              {visibleError ??
-                (!status?.enabled && !loading ? aiAdmissionMessage(status?.reason) : null)}
-              {!status?.enabled && !loading ? (
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={() => void refreshAdmission()}
-                >
-                  Проверить доступ
-                </button>
-              ) : null}
+              {visibleError}
               {historyError ? (
                 <button type="button" onClick={() => void refreshThreads()}>
                   Обновить список
@@ -1509,16 +1446,18 @@ export function AiChatPage({
                     event.currentTarget.value = '';
                   }}
                 />
-                <button
-                  type="button"
-                  className="chat-attach-button"
-                  aria-label="Прикрепить файлы"
-                  title="Прикрепить файлы"
-                  disabled={!status?.enabled || interactionBusy || archived}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  +
-                </button>
+                <input
+                  ref={imageInput}
+                  type="file"
+                  multiple
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  aria-label="Выбрать изображения для ИИ"
+                  onChange={(event) => {
+                    addFiles(Array.from(event.currentTarget.files ?? []));
+                    event.currentTarget.value = '';
+                  }}
+                />
                 <textarea
                   ref={composer}
                   value={draft}
@@ -1535,35 +1474,108 @@ export function AiChatPage({
                     }
                   }}
                   rows={1}
-                  placeholder={
-                    archived
-                      ? 'Восстановите диалог, чтобы отправить сообщение'
-                      : status?.enabled
-                        ? 'Опишите идею или задачу…'
-                        : seatId
-                          ? 'Доступ к ИИ-чату закрыт'
-                          : 'ИИ пока не подключён'
-                  }
-                  disabled={!status?.enabled || interactionBusy}
+                  placeholder="Спросить ASA Lab"
+                  disabled={interactionBusy || archived}
                   aria-label="Сообщение ИИ"
                   aria-describedby="ai-composer-note"
                 />
+                <div className="chat-composer-controls">
+                  <details className="chat-tools-menu" ref={toolsMenu}>
+                    <summary className="chat-attach-button" aria-label="Инструменты чата" title="Инструменты">
+                      <span aria-hidden="true">+</span>
+                    </summary>
+                    <div className="chat-tools-popup" role="group" aria-label="Добавить в чат">
+                      <button
+                        type="button"
+                        disabled={interactionBusy || archived}
+                        onClick={() => {
+                          toolsMenu.current?.removeAttribute('open');
+                          imageInput.current?.click();
+                        }}
+                      >
+                        <span aria-hidden="true">▧</span> Добавить изображение
+                      </button>
+                      <button
+                        type="button"
+                        disabled={interactionBusy || archived}
+                        onClick={() => {
+                          toolsMenu.current?.removeAttribute('open');
+                          fileInput.current?.click();
+                        }}
+                      >
+                        <span aria-hidden="true">▤</span> Фото и файлы
+                      </button>
+                      <div className="chat-tools-divider" />
+                      <button type="button" disabled title="Интернет-поиск пока не реализован">
+                        <span aria-hidden="true">⌕</span> Поиск в интернете
+                        <small>Скоро</small>
+                      </button>
+                      <button type="button" disabled title="Генерация изображений пока не реализована">
+                        <span aria-hidden="true">◇</span> Создать изображение
+                        <small>Скоро</small>
+                      </button>
+                    </div>
+                  </details>
+                  <div className="chat-composer-end">
+                    {scopeControl}
+                    <div className="asa-ai-provider-label">
+                      {(status?.availableModels?.length ?? 0) > 1 ? (
+                        <select
+                          className="asa-ai-model-picker"
+                          aria-label="Модель ИИ"
+                          title="Выбрать модель"
+                          value={selectedModel || status?.model}
+                          onChange={(event) => setSelectedModel(event.target.value)}
+                          disabled={interactionBusy || !status?.enabled}
+                        >
+                          {status?.availableModels?.map((name) => (
+                            <option key={name} value={name}>
+                              {name === 'ollama-local'
+                                ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                                : name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="asa-ai-model-single">
+                          {status?.enabled
+                            ? status.model === 'ollama-local'
+                              ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                              : status.model
+                            : 'Модель'}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="chat-microphone"
+                      type="button"
+                      disabled
+                      title="Голосовой ввод пока не доступен"
+                      aria-label="Голосовой ввод пока не доступен"
+                    >
+                      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                        <rect x="9" y="2" width="6" height="13" rx="3" />
+                        <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
+                      </svg>
+                    </button>
+                    <button
+                      type={busy ? 'button' : 'submit'}
+                      className="chat-send-button"
+                      disabled={
+                        (!busy && (!status?.enabled || archived)) ||
+                        creatingChat ||
+                        threadActionBusy ||
+                        (!busy && (!historyReady || !draft.trim()))
+                      }
+                      onClick={busy ? () => void stop() : undefined}
+                      aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
+                    >
+                      {busy ? '■' : '↑'}
+                    </button>
+                  </div>
+                </div>
                 <span className="chat-composer-hint sr-only">Shift + Enter — новая строка</span>
                 <span className="chat-character-count sr-only">{draft.length} / 3000</span>
-                <button
-                  type={busy ? 'button' : 'submit'}
-                  className="chat-send-button"
-                  disabled={
-                    (!busy && (!status?.enabled || archived)) ||
-                    creatingChat ||
-                    threadActionBusy ||
-                    (!busy && (!historyReady || !draft.trim()))
-                  }
-                  onClick={busy ? () => void stop() : undefined}
-                  aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
-                >
-                  {busy ? '■' : '↑'}
-                </button>
               </form>
               <p className="sr-only" id="ai-composer-note">
                 Проверяйте важные ответы. Не отправляйте пароли и личные данные.
