@@ -244,8 +244,8 @@ async function assertLayout(page: Page, width: number, file: string) {
     const rail = (await activeRail.boundingBox())!;
     expect(current.y).toBeGreaterThanOrEqual(rail.y + rail.height - 2);
   }
-  // On desktop nine sections remain keyboard-reachable in the original scroller.
-  // On narrow content the same nine sections use one native accessible selector.
+  // On desktop ten tabs remain keyboard-reachable in the original scroller.
+  // On narrow content the same ten tabs use one native accessible selector.
   {
     const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
     if (await sections.isVisible()) {
@@ -258,6 +258,7 @@ async function assertLayout(page: Page, width: number, file: string) {
         'Scratch',
         'Заслуги',
         'Активность',
+        'Карточка и ИИ',
         'Настройки',
       ]);
       expect((await sections.boundingBox())!.height).toBeLessThanOrEqual(70);
@@ -308,7 +309,7 @@ async function assertLayout(page: Page, width: number, file: string) {
         }
         return broken;
       });
-      expect(layout.buttons).toHaveLength(9);
+      expect(layout.buttons).toHaveLength(10);
       expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
       for (const button of await sections.locator('button').all()) {
         await button.focus();
@@ -336,7 +337,7 @@ async function assertLayout(page: Page, width: number, file: string) {
           await button.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
         ).toBe(true);
       }
-      // All nine hit targets must be disjoint, not just fully inside the viewport.
+      // All ten hit targets must be disjoint, not just fully inside the viewport.
       for (const [index, first] of layout.buttons.entries()) {
         for (const second of layout.buttons.slice(index + 1)) {
           const xOverlap = Math.min(first.right, second.right) - Math.max(first.left, second.left);
@@ -364,6 +365,7 @@ async function assertLayout(page: Page, width: number, file: string) {
         'Scratch',
         'Заслуги',
         'Активность',
+        'Карточка и ИИ',
         'Настройки',
       ]);
       const sectionBox = (await mobile.boundingBox())!;

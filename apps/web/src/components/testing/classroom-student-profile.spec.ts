@@ -1309,7 +1309,7 @@ it.each(['api error', 'rejection'] as const)(
   },
 );
 
-it('renders one navigation row, truthful safety, all eight keyboard-reachable sections and works retry offset', async () => {
+it('renders one navigation row, truthful safety, all nine keyboard-reachable sections and works retry offset', async () => {
   vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
   vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
   vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(0, 0)));
@@ -1365,7 +1365,7 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   expect(host.querySelectorAll('.classroom-student-archive-filter input')).toHaveLength(1);
   expect(host.querySelector('.classroom-student-section-action')).toBeNull();
   const tabs = host.querySelectorAll<HTMLButtonElement>('.participant-tabs button');
-  expect(tabs).toHaveLength(9);
+  expect(tabs).toHaveLength(10);
   expect(
     Array.from(
       host.querySelectorAll<HTMLSelectElement>('select[aria-label="Раздел профиля"] option'),
@@ -1379,13 +1379,14 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
     'Scratch',
     'Заслуги',
     'Активность',
+    'Карточка и ИИ',
     'Настройки',
   ]);
   tabs[0]!.focus();
   await act(async () =>
     tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })),
   );
-  expect(document.activeElement).toBe(tabs[8]);
+  expect(document.activeElement).toBe(tabs[9]);
   await act(async () => {
     const select = host.querySelector<HTMLSelectElement>('[aria-label="Статус работ"]')!;
     select.value = 'awaiting';
@@ -1417,7 +1418,7 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   await click('← К классу');
   expect(back).toHaveBeenCalledOnce();
 
-  await act(async () => tabs[8]!.click());
+  await act(async () => tabs[9]!.click());
   const settingsCategories = host.querySelectorAll<HTMLButtonElement>(
     '.classroom-student-settings-category',
   );
