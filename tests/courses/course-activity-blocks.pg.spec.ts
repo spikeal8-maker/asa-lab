@@ -555,9 +555,10 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
         delivery.run_id,
       ])
     ).rows[0];
-    const runs = await admin.query('SELECT id FROM activity_runs WHERE source_course_lesson_id=$1', [
-      runLesson.id,
-    ]);
+    const runs = await admin.query(
+      'SELECT id FROM activity_runs WHERE source_course_lesson_id=$1',
+      [runLesson.id],
+    );
     expect(runs.rows).toHaveLength(2);
 
     const marked = await inTenant(author, (client) =>
