@@ -8,6 +8,7 @@ export default defineConfig({
   testMatch: [
     'access-account-ui.spec.ts',
     'admin-logs-ui.spec.ts',
+    'admin-dashboard-ui.spec.ts',
     'classroom-owner-ui.spec.ts',
     'classroom-usability-ui.spec.ts',
     'classroom-layout-acceptance.spec.ts',

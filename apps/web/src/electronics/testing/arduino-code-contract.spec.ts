@@ -7,6 +7,7 @@ import webViteConfig from '../../../vite.config';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
+const blockUiSource = readFileSync(resolve(electronicsRoot, 'arduino-block-ui.ts'), 'utf8');
 const panelSource = readFileSync(resolve(electronicsRoot, 'ArduinoCodePanel.tsx'), 'utf8');
 const serialMonitorSource = readFileSync(
   resolve(electronicsRoot, 'ArduinoSerialMonitor.tsx'),
@@ -88,9 +89,9 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain("from 'scratch-blocks'");
     expect(panelSource).toContain('ScratchBlocks.inject(host');
     expect(panelSource).toContain('ScratchBlocks.ScratchBlocksTheme.CLASSIC');
-    expect(panelSource).toContain("ScratchBlocks.Theme.defineTheme('asa-arduino'");
-    expect(panelSource).toContain("colourPrimary: '#4C97FF'");
-    expect(panelSource).toContain("colourPrimary: '#FFAB19'");
+    expect(blockUiSource).toContain("ScratchBlocks.Theme.defineTheme('asa-arduino'");
+    expect(blockUiSource).toContain("colourPrimary: '#4C97FF'");
+    expect(blockUiSource).toContain("colourPrimary: '#FFAB19'");
     expect(panelSource).toContain('applyScratchMediaAssets(host)');
     expect(panelSource).toContain('scratch-blocks/media/zoom-in.svg?url');
     expect(panelSource).toContain('scratch-blocks/media/sprites.png?url');
@@ -148,7 +149,7 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('.arduino-palette-scale');
     expect(panelSource).toContain('centerArduinoProgram(workspace)');
     expect(panelSource).toContain("image.setAttribute('href', url)");
-    expect(blocksSource).not.toContain("delete definition['colour']");
+    expect(blocksSource).toContain("definition['style'] = 'operators'");
     expect(css.slice(0, css.indexOf('@media (max-width: 980px)'))).not.toContain(
       '.workbench-shell.code-open .workbench-stage',
     );
@@ -216,7 +217,8 @@ describe('Arduino programming room contract', () => {
     expect(blocksSource).toContain(
       "support.status === 'unsupported' ? { colour: UNSUPPORTED_BLOCK }",
     );
-    expect(blocksSource).toContain("? 'Пока не работает.'");
+    expect(blocksSource).toContain('arduinoBlockTooltip(blockType)');
+    expect(blockUiSource).not.toContain('Работает с ограничениями модели');
     expect(blocksSource).not.toContain('message0: `${marker}');
     expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
     expect(panelSource).toContain('<strong>Проверка кода</strong>');
@@ -236,14 +238,14 @@ describe('Arduino programming room contract', () => {
   });
 
   it('keeps block inputs visible and supports complete stack actions', () => {
-    expect(blocksSource).toContain("name: 'TIME', value: 1");
+    expect(blocksSource).toContain("type: 'input_value', name: 'TIME', check: 'Number'");
     expect(blocksSource).toContain("name: 'VALUE', value: '0'");
     expect(blocksSource).toContain('TOOLBOX_INPUT_DEFAULTS');
     expect(blocksSource).toContain('applyArduinoBlockDefaults');
     expect(blocksSource).toContain('asa_var_set: { VALUE: NUMBER_SHADOW() }');
     expect(blocksSource).toContain("asa_analog_write: { VALUE: NUMBER_SHADOW('0') }");
-    expect(blocksSource).toContain("node['type'] === 'asa_analog_write'");
-    expect(blocksSource).toContain("block.getInputTargetBlock('VALUE')");
+    expect(blocksSource).toContain("TOOLBOX_INPUT_DEFAULTS[node['type']]");
+    expect(blocksSource).toContain("current.getInputTargetBlock('VALUE')");
     expect(panelSource).toContain('arduino-block-context-menu');
     expect(panelSource).toContain('block.toCopyData(true)');
     expect(panelSource).toContain('block.dispose(false, true)');

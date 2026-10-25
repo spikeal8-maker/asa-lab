@@ -28,6 +28,15 @@ const MODULE_LABELS = {
   checkers: 'Шашки',
   blocks: 'Scratch',
 } as const;
+const MODULE_COLORS = {
+  electronics: '#0877b3',
+  'three-d': '#8257c7',
+  blocks: '#c54b83',
+  chess: '#d4841c',
+  checkers: '#16835f',
+} as const;
+const LEARNING_MODULES = ['electronics', 'three-d', 'blocks'] as const;
+const GAME_MODULES = ['chess', 'checkers'] as const;
 
 const DATE_TIME = new Intl.DateTimeFormat('ru-RU', {
   dateStyle: 'short',
@@ -35,9 +44,30 @@ const DATE_TIME = new Intl.DateTimeFormat('ru-RU', {
 });
 
 type DashboardState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'error'; readonly message: string }
-  | { readonly kind: 'ready'; readonly dashboard: AdminProductDashboard };
+  | { readonly kind: 'loading'; readonly key: string }
+  | { readonly kind: 'error'; readonly key: string; readonly message: string }
+  | {
+      readonly kind: 'ready';
+      readonly key: string;
+      readonly dashboard: AdminProductDashboard;
+      readonly refreshing: boolean;
+      readonly refreshError: string | null;
+    };
+
+export function chartLabelIndexes(length: number): number[] {
+  const count = Math.min(Math.max(0, length), 12);
+  return Array.from({ length: count }, (_, index) =>
+    Math.round((index * (length - 1)) / Math.max(1, count - 1)),
+  );
+}
+
+export function chartCountAxis(value: number): { maximum: number; ticks: number[] } {
+  const rawStep = Math.max(1, value / 4);
+  const power = 10 ** Math.floor(Math.log10(rawStep));
+  const step = ([1, 2, 5, 10].find((candidate) => candidate * power >= rawStep) ?? 10) * power;
+  const maximum = Math.max(step, Math.ceil(value / step) * step);
+  return { maximum, ticks: Array.from({ length: maximum / step + 1 }, (_, index) => index * step) };
+}
 
 interface ChartSeries {
   readonly id: string;
@@ -76,8 +106,9 @@ function MultiLineChart({
   }, [series]);
 
   const active = series.filter((item) => visible.has(item.id));
-  const maximum = Math.max(1, ...active.flatMap((item) => item.values));
-  const width = 760;
+  const axis = chartCountAxis(Math.max(0, ...active.flatMap((item) => item.values)));
+  const maximum = axis.maximum;
+  const width = 960;
   const height = 220;
   const left = 42;
   const right = 16;
@@ -94,9 +125,7 @@ function MultiLineChart({
       })
       .join(' ');
   const empty = active.every((item) => item.values.every((value) => value === 0));
-  const labelIndexes = [
-    ...new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1]),
-  ].filter((index) => index >= 0);
+  const labelIndexes = chartLabelIndexes(labels.length);
 
   return (
     <article className="admin-chart-card">
@@ -128,19 +157,34 @@ function MultiLineChart({
           })}
         </div>
       </header>
-      <div className="admin-chart-canvas">
+      <div
+        className="admin-chart-canvas"
+        tabIndex={0}
+        role="region"
+        aria-label={`Прокручиваемый график «${title}»`}
+      >
         <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${title}. ${description}`}>
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-            const y = top + plotHeight - ratio * plotHeight;
+          {axis.ticks.map((value) => {
+            const y = top + plotHeight - (value / maximum) * plotHeight;
             return (
-              <g key={ratio}>
+              <g key={value}>
                 <line x1={left} x2={width - right} y1={y} y2={y} className="admin-chart-grid" />
                 <text x={left - 8} y={y + 4} textAnchor="end" className="admin-chart-axis">
-                  {Math.round(maximum * ratio)}
+                  {value}
                 </text>
               </g>
             );
           })}
+          {labelIndexes.map((index) => (
+            <line
+              key={`time-grid-${index}`}
+              x1={left + (index / Math.max(1, labels.length - 1)) * plotWidth}
+              x2={left + (index / Math.max(1, labels.length - 1)) * plotWidth}
+              y1={top}
+              y2={top + plotHeight}
+              className="admin-chart-grid"
+            />
+          ))}
           {active.map((item) => (
             <path
               key={item.id}
@@ -160,7 +204,7 @@ function MultiLineChart({
                 x={x}
                 y={height - 8}
                 textAnchor={index === 0 ? 'start' : index === labels.length - 1 ? 'end' : 'middle'}
-                className="admin-chart-axis"
+                className="admin-chart-axis admin-chart-time-label"
               >
                 {labels[index]}
               </text>
@@ -196,30 +240,58 @@ export function AdminDashboard({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [range, setRange] = useState<AdminDashboardRange>('24h');
-  const [state, setState] = useState<DashboardState>({ kind: 'loading' });
+  const scopeKind = scope.kind;
+  const scopeId = scope.id;
+  const key = `${scopeKind}:${scopeId ?? ''}:${range}`;
+  const [storedState, setState] = useState<DashboardState>({ kind: 'loading', key });
+  const state: DashboardState = storedState.key === key ? storedState : { kind: 'loading', key };
   const requestVersion = useRef(0);
+  const contextKey = useRef(key);
+  contextKey.current = key;
+  const denied = useRef(onAccessDenied);
+  denied.current = onAccessDenied;
 
-  const load = useCallback(async (): Promise<void> => {
-    const version = ++requestVersion.current;
-    setState({ kind: 'loading' });
-    const result = await adminApi.dashboard({ scope, range });
-    if (version !== requestVersion.current) return;
-    if (!result.ok) {
-      if (result.status === 401 || result.status === 403) {
-        onAccessDenied();
+  const load = useCallback(
+    async (refresh = false): Promise<void> => {
+      const version = ++requestVersion.current;
+      setState((current) =>
+        refresh && current.kind === 'ready' && current.key === key
+          ? { ...current, refreshing: true, refreshError: null }
+          : { kind: 'loading', key },
+      );
+      const result = await adminApi.dashboard({ scope: { kind: scopeKind, id: scopeId }, range });
+      if (version !== requestVersion.current || contextKey.current !== key) return;
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) {
+          setState({ kind: 'loading', key });
+          denied.current();
+          return;
+        }
+        const message =
+          result.status === 0
+            ? 'Сервер аналитики недоступен. Проверьте соединение.'
+            : 'Не удалось собрать показатели за выбранный период.';
+        setState((current) =>
+          refresh && current.kind === 'ready' && current.key === key
+            ? { ...current, refreshing: false, refreshError: message }
+            : { kind: 'error', key, message },
+        );
+        return;
+      }
+      if (result.data.range !== range) {
+        setState({ kind: 'error', key, message: 'Сервер вернул другой период. Повторите запрос.' });
         return;
       }
       setState({
-        kind: 'error',
-        message:
-          result.status === 0
-            ? 'Сервер аналитики недоступен. Проверьте соединение.'
-            : 'Не удалось собрать показатели за выбранный период.',
+        kind: 'ready',
+        key,
+        dashboard: result.data,
+        refreshing: false,
+        refreshError: null,
       });
-      return;
-    }
-    setState({ kind: 'ready', dashboard: result.data });
-  }, [onAccessDenied, range, scope]);
+    },
+    [range, scopeKind, scopeId, key],
+  );
 
   useEffect(() => {
     void load();
@@ -247,8 +319,13 @@ export function AdminDashboard({
             </button>
           ))}
         </div>
-        <button type="button" className="admin-dashboard-refresh" onClick={() => void load()}>
-          Обновить
+        <button
+          type="button"
+          className="admin-dashboard-refresh"
+          disabled={state.kind === 'ready' && state.refreshing}
+          onClick={() => void load(true)}
+        >
+          {state.kind === 'ready' && state.refreshing ? 'Обновляем…' : 'Обновить'}
         </button>
       </div>
 
@@ -268,7 +345,21 @@ export function AdminDashboard({
           </button>
         </div>
       ) : null}
-      {state.kind === 'ready' ? <DashboardContent dashboard={state.dashboard} /> : null}
+      {state.kind === 'ready' ? (
+        <>
+          {state.refreshing ? (
+            <p role="status">
+              Обновляем показатели. Пока показаны предыдущие данные за выбранный период.
+            </p>
+          ) : null}
+          {state.refreshError ? (
+            <p role="alert">{state.refreshError} Показаны предыдущие данные за выбранный период.</p>
+          ) : null}
+          <div aria-busy={state.refreshing}>
+            <DashboardContent dashboard={state.dashboard} />
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
@@ -282,10 +373,10 @@ function DashboardContent({
   const moduleKeys = Object.keys(MODULE_LABELS) as Array<keyof typeof MODULE_LABELS>;
   const modules = useMemo<ChartSeries[]>(
     () =>
-      moduleKeys.map((moduleKey, index) => ({
+      moduleKeys.map((moduleKey) => ({
         id: moduleKey,
         label: MODULE_LABELS[moduleKey],
-        color: ['#0877b3', '#8257c7', '#d4841c', '#16835f'][index] as string,
+        color: MODULE_COLORS[moduleKey],
         values: dashboard.timeline.map((point) => {
           const source = dashboard.modules.find(
             (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
@@ -314,19 +405,34 @@ function DashboardContent({
       ),
     ),
   }));
+  const activeTime = (keys: readonly (keyof typeof MODULE_LABELS)[]): ChartSeries[] =>
+    keys.map((moduleKey) => ({
+      id: `time-${moduleKey}`,
+      label: MODULE_LABELS[moduleKey],
+      color: MODULE_COLORS[moduleKey],
+      values: dashboard.timeline.map((point) =>
+        Math.round(
+          number(
+            dashboard.modules.find(
+              (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
+            )?.activeSeconds,
+          ) / 60,
+        ),
+      ),
+    }));
 
   return (
     <>
       <div className="admin-dashboard-kpis">
         {[
           ['Новые аккаунты', dashboard.summary.newAccounts],
-          ['Активные', dashboard.summary.activeAccounts],
+          ['Активные аккаунты', dashboard.summary.activeAccounts],
           ['Начатые сессии', dashboard.summary.authenticatedSessions],
           ['Повторные входы', dashboard.summary.successfulLogins],
           ['Отклонено попыток', dashboard.summary.rejectedAuthAttempts],
           ['Незавершённые входы', dashboard.summary.failedLogins],
-          ['Ученики', dashboard.summary.activeStudents],
-          ['Новые ученики', dashboard.summary.newStudents],
+          ['Активные ученические места', dashboard.summary.activeStudents],
+          ['Новые ученические места', dashboard.summary.newStudents],
           ['Разные IP', dashboard.summary.distinctIpAddresses],
           ['Несколько IP', dashboard.summary.accountsWithMultipleIps],
           ['Локальная сеть', dashboard.summary.localNetworkAccounts],
@@ -341,10 +447,16 @@ function DashboardContent({
 
       <div className="admin-dashboard-grid">
         <MultiLineChart
-          title="Использование систем"
+          title="Учебные инструменты — запуски"
           description="Фактические открытия рабочих сред. Повторная загрузка считается новым запуском."
           labels={labels}
-          series={modules}
+          series={modules.filter((item) => LEARNING_MODULES.some((key) => key === item.id))}
+        />
+        <MultiLineChart
+          title="Игры — запуски"
+          description="Фактические открытия шахмат и шашек за выбранный период."
+          labels={labels}
+          series={modules.filter((item) => GAME_MODULES.some((key) => key === item.id))}
         />
         <MultiLineChart
           title="Пользователи и входы"
@@ -353,7 +465,7 @@ function DashboardContent({
           series={[
             {
               id: 'activeAccounts',
-              label: 'Активные',
+              label: 'Активные аккаунты',
               color: '#0877b3',
               values: dashboard.timeline.map((point) => point.activeAccounts),
             },
@@ -378,20 +490,16 @@ function DashboardContent({
           ]}
         />
         <MultiLineChart
-          title="Активное время в системах"
+          title="Учебные инструменты — активное время"
           description="Минуты подтверждённой активности. Долгий простой и скрытая вкладка не засчитываются."
           labels={labels}
-          series={moduleKeys.map((moduleKey, index) => ({
-            id: `time-${moduleKey}`,
-            label: MODULE_LABELS[moduleKey],
-            color: ['#0877b3', '#8257c7', '#d4841c', '#16835f'][index] as string,
-            values: dashboard.timeline.map((point) => {
-              const source = dashboard.modules.find(
-                (entry) => entry.at === point.at && entry.moduleKey === moduleKey,
-              );
-              return Math.round(number(source?.activeSeconds) / 60);
-            }),
-          }))}
+          series={activeTime(LEARNING_MODULES)}
+        />
+        <MultiLineChart
+          title="Игры — активное время"
+          description="Минуты подтверждённой активности в шахматах и шашках; простой не засчитывается."
+          labels={labels}
+          series={activeTime(GAME_MODULES)}
         />
         <MultiLineChart
           title="Способы входа"
@@ -400,13 +508,13 @@ function DashboardContent({
           series={methods}
         />
         <MultiLineChart
-          title="Ученики"
-          description="Ученики по коду класса учитываются отдельно от полноценных аккаунтов."
+          title="Ученические места"
+          description="Активные StudentSeat по коду класса учитываются отдельно от аккаунтов. Эти показатели нельзя складывать как число уникальных людей."
           labels={labels}
           series={[
             {
               id: 'activeStudents',
-              label: 'Активные',
+              label: 'Активные места',
               color: '#0877b3',
               values: dashboard.timeline.map((point) => point.activeStudents),
             },
