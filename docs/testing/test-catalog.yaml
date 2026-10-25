@@ -1152,3 +1152,24 @@ tests:
     timeout_seconds: 300
     owner: admin-auth
     artifacts: [vitest-report, isolated-postgresql-catalog-report]
+
+  - id: TST-ADMIN-HISTORY-UNIT-001
+    title: Typed retained-history validation, success audit and stale-safe lazy UI pagination
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/admin-user-history.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-HISTORY-PG-001
+    title: Retained history beyond fifty records, exact Account Seat separation, scope denial and cursor binding
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/admin-user-history.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-history-report]

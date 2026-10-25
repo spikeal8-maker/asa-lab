@@ -25,6 +25,7 @@ const expectedPending = [
   '0243', // Recover original owned attachments for regenerated responses.
   '0244', // Current-only private per-owner usage journal.
   '0245', // Typed admin catalog and bounded server keyset continuation.
+  '0246', // Read-only retained per-user history.
 ];
 
 interface Identity {

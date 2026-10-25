@@ -1076,6 +1076,36 @@
   font-size: 11px;
 }
 
+.admin-user-history {
+  padding: 10px 15px;
+  min-width: 0;
+}
+
+.admin-user-history section {
+  padding-top: 12px;
+  min-width: 0;
+}
+
+.admin-user-history button,
+.admin-user-history select {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.admin-user-history-list {
+  display: grid;
+  gap: 12px;
+  padding-left: 22px;
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.admin-user-history-list li > * {
+  display: block;
+  margin-top: 4px;
+}
+
 .admin-crm-timeline {
   max-height: 330px;
   overflow-y: auto;

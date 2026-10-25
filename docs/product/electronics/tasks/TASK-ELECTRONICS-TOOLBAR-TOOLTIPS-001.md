@@ -47,7 +47,9 @@ cover first rendered hover/focus, Tab/Enter/Space/Escape, mobile tap/swipe/cance
 scroll clipping, all direct controls and exact activation counts. Test behavior,
 not source substrings. Preserve existing save/runtime state rather than mocking
 new authority. Fresh before/after web build and bundle:check are mandatory; do not
-raise218000 or pull unrelated PR685. Record actual current budget, not an old SHA.
+raise the current checked-in cap or pull unrelated PR685. The fresh baseline
+is221965/222000 bytes;222000 was owner-approved in6b534da6 after the historical
+queue218000 literal. This task does not change the checker or its cap.
 
 Run focused regressions, lint/types/build and declared focused gate. Push one
 bounded candidate only when controller instructs; independently review one final
@@ -60,3 +62,19 @@ Executor returns candidate/evidence/self-review then STOP. Controller integrates
 accepted work, updates703/current.yaml and selects the next free dependency;
 executor must not start L05 or close unrelated branches. Installed and owner
 acceptance remain separate from source/technical proof.
+
+## Controlled unpublished prototype before a budget decision
+
+Native BEFORE and fresh baseline are captured; only35bytes remain. Two genuine
+Stage cleanup proxies offer158/209bytes and cannot establish adequate headroom.
+The controller therefore permits ONE unpublished, minimal correct L03 prototype
+in the isolated worktree to establish its actual functional result and exact byte
+cost. Keep all feature constraints, callbacks and the checked-in cap unchanged.
+No source publication/merge or technical/owner acceptance until the explicit
+budget blocker is resolved by real passing budget proof or an accepted bounded
+prerequisite. A failing bundle check remains FAIL, never waived or relabelled.
+
+Capture native AFTER, focused Header regressions, lint/type/build and actual
+bundle measurement. Do not run knowingly blocked broad CI or change another
+module simply to make room. Return one local candidate/evidence and STOP. This
+makes any necessary owner budget/design choice concrete; it grants no increase.

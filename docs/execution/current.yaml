@@ -12185,9 +12185,10 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: selected_native_before_then_bounded_hover_focus_repair
+      checkpoint: native_before_pass_budget35_unpublished_prototype_only
       owner_acceptance: pending
-      execution_role: bounded_executor_then_new_independent_reviewer
+      execution_role: unpublished_prototype_executor_then_independent_review
+      publication: blocked_pending_actual_budget_safe_candidate
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
         - docs/product/electronics/components/ui-assets-persistence.yaml
@@ -12236,6 +12237,24 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-751-EDITOR-BUDGET
+    kind: acceptance_blocker
+    lane: electronics-owner23-tooltips
+    task_id: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
+    blocks:
+      - source_publication
+      - technical_acceptance
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_unpublished_prototype
+      - native_before_after
+      - focused_regression
+      - budget_measurement
+      - read_only_hygiene_diagnosis
+    reason: Fresh67ecc2de native BEFORE and web build pass at221965/222000 bytes, leaving35 bytes. No adequate room for the complete accessible toolbar feature is established. One unpublished prototype may quantify exact cost without changing the checker/cap or touching other modules; no publishing an over-budget feature.
+    unblock_requires: A fully reviewed L03 candidate that actually passes the existing budget, or an accepted bounded prerequisite establishing enough measured room. Any different cap requires a separate explicit owner decision after concrete evidence; no automatic waiver.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
   - id: PROJECTS-704-SECURITY-ACCEPTANCE
     kind: acceptance_blocker
     lane: projects
