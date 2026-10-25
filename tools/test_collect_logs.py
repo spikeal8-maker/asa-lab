@@ -753,6 +753,53 @@ class CollectorTests(unittest.TestCase):
             with patch('collect_logs.time.time',return_value=10020+RETIRE_SECONDS):c.publish()
             self.assertFalse(file.exists());c.db.close()
 
+    def retired_receipt_fixture(self, root, *, compressed=False, gapped=False):
+        c = Collector(root, {}); c.reader_format = 2 if compressed else 1
+        event = normalize('api', 'retired reference', now(), 'retired-reference')
+        c.add(event)
+        if gapped:
+            c.add(event)
+            c.add(normalize('api', 'second reference', now(), 'second-reference'))
+        c.publish(); c.publish()  # Persist the original bytes+mapping HMAC receipt.
+        catalog_path = c.store/'catalog.json'
+        catalog = json.loads(catalog_path.read_text()); name = catalog['segments'][0]['file']
+        catalog['segments'] = []; catalog_path.write_text(json.dumps(catalog))
+        c.set_state('segments', {}); c.set_state('retired:segments', {name: 1})
+        c.set_state('retired:metadata', {}); c.db.execute('DELETE FROM events'); c.db.commit()
+        c.db.close()
+        return name
+
+    def test_legacy_retirement_recovers_only_authenticated_contiguous_receipt(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); name = self.retired_receipt_fixture(root, compressed=compressed)
+                c = Collector(root, {})
+                try:
+                    self.assertNotIn(name, c.verified_metadata)
+                    c.publish()
+                    self.assertFalse((c.store/name).exists())
+                    self.assertNotIn(name, c.state('retired:segments'))
+                finally: c.db.close()
+
+    def test_legacy_retirement_without_authentic_mapping_fails_before_publication(self):
+        for mode in ('missing', 'forged', 'corrupt', 'gapped'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); name = self.retired_receipt_fixture(root, gapped=mode == 'gapped')
+                c = Collector(root, {})
+                try:
+                    if mode == 'missing': c.db.execute('DELETE FROM segment_verification WHERE name=?', (name,))
+                    elif mode == 'forged': c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64,name))
+                    elif mode == 'corrupt':
+                        file = c.store/name; file.write_bytes(file.read_bytes().replace(b'retired reference', b'corrupt reference'))
+                    c.db.commit()
+                    before = self.history_bytes(c)
+                    c.add(normalize('api', 'fresh must wait', now(), 'fresh-waits'))
+                    with self.assertRaisesRegex(RuntimeError, 'retired segment.*recovery'):
+                        c.publish()
+                    self.assertEqual(self.history_bytes(c), before)
+                    self.assertIn(name, c.state('retired:segments'))
+                finally: c.db.close()
+
     def test_email_redaction_handles_long_identifiers_without_quadratic_delay(self):
         started=time.monotonic()
         for value in ['a'*100000, 'a'*100000+'@invalid', 'a'*100000+'@example.org', 'user.name+tag@example.org']:

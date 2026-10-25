@@ -1226,6 +1226,45 @@ class Collector:
         except (ValueError, KeyError, OSError, EOFError, zlib.error) as exc:
             raise history_error(str(exc)) from exc
 
+    def recover_retired_metadata(self, name):
+        """Recover only a still-authentic receipt with a reconstructible mapping.
+
+        A contiguous filename range plus authenticated count reconstructs the
+        original mapping. Gapped sequences cannot be inferred after retirement.
+        Current bytes alone never establish a new reference checksum.
+        """
+        trusted = self.verified_metadata.get(name)
+        if trusted:
+            self.verify_affected_segment(trusted, mapping=False)
+            return trusted
+        try:
+            receipt = self.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+            if not receipt: raise ValueError('saved verification receipt is missing')
+            meta = json.loads(receipt[1])
+            first,last = map(int, name.split('.')[0].split('-')[1:])
+            if meta['file'] != name or type(meta['count']) is not int or meta['count'] != last-first+1:
+                raise ValueError('original sequence mapping cannot be reconstructed')
+            file = self.store/name
+            if file.stat().st_size > 8*1024*1024: raise ValueError('retired segment exceeds bounded recovery size')
+            digest = hashlib.sha256()
+            with file.open('rb') as stream:
+                while chunk := stream.read(1024*1024): digest.update(chunk)
+            opener = gzip.open if name.endswith('.gz') else open
+            with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
+            if len(raw) != meta['rawBytes'] or not raw.endswith(b'\n') or hashlib.sha256(raw).hexdigest() != meta['sha256']:
+                raise ValueError('retired segment differs from saved checksum')
+            ids = [bytes.fromhex(json.loads(line)['id']) for line in raw.splitlines()]
+            if len(ids) != meta['count'] or any(len(identity) != 32 for identity in ids) or len(set(ids)) != len(ids):
+                raise ValueError('retired segment identities are invalid')
+            mapping = hashlib.sha256()
+            for seq, identity in enumerate(ids, first): mapping.update(str(seq).encode('ascii') + b':' + identity)
+            identity_proof = name + ':' + digest.hexdigest() + ':' + mapping.hexdigest() + ':'
+            proof = hmac.new(self.verification_key, (identity_proof + receipt[1]).encode('utf-8'), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(receipt[0], proof): raise ValueError('saved verification receipt cannot authenticate original ownership')
+            return meta
+        except (ValueError, TypeError, KeyError, OSError, EOFError, zlib.error) as exc:
+            raise history_error(f'retired segment {name} requires verified diagnostic snapshot recovery: {exc}') from exc
+
     def system_metadata(self, meta, cached):
         """Repair classification hints without rewriting immutable segment payloads."""
         if meta['sources'] and self.host_segment(meta):
@@ -1386,6 +1425,14 @@ class Collector:
         self.db.commit()
         retired = self.state("retired:segments", {})
         retired_metadata = self.state('retired:metadata', {})
+        # Resolve every existing legacy retirement before any cleanup or fresh
+        # publication. Unverifiable debt must not disappear behind active quota.
+        for name in retired:
+            if not SEGMENT_PATTERN.fullmatch(name): raise history_error('invalid retired segment name')
+            if name not in retired_metadata and (self.store/name).exists():
+                retired_metadata[name] = self.recover_retired_metadata(name)
+            if name in retired_metadata and retired_metadata[name].get('file') != name:
+                raise history_error('retired segment metadata names a different file')
         catalog_path = self.store / "catalog.json"
         # A previous crash may have committed retirement before replacing the
         # catalog. Never remove a file still named by the published snapshot.
@@ -1398,9 +1445,6 @@ class Collector:
             elif at is None:
                 retired[name] = time.time()
             elif SEGMENT_PATTERN.fullmatch(name) and time.time() - at >= RETIRE_SECONDS:
-                # Legacy retirements lacking a checksum remain preserved until
-                # an explicit maintenance/recovery operation can establish it.
-                if name not in retired_metadata: continue
                 if (self.store/name).exists(): self.verify_affected_segment(retired_metadata[name], mapping=False)
                 (self.store / name).unlink(missing_ok=True)
                 self.db.execute('DELETE FROM segment_verification WHERE name=?', (name,))

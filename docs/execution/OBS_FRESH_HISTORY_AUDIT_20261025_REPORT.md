@@ -64,11 +64,26 @@ was removed. Full startup/recovery/import checks are intentionally unbounded by
 the incremental audit budget. These are explicit residual freshness blockers,
 not permission to weaken disk limits or silently discard records.
 
-Already-retired legacy files without retained checksum metadata are preserved
-instead of deleted without a verifiable reference. New retirements persist their
-checksum metadata and delete normally after reader grace. This can preserve a
-finite pre-existing retired-file debt; `retiredBytes` continues to disclose it.
-Resolving that legacy provenance requires a separate maintenance decision.
+Review repair: already-retired legacy files without retained checksum metadata
+must be resolved before successful publication. The collector may recover a
+reference from its already-verified in-memory metadata, or authenticate the saved
+HMAC receipt against actual compressed bytes, saved metadata and the original
+sequence/identity mapping. The latter can reconstruct only contiguous ranges:
+authenticated record count must equal filename range width. Gapped mappings are
+never guessed. Missing/forged receipts, corruption or unreconstructible mappings
+stop publication with an explicit diagnostic-snapshot recovery error; files and
+catalog remain preserved and normal error health applies. Existing bytes alone
+never establish a new checksum reference. Successful recovery permits the normal
+reader-grace deletion, avoiding permanent hidden retired-file debt. New
+retirements continue to persist their checksum metadata.
+
+The bounded review-repair run executed five affected test methods (12.443 seconds,
+PASS): authentic contiguous receipt recovery for JSONL and gzip; fail-closed
+missing/forged/corrupt/gapped cases; retirement grace; interrupted compaction;
+physical quota and its next publication. No live receipt was read or migrated.
+Whether the four reported live legacy retirements qualify for receipt recovery
+remains unverified; failed authentication requires operator recovery and is a
+rollout blocker, rather than permission to publish with hidden storage debt.
 
 DEPLOYMENT: not run. DATABASE_ACTIONS: temporary diagnostic SQLite fixtures only;
 no application DB or live installation changed. PORTS/DEMO_URLS/SCREENSHOTS: none.
