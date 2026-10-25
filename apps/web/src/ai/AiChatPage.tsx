@@ -383,8 +383,16 @@ export function AiChatPage({
       });
     };
     measure();
+    // Opening the ASA/history sidebar changes the chat width without a window
+    // resize. Observe that container rather than waiting for the next keystroke.
+    const widthTarget = node.closest('.chat-main');
+    const observer = widthTarget ? new ResizeObserver(measure) : null;
+    if (widthTarget) observer?.observe(widthTarget);
     window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
   }, [draft, attachments.length]);
 
   useEffect(() => {
