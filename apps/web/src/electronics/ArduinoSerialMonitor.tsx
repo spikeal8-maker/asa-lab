@@ -5,7 +5,8 @@ export interface ArduinoSerialMonitorProps {
   readonly open: boolean;
   readonly running: boolean;
   readonly boardId: string;
-  readonly serial?: ElectronicsArduinoSerialProjection;
+  readonly serial?:
+    (ElectronicsArduinoSerialProjection & { readonly streamGeneration?: string }) | undefined;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSend: (boardId: string, text: string) => void;
 }
@@ -28,10 +29,12 @@ export function ArduinoSerialMonitor({
 }: ArduinoSerialMonitorProps): JSX.Element {
   const [input, setInput] = useState('');
   const [clearedThroughByBoard, setClearedThroughByBoard] = useState<
-    Readonly<Record<string, number>>
+    Readonly<Record<string, { readonly sequence: number; readonly generation?: string }>>
   >({});
   const outputRef = useRef<HTMLDivElement>(null);
-  const clearedThrough = clearedThroughByBoard[boardId] ?? -1;
+  const mark = clearedThroughByBoard[boardId];
+  const clearedThrough =
+    mark?.generation === serial?.streamGeneration ? (mark?.sequence ?? -1) : -1;
   const visibleTx = useMemo(
     () => (serial?.tx ?? []).filter((entry) => entry.sequence > clearedThrough),
     [clearedThrough, serial?.tx],
@@ -48,8 +51,24 @@ export function ArduinoSerialMonitor({
   function clear(): void {
     const lastSequence = serial?.tx.at(-1)?.sequence;
     if (lastSequence === undefined) return;
-    setClearedThroughByBoard((current) => ({ ...current, [boardId]: lastSequence }));
+    setClearedThroughByBoard((current) => ({
+      ...current,
+      [boardId]: {
+        sequence: lastSequence,
+        ...(serial?.streamGeneration === undefined ? {} : { generation: serial.streamGeneration }),
+      },
+    }));
   }
+
+  useEffect(() => {
+    if (serial?.begun) return;
+    setClearedThroughByBoard((current) => {
+      if (!(boardId in current)) return current;
+      const next = { ...current };
+      delete next[boardId];
+      return next;
+    });
+  }, [boardId, serial?.begun]);
 
   useEffect(() => {
     const output = outputRef.current;

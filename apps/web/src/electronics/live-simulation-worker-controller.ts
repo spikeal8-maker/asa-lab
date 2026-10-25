@@ -250,6 +250,10 @@ export class ElectronicsLiveSimulationWorkerController {
   private firstPositiveObservation = false;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
+  private readonly serialPrograms = new Map<
+    string,
+    { fingerprint: string | undefined; revision: number }
+  >();
 
   constructor(
     private readonly executor: ElectronicsSimulationWorkerExecutor = new ElectronicsSimulationWorkerClient(),
@@ -375,6 +379,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const projectSessionId = this.projectSessionId;
     if (!projectSessionId) return;
     this.canonicalDocument = document;
+    this.serialPrograms.clear();
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.dispatchedDocument = null;
@@ -577,7 +582,31 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     const previouslyCommitted = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     this.timedState = advance.state;
-    this.callbacks?.onSerialProjection?.(advance.serial);
+    // UI-only identity from the accepted MCU state: source text or TX contents
+    // cannot distinguish a reset with identical output from a retained stream.
+    const fingerprints = new Map<string, string>();
+    try {
+      const snapshot = JSON.parse(advance.state.continuation?.serializedState ?? '{}') as {
+        boards?: readonly { componentId: string; runtime?: { programFingerprint?: string } }[];
+      };
+      for (const board of snapshot.boards ?? [])
+        if (typeof board.runtime?.programFingerprint === 'string')
+          fingerprints.set(board.componentId, board.runtime.programFingerprint);
+    } catch {
+      // An absent/invalid optional continuation supplies no program identity.
+      fingerprints.clear();
+    }
+    const serial = advance.serial.map((entry) => {
+      const fingerprint = fingerprints.get(entry.componentId);
+      const previous = this.serialPrograms.get(entry.componentId);
+      const revision = (previous?.revision ?? 0) + (previous?.fingerprint !== fingerprint ? 1 : 0);
+      this.serialPrograms.set(entry.componentId, { fingerprint, revision });
+      return {
+        ...entry,
+        streamGeneration: `${this.projectSessionId}:${generationId}:${revision}`,
+      };
+    });
+    this.callbacks?.onSerialProjection?.(serial);
     this.retimePendingInputsAfterCommitted(
       advance.committedHorizonMicroseconds,
       target.requestedHorizonMicroseconds,
