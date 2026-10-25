@@ -130,11 +130,7 @@ import {
   createVisualFrame,
   translatedDragDocument,
 } from './workbench-drag-preview';
-import {
-  isEditableShortcutTarget,
-  resolveWorkbenchShortcut,
-  targetConsumesSpace,
-} from './workbench-shortcuts';
+import { bindWorkbenchShortcuts, type WorkbenchShortcutActions } from './workbench-shortcuts';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -148,8 +144,6 @@ function compactWorkbench(): boolean {
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
 const WIRE_DRAG_THRESHOLD_PX = 5;
 const DESKTOP_INITIAL_ZOOM = 1.25;
-const KEYBOARD_NUDGE_STEP = 5;
-const KEYBOARD_NUDGE_LARGE_STEP = 20;
 
 function emptyInitialViewport(): Viewport {
   if (compactWorkbench()) return DEFAULT_VIEWPORT;
@@ -3263,33 +3257,26 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     commitDocument(next, 'Положение изменено с клавиатуры.');
   }
 
-  const shortcutActionsRef = useRef<{
-    readonly undo: () => unknown;
-    readonly redo: () => unknown;
-    readonly copy: () => void;
-    readonly paste: () => void;
-    readonly duplicate: () => void;
-    readonly remove: () => void;
-    readonly rotate: () => void;
-    readonly selectAll: () => void;
-    readonly nudge: (dx: number, dy: number) => void;
-    readonly cancel: () => void;
-  } | null>(null);
+  const shortcutActionsRef = useRef<WorkbenchShortcutActions | null>(null);
   shortcutActionsRef.current = {
     undo,
     redo,
     copy: copySelected,
     paste: pasteCopied,
     duplicate: duplicateSelected,
-    remove: removeSelection,
+    delete: removeSelection,
     rotate: rotateSelected,
-    selectAll: () => {
+    mirror: () => mirrorSelected('horizontal'),
+    simulate: () => {
+      if (!busy) void toggleSimulationWithAudio();
+    },
+    'select-all': () => {
       const current = getCurrentDocument();
       const ids = current?.components.map((component) => component.id) ?? [];
       setSelection(ids.length > 0 ? { kind: 'component', id: ids[0]!, ids } : null);
     },
     nudge: nudgeSelection,
-    cancel: () => {
+    escape: () => {
       cancelInteraction();
       setCatalogPlacementState(null);
       setPendingTerminal(null);
@@ -3301,46 +3288,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     },
   };
 
-  useEffect(() => {
-    function keyDown(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space' && !targetConsumesSpace(event.target)) {
-        spacePressedRef.current = true;
-      }
-      if (isEditableShortcutTarget(event.target)) return;
-
-      const command = resolveWorkbenchShortcut(event);
-      const actions = shortcutActionsRef.current;
-      if (!command || !actions) return;
-      if (command !== 'escape') event.preventDefault();
-
-      if (command === 'undo') actions.undo();
-      else if (command === 'redo') actions.redo();
-      else if (command === 'copy') actions.copy();
-      else if (command === 'paste') actions.paste();
-      else if (command === 'duplicate') actions.duplicate();
-      else if (command === 'delete') actions.remove();
-      else if (command === 'rotate') actions.rotate();
-      else if (command === 'select-all') actions.selectAll();
-      else if (command === 'nudge-up')
-        actions.nudge(0, -(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP));
-      else if (command === 'nudge-down')
-        actions.nudge(0, event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP);
-      else if (command === 'nudge-left')
-        actions.nudge(-(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP), 0);
-      else if (command === 'nudge-right')
-        actions.nudge(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP, 0);
-      else if (command === 'escape') actions.cancel();
-    }
-    function keyUp(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space') spacePressedRef.current = false;
-    }
-    window.addEventListener('keydown', keyDown);
-    window.addEventListener('keyup', keyUp);
-    return () => {
-      window.removeEventListener('keydown', keyDown);
-      window.removeEventListener('keyup', keyUp);
-    };
-  }, []);
+  useEffect(() => bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef), []);
 
   const filteredCatalog = useMemo(() => {
     const query = libraryQuery.trim().toLocaleLowerCase('ru');

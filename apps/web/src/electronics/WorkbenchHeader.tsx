@@ -33,6 +33,7 @@ const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
   '#e7a400': 'Жёлтый',
   '#8d45c7': 'Фиолетовый',
 };
+const MIRROR_KEY_HINT = 'Отразить (M)';
 
 function ToolButton({
   label,
@@ -367,6 +368,7 @@ export function WorkbenchHeader({
             </ToolButton>
             <ToolButton
               label="Отразить"
+              title={MIRROR_KEY_HINT}
               onClick={() => c.mirrorSelected('horizontal')}
               disabled={!hasComponentSelection}
             >
@@ -387,6 +389,7 @@ export function WorkbenchHeader({
                 </ToolButton>
                 <ToolButton
                   label="Отразить"
+                  title={MIRROR_KEY_HINT}
                   onClick={() => c.mirrorSelected('horizontal')}
                   disabled={!hasComponentSelection}
                 >
@@ -456,9 +459,9 @@ export function WorkbenchHeader({
             data-simulation-status={c.simulationStatus}
             aria-pressed={c.simulationRunning}
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
-            title={
+            title={`${
               c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
-            }
+            } (Ctrl/⌘+Enter)`}
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}

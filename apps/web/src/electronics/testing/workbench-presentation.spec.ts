@@ -2,6 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
+import {
+  KEYBOARD_NUDGE_STEP,
+  KEYBOARD_NUDGE_LARGE_STEP,
+  resolveWorkbenchShortcut,
+} from '../workbench-shortcuts';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
@@ -408,8 +413,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('{c.simulationRunning ? <StopIcon /> : <PlayIcon />}');
     expect(controllerModuleSource).toContain("useState<ComponentCategory>('all')");
     expect(controllerModuleSource).toContain('DESKTOP_INITIAL_ZOOM = 1.25');
-    expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_STEP = 5');
-    expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_LARGE_STEP = 20');
+    expect(KEYBOARD_NUDGE_STEP).toBe(5);
+    expect(KEYBOARD_NUDGE_LARGE_STEP).toBe(20);
     expect(sidebarSource).toContain('workbench-library-search-toggle');
     expect(workbenchCss).toContain('--wb-library-open-height: calc(156px');
     expect(workbenchCss).toContain('--wb-library-closed-height: calc(18px');
@@ -535,10 +540,13 @@ describe('owner-reference Electronics presentation contract', () => {
     );
 
     // Command shortcuts use physical codes and ignore editable ancestors.
-    expect(controllerSource).toContain('resolveWorkbenchShortcut(event)');
-    expect(controllerSource).toContain('isEditableShortcutTarget(event.target)');
+    expect(controllerSource).toContain(
+      'bindWorkbenchShortcuts(shortcutActionsRef, spacePressedRef)',
+    );
+    expect(shortcutsSource).toContain('resolveWorkbenchShortcut(event)');
+    expect(shortcutsSource).toContain('isEditableShortcutTarget(event.target)');
     expect(controllerSource).not.toContain('event.key.toLowerCase()');
-    expect(shortcutsSource).toContain("event.code === 'KeyC'");
+    expect(resolveWorkbenchShortcut({ code: 'KeyC', ctrlKey: true })).toBe('copy');
     expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
     expect(shortcutsSource).toContain('.monaco-editor textarea');
 
@@ -922,11 +930,11 @@ describe('owner-reference Electronics presentation contract', () => {
       'nextComponentSelection(current, componentId, additive)',
     );
     expect(controllerModuleSource).toContain('selection.ids.length === 1');
-    expect(shortcutsSource).toContain("event.code === 'KeyC'");
-    expect(shortcutsSource).toContain("event.code === 'KeyV'");
-    expect(shortcutsSource).toContain("event.code === 'KeyD'");
-    expect(shortcutsSource).toContain("event.code === 'KeyZ'");
-    expect(shortcutsSource).toContain("event.code === 'KeyY'");
+    expect(resolveWorkbenchShortcut({ code: 'KeyC', ctrlKey: true })).toBe('copy');
+    expect(resolveWorkbenchShortcut({ code: 'KeyV', ctrlKey: true })).toBe('paste');
+    expect(resolveWorkbenchShortcut({ code: 'KeyD', ctrlKey: true })).toBe('duplicate');
+    expect(resolveWorkbenchShortcut({ code: 'KeyZ', ctrlKey: true })).toBe('undo');
+    expect(resolveWorkbenchShortcut({ code: 'KeyY', ctrlKey: true })).toBe('redo');
     expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
     expect(shortcutsSource).toContain('.arduino-source-editor');
     expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'c'");

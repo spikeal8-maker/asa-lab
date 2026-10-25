@@ -40,6 +40,7 @@ components:
     - docs/product/electronics/README.md#8-провода-и-breadboard
     sources:
     - apps/web/src/electronics/use-electronics-workbench.ts
+    - apps/web/src/electronics/workbench-shortcuts.ts
     - apps/web/src/pages/SchematicEditor.tsx
     - apps/web/src/electronics/WorkbenchStage.tsx
     - apps/web/src/electronics/ProductionComponentVisual.tsx
@@ -52,6 +53,8 @@ components:
     - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
+    - apps/web/src/electronics/testing/workbench-shortcuts.spec.ts
+    - apps/web/src/electronics/testing/workbench-keyboard-ui.browser.mjs
     - apps/web/src/electronics/testing/workbench-native-wheel.spec.ts
     - e2e/electronics-native-wheel.spec.ts
     - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
