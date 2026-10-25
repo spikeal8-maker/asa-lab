@@ -260,8 +260,12 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
         'provider',
         'updatedAt',
       ]);
-      expect(slot.keyFingerprint).toMatch(/^[a-f0-9]{12}$/);
+      if (slot.apiKeyConfigured) expect(slot.keyFingerprint).toMatch(/^[a-f0-9]{12}$/);
+      else expect(slot.keyFingerprint).toBeNull();
     }
+    expect(
+      config.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+    ).toMatchObject({ apiKeyConfigured: false, keyFingerprint: null });
     expect(JSON.stringify(config)).not.toContain(credentials.openai);
     expect(JSON.stringify(config)).not.toContain(credentials.deepseek);
     expect(fetchImpl).not.toHaveBeenCalled();
