@@ -57,7 +57,7 @@ tests:
     owner: ai-assistant
     artifacts: [vitest-report, private-storage-reconciliation-report]
   - id: TST-AI-TEXT-CORE-001
-    title: Complete owner history, archive, immutable answer receipts, safe math and forward upgrade
+    title: Complete owner history, immutable answer receipts, provider usage journal, safe math and forward upgrade
     suite: authorization
     level: system
     phase_available: PHASE-12
@@ -67,12 +67,12 @@ tests:
     owner: ai-assistant
     artifacts: [vitest-report, embedded-postgresql-report]
   - id: TST-AI-TEXT-PG-001
-    title: Restricted PostgreSQL owner history, non-refundable regeneration and concurrent admission or archive
+    title: Restricted PostgreSQL owner history, immutable usage journal, non-refundable regeneration and concurrent admission or archive
     suite: authorization
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec vitest run tests/admin/ai-text-history.pg.spec.ts
+    command: pnpm exec vitest run tests/admin/ai-text-history.pg.spec.ts tests/admin/ai-usage-journal.pg.spec.ts
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [vitest-report, postgresql-isolation-report]

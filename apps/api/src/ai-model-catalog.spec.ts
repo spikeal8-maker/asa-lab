@@ -110,7 +110,15 @@ describe('server-owned catalog and provider request policy', () => {
       const context = [{ role: 'user' as const, content: 'Помоги с проектом' }];
       const plain = buildAiTextRequest(provider, model, context, 'Инструкции', false);
       const streamed = buildAiTextRequest(provider, model, context, 'Инструкции', true);
-      expect(streamed).toEqual({ ...plain, body: { ...plain.body, stream: true } });
+      expect(streamed).toEqual({
+        ...plain,
+        body: {
+          ...plain.body,
+          stream: true,
+          ...(provider === 'deepseek' ? { stream_options: { include_usage: true } } : {}),
+        },
+      });
+      expect(plain.body).not.toHaveProperty('stream_options');
       if (provider === 'openai') {
         expect(plain.url).toBe('https://api.openai.com/v1/responses');
         expect(plain.body).toMatchObject({

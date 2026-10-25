@@ -29,6 +29,35 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('bounded diagnostics delivery', () => {
+  it('persists only bounded request metadata and safe cancelled reads', async () => {
+    const disk = storage();
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')));
+    const outbox = new DiagnosticOutbox(disk);
+    const body = {
+      ...event(),
+      code: 'request_cancelled',
+      phase: 'request',
+      method: 'GET',
+      operation: 'auth_me',
+      failureKind: 'cancelled',
+      clientAttemptId: id(7),
+    };
+    outbox.enqueue(body);
+    let n = 2;
+    for (const extra of [
+      { operation: '/api/PRIVATE?token=secret' },
+      { method: 'PRIVATE' },
+      { failureKind: 'PRIVATE' },
+      { clientAttemptId: 'PRIVATE' },
+      { url: 'PRIVATE' },
+      { method: 'PUT' },
+      { failureKind: 'timeout' },
+    ])
+      outbox.enqueue({ ...body, eventId: id(n++), ...extra });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(JSON.parse(disk.getItem())).toEqual([body]);
+    expect(disk.getItem()).not.toMatch(/PRIVATE|token|secret/);
+  });
   it('retains a safe exception through outage and reload, and drops private nested extras', async () => {
     const disk = storage();
     const exception = {

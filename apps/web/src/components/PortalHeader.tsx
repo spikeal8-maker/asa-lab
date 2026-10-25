@@ -622,7 +622,9 @@ export function PortalHeader({
                   <VkBrandGlyph />
                 </span>
                 <span>ASA Lab ВКонтакте</span>
-                <span className="portal-account-vk-external" aria-hidden="true">↗</span>
+                <span className="portal-account-vk-external" aria-hidden="true">
+                  ↗
+                </span>
               </a>
             </div>
 

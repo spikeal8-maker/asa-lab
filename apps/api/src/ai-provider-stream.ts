@@ -5,6 +5,7 @@ import {
   classifyProviderTransportFailure,
 } from './ai-provider-errors.js';
 import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
+import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 export type StreamProvider = 'openai' | 'deepseek';
 
 export class ProviderStreamError extends Error {
@@ -13,6 +14,7 @@ export class ProviderStreamError extends Error {
     readonly status: number,
     message: string,
     readonly partialText: string = '',
+    readonly usage?: AiProviderUsage,
   ) {
     super(message);
     this.name = 'ProviderStreamError';
@@ -33,6 +35,7 @@ interface StreamArgs {
 export interface ProviderStreamResult {
   readonly text: string;
   readonly stopped: boolean;
+  readonly usage?: AiProviderUsage;
 }
 
 const MAX_RESULT_CHARS = 8192;
@@ -90,11 +93,35 @@ export function parseProviderText(
   }
   text = text.trim();
   const bounded = text.slice(0, MAX_RESULT_CHARS);
-  const state = completionState(provider, terminal, bounded);
-  if (!bounded) {
-    throw new ProviderStreamError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
+  const usage = providerUsage(provider, payload);
+  let state: 'complete' | 'stopped';
+  try {
+    state = completionState(provider, terminal, bounded);
+  } catch (error) {
+    if (error instanceof ProviderStreamError)
+      throw new ProviderStreamError(
+        error.code,
+        error.status,
+        error.message,
+        error.partialText,
+        usage,
+      );
+    throw error;
   }
-  return { text: bounded, stopped: state === 'stopped' || text.length >= MAX_RESULT_CHARS };
+  if (!bounded) {
+    throw new ProviderStreamError(
+      'ai_response_empty',
+      503,
+      'Модель не вернула текст ответа.',
+      '',
+      usage,
+    );
+  }
+  return {
+    text: bounded,
+    stopped: state === 'stopped' || text.length >= MAX_RESULT_CHARS,
+    ...(usage ? { usage } : {}),
+  };
 }
 
 function textDelta(event: string, payload: unknown, provider: StreamProvider): string {
@@ -169,6 +196,7 @@ export async function streamProviderText({
   let content = '';
   let finished = false;
   let providerState: 'complete' | 'stopped' | null = null;
+  let usage: AiProviderUsage | undefined;
 
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
@@ -198,6 +226,13 @@ export async function streamProviderText({
     }
     const packetType =
       payload && typeof payload === 'object' ? (payload as { type?: unknown }).type : null;
+    usage = mergeProviderUsage(
+      usage,
+      providerUsage(
+        provider,
+        provider === 'openai' ? (payload as { response?: unknown })?.response : payload,
+      ),
+    );
     if (
       event === 'error' ||
       packetType === 'error' ||
@@ -257,15 +292,16 @@ export async function streamProviderText({
       }
     }
   } catch (error) {
-    if (signal.aborted) return { text: content, stopped: true };
+    if (signal.aborted) return { text: content, stopped: true, ...(usage ? { usage } : {}) };
     if (error instanceof ProviderStreamError) {
-      throw new ProviderStreamError(error.code, error.status, error.message, content);
+      throw new ProviderStreamError(error.code, error.status, error.message, content, usage);
     }
     throw new ProviderStreamError(
       timeout.aborted ? 'ai_provider_timeout' : 'ai_stream_interrupted',
       timeout.aborted ? 504 : 503,
       timeout.aborted ? 'Время ожидания модели истекло.' : 'Поток модели был прерван.',
       content,
+      usage,
     );
   } finally {
     await reader.cancel().catch(() => undefined);
@@ -277,6 +313,7 @@ export async function streamProviderText({
       504,
       'Время ожидания модели истекло.',
       content,
+      usage,
     );
   }
   if (!finished && !signal.aborted && content.length < MAX_RESULT_CHARS) {
@@ -285,13 +322,21 @@ export async function streamProviderText({
       503,
       'Соединение закрыто до завершения ответа модели.',
       content,
+      usage,
     );
   }
   if (!content.trim() && !signal.aborted) {
-    throw new ProviderStreamError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
+    throw new ProviderStreamError(
+      'ai_response_empty',
+      503,
+      'Модель не вернула текст ответа.',
+      '',
+      usage,
+    );
   }
   return {
     text: content,
     stopped: signal.aborted || providerState === 'stopped' || content.length >= MAX_RESULT_CHARS,
+    ...(usage ? { usage } : {}),
   };
 }

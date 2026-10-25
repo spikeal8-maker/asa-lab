@@ -66,7 +66,11 @@ export function safeValidationReason(value: unknown): string | undefined {
 export function diagnosticContext(request: FastifyRequest) {
   const instance = request.headers['x-asa-diagnostic-instance'];
   const module = request.headers['x-asa-diagnostic-module'];
+  const attempt = request.headers['x-asa-client-attempt-id'];
   return {
+    ...(typeof attempt === 'string' && UUID.test(attempt)
+      ? { clientAttemptId: attempt, untrustedClientContext: true }
+      : {}),
     ...(typeof instance === 'string' && UUID.test(instance) ? { instanceId: instance } : {}),
     ...(typeof module === 'string' && MODULES.has(module)
       ? { module, untrustedClientContext: true }
