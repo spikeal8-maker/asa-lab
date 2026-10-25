@@ -1130,6 +1130,15 @@ export function AiChatPage({
             <strong className="chat-sidebar-title">Чаты</strong>
             <div className="chat-sidebar-head-actions">
               <button
+                className="chat-icon-button chat-sidebar-close"
+                type="button"
+                onClick={closeHistory}
+                aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
+                title={desktop ? 'Свернуть историю' : 'Закрыть историю'}
+              >
+                <span aria-hidden="true">{desktop ? '‹' : '×'}</span>
+              </button>
+              <button
                 type="button"
                 className="chat-icon-button chat-search-trigger"
                 ref={searchTrigger}
@@ -1140,15 +1149,6 @@ export function AiChatPage({
                 onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
               >
                 <AiChatIcon name="search" size={20} />
-              </button>
-              <button
-                className="chat-icon-button chat-sidebar-close"
-                type="button"
-                onClick={closeHistory}
-                aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
-                title={desktop ? 'Свернуть историю' : 'Закрыть историю'}
-              >
-                <span aria-hidden="true">{desktop ? '‹' : '×'}</span>
               </button>
               <details className="chat-history-overflow">
                 <summary aria-label="Дополнительно" title="Дополнительно">
