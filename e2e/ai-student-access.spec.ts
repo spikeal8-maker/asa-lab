@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { DIAGNOSTIC_CODES } from '../apps/web/src/client-diagnostic-outbox';
+import {
+  ASSET_SCRIPT,
+  DIAGNOSTIC_CODES,
+  FAILURE_CATEGORIES,
+  FAILURE_CODES,
+} from '../apps/web/src/client-diagnostic-outbox';
+import { exceptionMatchesCode, validClientException } from '../apps/web/src/client-error-details';
 import { validRequestDetails } from '../apps/web/src/request-diagnostic-details';
 import { classId, fixture as classroomFixture } from './fixtures/classroom-owner';
 
@@ -162,6 +168,70 @@ const diagnosticKeys = new Set([
   'failureKind',
 ]);
 const diagnosticUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+const diagnosticPhases = [
+  'startup',
+  'runtime',
+  'request',
+  'refresh',
+  'save',
+  'simulation',
+] as const;
+
+function validDiagnosticPayload(body: unknown, now = Date.now()): boolean {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
+  const report = body as Record<string, unknown>;
+  return (
+    Object.keys(report).every((key) => diagnosticKeys.has(key)) &&
+    DIAGNOSTIC_CODES.includes(report.code as (typeof DIAGNOSTIC_CODES)[number]) &&
+    ['portal', 'scratch', 'electronics', 'auth'].includes(report.module as string) &&
+    typeof report.revision === 'string' &&
+    /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(report.revision) &&
+    typeof report.eventId === 'string' &&
+    diagnosticUuid.test(report.eventId) &&
+    typeof report.occurredAt === 'number' &&
+    Number.isSafeInteger(report.occurredAt) &&
+    report.occurredAt <= now + 60_000 &&
+    report.occurredAt > now - 15 * 60_000 &&
+    validRequestDetails(report) &&
+    ['instanceId', 'relatedRequestId', 'clientAttemptId'].every(
+      (key) =>
+        report[key] === undefined ||
+        (typeof report[key] === 'string' && diagnosticUuid.test(report[key])),
+    ) &&
+    (report.httpStatus === undefined ||
+      (Number.isInteger(report.httpStatus) &&
+        (report.httpStatus as number) >= 100 &&
+        (report.httpStatus as number) <= 599)) &&
+    (report.durationMs === undefined ||
+      (Number.isInteger(report.durationMs) &&
+        (report.durationMs as number) >= 0 &&
+        (report.durationMs as number) <= 600_000)) &&
+    (report.phase === undefined ||
+      diagnosticPhases.includes(report.phase as (typeof diagnosticPhases)[number])) &&
+    (report.category === undefined ||
+      FAILURE_CATEGORIES.includes(report.category as (typeof FAILURE_CATEGORIES)[number])) &&
+    (report.failureCode === undefined ||
+      FAILURE_CODES.includes(report.failureCode as (typeof FAILURE_CODES)[number])) &&
+    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+      report.failureCode as string,
+    ) ||
+      (report.code === 'autosave_failed' &&
+        report.module === 'scratch' &&
+        report.phase === 'save')) &&
+    (report.script === undefined ||
+      (typeof report.script === 'string' && ASSET_SCRIPT.test(report.script))) &&
+    (report.exception === undefined ||
+      (validClientException(report.exception) &&
+        exceptionMatchesCode(report.exception, report.code))) &&
+    ['line', 'column'].every(
+      (key) =>
+        report[key] === undefined ||
+        (Number.isInteger(report[key]) &&
+          (report[key] as number) > 0 &&
+          (report[key] as number) <= 10_000_000),
+    )
+  );
+}
 
 async function acknowledgeValidatedDiagnostics(page: Page) {
   await page.route('**/api/diagnostics/client', async (route) => {
@@ -172,26 +242,44 @@ async function acknowledgeValidatedDiagnostics(page: Page) {
     } catch {
       return route.fallback();
     }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) return route.fallback();
-    const report = body as Record<string, unknown>;
-    if (
-      request.method() !== 'POST' ||
-      Object.keys(report).some((key) => !diagnosticKeys.has(key)) ||
-      !DIAGNOSTIC_CODES.includes(report.code as (typeof DIAGNOSTIC_CODES)[number]) ||
-      !['portal', 'scratch', 'electronics', 'auth'].includes(report.module as string) ||
-      typeof report.revision !== 'string' ||
-      !/^(?:[a-f0-9]{7,64}|unknown|development)$/.test(report.revision) ||
-      !diagnosticUuid.test(report.eventId as string) ||
-      !Number.isSafeInteger(report.occurredAt) ||
-      !validRequestDetails(report) ||
-      ['instanceId', 'relatedRequestId', 'clientAttemptId'].some(
-        (key) => report[key] !== undefined && !diagnosticUuid.test(report[key] as string),
-      )
-    )
-      return route.fallback();
+    if (request.method() !== 'POST' || !validDiagnosticPayload(body)) return route.fallback();
     return route.fulfill({ status: 202, json: { accepted: true } });
   });
 }
+
+test('AI fixture rejects untrusted diagnostics rather than hiding product mutations', () => {
+  const base = {
+    eventId: randomUUID(),
+    occurredAt: Date.now(),
+    code: 'request_failed',
+    module: 'portal',
+    revision: 'development',
+    operation: 'other_api',
+    method: 'GET',
+    failureKind: 'http',
+    phase: 'request',
+    httpStatus: 500,
+  };
+  expect(validDiagnosticPayload(base)).toBe(true);
+  for (const invalid of [
+    { exception: { message: 'private student data' } },
+    { script: 'https://example.invalid/private-student-data.js' },
+    { httpStatus: 999 },
+    { durationMs: -1 },
+    { phase: 'invalid_phase' },
+    { category: 'private_student' },
+    { failureCode: 'unknown_code' },
+    { line: 0 },
+    { column: 10_000_001 },
+    { eventId: [base.eventId] },
+    { message: 'private student data' },
+    { relatedRequestId: 'invalid-id' },
+    { occurredAt: Date.now() + 120_000 },
+    { failureCode: 'scratch-save-draft' },
+  ]) {
+    expect(validDiagnosticPayload({ ...base, ...invalid })).toBe(false);
+  }
+});
 
 async function noOverflow(page: Page) {
   expect(
