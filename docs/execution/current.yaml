@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: owner_selects_loops1_functional_repair_no_refactoring
+      checkpoint: loops1_source_ui_worker_verified_integrated_main
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12456,16 +12456,20 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_loop_semantics_causal_before_then_bounded_repair
+      checkpoint: source_ui_worker_verified_main_installed_owner_pending
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-LOOPS-001.md
       owner_authorization: Explicit owner selects item1 and careful verification of cycles. No refactoring, server or foreign edits; hygienic redistribution deferred by owner. Separate from paused682 CI and wall-clock experiments, no candidate reuse.
+      source_integrated_sha: 93a53c8d96cd7bbd3e7a3a051af00998d0add4b0
+      completed_at: '2026-10-25T19:28:47Z'
+      source_ui_worker_review: NEW independent PASS final93a53c8d. Six independent nested control scope and dangling else cases; budget1 JSON full-state equivalence; actual Chromium Worker replay1440/390 with Run Stop Reset source invalidation ports PASS. Full installed app SaveCAS and owner acceptance separate.
+      focused_evidence: Fresh literal NX_SKIP_NX_CACHE=true gate electronics-m1 PASS982domain plus989web tests;70 Nx executions. Relevant lint format and bundle PASS221984of222000 and1998884of2000000 delta0. Real native Worker equals direct engine; prior4braceprograms x8horizons whole state events fingerprint and oldstate resume byte-equal. Six Blockly legacy roundtrip and generated runtime tests PASS. General40226158182 tracked separately, no full repository release claim.
       scope_overlap_check: All worktrees show zero dirty runtime capabilities and Blockly generator targets at selection. Recheck actual paths before writes; preserve foreign workflows and all saved candidates.
       deployment: prohibited_by_owner
       database_actions: none_live
