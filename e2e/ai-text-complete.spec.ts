@@ -385,13 +385,22 @@ async function fits(page: Page) {
       scroll: document.documentElement.scrollWidth,
       rootLeft: root.getBoundingClientRect().left,
       rootRight: root.getBoundingClientRect().right,
+      expectedLeft:
+        window.innerWidth >= 1024
+          ? document.querySelector('.portal-sidebar')?.classList.contains('collapsed')
+            ? 72
+            : 240
+          : 0,
+      border: getComputedStyle(root).borderTopWidth,
       bottom: form.getBoundingClientRect().bottom,
       viewport: window.visualViewport?.height ?? window.innerHeight,
     };
   });
   expect(bounds.scroll).toBeLessThanOrEqual(bounds.width + 1);
-  expect(bounds.rootLeft).toBeGreaterThanOrEqual(11);
-  expect(bounds.rootRight).toBeLessThanOrEqual(bounds.width - 11);
+  // The full-bleed chat deliberately has no legacy 11px external gutters.
+  expect(Math.abs(bounds.rootLeft - bounds.expectedLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(bounds.rootRight - bounds.width)).toBeLessThanOrEqual(1);
+  expect(bounds.border).toBe('0px');
   expect(bounds.bottom).toBeLessThanOrEqual(bounds.viewport + 1);
   await expect(page.locator('.portal-global-error')).toHaveCount(0);
 }
