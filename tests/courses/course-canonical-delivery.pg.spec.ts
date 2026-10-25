@@ -217,10 +217,10 @@ describe('Э1 existing course → exact versions → runs → inherited particip
     const [excusedRoot, remainingRoot] = runs;
 
     const excused = await tx((c) =>
-      c.query(
-        "SELECT * FROM activity_participation_excuse($1,$2,'Освобождение от практики')",
-        [principal, excusedRoot.participation_id],
-      ),
+      c.query("SELECT * FROM activity_participation_excuse($1,$2,'Освобождение от практики')", [
+        principal,
+        excusedRoot.participation_id,
+      ]),
     );
     expect(excused.rows[0].result_code).toBe('ok');
 
@@ -246,7 +246,7 @@ describe('Э1 existing course → exact versions → runs → inherited particip
         ' (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,' +
         ' seat_id,learner_identity_id,activity_participation_id,attempt_number,state,' +
         ' started_at,submitted_at,evaluated_at)' +
-        " SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id," +
+        ' SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,' +
         " run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,'closed'," +
         " now()-interval '4 minutes',now()-interval '2 minutes',now()-interval '1 minute'" +
         ' FROM activity_runs run JOIN activity_participations part ON part.activity_run_id=run.id' +
