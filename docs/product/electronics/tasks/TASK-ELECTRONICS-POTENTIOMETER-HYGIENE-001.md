@@ -22,6 +22,10 @@ runtime/export/persistence/contract/protection/replacement deletion proof.
 Classify this concern as dead-orphan-candidate until proof is complete. Preserve
 OwnerPotentiometerVisual, ownerSvg, potentiometerRuntimeMarkup, every visible
 control, transforms, hit targets, electrical values and all other component code.
+The narrower variant may retain the empty hidden group, its test marker and
+angle attribute to preserve the historical diagnostic contract while removing
+only its invisible path payloads/constants. Historical518 responsibility evidence
+must remain intact; document how the new proof differs from that earlier review.
 No protected assets, dependencies, lazy chunk relocation, budgets, workflows,
 server, live DB or foreign source change. Unknown deletion dependency means STOP.
 
