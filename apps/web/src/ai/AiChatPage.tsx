@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
+import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
@@ -138,7 +138,6 @@ export function AiChatPage({
     Record<string, readonly AiHistoryAttachment[]>
   >({});
   const fileInput = useRef<HTMLInputElement>(null);
-  const imageInput = useRef<HTMLInputElement>(null);
   const toolsMenu = useRef<HTMLDetailsElement>(null);
   const previewUrls = useRef(new Set<string>());
   const attachmentHistoryScope = useRef<{
@@ -1007,6 +1006,19 @@ export function AiChatPage({
   const currentTitle = currentThread?.title || 'Новый диалог';
   const archived = !!currentThread?.archivedAt;
   const visibleError = error ?? historyError;
+  const schoolPolicyDenied =
+    !!seatId &&
+    !status?.enabled &&
+    !!status?.reason &&
+    [
+      'ai_rating_required',
+      'ai_rating_unavailable',
+      'ai_seat_denied',
+      'ai_teacher_permission_required',
+      'ai_student_denied',
+      'ai_scope_inactive',
+    ].includes(status.reason);
+  const schoolAdmission = schoolPolicyDenied ? aiAdmissionMessage(status?.reason) : null;
   const lastQuestion = [...messages].reverse().find((message) => message.role === 'user');
 
   function openHistory(): void {
@@ -1413,12 +1425,17 @@ export function AiChatPage({
               </div>
             </div>
           )}
-          {visibleError || archived || (!busy && pendingRegeneration) ? (
+          {visibleError || schoolAdmission || archived || (!busy && pendingRegeneration) ? (
             <div
               className={'asa-ai-error' + (visibleError ? '' : ' chat-history-notice')}
               role={visibleError ? 'alert' : 'status'}
             >
-              {visibleError}
+              {visibleError ?? schoolAdmission}
+              {schoolAdmission ? (
+                <button type="button" onClick={() => void refreshAdmission()}>
+                  Проверить доступ
+                </button>
+              ) : null}
               {historyError ? (
                 <button type="button" onClick={() => void refreshThreads()}>
                   Обновить список
@@ -1507,18 +1524,7 @@ export function AiChatPage({
                   onChange={(event) => {
                     addFiles(Array.from(event.currentTarget.files ?? []));
                     event.currentTarget.value = '';
-                  }}
-                />
-                <input
-                  ref={imageInput}
-                  type="file"
-                  multiple
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  aria-label="Выбрать изображения для ИИ"
-                  onChange={(event) => {
-                    addFiles(Array.from(event.currentTarget.files ?? []));
-                    event.currentTarget.value = '';
+                    event.currentTarget.accept = AI_CHAT_FILE_ACCEPT;
                   }}
                 />
                 <textarea
@@ -1538,7 +1544,7 @@ export function AiChatPage({
                   }}
                   rows={1}
                   placeholder="Спросить ASA Lab"
-                  disabled={interactionBusy || archived}
+                  disabled={interactionBusy || archived || schoolPolicyDenied}
                   aria-label="Сообщение ИИ"
                   aria-describedby="ai-composer-note"
                 />
@@ -1551,6 +1557,12 @@ export function AiChatPage({
                     }}
                   >
                     <summary
+                      onClick={() => {
+                        // Set placement before the native <details> default toggle;
+                        // the first opened frame must already fit the canvas.
+                        if (toolsMenu.current && !toolsMenu.current.open)
+                          positionToolsMenu(toolsMenu.current);
+                      }}
                       className="chat-attach-button"
                       aria-label="Инструменты чата"
                       title="Инструменты"
@@ -1563,7 +1575,10 @@ export function AiChatPage({
                         disabled={interactionBusy || archived}
                         onClick={() => {
                           toolsMenu.current?.removeAttribute('open');
-                          imageInput.current?.click();
+                          if (fileInput.current) {
+                            fileInput.current.accept = 'image/png,image/jpeg,image/webp';
+                            fileInput.current.click();
+                          }
                         }}
                       >
                         <AiChatIcon name="image" size={20} /> Добавить изображение
@@ -1573,7 +1588,10 @@ export function AiChatPage({
                         disabled={interactionBusy || archived}
                         onClick={() => {
                           toolsMenu.current?.removeAttribute('open');
-                          fileInput.current?.click();
+                          if (fileInput.current) {
+                            fileInput.current.accept = AI_CHAT_FILE_ACCEPT;
+                            fileInput.current.click();
+                          }
                         }}
                       >
                         <AiChatIcon name="file" size={20} /> Фото и файлы
@@ -1619,7 +1637,9 @@ export function AiChatPage({
                             ? status.model === 'ollama-local'
                               ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
                               : status.model
-                            : 'Модель'}
+                            : schoolPolicyDenied
+                              ? 'Доступ закрыт'
+                              : 'Модель'}
                         </span>
                       )}
                     </div>
