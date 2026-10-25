@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: analog_serial_done_select_urgent_seven_segment_with_independent_ui
+      checkpoint: analog_and_blocks_ui_done_urgent_seven_segment_causal_repair
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12150,9 +12150,8 @@ parallel_lanes:
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
       current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-REPAIR-001
-      parallel_slice: TASK-ELECTRONICS-BLOCK-PRESENTATION-001
-      next_requested_work: Owner urgently reports Servo not rotating; planned bounded causal task765 follows selected raw display764. IndependentUI763 continues its exact final gate without source overlap. Heavy local gates and timing probes must be serialized to avoid resource-contention false timeouts. No paused682 candidate reuse, server or refactoring.
-      parallel_coordination: Latest owner screenshot explicitly requests palette arrow removal plus compact RGB and readable fonts. Read-only cause proof complete. Select independent UI763 concurrently with analog762, separate worktrees and disjoint production files; preserve both bounded scopes, final convergence and exact budget proof. No refactoring or server changes.
+      next_requested_work: Owner urgently reports Servo not rotating; planned bounded causal task765 follows selected raw display764. UI763 and analog762 are source-integrated and independently verified. Heavy local gates and timing probes must be serialized to avoid resource-contention false timeouts. No paused682 candidate reuse, server or refactoring.
+      execution_coordination: Raw display764 owns isolated CPU probes and one later focused gate; completed UI763 and analog762 processes stopped. Preserve exact approved source and unused owner-deferred cleanup/tooltip candidates; no unrelated changes.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12635,16 +12634,21 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'yes'
-      checkpoint: selected_rgb_readability_native_scroll_without_arrow_overlay
+      checkpoint: source_ui_verified_main_rgb_two_rows_native_scroll_no_arrows
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PRESENTATION-001.md
       owner_authorization: Latest owner asks RGB block layout and editor font readability repairs, then explicitly removes custom scroll arrows shown in screenshot. Independent UI slice alongside analog762 to avoid blocking simple visible fixes; no refactoring server or foreign changes.
+      source_qualified_sha: 52998992ee6033fa1782d7e2d3db31805c3e445c
+      source_integrated_sha: 74057c537d17d47dbcbcbc831706af88b49bfb61
+      source_ui_completed_at: '2026-10-25T20:49:58Z'
+      source_ui_review: NEW independent PASS529 plus exact74057integration confirmation all non-doc source bytes identical;52native checks desktop effective100110125 and390320, RGB231x296to355x96 with6slots nestedexpressions legacyIDsUndoCodeunchanged, arrowsremovednativecategoryendscrollretained. Arialmetrics andmonospaceunchanged, textshadowremovedUIlineheightimproved; ownerstyleacceptance separate.
+      focused_evidence: Gateactualexit0 source529 with1042core plus993web2035tests,70freshNx SDKtypebuild and27freshlint, repoformatPASS. BundleSchematic221984of222000 andArduino1998565of2000000. Initial localUI timingfailuresD underconcurrentload resolved by serializedexactrerun withoutcore/timeout changes. No sourceproof or fullreleaseclaim inferred from UI subjectiveappearance.
       scope_overlap_check: All worktrees show zero dirty CodePanel block definitions block UI theme and CSS before selection. Analog762 uses different runtime scheduler ADC Monitor and local simulation controller files, must not edit these four UI paths. Preserve existing categorical scroll and every connection/legacy project.
       deployment: prohibited_by_owner
       database_actions: none_live
