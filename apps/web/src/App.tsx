@@ -85,6 +85,7 @@ const CollectionsPage = lazy(() =>
   import('./pages/CollectionsPage').then((module) => ({ default: module.CollectionsPage })),
 );
 import type { AdminAccessState } from './admin/AdminPage';
+import { adminSessionIdentity, adminProfileMatchesSession } from './admin/admin-session-access';
 import { adminApi } from './admin/admin-api';
 import {
   adminHref,
@@ -305,7 +306,30 @@ export function App(): JSX.Element {
     adminSectionFromLocation(window.location),
   );
   const adminRoute = adminSection !== null;
-  const [adminAccess, setAdminAccess] = useState<AdminAccessState>({ kind: 'idle' });
+  const adminSession = session.kind === 'authenticated' ? session.session : null;
+  const adminIdentity = adminSessionIdentity(adminSession);
+  const adminIdentityRef = useRef(adminIdentity);
+  const adminContextVersion = useRef(0);
+  if (adminIdentityRef.current !== adminIdentity) {
+    adminIdentityRef.current = adminIdentity;
+    adminContextVersion.current += 1;
+  }
+  const adminEpoch = adminContextVersion.current;
+  const [storedAdminAccess, setStoredAdminAccess] = useState<{
+    identity: string | null;
+    epoch: number;
+    access: AdminAccessState;
+  }>({ identity: null, epoch: 0, access: { kind: 'idle' } });
+  const adminAccess: AdminAccessState =
+    storedAdminAccess.identity === adminIdentity && storedAdminAccess.epoch === adminEpoch
+      ? storedAdminAccess.access
+      : { kind: 'checking' };
+  const setAdminAccess = useCallback(
+    (access: AdminAccessState): void => {
+      setStoredAdminAccess({ identity: adminIdentity, epoch: adminEpoch, access });
+    },
+    [adminIdentity, adminEpoch],
+  );
   const [maxVerificationDue, setMaxVerificationDue] = useState(false);
   const adminAccessRequest = useRef(0);
   const maxLaunchData = useRef<string | null>(readMaxInitData());
@@ -472,7 +496,7 @@ export function App(): JSX.Element {
         setAdminAccess({ kind: 'idle' });
         setPublicViewState({ kind: 'entry' });
       }),
-    [],
+    [setAdminAccess],
   );
 
   useEffect(() => {
@@ -520,10 +544,25 @@ export function App(): JSX.Element {
       return;
     }
 
-    setAdminAccess({ kind: 'checking' });
+    setStoredAdminAccess((current) =>
+      current.identity === adminIdentity &&
+      current.epoch === adminEpoch &&
+      current.access.kind === 'granted'
+        ? current
+        : { identity: adminIdentity, epoch: adminEpoch, access: { kind: 'checking' } },
+    );
     const result = await adminApi.me();
-    if (request !== adminAccessRequest.current) return;
+    if (
+      request !== adminAccessRequest.current ||
+      adminIdentityRef.current !== adminIdentity ||
+      adminContextVersion.current !== adminEpoch
+    )
+      return;
     if (result.ok) {
+      if (!adminSession || !adminProfileMatchesSession(result.data, adminSession)) {
+        setAdminAccess({ kind: 'denied' });
+        return;
+      }
       setAdminAccess({ kind: 'granted', profile: result.data });
     } else if (result.status === 401) {
       setSession({ kind: 'anonymous' });
@@ -539,7 +578,16 @@ export function App(): JSX.Element {
             : 'Сервер не смог подтвердить административные права.',
       });
     }
-  }, [accountIdentity, adminSection, platformAdminCapability, sessionKind, verificationRequired]);
+  }, [
+    adminIdentity,
+    adminEpoch,
+    adminSession,
+    adminSection,
+    platformAdminCapability,
+    sessionKind,
+    verificationRequired,
+    setAdminAccess,
+  ]);
 
   useEffect(() => {
     void loadAdminAccess();
@@ -1052,7 +1100,10 @@ export function App(): JSX.Element {
             })
           }
         >
-          <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
+          <div
+            className={`portal-shell${adminRoute ? ' portal-admin-context' : ''}`}
+            data-build-revision={__ASA_BUILD_REVISION__}
+          >
             <a
               className="skip-link"
               href="#main-content"

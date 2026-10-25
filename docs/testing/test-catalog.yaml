@@ -1110,3 +1110,45 @@ tests:
     timeout_seconds: 300
     owner: identity
     artifacts: [playwright-report, games-admission-desktop-screenshot, games-admission-mobile-screenshot]
+
+  - id: TST-ADMIN-OVERVIEW-UNIT-001
+    title: Identity-bound admin access and scope-range-bound dashboard refresh with real readable chart axes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-OVERVIEW-UI-001
+    title: Built admin shell revalidation, revocation, cross-identity isolation and four viewport overview layout
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:settings-ui e2e/admin-dashboard-ui.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [playwright-report, admin-desktop-screenshot, admin-mobile-screenshot]
+
+  - id: TST-ADMIN-CATALOG-UNIT-001
+    title: Closed catalog query validation, read-only timeout boundary and typed stale-safe UI server pagination
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/admin-user-catalog.spec.ts apps/api/src/admin.controller.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-CATALOG-PG-001
+    title: Full Account and Seat server sort and keyset pages, exact scope denial and microsecond cursor proof
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-catalog-report]

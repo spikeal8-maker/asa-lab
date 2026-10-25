@@ -661,3 +661,37 @@ surfaces:
     tests:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
+
+- id: SURF-ADMIN-OVERVIEW
+  routes: ['#/admin', '#/admin/users', '#/admin/history']
+  implementation:
+    files: [apps/web/src/App.tsx, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/admin-session-access.ts, apps/web/src/admin/admin.css]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-REV-001]
+  tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ADMIN-VERIFIED-SHELL
+    label: Preserve only the exact verified identity during background navigation revalidation and discard stale scope or range data
+    change_class: L3_CRITICAL
+    files: [apps/web/src/App.tsx, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/admin-session-access.ts, apps/web/src/admin/AdminDashboard.tsx]
+    invariants: [IDA-AUTH-001, IDA-CTX-001, IDA-REV-001]
+    tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
+  - id: CTRL-ADMIN-OVERVIEW-LAYOUT
+    label: Present readable real time-axis points and separate learning and game usage with accessible local scrolling
+    change_class: L1_UI_BEHAVIOR
+    files: [apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/admin.css]
+    invariants: [IDA-SCOPE-001, IDA-CTX-001]
+    tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-ADMIN-USER-CATALOG
+  routes: [/api/admin/v1/users, '#/admin/users']
+  implementation:
+    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/admin-api.ts, apps/web/src/admin/admin.css]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
+  tests: [TST-ADMIN-CATALOG-UNIT-001, TST-ADMIN-CATALOG-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ADMIN-TYPED-CATALOG
+    label: Read distinct Account and Seat identities using server-scoped filters and query-bound keyset pages without inventing organization class authority
+    change_class: L3_CRITICAL
+    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminPage.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
+    tests: [TST-ADMIN-CATALOG-UNIT-001, TST-ADMIN-CATALOG-PG-001, TST-ADMIN-OVERVIEW-UI-001]

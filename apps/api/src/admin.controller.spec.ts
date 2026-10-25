@@ -59,6 +59,12 @@ function controller(options: {
       if (options.directoryFailure) throw options.directoryFailure;
       return { items: [], next: null };
     }),
+    listUsers: vi.fn(async () => ({
+      items: [],
+      next: null,
+      studentCoverage: { state: 'complete' },
+      asOf: '2026-10-25T12:00:00.123456Z',
+    })),
     accountCrm: vi.fn(async (_access, input) => ({ accountId: input.targetAccountId })),
     addAccountNote: vi.fn(async () => ({ id: '60000000-0000-4000-8000-000000000001' })),
     setAccountIpLabel: vi.fn(async () => ({ id: '70000000-0000-4000-8000-000000000001' })),
@@ -113,6 +119,78 @@ function controller(options: {
     maxAuth,
   };
 }
+
+it('validates the unified catalog query without coercing duplicate keys and forwards only canonical admin access', async () => {
+  const scope: ResolvedAdminAccess['scopes'][number] = {
+    kind: 'platform',
+    id: null,
+    title: 'ASA Lab',
+    role: 'platform_admin',
+    permissions: ['administration.open', 'administration.accounts.read'],
+  };
+  const target = controller({ context: CONTEXT, access: access([scope]) });
+  await target.value.users(
+    request(),
+    'platform',
+    undefined,
+    'query',
+    'students',
+    'active',
+    'name',
+    'asc',
+    '50',
+    undefined,
+  );
+  expect(target.controlPlane.listUsers).toHaveBeenCalledWith(
+    expect.objectContaining({
+      subject: expect.objectContaining({ principalId: CONTEXT.principalId }),
+    }),
+    expect.objectContaining({
+      scope: { kind: 'platform', id: null },
+      search: 'query',
+      kind: 'students',
+      status: 'active',
+      sort: 'name',
+      direction: 'asc',
+      limit: 50,
+      cursor: null,
+    }),
+  );
+  for (const position of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+    const args: unknown[] = [
+      request(),
+      'platform',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ];
+    args[position] = ['duplicate'];
+    await expect(
+      target.value.users(...(args as unknown as Parameters<AdminController['users']>)),
+    ).rejects.toMatchObject({ status: 400 });
+  }
+  expect(target.controlPlane.listUsers).toHaveBeenCalledTimes(1);
+  const denied = controller({ context: CONTEXT, access: access() });
+  await expect(
+    denied.value.users(
+      request(),
+      'platform',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+});
 
 const SCHOOL_ADMIN_SCOPE: ResolvedAdminAccess['scopes'][number] = {
   kind: 'organization',
