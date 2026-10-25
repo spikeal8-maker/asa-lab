@@ -10,7 +10,9 @@ export type AiChatIconName =
   | 'refresh'
   | 'sidebar'
   | 'file'
-  | 'archive';
+  | 'archive'
+  | 'moon'
+  | 'sun';
 
 const paths: Record<AiChatIconName, ReactNode> = {
   attachment: (
@@ -65,6 +67,13 @@ const paths: Record<AiChatIconName, ReactNode> = {
     <>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
       <path d="M14 2v6h6M8 13h8M8 17h8" />
+    </>
+  ),
+  moon: <path d="M20.6 15.4A8.7 8.7 0 0 1 8.6 3.4 8.8 8.8 0 1 0 20.6 15.4Z" />,
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
     </>
   ),
   archive: (
