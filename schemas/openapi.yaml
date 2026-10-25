@@ -1555,6 +1555,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/analytics/v2/acquisition:
+    post:
+      operationId: observeOptionalCampaignClaim
+      description: Independent optional authenticated current-document UTM slugs. Browser claims are not proven registration sources. No raw URLs, anonymous stitching or canonical visit changes. Observations visible for 90 days; digest-only receipts retained separately for 97 days. Per subject/context daily limit 32, bounded cleanup 100 rows per intake.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './acquisition-observation.schema.json' }
+      responses:
+        '200':
+          {
+            description: Exact persisted acquisition receipt,
+            including eventId,
+            receiptId,
+            operation and timestamps,
+          }
+        '400': { description: Invalid slug/envelope or subject daily limit }
+        '401': { description: No current authenticated actor }
+        '403': { description: Current canonical context denied }
+        '409': { description: Actor context or immutable receipt binding conflict }
+        '429': { description: Bounded delivery capacity exhausted }
+        '503': { description: Optional persistence unavailable }
   /api/analytics/v2/events:
     post:
       operationId: observeProductVisit

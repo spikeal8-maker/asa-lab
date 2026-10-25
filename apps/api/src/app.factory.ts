@@ -18,6 +18,7 @@ import { SeatContextUseCase } from './seat-context.js';
 import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { AnalyticsDeliveryQueue } from './analytics-delivery-queue.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
 import {
   runSessionDatabaseScope,
@@ -59,13 +60,13 @@ import {
  *
  * This is the one rule here that cannot be taken back: a file served as
  * immutable stays in a visitor's browser for a year, and no server-side fix
- * reaches it. So the permission is granted by filename shape — Vite's
- * `name-hash.ext` — and never by directory. `dist/assets/` also holds
+ * reaches it. So the permission is granted by filename shape вЂ” Vite's
+ * `name-hash.ext` вЂ” and never by directory. `dist/assets/` also holds
  * owner-supplied electronics artwork copied verbatim from `public/`, which has
  * no hash and must stay revalidated.
  */
 // The hash segment may not itself contain a hyphen. Allowing one lets an
-// ordinary descriptive name qualify — `noto-sans-symbols-2-v25-symbols.woff2`
+// ordinary descriptive name qualify вЂ” `noto-sans-symbols-2-v25-symbols.woff2`
 // matched before this was tightened. A build hash that happens to contain a
 // hyphen simply falls back to revalidation, which is the safe direction to err.
 const HASHED_ASSET = /-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$/;
@@ -148,8 +149,8 @@ function applyCacheControl(reply: FastifyReply, filePath: string): void {
 /**
  * An API with no request log and no metrics is indistinguishable from a healthy
  * one while it is failing. Logging stays on by default and quiet under the test
- * runner; the line carries technical fields only — no query string, no body, no
- * headers — because identifiers travel in those.
+ * runner; the line carries technical fields only вЂ” no query string, no body, no
+ * headers вЂ” because identifiers travel in those.
  */
 function shouldLogRequests(explicit: boolean | undefined): boolean {
   if (explicit !== undefined) return explicit;
@@ -163,6 +164,8 @@ export interface ApiFactoryOptions {
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
   readonly analyticsPool?: pg.Pool | null;
+  /** Independent optional intake; injected compositions default disabled rather than sharing critical pools. */
+  readonly acquisitionPool?: pg.Pool | null;
   /** Directory with the built web SPA; defaults to apps/web/dist. */
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
@@ -242,12 +245,18 @@ export async function createApiApp(
   let createdApp: NestFastifyApplication | undefined;
   let metrics: ReturnType<typeof createRuntimeMetrics> | undefined;
   let analytics: ProductAnalyticsService | undefined;
+  let acquisition: ProductAnalyticsService | undefined;
   let cleanupPromise: Promise<void> | undefined;
   const cleanup = (): Promise<void> =>
     (cleanupPromise ??= (async () => {
       const errors: unknown[] = [];
       try {
         if (analytics) await boundedClose(() => analytics!.shutdown(), 6000);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        if (acquisition) await boundedClose(() => acquisition!.shutdown(), 6000);
       } catch (error) {
         errors.push(error);
       }
@@ -278,10 +287,31 @@ export async function createApiApp(
               })
             : null;
     owned.track(analyticsPool, 'analytics');
+    const acquisitionPool =
+      options.acquisitionPool !== undefined
+        ? options.acquisitionPool
+        : options.pool !== undefined || options.analyticsPool === null
+          ? null
+          : process.env['APP_DATABASE_URL']
+            ? new pg.Pool({
+                connectionString: process.env['APP_DATABASE_URL'],
+                ...analyticsPoolSettings(),
+              })
+            : null;
+    owned.track(acquisitionPool, 'acquisition');
+    if (!pool && acquisitionPool) throw new Error('acquisition_requires_main_database');
     assertTrustedProxyConfiguration();
     if (!pool && analyticsPool) throw new Error('analytics_requires_main_database');
     metrics = createRuntimeMetrics();
     analytics = new ProductAnalyticsService(analyticsPool);
+    acquisition = new ProductAnalyticsService(
+      acquisitionPool,
+      new AnalyticsDeliveryQueue(acquisitionPool !== null, Date.now, (value) => {
+        process.stdout.write(
+          `${JSON.stringify({ ...value, pipeline: 'acquisition-observations' })}\n`,
+        );
+      }),
+    );
     const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
     const allowedLocalApiOrigin = resolveLocalApiOrigin(
       options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
@@ -300,6 +330,7 @@ export async function createApiApp(
     const app = await NestFactory.create<NestFastifyApplication>(
       AppModule.forPool(pool, {
         productAnalytics: analytics,
+        acquisitionAnalytics: acquisition,
         runtimeMetrics: metrics,
         ...(options.authProviderOptions
           ? { authProviderOptions: options.authProviderOptions }
@@ -472,7 +503,8 @@ export async function createApiApp(
         return reply.code(409).send({
           error: {
             code: 'session_conflict',
-            message: 'Обнаружены два разных входа. Выйдите и войдите заново.',
+            message:
+              'РћР±РЅР°СЂСѓР¶РµРЅС‹ РґРІР° СЂР°Р·РЅС‹С… РІС…РѕРґР°. Р’С‹Р№РґРёС‚Рµ Рё РІРѕР№РґРёС‚Рµ Р·Р°РЅРѕРІРѕ.',
           },
         });
       }
@@ -536,7 +568,8 @@ export async function createApiApp(
           return reply.code(429).send({
             error: {
               code: 'too_many_requests',
-              message: 'Слишком много запросов. Подождите и попробуйте снова.',
+              message:
+                'РЎР»РёС€РєРѕРј РјРЅРѕРіРѕ Р·Р°РїСЂРѕСЃРѕРІ. РџРѕРґРѕР¶РґРёС‚Рµ Рё РїРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.',
               retryAfterSeconds: abuse.retryAfterSeconds,
             },
           });

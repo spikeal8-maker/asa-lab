@@ -42,6 +42,7 @@ export const TOKENS = {
   refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
   productAnalytics: 'PRODUCT_ANALYTICS',
+  acquisitionAnalytics: 'ACQUISITION_ANALYTICS',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

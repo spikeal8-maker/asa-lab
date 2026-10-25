@@ -130,6 +130,7 @@ export class AppModule {
     pool: pg.Pool | null,
     options: {
       productAnalytics?: ProductAnalyticsService;
+      acquisitionAnalytics?: ProductAnalyticsService;
       runtimeMetrics?: RuntimeMetrics;
       authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
     } = {},
@@ -273,6 +274,10 @@ export class AppModule {
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },
         { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
+        {
+          provide: TOKENS.acquisitionAnalytics,
+          useValue: options.acquisitionAnalytics ?? new ProductAnalyticsService(null),
+        },
         {
           provide: TOKENS.refreshSessionService,
           useFactory: () => new RefreshSessionService(requirePool()),

@@ -306,3 +306,54 @@ describe('product analytics writer', () => {
     ]);
   });
 });
+
+it('writes independent acquisition claims with exact authenticated actor values and confirmed receipts', async () => {
+  const eventId = '50000000-0000-4000-8000-000000000001';
+  const receivedAt = '2026-10-25T10:00:00Z';
+  const receipt = {
+    accepted: true,
+    state: 'persisted',
+    schemaVersion: 2,
+    eventId,
+    receiptId: eventId,
+    operation: 'acquisition.observed',
+    receivedAt,
+    persistedAt: receivedAt,
+  };
+  const query = vi.fn<AnalyticsQuery>(async () => ({ rows: [{ receipt }] }));
+  const service = new ProductAnalyticsService(
+    { query } as unknown as pg.Pool,
+    new AnalyticsDeliveryQueue(true, Date.now, () => undefined),
+  );
+  const semantic = { source: 'school', medium: null, campaign: null };
+  await expect(
+    service.persistAcquisition(
+      eventId,
+      { kind: 'account', context: CONTEXT },
+      semantic,
+      receivedAt,
+    ),
+  ).resolves.toEqual(receipt);
+  expect(query.mock.calls[0]![0]).toContain('analytics_acquisition_ingest');
+  expect(query.mock.calls[0]![1]).toEqual([
+    eventId,
+    'account',
+    CONTEXT.accountId,
+    CONTEXT.principalId,
+    null,
+    CONTEXT.workspaceId,
+    null,
+    JSON.stringify(semantic),
+    receivedAt,
+  ]);
+  query.mockResolvedValueOnce({ rows: [{ receipt: { ...receipt, operation: 'visit.observed' } }] });
+  await expect(
+    service.persistAcquisition(
+      eventId,
+      { kind: 'account', context: CONTEXT },
+      semantic,
+      receivedAt,
+    ),
+  ).rejects.toMatchObject({ code: 'telemetry_unavailable' });
+  await service.shutdown();
+});

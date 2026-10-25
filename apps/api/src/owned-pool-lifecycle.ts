@@ -58,7 +58,7 @@ function poolErrorCode(error: unknown, fallback: string): string {
 export class OwnedPools {
   private readonly pools = new Map<pg.Pool, { role: string; listener?: (error: Error) => void }>();
   private closing: Promise<void> | undefined;
-  track(pool: pg.Pool | null, role: 'main' | 'analytics'): void {
+  track(pool: pg.Pool | null, role: 'main' | 'analytics' | 'acquisition'): void {
     if (!pool || this.pools.has(pool)) return;
     const record: { role: string; listener?: (error: Error) => void } = { role };
     if (typeof pool.on === 'function') {

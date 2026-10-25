@@ -1,6 +1,7 @@
 import { newClientId } from './client-id';
 import { finalizeInputActivitiesForPageHide } from './activity-lifecycle';
 import { AnalyticsDelivery, browserAnalytics } from './analytics-delivery';
+import { observeCurrentAcquisition } from './acquisition-observation';
 import {
   actorKey,
   record,
@@ -32,6 +33,8 @@ function clearProductObservation(): void {
   observationTimer = undefined;
 }
 function update(context: TelemetryContext): void {
+  // Optional campaign claims have their own queue and never change canonical visit envelopes.
+  observeCurrentAcquisition(context.ready ? context.actor : null);
   if (proof && !sameTelemetryBinding(proof.context)) proof.controller.abort();
   if (productObservation && !sameTelemetryBinding(productObservation.context))
     clearProductObservation();

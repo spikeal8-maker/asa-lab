@@ -31,6 +31,7 @@ const expectedPending = [
   '0249', // Filtered CRM aggregates/export and explicit organization class binding.
   '0250', // Exact Seat retained detail and immutable educational notes.
   '0251', // Scoped organization and exact-class responsibilities.
+  '0252', // Optional scoped campaign observations and factual catalog projections.
 ];
 
 interface Identity {

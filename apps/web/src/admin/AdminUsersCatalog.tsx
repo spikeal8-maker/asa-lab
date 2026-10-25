@@ -45,6 +45,25 @@ function deviceDescription(user: AdminCatalogUser) {
   ].filter(Boolean);
   return structured.join(' · ') || user.lastDevice || 'Устройство не зафиксировано';
 }
+function AcquisitionObservation({ user }: { user: AdminCatalogUser }) {
+  const observed = user.acquisitionLatest;
+  return (
+    <p className="crm-acquisition-observation">
+      <strong>Метки браузера за 90 дней: </strong>
+      {observed ? (
+        <>
+          source: {observed.source ?? 'неизвестно'} · medium: {observed.medium ?? 'неизвестно'} ·
+          campaign: {observed.campaign ?? 'неизвестно'}
+          <small>Последнее наблюдение: {date(observed.observedAt)}</small>
+        </>
+      ) : observed === null ? (
+        'нет доступных наблюдений'
+      ) : (
+        'сведения недоступны'
+      )}
+    </p>
+  );
+}
 export function AdminUsersCatalog({
   scope,
   actorId,
@@ -428,7 +447,7 @@ export function AdminUsersCatalog({
               onAccessDenied={onAccessDenied}
             />
             <label>
-              <span>Период ИИ</span>
+              <span>Период событий и ИИ</span>
               <select
                 value={filters.days ?? '30'}
                 onChange={(e) => setFilter('days', e.target.value)}
@@ -533,6 +552,7 @@ export function AdminUsersCatalog({
               user.kind === 'account' && user.account ? (
                 <div key={user.actorKey} className="admin-catalog-account">
                   {renderAccount(user)}
+                  <AcquisitionObservation user={user} />
                   {scope.kind === 'organization' ? (
                     <CrmResponsibilities
                       key={responsibilityKey}
@@ -581,6 +601,7 @@ export function AdminUsersCatalog({
                       {!user.principalId ? <small>Идентификатор входа ещё не создан</small> : null}
                     </span>
                   </div>
+                  <AcquisitionObservation user={user} />
                   {scope.kind === 'platform' || user.classId ? (
                     <CrmUserCardLauncher
                       key={responsibilityKey}
@@ -610,7 +631,8 @@ export function AdminUsersCatalog({
           <p className="admin-catalog-note">
             Показано записей: {state.page.items.length}. События за 30 дней до{' '}
             {date(state.page.asOf)}. Порядок активности основан на событиях и начале сессии;
-            последняя связь показывается отдельно.
+            последняя связь показывается отдельно. Метки браузера не доказывают источник
+            регистрации; наблюдения старше 90 дней недоступны.
           </p>
           {state.moreError ? (
             <p role="alert" className="admin-inline-error">

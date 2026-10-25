@@ -139,6 +139,11 @@ const upgradeArtifacts = [
     '0251_crm_responsibilities.sql',
     'b25d2cc12e0f75ee98a90d8e574ad38d9b66eb213b01add1c5341f831130a094',
   ],
+  [
+    '0252', // Optional scoped campaign observations and factual catalog projections.
+    '0252_crm_acquisition_observations.sql',
+    '312cd8ef0aee33c8834a2d7a3032a2c3e3ae7a908a4782c7af971469d13a61b5',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

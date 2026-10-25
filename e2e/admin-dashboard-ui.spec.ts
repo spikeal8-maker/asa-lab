@@ -397,6 +397,15 @@ async function fixture(page: Page) {
           ? {
               ...catalog,
               matchedCount: 61,
+              items: catalog.items.map((item) => ({
+                ...item,
+                acquisitionLatest: {
+                  source: 'school',
+                  medium: 'email',
+                  campaign: 'autumn-2026',
+                  observedAt: '2026-10-25T10:00:00Z',
+                },
+              })),
               analytics: {
                 accounts: 31,
                 students: 30,
@@ -407,7 +416,7 @@ async function fixture(page: Page) {
                 activeObserved: 12,
                 aiRequests: 4,
                 aiTokenCovered: 2,
-                aiInputTokens: '12',
+                aiInputTokens: '90071992547409931234567890',
                 aiOutputTokens: null,
                 periodDays: Number(url.searchParams.get('days') ?? 30),
                 roles: { learner: 30, creator: 10 },
@@ -416,11 +425,25 @@ async function fixture(page: Page) {
                 devices: { desktop: 12, unknown: 49 },
                 ageGroups: { unknown: 30, '18–34': 31 },
                 loginMethods: { password: 12 },
-                daily: Array.from({ length: 30 }, (_, i) => ({
-                  date: `2026-09-${String(i + 1).padStart(2, '0')}`,
-                  events: i,
-                  registrations: 1,
-                })),
+                registrationMethods: { password: 3, max: 1 },
+                acquisition: {
+                  retentionDays: 90,
+                  status: 'collecting_current_document',
+                  observedRecords: 2,
+                  unknownRecords: 59,
+                  observations: 2,
+                  sources: { school: 2 },
+                  mediums: { email: 2 },
+                  campaigns: { 'autumn-2026': 2 },
+                },
+                daily: Array.from(
+                  { length: Number(url.searchParams.get('days') ?? 30) },
+                  (_, i) => ({
+                    date: new Date(Date.UTC(2026, 6, 1 + i)).toISOString().slice(0, 10),
+                    events: i,
+                    registrations: 1,
+                  }),
+                ),
               },
             }
           : catalog,
@@ -957,16 +980,48 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(csv).toContain('Строка 60');
     expect(csv.split('\r\n')).toHaveLength(62);
     expect(f.exportQueries().at(-1)?.get('classId')).toBe('40000000-0000-4000-8000-000000000001');
-    await page.getByText('Аналитика выбранных записей', { exact: true }).click();
-    await expect(page.getByText('Это не число уникальных людей.', { exact: false })).toBeVisible();
+    const analytics = page.getByRole('region', {
+      name: 'Аналитика выбранных записей',
+      exact: true,
+    });
+    // A named section without an explicit role is exposed as a region.
+    await expect(analytics).toBeVisible();
+    await expect(analytics).toContainText('это не число уникальных людей');
+    const events = analytics.getByRole('group', {
+      name: 'Сохранённые события по дням UTC',
+      exact: true,
+    });
+    const records = analytics.getByRole('group', {
+      name: 'Создано аккаунтов и ученических мест по дням UTC',
+      exact: true,
+    });
+    await expect(events).toBeVisible();
+    await expect(records).toBeVisible();
+    await expect(events.locator('circle')).toHaveCount(30);
+    await page
+      .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
+      .selectOption('90');
+    await expect(events.locator('circle')).toHaveCount(90);
+    await expect(records.locator('circle')).toHaveCount(90);
+    await events.locator('circle').nth(10).focus();
+    await expect(analytics.locator('.crm-analytics-chart-value').last()).toContainText('UTC: 10');
+    await page.keyboard.press('Tab');
+    await expect(analytics.locator('.crm-analytics-chart-value').last()).toContainText('UTC: 11');
+    await page
+      .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
+      .selectOption('7');
+    await expect(events.locator('circle')).toHaveCount(7);
+    await page
+      .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
+      .selectOption('30');
+    await expect(events.locator('circle')).toHaveCount(30);
+    await analytics.getByText('Наблюдения источников и кампаний', { exact: true }).click();
+    await expect(analytics).toContainText('Хранение: 90 дней');
     await expect(
-      page.getByRole('img', {
-        name: 'Сохранённые события по дням; точные значения в таблице ниже',
-      }),
+      page.getByText('Метки браузера за 90 дней:', { exact: false }).first(),
     ).toBeVisible();
     await noPageOverflow(page);
-    if (width === 1440 || width === 390)
-      await page.screenshot({ path: `${evidence}/crm-directory-${width}.png`, fullPage: true });
+    await page.screenshot({ path: `${evidence}/crm-directory-${width}.png`, fullPage: true });
     await page.getByText('Связь классов с организациями', { exact: true }).click();
     await page.getByRole('button', { name: 'Найти классы и организации', exact: true }).click();
     const manager = page.locator('.crm-directory-bindings');
