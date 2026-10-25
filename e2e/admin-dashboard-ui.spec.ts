@@ -45,6 +45,18 @@ async function fixture(page: Page) {
     }
     const reply = (data: unknown, status = 200) => route.fulfill({ json: data, status });
     const path = url.pathname;
+    if (path.startsWith('/api/crm/v1/responsibilities/')) {
+      const [, , , , , kind, scope, target] = path.split('/');
+      return reply({
+        kind,
+        scopeId: scope,
+        targetId: target,
+        role: 'member',
+        state: route.request().method() === 'PUT' ? route.request().postDataJSON().state : 'active',
+        version: 'a'.repeat(64),
+        allowedRoles: kind === 'classroom' ? ['co_teacher'] : ['member', 'educator'],
+      });
+    }
     if (path.startsWith('/api/crm/v1/users/')) {
       const kind = path.includes('/student/') ? 'student' : 'account';
       if (path.endsWith('/email') || path.endsWith('/email/cancel'))
@@ -62,6 +74,34 @@ async function fixture(page: Page) {
           },
         });
 
+      if (path.endsWith('/detail') || path.endsWith('/notes')) {
+        const category = url.searchParams.get('category');
+        const notes = category === 'notes' || path.endsWith('/notes');
+        return reply({
+          items: notes
+            ? [
+                {
+                  id: OTHER,
+                  key: `note:${OTHER}`,
+                  text: 'Сохранённая учебная заметка',
+                  occurredAt: '2026-10-25T10:00:00Z',
+                },
+              ]
+            : [
+                {
+                  id: OTHER,
+                  key: `version:${OTHER}`,
+                  type: 'version',
+                  title: 'Сохранённая работа ученика',
+                  projectId: OTHER,
+                  revision: 2,
+                  occurredAt: '2026-10-25T10:00:00Z',
+                },
+              ],
+          next: null,
+          version: 'a'.repeat(64),
+        });
+      }
       if (path.endsWith('/profile'))
         return crmConflict
           ? reply(
@@ -117,7 +157,7 @@ async function fixture(page: Page) {
           title: 'Полная учебная работа по электронике',
           module: 'electronics',
           revision: 3,
-          source: 'draft',
+          source: url.searchParams.has('versionId') ? 'saved_version' : 'draft',
           updatedAt: '2026-10-25T10:00:00Z',
           document: { circuit: 'Полное сохранённое содержимое' },
         });
@@ -550,6 +590,22 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
     ).toContainText('Текущий адрес: profile@example.test');
+    const responsibilities = account.getByRole('region', {
+      name: 'Ответственность и доступ',
+      exact: true,
+    });
+    await responsibilities
+      .getByRole('textbox', { name: 'Код области (если её нет в списке)', exact: true })
+      .fill(WORKSPACE);
+    await responsibilities.getByRole('button', { name: 'Загрузить доступ', exact: true }).click();
+    await responsibilities
+      .getByRole('combobox', { name: 'Роль', exact: true })
+      .selectOption('educator');
+    await responsibilities
+      .getByRole('textbox', { name: 'Причина изменения', exact: true })
+      .fill('Назначение ответственности');
+    await responsibilities.getByRole('button', { name: 'Назначить', exact: true }).click();
+    await expect(responsibilities.getByRole('status')).toContainText('Доступ сохранён');
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/crm-access-${width}.png`, fullPage: true });
@@ -587,6 +643,25 @@ for (const width of [1440, 1024, 390, 320]) {
         .getByRole('region', { name: 'Полная карточка пользователя', exact: true })
         .getByText('11 лет', { exact: true }),
     ).toBeVisible();
+    await student.getByRole('button', { name: 'Заметки', exact: true }).click();
+    await expect(
+      student.getByRole('region', { name: 'Учебные заметки', exact: true }),
+    ).toContainText('Сохранённая учебная заметка');
+    await student
+      .getByRole('textbox', { name: 'Новая учебная заметка', exact: true })
+      .fill('Проверенная учебная заметка');
+    await student
+      .getByRole('textbox', { name: 'Причина добавления', exact: true })
+      .fill('Учебное наблюдение');
+    await student.getByRole('button', { name: 'Добавить заметку', exact: true }).click();
+    await student.getByRole('button', { name: 'Публикации и история', exact: true }).click();
+    await expect(student.getByText('Сохранённая работа ученика', { exact: false })).toBeVisible();
+    await student.getByRole('button', { name: 'Просмотр сохранённой версии', exact: true }).click();
+    await expect(
+      student.getByRole('button', { name: 'Скачать документ JSON', exact: true }),
+    ).toBeVisible();
+    await expect(student.locator('details[open]')).toHaveCount(0);
+    await noPageOverflow(page);
     await student.getByRole('button', { name: 'Безопасность и доступ', exact: true }).click();
     await expect(
       student.getByRole('button', { name: 'Приостановить доступ ученика', exact: true }),
@@ -881,7 +956,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(student.getByRole('textbox', { name: 'Имя', exact: true })).toBeDisabled();
     await expect(
       student.getByRole('button', { name: 'Публикации и история', exact: true }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await student.getByRole('button', { name: 'Безопасность и доступ', exact: true }).click();
     await expect(
       student.getByRole('button', { name: 'Приостановить доступ ученика', exact: true }),
@@ -892,3 +967,31 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
   });
 }
+
+test('catalog CSV cancellation blocks a late download', async ({ page }) => {
+  const f = await fixture(page);
+  f.catalog(true);
+  let finish!: () => Promise<void>;
+  await page.route('**/api/admin/v1/users-export?*', async (route) => {
+    await new Promise<void>((resolve) => {
+      finish = async () => {
+        resolve();
+      };
+    });
+    await route.fulfill({ json: { csv: 'late', count: 1 } }).catch(() => {});
+  });
+  await page.goto('/#/admin/users');
+  await page.getByRole('button', { name: 'Скачать все результаты (CSV)', exact: true }).click();
+  await page.getByRole('button', { name: 'Отменить выгрузку', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Скачать все результаты (CSV)', exact: true }),
+  ).toBeEnabled();
+  let downloads = 0;
+  page.on('download', () => {
+    downloads++;
+  });
+  await expect.poll(() => typeof finish).toBe('function');
+  await finish();
+  await expect(page.getByText('CSV: до 10 000 записей', { exact: false })).toBeVisible();
+  expect(downloads).toBe(0);
+});

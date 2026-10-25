@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
-import { CrmUserCard } from '../CrmUserCard';
+import { CrmUserCard, CrmDocumentView } from '../CrmUserCard';
 import { crmApi, type CrmContentPage } from '../crm-user-api';
 import { crmProfileFixture, CRM_ID } from './crm-user.fixture';
 let host: HTMLDivElement, root: Root;
@@ -199,4 +199,27 @@ it('does not restore a card from an older profile refresh after content access i
   expect(denied).toHaveBeenCalled();
   expect(host.textContent).not.toContain('OLD PRIVATE PROFILE');
   expect(host.querySelector('nav')).toBeNull();
+});
+
+it('never displays a latest snapshot as a saved version and keeps document data behind disclosure', async () => {
+  await act(async () =>
+    root.render(
+      createElement(CrmDocumentView, {
+        value: {
+          projectId: CRM_ID,
+          title: 'Версия',
+          module: 'electronics',
+          revision: 2,
+          source: 'saved_version',
+          updatedAt: '2026-10-25T10:00:00Z',
+          document: { components: [{ id: 'one' }] },
+          preview: { dataUrl: 'data:image/png;base64,latest', revision: 99 },
+        },
+      }),
+    ),
+  );
+  expect(host.querySelector('img')).toBeNull();
+  expect(host.querySelector('details')!.open).toBe(false);
+  expect(host.textContent).toContain('1 элементов');
+  expect(host.textContent).toContain('Скачать документ JSON');
 });

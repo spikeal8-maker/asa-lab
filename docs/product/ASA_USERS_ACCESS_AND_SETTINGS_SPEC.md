@@ -1505,3 +1505,37 @@ timeLimit; reconnect/reload возобновляет ту же Attempt. Закр
 Четыре области и единая авторская библиотека определены в Integrated V1.5 §21.
 Знания — discovery тех же published roots, включая задания, тесты и программирование;
 это не параллельная база авторства. Старые accepted receipts не переводятся на 2.2.
+
+
+#### CRM scoped operations — owner-authorized completion 25.10.2026
+
+CRM organization responsibility commands operate only on organization workspaces.
+Platform administrators may manage supported organization memberships, including
+owner, with last-active-owner and last-active-administrator protection. An active
+organization owner may manage non-owner memberships (member, educator,
+school_admin, billing_admin, moderator), but cannot alter an existing owner. An
+active school_admin may manage only member/educator memberships and cannot modify
+administrative memberships or promote itself. Existing legacy student memberships
+remain visible and read-only; these commands never grant student status or convert
+Account and Seat identities. Membership commands serialize the organization,
+recheck the current server actor, require expected version and reason, and audit
+before/after. Organization management exposes scoped membership data, never a
+person's private Account projects, correspondence or unrelated memberships.
+
+Platform CRM may explicitly assign/revoke an eligible Account as co_teacher of an
+exact class. This preserves the canonical educator eligibility, active Account,
+five-colleague limit and legacy tenant user/link requirements. The primary owner
+is never reassigned by this command. Membership changes grant no global teacher
+role and do not merge identities.
+
+Seat CRM notes are append-only educational observations with an expected note-list
+version, reason and audit. Exact-class teachers and explicitly bound organization
+managers use the same fresh crm_subject_allowed authorization for notes and the
+new retained-history reader. Retained history follows exact Seat/class project
+ownership, saved versions, publication revisions and Seat AI receipts; it never
+follows a linked personal Account. The legacy metadata-only Account history API
+retains its original scope behavior. Saved project versions never display a newer
+snapshot as their historical image. Read-only inspection offers saved metadata,
+available preview, on-demand JSON and JSON download without editor grants or code
+execution. CSV cancellation ends client waiting/download; server limits remain
+10,000 records, 16 MiB and eight seconds per query.

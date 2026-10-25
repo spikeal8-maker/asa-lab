@@ -706,7 +706,7 @@ export const adminApi = {
       if (value) query.set(key, value);
     return call<AdminCatalogPage>(`/api/admin/v1/users?${query.toString()}`);
   },
-  exportUsers: (input: AdminCatalogInput) => {
+  exportUsers: (input: AdminCatalogInput, signal?: AbortSignal) => {
     const query = new URLSearchParams({
       scopeKind: input.scope.kind,
       search: input.search,
@@ -718,7 +718,10 @@ export const adminApi = {
     if (input.scope.id) query.set('scopeId', input.scope.id);
     for (const [key, value] of Object.entries(input.filters ?? {}))
       if (value) query.set(key, value);
-    return call<{ csv: string; count: number }>(`/api/admin/v1/users-export?${query}`);
+    return call<{ csv: string; count: number }>(
+      `/api/admin/v1/users-export?${query}`,
+      signal ? { signal } : {},
+    );
   },
   catalogFilterOptions: (scope: Pick<AdminScope, 'kind' | 'id'>, search: string) => {
     const query = new URLSearchParams({ scopeKind: scope.kind, search });

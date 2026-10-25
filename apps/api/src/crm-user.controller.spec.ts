@@ -60,3 +60,56 @@ it('requires canonical Account session, returns SQL denial without data and dest
     controller.content(request, 'student', ID, undefined, 'messages', ['duplicate']),
   ).rejects.toMatchObject({ status: 400 });
 });
+it('validates exact Seat detail category/class and serializes note continuation after SQL', async () => {
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.startsWith('SELECT crm_')
+      ? [{ value: { items: [], next: { v: 1, last: { id: ID } } } }]
+      : [],
+  }));
+  const controller = new CrmUserController(
+    { resolve: vi.fn(async () => ({ principalId: ID })) } as unknown as ActiveContextUseCase,
+    { connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+  );
+  const request = {
+    cookies: { asa_session: 'test' },
+    id: 'request',
+    headers: { origin: 'https://asa.test', host: 'asa.test', 'content-type': 'application/json' },
+  } as unknown as FastifyRequest;
+  for (const [classroom, category, cursor] of [
+    [undefined, 'notes', undefined],
+    [ID, 'secrets', undefined],
+    [ID, 'notes', ['duplicate']],
+  ])
+    await expect(
+      controller.seatDetail(request, ID, classroom, category, cursor),
+    ).rejects.toMatchObject({ status: 400 });
+  const value = await controller.seatDetail(request, ID, ID, 'notes', undefined);
+  expect(typeof value.next).toBe('string');
+  expect(query.mock.calls.some(([sql]) => sql.startsWith('SELECT crm_seat_notes_page'))).toBe(true);
+  await expect(
+    controller.seatNote(request, ID, {
+      classroomId: ID,
+      version: 'a'.repeat(64),
+      text: 'Observe',
+      reason: 'Classroom note',
+      accountId: ID,
+    }),
+  ).rejects.toMatchObject({ status: 400 });
+  await expect(
+    controller.seatNote(
+      {
+        ...request,
+        headers: { ...request.headers, origin: 'https://foreign.test' },
+      } as FastifyRequest,
+      ID,
+      { classroomId: ID, version: 'a'.repeat(64), text: 'Observe', reason: 'Classroom note' },
+    ),
+  ).rejects.toMatchObject({ status: 403 });
+  await controller.seatNote(request, ID, {
+    classroomId: ID,
+    version: 'a'.repeat(64),
+    text: 'Observe',
+    reason: 'Classroom note',
+  });
+  expect(query.mock.calls.some(([sql]) => sql.startsWith('SELECT crm_seat_note_add'))).toBe(true);
+});
