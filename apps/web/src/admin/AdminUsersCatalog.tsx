@@ -3,6 +3,7 @@ import { CatalogScopeFilters } from './CatalogScopeFilters';
 import { CatalogAnalytics } from './CatalogAnalytics';
 import { OrganizationClassBindings } from './OrganizationClassBindings';
 import './crm-directory.css';
+import { adminScopeResponsibilityKey } from './admin-model';
 import { AdminUserHistoryPanel } from './AdminUserHistory';
 import { CrmUserCardLauncher } from './CrmUserCard';
 import {
@@ -75,10 +76,12 @@ export function AdminUsersCatalog({
   }, []);
   const scopeKind = scope.kind,
     scopeId = scope.id;
+  const responsibilityKey = adminScopeResponsibilityKey(scope);
   const key = JSON.stringify([
     actorId,
     scopeKind,
     scopeId,
+    responsibilityKey,
     search,
     kind,
     status,
@@ -533,6 +536,7 @@ export function AdminUsersCatalog({
                   </div>
                   {scope.kind === 'platform' || user.classId ? (
                     <CrmUserCardLauncher
+                      key={responsibilityKey}
                       history={
                         scope.kind === 'platform' ? (
                           <AdminUserHistoryPanel

@@ -2,6 +2,8 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
+import { crmApi } from '../crm-user-api';
+import { crmProfileFixture } from './crm-user.fixture';
 import { AdminUsersCatalog } from '../AdminUsersCatalog';
 import {
   adminApi,
@@ -315,4 +317,83 @@ it('downloads the server full filtered CSV once and ignores an export completing
   );
   expect(create).toHaveBeenCalledTimes(1);
   expect(exportApi.mock.calls.at(-1)?.[0].cursor).toBeNull();
+});
+
+it('replaces a ready Seat card when same-scope responsibilities change and ignores late old detail', async () => {
+  const seat = catalogUserFixture('student');
+  const ready = { ok: true as const, status: 200, data: catalogPageFixture([seat]) };
+  const users = vi.spyOn(adminApi, 'users').mockResolvedValue(ready);
+  let oldProfile!: (value: Awaited<ReturnType<typeof crmApi.profile>>) => void;
+  const profile = vi
+    .spyOn(crmApi, 'profile')
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { ...crmProfileFixture('student'), name: 'Old privileged detail' },
+    })
+    .mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          oldProfile = r;
+        }),
+    )
+    .mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        ...crmProfileFixture('student'),
+        name: 'Current scoped detail',
+        canEdit: false,
+        canManageCapabilities: false,
+      },
+    });
+  const privileged: AdminScope = {
+    ...scope,
+    kind: 'organization',
+    id: 'same-school',
+    role: 'owner',
+    permissions: ['administration.accounts.read', 'administration.accounts.manage'],
+  };
+  await show(privileged);
+  await button('Полная карточка пользователя');
+  expect((host.querySelector('.crm-full-form input') as HTMLInputElement).value).toBe(
+    'Old privileged detail',
+  );
+  await button('Обновить карточку'); // Old responsibility still has a read in flight.
+  const downgraded: AdminScope = { ...privileged, role: 'school_admin' };
+  await show(downgraded); // Same actor, scope ID and ready catalog rows.
+  expect(host.querySelector('.crm-full-card')).toBeNull();
+  await act(async () =>
+    oldProfile({
+      ok: true,
+      status: 200,
+      data: { ...crmProfileFixture('student'), name: 'LATE OLD PRIVATE DATA' },
+    }),
+  );
+  expect(host.textContent).not.toContain('LATE OLD PRIVATE DATA');
+  await button('Полная карточка пользователя');
+  expect((host.querySelector('.crm-full-form input') as HTMLInputElement).value).toBe(
+    'Current scoped detail',
+  );
+  await button('Безопасность и доступ');
+  expect(host.querySelector('.crm-full-reason')).toBeNull();
+  expect(host.textContent).not.toContain('Приостановить доступ ученика');
+  const card = host.querySelector('.crm-full-card');
+  const before = users.mock.calls.length;
+  await show({ ...downgraded, permissions: [...downgraded.permissions].reverse() });
+  expect(users).toHaveBeenCalledTimes(before);
+  expect(host.querySelector('.crm-full-card')).toBe(card); // Ordering alone is not a grant change.
+  let newPage!: (value: AdminApiResult<AdminCatalogPage>) => void;
+  users.mockImplementationOnce(
+    () =>
+      new Promise((r) => {
+        newPage = r;
+      }),
+  );
+  await show({ ...downgraded, permissions: ['administration.accounts.read'] });
+  expect(host.querySelector('.crm-full-card')).toBeNull();
+  expect(host.querySelector('[data-actor-key]')).toBeNull(); // Scrub before a new page arrives.
+  await act(async () => newPage(ready));
+  expect(host.querySelector('.crm-full-card')).toBeNull();
+  expect(profile).toHaveBeenCalledTimes(3);
 });

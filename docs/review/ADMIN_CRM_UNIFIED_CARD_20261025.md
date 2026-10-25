@@ -49,3 +49,18 @@ selected backend/product work rather than client permission claims.
 
 Independent review and exact-SHA GitHub browser/type/data evidence are pending.
 This slice is implemented and locally checked, not deployed or owner-accepted.
+
+## Bounded review repair: responsibility downgrade isolation
+
+Independent source review identified a retained Seat card when the actor and scope
+ID stayed unchanged while server-issued role/permissions changed. Catalog criteria
+and the Seat launcher now include the same canonical responsibility key used by
+Account cards. Permission order is normalized by sorting a deduplicated copy.
+Changing responsibility immediately hides old rows, invalidates old page responses,
+and remounts any retained Seat profile/content before the next ready result.
+
+A ready-to-ready Seat regression covers a role change, a late privileged profile
+response, read-only replacement detail, stable permission reordering and a separate
+permission-only downgrade while the next page is pending. Focused repair evidence:
+12 catalog + 3 Account panel tests PASS (15 total), no result cache; formatting and
+`git diff --check` clean. No other suites, local browser, DB or deployment rerun.

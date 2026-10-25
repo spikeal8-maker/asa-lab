@@ -24,7 +24,13 @@ import {
   type AdminIpLabelKind,
   type AdminNetworkKind,
 } from './admin-api';
-import { adminActionLabel, adminResultLabel, adminRoleLabel, adminScopeLabel } from './admin-model';
+import {
+  adminActionLabel,
+  adminResultLabel,
+  adminRoleLabel,
+  adminScopeLabel,
+  adminScopeResponsibilityKey,
+} from './admin-model';
 import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from './AdminDashboard';
 import { AdminUsersCatalog } from './AdminUsersCatalog';
 import { AdminUserHistoryPanel } from './AdminUserHistory';
@@ -704,7 +710,7 @@ function IpLabelEditor({
 export function UserCrmPanel(props: Parameters<typeof UserCrmPanelBody>[0]): JSX.Element {
   return (
     <UserCrmPanelBody
-      key={`${props.account.accountId}:${props.scope.kind}:${props.scope.id}:${props.scope.role}:${props.scope.permissions.join(',')}`}
+      key={`${props.account.accountId}:${adminScopeResponsibilityKey(props.scope)}`}
       {...props}
     />
   );
