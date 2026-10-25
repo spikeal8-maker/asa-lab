@@ -341,6 +341,17 @@
   z-index: 10;
 }
 
+/* The empty-state dock has its own more specific z-index rule further below.
+ * Raise the *whole* overlay above theme/new-chat utilities for a native tap,
+ * and let the first tap outside dismiss it rather than activating a tool. */
+.asa-ai-layout .asa-ai-chat.is-empty .chat-composer-dock:has(.chat-tools-menu[open]) {
+  z-index: 12;
+}
+.asa-ai-layout .chat-main:has(.chat-tools-menu[open]) .chat-utility-strip,
+.asa-ai-layout .chat-main:has(.chat-tools-menu[open]) .chat-utility-strip > button {
+  pointer-events: none;
+}
+
 .asa-ai-layout .chat-tools-menu[data-menu-placement='below'] .chat-tools-popup {
   top: calc(100% + 8px);
   bottom: auto;
