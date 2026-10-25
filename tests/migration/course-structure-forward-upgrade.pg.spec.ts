@@ -112,6 +112,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0239', // Optional LAN Ollama with independent local admission.
         '0240', // Function-local JIT for canonical Teacher Home projection.
         '0241', // Native MAX external-only registration preserves canonical account bootstrap.
+        '0242', // Local Ollama atomic attachment binding leaves Courses history unchanged.
+        '0243', // Source attachment recovery for answer variants is additive.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -383,6 +385,8 @@ describe('Course Builder structure forward upgrade', () => {
           '0239', // Optional LAN Ollama with independent local admission.
           '0240', // Function-local JIT for canonical Teacher Home projection.
           '0241', // Native MAX external-only registration preserves canonical account bootstrap.
+          '0242', // Independent local model attachment binding.
+          '0243', // Immutable source attachment recovery.
         ]);
         expect(
           await applyIsolatedTestPlan(

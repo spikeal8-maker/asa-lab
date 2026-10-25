@@ -15,6 +15,7 @@ export interface OllamaSettings {
 export interface OllamaModel {
   readonly name: string;
   readonly size: number;
+  readonly capabilities?: readonly string[];
 }
 export class OllamaError extends Error {
   constructor(
@@ -164,10 +165,57 @@ export async function discoverOllama(
   });
 }
 
+/** Capabilities are verified from Ollama itself, never inferred from a model name. */
+export async function describeOllamaModel(
+  baseUrl: string,
+  model: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<readonly string[]> {
+  const origin = ollamaBaseUrl(baseUrl);
+  if (!validOllamaModel(model))
+    throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
+  let response: Response;
+  try {
+    response = await fetchImpl(origin + '/api/show', {
+      method: 'POST',
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+  } catch {
+    throw new OllamaError(
+      'ai_ollama_capability_unknown',
+      503,
+      'Не удалось подтвердить возможности модели в Ollama.',
+    );
+  }
+  if (!response.ok) throw failure(response.status);
+  const detail = await limitedJson(response);
+  if (
+    !detail ||
+    typeof detail !== 'object' ||
+    !Array.isArray((detail as { capabilities?: unknown }).capabilities)
+  )
+    throw new OllamaError(
+      'ai_ollama_capability_unknown',
+      503,
+      'Ollama не сообщила достоверные возможности модели.',
+    );
+  return (detail as { capabilities: unknown[] }).capabilities
+    .filter(
+      (capability): capability is string =>
+        typeof capability === 'string' && capability.length > 0 && capability.length <= 40,
+    )
+    .slice(0, 32);
+}
+
 export interface OllamaStreamArgs {
   readonly baseUrl: string;
   readonly model: string;
   readonly context: readonly { role: 'user' | 'assistant'; content: string }[];
+  /** Already owner-verified, integrity-checked and bounded base64 images. */
+  readonly images?: readonly string[];
   readonly instructions: string;
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
@@ -191,7 +239,15 @@ export async function streamOllamaText(
       headers: { 'content-type': 'application/json', accept: 'application/x-ndjson' },
       body: JSON.stringify({
         model: args.model,
-        messages: [{ role: 'system', content: args.instructions }, ...args.context],
+        messages: [
+          { role: 'system', content: args.instructions },
+          ...args.context.map((item, index) => ({
+            ...item,
+            ...(index === args.context.length - 1 && item.role === 'user' && args.images?.length
+              ? { images: args.images }
+              : {}),
+          })),
+        ],
         stream: true,
         // Donor IZO_ASA also disables thinking for short school-facing inference.
         // Some reasoning models otherwise spend the token/time budget without visible text.

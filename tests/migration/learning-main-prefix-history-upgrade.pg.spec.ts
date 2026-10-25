@@ -89,6 +89,16 @@ const upgradeArtifacts = [
     '0241_max_external_only_registration.sql',
     '859c003111fafed508271fff05205aafe63cb15edc030986e27fc90ed8191e85',
   ],
+  [
+    '0242',
+    '0242_ai_attachment_local_binding.sql',
+    '742ad7fbb6ccb137b1f0cc06fc965e84f12d2156d32bf9bebcc6805353412cc4',
+  ],
+  [
+    '0243',
+    '0243_ai_attachment_regeneration_context.sql',
+    '8b7cb925dea3402fe2242648c725aac0a90a4e2274fa13bab5ce73011121a8c9',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

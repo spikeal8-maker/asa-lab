@@ -157,9 +157,9 @@ export class AppModule {
       maxAuthService,
       telegramAuthService,
     ]);
-    const aiChatService = new AiChatService(requirePool());
-    const aiAccessService = new AiAccessService(requirePool());
     const aiAttachmentService = new AiAttachmentService(pool);
+    const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService });
+    const aiAccessService = new AiAccessService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
       new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);

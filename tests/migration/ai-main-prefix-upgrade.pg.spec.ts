@@ -21,6 +21,8 @@ const expectedPending = [
   '0239', // Optional LAN Ollama; preserve older published migrations.
   '0240', // Courses Teacher Home: function-local JIT only.
   '0241', // Native MAX external-only registration preserves canonical account bootstrap.
+  '0242', // Local Ollama binds immutable attachments without paid quota.
+  '0243', // Recover original owned attachments for regenerated responses.
 ];
 
 interface Identity {
