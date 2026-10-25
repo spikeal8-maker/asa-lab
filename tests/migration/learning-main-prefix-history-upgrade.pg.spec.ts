@@ -104,6 +104,11 @@ const upgradeArtifacts = [
     '0244_ai_usage_journal.sql',
     '8a1a8956cbc39d0623f1f72f635cf4d2ac2a7f3937aad3e8a580f16167c5da92',
   ],
+  [
+    '0245',
+    '0245_learning_mixed_course_completion.sql',
+    '0b9a958ecd190cfd19f82fc5e6c9dabeeb9508f4d2de18214768b250f0c9bf38',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
