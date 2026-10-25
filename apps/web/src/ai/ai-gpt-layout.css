@@ -386,6 +386,40 @@
   font-size: 25px;
 }
 
+/* One line initially, two rows only when text wraps or files are attached. */
+.asa-ai-layout .chat-composer.compact {
+  grid-template-columns: 40px minmax(0, 1fr) max-content;
+  grid-template-rows: minmax(44px, auto);
+  grid-template-areas: 'tools input trailing';
+  gap: 4px;
+  min-height: 58px;
+  padding: 5px 9px;
+  border-radius: 32px;
+}
+.asa-ai-layout .chat-composer.compact .chat-composer-controls {
+  display: contents;
+}
+.asa-ai-layout .chat-composer.compact .chat-tools-menu {
+  grid-area: tools;
+}
+.asa-ai-layout .chat-composer.compact .chat-composer-end {
+  grid-area: trailing;
+  flex: 0 0 auto;
+}
+.asa-ai-layout .chat-composer.compact textarea {
+  grid-area: input;
+  min-height: 30px;
+  max-height: 44px;
+  padding: 4px 0;
+}
+.asa-ai-layout .chat-composer.compact .chat-attachment-drafts {
+  display: none;
+}
+.asa-ai-layout .chat-attach-button:focus-visible {
+  outline: 2px solid var(--ai-accent);
+  outline-offset: 2px;
+}
+
 /* The same composer moves, rather than creating another fake greeting screen. */
 .asa-ai-layout .asa-ai-chat.is-empty .chat-composer-dock {
   position: absolute;
