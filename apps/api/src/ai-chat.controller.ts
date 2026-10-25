@@ -466,9 +466,15 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
-        attachmentIds,
-        webSearchMode,
-        weatherCity,
+        ...((webSearchMode !== undefined || weatherCity !== undefined
+          ? ([attachmentIds, webSearchMode, weatherCity] as const)
+          : attachmentIds.length
+            ? ([attachmentIds] as const)
+            : []) as [
+          attachmentIds?: readonly string[],
+          webSearchMode?: AiWebSearchMode,
+          weatherCity?: string,
+        ]),
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
@@ -512,14 +518,17 @@ export class AiChatController {
     if (typeof body['requestId'] !== 'string' || !UUID.test(body['requestId'])) {
       return reject('ai_request_id_invalid', 'Нужен уникальный идентификатор отправки.', 400);
     }
+    const webSearchMode = this.internetMode(body);
+    const weatherCity = this.weatherCity(body);
     return this.safe(() =>
       this.ai.send(
         account.principalId,
         threadId,
         body['message'] as string,
         (body['requestId'] as string).toLowerCase(),
-        this.internetMode(body),
-        this.weatherCity(body),
+        ...((webSearchMode !== undefined || weatherCity !== undefined
+          ? ([webSearchMode, weatherCity] as const)
+          : []) as [AiWebSearchMode?, string?]),
       ),
     );
   }
