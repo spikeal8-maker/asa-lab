@@ -162,8 +162,10 @@
   max-width: 100%;
   overflow-wrap: anywhere;
 }
-.email-public-card {
+.login-card.email-public-card {
+  width: calc(100% - 32px);
   max-width: 520px;
+  min-height: 0;
   box-sizing: border-box;
   margin: 32px auto;
   padding: 28px;
@@ -191,8 +193,8 @@
   .mail-actions > * {
     flex: 1 1 100%;
   }
-  .email-public-card {
-    margin: 16px;
+  .login-card.email-public-card {
+    margin: 16px auto;
     padding: 20px;
   }
   .confirmation-tabs button {

@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { api } from '../../api';
+import { EmailVerification } from '../../components/EmailVerification';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
@@ -121,4 +123,26 @@ it('erases the email fragment before rendering and consumes the proof only on an
   expect(confirm).toHaveBeenCalledExactlyOnceWith(token);
   expect(host.textContent).toContain('Войдите заново с новой почтой');
   expect(host.textContent).not.toContain(token);
+});
+
+it('uses parent-owned email readiness without starting another global verification request', async () => {
+  const check = vi.spyOn(api, 'accountVerification');
+  vi.spyOn(emailApi, 'status').mockResolvedValue(
+    ok({ accountId: 'current', email: 'own@example.test', verified: false, pending: null }),
+  );
+  await act(async () =>
+    root.render(createElement(EmailVerification, { accountId: 'current', available: true })),
+  );
+  const send = () =>
+    [...host.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Подтвердить почту по письму',
+    ) as HTMLButtonElement;
+  expect(send().disabled).toBe(false);
+  expect(check).not.toHaveBeenCalled();
+  await act(async () =>
+    root.render(createElement(EmailVerification, { accountId: 'current', available: false })),
+  );
+  expect(send().disabled).toBe(true);
+  expect(host.textContent).toContain('Почта сейчас недоступна');
+  expect(check).not.toHaveBeenCalled();
 });

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { emailApi, type EmailStatus } from '../email-api';
-import { api } from '../api';
 import '../admin/email-settings.css';
-export function EmailVerification({ accountId }: { accountId: string }) {
-  return <OwnEmailVerification key={accountId} accountId={accountId} />;
+interface EmailVerificationProps {
+  accountId: string;
+  available: boolean;
 }
-function OwnEmailVerification({ accountId }: { accountId: string }) {
+export function EmailVerification({ accountId, available }: EmailVerificationProps) {
+  return <OwnEmailVerification key={accountId} accountId={accountId} available={available} />;
+}
+function OwnEmailVerification({ accountId, available }: EmailVerificationProps) {
   const [status, setStatus] = useState<EmailStatus | null>(null),
-    [available, setAvailable] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState('');
   const live = useRef(true),
@@ -15,14 +17,12 @@ function OwnEmailVerification({ accountId }: { accountId: string }) {
   useEffect(() => {
     live.current = true;
     const controller = new AbortController();
-    void Promise.all([
-      emailApi.status(undefined, controller.signal),
-      api.accountVerification(controller.signal),
-    ]).then(([r, p]) => {
+    // Provider readiness belongs to the parent verification/provider request.
+    // Reading the mailbox must not start a second global confirmation check.
+    void emailApi.status(undefined, controller.signal).then((r) => {
       if (!live.current || controller.signal.aborted) return;
       if (r.ok && r.data.accountId === accountId) setStatus(r.data);
       else setMessage('Не удалось загрузить почту текущего аккаунта. Обновите страницу.');
-      setAvailable(p.ok && p.data.providers.some((x) => x.id === 'email' && x.available));
     });
     return () => {
       live.current = false;

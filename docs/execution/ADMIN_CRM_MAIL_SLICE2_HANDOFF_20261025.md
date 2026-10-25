@@ -83,3 +83,33 @@ TST-EMAIL-PROOF-UNIT-001 / TST-EMAIL-PROOF-PG-001. Source acceptance pointer for
 slice 1 and latest owner mail-placement criteria are in the program map.
 NEXT_ALLOWED_TASK for this author: STOP after the bounded commit. The controller
 owns independent review, exact-SHA remote evidence and subsequent program work.
+
+## Bounded browser CI repair after first candidate
+
+Exact source `6cf29d5c953c35c6b9d2b836c2ba4e187995f0c7`, focused run
+`40208145481`: API/types/unit, isolated mail PostgreSQL (9 cases) and installation
+checks PASS. Authentication browser suite: 75 PASS / 7 FAIL; later administrator
+browser step did not run. All three failure causes are slice-local category A:
+
+- Four SMTP width cases: the synthetic `email*` route glob excluded the slash in
+  `/email/test`, letting the baseline unexpected-mutation response win. Use an
+  anchored regex for exactly the configuration and test endpoints. The expected
+  failed-connection text and subsequent success/test-recipient assertions remain.
+- Public proof at 390/320: inherited `.login-card {width:100%}` plus 16px mobile
+  side margins exceeded viewport width by 32px. Give this specific card a border
+  box width of viewport minus 32px, centered margins and no inherited full-screen
+  minimum height. No overflow hiding. Keep existing overflow checks/screenshots
+  and add explicit four-width card inset assertions.
+- Single-flight confirmation: the new mailbox component independently called
+  `accountVerification` while its parent already owned the in-flight check. Pass
+  server-observed availability from both existing parents; mailbox reads only its
+  email status. The existing stalled-check/focus/logout/late-result browser proof
+  remains unchanged. A new unit proves parent readiness changes update the action
+  without issuing another global verification request.
+
+Repair local check: `pnpm exec vitest run
+apps/web/src/admin/testing/email-settings.spec.ts apps/web/src/email-api.spec.ts
+apps/web/src/auth-providers.spec.ts`: **36/36 PASS**, fresh Vitest execution.
+No API/SQL changes; API typing was not repeated. Changed-file formatting and diff
+checks apply. No local browser/database/stand was used. Exact repair-SHA CI and
+visual evidence remain pending; no claim that the repaired browser cases passed.

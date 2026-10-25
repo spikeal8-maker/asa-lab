@@ -2197,7 +2197,7 @@ for (const width of [1440, 1024, 390, 320]) {
     };
     const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
     let fail = false;
-    await page.route('**/api/admin/v1/auth/email*', async (route) => {
+    await page.route(/\/api\/admin\/v1\/auth\/email(?:\/test)?$/, async (route) => {
       const path = new URL(route.request().url()).pathname,
         body = route.request().postData() ? route.request().postDataJSON() : {};
       calls.push({ path, body });
@@ -2293,6 +2293,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.goto('/confirm-email#' + token);
     await expect(page).toHaveURL(/\/confirm-email$/);
     await expect(page.getByRole('heading', { name: 'Подтверждение адреса' })).toBeVisible();
+    const proofCard = await page.locator('.email-public-card').boundingBox();
+    expect(proofCard).not.toBeNull();
+    expect(proofCard!.x).toBeGreaterThanOrEqual(16);
+    expect(proofCard!.x + proofCard!.width).toBeLessThanOrEqual(width - 16);
     await screenshot(page, `email-proof-ready-${width}`);
     await page.getByRole('button', { name: 'Подтвердить адрес', exact: true }).click();
     await expect(

@@ -223,7 +223,10 @@ export function AccountSignInMethods({
         </button>
       </div>
       <p>Подключите MAX или Telegram к текущему аккаунту для подтверждения и быстрого входа.</p>
-      <EmailVerification accountId={accountId} />
+      <EmailVerification
+        accountId={accountId}
+        available={providers.some((provider) => provider.id === 'email' && provider.available)}
+      />
       <div className="account-sign-in-method-list">
         {METHODS.map((provider) => {
           const status = statuses[provider];

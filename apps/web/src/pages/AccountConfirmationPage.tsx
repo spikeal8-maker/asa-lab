@@ -120,7 +120,12 @@ export function AccountConfirmationPage({
           <span>{session.account.email}</span>
           <small>Способ будет связан с этим аккаунтом. Ваши проекты и история сохранятся.</small>
         </div>
-        <EmailVerification accountId={session.account.id} />
+        <EmailVerification
+          accountId={session.account.id}
+          available={state.providers.some(
+            (provider) => provider.id === 'email' && provider.available,
+          )}
+        />
         <SocialAuthButtons
           providers={state.providers}
           purpose="link"
