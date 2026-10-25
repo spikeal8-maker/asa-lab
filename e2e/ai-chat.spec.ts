@@ -1202,7 +1202,9 @@ test('AI history drawer traps focus, paginates and closes after selection on nar
   await dialog.getByRole('button', { name: 'Поиск по чатам' }).click();
   await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('Не существует');
   await expect(dialog.getByText('Ничего не найдено в истории')).toBeVisible();
-  // Escape first dismisses the temporary search panel, then the history drawer.
+  // Escape must work after tabbing to the close control, not just from the input.
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Закрыть поиск' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(dialog.getByRole('searchbox', { name: 'Найти диалог' })).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: 'Поиск по чатам' })).toBeFocused();
@@ -1742,9 +1744,15 @@ test('AI theme is explicitly light by default and respects the chosen appearance
   const root = page.locator('.asa-ai-layout');
   await expect(root).toHaveAttribute('data-chat-theme', 'light');
   await expect(root).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  expect(
+    await root.evaluate((node) => getComputedStyle(node).getPropertyValue('--ai-danger').trim()),
+  ).toBe('#b3261e');
   await page.getByRole('button', { name: 'Тёмная тема чата' }).click();
   await expect(root).toHaveAttribute('data-chat-theme', 'dark');
   await expect(root).toHaveCSS('background-color', 'rgb(29, 29, 31)');
+  expect(
+    await root.evaluate((node) => getComputedStyle(node).getPropertyValue('--ai-danger').trim()),
+  ).toBe('#ff9c98');
   await page.reload();
   await expect(root).toHaveAttribute('data-chat-theme', 'dark');
   await page.getByRole('button', { name: 'Светлая тема чата' }).click();
