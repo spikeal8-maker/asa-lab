@@ -407,7 +407,9 @@ for (const width of [320, 390, 1024, 1440]) {
     const history = await openHistory(page);
     await history.getByRole('button', { name: 'В архив: ' + thread.title, exact: true }).click();
     await expect(history.getByRole('button', { name: thread.title, exact: true })).toHaveCount(0);
-    await history.getByRole('button', { name: 'Архив', exact: true }).click();
+    // Archival remains supported but is deliberately outside the primary chat rail.
+    await history.locator('details.chat-history-overflow > summary').click();
+    await history.getByRole('button', { name: 'Архивные диалоги', exact: true }).click();
     await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
     await closeMobileHistory(page);
     await expect(page.getByText('Диалог в архиве. Переписка и черновик сохранены.')).toBeVisible();
@@ -704,7 +706,9 @@ test('Seat text history keeps one school owner for search, archive, regeneration
   await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
   await expect.poll(() => f.searches.at(-1)?.query).toBe('школьный вопрос');
   await history.getByRole('button', { name: 'В архив: ' + thread.title }).click();
-  await history.getByRole('button', { name: 'Архив', exact: true }).click();
+  // Archival remains supported but is deliberately outside the primary chat rail.
+    await history.locator('details.chat-history-overflow > summary').click();
+    await history.getByRole('button', { name: 'Архивные диалоги', exact: true }).click();
   await expect(history.getByRole('button', { name: thread.title, exact: true })).toBeVisible();
   await closeMobileHistory(page);
   await page.getByRole('button', { name: 'Восстановить диалог', exact: true }).click();
