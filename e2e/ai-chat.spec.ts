@@ -1648,7 +1648,14 @@ for (const width of [320, 390]) {
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==',
       'base64',
     );
-    await page.getByLabel('Выбрать изображения для ИИ').setInputFiles(
+    const details = page.locator('details.chat-tools-menu');
+    await details.locator('summary').click();
+    const [chooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      details.getByRole('button', { name: 'Добавить изображение' }).click(),
+    ]);
+    expect(await chooser.element().getAttribute('accept')).toBe('image/png,image/jpeg,image/webp');
+    await chooser.setFiles(
       Array.from({ length: 4 }, (_, index) => ({
         name: `photo-${index + 1}.png`,
         mimeType: 'image/png',
