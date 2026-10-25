@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: 0d182b88a52440358b99c98bd277110dc761100c
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
