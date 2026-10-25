@@ -1733,7 +1733,6 @@ test('AI shows no internal provider setup notice on the empty consumer screen', 
   await expect(page.getByRole('button', { name: 'Отправить сообщение' })).toBeDisabled();
 });
 
-
 test('AI theme is explicitly light by default and respects the chosen appearance after reload', async ({
   page,
 }) => {
@@ -1754,36 +1753,37 @@ test('AI theme is explicitly light by default and respects the chosen appearance
 });
 
 for (const width of [320, 390, 1024, 1440]) {
-  test('AI canvas is edge-to-edge with no extraneous outer frame at ' + width + 'px', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 800 });
-    await fixture(page);
-    await page.goto('/#/ai');
-    await expect(page.locator('.asa-ai-layout')).toBeVisible();
-    const metrics = await page.evaluate(() => {
-      const root = document.querySelector<HTMLElement>('.asa-ai-layout')!;
-      const b = root.getBoundingClientRect();
-      const sidebar = document.querySelector<HTMLElement>('.portal-sidebar');
-      const collapse = Boolean(sidebar?.classList.contains('collapsed'));
-      const expectedLeft = innerWidth >= 1024 ? (collapse ? 72 : 240) : 0;
-      const css = getComputedStyle(root);
-      return {
-        rootLeft: b.left,
-        rootRight: b.right,
-        expectedLeft,
-        viewportWidth: innerWidth,
-        border: css.borderTopWidth,
-        radius: css.borderTopLeftRadius,
-        pageOverflow: document.documentElement.scrollWidth > innerWidth,
-      };
-    });
-    expect(Math.abs(metrics.rootLeft - metrics.expectedLeft)).toBeLessThanOrEqual(1);
-    expect(Math.abs(metrics.rootRight - metrics.viewportWidth)).toBeLessThanOrEqual(1);
-    expect(metrics.border).toBe('0px');
-    expect(metrics.radius).toBe('0px');
-    expect(metrics.pageOverflow).toBe(false);
-  });
+  test(
+    'AI canvas is edge-to-edge with no extraneous outer frame at ' + width + 'px',
+    async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await fixture(page);
+      await page.goto('/#/ai');
+      await expect(page.locator('.asa-ai-layout')).toBeVisible();
+      const metrics = await page.evaluate(() => {
+        const root = document.querySelector<HTMLElement>('.asa-ai-layout')!;
+        const b = root.getBoundingClientRect();
+        const sidebar = document.querySelector<HTMLElement>('.portal-sidebar');
+        const collapse = Boolean(sidebar?.classList.contains('collapsed'));
+        const expectedLeft = innerWidth >= 1024 ? (collapse ? 72 : 240) : 0;
+        const css = getComputedStyle(root);
+        return {
+          rootLeft: b.left,
+          rootRight: b.right,
+          expectedLeft,
+          viewportWidth: innerWidth,
+          border: css.borderTopWidth,
+          radius: css.borderTopLeftRadius,
+          pageOverflow: document.documentElement.scrollWidth > innerWidth,
+        };
+      });
+      expect(Math.abs(metrics.rootLeft - metrics.expectedLeft)).toBeLessThanOrEqual(1);
+      expect(Math.abs(metrics.rootRight - metrics.viewportWidth)).toBeLessThanOrEqual(1);
+      expect(metrics.border).toBe('0px');
+      expect(metrics.radius).toBe('0px');
+      expect(metrics.pageOverflow).toBe(false);
+    },
+  );
 }
 
 test('AI composer frame and Send stay fully visible at ordinary viewport heights', async ({

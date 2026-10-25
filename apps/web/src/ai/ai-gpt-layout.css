@@ -693,7 +693,6 @@
   }
 }
 
-
 /* A single, edge-to-edge chat canvas. The global ASA sidebar stays owned by
  * the portal; the old framed workspace used an unnecessary 12px gutter. */
 .portal-shell > .asa-ai-layout {

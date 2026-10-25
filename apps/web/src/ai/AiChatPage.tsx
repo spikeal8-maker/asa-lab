@@ -1213,7 +1213,6 @@ export function AiChatPage({
               <AiChatIcon name="new-chat" size={19} />
               <span>Новый чат</span>
             </button>
-
           </div>
           {!desktop && visibleError ? (
             <div className="asa-ai-error asa-ai-history-error" role="alert">
