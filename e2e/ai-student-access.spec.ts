@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
+import { DIAGNOSTIC_CODES } from '../apps/web/src/client-diagnostic-outbox';
+import { validRequestDetails } from '../apps/web/src/request-diagnostic-details';
 import { classId, fixture as classroomFixture } from './fixtures/classroom-owner';
 
 const SEAT = '40000000-0000-4000-8000-000000000001';
@@ -133,6 +135,63 @@ async function chatFixture(page: Page, personal = false) {
       allowed = true;
     },
   };
+}
+
+// A malformed AI response emits independent, sanitized diagnostics telemetry.
+// Unknown events fall through to the fixture's strict unexpected-mutation guard.
+const diagnosticKeys = new Set([
+  'eventId',
+  'occurredAt',
+  'code',
+  'module',
+  'revision',
+  'instanceId',
+  'relatedRequestId',
+  'httpStatus',
+  'durationMs',
+  'phase',
+  'category',
+  'failureCode',
+  'script',
+  'line',
+  'column',
+  'exception',
+  'operation',
+  'method',
+  'clientAttemptId',
+  'failureKind',
+]);
+const diagnosticUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+async function acknowledgeValidatedDiagnostics(page: Page) {
+  await page.route('**/api/diagnostics/client', async (route) => {
+    const request = route.request();
+    let body: unknown;
+    try {
+      body = request.postDataJSON();
+    } catch {
+      return route.fallback();
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body))
+      return route.fallback();
+    const report = body as Record<string, unknown>;
+    if (
+      request.method() !== 'POST' ||
+      Object.keys(report).some((key) => !diagnosticKeys.has(key)) ||
+      !DIAGNOSTIC_CODES.includes(report.code as (typeof DIAGNOSTIC_CODES)[number]) ||
+      !['portal', 'scratch', 'electronics', 'auth'].includes(report.module as string) ||
+      typeof report.revision !== 'string' ||
+      !/^(?:[a-f0-9]{7,64}|unknown|development)$/.test(report.revision) ||
+      !diagnosticUuid.test(report.eventId as string) ||
+      !Number.isSafeInteger(report.occurredAt) ||
+      !validRequestDetails(report) ||
+      ['instanceId', 'relatedRequestId', 'clientAttemptId'].some(
+        (key) => report[key] !== undefined && !diagnosticUuid.test(report[key] as string),
+      )
+    )
+      return route.fallback();
+    return route.fulfill({ status: 202, json: { accepted: true } });
+  });
 }
 
 async function noOverflow(page: Page) {
@@ -355,6 +414,7 @@ for (const invalid of ['generic fixture', 'non-JSON', 'invalid student'] as cons
     await page.setViewportSize({ width: 390, height: 900 });
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
     await page.unroute('**/*'); // Use the focused Vite server, keeping fixture API routes.
+    await acknowledgeValidatedDiagnostics(page);
     let valid = false;
     let reads = 0;
     const writes: string[] = [];
@@ -416,6 +476,7 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await page.setViewportSize({ width: 1440, height: 900 });
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
     await page.unroute('**/*'); // Use the focused Vite server, keeping fixture API routes.
+    await acknowledgeValidatedDiagnostics(page);
     let revision = 4;
     let mode = 'deny';
     let reads = 0;
