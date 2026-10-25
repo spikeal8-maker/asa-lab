@@ -319,6 +319,21 @@ export class ProductAnalyticsService {
       ),
     );
   }
+  persistAcquisition(
+    eventId: string,
+    actor: AnalyticsActor,
+    semantic: object,
+    receivedAt: string,
+  ): Promise<AnalyticsReceipt> {
+    const frozen = structuredClone({ actor: actorValues(actor), semantic });
+    return this.submit(async () => {
+      const result = await this.pool!.query(
+        'SELECT analytics_acquisition_ingest($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::timestamptz) AS receipt',
+        [eventId, ...frozen.actor, JSON.stringify(frozen.semantic), receivedAt],
+      );
+      return confirmedReceipt(result.rows[0]?.receipt, eventId, 'acquisition.observed');
+    });
+  }
   enqueueEvent(event: ProductAnalyticsEvent): { state: 'queued' | 'unavailable' } {
     const eventId = randomUUID();
     const receivedAt = event.receivedAt ?? new Date().toISOString();

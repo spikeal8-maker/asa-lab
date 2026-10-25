@@ -122,6 +122,12 @@ export interface AdminCatalogUser {
   emailVerificationState?: string | null;
   firstObservedReferrer?: string | null;
   firstObservedAt?: string | null;
+  acquisitionLatest?: {
+    source: string | null;
+    medium: string | null;
+    campaign: string | null;
+    observedAt: string;
+  } | null;
   aiRequests?: number | null;
   aiLegacyRequests?: number | null;
   aiTokenCovered?: number | null;
@@ -153,10 +159,21 @@ export interface AdminCatalogPage {
     aiInputTokens?: string | null;
     aiOutputTokens?: string | null;
     activityEvents?: number;
+    registrationMethods?: Record<string, number>;
     loginMethods?: Record<string, number>;
     tools?: Record<string, number>;
     devices?: Record<string, number>;
     ageGroups?: Record<string, number>;
+    acquisition?: {
+      retentionDays: 90;
+      status: 'collecting_current_document';
+      observedRecords: number;
+      unknownRecords: number;
+      observations: number;
+      sources: Record<string, number>;
+      mediums: Record<string, number>;
+      campaigns: Record<string, number>;
+    };
     daily?: { date: string; registrations: number; events: number }[];
   };
   readonly studentCoverage: {

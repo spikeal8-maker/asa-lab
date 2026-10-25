@@ -4,14 +4,14 @@ surfaces:
   - id: SURF-AI-WEB-SEARCH
     routes: [/api/ai/web-search/status, /api/admin/v1/ai/web-search, '/api/ai/threads/:threadId/web-search/:requestId/images/:imageId']
     implementation:
-      files: [apps/api/src/ai-web-search.ts, apps/api/src/ai-web-search-provider.ts, packages/contracts/src/ai-web-search.ts, migrations/0253_ai_web_search.sql, apps/web/src/ai/AiWebEvidence.tsx, apps/web/src/admin/AdminAiWebSearch.tsx]
+      files: [apps/api/src/ai-web-search.ts, apps/api/src/ai-web-search-provider.ts, packages/contracts/src/ai-web-search.ts, migrations/0254_ai_web_search.sql, apps/web/src/ai/AiWebEvidence.tsx, apps/web/src/admin/AdminAiWebSearch.tsx]
     invariants: [AI-WEB-SEARCH-001, AI-OWNER-001, AI-REPLAY-001]
     tests: [TST-AI-WEB-CORE-001, TST-AI-WEB-PG-001, TST-AI-WEB-E2E-001]
     controls:
       - id: CTRL-AI-WEB-SEARCH
         label: Free owner-bound retrieval and durable source evidence
         change_class: L3_CRITICAL
-        files: [apps/api/src/ai-web-search.ts, apps/api/src/ai-web-search-provider.ts, migrations/0253_ai_web_search.sql]
+        files: [apps/api/src/ai-web-search.ts, apps/api/src/ai-web-search-provider.ts, migrations/0254_ai_web_search.sql]
         invariants: [AI-WEB-SEARCH-001, AI-OWNER-001, AI-REPLAY-001]
         tests: [TST-AI-WEB-CORE-001, TST-AI-WEB-PG-001, TST-AI-WEB-E2E-001]
 

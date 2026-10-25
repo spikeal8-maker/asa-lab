@@ -44,6 +44,12 @@ export interface AdminCatalogUser {
   emailVerificationState?: string | null;
   firstObservedReferrer?: string | null;
   firstObservedAt?: string | null;
+  acquisitionLatest?: {
+    source: string | null;
+    medium: string | null;
+    campaign: string | null;
+    observedAt: string;
+  } | null;
   aiRequests?: number | null;
   aiLegacyRequests?: number | null;
   aiTokenCovered?: number | null;
@@ -94,10 +100,21 @@ export interface CatalogAnalytics {
   aiInputTokens?: string | null;
   aiOutputTokens?: string | null;
   activityEvents?: number;
+  registrationMethods?: Record<string, number>;
   loginMethods?: Record<string, number>;
   tools?: Record<string, number>;
   devices?: Record<string, number>;
   ageGroups?: Record<string, number>;
+  acquisition?: {
+    retentionDays: 90;
+    status: 'collecting_current_document';
+    observedRecords: number;
+    unknownRecords: number;
+    observations: number;
+    sources: Record<string, number>;
+    mediums: Record<string, number>;
+    campaigns: Record<string, number>;
+  };
   daily?: { date: string; registrations: number; events: number }[];
 }
 export type CatalogFilters = Partial<
@@ -211,6 +228,10 @@ export function catalogCsv(items: readonly AdminCatalogUser[]): string {
     ['deviceCategory', 'Устройство'],
     ['firstObservedReferrer', 'Первый наблюдавшийся реферер (не источник регистрации)'],
     ['firstObservedAt', 'Первое наблюдение визита'],
+    ['acquisitionSource', 'Источник UTM: последнее заявление браузера за 90 дней'],
+    ['acquisitionMedium', 'Канал UTM: последнее заявление браузера за 90 дней'],
+    ['acquisitionCampaign', 'Кампания UTM: последнее заявление браузера за 90 дней'],
+    ['acquisitionObservedAt', 'Время наблюдения UTM (не источник регистрации)'],
     ['aiPeriodDays', 'Период ИИ, дней'],
     ['aiRequests', 'Запросы ИИ за период'],
     ['aiLegacyRequests', 'Обращения из прежнего журнала без токенов'],
@@ -245,6 +266,13 @@ export function catalogCsv(items: readonly AdminCatalogUser[]): string {
     tablet: 'Планшет',
   };
   const display = (item: AdminCatalogUser, key: string) => {
+    const acquisitionKeys: Record<string, 'source' | 'medium' | 'campaign' | 'observedAt'> = {
+      acquisitionSource: 'source',
+      acquisitionMedium: 'medium',
+      acquisitionCampaign: 'campaign',
+      acquisitionObservedAt: 'observedAt',
+    };
+    if (acquisitionKeys[key]) return item.acquisitionLatest?.[acquisitionKeys[key]];
     const value = (item as unknown as Record<string, unknown>)[key];
     if (key === 'roles' && Array.isArray(value)) return value.map((v) => labels[String(v)] ?? v);
     if (

@@ -18,6 +18,7 @@ import { SeatContextUseCase } from './seat-context.js';
 import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { AnalyticsDeliveryQueue } from './analytics-delivery-queue.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
 import {
   runSessionDatabaseScope,
@@ -163,6 +164,8 @@ export interface ApiFactoryOptions {
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
   readonly analyticsPool?: pg.Pool | null;
+  /** Independent optional intake; injected compositions default disabled rather than sharing critical pools. */
+  readonly acquisitionPool?: pg.Pool | null;
   /** Directory with the built web SPA; defaults to apps/web/dist. */
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
@@ -242,12 +245,18 @@ export async function createApiApp(
   let createdApp: NestFastifyApplication | undefined;
   let metrics: ReturnType<typeof createRuntimeMetrics> | undefined;
   let analytics: ProductAnalyticsService | undefined;
+  let acquisition: ProductAnalyticsService | undefined;
   let cleanupPromise: Promise<void> | undefined;
   const cleanup = (): Promise<void> =>
     (cleanupPromise ??= (async () => {
       const errors: unknown[] = [];
       try {
         if (analytics) await boundedClose(() => analytics!.shutdown(), 6000);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        if (acquisition) await boundedClose(() => acquisition!.shutdown(), 6000);
       } catch (error) {
         errors.push(error);
       }
@@ -278,10 +287,31 @@ export async function createApiApp(
               })
             : null;
     owned.track(analyticsPool, 'analytics');
+    const acquisitionPool =
+      options.acquisitionPool !== undefined
+        ? options.acquisitionPool
+        : options.pool !== undefined || options.analyticsPool === null
+          ? null
+          : process.env['APP_DATABASE_URL']
+            ? new pg.Pool({
+                connectionString: process.env['APP_DATABASE_URL'],
+                ...analyticsPoolSettings(),
+              })
+            : null;
+    owned.track(acquisitionPool, 'acquisition');
+    if (!pool && acquisitionPool) throw new Error('acquisition_requires_main_database');
     assertTrustedProxyConfiguration();
     if (!pool && analyticsPool) throw new Error('analytics_requires_main_database');
     metrics = createRuntimeMetrics();
     analytics = new ProductAnalyticsService(analyticsPool);
+    acquisition = new ProductAnalyticsService(
+      acquisitionPool,
+      new AnalyticsDeliveryQueue(acquisitionPool !== null, Date.now, (value) => {
+        process.stdout.write(
+          `${JSON.stringify({ ...value, pipeline: 'acquisition-observations' })}\n`,
+        );
+      }),
+    );
     const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
     const allowedLocalApiOrigin = resolveLocalApiOrigin(
       options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
@@ -300,6 +330,7 @@ export async function createApiApp(
     const app = await NestFactory.create<NestFastifyApplication>(
       AppModule.forPool(pool, {
         productAnalytics: analytics,
+        acquisitionAnalytics: acquisition,
         runtimeMetrics: metrics,
         ...(options.authProviderOptions
           ? { authProviderOptions: options.authProviderOptions }

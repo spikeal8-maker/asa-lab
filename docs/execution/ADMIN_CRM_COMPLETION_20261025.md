@@ -114,3 +114,49 @@ Account/Seat access screenshots from the identical frontend tree in run
 polish item, not a reason to claim complete visual acceptance yet. Integration
 preserves disjoint Electronics Arduino changes and execution documentation.
 No production data mutation or SMTP activation is claimed.
+
+
+## Analytics candidate and convergence evidence
+
+The final analytics candidate adds separate UTC record-creation/event charts,
+readable KPI cards and grouped detail, exact decimal AI token strings, campaign
+coverage and authorized per-record browser claims in the catalog and CSV. The
+optional current-document campaign intake has independent client delivery and a
+separate bounded server queue/pool. Strict source/medium/campaign slugs are bound
+to the current authenticated Account/workspace or Seat/class; canonical visit
+telemetry, historic registration attribution and SMTP settings remain unchanged.
+Observation readers enforce a 90-day cutoff; indexed cleanup is limited to 100
+rows per intake, with separate digest-only receipt retention of 97 days.
+
+Recovery preserved the interrupted candidate in local commit `3105a1ea` before
+convergence with Main `2eb10d438476d8f5fa74493eb0f11b0165b1f679`.
+Three migration-tail conflicts were combined semantically: remote Ollama Cloud
+migration 0252 and its provider/history assertions are retained; CRM acquisition
+is migration 0253. The remote CSV formatter fix and all remote dependency changes
+are preserved. The new PostgreSQL fixture uses a distinct organization tenant,
+matching the existing unique workspace-per-tenant constraint.
+
+Before interruption, 173 focused cases passed across 13 suites. The additional
+factory suite could not load the missing local shared `@asa-lab/module-sdk`
+runtime dependency; its new lifecycle case is registered in the focused CI.
+After convergence, 45 affected catalog/runtime/acquisition cases passed; these
+overlap the earlier tests and are not an additional distinct total. API typecheck,
+contracts and the no-database migration-file check passed.
+
+Independent final source review found two encoding regressions; reviewed repair
+`45c95b137ec08806a3eddff5ffcb2c374640ac3a` restores readable API text and the
+CSV disclaimer assertion. Its isolated SQL/factory/install jobs passed, while
+Web typecheck found one optional-prop mismatch. Reviewed type-only repair
+`611a52c13ca822aea891625c73a47f966118f889` explicitly permits the absent
+distribution input without changing runtime behavior or strict type settings.
+Exact-source [run 40227773771](https://github.com/spikeal8-maker/asa-lab/actions/runs/40227773771)
+passed all PostgreSQL, receipt/binding/retention, lifecycle, type/build, browser
+and installation jobs. Controller inspected desktop/mobile catalog analytics
+screenshots with separate charts, time ticks, grouped detail and per-record
+claims. Earlier obsolete organization-role copy is corrected.
+
+Final integration preserves subsequent disjoint Electronics Uno qualification
+tests and execution documentation from `ad749a17`. All four selected CRM slices
+have technical acceptance evidence; this is not owner acceptance, a production
+deployment, real SMTP delivery proof or a 5000-user capacity claim. No live
+database mutation or SMTP activation is claimed.

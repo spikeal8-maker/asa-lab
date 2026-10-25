@@ -145,8 +145,13 @@ const upgradeArtifacts = [
     '575c4b4bf41e0bdb5a4652f141289f6c0bfaa8171fd7feec60f519776ae53957',
   ],
   [
-    '0253',
-    '0253_ai_web_search.sql',
+    '0253', // Optional scoped campaign observations and factual catalog projections.
+    '0253_crm_acquisition_observations.sql',
+    'eeb2f35f7c2408d8edb3400aef18b5db88e6e6985aeebf2911c976db9a0cd8dc',
+  ],
+  [
+    '0254',
+    '0254_ai_web_search.sql',
     '15099063880971f1f773c9d0d8a2ecd2cfe7fd149e67d2793d55ed4e1926f5e2',
   ],
 ] as const;

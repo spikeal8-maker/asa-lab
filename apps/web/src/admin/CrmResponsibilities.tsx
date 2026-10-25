@@ -127,12 +127,12 @@ export function CrmResponsibilities({
     }
   }
   return (
-    <section className="crm-responsibilities" aria-label="Ответственность и доступ">
-      <h3>Ответственность и доступ</h3>
+    <section className="crm-responsibilities" aria-label="Роли в организациях и классах">
+      <h3>Роли в организациях и классах</h3>
       {scopeKind === 'platform' && (
         <>
           <label>
-            Область{' '}
+            Тип участия{' '}
             <select
               value={kind}
               disabled={busy}

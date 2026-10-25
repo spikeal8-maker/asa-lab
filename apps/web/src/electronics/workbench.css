@@ -4864,30 +4864,26 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* Full running tools + clock + actions, including group padding, need 1373.703125px. */
-@media (min-width: 981px) and (max-width: 1373px) {
-  .workbench-shell {
-    --wb-toolbar-height: 96px;
-  }
-  .workbench-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: repeat(2, 48px);
-  }
+/* Keep the actions and clock in one row; only the desktop tool strip scrolls. */
+@media (min-width: 981px) {
   .workbench-toolbar-group:not(.right) {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
   }
-  .workbench-toolbar-group.right {
-    grid-column: 2;
-    grid-row: 2;
+  .workbench-toolbar-group:not(.right) > * {
+    flex-shrink: 0;
   }
+  .workbench-toolbar-group.right,
   .workbench-simulation-time {
-    grid-column: 1;
-    grid-row: 2;
+    flex-shrink: 0;
   }
-  .workbench-toolbar-spacer {
-    display: none;
+  .workbench-wire-color-menu {
+    position: fixed;
+    top: calc(var(--wb-header-height) + var(--wb-toolbar-height));
+    left: 8px;
   }
 }
 
@@ -4940,39 +4936,6 @@ html.arduino-palette-resizing * {
 }
 .arduino-serial-monitor.open {
   flex-basis: min(230px, 35%);
-}
-
-/* Keep desktop action captions intact when the tool row and save actions no
-   longer fit together. Reserve the same two rows in the editor's height model;
-   the native wire menu can still open outside its tool row. */
-@media (min-width: 981px) and (max-width: 1280px) {
-  .workbench-shell {
-    --wb-toolbar-height: 96px;
-  }
-  .workbench-toolbar {
-    flex-wrap: wrap;
-  }
-  .workbench-toolbar-group.right {
-    box-sizing: border-box;
-    flex: 0 0 100%;
-    height: 48px;
-    justify-content: flex-end;
-  }
-}
-@media (min-width: 1281px) and (max-width: 1536px) {
-  .workbench-shell:has(.workbench-simulation-time):has(.emergency-copy) {
-    --wb-toolbar-height: 96px;
-  }
-  .workbench-toolbar:has(.workbench-simulation-time):has(.emergency-copy) {
-    flex-wrap: wrap;
-  }
-  .workbench-toolbar:has(.workbench-simulation-time):has(.emergency-copy)
-    .workbench-toolbar-group.right {
-    box-sizing: border-box;
-    flex: 0 0 100%;
-    height: 48px;
-    justify-content: flex-end;
-  }
 }
 
 /* Phones and tablets: a scrollable part strip and a resizable code sheet. */
