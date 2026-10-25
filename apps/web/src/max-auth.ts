@@ -29,3 +29,41 @@ export function readMaxInitData(location: Location = window.location): string | 
 export function leaveMaxLaunch(): void {
   window.history.replaceState(null, '', '/#/');
 }
+
+/** Ordinary ASA Lab pages never request the MAX Mini App-only SDK.
+ * A true launch waits for the Bridge before the App reads signed initData. */
+export type MaxBridgeLoadResult = 'not-required' | 'loaded' | 'failed' | 'timed-out';
+
+export function loadMaxBridgeForLaunch(
+  location: Location = window.location,
+  documentRef: Document = document,
+  timeoutMs = 7_000,
+): Promise<MaxBridgeLoadResult> {
+  if (!isMaxLaunchLocation(location)) return Promise.resolve('not-required');
+
+  return new Promise<MaxBridgeLoadResult>((resolve) => {
+    const sdk = documentRef.createElement('script');
+    sdk.src = 'https://st.max.ru/js/max-web-app.js';
+    sdk.async = true;
+    let complete = false;
+    const settle = (outcome: MaxBridgeLoadResult): void => {
+      if (complete) return;
+      complete = true;
+      clearTimeout(deadline);
+      sdk.removeEventListener('load', onLoad);
+      sdk.removeEventListener('error', onError);
+      if (outcome !== 'loaded') sdk.remove();
+      resolve(outcome);
+    };
+    const onLoad = (): void => settle('loaded');
+    const onError = (): void => settle('failed');
+    sdk.addEventListener('load', onLoad);
+    sdk.addEventListener('error', onError);
+    const deadline = setTimeout(() => settle('timed-out'), timeoutMs);
+    try {
+      documentRef.head.appendChild(sdk);
+    } catch {
+      settle('failed');
+    }
+  });
+}
