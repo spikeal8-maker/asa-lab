@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
@@ -245,6 +246,137 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     submittedKey: () => keyWasSubmitted,
   };
 }
+
+for (const width of [320, 390, 1024, 1440]) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`AI saved image and file cards remain readable at ${width}px in ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 850 });
+      const fake = await fixture(page);
+      const threadId = randomUUID();
+      const requestId = randomUUID();
+      const imageId = randomUUID();
+      const textId = randomUUID();
+      const bytes = readFileSync('apps/web/public/landing/electronics-simulation.png');
+      fake.threads.push({ id: threadId, title: 'Файлы учебного проекта', updatedAt: NOW });
+      fake.messages.set(threadId, [
+        {
+          id: randomUUID(),
+          requestId,
+          role: 'user',
+          content: 'Проверь материалы проекта',
+          createdAt: NOW,
+        },
+        {
+          id: randomUUID(),
+          requestId,
+          role: 'assistant',
+          content:
+            '# Разбор проекта\n\n## Подключение\n\n**Проверьте** питание и землю.\n\n- Первый шаг\n- Второй шаг\n\n```cpp\npinMode(13, OUTPUT);\n```\n\n| Контакт | Назначение |\n| --- | --- |\n| 13 | LED |\n\n$U = IR$',
+          createdAt: NOW,
+        },
+      ]);
+      await page.route(/\/api\/ai\/threads\/[0-9a-f-]+\/attachments(?:\?|$)/, (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                requestId,
+                attachments: [
+                  {
+                    uploadId: imageId,
+                    fileName: 'Схема подключения.png',
+                    sizeBytes: bytes.length,
+                    mediaType: 'image/png',
+                    kind: 'image',
+                  },
+                  {
+                    uploadId: textId,
+                    fileName: 'Программа_контроллера_с_длинным_названием.ino',
+                    sizeBytes: 2048,
+                    mediaType: 'text/plain',
+                    kind: 'text',
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      let imageReads = 0;
+      await page.route(`**/api/ai/attachments/${imageId}/bytes`, (route) => {
+        imageReads += 1;
+        return route.fulfill({ contentType: 'image/png', body: bytes });
+      });
+      await page.goto('/#/ai');
+      if (theme === 'dark') await page.getByRole('button', { name: 'Тёмная тема чата' }).click();
+      if (width < 1120)
+        await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
+      await page.getByRole('button', { name: 'Файлы учебного проекта', exact: true }).click();
+      const image = page.getByRole('img', { name: 'Схема подключения.png' });
+      await expect(image).toBeVisible();
+      await expect
+        .poll(() => image.evaluate((node: HTMLImageElement) => node.naturalWidth))
+        .toBeGreaterThan(0);
+      await expect(page.locator('.chat-saved-file')).toHaveCount(2);
+      await expect(page.locator('.chat-saved-file').last()).toContainText('INO · 2 КБ');
+      await expect(page.locator('.asa-ai-rich-text h1')).toHaveText('Разбор проекта');
+      await expect(page.locator('.asa-ai-rich-text h2')).toHaveText('Подключение');
+      await expect(page.locator('.asa-ai-rich-text .katex')).toHaveCount(1);
+      await expectChatFits(page);
+      expect(imageReads).toBe(1);
+      await page.screenshot({
+        path: test.info().outputPath(`ai-files-${width}-${theme}.png`),
+        fullPage: true,
+      });
+      expect(
+        await page
+          .locator('.chat-saved-file')
+          .last()
+          .evaluate((node) => node.getBoundingClientRect().height),
+      ).toBeLessThan(120);
+      if (width === 320 && theme === 'light') {
+        await page.route(`**/api/ai/attachments/${imageId}/bytes`, (route) =>
+          route.fulfill({ status: 403, json: { error: { code: 'denied' } } }),
+        );
+        await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Черновик сохранён');
+        await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
+        await page.getByRole('button', { name: 'Файлы учебного проекта', exact: true }).click();
+        await expect(page.locator('.chat-saved-file').first()).toContainText(
+          'Миниатюра недоступна',
+        );
+        await expect(page.locator('.chat-saved-file img')).toHaveCount(0);
+        await expect(page.locator('.asa-ai-rich-text h1')).toHaveText('Разбор проекта');
+      }
+    });
+  }
+}
+
+test('AI expands a long prompt without losing its draft or covering Send', async ({ page }) => {
+  await fixture(page);
+  await page.goto('/#/ai');
+  const input = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  const draft = 'Проверь схему и объясни каждый шаг.\n'.repeat(28);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 750 });
+    await input.fill(draft);
+    const before = await input.evaluate((node) => node.getBoundingClientRect().height);
+    await page.getByRole('button', { name: 'Развернуть поле ввода', exact: true }).click();
+    expect(await input.evaluate((node) => node.getBoundingClientRect().height)).toBeGreaterThan(
+      before,
+    );
+    await expect(input).toHaveValue(draft);
+    await expectChatFits(page);
+    const send = page.getByRole('button', { name: 'Отправить сообщение' });
+    await expect(send).toBeInViewport();
+    await send.click({ trial: true });
+    await page.screenshot({ path: test.info().outputPath(`ai-prompt-expanded-${width}.png`) });
+    await page.getByRole('button', { name: 'Свернуть поле ввода', exact: true }).click();
+    await input.fill('');
+    await expect(page.locator('.chat-composer')).toHaveClass(/compact/);
+  }
+});
 
 test('AI composer uploads a real file once and restores the saved attachment after reload', async ({
   page,
@@ -1352,7 +1484,12 @@ test('AI confines long code and tables to message scrollers and copies the origi
   await copyCode.click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(source);
   await page.getByRole('button', { name: 'Копировать', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(answer);
+  // The native Windows clipboard exposes CRLF; compare the same text across hosts.
+  await expect
+    .poll(async () =>
+      (await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n'),
+    )
+    .toBe(answer);
   await page.screenshot({ path: test.info().outputPath('ai-long-source-320.png') });
 });
 

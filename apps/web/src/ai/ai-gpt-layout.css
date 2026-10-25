@@ -210,7 +210,7 @@
 
 .asa-ai-layout .chat-turn {
   margin-bottom: 26px;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.7;
 }
 
@@ -582,6 +582,102 @@
   border-radius: 9px;
 }
 
+/* Saved attachments keep the same visual identity after Send and reload. */
+.asa-ai-layout .chat-attached-history {
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 8px;
+  margin-block: 10px 4px;
+}
+
+.asa-ai-layout .chat-attached-history .chat-saved-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 260px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 16px;
+  text-align: left;
+  white-space: normal;
+}
+
+.asa-ai-layout .chat-saved-file-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--ai-surface);
+}
+
+.asa-ai-layout .chat-saved-file-info {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.asa-ai-layout .chat-saved-file-name {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.asa-ai-layout .chat-saved-file small {
+  color: var(--ai-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.asa-ai-layout .chat-attached-history .chat-saved-file.is-image {
+  display: grid;
+  width: 240px;
+  padding: 5px;
+  gap: 0;
+}
+
+.asa-ai-layout .chat-saved-file.is-image > img {
+  display: block;
+  width: 100%;
+  height: 170px;
+  object-fit: contain;
+  border-radius: 11px;
+  background: var(--ai-surface);
+}
+
+.asa-ai-layout .chat-saved-file.is-image > .chat-saved-file-icon {
+  width: 100%;
+  height: 170px;
+}
+
+.asa-ai-layout .chat-saved-file.is-image .chat-saved-file-info {
+  padding: 8px;
+}
+
+.asa-ai-layout .chat-saved-file:focus-visible {
+  outline: 2px solid var(--ai-text);
+  outline-offset: 3px;
+}
+
+.asa-ai-layout .asa-ai-rich-text :is(h1, h2, h3, h4) {
+  margin-block: 1.35em 0.65em;
+  letter-spacing: -0.015em;
+}
+
+.asa-ai-layout .asa-ai-rich-text > :first-child {
+  margin-top: 0;
+}
+
+.asa-ai-layout .asa-ai-rich-text :is(p, ul, ol, blockquote) {
+  margin-bottom: 1em;
+}
+
+.asa-ai-layout .asa-ai-rich-text li > p {
+  margin-block: 0.35em;
+}
+
 @media (hover: none) {
   .asa-ai-layout .asa-ai-thread-action {
     opacity: 1;
@@ -642,6 +738,33 @@
 
 .asa-ai-layout .chat-composer.expanded textarea {
   max-height: min(160px, max(32px, calc(var(--ai-available-height, 600px) - 155px)));
+  padding-inline-end: 40px;
+}
+
+.asa-ai-layout .chat-composer-expand {
+  grid-area: input;
+  align-self: start;
+  justify-self: end;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: var(--ai-surface);
+  color: var(--ai-muted);
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.asa-ai-layout .chat-composer-expand:is(:hover, :focus-visible) {
+  background: var(--ai-bg);
+  color: var(--ai-text);
+}
+
+.asa-ai-layout .chat-composer.maximized textarea {
+  min-height: min(200px, max(32px, calc(var(--ai-available-height, 600px) - 210px)));
+  max-height: min(420px, max(32px, calc(var(--ai-available-height, 600px) - 155px)));
 }
 
 .asa-ai-layout .chat-composer.expanded .chat-attachment-drafts {

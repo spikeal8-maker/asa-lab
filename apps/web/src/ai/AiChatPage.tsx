@@ -11,6 +11,7 @@ import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scop
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
+import { AiHistoryAttachment as SavedAttachmentCard } from './AiHistoryAttachment';
 import {
   AI_CHAT_FILE_ACCEPT,
   checkAiChatFiles,
@@ -161,6 +162,7 @@ export function AiChatPage({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
   const [composerExpanded, setComposerExpanded] = useState(false);
+  const [composerMaximized, setComposerMaximized] = useState(false);
   const [attachments, setAttachments] = useState<readonly AiChatFileDraft[]>([]);
   const [historyAttachments, setHistoryAttachments] = useState<
     Record<string, readonly AiHistoryAttachment[]>
@@ -469,7 +471,7 @@ export function AiChatPage({
     const measure = (): void => {
       node.style.height = 'auto';
       const naturalHeight = node.scrollHeight;
-      node.style.height = `${Math.min(naturalHeight, 160)}px`;
+      node.style.height = `${Math.min(naturalHeight, composerMaximized ? 420 : 160)}px`;
       setComposerExpanded((previous) => {
         if (attachments.length > 0 || draft.includes('\n') || naturalHeight > 44) return true;
         return draft.length <= 12 ? false : previous;
@@ -489,7 +491,15 @@ export function AiChatPage({
       observer?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [draft, attachments.length]);
+  }, [draft, attachments.length, composerMaximized]);
+
+  useEffect(() => {
+    setComposerMaximized(false);
+  }, [currentId]);
+
+  useEffect(() => {
+    if (!draft) setComposerMaximized(false);
+  }, [draft]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1120px)');
@@ -1443,18 +1453,12 @@ export function AiChatPage({
                           {historyAttachments[message.requestId]?.length ? (
                             <div className="chat-attached-history" aria-label="Вложения сообщения">
                               {historyAttachments[message.requestId]?.map((file) => (
-                                <button
+                                <SavedAttachmentCard
                                   key={file.uploadId}
-                                  type="button"
-                                  onClick={() => void downloadAttachment(file)}
-                                  title="Получить сохранённое вложение"
-                                >
-                                  <AiChatIcon
-                                    name={file.kind === 'image' ? 'image' : 'file'}
-                                    size={17}
-                                  />
-                                  {file.fileName ?? 'Вложение'}
-                                </button>
+                                  file={file}
+                                  seatId={seatId}
+                                  onDownload={() => void downloadAttachment(file)}
+                                />
                               ))}
                             </div>
                           ) : null}
@@ -1621,7 +1625,10 @@ export function AiChatPage({
           <div className="chat-composer-dock">
             <div className="chat-composer-wrap">
               <form
-                className={composerExpanded ? 'chat-composer expanded' : 'chat-composer compact'}
+                className={
+                  (composerExpanded ? 'chat-composer expanded' : 'chat-composer compact') +
+                  (composerMaximized ? ' maximized' : '')
+                }
                 onSubmit={(event) => void send(event)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
@@ -1693,6 +1700,21 @@ export function AiChatPage({
                   aria-label="Сообщение ИИ"
                   aria-describedby="ai-composer-note"
                 />
+                {composerExpanded && draft ? (
+                  <button
+                    type="button"
+                    className="chat-composer-expand"
+                    aria-label={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
+                    title={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
+                    aria-pressed={composerMaximized}
+                    onClick={() => {
+                      setComposerMaximized((value) => !value);
+                      composer.current?.focus();
+                    }}
+                  >
+                    <span aria-hidden="true">{composerMaximized ? '↙' : '↗'}</span>
+                  </button>
+                ) : null}
                 <div className="chat-composer-controls">
                   <details
                     className="chat-tools-menu"
