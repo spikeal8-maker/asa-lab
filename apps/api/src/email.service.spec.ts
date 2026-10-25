@@ -20,7 +20,7 @@ const KEY = 'ab'.repeat(32),
     username: 'asa@example.test',
     siteOrigin: 'https://portal.example.test',
   };
-function fixture(overrides: Record<string, unknown> = {}) {
+function fixture(overrides: Record<string, unknown> = {}, now: () => number = Date.now) {
   const runtime = {
     config,
     passwordEnvelope: sealMailPassword('sensitive-mail-password', Buffer.from(KEY, 'hex')),
@@ -58,6 +58,7 @@ function fixture(overrides: Record<string, unknown> = {}) {
   }));
   const service = new EmailService({ query } as unknown as pg.Pool, {
     encryptionKey: KEY,
+    now,
     transport,
   });
   return { runtime, sendMail, verify, close, transport, query, service, status };
@@ -111,15 +112,18 @@ it('has exact readable Russian errors rather than encoding-corrupted text', () =
   }
 });
 it('does not present connection verification alone as proven inbox delivery', async () => {
-  const f = fixture();
+  let now = 0;
+  const f = fixture({}, () => now);
   expect(await f.service.availability()).toMatchObject({
     available: true,
     enforcementEligible: false,
     enforcementReason: 'delivery_unverified',
   });
   f.runtime.deliveryVerifiedVersion = 4 as never;
+  now += 1000;
   expect(await f.service.availability()).toMatchObject({ enforcementEligible: true });
   f.runtime.testOk = false;
+  now += 1000;
   expect(await f.service.availability()).toMatchObject({
     available: false,
     enforcementEligible: false,
@@ -217,4 +221,175 @@ it('requires TLS and certificate validation on both supported transports and for
     expect(options.socketTimeout).toBeLessThanOrEqual(12000);
     expect(options.connectionTimeout).toBeLessThanOrEqual(8000);
   }
+});
+
+const runtimeReads = (f: ReturnType<typeof fixture>) =>
+  f.query.mock.calls.filter(([sql]) => sql.includes('mail_runtime')).length;
+it('coalesces a 5000-request health burst and expires only the redacted public cache after one second', async () => {
+  let now = 100;
+  const f = fixture({}, () => now);
+  const results = await Promise.all(Array.from({ length: 5000 }, () => f.service.availability()));
+  expect(runtimeReads(f)).toBe(1);
+  expect(results.every((value) => value === results[0])).toBe(true);
+  expect(Object.isFrozen(results[0])).toBe(true);
+  expect(Object.keys(results[0]!).sort()).toEqual(
+    ['id', 'available', 'reason', 'checkedAt', 'enforcementEligible', 'enforcementReason'].sort(),
+  );
+  expect(JSON.stringify(results)).not.toContain('passwordEnvelope');
+  expect(JSON.stringify(results)).not.toContain('sensitive-mail-password');
+  now += 999;
+  await f.service.availability();
+  expect(runtimeReads(f)).toBe(1);
+  now += 1;
+  await Promise.all(Array.from({ length: 100 }, () => f.service.availability()));
+  expect(runtimeReads(f)).toBe(2);
+});
+it('bounds unavailable health caching during database failure and retries after the same short TTL', async () => {
+  let now = 0;
+  const f = fixture({}, () => now);
+  f.query.mockRejectedValueOnce(new Error('database unavailable'));
+  const results = await Promise.all(Array.from({ length: 100 }, () => f.service.availability()));
+  expect(f.query).toHaveBeenCalledTimes(1);
+  expect(results.every((value) => !value.available && !value.enforcementEligible)).toBe(true);
+  now = 999;
+  await f.service.availability();
+  expect(f.query).toHaveBeenCalledTimes(1);
+  now = 1000;
+  expect(await f.service.availability()).toMatchObject({
+    available: true,
+    enforcementEligible: false,
+  });
+  expect(f.query).toHaveBeenCalledTimes(2);
+});
+it('invalidates immediately after a committed configuration save while keeping privileged reads uncached', async () => {
+  const f = fixture();
+  await f.service.availability();
+  f.runtime.config = { ...config, enabled: false };
+  await f.service.save('admin', { version: 4, config: f.runtime.config }, 'request');
+  expect(await f.service.availability()).toMatchObject({
+    available: false,
+    enforcementEligible: false,
+  });
+  expect(runtimeReads(f)).toBe(2);
+  const before = f.query.mock.calls.filter(([sql]) => sql.includes('mail_admin_config')).length;
+  await f.service.adminConfig('admin');
+  await f.service.adminConfig('admin');
+  expect(f.query.mock.calls.filter(([sql]) => sql.includes('mail_admin_config')).length).toBe(
+    before + 2,
+  );
+  await f.service.status('actor-a', 'target-a', true);
+  await f.service.status('actor-b', 'target-b', false);
+  expect(
+    f.query.mock.calls
+      .filter(([sql]) => sql.includes('mail_intent_status'))
+      .map(([, args]) => args),
+  ).toEqual([
+    ['actor-a', 'target-a', true],
+    ['actor-b', 'target-b', false],
+  ]);
+});
+it('invalidates after a successful connection test and still reads fresh transport credentials', async () => {
+  const f = fixture({ testOk: false });
+  await f.service.availability();
+  f.runtime.testOk = true;
+  await f.service.test('admin', 4, null, 'request');
+  expect(f.verify).toHaveBeenCalledTimes(1);
+  expect(f.transport).toHaveBeenCalledWith(config, 'sensitive-mail-password');
+  expect(await f.service.availability()).toMatchObject({
+    available: true,
+    enforcementEligible: false,
+  });
+  expect(runtimeReads(f)).toBe(3);
+});
+it('invalidates a previously ready cache after the failed connection result is persisted', async () => {
+  const f = fixture({ deliveryVerifiedVersion: 4 });
+  await f.service.availability();
+  f.runtime.testOk = false;
+  f.verify.mockRejectedValueOnce(new Error('unavailable'));
+  await expect(f.service.test('admin', 4, null, 'request')).rejects.toMatchObject({ status: 503 });
+  expect(await f.service.availability()).toMatchObject({
+    available: false,
+    enforcementEligible: false,
+  });
+  expect(runtimeReads(f)).toBe(3);
+});
+it('invalidates on consumed email proof, but never caches or treats an invalid proof as confirmation', async () => {
+  const f = fixture();
+  await f.service.availability();
+  f.query.mockResolvedValueOnce({ rows: [{ value: { confirmed: false } }] } as never);
+  expect(await f.service.consume('A'.repeat(43))).toEqual({ confirmed: false });
+  await f.service.availability();
+  expect(runtimeReads(f)).toBe(1);
+  f.runtime.deliveryVerifiedVersion = 4 as never;
+  f.query.mockResolvedValueOnce({
+    rows: [{ value: { confirmed: true, changed: false } }],
+  } as never);
+  expect(await f.service.consume('B'.repeat(43))).toEqual({ confirmed: true, changed: false });
+  expect(await f.service.availability()).toMatchObject({
+    available: true,
+    enforcementEligible: true,
+  });
+  expect(runtimeReads(f)).toBe(2);
+});
+for (const sent of [false, true])
+  it(`invalidates after a persisted ${sent ? 'accepted' : 'failed'} delivery without reusing cached transport or target authorization`, async () => {
+    const f = fixture();
+    await f.service.availability();
+    f.sendMail.mockImplementationOnce(async () => {
+      f.runtime.testOk = false;
+      if (!sent) throw new Error('delivery rejected');
+      return { accepted: ['new@example.test'], rejected: [] };
+    });
+    const request = f.service.request(
+      'actor',
+      'target',
+      true,
+      'new@example.test',
+      'version',
+      'Reason',
+      'request',
+    );
+    if (sent) await request;
+    else await expect(request).rejects.toMatchObject({ status: 503 });
+    expect(f.transport).toHaveBeenCalledTimes(1);
+    expect(f.query.mock.calls.find(([sql]) => sql.includes('mail_intent_status'))?.[1]).toEqual([
+      'actor',
+      'target',
+      true,
+    ]);
+    expect(await f.service.availability()).toMatchObject({
+      available: false,
+      enforcementEligible: false,
+    });
+    expect(runtimeReads(f)).toBe(3);
+  });
+it('prevents an old in-flight health result from being returned or cached after configuration invalidation', async () => {
+  const f = fixture();
+  let oldResolve!: (value: unknown) => void, newResolve!: (value: unknown) => void;
+  const oldRead = new Promise<unknown>((resolve) => {
+      oldResolve = resolve;
+    }),
+    newRead = new Promise<unknown>((resolve) => {
+      newResolve = resolve;
+    });
+  const oldRuntime = { ...f.runtime, deliveryVerifiedVersion: 4 };
+  f.query.mockImplementationOnce(() => oldRead as never);
+  const oldFirst = f.service.availability(),
+    oldSecond = f.service.availability();
+  expect(runtimeReads(f)).toBe(1);
+  f.runtime.config = { ...config, enabled: false };
+  await f.service.save('admin', { version: 4, config: f.runtime.config }, 'request');
+  f.query.mockImplementationOnce(() => newRead as never);
+  const current = f.service.availability();
+  expect(runtimeReads(f)).toBe(2);
+  oldResolve({ rows: [{ value: oldRuntime }] });
+  await Promise.resolve();
+  await Promise.resolve();
+  const joined = f.service.availability();
+  expect(runtimeReads(f)).toBe(2);
+  newResolve({ rows: [{ value: f.runtime }] });
+  for (const result of await Promise.all([oldFirst, oldSecond, current, joined]))
+    expect(result).toMatchObject({ available: false, enforcementEligible: false });
+  await f.service.availability();
+  expect(runtimeReads(f)).toBe(2);
 });
