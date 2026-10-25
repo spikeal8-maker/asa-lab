@@ -12150,7 +12150,8 @@ parallel_lanes:
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
       current_slice: TASK-ELECTRONICS-ANALOG-SERIAL-001
-      next_requested_work: Owner added compact RGB block, readable Blockly and CodePanel typography, and removal of custom palette up/down arrows while retaining native scrolling. Read-only cause inventory complete; planned card TASK-ELECTRONICS-BLOCK-PRESENTATION-001 Issue763. Select after bounded analog762 acceptance; no analog scope expansion or refactoring.
+      parallel_slice: TASK-ELECTRONICS-BLOCK-PRESENTATION-001
+      parallel_coordination: Latest owner screenshot explicitly requests palette arrow removal plus compact RGB and readable fonts. Read-only cause proof complete. Select independent UI763 concurrently with analog762, separate worktrees and disjoint production files; preserve both bounded scopes, final convergence and exact budget proof. No refactoring or server changes.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12617,6 +12618,46 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-25T20:09:55Z'
       observation_note: Fresh fetch main required before edits and integration. Connected analog and Serial core paths exist; reproduce actual monitor scenarios before repair. Floating classification must use actual terminal nets, not numerical islands or zero voltage. Full repository release installed SaveCAS and owner acceptance separate.
+
+  - id: electronics-owner23-block-presentation
+    parent_lane: electronics
+    worktree_id: electronics-owner23-block-presentation
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PRESENTATION-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-PRESENTATION-001
+      issue: 763
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'yes'
+      checkpoint: selected_rgb_readability_native_scroll_without_arrow_overlay
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_reviewer
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PRESENTATION-001.md
+      owner_authorization: Latest owner asks RGB block layout and editor font readability repairs, then explicitly removes custom scroll arrows shown in screenshot. Independent UI slice alongside analog762 to avoid blocking simple visible fixes; no refactoring server or foreign changes.
+      scope_overlap_check: All worktrees show zero dirty CodePanel block definitions block UI theme and CSS before selection. Analog762 uses different runtime scheduler ADC Monitor and local simulation controller files, must not edit these four UI paths. Preserve existing categorical scroll and every connection/legacy project.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: d440bf7798cc93fad399a7310d36f24cf3c5cad0
+      convergence_baseline_sha: d440bf7798cc93fad399a7310d36f24cf3c5cad0
+      head_sha: null
+      observed_at: '2026-10-25T20:25:41Z'
+      observation_note: Fresh fetch main required before edits and integration. Actual native RGB231x296 external six rows, CSSArial50016px matching measured width and active shadow, explicit overlay arrows proven. No invented font-size mismatch or full installed acceptance. Parallel analog paths remain disjoint.
 
 integration:
   owner_lane: visual-programming
