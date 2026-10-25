@@ -211,7 +211,7 @@ it('keeps Account and Seat journals separate for the same request UUID and denie
     kind: 'classroom',
     mode: 'allow',
     minimumRating: 50,
-    revision: current.revision,
+    expectedRevision: current.revision,
     requestId: randomUUID(),
   });
   const seatThread = await f.service.createThread(school.principalId);
