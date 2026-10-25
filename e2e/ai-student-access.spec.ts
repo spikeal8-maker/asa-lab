@@ -172,8 +172,7 @@ async function acknowledgeValidatedDiagnostics(page: Page) {
     } catch {
       return route.fallback();
     }
-    if (!body || typeof body !== 'object' || Array.isArray(body))
-      return route.fallback();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return route.fallback();
     const report = body as Record<string, unknown>;
     if (
       request.method() !== 'POST' ||
