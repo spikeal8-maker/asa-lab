@@ -50,7 +50,7 @@ BEGIN
 
     -- An ambiguous or absent active Seat cannot prove completion. Do not expand
     -- one CourseEnrollment into duplicate lesson rows through identity links.
-    SELECT count(DISTINCT seat.id), min(seat.id)
+    SELECT count(DISTINCT seat.id), min(seat.id::text)::uuid
       INTO v_seat_count, v_seat_id
       FROM public.learner_identity_links link
       JOIN public.classroom_student_seats seat
@@ -84,7 +84,7 @@ BEGIN
         ELSIF v_lesson.kind = 'assignment' THEN
             -- Legacy standalone practice, not an Activity block. Historic course
             -- lessons retain their single lesson-level ActivityRun and excusal.
-            SELECT count(*), min(run.id)
+            SELECT count(*), min(run.id::text)::uuid
               INTO v_runtime_count, v_runtime_id
               FROM public.activity_runs run
              WHERE run.source_kind = 'course'
@@ -143,7 +143,7 @@ BEGIN
 
             -- Exactly one occurrence for this FROZEN block ID and version.
             -- Match by ActivityRun, not by handout: historic handouts may be shared.
-            SELECT count(*), min(run.id),
+            SELECT count(*), min(run.id::text)::uuid,
                    bool_and(run.learning_activity_version_id::text =
                             v_block.value ->> 'learningActivityVersionId')
               INTO v_runtime_count, v_runtime_id, v_version_matches
