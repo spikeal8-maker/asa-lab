@@ -402,7 +402,15 @@
 }
 
 .asa-ai-layout .chat-composer-end .asa-ai-school-scope-label {
-  display: none;
+  display: inline-block;
+  flex: 0 1 auto;
+  max-width: 88px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ai-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .asa-ai-layout .chat-microphone {
@@ -601,6 +609,10 @@
 }
 
 @media (max-width: 420px) {
+  .asa-ai-layout .chat-composer-end .asa-ai-school-scope-label {
+    max-width: 60px;
+    font-size: 10px;
+  }
   .asa-ai-layout .chat-attach-button {
     width: 36px;
     min-height: 36px;
