@@ -871,7 +871,8 @@ async function expectChatFits(page: Page): Promise<void> {
       page.locator('.asa-ai-layout').evaluate((root) => {
         const main = root.querySelector('.chat-main')!;
         const conversations = root.querySelectorAll('.chat-scroll, .chat-start-state');
-        const toolbar = root.querySelector('.chat-toolbar')!.getBoundingClientRect();
+        const mainBounds = main.getBoundingClientRect();
+        const isEmpty = root.querySelector('.asa-ai-chat')!.classList.contains('is-empty');
         const dock = root.querySelector('.chat-composer-dock')!.getBoundingClientRect();
         const textarea = root.querySelector('textarea')!.getBoundingClientRect();
         const body = root.querySelector('.chat-scroll, .chat-start-state')!.getBoundingClientRect();
@@ -889,8 +890,11 @@ async function expectChatFits(page: Page): Promise<void> {
           chatLeft: bounds.left >= 0,
           chatRight: bounds.right <= innerWidth + 1,
           composerBottom: dock.bottom <= viewportBottom + 1,
-          conversationBottom: body.bottom <= dock.top + 1,
-          inputTop: textarea.top >= toolbar.bottom,
+          conversationBottom: isEmpty || body.bottom <= dock.top + 1,
+          inputTop: textarea.top >= bounds.top,
+          centeredOnEmpty: !isEmpty || Math.abs((dock.top + dock.bottom - mainBounds.top - mainBounds.bottom) / 2) <= 15,
+          noDuplicateToolbar: root.querySelector('.chat-toolbar') === null,
+          modelInComposer: !!root.querySelector('.chat-composer .asa-ai-model-picker'),
           inputLeft: textarea.left >= bounds.left,
           inputRight: textarea.right <= bounds.right,
           inputBottom: textarea.bottom <= dock.bottom,
@@ -910,12 +914,12 @@ for (const theme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: 750 });
       const fake = await fixture(page);
       await page.goto('/#/ai');
-      await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
+      await expect(page.locator('.chat-start-state')).toBeVisible();
       await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
-      await expect(page.getByRole('button', { name: /Прикреп/ })).toBeVisible();
+      await expect(page.locator('summary.chat-attach-button')).toBeVisible();
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
         'background-color',
-        theme === 'dark' ? 'rgb(18, 33, 45)' : 'rgb(255, 255, 255)',
+        theme === 'dark' ? 'rgb(29, 29, 31)' : 'rgb(255, 255, 255)',
       );
       await expectChatFits(page);
       await page.screenshot({ path: test.info().outputPath(`ai-empty-${theme}-${width}.png`) });
@@ -1333,7 +1337,7 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 750 });
     const fake = await fixture(page);
     await page.goto('/#/ai');
-    await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
+    await expect(page.locator('.chat-start-state')).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
@@ -1411,7 +1415,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect(
     sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Чем помочь?' })).toBeVisible();
+  await expect(page.locator('.chat-start-state')).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
@@ -1520,6 +1524,61 @@ for (const width of [1440, 600, 390, 320]) {
   });
 }
 
+
+test('AI composer keeps one centered input and shows only real attachment tools', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  await expect(page.locator('.chat-toolbar')).toHaveCount(0);
+  await expect(page.locator('.chat-history-filters')).toHaveCount(0);
+  await expect(page.getByText('Чем помочь?')).toHaveCount(0);
+  await expectChatFits(page);
+  const tools = page.locator('details.chat-tools-menu');
+  await tools.locator('summary').click();
+  await expect(tools).toHaveAttribute('open', '');
+  await expect(tools.getByRole('button', { name: 'Добавить изображение' })).toBeVisible();
+  await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
+  await expect(tools.getByRole('button', { name: /Поиск в интернете/ })).toBeDisabled();
+  await expect(tools.getByRole('button', { name: /Создать изображение/ })).toBeDisabled();
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
+  await expect(tools).not.toHaveAttribute('open', '');
+  await page.getByLabel('Выбрать файлы для ИИ').setInputFiles({
+    name: 'lesson.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Arduino LED test', 'utf8'),
+  });
+  await expect(page.getByLabel('Выбранные вложения')).toContainText('lesson.txt');
+  expect(fake.requests).toHaveLength(0);
+  await page.getByRole('button', { name: 'Удалить lesson.txt' }).click();
+  await expect(page.getByLabel('Выбранные вложения')).toHaveCount(0);
+});
+
+test('AI shows no internal provider setup notice on the empty consumer screen', async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.route('**/api/ai/status', async (route) => {
+    await route.fulfill({
+      json: {
+        enabled: false,
+        provider: 'ollama',
+        model: 'ollama-local',
+        availableModels: [],
+        providerEnabled: false,
+        reason: 'provider_missing',
+      },
+    });
+  });
+  await page.goto('/#/ai');
+  await expect(page.locator('.chat-start-state')).toBeVisible();
+  await expect(page.getByText('ИИ не подключён')).toHaveCount(0);
+  await expect(page.getByText(/администратор должен|провайдер не настроен/i)).toHaveCount(0);
+  await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Отправить сообщение' })).toBeDisabled();
+});
+
 test('AI composer frame and Send stay fully visible at ordinary viewport heights', async ({
   page,
 }) => {
@@ -1528,7 +1587,7 @@ test('AI composer frame and Send stay fully visible at ordinary viewport heights
   await page.goto('/#/ai');
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 750 });
-    await expect(page.locator('.chat-start-state h1')).toBeVisible();
+    await expect(page.locator('.chat-start-state')).toBeVisible();
     await expectChatFits(page);
     const geometry = await page.evaluate(() => {
       const dock = document.querySelector<HTMLElement>('.chat-composer-dock')!;
