@@ -58,6 +58,7 @@ components:
     - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+    - apps/web/src/electronics/testing/potentiometer-vector-retirement.browser.mjs
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
     - apps/web/src/electronics/testing/workbench-geometry.spec.ts
     - apps/web/src/electronics/testing/workbench-drag-preview.spec.ts
