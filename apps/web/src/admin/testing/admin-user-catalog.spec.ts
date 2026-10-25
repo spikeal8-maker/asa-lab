@@ -189,3 +189,130 @@ it('uses structured device fields once and keeps the fallback when they are abse
   await select('Тип записи', 'students');
   expect(host.textContent).toContain('Chrome · Windows');
 });
+
+it('keeps the exact row DOM during same-criteria refresh but clears it immediately for actor changes', async () => {
+  let resolve!: (value: AdminApiResult<AdminCatalogPage>) => void;
+  const api = vi
+    .spyOn(adminApi, 'users')
+    .mockResolvedValue(ok(catalogPageFixture([catalogUserFixture('account')])));
+  await show();
+  const row = host.querySelector('[data-account-key]');
+  api.mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  await act(async () =>
+    root.render(
+      createElement(AdminUsersCatalog, {
+        scope,
+        actorId: 'old',
+        version: 0,
+        onAccessDenied: vi.fn(),
+        renderAccount,
+      }),
+    ),
+  );
+  await act(async () => resolve(ok(catalogPageFixture([catalogUserFixture('account')]))));
+  const verified = host.querySelector('[data-account-key]');
+  await act(async () =>
+    root.render(
+      createElement(AdminUsersCatalog, {
+        scope,
+        actorId: 'old',
+        version: 1,
+        onAccessDenied: vi.fn(),
+        renderAccount,
+      }),
+    ),
+  );
+  expect(host.querySelector('[data-account-key]')).toBe(verified);
+  await act(async () =>
+    root.render(
+      createElement(AdminUsersCatalog, {
+        scope,
+        actorId: 'new',
+        version: 1,
+        onAccessDenied: vi.fn(),
+        renderAccount,
+      }),
+    ),
+  );
+  expect(host.querySelector('[data-account-key]')).toBeNull();
+  expect(row).not.toBeNull();
+});
+it('uses server matched aggregates, clears incompatible age bounds and exposes exact org-class cards without forbidden legacy history', async () => {
+  const api = vi.spyOn(adminApi, 'users').mockResolvedValue(
+    ok({
+      ...catalogPageFixture([catalogUserFixture('student')]),
+      matchedCount: 61,
+      analytics: {
+        accounts: 0,
+        students: 61,
+        linkedRecords: 0,
+        ageUnknown: 61,
+        emailAbsent: 61,
+        sourceUnknown: 61,
+        activeObserved: 0,
+        aiRequests: null,
+        aiTokenCovered: null,
+        periodDays: 30,
+        roles: { learner: 61 },
+        referrers: { unknown: 61 },
+      },
+    }),
+  );
+  await show({ ...scope, kind: 'organization', id: 'school' });
+  expect(host.textContent).toContain('Найдено записей: 61');
+  expect(host.textContent).toContain('не число уникальных людей');
+  expect(
+    [...host.querySelectorAll('button')].some(
+      (b) => b.textContent === 'История проектов, публикаций и ИИ',
+    ),
+  ).toBe(false);
+  expect(
+    [...host.querySelectorAll('button')].some(
+      (b) => b.textContent === 'Полная карточка пользователя',
+    ),
+  ).toBe(true);
+  await select('Возраст', 'unknown');
+  expect(api.mock.calls.at(-1)?.[0].filters).toMatchObject({
+    age: 'unknown',
+    ageMin: '',
+    ageMax: '',
+  });
+  await select('Возможность или роль', 'learner');
+  expect(api.mock.calls.at(-1)?.[0].filters?.role).toBe('learner');
+});
+it('downloads the server full filtered CSV once and ignores an export completing after scope changes', async () => {
+  vi.spyOn(adminApi, 'users').mockResolvedValue(
+    ok(catalogPageFixture([catalogUserFixture('student')])),
+  );
+  let finish!: (value: AdminApiResult<{ csv: string; count: number }>) => void;
+  const exportApi = vi.spyOn(adminApi, 'exportUsers').mockImplementation(
+    () =>
+      new Promise((done) => {
+        finish = done;
+      }),
+  );
+  const create = vi.fn(() => 'blob:fixture');
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: create });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  await show();
+  await button('Скачать все результаты (CSV)');
+  expect(exportApi).toHaveBeenCalledTimes(1);
+  expect(host.textContent).toContain('Готовим таблицу');
+  await show({ ...scope, kind: 'organization', id: 'other' });
+  await act(async () =>
+    finish({ ok: true, status: 200, data: { csv: '\uFEFFall 61 records', count: 61 } }),
+  );
+  expect(create).not.toHaveBeenCalled();
+  await button('Скачать все результаты (CSV)');
+  await act(async () =>
+    finish({ ok: true, status: 200, data: { csv: '\uFEFFall 61 records', count: 61 } }),
+  );
+  expect(create).toHaveBeenCalledTimes(1);
+  expect(exportApi.mock.calls.at(-1)?.[0].cursor).toBeNull();
+});

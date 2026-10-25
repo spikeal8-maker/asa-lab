@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { adminDashboardFixture } from '../apps/web/src/admin/testing/admin-dashboard.fixture';
 import { crmProfileFixture } from '../apps/web/src/admin/testing/crm-user.fixture';
@@ -25,6 +25,9 @@ async function fixture(page: Page) {
     empty = false;
   let accessCalls = 0;
   let catalogMode = false;
+  let directoryMode = false,
+    bound = false;
+  const exportQueries: URLSearchParams[] = [];
   let crmConflict = false;
   const catalogQueries: URLSearchParams[] = [];
   const accessQueue: Array<(status?: number) => Promise<void>> = [];
@@ -118,7 +121,16 @@ async function fixture(page: Page) {
           updatedAt: '2026-10-25T10:00:00Z',
           document: { circuit: 'Полное сохранённое содержимое' },
         });
-      return reply(crmProfileFixture(kind));
+      return reply(
+        url.searchParams.has('classroomId')
+          ? {
+              ...crmProfileFixture(kind),
+              canEdit: false,
+              canManageCapabilities: false,
+              linkedIdentities: [],
+            }
+          : crmProfileFixture(kind),
+      );
     }
     if (path === '/api/auth/me')
       return reply({
@@ -240,6 +252,41 @@ async function fixture(page: Page) {
         ],
       });
     }
+    if (path === '/api/admin/v1/users-export') {
+      exportQueries.push(url.searchParams);
+      return reply({
+        count: 61,
+        csv:
+          '\uFEFF"Тип записи";"Имя"\r\n' +
+          Array.from({ length: 61 }, (_, i) => `"Ученическое место";"Строка ${i}"`).join('\r\n'),
+      });
+    }
+    if (path === '/api/admin/v1/users-filter-options')
+      return reply({
+        classes: [
+          {
+            id: '40000000-0000-4000-8000-000000000001',
+            title: 'Очень длинное название учебного класса для фильтрации',
+          },
+        ],
+        organizations: [{ id: SCHOOL, title: 'Организация цифровых лабораторий' }],
+      });
+    if (path === '/api/admin/v1/organization-class-bindings') {
+      if (route.request().method() === 'PUT') {
+        bound = !!route.request().postDataJSON().workspaceId;
+        return reply({ ok: true });
+      }
+      return reply({
+        classes: [
+          {
+            id: '40000000-0000-4000-8000-000000000001',
+            title: 'Учебный класс цифровой лаборатории',
+            workspaceId: bound ? SCHOOL : null,
+          },
+        ],
+        organizations: [{ id: SCHOOL, title: 'Организация цифровых лабораторий' }],
+      });
+    }
     if (path === '/api/admin/v1/users') {
       catalogQueries.push(url.searchParams);
       if (!catalogMode) return reply(catalogPageFixture());
@@ -263,21 +310,52 @@ async function fixture(page: Page) {
               'Следующая ученица',
             ),
           ]
-        : [accountUser, ...(organization ? [] : [student])];
+        : [accountUser, ...(organization && !(directoryMode && bound) ? [] : [student])];
       const kind = url.searchParams.get('kind');
       if (kind === 'accounts') items = items.filter((item) => item.kind === 'account');
       if (kind === 'students') items = items.filter((item) => item.kind === 'student');
       if (url.searchParams.get('status') === 'inactive') items = [];
       const search = url.searchParams.get('search')?.toLowerCase();
       if (search) items = items.filter((item) => item.displayName.toLowerCase().includes(search));
+      const catalog = catalogPageFixture(
+        items,
+        url.searchParams.has('cursor') || kind !== 'all' || organization || search
+          ? null
+          : 'fixture-next',
+        organization && !directoryMode,
+      );
       return reply(
-        catalogPageFixture(
-          items,
-          url.searchParams.has('cursor') || kind !== 'all' || organization || search
-            ? null
-            : 'fixture-next',
-          organization,
-        ),
+        directoryMode
+          ? {
+              ...catalog,
+              matchedCount: 61,
+              analytics: {
+                accounts: 31,
+                students: 30,
+                linkedRecords: 2,
+                ageUnknown: 30,
+                emailAbsent: 30,
+                sourceUnknown: 60,
+                activeObserved: 12,
+                aiRequests: 4,
+                aiTokenCovered: 2,
+                aiInputTokens: '12',
+                aiOutputTokens: null,
+                periodDays: Number(url.searchParams.get('days') ?? 30),
+                roles: { learner: 30, creator: 10 },
+                referrers: { unknown: 60, 'https://example.test': 1 },
+                tools: { electronics: 12 },
+                devices: { desktop: 12, unknown: 49 },
+                ageGroups: { unknown: 30, '18–34': 31 },
+                loginMethods: { password: 12 },
+                daily: Array.from({ length: 30 }, (_, i) => ({
+                  date: `2026-09-${String(i + 1).padStart(2, '0')}`,
+                  events: i,
+                  registrations: 1,
+                })),
+              },
+            }
+          : catalog,
       );
     }
     if (path.startsWith('/api/admin/v1/accounts/') && path.endsWith('/crm')) {
@@ -303,6 +381,11 @@ async function fixture(page: Page) {
     return reply({ items: [], next: null });
   });
   return {
+    directory: () => {
+      directoryMode = true;
+      catalogMode = true;
+    },
+    exportQueries: () => exportQueries,
     catalog: (value: boolean) => {
       catalogMode = value;
     },
@@ -685,6 +768,80 @@ for (const width of [1440, 1024, 390, 320]) {
     ).toBeVisible();
     await expect(account).toHaveCount(0);
     await expect(student).toHaveCount(0);
+    await noPageOverflow(page);
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`CRM filtered analytics full CSV and explicit organization binding at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.directory();
+    await page.goto('/#/admin/users');
+    await expect(page.getByText('Найдено записей: 61.', { exact: false })).toBeVisible();
+    await page.getByText('Дополнительные фильтры', { exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Возможность или роль', exact: true })
+      .selectOption('learner');
+    await expect.poll(() => f.catalogQueries().at(-1)?.get('role')).toBe('learner');
+    await page.getByRole('combobox', { name: 'Возраст', exact: true }).selectOption('unknown');
+    await expect.poll(() => f.catalogQueries().at(-1)?.get('age')).toBe('unknown');
+    await page.getByRole('button', { name: 'Найти значения фильтра', exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Класс', exact: true })
+      .selectOption('40000000-0000-4000-8000-000000000001');
+    await expect
+      .poll(() => f.catalogQueries().at(-1)?.get('classId'))
+      .toBe('40000000-0000-4000-8000-000000000001');
+    const ready = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Скачать все результаты (CSV)', exact: true }).click();
+    const download = await ready;
+    const file = await download.path();
+    expect(file).not.toBeNull();
+    const csv = readFileSync(file!, 'utf8');
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain('Строка 60');
+    expect(csv.split('\r\n')).toHaveLength(62);
+    expect(f.exportQueries().at(-1)?.get('classId')).toBe('40000000-0000-4000-8000-000000000001');
+    await page.getByText('Аналитика выбранных записей', { exact: true }).click();
+    await expect(page.getByText('Это не число уникальных людей.', { exact: false })).toBeVisible();
+    await expect(
+      page.getByRole('img', {
+        name: 'Сохранённые события по дням; точные значения в таблице ниже',
+      }),
+    ).toBeVisible();
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-directory-${width}.png`, fullPage: true });
+    await page.getByText('Связь классов с организациями', { exact: true }).click();
+    await page.getByRole('button', { name: 'Найти классы и организации', exact: true }).click();
+    const manager = page.locator('.crm-directory-bindings');
+    await manager
+      .getByRole('combobox', { name: 'Класс', exact: true })
+      .selectOption('40000000-0000-4000-8000-000000000001');
+    await manager
+      .getByRole('combobox', { name: 'Организация класса', exact: true })
+      .selectOption(SCHOOL);
+    await manager
+      .getByRole('textbox', { name: 'Причина изменения', exact: true })
+      .fill('Явное поручение владельца организации');
+    await manager.getByRole('button', { name: 'Сохранить привязку', exact: true }).click();
+    await expect(manager.getByRole('status')).toContainText('Привязка сохранена');
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-binding-${width}.png`, fullPage: true });
+    await page.getByRole('combobox', { name: 'Область управления' }).selectOption({ index: 1 });
+    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
+    await expect(student).toBeVisible();
+    await expect(
+      student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }),
+    ).toHaveCount(0);
+    await student
+      .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
+      .click();
+    await expect(student.locator('.crm-full-card')).toBeVisible();
     await noPageOverflow(page);
   });
 }

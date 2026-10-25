@@ -683,16 +683,16 @@ surfaces:
     tests: [TST-ADMIN-OVERVIEW-UNIT-001, TST-ADMIN-OVERVIEW-UI-001]
 
 - id: SURF-ADMIN-USER-CATALOG
-  routes: [/api/admin/v1/users, '#/admin/users']
+  routes: [/api/admin/v1/users, /api/admin/v1/users-export, /api/admin/v1/users-filter-options, /api/admin/v1/organization-class-bindings, '#/admin/users']
   implementation:
-    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/admin-api.ts, apps/web/src/admin/admin.css]
+    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/CatalogAnalytics.tsx, apps/web/src/admin/CatalogScopeFilters.tsx, apps/web/src/admin/OrganizationClassBindings.tsx, apps/web/src/admin/crm-directory.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/admin-api.ts, apps/web/src/admin/admin.css]
   invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
   tests: [TST-ADMIN-CATALOG-UNIT-001, TST-ADMIN-CATALOG-PG-001, TST-ADMIN-OVERVIEW-UI-001]
   controls:
   - id: CTRL-ADMIN-TYPED-CATALOG
-    label: Read distinct Account and Seat identities using server-scoped filters and query-bound keyset pages without inventing organization class authority
+    label: Read distinct Account and Seat identities using server-scoped filters and query-bound keyset pages with full filtered CSV and explicit audited organization-class authority
     change_class: L3_CRITICAL
-    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminPage.tsx]
+    files: [apps/api/src/admin-user-catalog.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0245_admin_user_catalog.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/CatalogAnalytics.tsx, apps/web/src/admin/CatalogScopeFilters.tsx, apps/web/src/admin/OrganizationClassBindings.tsx, apps/web/src/admin/crm-directory.css, apps/web/src/admin/AdminPage.tsx]
     invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
     tests: [TST-ADMIN-CATALOG-UNIT-001, TST-ADMIN-CATALOG-PG-001, TST-ADMIN-OVERVIEW-UI-001]
 
@@ -713,14 +713,14 @@ surfaces:
 - id: SURF-CRM-FULL-USER-CARD
   routes: ['/api/crm/v1/users/:kind/:target', '#/admin/users', '#/classrooms/:classroomId/students/:seatId']
   implementation:
-    files: [apps/api/src/crm-user.controller.ts, apps/api/src/app.module.ts, migrations/0247_crm_user_cards.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/admin/crm-user-api.ts, apps/web/src/admin/crm-user-card.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+    files: [apps/api/src/crm-user.controller.ts, apps/api/src/app.module.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/admin/crm-user-api.ts, apps/web/src/admin/crm-user-card.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
   invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
   tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
   controls:
   - id: CTRL-CRM-EXACT-IDENTITY-CARD
-    label: Read full exact identity CRM, platform-only versioned profile mutations and scoped teacher educational content
+    label: Read full exact identity CRM, platform-only versioned profile mutations and exact-class teacher or explicitly bound organization educational content
     change_class: L3_CRITICAL
-    files: [apps/api/src/crm-user.controller.ts, migrations/0247_crm_user_cards.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+    files: [apps/api/src/crm-user.controller.ts, migrations/0247_crm_user_cards.sql, migrations/0249_crm_directory.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
     invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
     tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
 

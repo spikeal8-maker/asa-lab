@@ -119,6 +119,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0246', // Read-only retained per-user history.
         '0247', // Full typed CRM cards and exact teacher educational reads.
         '0248', // Encrypted SMTP and one-use verified Account email proof.
+        '0249', // Filtered CRM aggregates/export and explicit organization class binding.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -397,6 +398,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0246', // Read-only retained per-user history.
           '0247', // Full typed CRM cards and exact teacher educational reads.
           '0248', // Encrypted SMTP and one-use verified Account email proof.
+          '0249', // Filtered CRM aggregates/export and explicit organization class binding.
         ]);
         expect(
           await applyIsolatedTestPlan(
