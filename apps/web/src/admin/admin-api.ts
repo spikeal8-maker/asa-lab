@@ -72,7 +72,7 @@ export interface AdminListCursor {
 export interface AdminAccount {
   readonly accountId: string;
   readonly principalId: string;
-  readonly email: string;
+  readonly email: string | null;
   readonly displayName: string;
   readonly username: string;
   readonly status: string;
@@ -88,6 +88,76 @@ export interface AdminAccount {
   readonly lastNetworkKind: AdminNetworkKind | null;
   readonly lastDevice: string | null;
   readonly recentActivityCount: number;
+}
+
+export interface AdminCatalogUser {
+  readonly kind: 'account' | 'student';
+  readonly id: string;
+  readonly actorKey: string;
+  readonly principalId: string | null;
+  readonly displayName: string;
+  readonly login: string | null;
+  readonly email: string | null;
+  readonly status: string;
+  readonly normalizedStatus: 'active' | 'inactive';
+  readonly createdAt: string;
+  readonly lastSeenAt: string | null;
+  readonly lastActivityAt: string | null;
+  readonly recentActivityCount: number;
+  readonly lastIpAddress: string | null;
+  readonly lastNetworkKind: string | null;
+  readonly lastDevice: string | null;
+  readonly browser: string | null;
+  readonly operatingSystem: string | null;
+  readonly deviceCategory: string | null;
+  readonly classId: string | null;
+  readonly classTitle: string | null;
+  readonly classStatus: string | null;
+  readonly account: AdminAccount | null;
+}
+export interface AdminCatalogPage {
+  readonly items: readonly AdminCatalogUser[];
+  readonly next: string | null;
+  readonly asOf: string;
+  readonly studentCoverage: {
+    readonly state: 'complete' | 'unavailable';
+    readonly reason?: 'organization_class_mapping_unavailable';
+  };
+}
+export type AdminHistoryCategory = 'projects' | 'publications' | 'ai';
+export interface AdminHistoryItem {
+  key: string;
+  type: 'project' | 'version' | 'publication' | 'legacy_publication' | 'ai';
+  id: string;
+  occurredAt: string;
+  title?: string | null;
+  projectId?: string | null;
+  module?: string | null;
+  status?: string | null;
+  revision?: number | null;
+  provider?: string | null;
+  model?: string | null;
+  requestedModel?: string | null;
+  inputTokens?: string | null;
+  outputTokens?: string | null;
+  errorCode?: string | null;
+  durationMs?: string | null;
+}
+export interface AdminHistoryPage {
+  items: AdminHistoryItem[];
+  next: string | null;
+  asOf: string;
+  coverage: 'retained' | 'unavailable_scope';
+}
+export interface AdminCatalogInput {
+  readonly scope: Pick<AdminScope, 'kind' | 'id'>;
+  readonly search: string;
+  readonly kind: 'all' | 'accounts' | 'students';
+  readonly status: 'all' | 'active' | 'inactive';
+  readonly sort: 'name' | 'last_activity' | 'activity' | 'created';
+  readonly direction: 'asc' | 'desc';
+  readonly limit: number;
+  readonly cursor: string | null;
 }
 
 export type AdminIpLabelKind = 'school' | 'home' | 'mobile' | 'organization' | 'other';
@@ -472,6 +542,24 @@ function list<T>(path: string, input: AdminListInput): Promise<AdminApiResult<Ad
 }
 
 export const adminApi = {
+  userHistory: (input: {
+    scope: Pick<AdminScope, 'kind' | 'id'>;
+    kind: 'account' | 'student';
+    targetId: string;
+    category: AdminHistoryCategory;
+    cursor: string | null;
+  }) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      category: input.category,
+      limit: '25',
+    });
+    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    if (input.cursor !== null) query.set('cursor', input.cursor);
+    return call<AdminHistoryPage>(
+      `/api/admin/v1/users/${encodeURIComponent(input.kind)}/${encodeURIComponent(input.targetId)}/history?${query}`,
+    );
+  },
   verificationPolicy: (signal?: AbortSignal) =>
     call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy', {
       ...(signal ? { signal } : {}),
@@ -540,6 +628,20 @@ export const adminApi = {
       body: JSON.stringify(input),
     }),
   accounts: (input: AdminListInput) => list<AdminAccount>('/api/admin/v1/accounts', input),
+  users: (input: AdminCatalogInput) => {
+    const query = new URLSearchParams({
+      scopeKind: input.scope.kind,
+      search: input.search,
+      kind: input.kind,
+      status: input.status,
+      sort: input.sort,
+      direction: input.direction,
+      limit: String(input.limit),
+    });
+    if (input.scope.id !== null) query.set('scopeId', input.scope.id);
+    if (input.cursor !== null) query.set('cursor', input.cursor);
+    return call<AdminCatalogPage>(`/api/admin/v1/users?${query.toString()}`);
+  },
   accountCrm: (
     accountId: string,
     scope: Pick<AdminScope, 'kind' | 'id'>,

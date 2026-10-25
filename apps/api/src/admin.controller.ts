@@ -30,6 +30,8 @@ import { TelegramAuthService } from './telegram-auth.service.js';
 import { ProviderConfigurationError } from './auth-provider-availability.js';
 import { AccountVerificationService } from './account-verification.service.js';
 import { AllowUnverifiedAccount } from './account-verification.guard.js';
+import { parseCatalogQuery } from './admin-user-catalog.js';
+import { parseHistoryQuery } from './admin-user-history.js';
 
 const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
   '1h',
@@ -146,6 +148,70 @@ export class AdminController {
         search: this.search(searchRaw),
         limit: this.limit(limitRaw),
         cursor: this.listCursor(beforeRaw, beforeIdRaw),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users')
+  async users(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') scopeKindRaw: string | undefined,
+    @Query('scopeId') scopeIdRaw: string | undefined,
+    @Query('search') searchRaw: string | undefined,
+    @Query('kind') kind: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('sort') sort: string | undefined,
+    @Query('direction') direction: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      const query = parseCatalogQuery({
+        kind,
+        status,
+        sort,
+        direction,
+        limit,
+        cursor,
+        search: searchRaw,
+        scopeKind: scopeKindRaw,
+        scopeId: scopeIdRaw,
+      });
+      return await this.controlPlane.listUsers(access, {
+        scope: this.scope(scopeKindRaw, scopeIdRaw),
+        search: this.search(searchRaw),
+        ...query,
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users/:kind/:targetId/history')
+  async userHistory(
+    @Req() request: FastifyRequest,
+    @Param('kind') kind: string,
+    @Param('targetId') targetId: string,
+    @Query('scopeKind') scopeKind: string | undefined,
+    @Query('scopeId') scopeId: string | undefined,
+    @Query('category') category: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      if (kind !== 'account' && kind !== 'student')
+        throw new HttpException(error('validation_error', 'invalid user kind'), 400);
+      return await this.controlPlane.userHistory(access, {
+        ...parseHistoryQuery({ category, limit, cursor, scopeKind, scopeId }),
+        kind,
+        targetId: this.uuid(targetId, 'targetId'),
+        scope: this.scope(scopeKind, scopeId),
         requestId: request.id,
       });
     } catch (failure) {

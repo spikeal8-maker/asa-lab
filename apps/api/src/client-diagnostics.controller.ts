@@ -14,6 +14,7 @@ const CODES = new Set([
   'autosave_failed',
   'session_refresh_failed',
   'request_failed',
+  'request_cancelled',
   'request_slow',
   'editor_ready',
   'editor_heartbeat',
@@ -82,9 +83,37 @@ export class ClientDiagnosticsController {
             'line',
             'column',
             'exception',
+            'operation',
+            'method',
+            'clientAttemptId',
+            'failureKind',
           ].includes(key),
       ) ||
-      ['instanceId', 'relatedRequestId', 'eventId'].some(
+      (value['operation'] !== undefined &&
+        ![
+          'auth_me',
+          'auth_refresh',
+          'auth_other',
+          'project_read',
+          'project_save',
+          'electronics_draft_read',
+          'electronics_draft_write',
+          'blocks_runtime_session',
+          'other_api',
+        ].includes(value['operation'] as string)) ||
+      (value['method'] !== undefined &&
+        !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'OTHER'].includes(
+          value['method'] as string,
+        )) ||
+      (value['failureKind'] !== undefined &&
+        !['http', 'timeout', 'cancelled', 'network', 'unknown'].includes(
+          value['failureKind'] as string,
+        )) ||
+      (value['code'] === 'request_cancelled' &&
+        (value['failureKind'] !== 'cancelled' ||
+          !['GET', 'HEAD'].includes(value['method'] as string) ||
+          value['phase'] !== 'request')) ||
+      ['instanceId', 'relatedRequestId', 'eventId', 'clientAttemptId'].some(
         (key) =>
           value[key] !== undefined &&
           (typeof value[key] !== 'string' || !UUID.test(value[key] as string)),
@@ -146,9 +175,12 @@ export class ClientDiagnosticsController {
     for (const [id, until] of this.accepted) if (until <= time) this.accepted.delete(id);
     const eventKey = value['eventId'] ? `${key}:${value['eventId']}` : undefined;
     if (eventKey && this.accepted.has(eventKey)) return { accepted: true };
-    const level = ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(
-      value['code'] as string,
-    )
+    const level = [
+      'editor_ready',
+      'editor_heartbeat',
+      'editor_recovered',
+      'request_cancelled',
+    ].includes(value['code'] as string)
       ? 'info'
       : ['editor_unresponsive', 'request_slow'].includes(value['code'] as string) ||
           (value['code'] === 'simulation_failed' &&

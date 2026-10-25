@@ -29,11 +29,17 @@ export async function streamAiRequest<T>(
   signal: AbortSignal,
   model?: string,
   scopeHeaders: Record<string, string> = {},
+  attachmentIds: readonly string[] = [],
 ): Promise<AiStreamResponse<T>> {
   return streamCommand(
     threadId,
     'messages',
-    { message: text, requestId, ...(model ? { model } : {}) },
+    {
+      message: text,
+      requestId,
+      ...(model ? { model } : {}),
+      ...(attachmentIds.length ? { attachmentIds } : {}),
+    },
     onDelta,
     signal,
     scopeHeaders,
@@ -63,7 +69,7 @@ export async function streamAiRegeneration<T>(
 async function streamCommand<T>(
   threadId: string,
   operation: 'messages' | 'regenerations',
-  body: Record<string, string>,
+  body: Record<string, unknown>,
   onDelta: (piece: string) => void,
   signal: AbortSignal,
   scopeHeaders: Record<string, string>,

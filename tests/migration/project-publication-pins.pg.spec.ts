@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 
-describe('0242 publication pin forward upgrade', () => {
+describe('0247 publication pin forward upgrade', () => {
   it('preserves prior schema history and denies direct restricted-role access', async () => {
     const source = process.env.TEST_DATABASE_URL;
     if (!source || !new URL(source).pathname.endsWith('_test'))
@@ -21,21 +21,21 @@ describe('0242 publication pin forward upgrade', () => {
       target.pathname = '/' + database;
       pool = new pg.Pool({ connectionString: target.href, max: 2 });
       const plan = planMigrations();
-      const prefix = plan.filter((item) => Number(item.version) <= 241);
-      expect(prefix.at(-1)?.version).toBe('0241');
-      expect(prefix.at(-1)?.file).toBe('0241_max_external_only_registration.sql');
+      const prefix = plan.filter((item) => Number(item.version) <= 246);
+      expect(prefix.at(-1)?.version).toBe('0246');
+      expect(prefix.at(-1)?.file).toBe('0246_admin_user_history.sql');
       const admin = await pool.connect();
       try {
         await applyIsolatedTestPlan(admin, prefix);
         const beforeHistory = await admin.query(
           'SELECT version, name, checksum FROM schema_migrations ORDER BY version',
         );
-        const complete = plan.filter((item) => Number(item.version) <= 242);
-        expect(complete.at(-1)?.file).toBe('0242_project_publication_pins.sql');
+        const complete = plan.filter((item) => Number(item.version) <= 247);
+        expect(complete.at(-1)?.file).toBe('0247_project_publication_pins.sql');
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(1);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(0);
         const preservedHistory = await admin.query(
-          "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0242' ORDER BY version",
+          "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0247' ORDER BY version",
         );
         expect(preservedHistory.rows).toEqual(beforeHistory.rows);
         const pinnedRows = await admin.query('SELECT * FROM project_publication_pin');

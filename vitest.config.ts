@@ -30,6 +30,7 @@ const allSpecs = [
   'tests/**/*.spec.ts',
 ];
 const excludedSpecs = ['**/node_modules/**', '**/dist/**', 'e2e/**'];
+const timedOwnershipSpecs = ['contexts/electronics/testing/engine-timed-api.spec.ts'];
 const submissionLockSpecs = [
   'tests/courses/activity-participations.pg.spec.ts',
   'tests/courses/learning-direct-project-attempts.pg.spec.ts',
@@ -46,7 +47,8 @@ export default defineConfig({
     reporters: ['default'],
     // The three shared-lock suites retain their original beforeAll/afterAll
     // advisory lock, exact 60/90-second limits and failure-trigger assertions.
-    // Only these files are serialized. All other files retain parallelism.
+    // Keep their group unchanged. The CPU-heavy ownership oracle below runs
+    // afterwards so unrelated parallel files cannot consume its five-second budget.
     projects: [
       {
         resolve: { alias: sharedAliases },
@@ -55,7 +57,7 @@ export default defineConfig({
           globals: false,
           environment: 'node',
           include: allSpecs,
-          exclude: [...excludedSpecs, ...submissionLockSpecs],
+          exclude: [...excludedSpecs, ...submissionLockSpecs, ...timedOwnershipSpecs],
           sequence: { groupOrder: 0 },
         },
       },
@@ -69,6 +71,18 @@ export default defineConfig({
           exclude: excludedSpecs,
           fileParallelism: false,
           sequence: { groupOrder: 1 },
+        },
+      },
+      {
+        resolve: { alias: sharedAliases },
+        test: {
+          name: 'serialized-engine-ownership',
+          globals: false,
+          environment: 'node',
+          include: timedOwnershipSpecs,
+          exclude: excludedSpecs,
+          fileParallelism: false,
+          sequence: { groupOrder: 2 },
         },
       },
     ],

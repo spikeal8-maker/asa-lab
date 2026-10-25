@@ -1,3 +1,4 @@
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import type pg from 'pg';
@@ -132,6 +133,8 @@ describe('ASA native AI Chat', () => {
     const calls: unknown[][] = [];
     let configurationVersion = 1;
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       calls.push([sql, ...params]);
       if (sql.includes('ai_admin_get_config')) {
         return {
@@ -180,6 +183,8 @@ describe('ASA native AI Chat', () => {
     const queries: string[] = [];
     let persisted = false;
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
@@ -242,6 +247,8 @@ describe('ASA native AI Chat', () => {
   it('does not retry a rejected paid request and releases the thread lock', async () => {
     const queries: string[] = [];
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
@@ -271,6 +278,8 @@ describe('ASA native AI Chat', () => {
 
   it('does not call provider again when the same client request ID is replayed', async () => {
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: false }] };
       if (sql.includes('ai_text_messages_page')) {
@@ -304,6 +313,8 @@ describe('ASA native AI Chat', () => {
   it('persists interrupted streamed text before releasing its active SQL request', async () => {
     const calls: Array<{ sql: string; params: unknown[] }> = [];
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       calls.push({ sql, params });
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
@@ -345,6 +356,8 @@ describe('ASA native AI Chat', () => {
       let answer: Record<string, unknown> | null = null;
       const calls: Array<{ sql: string; params: unknown[] }> = [];
       const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+        const journal = aiUsageQueryFixture(sql);
+        if (journal) return journal;
         calls.push({ sql, params });
         if (sql.includes('ai_runtime_config')) {
           return {
@@ -437,6 +450,8 @@ describe('ASA native AI Chat', () => {
 
   it('uses the same digital-laboratory instruction for JSON and streaming requests', async () => {
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
       if (sql.includes('ai_text_generation_context'))
@@ -478,6 +493,8 @@ describe('ASA native AI Chat', () => {
     const thread = 'bcdefabc-defa-4bcd-9bcd-bcdefabcdefa';
     const request = 'cdefabcd-efab-4cde-acde-cdefabcdefab';
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
       if (sql.includes('ai_text_generation_context'))
@@ -606,6 +623,8 @@ describe('ASA native AI Chat', () => {
 
   it('explicit admin connection test verifies one response without enabling chat or storing a thread', async () => {
     const query = vi.fn(async (sql: string) => {
+      const journal = aiUsageQueryFixture(sql);
+      if (journal) return journal;
       if (sql.includes('ai_admin_get_config'))
         return {
           rows: [

@@ -112,7 +112,12 @@ describe('Course Builder structure forward upgrade', () => {
         '0239', // Optional LAN Ollama with independent local admission.
         '0240', // Function-local JIT for canonical Teacher Home projection.
         '0241', // Native MAX external-only registration preserves canonical account bootstrap.
-        '0242', // Public Projects pin preserves course history.
+        '0242', // Local Ollama atomic attachment binding leaves Courses history unchanged.
+        '0243', // Source attachment recovery for answer variants is additive.
+        '0244', // Private usage journal is additive and preserves historic quota.
+        '0245', // Typed admin catalog and bounded server keyset continuation.
+        '0246', // Read-only retained per-user history.
+        '0247', // Additive Public Projects pin preserves course history.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -384,7 +389,12 @@ describe('Course Builder structure forward upgrade', () => {
           '0239', // Optional LAN Ollama with independent local admission.
           '0240', // Function-local JIT for canonical Teacher Home projection.
           '0241', // Native MAX external-only registration preserves canonical account bootstrap.
-          '0242', // Public Projects pin preserves course history.
+          '0242', // Independent local model attachment binding.
+          '0243', // Immutable source attachment recovery.
+          '0244', // Current-only AI usage admissions.
+          '0245', // Typed admin catalog and bounded server keyset continuation.
+          '0246', // Read-only retained per-user history.
+          '0247', // Additive Public Projects pin preserves course history.
         ]);
         expect(
           await applyIsolatedTestPlan(

@@ -15,6 +15,7 @@ components:
     - contexts/electronics/domain/simulation.ts
     tests:
     - contexts/electronics/testing/engine-public-api.spec.ts
+    - contexts/electronics/testing/engine-timed-api.spec.ts
     - contexts/electronics/testing/simulation-contract.spec.ts
     - contexts/electronics/testing/solver.spec.ts
     dependencies:

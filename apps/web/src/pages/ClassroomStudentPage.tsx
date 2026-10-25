@@ -14,7 +14,6 @@ import {
 } from '../classroom-participants-api';
 import { ProjectCard } from '../modules/ProjectCard';
 import { WorkPreview } from '../components/WorkPreview';
-import { Dropdown } from '../components/Dropdown';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
@@ -31,6 +30,7 @@ import type { ClassroomStudentNavigation } from '../components/classroom-student
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
+import { registerAuxiliarySettingsDraft } from '../components/settings-navigation';
 import '../modules/classroom-mobile.css';
 
 export const BADGE_LABELS: Readonly<Record<string, string>> = {
@@ -114,7 +114,8 @@ export function ClassroomStudentPage({
   const [profileError, setProfileError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
   const [settingsCategory, setSettingsCategory] = useState<SettingsCategory | null>(null);
-  const gameSettingsRef = useRef<HTMLDivElement>(null);
+  const gamesDirtyRef = useRef(false);
+  const [gamesDirty, setGamesDirty] = useState(false);
   const [archive, setArchive] = useState(false);
   const [works, setWorks] = useState<ParticipantWorks | null>(null);
   const [worksError, setWorksError] = useState<string | null>(null);
@@ -155,6 +156,31 @@ export function ClassroomStudentPage({
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
   const showsWorks = !['assignments', 'merits', 'grades', 'activity', 'settings'].includes(tab);
+  const gamesChanged = useCallback((dirty: boolean) => {
+    gamesDirtyRef.current = dirty;
+    setGamesDirty(dirty);
+  }, []);
+  const confirmDiscard = useCallback(
+    () =>
+      !gamesDirtyRef.current ||
+      window.confirm('Изменения игровых разрешений не сохранены. Закрыть без сохранения?'),
+    [],
+  );
+  const changeTab = (nextTab: Tab) => {
+    if (nextTab === tab || !confirmDiscard()) return;
+    setTab(nextTab);
+    setSettingsCategory(null);
+  };
+  useEffect(() => registerAuxiliarySettingsDraft(() => gamesDirtyRef.current), []);
+  useEffect(() => {
+    if (!gamesDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [gamesDirty]);
   const closeLearnerPicker = useCallback((restoreFocus = true) => {
     setLearnerPickerOpen(false);
     if (restoreFocus) learnerOpener.current?.focus();
@@ -166,6 +192,8 @@ export function ClassroomStudentPage({
     safeRequest.current++;
     setFocusAvatar(false);
     setSettingsCategory(null);
+    gamesDirtyRef.current = false;
+    setGamesDirty(false);
   }, [classroomId, seatId]);
   useEffect(() => {
     if (tab !== 'merits' || !focusAvatar) return;
@@ -360,7 +388,9 @@ export function ClassroomStudentPage({
         className="classroom-student-back"
         aria-label="← К классу"
         title={classroomTitle}
-        onClick={onBack}
+        onClick={() => {
+          if (confirmDiscard()) onBack();
+        }}
       >
         <span aria-hidden="true">←</span>
         <span className="classroom-student-back-label">К классу</span>
@@ -377,7 +407,7 @@ export function ClassroomStudentPage({
           title={navigation?.previous.displayLabel}
           disabled={!navigation || navigation.total < 2}
           onClick={() => {
-            if (navigation) onNavigateStudent(navigation.previous.id);
+            if (navigation && confirmDiscard()) onNavigateStudent(navigation.previous.id);
           }}
         >
           <span aria-hidden="true">‹</span>
@@ -529,6 +559,7 @@ export function ClassroomStudentPage({
                               type="button"
                               aria-current={entry.id === seatId ? 'page' : undefined}
                               onClick={() => {
+                                if (!confirmDiscard()) return;
                                 closeLearnerPicker();
                                 focusAfterNavigation.current =
                                   entry.id !== seatId ? entry.id : null;
@@ -577,7 +608,7 @@ export function ClassroomStudentPage({
           title={navigation?.next.displayLabel}
           disabled={!navigation || navigation.total < 2}
           onClick={() => {
-            if (navigation) onNavigateStudent(navigation.next.id);
+            if (navigation && confirmDiscard()) onNavigateStudent(navigation.next.id);
           }}
         >
           {navigation ? (
@@ -593,14 +624,19 @@ export function ClassroomStudentPage({
   const profileReady =
     profile?.student.id === seatId && loadedScope === [classroomId, seatId].join(':');
   const sectionRail = (
-    <div className="classroom-student-section-rail" role="group" aria-label="Разделы ученика">
+    <div
+      className="classroom-student-section-rail"
+      data-has-action={tab === 'merits' ? 'true' : 'false'}
+      role="group"
+      aria-label="Разделы ученика"
+    >
       <label className="classroom-student-section-select">
         <span className="classroom-student-visually-hidden">Раздел профиля</span>
         <select
           aria-label="Раздел профиля"
           value={tab}
           disabled={!profileReady}
-          onChange={(event) => setTab(event.target.value as Tab)}
+          onChange={(event) => changeTab(event.target.value as Tab)}
         >
           {TABS.map((item) => (
             <option key={item.key} value={item.key}>
@@ -609,19 +645,7 @@ export function ClassroomStudentPage({
           ))}
         </select>
       </label>
-      {showsWorks ? (
-        <button
-          className="classroom-student-section-action"
-          type="button"
-          aria-label={archive ? 'Исключить архив работ' : 'Включить архив работ'}
-          title={archive ? 'Исключить архив' : 'Включить архив'}
-          aria-pressed={archive}
-          disabled={!profileReady}
-          onClick={() => setArchive((current) => !current)}
-        >
-          <span aria-hidden="true">▤</span>
-        </button>
-      ) : tab === 'merits' ? (
+      {tab === 'merits' ? (
         <button
           className="classroom-student-section-action"
           type="button"
@@ -632,24 +656,7 @@ export function ClassroomStudentPage({
         >
           <span aria-hidden="true">◉</span>
         </button>
-      ) : (
-        <button
-          className="classroom-student-section-action"
-          type="button"
-          aria-label="Открыть настройки текущего ученика"
-          title="Настройки ученика"
-          disabled={
-            !profileReady ||
-            !seatActions ||
-            seatActions.readOnly ||
-            seatActions.busy ||
-            profile?.student.status === 'suspended'
-          }
-          onClick={() => seatActions?.onSettings()}
-        >
-          <span aria-hidden="true">⚙</span>
-        </button>
-      )}
+      ) : null}
     </div>
   );
   if (!profileReady)
@@ -748,180 +755,6 @@ export function ClassroomStudentPage({
     >
       {navigationRow}
       {sectionRail}
-      <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
-        <div className="classroom-student-meta-row">
-          <div className="participant-main-stats" aria-label="Показатели ученика">
-            <span className="classroom-student-stat">
-              <strong>{metrics.totalWorks}</strong>
-              <small>Работы</small>
-            </span>
-            <span className="classroom-student-stat">
-              <strong>{profile.submittedCount}</strong>
-              <small>Сдано</small>
-            </span>
-            <span className="classroom-student-stat">
-              <strong>{profile.awaitingReview}</strong>
-              <small>Ждут</small>
-            </span>
-            <ParticipantRating metrics={metrics} settings={settings} />
-          </div>
-          <div className="classroom-student-meta-actions">
-            <label className="participant-role">
-              <select
-                aria-label="Роль в классе"
-                value={metrics.role}
-                disabled={settingsLocked || controlsBusy}
-                onChange={(event) => updateRole(event.target.value)}
-              >
-                <option value="student">Учащийся</option>
-                <option value="helper">Помощник</option>
-              </select>
-            </label>
-            <div className="classroom-student-badges">
-              <SeatAwardRow keys={awardKeys} size="small" />
-              <label className="classroom-student-safety">
-                <input
-                  type="checkbox"
-                  checked={student.safeMode}
-                  aria-label={`Защита: ${student.displayLabel}`}
-                  disabled={settingsLocked || controlsBusy || !seatActions}
-                  onChange={(event) => updateSafeMode(event.target.checked)}
-                />
-                Защита
-              </label>
-              {seatActions ? (
-                <>
-                  <button
-                    type="button"
-                    className="classroom-student-settings"
-                    aria-label={`Настройки ученика: ${student.displayLabel}`}
-                    title="Настройки ученика"
-                    disabled={settingsLocked || controlsBusy}
-                    onClick={seatActions.onSettings}
-                  >
-                    <span aria-hidden="true">⚙</span>
-                  </button>
-                  <Dropdown
-                    key={`${classroomId}:${seatId}`}
-                    className="classroom-row-menu classroom-student-actions"
-                    ariaLabel={`Действия: ${student.displayLabel}`}
-                    label="•••"
-                    disabled={controlsBusy}
-                  >
-                    {(close) => (
-                      <>
-                        <button
-                          type="button"
-                          disabled={settingsLocked || controlsBusy}
-                          onClick={() => {
-                            close();
-                            seatActions.onSettings();
-                          }}
-                        >
-                          Имя и аватар
-                        </button>
-                        {seatActions.studentCode ? (
-                          <button
-                            type="button"
-                            disabled={settingsLocked || controlsBusy}
-                            onClick={() => {
-                              close();
-                              seatActions.onCode();
-                            }}
-                          >
-                            Изменить код
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={settingsLocked || controlsBusy || !seatActions.canOpenCard}
-                          onClick={() => {
-                            close();
-                            seatActions.onAccessCard();
-                          }}
-                        >
-                          Карточка доступа
-                        </button>
-                        <button
-                          type="button"
-                          disabled={readOnly || controlsBusy}
-                          onClick={() => {
-                            close();
-                            seatActions.onSuspend();
-                          }}
-                        >
-                          {student.status === 'suspended'
-                            ? 'Вернуть доступ'
-                            : 'Приостановить доступ'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={settingsLocked || controlsBusy}
-                          onClick={() => {
-                            close();
-                            setTab('merits');
-                            setFocusAvatar(true);
-                          }}
-                        >
-                          Аватары класса
-                        </button>
-                      </>
-                    )}
-                  </Dropdown>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </section>
-      <ParticipantGradeHistory
-        key={`${classroomId}:${seatId}:summary`}
-        classroomId={classroomId}
-        seatId={seatId}
-        compact
-        variant="teacherProfile"
-      />
-      {metrics.role === 'helper' ? (
-        <section className="participant-helper-classes" aria-label="Классы помощника">
-          <h2>Классы помощника</h2>
-          {(profile.helperClasses ?? []).length === 0 ? (
-            <p>Нет действующих классов помощника, доступных вам обоим.</p>
-          ) : (
-            <ul>
-              {profile.helperClasses.map((entry) => (
-                <li key={entry.id}>
-                  <a href={`#/classrooms/${entry.id}`}>{entry.title}</a> · Помощник
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-      {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
-      <div
-        ref={gameSettingsRef}
-        className="classroom-student-games-region"
-        tabIndex={-1}
-        aria-label="Разрешения игр ученика"
-      >
-        <ClassroomGamesSettings
-          key={`${classroomId}:${seatId}:games`}
-          classroomId={classroomId}
-          seatId={seatId}
-          readOnly={settingsLocked || controlsBusy}
-        />
-      </div>
-      {seatActions?.error && seatActions.error !== profileError ? (
-        <p role="alert">{seatActions.error}</p>
-      ) : null}
-      {profileError ? (
-        <p role="alert">
-          {profileError}{' '}
-          <button type="button" onClick={() => void load()}>
-            Обновить
-          </button>
-        </p>
-      ) : null}
       <nav
         className="participant-tabs"
         aria-label="Разделы профиля"
@@ -950,7 +783,7 @@ export function ClassroomStudentPage({
             type="button"
             key={item.key}
             aria-pressed={tab === item.key}
-            onClick={() => setTab(item.key)}
+            onClick={() => changeTab(item.key)}
           >
             {item.label}
           </button>
@@ -981,7 +814,10 @@ export function ClassroomStudentPage({
                 key={key}
                 className="classroom-student-settings-category"
                 aria-expanded={settingsCategory === key}
-                onClick={() => setSettingsCategory((current) => (current === key ? null : key))}
+                onClick={() => {
+                  if (!confirmDiscard()) return;
+                  setSettingsCategory((current) => (current === key ? null : key));
+                }}
               >
                 <span>{label}</span>
                 <span className="classroom-student-settings-category-state">
@@ -1018,13 +854,6 @@ export function ClassroomStudentPage({
                       <dt>Ученик</dt>
                       <dd>{student.displayLabel}</dd>
                     </div>
-                    <div>
-                      <dt>Рейтинг класса</dt>
-                      <dd>
-                        {metrics.score === null ? 'Нет данных' : metrics.score.toFixed(2)}
-                        {metrics.rank === null ? '' : ` · место ${metrics.rank}`}
-                      </dd>
-                    </div>
                   </dl>
                   <div className="classroom-student-settings-actions">
                     <button
@@ -1050,7 +879,7 @@ export function ClassroomStudentPage({
                       type="button"
                       disabled={settingsLocked || controlsBusy}
                       onClick={() => {
-                        setTab('merits');
+                        changeTab('merits');
                         setFocusAvatar(true);
                       }}
                     >
@@ -1133,25 +962,33 @@ export function ClassroomStudentPage({
                 </>
               ) : null}
               {settingsCategory === 'games' ? (
-                <>
-                  <p className="classroom-student-settings-note">
-                    Индивидуальный доступ к играм действует по сохранённому правилу класса.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      gameSettingsRef.current?.scrollIntoView({ block: 'center' });
-                      gameSettingsRef.current?.focus();
-                    }}
-                  >
-                    Перейти к действующим игровым разрешениям
-                  </button>
-                </>
+                <ClassroomGamesSettings
+                  key={`${classroomId}:${seatId}:games`}
+                  classroomId={classroomId}
+                  seatId={seatId}
+                  readOnly={settingsLocked || controlsBusy}
+                  onDirtyChange={gamesChanged}
+                />
               ) : null}
             </div>
           ) : null}
           {!seatActions || settingsLocked ? (
-            <small role="status">Изменения недоступны для этого ученика.</small>
+            <small role="status">
+              {readOnly
+                ? 'Класс в архиве. Изменения недоступны.'
+                : 'Изменения недоступны для этого ученика.'}
+            </small>
+          ) : null}
+          {seatActions?.error && seatActions.error !== profileError ? (
+            <p role="alert">{seatActions.error}</p>
+          ) : null}
+          {profileError ? (
+            <p role="alert">
+              {profileError}{' '}
+              <button type="button" onClick={() => void load()}>
+                Обновить
+              </button>
+            </p>
           ) : null}
         </section>
       ) : null}
@@ -1159,32 +996,86 @@ export function ClassroomStudentPage({
         <section className="classroom-student-section" aria-labelledby="student-works">
           <div className="classroom-student-works-head">
             <h2 id="student-works">{TABS.find((t) => t.key === tab)?.label}</h2>
-            <label>
-              <input
-                type="checkbox"
-                checked={archive}
-                onChange={(e) => setArchive(e.target.checked)}
-              />
-              Включая архив
-            </label>
-            <label className="classroom-student-filter">
-              <span>Статус</span>
-              <select
-                aria-label="Статус работ"
-                aria-describedby="student-filter-scope"
-                value={onlyAwaiting ? 'awaiting' : 'all'}
-                onChange={(e) => setOnlyAwaiting(e.target.value === 'awaiting')}
-              >
-                <option value="all">Все</option>
-                <option value="awaiting">Ждут проверки</option>
-              </select>
-              <small id="student-filter-scope">по загруженным</small>
-            </label>
+            <div
+              className="classroom-student-works-toolbar"
+              role="group"
+              aria-label="Показатели и фильтры работ"
+            >
+              <div className="classroom-student-work-summary" aria-label="Показатели работ ученика">
+                <span>
+                  Работ <strong>{metrics.totalWorks}</strong>
+                </span>
+                <span>
+                  Сдано <strong>{profile.submittedCount}</strong>
+                </span>
+                <span>
+                  Ждут <strong>{profile.awaitingReview}</strong>
+                </span>
+                <details className="classroom-student-visibility-details">
+                  <summary
+                    aria-label="Информация о доступных преподавателю работах"
+                    title="Что видит преподаватель"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.currentTarget.parentElement?.removeAttribute('open');
+                        event.stopPropagation();
+                      }
+                    }}
+                  >
+                    <span className="classroom-student-visibility-icon" aria-hidden="true">
+                      i
+                    </span>
+                  </summary>
+                  <div className="classroom-student-visibility-popover" role="note">
+                    <strong>Что видит преподаватель</strong>
+                    {works ? (
+                      <p>
+                        {works.visibleWorks < works.totalWorks
+                          ? `Доступно ${works.visibleWorks} из ${works.totalWorks} работ. Остальные личные работы закрыты для преподавателя.`
+                          : `Доступны все ${works.totalWorks} работ ученика.`}
+                      </p>
+                    ) : (
+                      <p>Сведения о доступных работах загружаются.</p>
+                    )}
+                    <p>
+                      На странице показаны только загруженные работы, которые разрешено
+                      просматривать. Фильтр «Ждут» не проверяет ещё не загруженные страницы.
+                    </p>
+                  </div>
+                </details>
+              </div>
+              <label className="classroom-student-archive-filter">
+                <input
+                  type="checkbox"
+                  aria-label="Включая архив"
+                  checked={archive}
+                  onChange={(event) => setArchive(event.target.checked)}
+                />
+                <span>Архив</span>
+              </label>
+              <label className="classroom-student-filter">
+                <span className="classroom-student-visually-hidden">Статус работ</span>
+                <select
+                  aria-label="Статус работ"
+                  aria-describedby="student-filter-scope"
+                  title="Отбор по загруженным работам"
+                  value={onlyAwaiting ? 'awaiting' : 'all'}
+                  onChange={(event) => setOnlyAwaiting(event.target.value === 'awaiting')}
+                >
+                  <option value="all">Все</option>
+                  <option value="awaiting" aria-label="Ждут проверки">
+                    Ждут
+                  </option>
+                </select>
+                <small id="student-filter-scope" className="classroom-student-visually-hidden">
+                  Только среди загруженных работ
+                </small>
+              </label>
+            </div>
           </div>
-          {works && works.visibleWorks < works.totalWorks ? (
-            <p className="participant-visibility-note">
-              Часть личных работ закрыта для преподавателя ({works.visibleWorks} из{' '}
-              {works.totalWorks}).
+          {onlyAwaiting && works?.hasMore && visible.length > 0 ? (
+            <p className="classroom-student-filter-scope" role="note">
+              «Ждут»: только загруженные работы. Есть ещё страницы.
             </p>
           ) : null}
           {worksError ? (
@@ -1247,6 +1138,7 @@ export function ClassroomStudentPage({
           {works?.hasMore ? (
             <button
               type="button"
+              className="classroom-student-more"
               disabled={workLoading}
               onClick={() => void loadWorks(works.offset + 30)}
             >
@@ -1266,6 +1158,7 @@ export function ClassroomStudentPage({
       ) : null}
       {tab === 'merits' ? (
         <>
+          <SeatAwardRow keys={awardKeys} size="small" />
           <SeatAwardPanel
             classroomId={classroomId}
             seatId={seatId}
@@ -1299,6 +1192,7 @@ export function ClassroomStudentPage({
       {tab === 'activity' ? (
         <section className="classroom-student-section">
           <h2>Активность</h2>
+          <ParticipantRating metrics={metrics} settings={settings} />
           <p>
             Последний вход:{' '}
             {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не входил'}

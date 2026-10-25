@@ -1,3 +1,4 @@
+import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { classifyProviderHttpFailure } from './ai-provider-errors';
 import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv } from 'node:crypto';
@@ -31,6 +32,8 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
   };
   const order: string[] = [];
   const query = vi.fn(async (...[sql]: [string, unknown[]?]) => {
+    const journal = aiUsageQueryFixture(sql);
+    if (journal) return journal;
     order.push(sql);
     if (sql.includes('ai_runtime_config') || sql.includes('ai_admin_get_config')) {
       return { rows: [config] };

@@ -5,6 +5,55 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('client diagnostics isolation', () => {
+  it.each([
+    ['GET', 'auth_cancelled', 'request_cancelled', 'cancelled'],
+    ['POST', 'auth_cancelled', 'request_failed', 'cancelled'],
+    ['GET', 'auth_timeout', 'request_failed', 'timeout'],
+  ] as const)(
+    'attributes aborted auth %s %s safely and preserves rejection',
+    async (method, reason, code, failureKind) => {
+      vi.resetModules();
+      vi.useFakeTimers();
+      const { AuthRequestError } = await import('./auth-request');
+      const controller = new AbortController();
+      const failure = new AuthRequestError(reason);
+      controller.abort(failure);
+      const transport = vi.fn<typeof fetch>(async (input) => {
+        if (String(input).startsWith('/api/auth/')) throw failure;
+        return new Response('{"accepted":true}', { status: 202 });
+      });
+      const browser = {
+        fetch: transport,
+        sessionStorage: { getItem: () => null, setItem() {} },
+        location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+        addEventListener: vi.fn(),
+      };
+      vi.stubGlobal('window', browser);
+      vi.stubGlobal('fetch', transport);
+      const { installClientDiagnostics, beginDiagnosticContext } =
+        await import('./client-diagnostics');
+      beginDiagnosticContext('electronics');
+      installClientDiagnostics();
+      await expect(
+        browser.fetch('/api/auth/me?token=PRIVATE', { method, signal: controller.signal }),
+      ).rejects.toBe(failure);
+      await vi.advanceTimersByTimeAsync(0);
+      const headers = new Headers(transport.mock.calls[0]![1]!.headers);
+      expect(headers.get('x-asa-diagnostic-module')).toBe('auth');
+      const report = transport.mock.calls.find(([path]) => path === '/api/diagnostics/client')!;
+      const body = JSON.parse(report[1]!.body as string);
+      expect(body).toMatchObject({
+        code,
+        failureKind,
+        method,
+        operation: 'auth_me',
+        module: 'auth',
+        clientAttemptId: headers.get('x-asa-client-attempt-id'),
+      });
+      expect(body.clientAttemptId).toMatch(/^[a-f0-9-]{36}$/);
+      expect(JSON.stringify(body)).not.toMatch(/PRIVATE|token|\/api\/auth/);
+    },
+  );
   it('retains distinct Scratch save stages while coalescing duplicate stage and generic exit failures', async () => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -204,6 +253,7 @@ describe('client diagnostics isolation', () => {
     expect(init.credentials).toBe('include');
     expect(init.body).toBe('private payload');
     expect(new Headers(init.headers).get('x-asa-diagnostic-instance')).toBe(id);
+    const attempt = new Headers(init.headers).get('x-asa-client-attempt-id');
     const diagnostic = JSON.parse((transport.mock.calls[1]![1] as RequestInit).body as string);
     expect(diagnostic).toMatchObject({
       code: 'request_failed',
@@ -212,11 +262,45 @@ describe('client diagnostics isolation', () => {
       instanceId: id,
       httpStatus: 500,
       phase: 'request',
+      clientAttemptId: attempt,
+      operation: 'other_api',
+      method: 'PATCH',
+      failureKind: 'http',
     });
     expect(JSON.stringify(diagnostic)).not.toContain('private');
     await browser.fetch('https://external.invalid/api/test', { headers: { test: 'unchanged' } });
     expect(transport.mock.calls.at(-1)![1]).toEqual({ headers: { test: 'unchanged' } });
     end();
+  });
+  it('prunes unsafe request details before transport and persistence', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    const disk: string[] = [];
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response('{"accepted":true}', { status: 202 }),
+    );
+    vi.stubGlobal('window', {
+      sessionStorage: {
+        getItem: () => null,
+        setItem: (_key: string, value: string) => disk.push(value),
+      },
+    });
+    vi.stubGlobal('fetch', transport);
+    const { reportClientDiagnostic } = await import('./client-diagnostics');
+    reportClientDiagnostic('request_failed', 'electronics', {
+      operation: '/api/projects/PRIVATE?token=secret',
+      method: 'PRIVATE',
+      failureKind: 'PRIVATE',
+      clientAttemptId: 'PRIVATE',
+      ...{ url: 'PRIVATE', body: 'PRIVATE', token: 'PRIVATE', userId: 'PRIVATE' },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const body = transport.mock.calls.find(([path]) => path === '/api/diagnostics/client')![1]!
+      .body as string;
+    expect(body).not.toMatch(
+      /PRIVATE|secret|operation|method|failureKind|clientAttemptId|url|token|userId/,
+    );
+    expect(disk.join('')).not.toMatch(/PRIVATE|secret/);
   });
   it('does not throw when logging transport fails', async () => {
     vi.resetModules();

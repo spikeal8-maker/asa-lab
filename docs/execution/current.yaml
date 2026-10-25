@@ -2957,20 +2957,21 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: ui03_merged_main_292dc974_ui04a_games_embedded_selected
+      status: done
+      checkpoint: ui04a_b_c_merged_main_28e05dde_technical_accepted
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner Issue #734 and comment 6387720711 (2026-10-24) explicitly authorizes
-        UI-04A then separately reviewed UI-04B and UI-04C in the teacher-facing
-        student profile only. UI-03 PR #733 source
-        0779aa66aeb132c57d41b1fde8f5d5e67b72925f was integrated in main
-        as 292dc97412066104c8f774b95954bb52192f6ce4. UI-04A is the
-        currently selected games-editor relocation; code, CI, review and main
-        acceptance are not claimed by this governance selection.
+        Owner Issue #734 and comment 6387720711 authorized complete UI-04A/B/C
+        teacher-facing student-settings consolidation. Owner explicitly authorized
+        publishing the finished result in main on 2026-10-25. PR #736 source
+        9a130a22de1836dbc262b54e7ed3a0c1c5082733 passed six exact-SHA
+        workflows and independent Codex review, then GitHub merged it as
+        28e05dde76f838357975477c91f1f0fbc8cac300. Issue #734 is closed
+        completed. No school installation or production database action was
+        authorized; separate owner visual acceptance remains pending.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
@@ -2980,13 +2981,15 @@ parallel_lanes:
         - https://github.com/spikeal8-maker/asa-lab/issues/734
         - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
       scope: >-
-        UI-04A (first bounded slice) selected after accepted UI-03 PR #733:
-        embed the existing single ClassroomGamesSettings editor exclusively in
-        Settings / Игровые разрешения, remove its always-mounted legacy region
-        and scroll workaround, preserve class-level consumer, dirty/navigation
-        protection, version/409/readback and Seat isolation. Do not start
-        UI-04B or UI-04C in this executor slice until separate acceptance.
-        Follow Issue #734 and preserve unrelated parallel lanes.
+        UI-04A/B/C product code and real React/UI tests are integrated in main
+        through PR #736: single lazy server-backed games editor and permissions
+        solely under Settings, authorized pupil management and Safe Mode grouped
+        in four closed-by-default categories, no persistent external controls,
+        grade/rating/awards in their respective nine profile tabs, compact mobile
+        controls and accessible work-visibility disclosure. Owner visual
+        acceptance, deployment and next programme slice are separate decisions.
+        Do not reimplement UI-04; the next classroom task must be selected
+        independently under Issue #715 after its own governance preflight.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
@@ -6450,7 +6453,7 @@ parallel_lanes:
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
       - migrations/0238_project_publication_editorial.sql
-      - migrations/0242_project_publication_pins.sql
+      - migrations/0247_project_publication_pins.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
@@ -6465,24 +6468,29 @@ parallel_lanes:
       pr: 704
       pr_draft: true
       status: in_progress
-      checkpoint: restore_migration_sequence_0242_after_published_max_0241
+      checkpoint: renumber_unpublished_pins_after_published_0246
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-24 the owner explicitly reselected bounded pinning migration
-        integration repair for existing PR #704 after published main
-        0241_max_external_only_registration.sql. Do not rewrite pin business SQL.
-        Renumber the unpublished pin migration 0241 to 0242, preserve its SQL
-        bytes and digest, and compose exact full migration-history fixtures with
-        published 0239 Ollama, 0240 Courses and 0241 MAX, without changing their
-        SQL or weakening history validation. Existing reports B1 #713 / Draft
-        PR #717 head 18a79c0db6469bc7b9ecf45b7b53b433de556fed is
-        preserved and not merged; its provisional 0240 will require a new
-        successor after actual #704 integration, anticipated 0243.
-        Run isolated PostgreSQL, applicable native browser, focused and General
-        CI on the final candidate, then separate independent Code/Security
-        acceptance. PR #704 remains SECURITY_ACCEPTANCE_PENDING and Draft with
-        no owner-authorized waiver, Draft removal or merge yet. No production,
-        school DB, unrelated module or 717 branch changes.
+        On 2026-10-25 owner requested publication of all finished Public Projects
+        work to main, allowing ordinary Draft transition and merge ONLY after
+        all mandatory exact-SHA focused/General CI, independent Code/Security
+        reviews and other branch/security controls actually pass. No waiver or
+        force push. Existing #704 currently has 0242_project_publication_pins.sql
+        but main already published foreign 0242-0246 migrations, so only the
+        unpublished pins migration may receive the next free number (expected
+        0247, subject to actual frontier). Preserve its exact SQL bytes and
+        checksum; extend strict own/required migration-history contracts while
+        retaining published checksum identity and rejecting corrupt histories.
+        Public Projects only: do not modify Identity, Auth, MAX, AI, Courses,
+        Scratch, Electronics, Analytics, other product tests or workflows.
+        Preserve existing B1 reports Draft #717 at
+        c420833c0b1aa5e2cf98a2d4bd46e233c19eca48, still unmerged, with
+        provisional migration 0240; prepare B1 as dependent successor only
+        once #704 integrates (expected 0248 if frontier remains unchanged).
+        Current pinning Security approval is missing and cannot be
+        self-issued; keep SECURITY_ACCEPTANCE_PENDING and no merge until
+        genuine independent reviewer and required green checks.
+        No school database, working production instance or deployment work.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -7585,13 +7593,58 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_private_epoch_bounded_feasibility
+      checkpoint: selected_private_engine_harness_baseline_dependency
       kind: diagnostic
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: ONE PRIVATE epoch-bounded controller feasibility experiment, not a proven runtime fix or product-main publication.
+      selected_slice: ONE separate PRIVATE TEST-ONLY engine ownership/null harness baseline cleanup dependency for category C General failure; failed bd3 production experiment preserved separately, never included in this baseline repair.
+      engine_harness_baseline_contract:
+        scope: ONLY contexts/electronics/testing/engine-timed-api.spec.ts baseline blob9914bd5464b41073870b912af424f80bf9803db0; target ownership/null test budgets1/7/256/1024. Separate category C baseline slice under AGENTS2.1/7, not repair inside f1 production slice.
+        deletion: Remove ONLY unused generic advance spy setup/clear/restore and newly unused originalAdvance binding in this target test. Keep owned capture/spies and every oracle, loop, mutation, input, core call, receiver identity, null/descriptor check, horizon2050, four budgets and5000ms unchanged; adjacent tests and all production/core/API HTTP/controller files excluded.
+        basis: General40174456664 exact bd3caad0e896322a8491e72fdcbbc3c8787b1ac8 FAILURE; Governance/Code/Access PASS, Data category C preexisting budget1 timeout5000,7068PASS1FAIL43SKIP. Independent proposal b5ee3178a952de66316b261969ee3463f2eeb2244ab882629176e2769d23bcc0 approves redundant instrumentation hypothesis only; performance magnitude and CI sufficiency UNKNOWN.
+        private_proof: NEW author performs paired identical-environment baseline/candidate focused probes for all four budgets with no timeout override; static inverse/semantic preservation, self-review and light checks. Infeasible or harness uncertainty STOP, no blind variants or deadline raise. Freeze PRIVATE UNPUBLISHED for NEW exact source review.
+        conditional_measurement: After source APPROVE controller composes ONE General-only baseline branch on fresh accepted main with ONLY the reviewed engine test diff; NO f1/bd3 production blobs. Every other source remains exact fresh accepted main. NEW composition review before publication; automatic General ONCE. No strict dispatch for test-harness-only cleanup because product is unchanged. Future real Arduino fix/integration requires a separate canonical selection and native gates; no failed-native evidence reuse or gate waiver.
+        failed_native: Exact bd3 strict40174461848 completed FAILURE,183PASS86FAIL; reporter lists all10 original native cases failed. Raw actual independent review pending; no causal-regression claim before raw review. Preserve failed source/ref as experiment only, not main or qualified. No accepted native evidence exists to reuse from bd3.
+        acceptance: Test-only baseline publication after actual General Data PASS is not an Arduino timing solution or runtime-fix/closure claim. No f1 production main/integration/closure/release until separately selected fix, actual all8 timing, complete mixed/buttonSerial/ResetStop, full required gates, NEW actual review and actual Editor RAW<=222000. Current General failure remains open until actual Data PASS; no waiver or claim timeout fixed. Lazy controller uncapped; proxy is not Editor overflow. Known historical Editor221965/222000 PASS is not new candidate proof. Withdrawn private ffa4 storage and935 diagnostic ports unused.
+        delivery: Light CP with requireGithub/taskrefs/format/diff, PRIVATE docs freeze and NEW independent docs review, controller ordinary main publication, then automatic General Governance exact published HEAD PASS BEFORE source edits. No local full governance, CI dispatch, push, Docker/browser/DB/install/deploy by this author.
+        receipt: docs/product/electronics/evidence/arduino-682-engine-harness-baseline-selection-20261025.md
+      epoch_measurement_contract:
+        source: "PRIVATE unpublished f1e5aa30f4b388638924e8b6813235a5a9a369c8 controller and spec; independent functional APPROVE095a0fe0477efa699d3fbea5d5a9a75bb621d0f7cc5159d88e664848078a4272,127 controller PASS and author368 focused PASS. Not a proven request593/native repair."
+        budget_correction: "Independent eligibility review99b40a94eb454295ed3eadf2da053ef86efc6e6eb2a0211f63af389522f468ab confirms controller is a lazy post-Start chunk. Guard222000 applies to SchematicEditor-, not controller; isolated controller+1069 proxy is not evidence of editor overflow. Actual full budget remains UNKNOWN until CI; ceiling unchanged."
+        withdrawn_storage: "b040 storage experiment is unnecessary for this budget. PRIVATE unpublished ffa4feca81aeeed94ff14ca32483b2c114fa3f3d and withdrawn report2fae96775b7f73d8d63ce4dcbcb62bf86a3e18b9eff046e6b696f5c0e506f37b remain preserved and unused. Historical module measurements remain valid; mandatory-editor-compaction attribution was wrong."
+        composition: "Controller composes from fresh accepted main with ONLY apps/web/src/electronics/live-simulation-worker-controller.ts and apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts blobs EXACT original reviewed f1. Check current baseline and all real dirty overlaps; conflict STOP, never overwrite foreign files with whole historical copies. No storage aliases or additional implementation."
+        qualification_identity: "Whole e2e/electronics-interactions.spec.ts remains exact accepted main and production6cadcca8600dc879e672ecb757389266ed5f18d6 blob39b7b8d6419d9d716643d24adb9b012a2168b853; whole simulation.worker.ts remains exact main/6cad blobcbd642f833df1e44cf28a5de28b8f3e702d4c567. Original ten production qualification cases and oracles remain unchanged. Root and author verified both git diffs empty."
+        excluded_diagnostics: "Do NOT import the four935 diagnostic ports or add its two diagnostic50ms/1s cases or phase unit38. New run selects ten existing native JSONL only; new phase capture is NOT_SELECTED and its absence is not FAIL. Historical935 traces remain causal evidence only, not a byte-identical production baseline."
+        preservation: "All other accepted main files and foreign YAML blocks remain exact. No math/physics/clock/pacer/hook/instruction-cost/tolerance/timeout/cadence/cap/asset/workflow/script/dependency/DB/deployment changes, repeated input/forced gestures/warmup/new Worker or source variants."
+        production_before: "Exact production6cad strict40094338480 focused934core895web76classroom/70freshNx and benchmark221965RAW222000 PASS; browser192PASS77FAIL. Timings20/5000ms PASS;30/50/100/1000/10000/20000ms FAIL with54 errors, physical fronts exact; mixed/buttonSerial COMPLETE. General40094337150 Governance/Code/Access PASS, Data categoryC baseline budget1 timeout. Foreign later main differences are retained, not declared byte-identical experiment context."
+        diagnostic_history: "Separate935 measurement strict40100814456 browser197PASS74FAIL, timing3of8PASS5FAIL41errors, mixed/buttonSerial COMPLETE, physical fronts exact, General40100808744 all4SUCCESS and two valid diagnostic captures. Do not replace production-before counts with these or claim complete byte-identical baseline/source-cause attribution."
+        publication: "Light docs CP/taskrefs/format/diff then NEW independent docs review and ordinary main publication; automatic existing General Governance exact published HEAD must PASS BEFORE composition. Pending until observed; no duplicate local full governance or manual governance dispatch."
+        measurement_run: "Freeze NEW exact two-path composition SHA, NEW independent composition review and short focused127controller+165LED+76classroom where applicable plus format/diff/control-plane before branch publication. General runs automatically; dispatch ONE existing Electronics strict-real-time workflow and verify actual HEAD. No duplicate General dispatch, new workflow or hopeful rerun."
+        actual_review: "Root obtains new artifacts once with exact source/run identity and selected member integrity; no whole ZIP digest claim unless fully verified. NEW independent actual review checks all eight delays, complete mixed/buttonSerial/StopReset and native ACK/journal completeness. Classify A-E failures without repairing unrelated modules or waiving required gates."
+        integration: "No product main, closure, acceptance, release or deployment until all required actual native results and gates, full editor RAW<=222000 and NEW actual review. Do not claim full C++ capability or a proved request593 fix; owner pending and all historical failures/blockers remain."
+        receipt: "docs/product/electronics/evidence/arduino-682-epoch-measurement-selection-20261025.md"
+      storage_size_feasibility_contract:
+        status: withdrawn_not_required_for_editor_budget
+        functional_base: PRIVATE unpublished f1e5aa30f4b388638924e8b6813235a5a9a369c8; independent functional APPROVE095a0fe0477efa699d3fbea5d5a9a75bb621d0f7cc5159d88e664848078a4272;127 controller PASS and author368 focused PASS. Not main, not runtime cause or acceptance.
+        scope: Relative to f1 ONLY apps/web/src/electronics/live-simulation-worker-controller.ts may change; entire controller.spec127 tests EXACT f1. Fresh branch inherits published canonical main before transplanting reviewed f1 two-path diff only if current baseline is unchanged; conflict STOP. Final candidate versus main has the two f1 source paths, while size delta versus f1 is controller-only.
+        mapping: One readable local const enum PrivateSlot for exactly latestTarget=a,lastInputEventAtMicroseconds=b,horizonOffsetMicroseconds=c,pendingInputEvents=d,continuationTarget=e,canonicalDocument=f,generationId=g. Replace only these TS-private declarations and this-field accesses; no method/public snapshot key/constructor order/callback identity or functionality change.
+        preservation: Preserve f1 epoch/reentrant/input/startup/normal-host/one-inflight/no-self-chain guards and host-read counts; no math/clock/pacer/hook/Worker/API/tolerance/cadence/timeout/cap/assets/tool/dependency changes, arbitrary rename, whole-class rewrite or JS-private-field variant.
+        proof: Repeat exact-f1 consumer/collision/inverse byte or AST plus compiled-class equivalence and constructor/public snapshot preservation. Audit278 typed consumers found no private external reads/reflection; private runtime storage names remain observable to unsupported JavaScript reflection. Include bounded enum allocation/overhead and type evidence; do not imply universal reflection equivalence.
+        size_evidence: Audit96b4a07f8b6999325b4fe2d9b6f842e048fb6a9ed374f531fd615f22926c1006 used actual Vite6.4.3 defaults es2020/edge88/firefox78/chrome87/safari14; enum overhead included. Baseline13023 to11728 and e6d14008 to12533 RAW module proxy, not fullEditor. Functional f1 es2022 proxy adds1069; f1 mapping and full bundle NOT measured. Known935 editor221965/222000 margin35 is historical, not current fit proof.
+        gates: Short focused127 controller plus165 LED plus76 classroom; lint/format/type where possible; exact unit-file preservation and inverse; actual-default-target RAW proxy only, no full local build. Unsafe/type/inverse failure or unproven meaningful size candidate STOP, no variants/cap raise or weakened tests. Freeze PRIVATE UNPUBLISHED and obtain NEW exact source review.
+        delivery: Light docs CP/taskrefs/format/diff then NEW docs review and ordinary main publication; automatic existing General Governance exact published HEAD must PASS BEFORE source writes. Pending until observed, no duplicate local full governance or manual governance dispatch. After source APPROVE/focused checks, controller may compose measurement-only branch with approved functional/storage code and exact935 diagnostic ports/original ten oracles; NEW composition review then ONE existing strict CI. No product main/closure until all eight actual plus mixed/buttonSerial/StopReset complete, full gates, actual RAW editor<=222000 and NEW actual review.
+        acceptance: Native timing remains3of8PASS5FAIL; request593 source attribution and full C++ capability unproven. Preserve owner pending and all old546/R27/phase/epoch history and blockers. Source publication is not deployment, release or owner acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-storage-size-feasibility-selection-20261025.md
+      epoch_permit_clarification:
+        rule: One opportunity for a fresh host sample AFTER eligible ordinary completion per external epoch, not one total callback. A VALID existing normal retained refresh after that completion satisfies the captured epoch opportunity without changing its reads, validation, horizon or dispatch. Only unsatisfied eligible exhaustion adds one selected read.
+        fences: Bind completion eligibility before callbacks; capture generation/document/target/epoch before normal read. Only unchanged original fences and valid sample satisfy OLD epoch. Reentrant newer update/Stop/Reset/input retains newer state and permit. Initial update/startup/first-positive/input-only/yield/internal refreshed completion neither spend ordinary opportunity nor mint epochs.
+        invalid_samples: Invalid/null/discarded normal sample does not satisfy valid opportunity. Preserve original validation and normalization, including fractional normalization where baseline permits it. Exhaustion read consumes BEFORE callback even null/invalid/H<=C; no retry or self-renewal. No held-ACK special case or count masking.
+        preservation: Preserve complete8def safety contract, original87/private12 assertions byte-exact and14 new controls; add all9 concrete control categories in dated clarification before one private repair. Normal retained reads remain unchanged and finite slicing stays distinct.
+        evidence: Private unpublished e6d44e26973bbe870263f6217fbab997b321b54a reports112PASS1FAIL; original read-count4vs5 unchanged. Not accepted and not a runtime fix; request593 attribution unproven; native3of8PASS5FAIL.
+        delivery: Docs independent review then ordinary main publication; automatic existing General Governance exactHEAD must PASS before source repair. CI pending until observed; no duplicate full local governance or manual dispatch. Only controller and its spec private; NEW source review before measurement branch and one existing CI; no product-main or acceptance.
+        receipt: docs/product/electronics/evidence/arduino-682-epoch-permit-clarification-20261024.md
       epoch_bounded_feasibility_contract:
         scope: ONLY apps/web/src/electronics/live-simulation-worker-controller.ts and apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts; preserve original87 and private5f1d twelve tests/assertions.
         permit: One permit per admitted valid EXTERNAL update epoch; internal read/pump/completion/input/yield/cancel NEVER rearm. Capture ordinary processed completion epoch BEFORE callbacks; old completion cannot consume or clear newer permit/target. Only ordinary positive completion after full startup settlement; startup release callback/timing exact. Input priority first.
@@ -12067,6 +12120,99 @@ parallel_lanes:
         sha: 9043ef5dabe0506d047999e5aa37f307700a89bd
       observation_note: Helper39455436882 succeeded with one204/prior0; independent API/log review bound target39455455432 to exact793fc599/tree4b3c/profilev3/workflow326529119/attempt1. Target observed in_progress, never PASS by dispatch. PR665 closed unmerged; no reopening/rerun/reuse or helper main merge. Only transport control task complete, owner pending. Fresh fetch main before later controller writes; all foreign state remains unchanged.
 
+  - id: electronics-value-inputs
+    parent_lane: electronics
+    worktree_id: electronics-value-inputs
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
+      - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CONTROL-023.md
+    task:
+      id: TASK-ELECTRONICS-CONTROL-023
+      issue: 703
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: plan/governance
+      checkpoint: owner23_reconciled_p0_and_refs_select_l03_751
+      owner_acceptance: pending
+      execution_role: programme_controller_only
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CONTROL-023.md
+        - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
+        - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
+      owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
+      programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
+      current_slice: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    previous_task:
+      id: TASK-ELECTRONICS-TIMED-API-CI-001
+      issue: 703
+      source_integrated_sha: 183f44fd56c65af9c434c3eedaed0fc0d04c8a12
+      owner_pause: Explicit owner says do not touch CI for now and returns to the first-file programme.
+      observation_note: Exact183 Data/RLS passed; full General cancelled by unrelated main publication. No overall CI, release or owner acceptance claimed; no retry/chase under the new programme.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+    revisions:
+      kind: observed_snapshot
+      observed_at: '2026-10-25T13:24:09Z'
+      main:
+        branch: main
+        sha: 8112a5a64b8ce808c6e73c77b48344f9721103a2
+      convergence_baseline_sha: 8112a5a64b8ce808c6e73c77b48344f9721103a2
+      head_sha: null
+      observation_note: Fresh fetch main is required before each bounded integration. Owner-selected controller only, source baseline observed at selection; exact-SHA CI inspected separately, no stale PASS or deployment claim.
+
+  - id: electronics-owner23-tooltips
+    parent_lane: electronics
+    worktree_id: electronics-owner23-tooltips
+    owned_paths:
+      - apps/web/src/electronics/WorkbenchHeader.tsx
+      - apps/web/src/electronics/WorkbenchTooltip.tsx
+      - apps/web/src/electronics/testing/workbench-toolbar-tooltips.spec.ts
+      - apps/web/src/electronics/testing/workbench-toolbar-tooltips.browser.mjs
+    task:
+      id: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
+      issue: 751
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: native_before_pass_budget35_unpublished_prototype_only
+      owner_acceptance: pending
+      execution_role: unpublished_prototype_executor_then_independent_review
+      publication: blocked_pending_actual_budget_safe_candidate
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      owner_authorization: Explicit owner programme selects the first free simple slice after read-only P0 classification and reconciliation of occupied L01/L02/L04 work. Native toolbar tooltip only; preserve every active foreign change and all save/API/identity/physics contracts.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: ASA Lab Electronics R4 M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      observed_at: '2026-10-25T13:24:09Z'
+      main:
+        branch: main
+        sha: 8112a5a64b8ce808c6e73c77b48344f9721103a2
+      convergence_baseline_sha: 8112a5a64b8ce808c6e73c77b48344f9721103a2
+      head_sha: null
+      observation_note: Fresh fetch main is required before bounded integration. Native BEFORE not yet run; no source, technical, installed or user acceptance claimed by selection alone. No second writer on active E11/SPDT or pin-editor code.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
@@ -12090,6 +12236,24 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-751-EDITOR-BUDGET
+    kind: acceptance_blocker
+    lane: electronics-owner23-tooltips
+    task_id: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
+    blocks:
+      - source_publication
+      - technical_acceptance
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_unpublished_prototype
+      - native_before_after
+      - focused_regression
+      - budget_measurement
+      - read_only_hygiene_diagnosis
+    reason: Fresh67ecc2de native BEFORE and web build pass at221965/222000 bytes, leaving35 bytes. No adequate room for the complete accessible toolbar feature is established. One unpublished prototype may quantify exact cost without changing the checker/cap or touching other modules; no publishing an over-budget feature.
+    unblock_requires: A fully reviewed L03 candidate that actually passes the existing budget, or an accepted bounded prerequisite establishing enough measured room. Any different cap requires a separate explicit owner decision after concrete evidence; no automatic waiver.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
   - id: PROJECTS-704-SECURITY-ACCEPTANCE
     kind: acceptance_blocker
     lane: projects
@@ -12106,10 +12270,11 @@ blocking:
       - independent_source_review
       - documentation_update
     reason: >-
-      Public Projects pinning PR #704 previously passed focused and General CI
-      on HEAD 8835cf2f304a77d86f7b592552c158d8364235e1, but the published
-      MAX 0241 migration invalidates that history. Bounded 0242 migration repair
-      and regression verification are permitted, NOT merge/release/acceptance.
+      Public Projects pinning PR #704 passed focused CI on 7035c3873913db897bc9cb8fe70ba8d337434f59 but lacks
+      independent Security verdict and required General CI. Main has published
+      unrelated 0242-0246 migrations; 0242 pin version now conflicts and must be
+      renumbered to the next free version before refreshed exact-SHA CI.
+      Bounded repair/verification is allowed, NOT merge/release/acceptance.
       A new exact-SHA independent Security verdict and owner-authorized Draft
       transition/merge are still required. Existing security handoff
       is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.

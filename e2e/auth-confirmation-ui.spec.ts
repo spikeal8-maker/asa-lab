@@ -1079,7 +1079,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveAttribute('required', '');
     await expect(page.getByText('Нет аккаунта?', { exact: true })).toBeHidden();
     const birthDateBox = await form.getByLabel('Дата рождения', { exact: true }).boundingBox();
-    const birthDateLabelBox = await form.locator('label', { hasText: 'Дата рождения' }).boundingBox();
+    const birthDateLabelBox = await form
+      .locator('label', { hasText: 'Дата рождения' })
+      .boundingBox();
     const countryLabelBox = await form.locator('label', { hasText: 'Страна' }).boundingBox();
     expect(birthDateBox).not.toBeNull();
     expect(birthDateLabelBox).not.toBeNull();

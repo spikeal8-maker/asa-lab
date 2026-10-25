@@ -1268,7 +1268,11 @@ export function ParticipantGradeHistory({
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
               const value = journalRevisionLabel(column?.preset, grade.value);
               return (
-                <li key={grade.id} className="participant-grade-row">
+                <li
+                  key={grade.id}
+                  className="participant-grade-row"
+                  data-grade-source={teacherProfile ? 'journal' : undefined}
+                >
                   <div className="participant-grade-context">
                     {column?.date ? (
                       <time dateTime={column.date}>{lessonDateLabel(column.date)}</time>
@@ -1305,7 +1309,11 @@ export function ParticipantGradeHistory({
                 ? data.results.slice(0, 3)
                 : data.results
             ).map((result) => (
-              <li key={result.assignment_id} className="participant-grade-row">
+              <li
+                key={result.assignment_id}
+                className="participant-grade-row"
+                data-grade-source={teacherProfile ? 'results' : undefined}
+              >
                 <div className="participant-grade-context">
                   <time dateTime={result.published_at}>{momentLabel(result.published_at)}</time>
                   <span>{result.assignment_title}</span>

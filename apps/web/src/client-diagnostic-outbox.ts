@@ -1,6 +1,7 @@
 import { diagnosticQuality, type TelemetryQuality } from './telemetry-quality';
 import { record, sendTelemetry } from './telemetry-contract';
 import { validClientException, exceptionMatchesCode } from './client-error-details';
+import { validRequestDetails } from './request-diagnostic-details';
 // Only this fixed vocabulary may cross the browser diagnostics boundary.
 export const DIAGNOSTIC_CODES = [
   'render_failed',
@@ -13,6 +14,7 @@ export const DIAGNOSTIC_CODES = [
   'autosave_failed',
   'session_refresh_failed',
   'request_failed',
+  'request_cancelled',
   'request_slow',
   'editor_ready',
   'editor_heartbeat',
@@ -78,6 +80,10 @@ function valid(value: unknown, now: number): value is Envelope {
         'line',
         'column',
         'exception',
+        'operation',
+        'method',
+        'failureKind',
+        'clientAttemptId',
       ].includes(k),
     ) &&
     typeof v.eventId === 'string' &&
@@ -88,7 +94,8 @@ function valid(value: unknown, now: number): value is Envelope {
     ['portal', 'scratch', 'electronics', 'auth'].includes(v.module as string) &&
     typeof v.revision === 'string' &&
     /^(?:[a-f0-9]{7,64}|unknown|development)$/.test(v.revision) &&
-    ['instanceId', 'relatedRequestId'].every(
+    validRequestDetails(v) &&
+    ['instanceId', 'relatedRequestId', 'clientAttemptId'].every(
       (k) => v[k] === undefined || (typeof v[k] === 'string' && UUID.test(v[k] as string)),
     ) &&
     (v.httpStatus === undefined ||
