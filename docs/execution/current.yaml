@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: keyboard14_and_reverse13_source_ui_integrated_select_inactive_blocks20
+      checkpoint: keyboard14_reverse13_inactive20_source_integrated_select_error_positions5
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12149,7 +12149,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
-      current_slice: TASK-ELECTRONICS-INACTIVE-BLOCKS-001
+      current_slice: TASK-ELECTRONICS-DIAGNOSTIC-POSITIONS-001
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12361,12 +12361,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_functional_active_trees_and_transient_dimming_only
+      checkpoint: source_ui_integrated_native_and_linux_focused_pass
       owner_acceptance: pending
+      source_integrated_sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
+      independent_source_ui_review: APPROVE_exact_integrated_sha
+      native_viewports_passed: [1440, 1024, 390, 320]
+      focused_linux_run: 40219031895
+      focused_linux_job: 121246373407
+      focused_linux_conclusion: success
+      local_full_gate: blocked_platform_D_corepack_cmd_EINVAL_not_pass
+      editor_bytes: 221984
+      arduino_editor_bytes: 1998884
+      general_release_installed_savecas_acceptance: not_claimed
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-INACTIVE-BLOCKS-001.md
@@ -12389,6 +12399,46 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-25T17:42:23Z'
       observation_note: Fresh fetch main before edits. Code inventory confirms detached globals/naming leak and missing inactive visual; fallback with no roots is a requested target. Source/UI qualification only; General/release/installed acceptance separate, no foreign CI repair.
+
+  - id: electronics-owner23-diagnostic-positions
+    parent_lane: electronics
+    worktree_id: electronics-owner23-diagnostic-positions
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-DIAGNOSTIC-POSITIONS-001.md
+    task:
+      id: TASK-ELECTRONICS-DIAGNOSTIC-POSITIONS-001
+      issue: 758
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_original_source_error_coordinates_only
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_reviewer
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-DIAGNOSTIC-POSITIONS-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      owner_authorization: Functional implementation first, no refactoring or file redistribution. Item5 follows independent item20; correct diagnostic metadata only, no runtime behavior or foreign changes.69 worktrees had zero dirty runtime/capabilities/panel targets at source selection.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
+      convergence_baseline_sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
+      head_sha: null
+      observed_at: '2026-10-25T18:27:44Z'
+      observation_note: Fresh fetch main before edits. Confirmed capabilities guesses scope declaration from message while runtime syntax diagnostics discard source positions. Preserve valid execution and original-source coordinates; no General/release/installed acceptance selected.
 
 integration:
   owner_lane: visual-programming
