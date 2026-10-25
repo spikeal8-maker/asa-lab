@@ -3548,7 +3548,7 @@ html.arduino-drawer-resizing * {
   border-radius: 3px;
   background: #fff;
   color: #202428;
-  font: 400 13px/1 var(--arduino-ui-font);
+  font: 400 13px/1.35 var(--arduino-ui-font);
 }
 .arduino-mode-menu > summary {
   display: flex;
@@ -4125,7 +4125,7 @@ html.arduino-palette-resizing * {
 }
 .arduino-block-editor .blocklyLabelField > .blocklyText,
 .arduino-block-editor .blocklyDropdownField > .blocklyText {
-  text-shadow: 0 1px 1px rgba(48, 51, 39, 0.42);
+  text-shadow: none;
 }
 .arduino-block-editor .blocklyFlyoutButton .blocklyText {
   fill: #43536a !important;
@@ -6000,35 +6000,6 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* Native Scratch flyout remains wheel/touch/scrollbar scrollable. Explicit
-   controls keep every category reachable without discovering a hidden bar. */
-.arduino-palette-scroll {
-  position: absolute;
-  z-index: 64;
-  top: 102px;
-  bottom: 64px;
-  left: calc(var(--arduino-flyout-width) - 34px);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  pointer-events: none;
-}
-.arduino-palette-scroll button {
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid #bbc6d1;
-  border-radius: 8px;
-  background: #fff;
-  color: #36526b;
-  font-size: 18px;
-  cursor: pointer;
-  pointer-events: auto;
-  touch-action: manipulation;
-}
-.arduino-palette-scroll button:focus-visible {
-  outline: 2px solid #276ab4;
-}
 .arduino-block-editor .blocklyFlyoutScrollbar {
   opacity: 1;
 }
@@ -6040,13 +6011,6 @@ html.arduino-palette-resizing * {
   line-height: 22px;
 }
 @media (pointer: coarse) {
-  .arduino-palette-scroll {
-    left: calc(var(--arduino-flyout-width) - 48px);
-  }
-  .arduino-palette-scroll button {
-    width: 44px;
-    height: 44px;
-  }
   .arduino-block-editor-active .blocklyDropDownDiv .blocklyMenuItem {
     height: 44px;
     min-height: 44px;
