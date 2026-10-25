@@ -102,6 +102,22 @@ function positionToolsMenu(details: HTMLDetailsElement): void {
   );
 }
 
+/** Render the server-supplied message snippet safely, without HTML injection. */
+function searchExcerpt(preview: string, query: string): ReactNode {
+  const needle = query.trim();
+  if (!needle) return preview;
+  const index = preview.toLocaleLowerCase('ru-RU').indexOf(needle.toLocaleLowerCase('ru-RU'));
+  if (index < 0) return preview;
+  const end = index + needle.length;
+  return (
+    <>
+      {preview.slice(0, index)}
+      <mark>{preview.slice(index, end)}</mark>
+      {preview.slice(end)}
+    </>
+  );
+}
+
 export function AiChatPage({
   seatId,
   scopeControl,
@@ -109,6 +125,16 @@ export function AiChatPage({
   const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  // The ASA portal currently uses a light shell. An explicit local choice must
+  // not inherit the workstation's dark OS preference by accident.
+  const [chatTheme, setChatTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return window.localStorage.getItem('asa-ai-chat-theme') === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  });
   const {
     threads,
     nextCursor: threadCursor,
@@ -139,6 +165,7 @@ export function AiChatPage({
   const [historyAttachments, setHistoryAttachments] = useState<
     Record<string, readonly AiHistoryAttachment[]>
   >({});
+  const searchInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const toolsMenu = useRef<HTMLDetailsElement>(null);
   const previewUrls = useRef(new Set<string>());
@@ -208,6 +235,22 @@ export function AiChatPage({
     };
   }, []);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    if (searchOpen) searchInput.current?.focus();
+  }, [searchOpen]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('asa-ai-chat-theme', chatTheme);
+    } catch {
+      // Restricted/WebView storage must not prevent normal chat use.
+    }
+  }, [chatTheme]);
+
+  function closeSearch(): void {
+    setSearchOpen(false);
+    if (search) setSearch('');
+  }
 
   useEffect(() => {
     const urls = previewUrls.current;
@@ -667,6 +710,7 @@ export function AiChatPage({
     setMessageCursor(null);
     restoreScroll.current = null;
     setError(null);
+    if (searchOpen) closeSearch();
     if (!desktop) setSideOpen(false);
     try {
       const result = await call<AiPage<AiMessage>>(
@@ -1044,7 +1088,13 @@ export function AiChatPage({
   }
 
   return (
-    <main id="main-content" className="asa-ai-layout" tabIndex={-1} ref={layout}>
+    <main
+      id="main-content"
+      className="asa-ai-layout"
+      data-chat-theme={chatTheme}
+      tabIndex={-1}
+      ref={layout}
+    >
       <section
         className={
           'chat-page asa-ai-chat' + (sideOpen ? ' sidebar-open' : '') + (empty ? ' is-empty' : '')
@@ -1077,6 +1127,17 @@ export function AiChatPage({
             <strong className="chat-sidebar-title">Чаты</strong>
             <div className="chat-sidebar-head-actions">
               <button
+                type="button"
+                className="chat-icon-button chat-search-trigger"
+                aria-label="Поиск по чатам"
+                title="Поиск по чатам и сообщениям"
+                aria-expanded={searchOpen}
+                aria-controls="ai-chat-history-search"
+                onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+              >
+                <AiChatIcon name="search" size={20} />
+              </button>
+              <button
                 className="chat-icon-button"
                 type="button"
                 onClick={closeHistory}
@@ -1103,6 +1164,42 @@ export function AiChatPage({
               </details>
             </div>
           </header>
+          {searchOpen ? (
+            <div
+              id="ai-chat-history-search"
+              className="chat-history-search-popover"
+              role="search"
+              aria-label="Поиск по чатам и сообщениям"
+            >
+              <label className="chat-search-box">
+                <span className="sr-only">Найти диалог</span>
+                <input
+                  ref={searchInput}
+                  type="search"
+                  aria-label="Найти диалог"
+                  value={search}
+                  maxLength={200}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      closeSearch();
+                    }
+                  }}
+                  placeholder="Название или текст сообщения"
+                />
+              </label>
+              <button
+                type="button"
+                aria-label="Закрыть поиск"
+                title="Закрыть поиск"
+                onClick={closeSearch}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
           <div className="chat-sidebar-actions">
             <button
               type="button"
@@ -1112,17 +1209,7 @@ export function AiChatPage({
               <AiChatIcon name="new-chat" size={19} />
               <span>Новый чат</span>
             </button>
-            <label className="chat-search-box">
-              <span className="sr-only">Найти диалог</span>
-              <AiChatIcon name="search" size={19} />
-              <input
-                type="search"
-                value={search}
-                maxLength={200}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Поиск по истории"
-              />
-            </label>
+
           </div>
           {!desktop && visibleError ? (
             <div className="asa-ai-error asa-ai-history-error" role="alert">
@@ -1206,7 +1293,7 @@ export function AiChatPage({
                       <span className="chat-history-title">{thread.title}</span>
                       {thread.matchPreview ? (
                         <span className="chat-history-preview" id={'ai-match-' + thread.id}>
-                          {thread.matchPreview}
+                          {searchExcerpt(thread.matchPreview, search)}
                         </span>
                       ) : null}
                     </button>
@@ -1292,6 +1379,16 @@ export function AiChatPage({
               </button>
             ) : null}
             <span className="sr-only asa-ai-current-title">{currentTitle}</span>
+            <button
+              className="chat-icon-button chat-theme-toggle"
+              type="button"
+              onClick={() => setChatTheme((current) => (current === 'light' ? 'dark' : 'light'))}
+              aria-label={chatTheme === 'light' ? 'Тёмная тема чата' : 'Светлая тема чата'}
+              title={chatTheme === 'light' ? 'Включить тёмную тему' : 'Включить светлую тему'}
+              aria-pressed={chatTheme === 'dark'}
+            >
+              <AiChatIcon name={chatTheme === 'light' ? 'moon' : 'sun'} size={20} />
+            </button>
             <button
               className="chat-icon-button asa-ai-new-chat"
               type="button"
