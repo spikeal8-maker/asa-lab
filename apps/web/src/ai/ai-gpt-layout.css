@@ -28,6 +28,65 @@
   padding-inline: 16px 10px;
 }
 
+
+/* Legacy archive remains reachable under a discreet overflow control.
+ * No separate Archive tab or always-visible archive stripe is shown. */
+.asa-ai-layout .chat-sidebar-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.asa-ai-layout .chat-history-overflow {
+  position: relative;
+}
+.asa-ai-layout .chat-history-overflow > summary {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ai-muted);
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+.asa-ai-layout .chat-history-overflow > summary::-webkit-details-marker {
+  display: none;
+}
+.asa-ai-layout .chat-history-overflow > summary:is(:hover, :focus-visible),
+.asa-ai-layout .chat-history-overflow[open] > summary {
+  background: var(--ai-bg);
+}
+.asa-ai-layout .chat-history-overflow-popup {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 6;
+  min-width: 180px;
+  padding: 5px;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  background: var(--ai-surface);
+  box-shadow: 0 10px 28px #00000014;
+}
+.asa-ai-layout .chat-history-overflow-popup > button {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ai-text);
+  text-align: left;
+  font-size: 13px;
+}
+.asa-ai-layout .chat-history-overflow-popup > button:hover {
+  background: var(--ai-bg);
+}
+
 .asa-ai-layout .chat-sidebar-title {
   font-size: 14px;
   font-weight: 600;
