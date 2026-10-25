@@ -12,6 +12,32 @@ review: independent
 
 # Remove only the extra active SPDT shadow
 
+## Owner23 bounded source/UI verification
+
+The controller selects this phase on main before authoring. Main already contains
+the required selector exclusion; do not reimplement it or merge old candidates.
+User requests next easiest unfinished item after5, without refactoring, server or
+foreign changes. Verify actual WorkbenchStage and ProductionComponentVisual with
+unchanged production CSS and owner assets through a route-fulfilled native browser
+fixture, no listening server. One new testing/spdt-active-shadow.browser.mjs and
+one existing component-map test entry are allowed. No production change unless
+a specific scoped defect is demonstrated and returned to the controller first.
+
+Native1440/1024/390/320, supported browser preferences and fit/zoom: ON/OFF,
+Run/Stop, selection, focus, normal shadow and control-button active glow remain
+correct. Use real native pointer/touch and actual Stage handlers, not synthetic
+active classes or a replacement renderer. Preserve complete document bytes across
+runtime toggles and local reopen; no server SaveCAS claim. Record exact source SHA,
+screenshots and receipts; focused presentation/physics tests, native fixture and
+independent review. For verification-only changes reuse existing source gate only
+when production bytes are identical; validate the new fixture separately.
+
+This bounded proof does not replace the full integration criteria below. Preserve
+the frozen e2e scenario, asset548 dependency, full Worker/General/SaveCAS and
+installed/owner acceptance. Do not close547 or claim full acceptance from it.
+One bounded candidate, source/UI report and STOP. No refactoring, file moves,
+dependencies, workflows, budget changes, Docker, database or deployment actions.
+
 Bounded [547](https://github.com/spikeal8-maker/asa-lab/issues/547) of existing452. Canonical current.yaml selects the executable phase; this card never authorizes another task.
 
 ## First executable phase: causal browser BEFORE only
