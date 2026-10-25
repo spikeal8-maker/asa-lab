@@ -60,13 +60,13 @@ import {
  *
  * This is the one rule here that cannot be taken back: a file served as
  * immutable stays in a visitor's browser for a year, and no server-side fix
- * reaches it. So the permission is granted by filename shape вЂ” Vite's
- * `name-hash.ext` вЂ” and never by directory. `dist/assets/` also holds
+ * reaches it. So the permission is granted by filename shape — Vite's
+ * `name-hash.ext` — and never by directory. `dist/assets/` also holds
  * owner-supplied electronics artwork copied verbatim from `public/`, which has
  * no hash and must stay revalidated.
  */
 // The hash segment may not itself contain a hyphen. Allowing one lets an
-// ordinary descriptive name qualify вЂ” `noto-sans-symbols-2-v25-symbols.woff2`
+// ordinary descriptive name qualify — `noto-sans-symbols-2-v25-symbols.woff2`
 // matched before this was tightened. A build hash that happens to contain a
 // hyphen simply falls back to revalidation, which is the safe direction to err.
 const HASHED_ASSET = /-[A-Za-z0-9_]{8,}\.[A-Za-z0-9]+$/;
@@ -149,8 +149,8 @@ function applyCacheControl(reply: FastifyReply, filePath: string): void {
 /**
  * An API with no request log and no metrics is indistinguishable from a healthy
  * one while it is failing. Logging stays on by default and quiet under the test
- * runner; the line carries technical fields only вЂ” no query string, no body, no
- * headers вЂ” because identifiers travel in those.
+ * runner; the line carries technical fields only — no query string, no body, no
+ * headers — because identifiers travel in those.
  */
 function shouldLogRequests(explicit: boolean | undefined): boolean {
   if (explicit !== undefined) return explicit;
@@ -503,8 +503,7 @@ export async function createApiApp(
         return reply.code(409).send({
           error: {
             code: 'session_conflict',
-            message:
-              'РћР±РЅР°СЂСѓР¶РµРЅС‹ РґРІР° СЂР°Р·РЅС‹С… РІС…РѕРґР°. Р’С‹Р№РґРёС‚Рµ Рё РІРѕР№РґРёС‚Рµ Р·Р°РЅРѕРІРѕ.',
+            message: 'Обнаружены два разных входа. Выйдите и войдите заново.',
           },
         });
       }
@@ -568,8 +567,7 @@ export async function createApiApp(
           return reply.code(429).send({
             error: {
               code: 'too_many_requests',
-              message:
-                'РЎР»РёС€РєРѕРј РјРЅРѕРіРѕ Р·Р°РїСЂРѕСЃРѕРІ. РџРѕРґРѕР¶РґРёС‚Рµ Рё РїРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.',
+              message: 'Слишком много запросов. Подождите и попробуйте снова.',
               retryAfterSeconds: abuse.retryAfterSeconds,
             },
           });

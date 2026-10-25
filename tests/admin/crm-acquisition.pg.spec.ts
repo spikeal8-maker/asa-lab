@@ -209,9 +209,7 @@ it('projects independent Account/Seat observations only within exact organizatio
   expect(all.analytics.acquisition?.sources['private-account']).toBeGreaterThanOrEqual(1);
   const row = page.items.find((i) => i.kind === 'account' && i.id === target.account_id)!;
   expect(catalogCsv([row])).toContain('organization');
-  expect(catalogCsv([row])).toContain(
-    'Р Р…Р Вµ Р С‘РЎРѓРЎвЂљР С•РЎвЂЎР Р…Р С‘Р С” РЎР‚Р ВµР С–Р С‘РЎРѓРЎвЂљРЎР‚Р В°РЎвЂ Р С‘Р С‘',
-  );
+  expect(catalogCsv([row])).toContain('не источник регистрации');
   expect(page.analytics.registrationSource).toBe('not_stored');
   await expect(catalog(f.teacher.principal_id)).rejects.toMatchObject({ code: '42501' });
   await expect(ingest({ ...student, classroom: randomUUID() })).rejects.toMatchObject({

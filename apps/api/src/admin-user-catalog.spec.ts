@@ -153,6 +153,7 @@ it('exports every supplied record, quotes delimiters/newlines, neutralizes formu
   }));
   const csv = catalogCsv(items as never);
   expect(csv.startsWith('\uFEFF')).toBe(true);
+  expect(csv.split('\r\n')[0]).toContain('Время наблюдения UTM (не источник регистрации)');
   expect(csv).toContain('"\' \t=HYPERLINK(""bad"");\nnext"');
   expect(csv).toContain('"\'@SUM(1)"');
   expect(csv).toContain('"\'---"');
