@@ -156,10 +156,16 @@ it('projects independent Account/Seat observations only within exact organizatio
     target = await aiIdentity(admin),
     manager = await aiIdentity(admin),
     owner = await platform();
+  const organizationTenant = (
+    await admin.query(
+      "INSERT INTO tenants(title,workspace_slug) VALUES('Acquisition school',$1) RETURNING id",
+      [randomUUID()],
+    )
+  ).rows[0].id;
   const workspace = (
     await admin.query(
       "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'organization','Acquisition school') RETURNING id",
-      [f.context.tenant_id],
+      [organizationTenant],
     )
   ).rows[0].id;
   await admin.query(

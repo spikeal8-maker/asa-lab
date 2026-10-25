@@ -256,4 +256,3 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_user_catalog_v2(uuid,varchar,uuid,varchar,varchar,varchar,varchar,varchar,integer,jsonb,jsonb,varchar) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_user_catalog_v2(uuid,varchar,uuid,varchar,varchar,varchar,varchar,varchar,integer,jsonb,jsonb,varchar) TO asalab_app;
-

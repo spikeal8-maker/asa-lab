@@ -114,3 +114,34 @@ Account/Seat access screenshots from the identical frontend tree in run
 polish item, not a reason to claim complete visual acceptance yet. Integration
 preserves disjoint Electronics Arduino changes and execution documentation.
 No production data mutation or SMTP activation is claimed.
+
+
+## Analytics candidate and convergence evidence
+
+The final analytics candidate adds separate UTC record-creation/event charts,
+readable KPI cards and grouped detail, exact decimal AI token strings, campaign
+coverage and authorized per-record browser claims in the catalog and CSV. The
+optional current-document campaign intake has independent client delivery and a
+separate bounded server queue/pool. Strict source/medium/campaign slugs are bound
+to the current authenticated Account/workspace or Seat/class; canonical visit
+telemetry, historic registration attribution and SMTP settings remain unchanged.
+Observation readers enforce a 90-day cutoff; indexed cleanup is limited to 100
+rows per intake, with separate digest-only receipt retention of 97 days.
+
+Recovery preserved the interrupted candidate in local commit `3105a1ea` before
+convergence with Main `2eb10d438476d8f5fa74493eb0f11b0165b1f679`.
+Three migration-tail conflicts were combined semantically: remote Ollama Cloud
+migration 0252 and its provider/history assertions are retained; CRM acquisition
+is migration 0253. The remote CSV formatter fix and all remote dependency changes
+are preserved. The new PostgreSQL fixture uses a distinct organization tenant,
+matching the existing unique workspace-per-tenant constraint.
+
+Before interruption, 173 focused cases passed across 13 suites. The additional
+factory suite could not load the missing local shared `@asa-lab/module-sdk`
+runtime dependency; its new lifecycle case is registered in the focused CI.
+After convergence, 45 affected catalog/runtime/acquisition cases passed; these
+overlap the earlier tests and are not an additional distinct total. API typecheck,
+contracts and the no-database migration-file check passed. Browser screenshots,
+new PostgreSQL cases, full factory lifecycle and independent final-SHA review
+remain unverified until the controller's isolated GitHub gate. No deployment,
+live database mutation or SMTP activation is claimed.

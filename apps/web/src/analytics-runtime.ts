@@ -34,7 +34,11 @@ function clearProductObservation(): void {
 }
 function update(context: TelemetryContext): void {
   // Optional campaign claims have their own queue and never change canonical visit envelopes.
-  observeCurrentAcquisition(context.ready ? context.actor : null);
+  try {
+    observeCurrentAcquisition(context.ready ? context.actor : null);
+  } catch {
+    // Optional intake failures cannot interrupt canonical visit/session delivery.
+  }
   if (proof && !sameTelemetryBinding(proof.context)) proof.controller.abort();
   if (productObservation && !sameTelemetryBinding(productObservation.context))
     clearProductObservation();

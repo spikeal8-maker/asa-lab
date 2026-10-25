@@ -59,6 +59,7 @@ components:
     - apps/web/src/electronics/testing/workbench-shortcuts.spec.ts
     - apps/web/src/electronics/testing/workbench-keyboard-ui.browser.mjs
     - apps/web/src/electronics/testing/reverse-led-colour.browser.mjs
+    - apps/web/src/electronics/testing/spdt-active-shadow.browser.mjs
     - apps/web/src/electronics/testing/workbench-native-wheel.spec.ts
     - e2e/electronics-native-wheel.spec.ts
     - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts

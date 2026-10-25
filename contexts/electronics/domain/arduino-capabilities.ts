@@ -367,13 +367,11 @@ export function analyseArduinoSourceSupport(
   };
 
   for (const syntaxDiagnostic of analyseArduinoProgramSyntax(source)) {
-    const scope = syntaxDiagnostic.message.includes('setup()') ? 'setup' : 'loop';
-    const scopeStart = clean.search(new RegExp(`\\bvoid\\s+${scope}\\b`, 'i'));
     add(
       'syntax-error',
       'unsupported',
-      scopeStart >= 0 ? scopeStart : 0,
-      scopeStart >= 0 ? scope.length : 1,
+      syntaxDiagnostic.start ?? 0,
+      syntaxDiagnostic.length ?? 0,
       syntaxDiagnostic.message,
     );
   }
@@ -440,7 +438,7 @@ export function analyseArduinoSourceSupport(
     );
   }
 
-  for (const match of clean.matchAll(/\b(?:switch|do|break|continue|goto)\b/gi)) {
+  for (const match of clean.matchAll(/\b(?:switch|do|goto)\b/gi)) {
     add(
       'unsupported-syntax',
       'unsupported',
@@ -450,15 +448,13 @@ export function analyseArduinoSourceSupport(
     );
   }
 
-  for (const match of clean.matchAll(/\b(?:char|String)\b|\belse\s+if\b/g)) {
+  for (const match of clean.matchAll(/\b(?:char|String)\b/g)) {
     add(
       'unsupported-syntax',
       'unsupported',
       match.index ?? 0,
       match[0].length,
-      /else\s+if/i.test(match[0])
-        ? 'Цепочка else if ещё не входит в подтверждённое подмножество; используйте один if/else.'
-        : `${match[0]} и строковые операции ещё не исполняются Arduino-рантаймом.`,
+      `${match[0]} и строковые операции ещё не исполняются Arduino-рантаймом.`,
     );
   }
 

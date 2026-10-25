@@ -642,7 +642,7 @@ for (const width of [1440, 1024, 390, 320]) {
       card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
     ).toContainText('Текущий адрес: profile@example.test');
     const responsibilities = account.getByRole('region', {
-      name: 'Ответственность и доступ',
+      name: 'Роли в организациях и классах',
       exact: true,
     });
     await responsibilities

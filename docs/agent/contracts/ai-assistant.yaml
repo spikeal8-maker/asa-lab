@@ -4,6 +4,13 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-CLOUD-CREDENTIAL-001
+    statement: Cloud provider keys remain separate encrypted server-only slots. Provider/model admission uses the closed server and SQL catalog, current configuration revision and shared paid quota; cloud Ollama uses only the fixed HTTPS ollama.com endpoint without redirects. Official-site sign-in/key creation is not an ASA OAuth grant. Adding, switching or clearing one provider preserves other keys and history.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: 11.2. Ollama Cloud
+    applies_to: [cloud_provider_config, cloud_provider_transport, cloud_provider_test]
+    forbid: [browser_stored_provider_key, arbitrary_cloud_endpoint, redirected_cloud_key, automatic_paid_test, unofficial_oauth, cross_provider_key_deletion]
   - id: AI-USAGE-001
     statement: Every new admitted chat operation has one durable immutable-owner usage row before provider generation. Provider-only counts and actual model remain NULL when unknown. Crashes remain pending, exact terminal retries are idempotent, conflicts fail, deletion does not erase usage, and replay never calls a provider. Safe operational projections contain no owner identity, prompts, content, keys or endpoint URLs; telemetry failure preserves paid answers and primary errors.
     master_refs:
