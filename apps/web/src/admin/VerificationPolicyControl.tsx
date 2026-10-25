@@ -86,7 +86,10 @@ export function VerificationPolicyControl({
       <div className="auth-policy-copy">
         <span className="auth-confirmation-kicker">Правило доступа</span>
         <h3 id="auth-policy-title">Подтверждение входа через 24 часа</h3>
-        <p>После первых суток нужен один подтверждённый способ: MAX, Telegram или почта.</p>
+        <p>
+          После первых суток нужен один подтверждённый способ: MAX, Telegram или подключённая почта.
+        </p>
+        <p>Этот переключатель не подключает почту и не требует именно почтового подтверждения.</p>
         <p className="auth-policy-fallback">
           Если ни один проверенный способ не работает, вход по паролю сохраняется.
         </p>

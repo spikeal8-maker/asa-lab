@@ -2244,6 +2244,28 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       mail.getByRole('button', { name: 'Проверить подключение', exact: true }),
     ).toBeDisabled();
+    await expect(
+      mail.getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true }),
+    ).not.toBeChecked();
+    await expect(mail).toContainText('Без почтового сервера оставьте почту выключенной');
+    await expect(mail).toContainText('Настройки не включают обязательное');
+    expect(calls.filter((x) => Object.keys(x.body).length)).toHaveLength(0);
+    await mail
+      .getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true })
+      .check();
+    await mail
+      .getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true })
+      .uncheck();
+    await mail.getByLabel('Адрес сайта для ссылок', { exact: true }).fill('');
+    await mail.getByRole('button', { name: 'Сохранить почту', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Почта выключена');
+    expect(calls.at(-1)?.body.config).toMatchObject({
+      enabled: false,
+      host: '',
+      sender: '',
+      username: '',
+      siteOrigin: '',
+    });
     await screenshot(page, `smtp-unconfigured-${width}`);
     await mail
       .getByLabel('Почтовый сервер', { exact: true })
@@ -2280,6 +2302,22 @@ for (const width of [1440, 1024, 390, 320]) {
       'one-recipient@example.test',
     );
     await screenshot(page, `smtp-configured-${width}`);
+    // A broken unsaved draft must never prevent the administrator from turning OFF mail.
+    await mail.getByLabel('Почтовый сервер', { exact: true }).fill('invalid host');
+    await mail.getByLabel('Адрес отправителя', { exact: true }).fill('not-an-email');
+    await mail.getByRole('button', { name: 'Выключить почту', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Почта выключена');
+    await expect(
+      mail.getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true }),
+    ).not.toBeChecked();
+    await expect(mail.getByLabel('Почтовый сервер', { exact: true })).toHaveValue(
+      'smtp.a-very-long-mail-configuration.example.test',
+    );
+    expect(calls.at(-1)?.body.config).toMatchObject({
+      enabled: false,
+      sender: 'long-sender-name-for-layout-review@example.test',
+    });
+    expect(calls.at(-1)?.body.password).toBeUndefined();
   });
   test(`public email proof erases the token and confirms once at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

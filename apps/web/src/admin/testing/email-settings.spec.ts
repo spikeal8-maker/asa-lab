@@ -146,3 +146,55 @@ it('uses parent-owned email readiness without starting another global verificati
   expect(host.textContent).toContain('Почта сейчас недоступна');
   expect(check).not.toHaveBeenCalled();
 });
+
+it('leaves an unconfigured mail method OFF without sending or changing global verification policy', async () => {
+  vi.spyOn(emailApi, 'config').mockResolvedValue(ok(config));
+  const save = vi.spyOn(emailApi, 'save');
+  const test = vi.spyOn(emailApi, 'test');
+  await act(async () =>
+    root.render(createElement(AdminEmailSettings, { refreshKey: 0, onAccessDenied: vi.fn() })),
+  );
+  expect((host.querySelector('input[role=switch]') as HTMLInputElement).checked).toBe(false);
+  expect(host.textContent).toContain('Без почтового сервера оставьте почту выключенной');
+  expect(host.textContent).toContain('не включают обязательное');
+  expect(host.querySelectorAll('input[required]')).toHaveLength(1); // Test recipient only.
+  expect(save).not.toHaveBeenCalled();
+  expect(test).not.toHaveBeenCalled();
+});
+it('can switch OFF using saved settings despite an invalid unsaved form and restore discarded changes', async () => {
+  const stored = {
+    ...config,
+    config: {
+      enabled: true,
+      host: 'smtp.example.test',
+      port: 465 as const,
+      sender: 'asa@example.test',
+      username: 'asa@example.test',
+      siteOrigin: 'https://portal.example.test',
+    },
+    passwordConfigured: true,
+  };
+  vi.spyOn(emailApi, 'config').mockResolvedValue(ok(stored));
+  const save = vi
+    .spyOn(emailApi, 'save')
+    .mockResolvedValue(ok({ ...stored, version: 2, config: { ...stored.config, enabled: false } }));
+  await act(async () =>
+    root.render(createElement(AdminEmailSettings, { refreshKey: 0, onAccessDenied: vi.fn() })),
+  );
+  const switchInput = host.querySelector('input[role=switch]') as HTMLInputElement;
+  await act(async () => switchInput.click());
+  expect(switchInput.checked).toBe(false);
+  await act(async () =>
+    [...host.querySelectorAll('button')]
+      .find((b) => b.textContent === 'Отменить изменения')!
+      .click(),
+  );
+  expect(switchInput.checked).toBe(true);
+  await act(async () => switchInput.click());
+  await act(async () =>
+    [...host.querySelectorAll('button')].find((b) => b.textContent === 'Выключить почту')!.click(),
+  );
+  expect(save).toHaveBeenCalledExactlyOnceWith(1, { ...stored.config, enabled: false }, '', false);
+  expect(host.textContent).toContain('Почта выключена');
+  expect((host.querySelector('input[role=switch]') as HTMLInputElement).checked).toBe(false);
+});

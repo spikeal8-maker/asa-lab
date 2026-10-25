@@ -67,20 +67,41 @@ export function AdminEmailSettings({
     setConfig({ ...config, [key]: value });
     setDirty(true);
   }
-  async function save(event: FormEvent) {
+  async function save(event: FormEvent, disable = false) {
     event.preventDefault();
     if (!status || busy) return;
     const n = seq.current;
     setBusy(true);
     setNotice('');
-    const r = await emailApi.save(status.version, config, password, clear);
+    // Emergency OFF uses saved fields, never an invalid unsaved draft or browser validation.
+    const next: SmtpConfig = disable
+      ? {
+          host: '',
+          port: 465,
+          sender: '',
+          username: '',
+          siteOrigin: window.location.origin,
+          ...status.config,
+          enabled: false,
+        }
+      : config;
+    const r = await emailApi.save(
+      status.version,
+      next,
+      disable ? '' : password,
+      disable ? false : clear,
+    );
     if (n !== seq.current) return;
     setPassword('');
     setBusy(false);
     setError(!r.ok);
     if (r.ok) {
       apply(r.data);
-      setNotice('Настройки сохранены. Проверьте подключение.');
+      setNotice(
+        r.data.config.enabled
+          ? 'Настройки сохранены. Проверьте подключение.'
+          : 'Почта выключена. Письма не отправляются; вход через другие способы не изменён.',
+      );
     } else {
       setNotice(r.error.message);
       if (r.status === 401 || r.status === 403) denied.current();
@@ -115,7 +136,9 @@ export function AdminEmailSettings({
         <p role={notice ? 'alert' : 'status'}>{notice || 'Загружаем настройки почты…'}</p>
       </div>
     );
+  const deliveryVerified = status.deliveryVerifiedVersion === status.version;
   const ready =
+    status.encryptionReady &&
     status.config.enabled &&
     status.passwordConfigured &&
     status.testOk &&
@@ -129,12 +152,18 @@ export function AdminEmailSettings({
         </div>
         <span className={ready ? 'mail-status is-ready' : 'mail-status'}>
           {ready
-            ? 'Подключение проверено'
+            ? deliveryVerified
+              ? 'Доставка подтверждена'
+              : 'Подключение проверено'
             : status.config.enabled
               ? 'Требуется проверка'
               : 'Выключена'}
         </span>
       </div>
+      <p className="mail-hint" id="mail-switch-help">
+        Без почтового сервера оставьте почту выключенной. Настройки не включают обязательное
+        подтверждение аккаунта и не меняют MAX или Telegram.
+      </p>
       {!status.encryptionReady ? (
         <p role="alert">
           Защита паролей недоступна. Восстановите ключ настроек установки перед подключением почты.
@@ -145,6 +174,8 @@ export function AdminEmailSettings({
           <label className="mail-switch">
             <input
               type="checkbox"
+              role="switch"
+              aria-describedby="mail-switch-help"
               checked={config.enabled}
               onChange={(e) => field('enabled', e.target.checked)}
             />
@@ -154,7 +185,7 @@ export function AdminEmailSettings({
             <label>
               Почтовый сервер
               <input
-                required
+                required={config.enabled}
                 maxLength={253}
                 placeholder="smtp.example.org"
                 autoComplete="off"
@@ -175,7 +206,7 @@ export function AdminEmailSettings({
             <label>
               Адрес отправителя
               <input
-                required
+                required={config.enabled}
                 type="email"
                 maxLength={254}
                 value={config.sender}
@@ -185,7 +216,7 @@ export function AdminEmailSettings({
             <label>
               Имя для входа в почту
               <input
-                required
+                required={config.enabled}
                 maxLength={254}
                 autoComplete="off"
                 value={config.username}
@@ -217,7 +248,7 @@ export function AdminEmailSettings({
               Адрес сайта для ссылок
               <input
                 aria-label="Адрес сайта для ссылок"
-                required
+                required={config.enabled}
                 type="url"
                 maxLength={2048}
                 value={config.siteOrigin}
@@ -258,6 +289,23 @@ export function AdminEmailSettings({
             >
               Проверить подключение
             </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={!dirty}
+              onClick={() => {
+                apply(status);
+                setNotice('Несохранённые изменения отменены.');
+                setError(false);
+              }}
+            >
+              Отменить изменения
+            </button>
+            {status.config.enabled ? (
+              <button type="button" className="btn-secondary" onClick={(e) => void save(e, true)}>
+                Выключить почту
+              </button>
+            ) : null}
           </div>
         </fieldset>
       </form>
@@ -292,7 +340,8 @@ export function AdminEmailSettings({
       {notice ? <p role={error ? 'alert' : 'status'}>{notice}</p> : null}
       <p className="mail-hint">
         Почту можно использовать для подтверждения только после успешной проверки адреса по письму.
-        Общее правило входа настраивается выше.
+        Общее требование подтверждения аккаунта настраивается выше отдельно. Ни одна настройка почты
+        не включается автоматически.
       </p>
     </section>
   );

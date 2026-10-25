@@ -393,3 +393,34 @@ it('prevents an old in-flight health result from being returned or cached after 
   await f.service.availability();
   expect(runtimeReads(f)).toBe(2);
 });
+
+it('accepts an empty OFF configuration but never relaxes validation when enabled or for unsafe nonempty fields', async () => {
+  const off = { ...config, enabled: false, host: '', sender: '', username: '', siteOrigin: '' };
+  expect(mailConfiguration(off)).toEqual(off);
+  expect(() => mailConfiguration({ ...off, enabled: true })).toThrow();
+  for (const bad of [
+    { host: 'http://smtp.example.test' },
+    { sender: 'bad\r\nBcc:other@example.test' },
+    { username: 'bad\nuser' },
+    { siteOrigin: 'https://site.example.test/#proof' },
+    { port: 25 },
+  ])
+    expect(() => mailConfiguration({ ...off, ...bad })).toThrow();
+  const f = fixture();
+  await f.service.save('admin', { version: 4, config: off }, 'request');
+  expect(f.transport).not.toHaveBeenCalled();
+  const saved = f.query.mock.calls.find(([sql]) => sql.includes('mail_config_save'))!;
+  expect(JSON.parse(saved[1]![2] as string)).toEqual(off);
+});
+
+it('does not advertise or send through an OFF draft even with retained credentials and successful old checks', async () => {
+  const f = fixture({ config: { ...config, enabled: false, host: '', sender: '', username: '' } });
+  expect(await f.service.availability()).toMatchObject({
+    available: false,
+    enforcementEligible: false,
+  });
+  await expect(
+    f.service.request('admin', 'target', true, 'new@example.test', 'v', 'Reason', 'request'),
+  ).rejects.toMatchObject({ status: 503 });
+  expect(f.transport).not.toHaveBeenCalled();
+});

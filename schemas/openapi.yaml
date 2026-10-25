@@ -7596,9 +7596,25 @@ components:
         enabled: { type: boolean }
         host: { type: string, maxLength: 253 }
         port: { type: integer, enum: [465, 587] }
-        sender: { type: string, format: email, maxLength: 254 }
+        sender:
+          type: string
+          maxLength: 254
+          anyOf: [{ const: '' }, { format: email, minLength: 1 }]
         username: { type: string, maxLength: 254 }
-        siteOrigin: { type: string, format: uri, maxLength: 2048 }
+        siteOrigin:
+          type: string
+          maxLength: 2048
+          anyOf: [{ const: '' }, { format: uri, minLength: 1 }]
+      allOf:
+        - if:
+            properties:
+              enabled: { const: true }
+          then:
+            properties:
+              host: { minLength: 1 }
+              sender: { minLength: 1 }
+              username: { minLength: 1 }
+              siteOrigin: { minLength: 1 }
     SmtpStatus:
       type: object
       additionalProperties: false

@@ -95,15 +95,17 @@ export function mailConfiguration(raw: unknown): MailConfig {
     (v['port'] !== 465 && v['port'] !== 587)
   )
     mailFailure('mail_invalid');
+  const disabled = v['enabled'] === false;
   const host = v['host'],
     username = v['username'],
     site = v['siteOrigin'];
   if (
     typeof host !== 'string' ||
     host.length > 253 ||
-    !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/i.test(host) ||
+    (!(disabled && host === '') &&
+      !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/i.test(host)) ||
     typeof username !== 'string' ||
-    username.length < 1 ||
+    (!disabled && username.length < 1) ||
     username.length > 254 ||
     /\s/.test(username) ||
     hasControl(username) ||
@@ -111,29 +113,31 @@ export function mailConfiguration(raw: unknown): MailConfig {
     site.length > 2048
   )
     mailFailure('mail_invalid');
-  let url: URL;
-  try {
-    url = new URL(site);
-  } catch {
-    mailFailure('mail_invalid');
+  let url: URL | null = null;
+  if (!(disabled && site === '')) {
+    try {
+      url = new URL(site);
+    } catch {
+      mailFailure('mail_invalid');
+    }
+    if (
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      (url.protocol !== 'https:' &&
+        !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
+    )
+      mailFailure('mail_invalid');
   }
-  if (
-    url.username ||
-    url.password ||
-    url.pathname !== '/' ||
-    url.search ||
-    url.hash ||
-    (url.protocol !== 'https:' &&
-      !(url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
-  )
-    mailFailure('mail_invalid');
   return {
     enabled: v['enabled'],
     host: host.toLowerCase(),
     port: v['port'],
-    sender: mailAddress(v['sender']),
+    sender: disabled && v['sender'] === '' ? '' : mailAddress(v['sender']),
     username,
-    siteOrigin: url.origin,
+    siteOrigin: url?.origin ?? '',
   };
 }
 export function mailKey(raw: string | undefined): Buffer | null {
