@@ -76,6 +76,28 @@ interface AiStatus {
   readonly availableModels?: readonly string[];
 }
 
+/** Keep the popover entirely inside the chat canvas, including short viewports
+ * and the mobile visual viewport when the software keyboard is visible. */
+function positionToolsMenu(details: HTMLDetailsElement): void {
+  const trigger = details.querySelector('summary');
+  const canvas = details.closest('.asa-ai-chat');
+  if (!trigger || !canvas) return;
+  const triggerBounds = trigger.getBoundingClientRect();
+  const canvasBounds = canvas.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const top = Math.max(canvasBounds.top, viewport?.offsetTop ?? 0);
+  const bottom = Math.min(
+    canvasBounds.bottom,
+    (viewport?.offsetTop ?? 0) + (viewport?.height ?? window.innerHeight),
+  );
+  const spaceAbove = Math.max(0, triggerBounds.top - top - 12);
+  const spaceBelow = Math.max(0, bottom - triggerBounds.bottom - 12);
+  const placeBelow = spaceAbove < 242 && spaceBelow > spaceAbove;
+  details.dataset.menuPlacement = placeBelow ? 'below' : 'above';
+  const usable = placeBelow ? spaceBelow : spaceAbove;
+  details.style.setProperty('--ai-tools-menu-max-height', Math.max(32, Math.min(360, usable)) + 'px');
+}
+
 export function AiChatPage({
   seatId,
   scopeControl,
@@ -155,6 +177,13 @@ export function AiChatPage({
   const historyToggle = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
+    const reposition = (): void => {
+      const details = toolsMenu.current;
+      if (details?.open) positionToolsMenu(details);
+    };
+    window.addEventListener('resize', reposition);
+    window.visualViewport?.addEventListener('resize', reposition);
+    window.visualViewport?.addEventListener('scroll', reposition);
     const dismissMenu = (event: PointerEvent): void => {
       if (toolsMenu.current && !toolsMenu.current.contains(event.target as Node)) {
         toolsMenu.current.removeAttribute('open');
@@ -166,6 +195,9 @@ export function AiChatPage({
     document.addEventListener('pointerdown', dismissMenu);
     document.addEventListener('keydown', closeOnEscape);
     return () => {
+      window.removeEventListener('resize', reposition);
+      window.visualViewport?.removeEventListener('resize', reposition);
+      window.visualViewport?.removeEventListener('scroll', reposition);
       document.removeEventListener('pointerdown', dismissMenu);
       document.removeEventListener('keydown', closeOnEscape);
     };
@@ -1500,7 +1532,13 @@ export function AiChatPage({
                   aria-describedby="ai-composer-note"
                 />
                 <div className="chat-composer-controls">
-                  <details className="chat-tools-menu" ref={toolsMenu}>
+                  <details
+                    className="chat-tools-menu"
+                    ref={toolsMenu}
+                    onToggle={(event) => {
+                      if (event.currentTarget.open) positionToolsMenu(event.currentTarget);
+                    }}
+                  >
                     <summary
                       className="chat-attach-button"
                       aria-label="Инструменты чата"
