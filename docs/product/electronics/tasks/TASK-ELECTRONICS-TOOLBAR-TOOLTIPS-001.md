@@ -78,3 +78,13 @@ Capture native AFTER, focused Header regressions, lint/type/build and actual
 bundle measurement. Do not run knowingly blocked broad CI or change another
 module simply to make room. Return one local candidate/evidence and STOP. This
 makes any necessary owner budget/design choice concrete; it grants no increase.
+
+## Owner decision after the measured prototype
+
+On2026-10-25 the owner explicitly chose to retain222000bytes and perform a
+separate cleanup first. Prototype3e706b5e has independent functional/native proof
+but fails the unchanged budget at224410bytes. Preserve it unpublished. Select and
+review any behavior-preserving cleanup as its own bounded prerequisite; minifier
+proxies or moving cost into the eager startup graph do not establish headroom.
+Only actual production build measurements can unblock the feature. No increase
+to this or other budgets is authorized by this decision.

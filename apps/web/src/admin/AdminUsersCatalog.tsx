@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, type ReactNode, type FormEvent } from 'react';
 import { AdminUserHistory } from './AdminUserHistory';
+import { CrmUserCardLauncher } from './CrmUserCard';
 import {
   adminApi,
   type AdminScope,
@@ -271,6 +272,14 @@ export function AdminUsersCatalog({
                     scope={scope}
                     onAccessDenied={onAccessDenied}
                   />
+                  {scope.kind === 'platform' ? (
+                    <CrmUserCardLauncher
+                      kind={user.kind}
+                      targetId={user.id}
+                      onAccessDenied={onAccessDenied}
+                      onChanged={() => void load(null)}
+                    />
+                  ) : null}
                 </article>
               ),
             )}

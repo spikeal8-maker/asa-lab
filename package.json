@@ -65,7 +65,7 @@
     "test:startup": "node tools/check-startup.mjs",
     "test:tenant-context": "vitest run tests/portal/tenant-context.spec.ts",
     "test:authz": "vitest run tests/portal/authz.spec.ts",
-    "test:admin-control-plane": "vitest run packages/authz/src/index.spec.ts apps/api/src/admin.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/product-analytics.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/web/src/admin/testing apps/web/src/session-fetch.spec.ts tests/admin/admin-control-plane.pg.spec.ts tests/admin/admin-user-catalog.pg.spec.ts tests/admin/admin-user-history.pg.spec.ts",
+    "test:admin-control-plane": "vitest run packages/authz/src/index.spec.ts apps/api/src/admin.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/product-analytics.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/web/src/admin/testing apps/web/src/session-fetch.spec.ts tests/admin/admin-control-plane.pg.spec.ts tests/admin/admin-user-catalog.pg.spec.ts tests/admin/admin-user-history.pg.spec.ts tests/admin/crm-user-cards.pg.spec.ts",
     "e2e:admin-control-plane": "playwright test e2e/admin-directory.spec.ts",
     "test:portal-api": "vitest run tests/portal/portal-api.spec.ts",
     "db:test:provision": "node tools/provision-test-db.mjs",
@@ -92,7 +92,7 @@
     "typecheck:games-core": "tsc -p contexts/games/tsconfig.json --noEmit",
     "gate:chess-r1": "corepack pnpm nx build module-sdk && corepack pnpm nx build chess && corepack pnpm nx build checkers && corepack pnpm chess:contract && corepack pnpm test:chess && corepack pnpm typecheck:chess && corepack pnpm nx build database && corepack pnpm nx build identity && corepack pnpm chess-live:contract && corepack pnpm test:chess-live && corepack pnpm typecheck:chess-live && corepack pnpm nx run web:typecheck && corepack pnpm nx run web:build",
     "gate:chess-r1:browser": "corepack pnpm e2e:games && corepack pnpm e2e:chess && corepack pnpm e2e:chess-live",
-    "test:auth-confirmation": "vitest run apps/api/src/account-verification.service.spec.ts apps/api/src/account-verification.guard.spec.ts apps/api/src/account-verification-runtime.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/telegram-auth.service.spec.ts apps/api/src/bot-provider-runtime.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/app.factory.spec.ts apps/api/src/admin.controller.spec.ts apps/api/src/blocks-runtime.controller.spec.ts apps/api/src/blocks-runtime-cors.spec.ts apps/api/src/refresh-session.service.spec.ts apps/web/src/auth-providers.spec.ts apps/web/src/auth-verification.spec.ts apps/api/src/bot-provider-ingress.spec.ts apps/web/src/auth-request.spec.ts apps/web/src/session-fetch.spec.ts",
+    "test:auth-confirmation": "vitest run apps/api/src/account-verification.service.spec.ts apps/api/src/account-verification.guard.spec.ts apps/api/src/account-verification-runtime.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/telegram-auth.service.spec.ts apps/api/src/bot-provider-runtime.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/app.factory.spec.ts apps/api/src/admin.controller.spec.ts apps/api/src/blocks-runtime.controller.spec.ts apps/api/src/blocks-runtime-cors.spec.ts apps/api/src/refresh-session.service.spec.ts apps/web/src/auth-providers.spec.ts apps/web/src/auth-verification.spec.ts apps/api/src/bot-provider-ingress.spec.ts apps/web/src/auth-request.spec.ts apps/web/src/session-fetch.spec.ts apps/api/src/email.service.spec.ts apps/api/src/email.controller.spec.ts apps/web/src/email-api.spec.ts apps/web/src/admin/testing/email-settings.spec.ts",
     "test:auth-confirmation:pg": "vitest run tests/account/account-verification.pg.spec.ts tests/account/auth-provider-lifecycle.pg.spec.ts tests/account/auth-provider-http.pg.spec.ts tests/account/auth-provider-upgrade.pg.spec.ts tests/account/access-a-upgrade.pg.spec.ts tests/migration/course-structure-forward-upgrade.pg.spec.ts tests/migration/migrate.integration.spec.ts",
     "e2e:auth-confirmation": "playwright test --config=playwright.auth-confirmation.config.ts",
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
@@ -163,7 +163,8 @@
     "test:learning-e1": "vitest run tests/courses contexts/learning/testing contexts/identity/testing tests/account apps/api/src/learning-activities.controller.spec.ts apps/api/src/learning-canonical-projection.service.spec.ts apps/api/src/learning-origin-list.spec.ts apps/api/src/learning-work-context.spec.ts apps/api/src/learning-work-context.controller.spec.ts apps/api/src/learning-direct-assignment.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/api/src/courses.controller.spec.ts apps/api/src/student-code-protection.spec.ts apps/api/src/classroom-code-secret.spec.ts apps/api/src/credential-configuration.spec.ts apps/api/src/health.spec.ts tests/production/credential-readiness.spec.ts apps/web/src/components/lesson-informational-blocks.spec.ts apps/web/src/learning apps/web/src/session-fetch.spec.ts apps/web/src/three-d/testing/project-save-evidence.spec.ts",
     "e2e:learning-e1": "playwright test e2e/learning-author-preview.spec.ts e2e/learning-course-01.spec.ts e2e/courses-sharing.spec.ts --workers=1 && playwright test e2e/learning-learner-submits-project-assignment.spec.ts e2e/learning-surface-convergence.spec.ts e2e/learning-teacher-assigns-activity.spec.ts --workers=1",
     "gate:blocks": "node tools/blocks/gate.mjs",
-    "test:auth-confirmation:installation": "python -m unittest tools.deployment.test_auth_installer"
+    "test:auth-confirmation:installation": "python -m unittest tools.deployment.test_auth_installer",
+    "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",
@@ -175,6 +176,7 @@
     "@nx/js": "23.1.2",
     "@playwright/test": "1.55.1",
     "@types/node": "^22.10.5",
+    "@types/nodemailer": "8.0.2",
     "@types/pg": "8.11.10",
     "@types/pngjs": "^6.0.5",
     "@types/react": "18.3.18",
@@ -206,6 +208,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "0.220.0",
     "@opentelemetry/sdk-node": "0.220.0",
     "fastify": "5.12.5",
+    "nodemailer": "10.2.1",
     "pg": "8.13.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.1"

@@ -709,3 +709,31 @@ surfaces:
     files: [apps/api/src/admin-user-history.ts, apps/api/src/admin.controller.ts, apps/api/src/admin-control-plane.service.ts, migrations/0246_admin_user_history.sql, apps/web/src/admin/AdminUserHistory.tsx]
     invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001]
     tests: [TST-ADMIN-HISTORY-UNIT-001, TST-ADMIN-HISTORY-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-CRM-FULL-USER-CARD
+  routes: ['/api/crm/v1/users/:kind/:target', '#/admin/users', '#/classrooms/:classroomId/students/:seatId']
+  implementation:
+    files: [apps/api/src/crm-user.controller.ts, apps/api/src/app.module.ts, migrations/0247_crm_user_cards.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/admin/crm-user-api.ts, apps/web/src/admin/crm-user-card.css, apps/web/src/admin/AdminPage.tsx, apps/web/src/admin/AdminUsersCatalog.tsx, apps/web/src/admin/AdminUserHistory.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+  tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-CRM-EXACT-IDENTITY-CARD
+    label: Read full exact identity CRM, platform-only versioned profile mutations and scoped teacher educational content
+    change_class: L3_CRITICAL
+    files: [apps/api/src/crm-user.controller.ts, migrations/0247_crm_user_cards.sql, apps/web/src/admin/CrmUserCard.tsx, apps/web/src/pages/ClassroomStudentPage.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+    tests: [TST-CRM-CARD-UNIT-001, TST-CRM-CARD-PG-001, TST-ADMIN-OVERVIEW-UI-001]
+
+- id: SURF-ACCOUNT-EMAIL-PROOF
+  routes: [/api/admin/v1/auth/email, /api/admin/v1/auth/email/test, /api/auth/email, /api/auth/email/request, /api/auth/email/cancel, /api/auth/email/confirm, '/api/crm/v1/users/account/:target/email', '/api/crm/v1/users/account/:target/email/cancel', /confirm-email, '#/admin/confirmations']
+  implementation:
+    files: [apps/web/index.html, apps/web/public/email-proof-bootstrap.js, apps/api/src/email.controller.ts, apps/api/src/email.service.ts, apps/api/src/account-verification.service.ts, apps/api/src/app.module.ts, migrations/0248_verified_email_smtp.sql, apps/web/src/email-api.ts, apps/web/src/main.tsx, apps/web/src/pages/EmailConfirmationPage.tsx, apps/web/src/components/EmailVerification.tsx, apps/web/src/pages/AccountConfirmationPage.tsx, apps/web/src/components/AccountSignInMethods.tsx, apps/web/src/admin/AdminEmailSettings.tsx, apps/web/src/admin/CrmEmailChange.tsx, apps/web/src/admin/email-settings.css, apps/web/src/admin/AdminDashboard.tsx, apps/web/src/admin/AdminAuthProviderCard.tsx, apps/web/src/admin/VerificationPolicyControl.tsx]
+  invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+  tests: [TST-EMAIL-PROOF-UNIT-001, TST-EMAIL-PROOF-PG-001, TST-ACCOUNT-CONFIRMATION-UI-001, TST-ADMIN-OVERVIEW-UI-001]
+  controls:
+  - id: CTRL-ACCOUNT-VERIFIED-EMAIL
+    label: Encrypted platform mail settings, current Account verification and versioned proven exact Account email change without Seat conversion or secret readback
+    change_class: L3_CRITICAL
+    files: [apps/api/src/email.controller.ts, apps/api/src/email.service.ts, migrations/0248_verified_email_smtp.sql, apps/web/src/admin/AdminEmailSettings.tsx, apps/web/src/admin/CrmEmailChange.tsx, apps/web/src/components/EmailVerification.tsx, apps/web/src/pages/EmailConfirmationPage.tsx]
+    invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
+    tests: [TST-EMAIL-PROOF-UNIT-001, TST-EMAIL-PROOF-PG-001, TST-ACCOUNT-CONFIRMATION-UI-001]

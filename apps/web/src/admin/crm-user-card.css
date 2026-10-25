@@ -1,0 +1,119 @@
+.crm-full-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d6e3eb;
+  border-radius: 12px;
+  background: #fff;
+  color: #183241;
+  overflow-wrap: anywhere;
+}
+.crm-full-card * {
+  box-sizing: border-box;
+}
+.crm-full-heading,
+.crm-full-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.crm-full-heading {
+  justify-content: space-between;
+}
+.crm-full-card button,
+.crm-full-card input,
+.crm-full-card select,
+.crm-full-card textarea {
+  max-width: 100%;
+  min-width: 0;
+  padding: 9px 11px;
+  font: inherit;
+  color: inherit;
+  border: 1px solid #cbd9e3;
+  border-radius: 7px;
+  background: #fff;
+}
+.crm-full-card button {
+  cursor: pointer;
+  white-space: normal;
+}
+.crm-full-card button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.crm-full-card button[aria-pressed='true'] {
+  background: #eaf5fb;
+  border-color: #087db5;
+}
+.crm-full-card h3 {
+  margin: 0;
+}
+.crm-full-nav {
+  margin: 14px 0;
+}
+.crm-full-summary,
+.crm-full-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.crm-full-summary div {
+  min-width: 0;
+}
+.crm-full-summary dt {
+  color: #536a79;
+}
+.crm-full-summary dd {
+  margin: 4px 0;
+}
+.crm-full-form label {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+.crm-full-wide {
+  grid-column: 1/-1;
+}
+.crm-full-content {
+  padding-left: 22px;
+  display: grid;
+  gap: 14px;
+}
+.crm-full-content li {
+  min-width: 0;
+  border-bottom: 1px solid #e1e9ee;
+  padding-bottom: 12px;
+}
+.crm-full-content li > * {
+  display: block;
+  margin: 5px 0;
+}
+.crm-message-text,
+.crm-document {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.crm-project-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+}
+.crm-document {
+  max-height: 480px;
+  overflow: auto;
+  border: 1px solid #d6e3eb;
+  background: #f7fafc;
+  padding: 12px;
+}
+@media (max-width: 600px) {
+  .crm-full-summary,
+  .crm-full-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .crm-full-card {
+    padding: 10px;
+  }
+}

@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { adminDashboardFixture } from '../apps/web/src/admin/testing/admin-dashboard.fixture';
+import { crmProfileFixture } from '../apps/web/src/admin/testing/crm-user.fixture';
 import {
   catalogUserFixture,
   catalogPageFixture,
@@ -24,6 +25,7 @@ async function fixture(page: Page) {
     empty = false;
   let accessCalls = 0;
   let catalogMode = false;
+  let crmConflict = false;
   const catalogQueries: URLSearchParams[] = [];
   const accessQueue: Array<(status?: number) => Promise<void>> = [];
   const dashboardQueue: Array<() => Promise<void>> = [];
@@ -40,6 +42,84 @@ async function fixture(page: Page) {
     }
     const reply = (data: unknown, status = 200) => route.fulfill({ json: data, status });
     const path = url.pathname;
+    if (path.startsWith('/api/crm/v1/users/')) {
+      const kind = path.includes('/student/') ? 'student' : 'account';
+      if (path.endsWith('/email') || path.endsWith('/email/cancel'))
+        return reply({
+          accountId: OTHER,
+          email: 'profile@example.test',
+          verified: true,
+          pending: {
+            id: WORKSPACE,
+            email: 'new.long.pending.email.for.layout.review@example.test',
+            purpose: 'change',
+            state: path.endsWith('/cancel') ? 'cancelled' : 'sent',
+            expiresAt: '2030-01-01T12:00:00Z',
+            createdAt: '2026-10-25T10:00:00Z',
+          },
+        });
+
+      if (path.endsWith('/profile'))
+        return crmConflict
+          ? reply(
+              {
+                error: {
+                  code: 'crm_conflict',
+                  message: 'Данные уже изменились. Обновите карточку.',
+                },
+              },
+              409,
+            )
+          : reply({
+              ...crmProfileFixture(kind),
+              ...route.request().postDataJSON(),
+              version: 'b'.repeat(64),
+            });
+      if (path.endsWith('/content')) {
+        const category = url.searchParams.get('category'),
+          next = url.searchParams.has('cursor');
+        return reply({
+          items:
+            category === 'messages'
+              ? [
+                  {
+                    id: next ? 'message-two' : 'message-one',
+                    threadId: '20000000-0000-4000-8000-000000000005',
+                    requestId: '20000000-0000-4000-8000-000000000006',
+                    role: next ? 'assistant' : 'user',
+                    text: next
+                      ? 'Полный ответ искусственного интеллекта'
+                      : 'Очень длинный вопрос ученика: <script>window.__crmInjected = true</script>',
+                    state: 'complete',
+                    occurredAt: '2026-10-25T10:00:00Z',
+                  },
+                ]
+              : category === 'projects'
+                ? [
+                    {
+                      id: '20000000-0000-4000-8000-000000000003',
+                      title: 'Полная учебная работа по электронике',
+                      module: 'electronics',
+                      status: 'active',
+                      occurredAt: '2026-10-25T10:00:00Z',
+                    },
+                  ]
+                : [],
+          next: category === 'messages' && !next ? 'crm-next' : null,
+        });
+      }
+      if (path.includes('/projects/'))
+        return reply({
+          projectId: '20000000-0000-4000-8000-000000000003',
+          title: 'Полная учебная работа по электронике',
+          module: 'electronics',
+          revision: 3,
+          source: 'draft',
+          updatedAt: '2026-10-25T10:00:00Z',
+          document: { circuit: 'Полное сохранённое содержимое' },
+        });
+      return reply(crmProfileFixture(kind));
+    }
     if (path === '/api/auth/me')
       return reply({
         authenticated: true,
@@ -227,6 +307,9 @@ async function fixture(page: Page) {
       catalogMode = value;
     },
     catalogQueries: () => catalogQueries,
+    crmConflict: (value: boolean) => {
+      crmConflict = value;
+    },
     holdAccess: (value: boolean) => {
       holdAccess = value;
     },
@@ -341,6 +424,66 @@ for (const width of [1440, 1024, 390, 320]) {
     const last = page.locator('.portal-admin-subnav-item').last();
     await last.focus();
     await expect(last).toBeInViewport();
+    await noPageOverflow(page);
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`full CRM profile actual AI transcript and project reader at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.catalog(true);
+    await page.goto('/#/admin/users');
+    const account = page.locator('[data-actor-key="account:20000000-0000-4000-8000-000000000002"]');
+    await account.locator('button.admin-user-row').click();
+    await account.getByRole('tab', { name: 'Полная карточка', exact: true }).click();
+    const card = account.getByRole('region', { name: 'Полная карточка пользователя', exact: true });
+    await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(/Полное имя/);
+    await expect(card.getByText('36 лет', { exact: true })).toBeVisible();
+    await card
+      .getByRole('textbox', { name: 'Имя', exact: true })
+      .fill('Изменённое полное имя пользователя');
+    await card
+      .getByRole('textbox', { name: 'Причина изменения', exact: true })
+      .fill('Обращение пользователя');
+    f.crmConflict(true);
+    await card.getByRole('button', { name: 'Сохранить профиль', exact: true }).click();
+    await expect(card.getByRole('alert')).toContainText('Данные уже изменились');
+    await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(
+      'Изменённое полное имя пользователя',
+    );
+    await expect(
+      card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
+    ).toContainText('Ожидает подтверждения: new.long.pending.email.for.layout.review@example.test');
+    await expect(
+      card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
+    ).toContainText('Текущий адрес: profile@example.test');
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-profile-${width}.png`, fullPage: true });
+    await card.getByRole('button', { name: 'Переписка с ИИ', exact: true }).click();
+    await expect(card.getByText('Очень длинный вопрос ученика:', { exact: false })).toBeVisible();
+    await card.getByRole('button', { name: 'Ещё записи', exact: true }).click();
+    await expect(
+      card.getByText('Полный ответ искусственного интеллекта', { exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => '__crmInjected' in window)).toBe(false);
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-transcript-${width}.png`, fullPage: true });
+    await card.getByRole('button', { name: 'Все проекты', exact: true }).click();
+    await card.getByRole('button', { name: 'Просмотр проекта', exact: true }).click();
+    await card.getByText('Полные данные проекта — только просмотр', { exact: true }).click();
+    await expect(card.locator('pre')).toContainText('Полное сохранённое содержимое');
+    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
+    await student
+      .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
+      .click();
+    await expect(
+      student
+        .getByRole('region', { name: 'Полная карточка пользователя', exact: true })
+        .getByText('11 лет', { exact: true }),
+    ).toBeVisible();
     await noPageOverflow(page);
   });
 }
@@ -490,7 +633,7 @@ for (const width of [1440, 1024, 390, 320]) {
     const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
     await expect(account).toBeVisible();
     await expect(student).toBeVisible();
-    await expect(student.getByRole('button')).toHaveCount(1);
+    await expect(student.getByRole('button')).toHaveCount(2);
     await expect(student).toContainText('Выдано');
     await noPageOverflow(page);
     await student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }).click();

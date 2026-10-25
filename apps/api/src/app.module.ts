@@ -1,5 +1,8 @@
+import { EmailService } from './email.service.js';
+import { EmailController } from './email.controller.js';
 import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
 import { PresentationPreferencesController } from './presentation-preferences.controller.js';
+import { CrmUserController } from './crm-user.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import type pg from 'pg';
@@ -153,9 +156,11 @@ export class AppModule {
     };
     const maxAuthService = new MaxAuthService(requirePool(), authProviderOptions);
     const telegramAuthService = new TelegramAuthService(requirePool(), authProviderOptions);
+    const emailService = new EmailService(requirePool());
     const accountVerification = new AccountVerificationService(requirePool(), [
       maxAuthService,
       telegramAuthService,
+      emailService,
     ]);
     const aiAttachmentService = new AiAttachmentService(pool);
     const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService });
@@ -201,6 +206,8 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        CrmUserController,
+        EmailController,
         ProductAnalyticsV2Controller,
         DiagnosticsQualityController,
         HealthController,
@@ -259,6 +266,7 @@ export class AppModule {
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },
         { provide: TOKENS.telegramAuthService, useValue: telegramAuthService },
         { provide: TOKENS.accountVerification, useValue: accountVerification },
+        { provide: TOKENS.emailService, useValue: emailService },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },
         { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
