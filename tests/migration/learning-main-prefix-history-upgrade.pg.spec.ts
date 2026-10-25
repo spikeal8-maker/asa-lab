@@ -127,7 +127,7 @@ const upgradeArtifacts = [
   [
     '0249',
     '0249_crm_directory.sql',
-    '2d3f8983e50675ba45641eaac91cf1a9a0278c56be543134c5278c6746b3c38e',
+    '5ea5756bb4e61a926f48e67469b799395b2f3c19e068569a3b8e809031961b12',
   ],
 ] as const;
 

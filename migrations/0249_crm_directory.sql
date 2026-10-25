@@ -54,7 +54,7 @@ BEGIN
   END IF;
   IF p_kind IS NULL OR p_kind NOT IN('all','accounts','students') OR p_status IS NULL OR p_status NOT IN('all','active','inactive')
      OR p_sort IS NULL OR p_sort NOT IN('name','last_activity','activity','created') OR p_direction IS NULL OR p_direction NOT IN('asc','desc')
-     OR p_mode IS NULL OR p_mode NOT IN('page','export') OR p_filters IS NULL OR octet_length(p_filters::text)>4096 OR jsonb_typeof(p_filters)<>'object' OR p_filters-ARRAY['role','classId','organizationId','age','ageMin','ageMax','email','activity','registeredAfter','registeredBefore','source','days']<>'{}'::jsonb OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND CASE WHEN p_mode='export' THEN 10001 ELSE 100 END OR coalesce(length(p_search),0)>100 THEN
+     OR p_mode IS NULL OR p_mode NOT IN('page','export') OR p_filters IS NULL OR octet_length(p_filters::text)>4096 OR jsonb_typeof(p_filters)<>'object' OR p_filters-ARRAY['role','classId','organizationId','age','ageMin','ageMax','email','activity','registeredAfter','registeredBefore','source','days']<>'{}'::jsonb OR p_limit IS NULL OR (p_limit<1 OR (p_mode='page' AND p_limit>100) OR (p_mode='export' AND p_limit>10001)) OR coalesce(length(p_search),0)>100 THEN
     RAISE EXCEPTION 'ADMIN_CATALOG_QUERY_INVALID' USING ERRCODE='22023';
   END IF;
   IF coalesce(p_filters->>'role','all') NOT IN('all','learner','creator','educator','registered_student','guardian','platform_admin','owner','school_admin','member')
