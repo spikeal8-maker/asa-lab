@@ -91,18 +91,14 @@ it('renders immutable note text literally, clears retained data after denial and
 });
 it('keeps archived note history readable but never offers a form without current canWrite', async () => {
   const add = vi.spyOn(crmApi, 'addSeatNote');
-  const read = vi
-    .spyOn(crmApi, 'seatDetail')
-    .mockResolvedValue(
-      ok({
-        items: [
-          { id: 'retained', text: 'Сохранённая заметка', occurredAt: '2026-10-25T10:00:00Z' },
-        ],
-        next: null,
-        version: 'a'.repeat(64),
-        canWrite: false,
-      }),
-    );
+  const read = vi.spyOn(crmApi, 'seatDetail').mockResolvedValue(
+    ok({
+      items: [{ id: 'retained', text: 'Сохранённая заметка', occurredAt: '2026-10-25T10:00:00Z' }],
+      next: null,
+      version: 'a'.repeat(64),
+      canWrite: false,
+    }),
+  );
   await act(async () =>
     root.render(createElement(CrmSeatDetail, { subject, notes: true, onAccessDenied: vi.fn() })),
   );
@@ -114,4 +110,48 @@ it('keeps archived note history readable but never offers a form without current
     [...host.querySelectorAll('button')].find((x) => x.textContent === 'Обновить')!.click(),
   );
   expect(host.querySelector('form')).toBeNull();
+});
+
+it('switches retained categories through the exact Seat reader and paginates unknown AI receipts', async () => {
+  const read = vi
+    .spyOn(crmApi, 'seatDetail')
+    .mockImplementation(async (selected, category, cursor) => {
+      expect(selected).toEqual(subject);
+      return ok({
+        items: [
+          {
+            id: cursor ? 'second' : category,
+            type:
+              category === 'ai' ? 'ai' : category === 'publications' ? 'publication' : 'version',
+            title: category,
+            occurredAt: '2026-10-25T10:00:00Z',
+            inputTokens: null,
+            outputTokens: null,
+            errorCode: category === 'ai' ? 'ai_ollama_timeout' : null,
+          },
+        ],
+        next: category === 'ai' && !cursor ? 'exact-seat-ai-cursor' : null,
+      });
+    });
+  await act(async () =>
+    root.render(createElement(CrmSeatDetail, { subject, onAccessDenied: vi.fn() })),
+  );
+  expect(host.textContent).toContain('Сохранённая версия');
+  async function click(label: string) {
+    await act(async () =>
+      [...host.querySelectorAll('button')].find((button) => button.textContent === label)!.click(),
+    );
+  }
+  await click('Публикации');
+  expect(host.textContent).toContain('Версия публикации');
+  await click('Использование ИИ');
+  expect(read).toHaveBeenLastCalledWith(subject, 'ai', null);
+  expect(host.textContent).toContain('вход: неизвестно');
+  expect(host.textContent).toContain('ai_ollama_timeout');
+  await click('Показать ещё');
+  expect(read).toHaveBeenLastCalledWith(subject, 'ai', 'exact-seat-ai-cursor');
+  expect(host.querySelectorAll('li')).toHaveLength(2);
+  expect(
+    [...host.querySelectorAll('button')].some((button) => button.textContent === 'Показать ещё'),
+  ).toBe(false);
 });

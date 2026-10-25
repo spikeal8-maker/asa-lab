@@ -70,3 +70,21 @@ shows loading, empty-result and first-100 refinement guidance, and discards stal
 search results. Resource code entry was removed. Three note UI cases and six focused
 responsibility UI cases passed, including finding an organization/class outside the initial 100.
 The existing four-width browser journey now uses named search/selection.
+
+
+## Bounded CI fixture repair
+
+The first pinned CI run `40220136536` exposed expectation drift rather than a
+Course product defect: migration upgrade fixtures stopped at 0249. Commit
+`37f187e0` extends both Course arrays, the AI pending list and the Learning
+artifact/checksum list through 0250/0251, preserving data/history assertions.
+A read-only plan/checksum comparison passed; no local database was run.
+
+The browser artifact showed the retained Seat version row in the new reader,
+while the four-width catalog journey still selected the old history region and
+controls. The test now selects the actual Seat reader and asserts the exact
+Seat/class AI request, version and publication categories, unknown token/error
+receipt facts and two-page continuation. Its fixture now supplies category-specific
+records and a real continuation instead of returning a version for every category.
+A focused Seat-reader unit regression covers the same category/pagination facts;
+all four tests in that affected suite passed. Product behavior is unchanged.

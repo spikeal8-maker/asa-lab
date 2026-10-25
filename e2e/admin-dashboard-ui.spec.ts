@@ -77,6 +77,7 @@ async function fixture(page: Page) {
       if (path.endsWith('/detail') || path.endsWith('/notes')) {
         const category = url.searchParams.get('category');
         const notes = category === 'notes' || path.endsWith('/notes');
+        const next = url.searchParams.has('cursor');
         return reply({
           items: notes
             ? [
@@ -87,18 +88,44 @@ async function fixture(page: Page) {
                   occurredAt: '2026-10-25T10:00:00Z',
                 },
               ]
-            : [
-                {
-                  id: OTHER,
-                  key: `version:${OTHER}`,
-                  type: 'version',
-                  title: 'Сохранённая работа ученика',
-                  projectId: OTHER,
-                  revision: 2,
-                  occurredAt: '2026-10-25T10:00:00Z',
-                },
-              ],
-          next: null,
+            : category === 'ai'
+              ? [
+                  {
+                    id: next ? ACCOUNT : OTHER,
+                    key: `ai:${next ? ACCOUNT : OTHER}`,
+                    type: 'ai',
+                    status: 'failed',
+                    model: null,
+                    inputTokens: null,
+                    outputTokens: null,
+                    errorCode: 'ai_ollama_timeout',
+                    occurredAt: '2026-10-25T10:00:00Z',
+                  },
+                ]
+              : category === 'publications'
+                ? [
+                    {
+                      id: OTHER,
+                      key: `publication:${OTHER}`,
+                      type: 'publication',
+                      title: 'Сохранённая публикация ученика',
+                      projectId: OTHER,
+                      revision: 2,
+                      occurredAt: '2026-10-25T10:00:00Z',
+                    },
+                  ]
+                : [
+                    {
+                      id: OTHER,
+                      key: `version:${OTHER}`,
+                      type: 'version',
+                      title: 'Сохранённая работа ученика',
+                      projectId: OTHER,
+                      revision: 2,
+                      occurredAt: '2026-10-25T10:00:00Z',
+                    },
+                  ],
+          next: category === 'ai' && !next ? 'seat-ai-next' : null,
           canWrite: notes,
           version: 'a'.repeat(64),
         });
@@ -834,16 +861,25 @@ for (const width of [1440, 1024, 390, 320]) {
       .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
       .click();
     await student.getByRole('button', { name: 'Публикации и история', exact: true }).click();
-    const history = student.getByRole('region', { name: 'История пользователя' });
+    const history = student.getByRole('region', { name: 'Сохранённая история ученика' });
     await expect(history.getByText('Сохранённая версия', { exact: false })).toBeVisible();
-    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('publications');
+    await history.getByRole('button', { name: 'Публикации', exact: true }).click();
     await expect(history.getByText('Версия публикации', { exact: false })).toBeVisible();
-    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('ai');
-    await expect(history.getByText('Входные токены: Неизвестно', { exact: false })).toBeVisible();
-    await expect(history.getByText('Код ошибки: ai_ollama_timeout')).toBeVisible();
-    await history.getByRole('button', { name: 'Показать ещё записи' }).click();
-    await expect(history.getByText('Загружено записей: 2.')).toBeVisible();
-    await expect(history.getByRole('button', { name: 'Показать ещё записи' })).toHaveCount(0);
+    const aiRead = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return (
+        url.pathname === `/api/crm/v1/users/student/${OTHER}/detail` &&
+        url.searchParams.get('category') === 'ai' &&
+        url.searchParams.get('classroomId') === SCHOOL
+      );
+    });
+    await history.getByRole('button', { name: 'Использование ИИ', exact: true }).click();
+    await aiRead;
+    await expect(history.getByText('вход: неизвестно', { exact: false })).toBeVisible();
+    await expect(history.getByText('ai_ollama_timeout', { exact: false })).toBeVisible();
+    await history.getByRole('button', { name: 'Показать ещё', exact: true }).click();
+    await expect(history.getByRole('listitem')).toHaveCount(2);
+    await expect(history.getByRole('button', { name: 'Показать ещё', exact: true })).toHaveCount(0);
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/users-${width}.png`, fullPage: true });
