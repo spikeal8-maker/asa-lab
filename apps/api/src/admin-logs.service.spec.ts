@@ -170,6 +170,52 @@ describe('bounded archive jobs', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+  it('exposes audit progress and rejects overdue integrity coverage with a fresh health timestamp', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-audit-health-'));
+    try {
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          collectedAt: new Date().toISOString(),
+          sources: [],
+          segments: [],
+          bytes: 0,
+        }),
+      );
+      const audit = {
+        state: 'running',
+        generation: 'fixture',
+        checked: 2,
+        total: 8,
+        deadline: Date.now() / 1000 - 1,
+        lastCompletedAt: null,
+      };
+      await writeFile(
+        join(root, 'collector-health.json'),
+        JSON.stringify({
+          version: 1,
+          state: 'ok',
+          checkedAt: new Date().toISOString(),
+          historyAudit: audit,
+        }),
+      );
+      expect(await new AdminLogsService(root, root).status()).toMatchObject({
+        state: 'error',
+        collectorHealth: {
+          state: 'error',
+          historyAudit: {
+            state: 'overdue',
+            generation: 'fixture',
+            checked: 2,
+            total: 8,
+          },
+        },
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it.each([
     ['LOG_EXPORT_TOO_LARGE', 'Архив превышает допустимый объём. Выберите меньший период.'],
     ['LOG_SEGMENT_INVALID', 'Обнаружен повреждённый файл журнала. Требуется проверка сборщика.'],

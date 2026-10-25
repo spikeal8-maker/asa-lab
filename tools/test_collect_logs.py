@@ -103,6 +103,102 @@ def editor_classification_fixture(root, compressed):
 
 
 class CollectorTests(unittest.TestCase):
+    def audit_fixture(self, root, count=8):
+        c = Collector(root, {})
+        segments = {}
+        for i in range(count):
+            event = normalize('api', 'retained '+str(i), now(), 'retained-'+str(i))
+            c.add(event)
+            seq = c.db.execute('SELECT max(seq) FROM events').fetchone()[0]
+            meta = c.write_segment(f'seg-{seq:016d}-{seq:016d}.jsonl', [event])
+            segments[meta['file']] = meta
+            c.db.execute('UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq=?', (seq,))
+        c.set_state('segments', segments)
+        c.validate_history_index()
+        c.set_state('history:audit', {})
+        c.db.commit()
+        return c
+
+    def test_incremental_audit_bounds_and_fresh_publication(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            c = self.audit_fixture(Path(temp))
+            try:
+                for i in range(4):
+                    c.add(normalize('api', 'fresh', now(), 'fresh-'+str(i)))
+                    opened = []
+                    path_open = Path.open
+                    def tracked_open(path, *args, **kwargs):
+                        if path.name.startswith('seg-') and args and args[0] == 'rb': opened.append(path.name)
+                        return path_open(path, *args, **kwargs)
+                    with patch.object(Path, 'open', tracked_open): c.publish()
+                    self.assertEqual(len(set(opened)), 2)
+                    catalog = json.loads((c.store/'catalog.json').read_text())
+                    self.assertEqual(sum(s['count'] for s in catalog['segments']), 9+i)
+                    self.assertEqual(catalog['historyAudit']['checked'], (i+1)*2)
+                    self.assertEqual(catalog['historyAudit']['state'], 'complete' if i == 3 else 'running')
+                    self.assertIsNotNone(catalog['historyAudit']['generation'])
+                self.assertIsNotNone(catalog['historyAudit']['lastCompletedAt'])
+            finally: c.db.close()
+
+    def test_incremental_audit_same_size_corruption_is_terminal(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            c = self.audit_fixture(Path(temp))
+            try:
+                target = sorted(c.store.glob('seg-*'))[-1]
+                data = target.read_bytes(); target.write_bytes(data.replace(b'retained 7', b'corrupt! 7'))
+                self.assertEqual(target.stat().st_size, len(data))
+                for _ in range(3): c.publish()
+                before = (c.store/'catalog.json').read_bytes()
+                with self.assertRaisesRegex(RuntimeError, 'checksum'): c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'error')
+                with self.assertRaisesRegex(RuntimeError, 'previously failed'): c.publish()
+                self.assertEqual((c.store/'catalog.json').read_bytes(), before)
+            finally: c.db.close()
+
+    def test_incremental_audit_overdue_is_visible_in_existing_error_health(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            root = Path(temp); c = self.audit_fixture(root)
+            try:
+                c.publish(); audit = c.state('history:audit'); audit['deadline'] = 0
+                c.set_state('history:audit', audit); c.publish()
+                write_collector_health(root, 'ok', now(), sources=[dict(source='api', state='ok')])
+                health = json.loads((c.store/'collector-health.json').read_text())
+                self.assertEqual(health['state'], 'error')
+                self.assertFalse(health['coverageComplete'])
+                self.assertEqual(health['historyAudit']['state'], 'overdue')
+            finally: c.db.close()
+
+    def test_new_segment_corruption_fails_before_catalog_publication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c = Collector(Path(temp), {})
+            try:
+                c.add(normalize('api', 'fresh', now(), 'fresh'))
+                write = c.write_segment
+                def corrupt(*args):
+                    meta = write(*args); file = c.store/meta['file']
+                    file.write_bytes(file.read_bytes().replace(b'fresh', b'wrong'))
+                    return meta
+                with patch.object(c, 'write_segment', side_effect=corrupt):
+                    with self.assertRaisesRegex(RuntimeError, 'checksum'): c.publish()
+                self.assertFalse((c.store/'catalog.json').exists())
+                self.assertEqual(c.db.execute('SELECT published FROM events').fetchone()[0], 0)
+            finally: c.db.close()
+
+    def test_late_audit_completion_stays_incomplete_until_timely_full_pass(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            root = Path(temp); c = self.audit_fixture(root, 4)
+            try:
+                c.publish(); audit = c.state('history:audit'); audit['deadline'] = 0
+                c.set_state('history:audit', audit); c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'overdue')
+                c.publish()
+                write_collector_health(root, 'ok', now(), sources=[dict(source='api', state='ok')])
+                self.assertEqual(json.loads((c.store/'collector-health.json').read_text())['state'], 'error')
+                c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'complete')
+                self.assertFalse(c.state('history:audit')['incomplete'])
+            finally: c.db.close()
+
     @staticmethod
     def open_and_close(root):
         Collector(root,{}).db.close()
@@ -843,6 +939,9 @@ class CollectorTests(unittest.TestCase):
             self.assertLessEqual(catalog['activeStorageBytes'], 3 * 1024 * 1024)
             kept=[json.loads(line) for s in catalog['segments'] for line in gzip.decompress((collector.store/s['file']).read_bytes()).decode().splitlines()]
             self.assertIn(app['id'],[e['id'] for e in kept])
+            # An owned VACUUM advances SQLite's schema cookie; it must not be
+            # confused with an external index replacement on the next publish.
+            collector.publish()
             collector.db.close()
 
 
