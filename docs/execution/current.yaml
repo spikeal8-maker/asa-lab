@@ -12253,7 +12253,8 @@ parallel_lanes:
         sha: e0c82e447906d18e2264fe94780685c5b0869768
       convergence_baseline_sha: e0c82e447906d18e2264fe94780685c5b0869768
       head_sha: null
-      observation_note: Source inventory found4485 literal bytes inside display-none vector group; actual build savings and deletion eligibility remain unproven. Fresh fetch before edits; no tooltip publication or acceptance inferred.
+      observed_at: '2026-10-25T14:47:06Z'
+      observation_note: Source inventory found4485 literal bytes inside display-none vector group; actual build savings and deletion eligibility remain unproven. Fresh fetch main before edits; no tooltip publication or acceptance inferred.
 
 integration:
   owner_lane: visual-programming
