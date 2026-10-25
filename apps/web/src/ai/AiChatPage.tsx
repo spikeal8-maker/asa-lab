@@ -119,6 +119,8 @@ export function AiChatPage({
     loadMore: loadMoreThreads,
     search,
     setSearch,
+    archived: archivedFilter,
+    setArchived: setArchivedFilter,
   } = useAiThreadHistory(call);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -1065,6 +1067,22 @@ export function AiChatPage({
           <header className="chat-sidebar-head">
             <strong className="chat-sidebar-title">Чаты</strong>
             <div className="chat-sidebar-head-actions">
+              <details className="chat-history-overflow">
+                <summary aria-label="Дополнительно" title="Дополнительно">
+                  <span aria-hidden="true">⋯</span>
+                </summary>
+                <div className="chat-history-overflow-popup">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      setArchivedFilter(!archivedFilter);
+                      event.currentTarget.closest('details')?.removeAttribute('open');
+                    }}
+                  >
+                    {archivedFilter ? 'Недавние диалоги' : 'Архивные диалоги'}
+                  </button>
+                </div>
+              </details>
               <button
                 className="chat-icon-button"
                 type="button"
@@ -1112,7 +1130,7 @@ export function AiChatPage({
             </button>
           ) : null}
           <strong className="chat-side-section">
-            {search.trim() ? 'Результаты поиска' : 'Недавние'}
+            {search.trim() ? 'Результаты поиска' : archivedFilter ? 'Архивные диалоги' : 'Недавние'}
           </strong>
           <nav className="chat-history-list" aria-label="Диалоги" aria-busy={loadingThreads}>
             {loadingThreads ? (
@@ -1198,6 +1216,16 @@ export function AiChatPage({
                       ✎
                     </button>
                     <button
+                      className="asa-ai-thread-action legacy-archive-action"
+                      type="button"
+                      disabled={interactionBusy}
+                      aria-label={(thread.archivedAt ? 'Восстановить: ' : 'В архив: ') + thread.title}
+                      title={thread.archivedAt ? 'Восстановить диалог' : 'В архив'}
+                      onClick={() => void archiveThread(thread.id, !thread.archivedAt)}
+                    >
+                      <AiChatIcon name="archive" size={16} />
+                    </button>
+                    <button
                       className="asa-ai-thread-action"
                       type="button"
                       disabled={interactionBusy || threadActionBusy}
@@ -1226,7 +1254,11 @@ export function AiChatPage({
             ) : null}
             {!loadingThreads && !historyError && threads.length === 0 ? (
               <p className="asa-ai-empty-list">
-                {search.trim() ? 'Ничего не найдено в истории' : 'Здесь появятся ваши диалоги'}
+                {search.trim()
+                  ? 'Ничего не найдено в истории'
+                  : archivedFilter
+                    ? 'Архивных диалогов нет'
+                    : 'Здесь появятся ваши диалоги'}
               </p>
             ) : null}
           </nav>
