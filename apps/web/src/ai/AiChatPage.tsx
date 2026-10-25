@@ -1156,9 +1156,7 @@ export function AiChatPage({
             ) : null}
             {!loadingThreads && !historyError && threads.length === 0 ? (
               <p className="asa-ai-empty-list">
-                {search.trim()
-                  ? 'Ничего не найдено в истории'
-                  : 'Здесь появятся ваши диалоги'}
+                {search.trim() ? 'Ничего не найдено в истории' : 'Здесь появятся ваши диалоги'}
               </p>
             ) : null}
           </nav>
@@ -1404,36 +1402,36 @@ export function AiChatPage({
                   addFiles(Array.from(event.dataTransfer.files));
                 }}
               >
-              {attachments.length ? (
-                <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
-                  {attachments.map((item) => (
-                    <div key={item.uploadId} className="chat-attachment-chip">
-                      {item.preview ? (
-                        <img src={item.preview} alt="" />
-                      ) : (
-                        <span aria-hidden="true">▤</span>
-                      )}
-                      <span title={item.file.name}>
-                        {item.file.name}
-                        <small>
-                          {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
-                            ' · ' +
-                            Math.ceil(item.file.size / 1024) +
-                            ' КБ'}
-                        </small>
-                      </span>
-                      <button
-                        type="button"
-                        disabled={interactionBusy}
-                        aria-label={'Удалить ' + item.file.name}
-                        onClick={() => removeFile(item.uploadId)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+                {attachments.length ? (
+                  <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
+                    {attachments.map((item) => (
+                      <div key={item.uploadId} className="chat-attachment-chip">
+                        {item.preview ? (
+                          <img src={item.preview} alt="" />
+                        ) : (
+                          <span aria-hidden="true">▤</span>
+                        )}
+                        <span title={item.file.name}>
+                          {item.file.name}
+                          <small>
+                            {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
+                              ' · ' +
+                              Math.ceil(item.file.size / 1024) +
+                              ' КБ'}
+                          </small>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={interactionBusy}
+                          aria-label={'Удалить ' + item.file.name}
+                          onClick={() => removeFile(item.uploadId)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <input
                   ref={fileInput}
                   type="file"
@@ -1481,7 +1479,11 @@ export function AiChatPage({
                 />
                 <div className="chat-composer-controls">
                   <details className="chat-tools-menu" ref={toolsMenu}>
-                    <summary className="chat-attach-button" aria-label="Инструменты чата" title="Инструменты">
+                    <summary
+                      className="chat-attach-button"
+                      aria-label="Инструменты чата"
+                      title="Инструменты"
+                    >
                       <span aria-hidden="true">+</span>
                     </summary>
                     <div className="chat-tools-popup" role="group" aria-label="Добавить в чат">
@@ -1510,7 +1512,11 @@ export function AiChatPage({
                         <span aria-hidden="true">⌕</span> Поиск в интернете
                         <small>Скоро</small>
                       </button>
-                      <button type="button" disabled title="Генерация изображений пока не реализована">
+                      <button
+                        type="button"
+                        disabled
+                        title="Генерация изображений пока не реализована"
+                      >
                         <span aria-hidden="true">◇</span> Создать изображение
                         <small>Скоро</small>
                       </button>
@@ -1553,7 +1559,16 @@ export function AiChatPage({
                       title="Голосовой ввод пока не доступен"
                       aria-label="Голосовой ввод пока не доступен"
                     >
-                      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                      <svg
+                        width="19"
+                        height="19"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        aria-hidden="true"
+                      >
                         <rect x="9" y="2" width="6" height="13" rx="3" />
                         <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
                       </svg>

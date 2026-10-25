@@ -500,11 +500,13 @@
   --ai-on-accent: #1d1d1f;
   color-scheme: dark;
 }
-.portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
+.portal-shell
+  > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
   .asa-ai-thread-row:has(.active) {
   background: #323235;
 }
-.portal-shell > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
+.portal-shell
+  > .asa-ai-layout:where([data-theme='dark'] *, .theme-dark *, .dark *)
   .chat-send-button {
   background: #f5f5f5;
   color: #1d1d1f;
@@ -522,11 +524,13 @@
     --ai-on-accent: #1d1d1f;
     color-scheme: dark;
   }
-  .portal-shell > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
+  .portal-shell
+    > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
     .asa-ai-thread-row:has(.active) {
     background: #323235;
   }
-  .portal-shell > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
+  .portal-shell
+    > .asa-ai-layout:not(:where([data-theme='light'] *, .theme-light *, .light *))
     .chat-send-button {
     background: #f5f5f5;
     color: #1d1d1f;

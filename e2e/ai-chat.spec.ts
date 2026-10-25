@@ -892,7 +892,9 @@ async function expectChatFits(page: Page): Promise<void> {
           composerBottom: dock.bottom <= viewportBottom + 1,
           conversationBottom: isEmpty || body.bottom <= dock.top + 1,
           inputTop: textarea.top >= bounds.top,
-          centeredOnEmpty: !isEmpty || Math.abs((dock.top + dock.bottom - mainBounds.top - mainBounds.bottom) / 2) <= 15,
+          centeredOnEmpty:
+            !isEmpty ||
+            Math.abs((dock.top + dock.bottom - mainBounds.top - mainBounds.bottom) / 2) <= 15,
           noDuplicateToolbar: root.querySelector('.chat-toolbar') === null,
           modelInComposer: !!root.querySelector('.chat-composer .asa-ai-model-picker'),
           inputLeft: textarea.left >= bounds.left,
@@ -1523,7 +1525,6 @@ for (const width of [1440, 600, 390, 320]) {
     });
   });
 }
-
 
 test('AI composer keeps one centered input and shows only real attachment tools', async ({
   page,
