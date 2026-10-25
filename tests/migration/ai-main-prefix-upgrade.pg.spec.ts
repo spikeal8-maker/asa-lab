@@ -24,6 +24,7 @@ const expectedPending = [
   '0242', // Local Ollama binds immutable attachments without paid quota.
   '0243', // Recover original owned attachments for regenerated responses.
   '0244', // Current-only private per-owner usage journal.
+  '0245', // Frozen Courses mixed-lesson server completion, no backfill.
 ];
 
 interface Identity {
