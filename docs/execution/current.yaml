@@ -9632,8 +9632,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: owner23_native_source_ui_verification_selected
+      status: in_review
+      checkpoint: owner23_source_ui_verified_main_full_integration_pending
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -9659,6 +9659,9 @@ parallel_lanes:
       controller_observed_at: '2026-10-11T06:59:21Z'
       next_action: Existing main already contains the exact SPDT selector exclusion. Verify actual Stage and SVG mouse/touch behavior on desktop/mobile without refactoring or production changes unless a scoped causal defect is demonstrated. Add one bounded native source UI fixture only; preserve frozen full integration scenario. Full Worker, General, SaveCAS, asset548 and installed acceptance remain separate and pending; do not close547 from source UI proof alone.
       owner23_source_baseline_sha: 483d2e51d935a259fed5d49d4b6c79718854d0b3
+      owner23_source_ui_evidence_sha: 128fcecd45d905e72926bcd46cc0fc9b26c96703
+      owner23_source_ui_completed_at: '2026-10-25T19:02:31Z'
+      owner23_source_ui_review: NEW independent APPROVE_SOURCE_UI final128fcecd. Actual Stage NativeOptical ProductionVisual native desktop/mobile eight viewport preference cases with three zooms PASS. Matched ON/OFF PNG confirms ordinary shadow unchanged without blue glow;186 focused tests PASS. All production modes and blobs identical483d; existing uncached source gate reused, no new full gate claim. Minimal UI controller ports and local reopen only; full hook Worker API SaveCAS asset548 and owner acceptance remain pending.
       owner23_selected_at: '2026-10-25T18:50:45Z'
       before_independent_report_sha256: 018fb85c090ece50f4cbebaa02a7a7e85de6668c0eae31651ffa5c8e650fe46f
       before_independent_manifest_sha256: 2bf177265ec28286acaaa2eb99c6e5febd2b3257a25df101ba78239db5f5ef36
@@ -12137,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: error_positions5_source_integrated_select_spdt11_native_verification
+      checkpoint: error_positions5_done_spdt11_source_ui_verified_full_acceptance_pending
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12423,6 +12426,7 @@ parallel_lanes:
       source_ui_review: Independent PASS exact final483d2e51; all five authored paths byte-identical approvedf603. Native1440/390 selection reveal and baseline6x5 runtime equivalence independently repeated PASS.
       source_ui_gate: Fresh gate electronics-m1 PASS945 domain plus983 web;70Nx tasks executed with NX_SKIP_NX_CACHE=true. Bundle221984of222000 and1998884of2000000 unchanged. General40222880996 in_progress at publication, not claimed PASS; no release or deployment claim.
       completed_at: '2026-10-25T18:50:45Z'
+      general_observation: Exact483d run40222880996 failed format check only foreign admin/testing/crm-responsibilities.spec.ts. CategoryC independent baseline, no Electronics cause or foreign repair; not General repository release PASS.
       deployment: prohibited_by_owner
       database_actions: none_live
     gates:
