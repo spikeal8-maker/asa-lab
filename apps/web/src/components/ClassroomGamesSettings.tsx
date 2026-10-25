@@ -13,10 +13,12 @@ export function ClassroomGamesSettings({
   classroomId,
   seatId,
   readOnly = false,
+  onDirtyChange,
 }: {
   classroomId: string;
   seatId?: string;
   readOnly?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }): JSX.Element {
   const inputId = useId();
   const generation = useRef(0);
@@ -43,11 +45,16 @@ export function ClassroomGamesSettings({
     setError(null);
     setNotice(null);
     setSaving(false);
-    void gameAccessApi.readPolicy(classroomId, seatId).then((result) => {
-      if (token !== generation.current) return;
-      if (result.ok) adopt(result.data);
-      else setError('Не удалось загрузить доступ к играм.');
-    });
+    void gameAccessApi
+      .readPolicy(classroomId, seatId)
+      .then((result) => {
+        if (token !== generation.current) return;
+        if (result.ok) adopt(result.data);
+        else setError('Не удалось загрузить доступ к играм.');
+      })
+      .catch(() => {
+        if (token === generation.current) setError('Не удалось загрузить доступ к играм.');
+      });
     return () => {
       generation.current++;
     };
@@ -63,10 +70,15 @@ export function ClassroomGamesSettings({
   const dirty =
     policy !== null &&
     (seatId
-      ? override !== policy.override
+      ? override !== (policy.override ?? 'inherit')
       : mode !== policy.mode ||
         (mode === 'rating_threshold' && numericThreshold !== policy.threshold) ||
         policy.state === 'revoked');
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   async function save(): Promise<void> {
     if (!policy || saving || readOnly || (!seatId && !validThreshold)) return;
@@ -96,6 +108,8 @@ export function ClassroomGamesSettings({
             : 'Не удалось сохранить доступ к играм.',
         );
       }
+    } catch {
+      if (token === generation.current) setError('Не удалось сохранить доступ к играм.');
     } finally {
       if (token === generation.current) setSaving(false);
     }
@@ -184,7 +198,11 @@ export function ClassroomGamesSettings({
             type="button"
             className="btn-ghost"
             disabled={saving}
-            onClick={() => setAttempt((value) => value + 1)}
+            onClick={() => {
+              if (dirty && !window.confirm('Несохранённый выбор будет потерян. Обновить правило?'))
+                return;
+              setAttempt((value) => value + 1);
+            }}
           >
             Обновить настройки
           </button>
