@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: owner_selects_analog_header_digital_outputs18
+      checkpoint: analog_digital18_source_ui_worker_verified_20pin_physics_proven
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12500,16 +12500,21 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_a0_a5_digital_causal_verification_then_repair_if_needed
+      checkpoint: existing_capability_source_ui_worker_verified_main
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-UNO-DIGITAL-PINS-001.md
       owner_authorization: Explicit owner selects item18. Verify existing A0-A5 alias mapping and digital output end-to-end, joint20-pin capability proof per queue. No refactoring server foreign changes; paused timing682 work preserved.
+      source_integrated_sha: bd726a0ed7d4151330a3e523dd68482333a82754
+      source_ui_worker_completed_at: '2026-10-25T19:48:44Z'
+      production_changes: none_existing_capability_confirmed_three_testing_files_only
+      source_ui_worker_review: NEW independent PASS exactbd726a0e;32fresh tests and native1440/390 replay. Actual aliases computedports and native dropdown expression drag; canonical20resistorLED onehot mixed all24patterns quality and current equations; actualWorker complete state and presentationresults direct-equal plus serializedcontinuation. No fullinstalledapp SaveCAS deployment or owner acceptance claim.
+      focused_evidence: Fresh gate electronics-m1 actualexit0 PASS1014domain plus989web;70Nxexecutions cache skipped. Bundle221984of222000 and1998884of2000000 unchanged. Initial local missingAIdependencies D resolved by privatefrozenoffline27cachedpackages, zero lock/source changes; finaltypes/buildPASS. General40227697929 in_progress at sourceintegration, not wholeCI release PASS.
       scope_overlap_check: Fresh status of all worktrees shows no dirty runtime model capabilities Blockly pin input or generator paths; preserve unrelated workflow dirt and all unique candidates.
       deployment: prohibited_by_owner
       database_actions: none_live
