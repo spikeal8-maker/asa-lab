@@ -1636,6 +1636,59 @@ test('AI tools popup remains within short desktop and mobile canvases', async ({
   await assertBounds();
 });
 
+for (const width of [320, 390]) {
+  test(`AI keeps Send visible with four images and wrapped text at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 340 });
+    await fixture(page);
+    await page.goto('/#/ai');
+
+    const pixel = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg==',
+      'base64',
+    );
+    await page.getByLabel('Выбрать изображения для ИИ').setInputFiles(
+      Array.from({ length: 4 }, (_, index) => ({
+        name: `photo-${index + 1}.png`,
+        mimeType: 'image/png',
+        buffer: pixel,
+      })),
+    );
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    await composer.fill('Что видно на этих фотографиях?\n' + 'Поясни детали.\n'.repeat(12));
+    await expect(page.locator('form.chat-composer')).toHaveClass(/expanded/);
+    await expect(page.getByLabel('Выбранные вложения')).toContainText('photo-4.png');
+
+    const positions = await page.evaluate(() => {
+      const canvas = document.querySelector('.asa-ai-chat')!.getBoundingClientRect();
+      const form = document.querySelector('form.chat-composer')!.getBoundingClientRect();
+      const send = document.querySelector('.chat-send-button')!.getBoundingClientRect();
+      const previews = document.querySelector('.chat-attachment-drafts') as HTMLElement;
+      const previewBounds = previews.getBoundingClientRect();
+      const viewportBottom = visualViewport
+        ? visualViewport.offsetTop + visualViewport.height
+        : innerHeight;
+      return {
+        canvasTop: canvas.top,
+        bottomLimit: Math.min(canvas.bottom, viewportBottom),
+        formTop: form.top,
+        formBottom: form.bottom,
+        sendBottom: send.bottom,
+        previewBottom: previewBounds.bottom,
+        previewHeight: previews.clientHeight,
+        previewScrollHeight: previews.scrollHeight,
+      };
+    });
+    expect(positions.formTop).toBeGreaterThanOrEqual(positions.canvasTop - 1);
+    expect(positions.formBottom).toBeLessThanOrEqual(positions.bottomLimit + 1);
+    expect(positions.sendBottom).toBeLessThanOrEqual(positions.formBottom + 1);
+    expect(positions.previewBottom).toBeLessThanOrEqual(positions.formBottom + 1);
+    expect(positions.previewHeight).toBeLessThanOrEqual(164);
+    expect(positions.previewScrollHeight).toBeGreaterThanOrEqual(positions.previewHeight);
+  });
+}
+
 test('AI shows no internal provider setup notice on the empty consumer screen', async ({
   page,
 }) => {
