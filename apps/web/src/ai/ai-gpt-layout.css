@@ -422,6 +422,9 @@
 
 /* The same composer moves, rather than creating another fake greeting screen. */
 .asa-ai-layout .asa-ai-chat.is-empty .chat-composer-dock {
+  /* An absolutely positioned grid child must not inherit the named composer
+   * track as its containing block: center against the whole .chat-main. */
+  grid-area: auto;
   position: absolute;
   top: 50%;
   right: 0;
