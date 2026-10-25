@@ -1618,7 +1618,8 @@ test('AI tools popup remains within short desktop and mobile canvases', async ({
         firstTop: first.top,
         canvasTop: canvas.top,
         bottomLimit: Math.min(canvas.bottom, viewportBottom),
-        scrollable: (document.querySelector('.chat-tools-popup') as HTMLElement).scrollHeight >
+        scrollable:
+          (document.querySelector('.chat-tools-popup') as HTMLElement).scrollHeight >
           (document.querySelector('.chat-tools-popup') as HTMLElement).clientHeight,
       };
     });

@@ -95,7 +95,10 @@ function positionToolsMenu(details: HTMLDetailsElement): void {
   const placeBelow = spaceAbove < 242 && spaceBelow > spaceAbove;
   details.dataset.menuPlacement = placeBelow ? 'below' : 'above';
   const usable = placeBelow ? spaceBelow : spaceAbove;
-  details.style.setProperty('--ai-tools-menu-max-height', Math.max(32, Math.min(360, usable)) + 'px');
+  details.style.setProperty(
+    '--ai-tools-menu-max-height',
+    Math.max(32, Math.min(360, usable)) + 'px',
+  );
 }
 
 export function AiChatPage({
