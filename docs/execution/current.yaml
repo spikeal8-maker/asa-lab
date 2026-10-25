@@ -12135,7 +12135,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: owner_returns_to_small_ui_select_keyboard14_754
+      checkpoint: keyboard14_source_ui_integrated_light_candidates_preserved
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12311,10 +12311,17 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
-      checkpoint: selected_small_keyboard_ui_only
+      checkpoint: source_ui_integrated_scoped_native_and_independent_review_pass
       owner_acceptance: pending
+      source_integrated_sha: ec37b691e8eba311694f8b90f58d69331ddd52b1
+      source_ui_review: APPROVE_SOURCE_UI_exact_integrated_sha
+      scoped_tests_passed: 1913
+      native_viewports_passed: [1440, 390]
+      measured_editor_bytes: 221984
+      accepted_editor_cap_bytes: 222000
+      general_release_installed_acceptance: not_claimed
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-KEYBOARD-UI-001.md
