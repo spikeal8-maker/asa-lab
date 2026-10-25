@@ -20,11 +20,21 @@ export function settingsPanelFromLocation(): SettingsPanel {
 let guard: ((proceed: () => void) => void) | null = null;
 let dirtySettings: (() => boolean) | null = null;
 let pendingSettings: (() => boolean) | null = null;
+// Teacher-side Seat settings and Account Settings are mutually exclusive views.
+// Their draft guards can therefore share one portal navigation decision without
+// making the student editor a second source of truth for Account Settings.
+let auxiliaryDraft: (() => boolean) | null = null;
+export function registerAuxiliarySettingsDraft(isDirty: () => boolean): () => void {
+  auxiliaryDraft = isDirty;
+  return () => {
+    if (auxiliaryDraft === isDirty) auxiliaryDraft = null;
+  };
+}
 export function isSettingsNavigationPending(): boolean {
   return pendingSettings?.() ?? false;
 }
 export function hasSettingsDraft(): boolean {
-  return dirtySettings?.() ?? false;
+  return (dirtySettings?.() ?? false) || (auxiliaryDraft?.() ?? false);
 }
 export function historyEntryIndex(): number | null {
   const browser = window as Window & { navigation?: { currentEntry?: { index: number } } };
@@ -36,8 +46,16 @@ export function pushSettingsAwareLocation(href: string): void {
 }
 /** Opt-in for the settings surface; all other router consumers proceed normally. */
 export function requestSettingsNavigation(proceed: () => void): void {
-  if (guard) guard(proceed);
-  else proceed();
+  const confirmed = () => {
+    if (
+      auxiliaryDraft?.() &&
+      !window.confirm('Игровые разрешения не сохранены. Покинуть настройки без сохранения?')
+    )
+      return;
+    proceed();
+  };
+  if (guard) guard(confirmed);
+  else confirmed();
 }
 
 export function useDialogFocus(open: boolean, ref: RefObject<HTMLElement>): void {
