@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
+import { decodeQrRaster } from './fixtures/qr-print-raster';
 import { e2eAdminPool } from './seed';
 import { registerAccountSetup } from './registration-setup';
 
@@ -15,12 +15,19 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
+async function decodeRenderedQr(
+  qr: Locator,
+  path?: string,
+  media: 'screen' | 'print' = 'screen',
+): Promise<string> {
   const pngBytes = await qr.screenshot(path ? { path } : undefined);
+  // Preserve the original pixels even when a later decode or URL assertion fails.
+  await test.info().attach(`rendered-qr-${media}-original`, {
+    body: pngBytes,
+    contentType: 'image/png',
+  });
   const png = PNG.sync.read(pngBytes);
   const rgba = new Uint8ClampedArray(png.data.buffer, png.data.byteOffset, png.data.byteLength);
-  const decoded = jsQR(rgba, png.width, png.height, { inversionAttempts: 'dontInvert' });
-  expect(decoded, 'rendered QR must decode independently from qrcode-generator').not.toBeNull();
 
   // The rendered SVG owns a white quiet zone. Prove it survived rasterization
   // instead of trusting the encoder's module matrix or React props.
@@ -38,21 +45,13 @@ async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
   }
   expect(quietZoneIntact, 'rendered QR quiet zone must not be cropped').toBe(true);
 
-  // Print acceptance is monochrome. Threshold the rendered pixels to strict
-  // black/white and independently decode again.
-  const monochrome = new Uint8ClampedArray(rgba.length);
-  for (let offset = 0; offset < rgba.length; offset += 4) {
-    const luminance =
-      rgba[offset]! * 0.2126 + rgba[offset + 1]! * 0.7152 + rgba[offset + 2]! * 0.0722;
-    const value = luminance < 160 ? 0 : 255;
-    monochrome[offset] = value;
-    monochrome[offset + 1] = value;
-    monochrome[offset + 2] = value;
-    monochrome[offset + 3] = 255;
-  }
-  const monochromeDecoded = jsQR(monochrome, png.width, png.height, {
-    inversionAttempts: 'dontInvert',
-  });
+  // Raw first; only a null print decode may select one 2x copy of this same PNG.
+  // Monochrome uses that selected raster without another fallback.
+  const { decoded, monochromeDecoded } = decodeQrRaster(
+    { data: rgba, width: png.width, height: png.height },
+    media,
+  );
+  expect(decoded, 'rendered QR must decode independently from qrcode-generator').not.toBeNull();
   expect(monochromeDecoded?.data, 'monochrome rendered QR must remain decodable').toBe(
     decoded!.data,
   );
@@ -344,7 +343,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     .first()
     .getByTestId('class-join-qr');
   await expect(printedFirstQr).toBeVisible();
-  expect(await decodeRenderedQr(printedFirstQr)).toBe(decodedA);
+  expect(await decodeRenderedQr(printedFirstQr, undefined, 'print')).toBe(decodedA);
   for (const host of [
     new URL(portalOrigin).host,
     'classroom-really-long-installation-name.example.org',
@@ -614,7 +613,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       .getByTestId('class-join-qr')
       .first();
     await expect(printedSquare).toBeVisible();
-    expect(await decodeRenderedQr(printedSquare)).toBe(decoded);
+    expect(await decodeRenderedQr(printedSquare, undefined, 'print')).toBe(decoded);
     await page.evaluate(() => document.body.classList.remove('student-access-printing'));
     await page.emulateMedia({ media: 'screen' });
     const obsolete = await page.request.post('/api/class-join/resolve', {
@@ -1217,9 +1216,9 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     expect(accountPrint.instructionDisplay).not.toBe('none');
     expect(accountPrint.text).toContain('Вход через аккаунт');
     expect(accountPrint.text).not.toContain('acc:');
-    expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
-      `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
-    );
+    expect(
+      await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'), undefined, 'print'),
+    ).toBe(`${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`);
     await assertPrintedTextZones(page, 'mixed Account/code cards with original class labels');
     for (const host of [
       new URL(origin).host,
@@ -1238,9 +1237,9 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
         }
       }, host);
       await assertPrintedTextZones(page, `mixed Account/code cards, long class, host=${host}`);
-      expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
-        `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
-      );
+      expect(
+        await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'), undefined, 'print'),
+      ).toBe(`${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`);
     }
     await page.pdf({
       path: `${evidence}/cards-mixed-long-labels-a4.pdf`,
