@@ -1083,6 +1083,7 @@ export function AiChatPage({
   }
 
   function closeHistory(): void {
+    closeSearch();
     setSideOpen(false);
     requestAnimationFrame(() => historyToggle.current?.focus());
   }
