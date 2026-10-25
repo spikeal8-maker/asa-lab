@@ -515,6 +515,15 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(f.catalogQueries().at(-1)!.has('cursor')).toBe(false);
     await account.locator('button.admin-user-row').click();
     await expect(account.getByRole('tab', { name: 'Управление', exact: true })).toBeVisible();
+    await account.getByRole('tab', { name: 'История', exact: true }).click();
+    await expect(
+      account
+        .getByRole('region', { name: 'История пользователя' })
+        .getByText('Сохранённая версия', { exact: false }),
+    ).toBeVisible();
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/account-history-${width}.png`, fullPage: true });
     await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
     await expect(account).toHaveCount(0);
     await expect(student).toBeVisible();

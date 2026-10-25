@@ -226,12 +226,6 @@ export function AdminUsersCatalog({
               user.kind === 'account' && user.account ? (
                 <div key={user.actorKey} className="admin-catalog-account">
                   {renderAccount(user)}
-                  <AdminUserHistory
-                    kind={user.kind}
-                    targetId={user.id}
-                    scope={scope}
-                    onAccessDenied={onAccessDenied}
-                  />
                 </div>
               ) : (
                 <article

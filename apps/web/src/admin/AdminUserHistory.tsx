@@ -52,7 +52,7 @@ export function AdminUserHistory(props: {
         {open ? 'Скрыть историю' : 'История проектов, публикаций и ИИ'}
       </button>
       {open ? (
-        <HistoryPages
+        <AdminUserHistoryPanel
           key={`${props.kind}:${props.targetId}:${props.scope.kind}:${props.scope.id}`}
           {...props}
         />
@@ -60,7 +60,7 @@ export function AdminUserHistory(props: {
     </div>
   );
 }
-function HistoryPages({
+export function AdminUserHistoryPanel({
   kind,
   targetId,
   scope,
