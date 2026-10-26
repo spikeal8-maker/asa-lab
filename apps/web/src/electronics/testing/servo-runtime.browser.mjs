@@ -11,6 +11,7 @@ import process from 'node:process';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const alias = {
+  '@asa-lab/electronics/rendering': resolve('contexts/electronics/rendering.ts'),
   '@asa-lab/electronics/simulation': resolve('contexts/electronics/simulation.ts'),
   '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
   '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
@@ -43,7 +44,7 @@ import {useElectronicsWorkbench} from './src/electronics/use-electronics-workben
 import {NativeOpticalProvider} from './src/electronics/NativeOpticalComponentVisual';
 import {ProductionComponentVisual as DirectVisual} from './src/electronics/ProductionComponentVisual';
 import {WorkbenchStage} from './src/electronics/WorkbenchStage';
-import {rawDisplayCircuit,rawDisplaySource,OWNER_HIGH_WRITES} from '../../contexts/electronics/testing/fixtures/raw-seven-segment';
+import {rawDisplayCircuit,rawDisplaySource,OWNER_HIGH_WRITES,RAW_DISPLAY_PINS} from '../../contexts/electronics/testing/fixtures/raw-seven-segment';
 import {configureProductionLibrary} from './src/electronics/production-manifest-adapter';
 import {catalogEntry} from './src/electronics/component-catalog';
 import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
@@ -56,6 +57,20 @@ const NativeWorker=window.Worker;window.Worker=class extends NativeWorker{constr
 function cpp(a){return '#include <Servo.h>\\nServo motor;void setup(){motor.attach(9);motor.write('+a+');}void loop(){delay(100);}';}
 function circuit(a=0,power=true,raw=false){const source=raw?'void setup(){pinMode(9,OUTPUT);}void loop(){digitalWrite(9,HIGH);delayMicroseconds('+a+');digitalWrite(9,LOW);delayMicroseconds('+(20000-a)+');}':cpp(a);return {schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',value:5,position:{x:0,y:0},pinIds:['d9','d13','power-5v','power-3v3','power-gnd-1'],stateProperties:{arduinoSource:source}},{id:'servo',kind:'visual',componentTypeId:'servo-motor',variantId:'servo-motor',value:0,position:{x:400,y:40},pinIds:['gnd','vcc','signal']}],connections:[...(power?[['power-5v','vcc']]:[]),['power-gnd-1','gnd'],['d9','signal']].map(([a,b],i)=>({id:'w'+i,from:{componentId:'uno',terminal:a},to:{componentId:'servo',terminal:b}})),viewport:{x:0,y:0,zoom:1},simulation:{running:false,maxIterations:24}};}
 function blockSource(a){registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{const loop=w.newBlock('asa_loop'),write=w.newBlock('asa_servo_write'),pin=w.newBlock('asa_pin'),angle=w.newBlock('asa_number');pin.setFieldValue('9','VALUE');angle.setFieldValue(String(a),'VALUE');write.getInput('PIN').connection.connect(pin.outputConnection);write.getInput('ANGLE').connection.connect(angle.outputConnection);loop.getInput('DO').connection.connect(write.previousConnection);return generateArduinoCode(w);}finally{w.dispose();Blocks.Events.enable();}}
+function sevenParitySource(active,commonAnode,blocks){
+if(!blocks)return {source:rawDisplaySource(RAW_DISPLAY_PINS,active,commonAnode),blockTypes:[]};
+registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{
+const loop=w.newBlock('asa_loop');let previous=null;
+for(const [index,pinNumber] of RAW_DISPLAY_PINS.entries()){
+const segment=['a','b','c','d','e','f','g','dp'][index];
+const lit=segment==='dp'?active.includes('dp'):active.replace('dp','').includes(segment);
+const write=w.newBlock('asa_digital_write'),pin=w.newBlock('asa_pin'),level=w.newBlock('asa_level');
+pin.setFieldValue(String(pinNumber),'VALUE');level.setFieldValue(lit!==commonAnode?'HIGH':'LOW','LEVEL');
+write.getInput('PIN').connection.connect(pin.outputConnection);write.getInput('LEVEL').connection.connect(level.outputConnection);
+if(previous)previous.nextConnection.connect(write.previousConnection);else loop.getInput('DO').connection.connect(write.previousConnection);previous=write;
+}
+return {source:generateArduinoCode(w),blockTypes:w.getAllBlocks(false).map(b=>b.type).sort()};
+}finally{w.dispose();Blocks.Events.enable();}}
 function potSource(blocks){
 if(!blocks)return '#include <Servo.h>\\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(map(analogRead(A0),0,1023,0,180));delay(20);}';
 registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{
@@ -82,6 +97,7 @@ loadMulti(){current=multiCircuit();isDirect=false;epoch++;root.render(<Demo key=
 async multiReplay({saved,document}){const doc=JSON.parse(JSON.stringify(document));const generation=client.beginGeneration('multi-replay');async function through(state,horizon){let result;do{result=await client.advance(generation,doc,JSON.parse(JSON.stringify(state)),horizon);state=result.state;}while(result.executionStatus==='yielded');if(result.executionStatus!=='ready')throw new Error('Short replay fault: '+JSON.stringify(result));return result;}const target=200000;const restored=await through(saved,target);const fresh=await through(resetElectronicsTimedState(),target);return {serializedByteEqual:JSON.stringify(restored.state)===JSON.stringify(fresh.state),restored:restored.state,fresh:fresh.state,target};},
 loadPot(blocks){current=potCircuit(blocks);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 potSnapshot:()=>{const committed=wb.nativeOpticalPresentation.getSnapshot().committed;const session='servo-project-'+epoch;const activeGeneration=Math.max(0,...window.probe.responses.filter(r=>r.projectSessionId===session).map(r=>r.generationId));const lastResponse=window.probe.responses.findLast(r=>r.projectSessionId===session&&r.generationId===activeGeneration&&r.advance?.executionStatus==='ready'&&r.metrics?.simulationInputDigest===committed?.result?.simulationInputDigest&&r.advance?.committedHorizonMicroseconds===committed?.frame?.atMicroseconds);return {document:wb.document,result:committed?.result,committedAtMicroseconds:committed?.frame?.atMicroseconds,lastResponse};},
+loadSevenParity({active,commonAnode,blocks}){const program=sevenParitySource(active,commonAnode,blocks);current=rawDisplayCircuit({active,commonAnode,resistanceOhm:1000,source:program.source});current={...current,components:current.components.map(c=>({...c,position:c.id==='display'?{x:400,y:40}:c.position})),simulation:{...current.simulation,running:false}};isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {...program,projectSessionId:'servo-project-'+epoch};},
 loadSeven(active){current=rawDisplayCircuit({active});current={...current,components:current.components.map(c=>({...c,position:c.id==='display'?{x:400,y:40}:c.position})),simulation:{...current.simulation,running:false}};isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 editSeven:active=>wb.updateArduinoProgram('uno',{arduinoSource:rawDisplaySource(OWNER_HIGH_WRITES,active)}),
 parity(){let state=resetElectronicsTimedState(),r;do{r=advanceElectronicsToHorizon(current,{state,requestedHorizonMicroseconds:5000,maxEvents:1});state=JSON.parse(JSON.stringify(r.state));}while(r.executionStatus==='yielded');return JSON.stringify(state)===JSON.stringify(window.probe.direct.state);},
@@ -485,6 +501,266 @@ async function checkHornClipping(page, width) {
   }
   return { width, phase: baseline ? 'before' : 'after', samples };
 }
+async function checkSevenParity(page, width) {
+  const patterns = [
+    'abcdef',
+    'bc',
+    'abdeg',
+    'abcdg',
+    'bcfg',
+    'acdfg',
+    'acdefg',
+    'abc',
+    'abcdefg',
+    'abcdfg',
+    'dp',
+    '',
+  ];
+  const segments = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
+  const samples = [];
+  const finite = (value) => {
+    if (typeof value === 'number') assert.ok(Number.isFinite(value));
+    else if (value && typeof value === 'object')
+      for (const item of Object.values(value)) finite(item);
+  };
+  for (const commonAnode of [false, true])
+    for (const [index, active] of patterns.entries())
+      for (const blocks of [false, true]) {
+        const started = Date.now();
+        const loaded = await page.evaluate((options) => window.fixture.loadSevenParity(options), {
+          active,
+          commonAnode,
+          blocks,
+        });
+        assert.equal(
+          loaded.blockTypes.filter((type) => type === 'asa_digital_write').length,
+          blocks ? 8 : 0,
+        );
+        if (blocks) assert.equal(loaded.blockTypes.length, 25);
+        await page.waitForFunction(() => window.fixture.status() === 'ready');
+        await page.evaluate(() => window.fixture.start());
+        try {
+          await page.waitForFunction(
+            ({ active, source, projectSessionId, commonAnode }) => {
+              const s = window.fixture.potSnapshot(),
+                r = s.result,
+                response = s.lastResponse;
+              if (
+                !response ||
+                response.projectSessionId !== projectSessionId ||
+                !r?.solved ||
+                !r.quality?.passed ||
+                s.committedAtMicroseconds <= 0
+              )
+                return false;
+              if (
+                s.document.components.find((c) => c.id === 'uno').stateProperties.arduinoSource !==
+                source
+              )
+                return false;
+              const clock = JSON.parse(response.advance.state.continuation.serializedState);
+              const board = clock.boards.find((b) => b.componentId === 'uno');
+              if (board?.loadedSource !== source || board.runtime.loopIterations < 2) return false;
+              if (
+                ![4, 6, 7, 8, 9, 10, 11, 12].every((pin, index) => {
+                  const segment = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'][index];
+                  const lit =
+                    segment === 'dp'
+                      ? active.includes('dp')
+                      : active.replace('dp', '').includes(segment);
+                  return (
+                    board.runtime.pinModes['d' + pin] === 'OUTPUT' &&
+                    board.runtime.outputVoltages['d' + pin] === (lit !== commonAnode ? 5 : 0)
+                  );
+                })
+              )
+                return false;
+              const b = r.components.find((c) => c.componentId === 'display')?.branchBrightness;
+              if (
+                !b ||
+                !['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].every(
+                  (segment) =>
+                    b[segment] > 0 ===
+                    (segment === 'dp'
+                      ? active.includes('dp')
+                      : active.replace('dp', '').includes(segment)),
+                )
+              )
+                return false;
+              const elements = [
+                ...document.querySelectorAll('[data-component-id="display"] [data-segment]'),
+              ];
+              return (
+                elements.length === 8 &&
+                elements.every(
+                  (e) =>
+                    Number(e.getAttribute('opacity')) === b[e.getAttribute('data-segment')] / 100,
+                )
+              );
+            },
+            {
+              active,
+              source: loaded.source,
+              projectSessionId: loaded.projectSessionId,
+              commonAnode,
+            },
+            { timeout: 30000 },
+          );
+          const snapshot = await page.evaluate(() => window.fixture.potSnapshot());
+          const {
+            document: doc,
+            result,
+            lastResponse: response,
+            committedAtMicroseconds,
+          } = snapshot;
+          const clock = JSON.parse(response.advance.state.continuation.serializedState);
+          const model = result.components.find((c) => c.componentId === 'display');
+          finite(result);
+          finite(clock);
+          assert.equal(result.quality.finite, true);
+          assert.equal(result.quality.passed, true);
+          assert.ok(result.quality.maxKclResidualAmp <= result.quality.kclToleranceAmp);
+          assert.ok(
+            result.quality.maxSourceVoltageResidualVolt <=
+              result.quality.sourceVoltageToleranceVolt,
+          );
+          assert.equal(response.projectSessionId, loaded.projectSessionId);
+          assert.equal(response.metrics.simulationInputDigest, result.simulationInputDigest);
+          assert.equal(response.advance.committedHorizonMicroseconds, committedAtMicroseconds);
+          assert.equal(
+            doc.components.find((c) => c.id === 'uno').stateProperties.arduinoSource,
+            loaded.source,
+          );
+          assert.equal(
+            clock.boards.find((b) => b.componentId === 'uno').loadedSource,
+            loaded.source,
+          );
+          assert.equal(
+            doc.components.find((c) => c.id === 'display').stateProperties.commonMode,
+            commonAnode ? 'common-anode' : 'common-cathode',
+          );
+          assert.deepEqual(
+            doc.components.filter((c) => c.id.startsWith('r-')).map((c) => c.value),
+            Array(8).fill(1000),
+          );
+          const visible = await page
+            .locator('[data-component-id="display"] [data-segment]')
+            .evaluateAll((es) =>
+              Object.fromEntries(
+                es.map((e) => [e.getAttribute('data-segment'), Number(e.getAttribute('opacity'))]),
+              ),
+            );
+          const currents = [],
+            brightness = [],
+            glyph = [];
+          for (const segment of segments) {
+            const lit =
+              segment === 'dp' ? active.includes('dp') : active.replace('dp', '').includes(segment);
+            const current = model.branchCurrents[segment],
+              light = model.branchBrightness[segment];
+            assert.equal(light > 0, lit);
+            assert.equal(current > 0, lit);
+            assert.ok(current >= 0 && current < 0.004, segment + ': safe 1kOhm branch');
+            assert.equal(visible[segment], light / 100);
+            currents.push(current);
+            brightness.push(light);
+            glyph.push(lit);
+          }
+          const runtime = clock.boards.find((b) => b.componentId === 'uno').runtime;
+          assert.ok(runtime.loopIterations >= 2);
+          const uno = result.components.find((c) => c.componentId === 'uno');
+          const driven = [4, 6, 7, 8, 9, 10, 11, 12].map((pin, index) => {
+            const high = glyph[index] !== commonAnode;
+            assert.equal(runtime.pinModes['d' + pin], 'OUTPUT');
+            assert.equal(runtime.outputVoltages['d' + pin], high ? 5 : 0);
+            const physical = uno.terminalVoltages['d' + pin];
+            assert.ok(high ? physical >= 4 && physical <= 5.1 : physical >= -0.1 && physical <= 1);
+            return {
+              pin,
+              mode: runtime.pinModes['d' + pin],
+              commanded: runtime.outputVoltages['d' + pin],
+              physical,
+            };
+          });
+          assert.notEqual(model.stressState, 'burned');
+          const sample = {
+            pattern: index < 10 ? String(index) : index === 10 ? 'dp' : 'off',
+            commonMode: commonAnode ? 'CA' : 'CC',
+            blocks,
+            sourceSha256: createHash('sha256').update(loaded.source).digest('hex'),
+            blockCount: loaded.blockTypes.length,
+            projectSessionId: response.projectSessionId,
+            generationId: response.generationId,
+            requestId: response.requestId,
+            inputDigest: result.simulationInputDigest,
+            committedAtMicroseconds,
+            programFingerprint: clock.boards.find((b) => b.componentId === 'uno').runtime
+              .programFingerprint,
+            glyph,
+            driven,
+            completedIterationsAtLeast: runtime.loopIterations - 1,
+            currents,
+            brightness,
+            dom: segments.map((segment) => visible[segment]),
+            quality: {
+              kcl: result.quality.maxKclResidualAmp,
+              source: result.quality.maxSourceVoltageResidualVolt,
+            },
+            wallMs: Date.now() - started,
+          };
+          samples.push(sample);
+          if (samples.length === 2)
+            console.log(
+              JSON.stringify({
+                firstTwoSevenSegmentSamples: samples.map(
+                  ({ wallMs, committedAtMicroseconds, blocks }) => ({
+                    wallMs,
+                    committedAtMicroseconds,
+                    blocks,
+                  }),
+                ),
+              }),
+            );
+          if (
+            (width === 1440 && !commonAnode && !blocks && index === 0) ||
+            (width === 390 && commonAnode && blocks && index === 10)
+          )
+            await page.screenshot({ path: resolve(output, 'seven-parity-' + width + '.png') });
+        } catch (error) {
+          await writeFile(
+            resolve(output, 'seven-parity-failure.json'),
+            JSON.stringify(
+              {
+                width,
+                active,
+                commonAnode,
+                blocks,
+                error: String(error),
+                loaded,
+                snapshot: await page.evaluate(() => window.fixture.potSnapshot()),
+              },
+              null,
+              2,
+            ),
+          );
+          throw error;
+        } finally {
+          if (await page.evaluate(() => window.fixture.state().running))
+            await page.evaluate(() => window.fixture.stop());
+          await page.waitForFunction(() => !window.fixture.state().running);
+        }
+        if (process.argv.includes('--seven-segment-parity-pilot') && samples.length === 2)
+          return { width, pilot: true, samples };
+      }
+  for (let i = 0; i < samples.length; i += 2) {
+    assert.deepEqual(samples[i].glyph, samples[i + 1].glyph);
+    for (let j = 0; j < 8; j++) {
+      assert.ok(Math.abs(samples[i].currents[j] - samples[i + 1].currents[j]) < 0.000001);
+      assert.ok(Math.abs(samples[i].brightness[j] - samples[i + 1].brightness[j]) < 0.001);
+    }
+  }
+  return { width, samples };
+}
 async function checkSeven(page) {
   await page.evaluate(() => window.fixture.loadSeven('bc'));
   await page.waitForFunction(() => window.fixture.status() === 'ready');
@@ -563,6 +839,13 @@ try {
         (await readFile('apps/web/src/electronics/workbench.css', 'utf8')) +
         '\n#app{--wb-library-width:0px}.workbench-stage{position:relative;height:700px;width:100%}',
     });
+    if (process.argv.includes('--seven-segment-parity-only')) {
+      all.push(await checkSevenParity(page, width));
+      assert.deepEqual(errors, []);
+      await page.close();
+      if (process.argv.includes('--seven-segment-parity-pilot')) break;
+      continue;
+    }
     if (process.argv.includes('--multi-servo-sustained-only')) {
       all.push(await checkMultiServo(page, width));
       assert.deepEqual(errors, []);
@@ -708,22 +991,28 @@ try {
     });
     await page.close();
   }
-  const receiptName = process.argv.includes('--multi-servo-sustained-only')
-    ? 'servo-multi-sustained-786.json'
-    : process.argv.includes('--potentiometer-only')
-      ? 'servo-potentiometer-784.json'
-      : process.argv.includes('--horn-clip-only')
-        ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
-        : 'receipts.json';
+  const receiptName = process.argv.includes('--seven-segment-parity-only')
+    ? 'seven-segment-parity-788' +
+      (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
+      '.json'
+    : process.argv.includes('--multi-servo-sustained-only')
+      ? 'servo-multi-sustained-786.json'
+      : process.argv.includes('--potentiometer-only')
+        ? 'servo-potentiometer-784.json'
+        : process.argv.includes('--horn-clip-only')
+          ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
+          : 'receipts.json';
   await writeFile(resolve(output, receiptName), JSON.stringify(all, null, 2));
   console.log(
-    process.argv.includes('--multi-servo-sustained-only')
-      ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
-      : process.argv.includes('--potentiometer-only')
-        ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
-        : process.argv.includes('--horn-clip-only')
-          ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
-          : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
+    process.argv.includes('--seven-segment-parity-only')
+      ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
+      : process.argv.includes('--multi-servo-sustained-only')
+        ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
+        : process.argv.includes('--potentiometer-only')
+          ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
+          : process.argv.includes('--horn-clip-only')
+            ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
+            : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
   );
 } finally {
   await browser.close();
