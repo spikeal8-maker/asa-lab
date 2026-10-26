@@ -12149,7 +12149,8 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
-      current_slice: TASK-ELECTRONICS-BLOCK-DRAG-VISIBILITY-001
+      current_slice: TASK-ELECTRONICS-INACTIVE-BLOCKS-001
+      consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
       execution_coordination: Servo765 committed visual repair integrated with new independent review; author and reviewer stopped. Display764 substantial model lag remains open, not realtime or full acceptance. Preserve all approved source and unused owner-deferred candidates; no unrelated changes or paused682 reuse.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -12362,11 +12363,12 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: done
+      status: in_progress
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: source_ui_integrated_native_and_linux_focused_pass
+      checkpoint: selected_consolidated_item2_current_main_verification
+      selected_followup: Owner explicitly selects consolidated item2. Existing implementation must be verified on current main after drag767; no speculative rewrite. Run existing focused connectedgraph tests and actual native fixture. Repair only a reproduced item2 defect; otherwise record current evidence and finish. No server foreign changes or refactoring.
       owner_acceptance: pending
       source_integrated_sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
       independent_source_ui_review: APPROVE_exact_integrated_sha
