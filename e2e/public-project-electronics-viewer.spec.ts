@@ -191,6 +191,20 @@ test('editor-created immutable Electronics publication is a real inert responsiv
       await terminal(to, b!).click({ force: true });
     }
     await expect(page.getByTestId('schematic-wire')).toHaveCount(3);
+    // The editor's automatic server flush runs once a minute. Exercise the real
+    // explicit Save action before requiring the publication's persisted source.
+    const savedCircuit = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/projects/${id}/draft` &&
+        response.request().method() === 'PUT' &&
+        response.request().postDataJSON().document.components.length === 3 &&
+        response.request().postDataJSON().document.connections.length === 3,
+    );
+    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    const savedResponse = await savedCircuit;
+    expect(savedResponse.status()).toBe(200);
+    const savedDocument = savedResponse.request().postDataJSON().document;
+    expect((await savedResponse.json()).draft.document).toEqual(savedDocument);
     const opened = async () => {
       const result = await page.request.get(`/api/projects/${id}`);
       expect(result.status()).toBe(200);
@@ -198,6 +212,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     };
     await expect.poll(async () => (await opened()).draft.document.connections.length).toBe(3);
     const v1 = (await opened()).draft;
+    expect(v1.document).toEqual(savedDocument);
     expect(v1.document.components).toHaveLength(3);
     await page.screenshot({ path: `${EVIDENCE}/editor-source.png` });
     // Navigate away to stop the editor before using publication APIs.
