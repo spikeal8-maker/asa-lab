@@ -32,7 +32,7 @@ if (serialBeginBefore)
     {
       name: 'serial-begin-baseline',
       setup(builder) {
-        builder.onLoad({ filter: /ArduinoSerialMonitor\.tsx$/ }, (args) => ({
+        builder.onLoad({ filter: /ArduinoSerialMonitor\.tsx$/ }, () => ({
           contents: execFileSync(
             'git',
             ['show', 'abfeff96:apps/web/src/electronics/ArduinoSerialMonitor.tsx'],
