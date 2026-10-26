@@ -38,3 +38,10 @@ unit/native checks, not a duplicate full gate. Record fresh Nx task count.
 Source integration does not close whole19; no installed/SaveCAS/owner/release
 claim. No server/Docker/DB/listening ports or foreign changes. Executor stops
 after one published coherent candidate; controller continues programme.
+
+## Post-integration test-only lint repair
+
+Exact CI found unused rest args in the fixture Worker constructor. Remove only
+that unused binding; preserve constructor body and forwarding behavior. Target
+ESLint and formatting plus independent one-line source review, no native/full
+gate/build repetition. Use separate clean diagnostic worktree while784 owns UI.
