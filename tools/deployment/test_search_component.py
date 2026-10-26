@@ -147,6 +147,112 @@ class SearchComponentTests(unittest.TestCase):
                 inspect_secret(path)
             self.assertNotIn("synthetic-not-a-key", str(raised.exception))
 
+    def test_manager_emits_search_secret_invalid_without_exposing_value(self):
+        import contextlib
+        import io
+        from unittest.mock import patch
+        import asa_manager
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ".env"
+            invalid = "unique-secret-value-must-not-leak"
+            path.write_text("ASA_SEARCH_SECRET='" + invalid + "'\n")
+            stderr = io.StringIO()
+            with patch.object(asa_manager, "Installation", return_value=object()), \
+                 patch.object(asa_manager, "operation_lock", return_value=contextlib.nullcontext()), \
+                 patch.object(asa_manager, "update", side_effect=lambda *a, **k: inspect_secret(path)), \
+                 contextlib.redirect_stderr(stderr):
+                code = asa_manager.main(["update", "--root", directory, "--profile", "staging"])
+            self.assertEqual(code, 2)
+            self.assertIn("BLOCKED SEARCH_SECRET_INVALID:", stderr.getvalue())
+            self.assertNotIn(invalid, stderr.getvalue())
+
+    def test_manager_continues_after_backup_with_existing_quoted_key(self):
+        import contextlib
+        from unittest.mock import patch
+        import asa_manager
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".asa").mkdir()
+            key = "Ab" * 32
+            path = root / ".env"
+            original = ("# untouched config\r\nASA_SEARCH_SECRET='" + key +
+                        "'\r\nASA_UPDATE_ENTRY_ORIGIN=http://127.0.0.1:4610\r\n").encode()
+            path.write_bytes(original)
+            release = {"revision": "b" * 40, "schema": 256, "images": {"search": "synthetic-image"}}
+            previous = {"revision": "a" * 40, "schema": 255}
+            stages = []
+
+            class FakeInstallation:
+                def __init__(self):
+                    self.root = root
+                    self.state = root / ".asa"
+                    self.profile = "staging"
+                    self.settings = {}
+                    self.env = read_env(path)
+                    self.process_env = {}
+                    self.recorded_receipt = None
+
+                def git(self, *args):
+                    return ""
+
+                def readiness(self):
+                    return previous
+
+                def compose(self, *args, **kwargs):
+                    stages.append(tuple(args))
+                    return ""
+
+                def identity(self, **kwargs):
+                    return {}
+
+                def wait_ready(self, *args):
+                    stages.append(("ready",))
+
+                def receipt(self, value):
+                    self.recorded_receipt = value
+                    stages.append(("receipt",))
+
+            install = FakeInstallation()
+            def make_backup(*args, **kwargs):
+                stages.append(("backup",))
+                return root / "backups" / "synthetic"
+
+            stubs = {
+                "doctor": lambda *a, **k: None,
+                "clean_checkout": lambda *a, **k: None,
+                "backup_directory": lambda *a, **k: root / "backups",
+                "attest_editor_env": lambda *a, **k: None,
+                "discover_release": lambda *a, **k: release,
+                "assert_ci": lambda *a, **k: None,
+                "fetch_images": lambda *a, **k: None,
+                "selected_source": lambda *a, **k: None,
+                "prepare_collector": lambda *a, **k: {"readerGroupChanged": False},
+                "apply_release_environment": lambda *a, **k: None,
+                "validate_resolved_images": lambda *a, **k: None,
+                "check_resources": lambda *a, **k: None,
+                "export_backup": make_backup,
+                "verify_embedded_entry_http": lambda *a, **k: None,
+                "save_settings": lambda *a, **k: None,
+                "reconcile_collector": lambda *a, **k: None,
+                "Installation": lambda *a, **k: install,
+            }
+            with contextlib.ExitStack() as stack:
+                for name, replacement in stubs.items():
+                    stack.enter_context(patch.object(asa_manager, name, replacement))
+                asa_manager.update(install)
+
+            self.assertIn(("backup",), stages)
+            self.assertIn(("up", "-d", "--no-build"), stages)
+            self.assertIn(("receipt",), stages)
+            self.assertLess(stages.index(("backup",)), stages.index(("up", "-d", "--no-build")))
+            self.assertEqual(install.recorded_receipt["status"], "success")
+            self.assertEqual(install.env["ASA_SEARCH_SECRET"], key)
+            self.assertEqual(install.process_env["ASA_SEARCH_SECRET"], key)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertFalse((root / ".asa" / "maintenance.json").exists())
+
     def test_runtime_template_never_gets_default_or_shared_key(self):
         spec = importlib.util.spec_from_file_location("asa_search_start", ROOT / "infra/search/start.py")
         module = importlib.util.module_from_spec(spec)
