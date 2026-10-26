@@ -6465,15 +6465,15 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03D-REPORT-UI-001
-      issue: 721
+      id: TASK-PROJ-PUBLIC-PAGE-LAYOUT-001
+      issue: 211
       branch: main
-      candidate_branch: codex/public-project-reports-ui-20261026
+      candidate_branch: codex/public-project-page-layout-20261026
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: B1_merged_B2_user_report_dialog_selected
+      checkpoint: owner_prioritized_page_composition_viewers_download_over_social
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6516,7 +6516,15 @@ parallel_lanes:
         real server receipt and retries, guest/Seat denial, browser persistence
         and responsive evidence. Do not write a second backend or implement B3
         before accepted B2. Post-merge runs remain separately observed evidence.
+        Latest owner clarification supersedes that sequence: DEC-PROJ-117.
+        Games stay in Games and are excluded from publisher. Start public-page
+        composition now, then artifact contract and actual Electronics/Scratch/3D
+        viewers/download/editor before social functions. Preserve B2 source
+        e1572fd57defa8618d2649ec883143cb5246b01d in DraftPR779 with independent
+        Code/Security PASS; CI may finish but no further complaint implementation
+        or integration is selected now. Do not mix B2 into the layout branch.
       context_hints:
+        - docs/product/projects/tasks/PROJ-PUBLIC-PAGE-LAYOUT.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
