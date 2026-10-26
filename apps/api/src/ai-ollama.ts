@@ -236,9 +236,7 @@ export interface OllamaStreamArgs {
   readonly tools?: readonly NativeToolDefinition[];
   readonly toolResults?: readonly NativeToolResult[];
 }
-export async function streamOllamaText(
-  args: OllamaStreamArgs,
-): Promise<{
+export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
   text: string;
   stopped: boolean;
   usage?: AiProviderUsage;
