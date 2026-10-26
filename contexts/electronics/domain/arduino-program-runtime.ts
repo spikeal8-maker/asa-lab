@@ -686,7 +686,7 @@ function tokenize(expression: string): readonly Token[] {
       index += identifier[0].length;
       continue;
     }
-    const operator = ['&&', '||', '==', '!=', '<=', '>='].find((candidate) =>
+    const operator = ['++', '--', '&&', '||', '==', '!=', '<=', '>='].find((candidate) =>
       expression.startsWith(candidate, index),
     );
     if (operator) {
@@ -735,7 +735,7 @@ function prepareExpression(tokens: readonly Token[]): PreparedExpression {
   if (
     tokens.some(
       (token, index) =>
-        token.value === '.' ||
+        ['.', '++', '--'].includes(token.value) ||
         (['min', 'max', 'abs', 'constrain'].includes(token.value) &&
           tokens[index + 1]?.value === '('),
     )
@@ -951,10 +951,53 @@ class ExpressionParser {
     return value;
   }
 
+  // Only identifiers wrapped in parentheses retain scalar lvalue identity.
+  private lvalue(index = this.index): { name: string; end: number } | undefined {
+    if (this.tokens[index]?.value === '(') {
+      const inner = this.lvalue(index + 1);
+      return inner && this.tokens[inner.end]?.value === ')'
+        ? { name: inner.name, end: inner.end + 1 }
+        : undefined;
+    }
+    const token = this.tokens[index];
+    return token?.kind === 'identifier' ? { name: token.value, end: index + 1 } : undefined;
+  }
+
+  private increment(name: string, operator: string, prefix: boolean): ArduinoValue {
+    const binding = bindingFor(this.state.scopes, name);
+    if (binding.constant) throw new SyntaxError(`Нельзя изменять const «${name}».`);
+    if (binding.type === 'bool')
+      throw new SyntaxError(
+        'Инкремент bool не поддерживается; используйте присваивание true/false.',
+      );
+    const old = readBinding(this.state.scopes, name, this.validateOnly);
+    // Validation and short-circuit suppression must never write a binding.
+    if (this.validateOnly) return old;
+    assignBinding(
+      this.state.scopes,
+      name,
+      binaryValue(operator === '++' ? '+' : '-', old, numericValue('int', 1)),
+      false,
+    );
+    return prefix ? readBinding(this.state.scopes, name, false) : old;
+  }
+
   private parseUnary(): ArduinoValue {
+    if (['++', '--'].includes(this.current()?.value ?? '')) {
+      const operator = this.take()!.value;
+      const target = this.lvalue();
+      if (!target) throw new SyntaxError('Инкремент требует изменяемую скалярную переменную.');
+      this.index = target.end;
+      return this.increment(target.name, operator, true);
+    }
     if (['!', '-', '+'].includes(this.current()?.value ?? '')) {
       const operator = this.take()!.value;
       return unaryValue(operator, this.parseUnary(), this.validateOnly);
+    }
+    const target = this.lvalue();
+    if (target && ['++', '--'].includes(this.tokens[target.end]?.value ?? '')) {
+      this.index = target.end + 1;
+      return this.increment(target.name, this.tokens[target.end]!.value, false);
     }
     return this.parsePrimary();
   }
@@ -1438,6 +1481,8 @@ function executeSimpleStatement(
     ? prepared.increment
     : /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact);
   if (increment && (compact.startsWith('++') || compact.startsWith('--') || increment[2])) {
+    if (increment[2] && (compact.startsWith('++') || compact.startsWith('--')))
+      throw new SyntaxError('Нельзя совмещать префиксный и постфиксный инкремент.');
     const name = increment[1]!;
     const delta = compact.includes('++') ? 1 : -1;
     const current = readBinding(state.scopes, name, Boolean(state.validateOnly));

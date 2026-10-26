@@ -31,6 +31,12 @@ do {total++;if(total==2)continue;if(total==4)break;
 Serial.println(total);digitalWrite(13,total==1);delay(1);delayMicroseconds(3);
 } while(total<9);do {Serial.println(10);} while(false);}
 void loop(){delay(100);}`;
+const incrementSource = `int checks=0;int total=0;int pin=12;
+void setup(){pinMode(12,OUTPUT);pinMode(13,OUTPUT);Serial.begin(9600);
+while(++checks<3 && total<3){Serial.println(total++);digitalWrite(pin++,HIGH);delayMicroseconds(3);}
+Serial.println(checks);Serial.println(pin);int skipped=false && ++pin;
+Serial.println(pin--);Serial.println(++pin);delay(1);}
+void loop(){delay(100);}`;
 const entry = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
@@ -42,6 +48,7 @@ import {advanceElectronicsToHorizon,resetElectronicsTimedState} from '@asa-lab/e
 import {advanceClockedArduinoRuntime} from '../../contexts/electronics/domain/arduino-program-runtime';
 const initial=${JSON.stringify(postTestSource)};
 const legacy=${JSON.stringify(source)};
+const increment=${JSON.stringify(incrementSource)};
 const doc=(source)=>({schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',pinIds:['d13','power-5v','power-3v3','power-gnd-1'],position:{x:0,y:0},value:5,stateProperties:{arduinoSource:source}}],connections:[],viewport:{x:0,y:0,zoom:1},simulation:{running:true,maxIterations:24}});
 const factory=()=>new Worker('/worker.js',{type:'module'});
 window.proof=async()=>{
@@ -49,7 +56,7 @@ window.proof=async()=>{
  try{
  const generation=client.beginGeneration('loop-proof');
  const proofs=[];
- for(const source of [legacy,initial]){
+ for(const source of [legacy,initial,increment]){
   let state=resetElectronicsTimedState();let advance;
   for(const horizon of [500,1500,20000]){
    advance=await client.advance(generation,doc(source),JSON.parse(JSON.stringify(state)),horizon);
@@ -63,6 +70,7 @@ window.proof=async()=>{
   }while(slices<10000);
   proofs.push({advance,direct,budgetOne:{runtime,events,slices}});
  }
+ proofs.push({invalid:await client.advance(generation,doc(increment.replace('total++','++1')),resetElectronicsTimedState(),20000)});
  return proofs;
  }finally{client.dispose();}
 };
@@ -112,6 +120,11 @@ try {
     await page.goto('https://asa-loops.invalid/');
     await page.addScriptTag({ content: entry.outputFiles[0].text });
     const proofs = await page.evaluate(() => window.proof());
+    const incrementInvalid = proofs.pop().invalid;
+    assert.ok(incrementInvalid.diagnostics.some((entry) => entry.code === 'compile_error'));
+    const invalidRuntime = JSON.parse(incrementInvalid.state.continuation.serializedState).boards[0]
+      .runtime;
+    assert.deepEqual(invalidRuntime.outputVoltages, {});
     const proof = proofs[1];
     for (const result of proofs) {
       assert.equal(result.advance.executionStatus, 'ready');
@@ -176,6 +189,41 @@ try {
     const infiniteStopped = await page.evaluate(() => window.receipt);
     await page.waitForTimeout(50);
     assert.deepEqual(await page.evaluate(() => window.receipt), infiniteStopped);
+    const incrementProof = proofs[2];
+    const incrementRuntime = JSON.parse(incrementProof.advance.state.continuation.serializedState)
+      .boards[0].runtime;
+    assert.deepEqual(incrementRuntime.variables, { checks: 3, total: 2, pin: 14 });
+    const incrementSerial = ['0\n', '1\n', '3\n', '14\n', '14\n', '14\n'];
+    assert.deepEqual(
+      incrementRuntime.serial.tx.map((e) => e.text),
+      incrementSerial,
+    );
+    assert.equal(incrementRuntime.outputVoltages.d12, 5);
+    assert.equal(incrementRuntime.outputVoltages.d13, 5);
+    await page.getByRole('textbox', { name: 'source' }).fill(incrementSource);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const incrementRun = await page.evaluate(() => window.receipt);
+    assert.equal(incrementRun.failure, null);
+    assert.deepEqual(incrementRun.serial[0].tx, incrementRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const incrementReset = await page.evaluate(() => window.receipt);
+    assert.deepEqual(incrementReset.serial[0].tx, incrementRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const incrementStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), incrementStopped);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(incrementSource.replace('Serial.println(checks)', 'Serial.println(checks+40)'));
+    await page.waitForFunction(
+      () => window.receipt.committed === 30000 && window.receipt.serial[0]?.tx[2]?.text === '43\n',
+    );
+    const incrementEdited = await page.evaluate(() => window.receipt);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
     assert.deepEqual(errors, []);
     assert.ok(workers >= 5);
     await page.screenshot({ path: resolve(output, 'loops-' + width + '.png') });
@@ -192,6 +240,14 @@ try {
       invalid,
       edited,
       infiniteStopped,
+      incrementRun,
+      incrementReset,
+      incrementStopped,
+      incrementEdited,
+      incrementInvalid,
+      incrementVariables: incrementRuntime.variables,
+      incrementSerial,
+      incrementBudgetOneSlices: incrementProof.budgetOne.slices,
     });
     await page.evaluate(() => window.fixture.dispose());
     await context.close();

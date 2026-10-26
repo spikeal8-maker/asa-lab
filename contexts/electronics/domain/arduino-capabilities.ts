@@ -490,7 +490,7 @@ export function analyseArduinoSourceSupport(
       expression: /(?:\+\+|--)/g,
       code: 'increment',
       message:
-        'Инкремент и декремент поддерживаются отдельной командой, но не внутри выражений; bool-инкремент не поддерживается.',
+        'Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.',
     },
   ];
   for (const pattern of limitedPatterns) {
