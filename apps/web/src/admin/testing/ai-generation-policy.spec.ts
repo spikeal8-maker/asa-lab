@@ -7,6 +7,7 @@ import { call } from '../admin-api';
 import { generationPolicyFixture } from './ai-generation-policy.fixture';
 
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
+vi.mock('../AdminAiToolPolicies', () => ({ AdminAiToolPolicies: () => null }));
 let root: Root;
 let host: HTMLDivElement;
 const denied = vi.fn();

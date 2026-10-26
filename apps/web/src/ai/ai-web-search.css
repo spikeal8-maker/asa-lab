@@ -28,14 +28,20 @@
   cursor: pointer;
 }
 .asa-ai-web-images {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  display: flex;
+  gap: 10px;
   margin: 12px 0;
+  padding: 3px 3px 10px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
 }
 .asa-ai-web-images a {
-  min-width: 0;
+  flex: 0 0 clamp(145px, 38%, 212px);
+  min-width: 145px;
   overflow: hidden;
+  scroll-snap-align: start;
   border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
   border-radius: 12px;
   color: inherit;
@@ -136,8 +142,12 @@
   padding: 15px;
   border-radius: 16px;
   color: var(--ai-text, #20252b);
-  background: color-mix(in srgb, #9ac8f1 20%, transparent);
-  border: 1px solid color-mix(in srgb, #9ac8f1 38%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #9ac8f1 24%, var(--ai-surface)),
+    color-mix(in srgb, #d2e7f8 13%, var(--ai-surface))
+  );
+  border: 1px solid color-mix(in srgb, #9ac8f1 38%, var(--ai-border));
 }
 .asa-ai-weather-heading {
   display: flex;
@@ -161,20 +171,33 @@
 .asa-ai-weather-hours {
   display: flex;
   overflow-x: auto;
-  gap: 18px;
+  gap: 8px;
   list-style: none;
   padding: 12px 0;
   margin: 8px 0;
 }
 .asa-ai-weather-hours li {
-  flex: 0 0 92px;
+  flex: 0 0 104px;
+  padding: 9px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--ai-surface) 55%, transparent);
+  scroll-snap-align: start;
 }
-.asa-ai-weather-hours :is(time, strong) {
+.asa-ai-weather-hours :is(time, strong, small) {
   display: block;
 }
 .asa-ai-weather-hours strong {
   margin-top: 5px;
   font-size: 17px;
+}
+.asa-ai-weather-hours strong span {
+  font-size: 12px;
+}
+.asa-ai-weather-hours small {
+  margin-top: 3px;
+  font-size: 10px;
+  white-space: nowrap;
 }
 .asa-ai-weather > a {
   color: inherit;
@@ -237,30 +260,8 @@
   color: #75818c;
   font-size: 10px;
 }
-.asa-ai-layout .chat-composer.compact:has(.asa-ai-internet-control) {
-  grid-template-rows: minmax(44px, auto) auto;
-  grid-template-areas: 'tools input trailing' 'search search search';
-}
-.asa-ai-layout .chat-composer.compact .asa-ai-internet-control {
-  grid-area: search;
-  justify-self: start;
-  padding-left: 4px;
-}
-@media (max-width: 600px) {
-  .asa-ai-layout .chat-composer.compact:has(.asa-ai-internet-control) {
-    grid-template-rows: minmax(32px, auto) auto;
-    grid-template-areas: 'input' 'controls';
-  }
-  .asa-ai-layout .chat-composer-controls:has(.asa-ai-internet-control) {
-    flex-wrap: wrap;
-  }
-  .asa-ai-layout .chat-composer-controls .asa-ai-internet-control {
-    order: 3;
-    flex-basis: 100%;
-  }
-}
 @media (max-width: 480px) {
-  .asa-ai-web-images {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .asa-ai-web-images a {
+    flex-basis: min(68vw, 200px);
   }
 }

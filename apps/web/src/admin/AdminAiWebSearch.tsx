@@ -271,8 +271,8 @@ export function AdminAiWebSearch({
               Фильтры сайтов и инструкции появятся после обновления API и схемы ASA.
             </p>
           )}
-          <details className="asa-ai-web-admin-weather">
-            <summary>Прогноз погоды</summary>
+          <section className="asa-ai-web-admin-weather" aria-label="Прогноз погоды">
+            <h3>Прогноз погоды</h3>
             <label className="asa-cloud-consent">
               <input
                 type="checkbox"
@@ -294,7 +294,7 @@ export function AdminAiWebSearch({
             >
               Правила использования поиска городов
             </a>
-          </details>
+          </section>
           {enabled && Number(limit) === 0 ? <p>Для поиска задайте лимит больше нуля.</p> : null}
           <div className="asa-cloud-bottom">
             <button

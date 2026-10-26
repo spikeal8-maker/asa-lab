@@ -19,9 +19,13 @@
   font-weight: 650;
   font-size: 13px;
 }
-.asa-ai-web-admin-weather[open] {
+.asa-ai-web-admin-weather {
   display: grid;
   gap: 12px;
+}
+.asa-ai-web-admin-weather > h3 {
+  margin: 0;
+  font-size: 14px;
 }
 .asa-ai-web-admin-weather > a {
   font-size: 12px;

@@ -7,7 +7,9 @@ export interface AiPromptVariable {
     | 'display_name'
     | 'gender'
     | 'location'
-    | 'capabilities';
+    | 'capabilities'
+    | 'tools'
+    | 'materials';
   readonly label: string;
   readonly source: string;
   readonly missingValue: string;

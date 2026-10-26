@@ -179,6 +179,18 @@ for (const width of [1440, 1024, 390, 320]) {
       'Интернет-поиск',
     ]);
     await page.getByRole('tab', { name: 'Системный промпт', exact: true }).click();
+    const guideLink = page.getByRole('button', {
+      name: 'Как работают промпт, переменные и инструменты',
+    });
+    await expect(guideLink).toBeVisible();
+    await guideLink.click();
+    await expect(page).toHaveURL(/\/#\/admin\/ai$/);
+    await expect(
+      page.getByRole('heading', {
+        name: 'Как работают системный промпт, переменные и инструменты',
+      }),
+    ).toBeVisible();
+    await expect(page.locator('#ai-prompt-guide-title')).toBeFocused();
     const prompt = page.getByRole('textbox', { name: 'Инструкции помощнику' });
     await prompt.fill(
       'Отвечай кратко и по делу, без повторения вопроса. Полный запрошенный код давай одним файлом. Имя: ',
@@ -186,7 +198,11 @@ for (const width of [1440, 1024, 390, 320]) {
     await prompt.press('End');
     await page.getByRole('button', { name: 'Вставить Имя пользователя', exact: true }).click();
     await expect(prompt).toHaveValue(/\{\{display_name\}\}$/);
-    await expect(page.getByText('Если данных нет: Не предоставлено')).toBeVisible();
+    await page.getByRole('button', { name: 'Описание: Местоположение' }).focus();
+    await expect(page.getByRole('tooltip').filter({ hasText: 'Местоположение' })).toBeVisible();
+    await expect(page.getByRole('tooltip').filter({ hasText: 'Местоположение' })).toContainText(
+      'Не предоставлено',
+    );
     await noOverflow(page);
     await normalView(page);
     await page.screenshot({ path: testInfo.outputPath(`prompt-${width}.png`), fullPage: true });

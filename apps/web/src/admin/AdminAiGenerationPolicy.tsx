@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { AiPromptGuide } from './AiPromptGuide';
+import { AdminAiToolPolicies } from './AdminAiToolPolicies';
 import type { AiGenerationPolicy, AiGenerationPolicyUpdate } from '@asa-lab/contracts';
 import { call } from './admin-api';
 import './ai-generation-policy.css';
@@ -211,6 +213,24 @@ export function AdminAiGenerationPolicy({
                   Определяет стиль и содержание ответов. Правила доступа и безопасной работы с
                   файлами действуют дополнительно.
                 </p>
+                <p>
+                  Переменные «Инструменты» и «Доступные материалы» заполняются сервером для каждого
+                  запроса. Они показывают фактический способ выполнения и переданные данные. Запись
+                  названия инструмента в промпте не подключает его вызов к модели.
+                </p>
+                <p>
+                  <button
+                    type="button"
+                    className="asa-ai-policy-guide-jump"
+                    onClick={() => {
+                      const heading = document.getElementById('ai-prompt-guide-title');
+                      heading?.scrollIntoView({ block: 'start' });
+                      heading?.focus({ preventScroll: true });
+                    }}
+                  >
+                    Как работают промпт, переменные и инструменты ↓
+                  </button>
+                </p>
               </div>
               <div className="asa-ai-policy-prompt-grid">
                 <label className="asa-ai-policy-editor">
@@ -248,8 +268,42 @@ export function AdminAiGenerationPolicy({
                         <span>{variable.label}</span>
                         <code>{'{{' + variable.name + '}}'}</code>
                       </button>
-                      <small>{variable.source}</small>
-                      <small>Если данных нет: {variable.missingValue}</small>
+                      <span className="asa-ai-variable-help">
+                        <button
+                          type="button"
+                          className="asa-ai-variable-info"
+                          aria-label={'Описание: ' + variable.label}
+                          aria-describedby={'ai-variable-help-' + variable.name}
+                        >
+                          <span aria-hidden="true">i</span>
+                        </button>
+                        <span
+                          className="asa-ai-variable-tooltip"
+                          role="tooltip"
+                          id={'ai-variable-help-' + variable.name}
+                        >
+                          <strong>{variable.label}</strong>
+                          <span>{variable.source}.</span>
+                          <span>Если данных нет: {variable.missingValue}.</span>
+                          <span>
+                            Значение вычисляется сервером при отправке сообщения. Часы компьютера
+                            администратора не используются.
+                          </span>
+                          {variable.name === 'capabilities' ? (
+                            <span>
+                              Возможности именно этого запроса: текст, подключённые инструменты и
+                              разрешённые вложения. Это не список прав пользователя и не доступ ко
+                              всему его профилю.
+                            </span>
+                          ) : null}
+                          {variable.name === 'gender' || variable.name === 'location' ? (
+                            <span>
+                              Сейчас реальных данных для этой переменной нет. Пол не угадывается по
+                              имени, геопозиция не определяется по IP.
+                            </span>
+                          ) : null}
+                        </span>
+                      </span>
                     </div>
                   ))}
                 </aside>
@@ -376,6 +430,8 @@ export function AdminAiGenerationPolicy({
           </div>
         </form>
       ) : null}
+      {section === 'prompt' ? <AdminAiToolPolicies onAccessDenied={onAccessDenied} /> : null}
+      {config && section === 'prompt' ? <AiPromptGuide variables={config.variables} /> : null}
     </section>
   );
 }

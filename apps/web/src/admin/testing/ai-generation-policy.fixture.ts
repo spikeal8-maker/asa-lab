@@ -45,6 +45,18 @@ export function generationPolicyFixture(
     ],
     variables: [
       {
+        name: 'tools',
+        label: 'Инструменты',
+        source: 'Фактические инструменты запроса и способ их выполнения',
+        missingValue: 'Вызываемые инструменты не предоставлены',
+      },
+      {
+        name: 'materials',
+        label: 'Доступные материалы',
+        source: 'Контекст диалога, вложения и результаты инструментов',
+        missingValue: 'Только переданные сообщения',
+      },
+      {
         name: 'current_datetime',
         label: 'Дата и время',
         source: 'Серверное время в часовом поясе пользователя',

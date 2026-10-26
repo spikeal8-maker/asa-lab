@@ -92,14 +92,45 @@
   width: min(100%, 512px);
   height: auto;
   border-radius: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
-.ai-generated-image a {
-  display: inline-block;
-  padding: 6px 0;
-  color: inherit;
+.ai-generated-image-footer {
+  display: flex;
+  align-items: center;
+  max-width: 512px;
 }
-.ai-generated-image figcaption {
+.ai-generated-image-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.asa-ai-layout .ai-generated-image .ai-generated-image-actions > :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ai-muted, #64788a);
+  font-family: inherit;
   font-size: 12px;
-  opacity: 0.7;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+}
+.asa-ai-layout
+  .ai-generated-image
+  .ai-generated-image-actions
+  > :is(button, a):is(:hover, :focus-visible) {
+  background: var(--ai-bg, #eef4f8);
+  color: var(--ai-text, #16344b);
+}
+.ai-generated-image-error {
+  margin: 4px 0 0;
+  color: var(--ai-error, #9b2838);
+  font-size: 12px;
 }

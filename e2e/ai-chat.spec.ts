@@ -1358,6 +1358,12 @@ test('AI composer sends with Enter, adds a line with Shift+Enter and respects IM
   await expect(page.locator('.chat-user-bubble')).toHaveText('Первая строка\nx');
   await expect(page.locator('.chat-turn-assistant')).toContainText('Ответ на многострочный вопрос');
   expect(fake.requests).toHaveLength(1);
+  await expect(composer).toBeFocused();
+  await page.keyboard.type('Второй вопрос без щелчка');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.chat-user-bubble').last()).toHaveText('Второй вопрос без щелчка');
+  await expect.poll(() => fake.requests.length).toBe(2);
+  await expect(composer).toBeFocused();
 });
 
 test.describe('AI history touch backdrop', () => {
@@ -1576,6 +1582,49 @@ test('AI confines long code and tables to message scrollers and copies the origi
   await page.screenshot({ path: test.info().outputPath('ai-long-source-320.png') });
 });
 
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`generation feedback keeps history readable and the stop target still: ${reducedMotion}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ reducedMotion });
+    const fake = await fixture(page);
+    const savedTitle = 'Сохранённый разговор до текущей генерации';
+    fake.threads.push({ id: randomUUID(), title: savedTitle, updatedAt: NOW });
+    await page.goto('/#/ai');
+    const saved = page.getByRole('button', { name: savedTitle, exact: true });
+    await expect(saved).toHaveCSS('opacity', '1');
+    await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
+    await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+    const stop = page.getByRole('button', { name: 'Остановить генерацию', exact: true });
+    await expect(stop).toBeEnabled();
+    await expect(saved).toBeDisabled();
+    await expect(saved).toHaveCSS('opacity', '1');
+    await expect(page.getByRole('button', { name: 'Новый чат', exact: true })).toHaveCSS(
+      'opacity',
+      '1',
+    );
+    expect(await stop.evaluate((node) => getComputedStyle(node, '::after').animationName)).toBe(
+      reducedMotion === 'reduce' ? 'none' : 'ai-stop-ring-orbit',
+    );
+    expect(await stop.evaluate((node) => getComputedStyle(node, '::after').pointerEvents)).toBe(
+      'none',
+    );
+    expect(await stop.evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
+    expect(
+      await stop.evaluate((node) => getComputedStyle(node.closest('form')!).animationName),
+    ).toBe('none');
+    await expect(stop).toHaveCSS('transform', 'none');
+    await page.getByRole('button', { name: 'Тёмная тема чата' }).click();
+    const chosenTheme = page.getByRole('button', { name: 'Светлая тема чата' });
+    await expect(chosenTheme).toBeFocused();
+    fake.release();
+    await expect(stop).toHaveCount(0);
+    await expect(saved).toBeEnabled();
+    await expect(chosenTheme).toBeFocused();
+  });
+}
+
 test('AI stop control saves a stopped reply and unlocks the composer', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 640 });
   const fake = await fixture(page, 'Сохранённая часть ответа');
@@ -1596,6 +1645,7 @@ test('AI stop control saves a stopped reply and unlocks the composer', async ({ 
   await page.getByRole('button', { name: 'Остановить генерацию' }).click();
   await expect(page.getByText('Ответ не завершён.')).toBeVisible();
   await expect(composer).toBeEnabled();
+  await expect(composer).toBeFocused();
   expect(stopRequests).toBe(1);
   expect(fake.requests).toHaveLength(1);
   await expectChatFits(page);
@@ -1631,6 +1681,39 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     expect(fake.requests).toHaveLength(1);
   });
 }
+
+test('AI user message actions copy the saved text and prepare an editable new request', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          (window as Window & { copiedMessage?: string }).copiedMessage = text;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Исходный вопрос');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  fake.release();
+  const turn = page.locator('.chat-turn-user').filter({ hasText: 'Исходный вопрос' }).first();
+  await expect(turn.locator('time')).toHaveAttribute('datetime', NOW);
+  await turn.getByRole('button', { name: 'Копировать', exact: true }).click();
+  expect(
+    await page.evaluate(() => (window as Window & { copiedMessage?: string }).copiedMessage),
+  ).toBe('Исходный вопрос');
+  await composer.fill('Другой черновик');
+  await turn.getByRole('button', { name: 'Изменить', exact: true }).click();
+  await expect(composer).toHaveValue('Исходный вопрос');
+  expect(fake.requests).toHaveLength(1);
+  await expect(turn.locator('.chat-user-bubble')).toHaveText('Исходный вопрос');
+});
 
 test('Platform admin saves a separate cloud key without exposing it to the page', async ({
   page,
@@ -1795,6 +1878,39 @@ for (const width of [1440, 600, 390, 320]) {
   });
 }
 
+test('history title uses the full row until actions appear on hover or keyboard focus', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const fake = await fixture(page);
+  const title = 'Подробное обсуждение проекта с длинным названием для списка чатов';
+  fake.threads.push({ id: randomUUID(), title, updatedAt: NOW });
+  await page.goto('/#/ai');
+  const item = page.getByRole('button', { name: title, exact: true });
+  const row = item.locator('..');
+  await page.locator('.chat-main').hover();
+  const textWidth = () =>
+    item.evaluate(
+      (node) =>
+        node.clientWidth -
+        parseFloat(getComputedStyle(node).paddingLeft) -
+        parseFloat(getComputedStyle(node).paddingRight),
+    );
+  const fullWidth = await textWidth();
+  const rename = row.getByRole('button', { name: 'Переименовать: ' + title });
+  await expect(rename).toHaveCSS('opacity', '0');
+  await row.hover();
+  await expect(rename).toHaveCSS('opacity', '1');
+  expect(await textWidth()).toBeLessThan(fullWidth - 50);
+  await page.locator('.chat-main').hover();
+  await expect(rename).toHaveCSS('opacity', '0');
+  expect(await textWidth()).toBe(fullWidth);
+  await item.focus();
+  await expect(rename).toHaveCSS('opacity', '1');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).focus();
+  await expect(rename).toHaveCSS('opacity', '0');
+});
+
 test('AI composer keeps one centered input and shows only real attachment tools', async ({
   page,
 }) => {
@@ -1822,7 +1938,9 @@ test('AI composer keeps one centered input and shows only real attachment tools'
   await expect(tools.getByRole('button', { name: 'Добавить изображение' })).toBeVisible();
   await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
   await expect(tools.getByRole('button', { name: /Поиск в интернете/ })).toBeDisabled();
-  await expect(tools.getByRole('button', { name: /Создать изображение/ })).toBeDisabled();
+  await expect(tools.getByRole('button', { name: 'Изображение', exact: true })).toBeDisabled();
+  await expect(tools.getByRole('button', { name: 'Видео', exact: true })).toBeDisabled();
+  await expect(tools).toContainText('Скоро');
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await expect(tools).not.toHaveAttribute('open', '');
   await page.getByLabel('Выбрать файлы для ИИ').setInputFiles({
@@ -1831,6 +1949,11 @@ test('AI composer keeps one centered input and shows only real attachment tools'
     buffer: Buffer.from('Arduino LED test', 'utf8'),
   });
   await expect(page.getByLabel('Выбранные вложения')).toContainText('lesson.txt');
+  await expect(page.getByLabel('Выбранные вложения')).toContainText('16 Б');
+  await expect(page.locator('.chat-attachment-chip.is-file')).toHaveAttribute(
+    'title',
+    'lesson.txt · 16 Б',
+  );
   expect(fake.requests).toHaveLength(0);
   await page.getByRole('button', { name: 'Удалить lesson.txt' }).click();
   await expect(page.getByLabel('Выбранные вложения')).toHaveCount(0);
@@ -1935,6 +2058,11 @@ for (const width of [320, 390]) {
     await composer.fill('Что видно на этих фотографиях?\n' + 'Поясни детали.\n'.repeat(12));
     await expect(page.locator('form.chat-composer')).toHaveClass(/expanded/);
     await expect(page.getByLabel('Выбранные вложения')).toContainText('photo-4.png');
+    await expect(page.locator('.chat-attachment-chip.is-image img')).toHaveCount(4);
+    await expect(page.locator('.chat-attachment-chip.is-image').first()).toHaveCSS(
+      'scroll-snap-align',
+      'start',
+    );
 
     const positions = await page.evaluate(() => {
       const canvas = document.querySelector('.asa-ai-chat')!.getBoundingClientRect();
@@ -1954,6 +2082,8 @@ for (const width of [320, 390]) {
         previewBottom: previewBounds.bottom,
         previewHeight: previews.clientHeight,
         previewScrollHeight: previews.scrollHeight,
+        previewWidth: previews.clientWidth,
+        previewScrollWidth: previews.scrollWidth,
       };
     });
     expect(positions.formTop).toBeGreaterThanOrEqual(positions.canvasTop - 1);
@@ -1962,6 +2092,7 @@ for (const width of [320, 390]) {
     expect(positions.previewBottom).toBeLessThanOrEqual(positions.formBottom + 1);
     expect(positions.previewHeight).toBeLessThanOrEqual(164);
     expect(positions.previewScrollHeight).toBeGreaterThanOrEqual(positions.previewHeight);
+    expect(positions.previewScrollWidth).toBeGreaterThan(positions.previewWidth);
   });
 }
 

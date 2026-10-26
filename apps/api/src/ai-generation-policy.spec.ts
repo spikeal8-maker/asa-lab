@@ -5,7 +5,62 @@ import { expect, it, vi } from 'vitest';
 import { AiAdminController } from './ai-admin.controller';
 import type { AiChatService } from './ai-chat.service';
 import type { AdminControlPlaneService } from './admin-control-plane.service';
-import { policyInstructions, validPolicyInput } from './ai-generation-policy';
+import {
+  AI_DEFAULT_SYSTEM_PROMPT,
+  policyInstructions,
+  validPolicyInput,
+} from './ai-generation-policy';
+
+it('renders tool and material variables from the actual request, without inventing callable tools', () => {
+  const output = policyInstructions(
+    '{{tools}}\n{{materials}}',
+    {},
+    {
+      webSearch: {
+        schemaVersion: 1,
+        provider: 'searxng',
+        mode: 'weather',
+        status: 'ready',
+        query: 'Москва',
+        retrievedAt: '2026-10-26T12:00:00Z',
+        sources: [],
+        images: [],
+      },
+      attachmentCount: 2,
+      readableAttachmentText: true,
+      imageCount: 0,
+    },
+  );
+  const lines = output.split('\n');
+  const tools = JSON.parse(JSON.parse(lines.at(-2)!));
+  const materials = JSON.parse(JSON.parse(lines.at(-1)!));
+  expect(tools.callable_by_model).toEqual([]);
+  expect(tools.weather.result).toBe('ready');
+  expect(tools.generate_image.execution).toContain('пока не подключён');
+  expect(materials.attachments).toEqual({
+    count: 2,
+    extracted_text_provided: true,
+    image_pixels_provided: 0,
+  });
+  expect(materials.internet.retrieved_at).toBe('2026-10-26T12:00:00Z');
+  expect(AI_DEFAULT_SYSTEM_PROMPT).toContain('{{tools}}');
+  expect(AI_DEFAULT_SYSTEM_PROMPT).toContain('{{materials}}');
+});
+
+it('accepts the new variables and retains server facts when an administrator omits them', () => {
+  expect(
+    validPolicyInput({
+      configurationVersion: 1,
+      systemPrompt: '{{tools}} {{materials}}',
+      allowedModels: [],
+      defaultModel: null,
+      requestId: randomUUID(),
+    }).systemPrompt,
+  ).toContain('{{tools}}');
+  const output = policyInstructions('Отвечай кратко.', {});
+  expect(output).toContain('Серверное описание инструментов');
+  expect(output).toContain('Доступные материалы');
+});
 function fixture(role = 'platform_admin') {
   const actor = randomUUID(),
     ai = {

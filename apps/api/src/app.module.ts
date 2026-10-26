@@ -64,6 +64,7 @@ import { AdminPublicProjectsController } from './admin-public-projects.controlle
 import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
+import { AiToolPolicyController } from './ai-tool-policy.controller.js';
 import { AiChatService } from './ai-chat.service.js';
 import { AiAccessController } from './ai-access.controller.js';
 import { AiAccessService } from './ai-access.service.js';
@@ -171,9 +172,9 @@ export class AppModule {
       emailService,
     ]);
     const aiAttachmentService = new AiAttachmentService(pool);
-    const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService });
-    const aiAccessService = new AiAccessService(requirePool());
     const aiImageService = new AiImageService(requirePool());
+    const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService, images: aiImageService });
+    const aiAccessService = new AiAccessService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
       new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
@@ -230,6 +231,7 @@ export class AppModule {
         AiImageController,
         AiImageAdminController,
         AiAdminController,
+        AiToolPolicyController,
         AdminLogsController,
         ClientDiagnosticsController,
         AccountC1Controller,

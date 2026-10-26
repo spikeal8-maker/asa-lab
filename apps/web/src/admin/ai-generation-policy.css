@@ -16,6 +16,17 @@
   font-size: 13px;
   line-height: 1.6;
 }
+.asa-ai-policy .asa-ai-policy-guide-jump {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #12699c;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 .asa-ai-policy-prompt-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(235px, 290px);
@@ -64,10 +75,64 @@
   font-size: 14px;
 }
 .asa-ai-policy-variable {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 5px;
-  padding-bottom: 11px;
+  padding-bottom: 5px;
   border-bottom: 1px solid #e1e8ee;
+}
+.asa-ai-policy-variable > button {
+  flex: 1;
+  min-width: 0;
+}
+.asa-ai-variable-help {
+  position: relative;
+  flex: none;
+}
+.asa-ai-variable-info {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #b9c9d6;
+  border-radius: 50%;
+  color: #365165;
+  background: #fff;
+  font-size: 14px;
+  cursor: help;
+}
+.asa-ai-variable-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: min(320px, calc(100vw - 64px));
+  padding: 13px;
+  border: 1px solid #b9c9d6;
+  border-radius: 10px;
+  background: #fff;
+  color: #16344b;
+  box-shadow: 0 6px 22px #0002;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.asa-ai-variable-help:is(:hover, :focus-within) .asa-ai-variable-tooltip {
+  display: grid;
+  gap: 7px;
+}
+@media (max-width: 680px) {
+  .asa-ai-variable-tooltip {
+    position: fixed;
+    left: 24px;
+    right: 24px;
+    top: auto;
+    bottom: 24px;
+    width: auto;
+    max-height: min(50vh, 360px);
+    overflow-y: auto;
+  }
 }
 .asa-ai-policy-variable > button {
   display: grid;

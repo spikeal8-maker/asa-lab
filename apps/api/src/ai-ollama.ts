@@ -9,6 +9,12 @@ import {
  */
 import { isIP } from 'node:net';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
+import {
+  parseNativeToolCalls,
+  type NativeToolCall,
+  type NativeToolDefinition,
+  type NativeToolResult,
+} from './ai-native-tools.js';
 
 export const OLLAMA_SELECTION = 'ollama-local' as const;
 export interface OllamaSettings {
@@ -227,10 +233,17 @@ export interface OllamaStreamArgs {
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
   readonly fetchImpl?: typeof fetch;
+  readonly tools?: readonly NativeToolDefinition[];
+  readonly toolResults?: readonly NativeToolResult[];
 }
 export async function streamOllamaText(
   args: OllamaStreamArgs,
-): Promise<{ text: string; stopped: boolean; usage?: AiProviderUsage }> {
+): Promise<{
+  text: string;
+  stopped: boolean;
+  usage?: AiProviderUsage;
+  toolCalls?: readonly NativeToolCall[];
+}> {
   const origin = ollamaBaseUrl(args.baseUrl);
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
@@ -254,7 +267,25 @@ export async function streamOllamaText(
               ? { images: args.images }
               : {}),
           })),
+          ...(args.toolResults?.length
+            ? [
+                {
+                  role: 'assistant',
+                  content: '',
+                  tool_calls: args.toolResults.map((result) => ({
+                    type: 'function',
+                    function: { name: result.call.name, arguments: result.call.arguments },
+                  })),
+                },
+                ...args.toolResults.map((result) => ({
+                  role: 'tool',
+                  tool_name: result.call.name,
+                  content: result.content,
+                })),
+              ]
+            : []),
         ],
+        ...(args.tools?.length ? { tools: args.tools } : {}),
         stream: true,
         // Donor IZO_ASA also disables thinking for short school-facing inference.
         // Some reasoning models otherwise spend the token/time budget without visible text.
@@ -275,6 +306,7 @@ export async function streamOllamaText(
   let done = false;
   let lengthLimited = false;
   let usage: AiProviderUsage | undefined;
+  const rawCalls: unknown[] = [];
   const frame = (line: string): void => {
     if (!line.trim()) return;
     let data: unknown;
@@ -286,7 +318,7 @@ export async function streamOllamaText(
     if (!data || typeof data !== 'object')
       throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
     const packet = data as {
-      message?: { content?: unknown };
+      message?: { content?: unknown; tool_calls?: unknown };
       done?: unknown;
       done_reason?: unknown;
       error?: unknown;
@@ -294,6 +326,18 @@ export async function streamOllamaText(
     usage = mergeProviderUsage(usage, providerUsage('ollama', packet));
     if (packet.error)
       throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
+    if (packet.message?.tool_calls !== undefined) {
+      if (
+        !Array.isArray(packet.message.tool_calls) ||
+        rawCalls.length + packet.message.tool_calls.length > 1
+      )
+        throw new OllamaError(
+          'ai_tool_call_invalid',
+          503,
+          'Модель вернула неподдерживаемый вызов инструмента.',
+        );
+      rawCalls.push(...packet.message.tool_calls);
+    }
     if (typeof packet.message?.content === 'string') {
       const delta = packet.message.content.slice(0, AI_MAX_ANSWER_CHARS - text.length);
       text += delta;
@@ -345,11 +389,26 @@ export async function streamOllamaText(
     throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text, usage);
   if (!done && !args.signal.aborted && text.length < AI_MAX_ANSWER_CHARS)
     throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text, usage);
-  if (!text.trim() && !args.signal.aborted)
+  let toolCalls: readonly NativeToolCall[] | undefined;
+  if (rawCalls.length && !args.signal.aborted) {
+    if (!done || lengthLimited)
+      throw new OllamaError('ai_tool_call_invalid', 503, 'Вызов инструмента не завершён.');
+    try {
+      toolCalls = parseNativeToolCalls(rawCalls, args.tools ?? []);
+    } catch {
+      throw new OllamaError(
+        'ai_tool_call_invalid',
+        503,
+        'Модель вернула неподдерживаемые аргументы инструмента.',
+      );
+    }
+  }
+  if (!text.trim() && !toolCalls?.length && !args.signal.aborted)
     throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.', '', usage);
   return {
     text,
     stopped: args.signal.aborted || lengthLimited || text.length >= AI_MAX_ANSWER_CHARS,
     ...(usage ? { usage } : {}),
+    ...(toolCalls ? { toolCalls } : {}),
   };
 }

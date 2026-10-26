@@ -82,7 +82,7 @@ it('never repeats an uncertain POST; reload reads only the exact saved UUID', as
   await prompt('A bird');
   await act(async () =>
     Array.from(host.querySelectorAll('button'))
-      .find((b) => b.textContent === 'Создать изображение')!
+      .find((b) => b.getAttribute('aria-label') === 'Создать изображение')!
       .click(),
   );
   const writes = vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST');
@@ -95,7 +95,7 @@ it('never repeats an uncertain POST; reload reads only the exact saved UUID', as
   await prompt('Another prompt');
   await act(async () =>
     Array.from(host.querySelectorAll('button'))
-      .find((b) => b.textContent === 'Создать изображение')!
+      .find((b) => b.getAttribute('aria-label') === 'Создать изображение')!
       .click(),
   );
   expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
@@ -143,13 +143,15 @@ it.each([
     await prompt('A bird');
     const create = () =>
       Array.from(host.querySelectorAll('button')).find(
-        (button) => button.textContent === 'Создать изображение',
+        (button) => button.getAttribute('aria-label') === 'Создать изображение',
       )!;
     await act(async () => create().click());
     expect(sessionStorage.getItem('asa-ai-image:personal:' + THREAD)).toBeNull();
     expect(host.textContent).toContain(message);
     expect(statusReads).toBe(2);
-    expect(host.querySelector('select')!.value).toBe('768');
+    expect(
+      host.querySelector<HTMLSelectElement>('select[aria-label="Размер изображения"]')!.value,
+    ).toBe('768');
     expect(host.querySelector('textarea')!.value).toBe('A bird');
     expect(create().disabled).toBe(false);
     await act(async () => vi.advanceTimersByTime(20000));
@@ -189,7 +191,7 @@ it.each([
     await prompt('A bird');
     await act(async () =>
       Array.from(host.querySelectorAll('button'))
-        .find((button) => button.textContent === 'Создать изображение')!
+        .find((button) => button.getAttribute('aria-label') === 'Создать изображение')!
         .click(),
     );
     const post = vi.mocked(call).mock.calls.find(([, init]) => init?.method === 'POST')!;
@@ -205,7 +207,7 @@ it.each([
     ).toBeGreaterThanOrEqual(2);
     expect(
       Array.from(host.querySelectorAll('button')).find(
-        (button) => button.textContent === 'Создать изображение',
+        (button) => button.getAttribute('aria-label') === 'Создать изображение',
       )!.disabled,
     ).toBe(true);
   },
@@ -225,13 +227,13 @@ it('refreshes exhausted quota after a definite 429 without generating or polling
   await prompt('A bird');
   await act(async () =>
     Array.from(host.querySelectorAll('button'))
-      .find((button) => button.textContent === 'Создать изображение')!
+      .find((button) => button.getAttribute('aria-label') === 'Создать изображение')!
       .click(),
   );
   expect(sessionStorage.getItem('asa-ai-image:personal:' + THREAD)).toBeNull();
   expect(
     Array.from(host.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Создать изображение',
+      (button) => button.getAttribute('aria-label') === 'Создать изображение',
     )!.disabled,
   ).toBe(true);
   expect(reads).toBe(2);
@@ -254,7 +256,7 @@ it('refreshes lost readiness after a confirmed 503 race while preserving the rej
   await prompt('Preserve this image description');
   const create = () =>
     Array.from(host.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Создать изображение',
+      (button) => button.getAttribute('aria-label') === 'Создать изображение',
     )!;
   expect(create().disabled).toBe(false);
   await act(async () => create().click());
@@ -293,10 +295,10 @@ it('reports queued and cancellation honestly without creating a second job', asy
       : { ...job, state: 'admitted', cancelRequested: init?.method === 'POST' },
   }));
   await render();
-  expect(host.textContent).toContain('Ожидаем GPU');
+  expect(host.textContent).toContain('Задание принято');
   await act(async () =>
     Array.from(host.querySelectorAll('button'))
-      .find((b) => b.textContent === 'Отменить задание')!
+      .find((b) => b.getAttribute('aria-label') === 'Отменить задание')!
       .click(),
   );
   expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);

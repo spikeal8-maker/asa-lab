@@ -52,7 +52,8 @@ export interface AiWebSearchEvidence {
     | 'weather_unavailable'
     | 'location_required'
     | 'location_ambiguous'
-    | 'rate_limit';
+    | 'rate_limit'
+    | 'unsafe_query';
 }
 
 export interface AiWebSearchStatus {

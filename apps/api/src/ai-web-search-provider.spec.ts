@@ -11,7 +11,22 @@ import {
   searchThumbnailUrl,
   type PublicWeatherCache,
 } from './ai-web-search-provider';
-import { AiWebSearchService, internetIntent, webEvidenceContext } from './ai-web-search';
+import {
+  AiWebSearchService,
+  internetIntent,
+  webEvidenceContext,
+  weatherCityFromPrompt,
+} from './ai-web-search';
+
+it('extracts a supplied weather city without mistaking tense or Russian case for a missing location', () => {
+  expect(cityQuery(weatherCityFromPrompt('какая погода сейчас в москве?')!)).toBe('Москва');
+  expect(cityQuery(weatherCityFromPrompt('Погода в Казани завтра')!)).toBe('Казань');
+  expect(weatherCityFromPrompt('Прогноз погоды сейчас будет в Нижнем Новгороде?')).toBe(
+    'Нижнем Новгороде',
+  );
+  expect(weatherCityFromPrompt('Какая погода сейчас?')).toBeUndefined();
+  expect(cityQuery('Лесная улица')).toBeNull();
+});
 
 const city = { name: 'Казань, Татарстан, Россия', lat: 55.7961, lon: 49.1064 };
 const met = {
@@ -173,6 +188,88 @@ it('does not select the first ambiguous city or fetch a forecast', async () => {
     'github.com/spikeal8-maker/asa-lab',
   );
   expect(String(fetchImpl.mock.calls[0]![0])).toContain('nominatim.openstreetmap.org/search?');
+});
+it('treats nearby node and city relation for Novosibirsk as one place and chooses the city relation', async () => {
+  const candidates = [
+    {
+      name: 'Новосибирск',
+      addresstype: 'city',
+      osm_type: 'node',
+      lat: '55.0290',
+      lon: '82.9210',
+      address: { city: 'Новосибирск', state: 'Новосибирская область', country: 'Россия' },
+    },
+    {
+      name: 'Новосибирск',
+      addresstype: 'city',
+      osm_type: 'relation',
+      lat: '55.0300',
+      lon: '82.9200',
+      address: { city: 'Новосибирск', state: 'Новосибирская область', country: 'Россия' },
+    },
+  ];
+  expect(parseCityCandidates(candidates)).toEqual([
+    { name: 'Новосибирск, Новосибирская область, Россия', lat: 55.03, lon: 82.92 },
+  ]);
+  const c = cache();
+  const fetchImpl = vi.fn<typeof fetch>(
+    async (url) =>
+      new Response(JSON.stringify(String(url).includes('nominatim') ? candidates : met)),
+  );
+  const result = await new FreeInternetProvider(fetchImpl, c).weather(
+    'Новосибирск',
+    new AbortController().signal,
+  );
+  expect(result.choices).toBeUndefined();
+  expect(result.weather?.location).toBe('Новосибирск, Новосибирская область, Россия');
+  expect(String(fetchImpl.mock.calls[1]?.[0])).toContain('lat=55.0300&lon=82.9200');
+});
+it('keeps distant same-name places and distinct regions separate', async () => {
+  const candidates = [
+    { addresstype: 'city', lat: '58', lon: '49', address: { city: 'Киров', country: 'Россия' } },
+    { addresstype: 'city', lat: '54', lon: '34', address: { city: 'Киров', country: 'Россия' } },
+    {
+      addresstype: 'city',
+      lat: '58.001',
+      lon: '49.001',
+      address: { city: 'Киров', state: 'Кировская область', country: 'Россия' },
+    },
+  ];
+  expect(parseCityCandidates(candidates)).toHaveLength(3);
+  expect(parseCityCandidates(candidates).at(-1)?.name).toBe('Киров, Кировская область, Россия');
+  const c = cache();
+  vi.mocked(c.claim).mockResolvedValueOnce({
+    state: 'fresh',
+    body: parseCityCandidates(candidates.slice(0, 2)),
+  });
+  const fetchImpl = vi.fn<typeof fetch>();
+  const result = await new FreeInternetProvider(fetchImpl, c).weather(
+    'Киров',
+    new AbortController().signal,
+  );
+  expect(result.choices).toHaveLength(2);
+  expect(result.weather).toBeUndefined();
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+it('collapses nearby duplicate cities from an earlier geocode cache before claiming weather', async () => {
+  const c = cache();
+  vi.mocked(c.claim)
+    .mockResolvedValueOnce({
+      state: 'fresh',
+      body: [
+        { name: 'Новосибирск, Новосибирская область, Россия', lat: 55.029, lon: 82.921 },
+        { name: 'Новосибирск, Новосибирская область, Россия', lat: 55.03, lon: 82.92 },
+      ],
+    })
+    .mockResolvedValueOnce({ state: 'fresh', body: met });
+  const fetchImpl = vi.fn<typeof fetch>();
+  const result = await new FreeInternetProvider(fetchImpl, c).weather(
+    'Новосибирск',
+    new AbortController().signal,
+  );
+  expect(result.weather?.location).toBe('Новосибирск, Новосибирская область, Россия');
+  expect(result.choices).toBeUndefined();
+  expect(fetchImpl).not.toHaveBeenCalled();
 });
 it('rejects non-city geocoder results and malformed coordinates', () => {
   expect(

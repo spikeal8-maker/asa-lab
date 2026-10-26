@@ -536,3 +536,148 @@ it('cleanup_done defensively closes historical deleted storing rows without eras
     ).rows[0]?.status,
   ).toBe('cancelled');
 });
+
+it('atomically turns an admitted local text request into one owner-scoped image job', async () => {
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  await db.query(
+    "UPDATE ai_ollama_settings SET enabled=true,model='gemma:test' WHERE singleton_key",
+  );
+  const revision = (
+    await db.query<{ revision: string }>(
+      'SELECT revision FROM ai_ollama_settings WHERE singleton_key',
+    )
+  ).rows[0]!.revision;
+  const parent = randomUUID();
+  const childPrompt = 'A detailed sunlit forest with a village and winding path';
+  expect(
+    (
+      await pool.query<{ admitted: boolean }>(
+        'SELECT ai_text_begin_local($1,$2,$3,$4,$5::bigint) AS admitted',
+        [actor, chat, parent, 'Нарисуй красивый лес и деревню', revision],
+      )
+    ).rows[0]?.admitted,
+  ).toBe(true);
+  const options = {
+    text: 'Нарисуй красивый лес и деревню',
+    nativeImage: { mode: 'auto', size: 512 },
+  };
+  await pool.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
+    actor,
+    chat,
+    parent,
+    JSON.stringify(options),
+  ]);
+  const before = transport.dispatch.mock.calls.length;
+  const job = await service().createFromTool(
+    actor,
+    chat,
+    parent,
+    childPrompt,
+    512,
+    new AbortController().signal,
+  );
+  expect(
+    (
+      await db.query<{ size: number }>('SELECT size FROM ai_image_jobs WHERE request_id=$1', [
+        job.requestId,
+      ])
+    ).rows[0]?.size,
+  ).toBe(512);
+  expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  expect((await service().replayTool(actor, chat, parent))?.requestId).toBe(job.requestId);
+  expect(
+    (await service().pendingTools(actor, chat)).some((item) => item.requestId === job.requestId),
+  ).toBe(true);
+  expect(
+    (
+      await db.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM ai_assistant_messages WHERE thread_id=$1 AND role='user'",
+        [chat],
+      )
+    ).rows[0]?.count,
+  ).toBe('1');
+  expect(
+    (
+      await db.query<{ active_request_id: string | null }>(
+        'SELECT active_request_id FROM ai_assistant_threads WHERE id=$1',
+        [chat],
+      )
+    ).rows[0]?.active_request_id,
+  ).toBeNull();
+  const acknowledged = await new AiTextHistoryStore(pool).messages(actor, chat);
+  expect(
+    acknowledged.find((item) => item.role === 'assistant' && item.requestId === parent)?.content,
+  ).toContain('Задание');
+  const lease = randomUUID();
+  await db.query(
+    "UPDATE ai_image_jobs SET lease_id=$2,lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",
+    [job.requestId, lease],
+  );
+  expect(
+    (
+      await pool.query<{ value: boolean }>(
+        'SELECT ai_image_transition($1,$2,$3,$4::varchar,$5::varchar,$6::integer,$7::varchar) AS value',
+        [actor, job.requestId, lease, 'storing', 'a'.repeat(64), 3, null],
+      )
+    ).rows[0]?.value,
+  ).toBe(true);
+  expect(
+    (
+      await pool.query<{ value: boolean }>(
+        'SELECT ai_image_transition($1,$2,$3,$4::varchar,$5::varchar,$6::integer,$7::varchar) AS value',
+        [actor, job.requestId, lease, 'complete', null, null, null],
+      )
+    ).rows[0]?.value,
+  ).toBe(true);
+  const completed = await new AiTextHistoryStore(pool).messages(actor, chat);
+  expect(completed.filter((item) => item.role === 'assistant')).toHaveLength(1);
+  expect(completed.filter((item) => item.role === 'user')).toHaveLength(1);
+  expect(
+    completed.filter((item) => item.role === 'assistant' && item.generatedImages?.length),
+  ).toHaveLength(1);
+  expect(
+    completed.find((item) => item.role === 'assistant' && item.requestId === parent)
+      ?.generatedImages?.[0]?.requestId,
+  ).toBe(job.requestId);
+  expect(
+    (
+      await db.query<{ source_user_message_id: string; child_request_id: string }>(
+        'SELECT source_user_message_id,child_request_id FROM ai_tool_image_receipts WHERE owner_principal_id=$1 AND parent_request_id=$2',
+        [actor, parent],
+      )
+    ).rows[0],
+  ).toMatchObject({
+    child_request_id: job.requestId,
+    source_user_message_id: completed.find((item) => item.role === 'user')?.id,
+  });
+  const manualThread = (
+    await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor])
+  ).rows[0]!.id;
+  const manual = await service().create(actor, manualThread, {
+    requestId: randomUUID(),
+    prompt: 'Manual landscape',
+    size: 512,
+  });
+  const manualLease = randomUUID();
+  await db.query(
+    "UPDATE ai_image_jobs SET lease_id=$2,lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",
+    [manual.requestId, manualLease],
+  );
+  await pool.query(
+    'SELECT ai_image_transition($1,$2,$3,$4::varchar,$5::varchar,$6::integer,$7::varchar)',
+    [actor, manual.requestId, manualLease, 'storing', 'b'.repeat(64), 3, null],
+  );
+  await pool.query(
+    'SELECT ai_image_transition($1,$2,$3,$4::varchar,$5::varchar,$6::integer,$7::varchar)',
+    [actor, manual.requestId, manualLease, 'complete', null, null, null],
+  );
+  const manualHistory = await new AiTextHistoryStore(pool).messages(actor, manualThread);
+  expect(manualHistory.filter((item) => item.role === 'assistant')).toHaveLength(1);
+  expect(manualHistory[1]?.generatedImages?.[0]?.requestId).toBe(manual.requestId);
+  await expect(service().replayTool(stranger, chat, parent)).rejects.toThrow();
+});

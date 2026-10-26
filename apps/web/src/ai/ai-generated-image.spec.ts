@@ -228,3 +228,52 @@ it('waits for visibility and disconnects its observer when a history card unmoun
   await render([]);
   expect(revokeUrl).toHaveBeenCalledTimes(1);
 });
+it('copies the validated PNG bytes and keeps download on the same private blob URL', async () => {
+  const write = vi.fn().mockResolvedValue(undefined);
+  let clipboardBytes: Blob | undefined;
+  vi.stubGlobal(
+    'ClipboardItem',
+    class {
+      constructor(items: Record<string, Blob>) {
+        clipboardBytes = items['image/png'];
+      }
+    },
+  );
+  vi.stubGlobal('navigator', { clipboard: { write } });
+  vi.mocked(fetchWithSessionRefresh).mockResolvedValue(response());
+  await render([1]);
+  const button = host.querySelector<HTMLButtonElement>(
+    'button[aria-label^="Копировать изображение ·"]',
+  )!;
+  expect(button.title).toBe('Копировать изображение · 512×512 · PNG · 3 байт');
+  expect(button.getAttribute('aria-label')).toBe(button.title);
+  expect(host.querySelector<HTMLAnchorElement>('a[download]')?.title).toBe(
+    'Скачать изображение · 512×512 · PNG · 3 байт',
+  );
+  expect(host.querySelector<HTMLAnchorElement>('a[download]')?.getAttribute('aria-label')).toBe(
+    host.querySelector<HTMLAnchorElement>('a[download]')?.title,
+  );
+  expect(host.querySelectorAll('.ai-generated-image-actions svg')).toHaveLength(2);
+  expect(host.querySelector('.ai-generated-image-meta')).toBeNull();
+  await act(async () => button.click());
+  expect(write).toHaveBeenCalledTimes(1);
+  expect(clipboardBytes?.type).toBe('image/png');
+  expect(clipboardBytes?.size).toBe(image(1).sizeBytes);
+  expect(host.querySelector('[role="status"]')?.textContent).toBe('Изображение скопировано');
+  expect(host.querySelector('a[download]')?.getAttribute('href')).toBe(
+    host.querySelector('img')?.getAttribute('src'),
+  );
+});
+it('reports unavailable image clipboard without claiming a copy', async () => {
+  vi.stubGlobal('ClipboardItem', undefined);
+  vi.stubGlobal('navigator', { clipboard: {} });
+  vi.mocked(fetchWithSessionRefresh).mockResolvedValue(response());
+  await render([1]);
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('button[aria-label^="Копировать изображение ·"]')!
+      .click(),
+  );
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('недоступно');
+  expect(host.textContent).not.toContain('Скопировано');
+});

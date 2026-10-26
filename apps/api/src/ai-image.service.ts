@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import type pg from 'pg';
+import { AiToolPolicyService } from './ai-tool-policy.js';
 import type {
   AiGeneratedImage,
   AiImageGenerationAdminConfig,
@@ -160,6 +161,7 @@ export function imageJob(j: ImageJobRow): AiImageGenerationJob {
 }
 /** One dispatch CAS, one provider POST, one immutable object PUT. Recovery only reads. */
 export class AiImageService implements OnModuleInit, OnModuleDestroy {
+  private readonly toolPolicy: AiToolPolicyService;
   private readonly transport: AiImageServiceOptions['transport'] & {};
   private blobsValue: AiAttachmentBlobStore | undefined;
   private readonly env: NodeJS.ProcessEnv;
@@ -170,6 +172,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     private readonly pool: pg.Pool,
     private readonly options: AiImageServiceOptions = {},
   ) {
+    this.toolPolicy = new AiToolPolicyService(pool);
     this.transport = options.transport ?? new ComfyImageTransport();
     this.blobsValue = options.blobs;
     this.env = options.env ?? process.env;
@@ -217,7 +220,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         throw new AiImageError(
           'ai_image_unavailable',
           503,
-          'ComfyUI или приватное хранилище недоступны.',
+          'Сервис генерации или приватное хранилище недоступны.',
         );
       if (/AI_IMAGE_DISABLED/.test(m))
         throw new AiImageError('ai_image_disabled', 403, 'Генерация изображений выключена.');
@@ -259,6 +262,12 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     try {
       const input = imageInput(raw);
       const t = imageId(thread);
+      if (!(await this.toolPolicy.manualImageAllowed(owner, t, input.requestId)))
+        throw new AiImageError(
+          'ai_image_disabled',
+          409,
+          'Создание изображений выключено администратором.',
+        );
       const availability = await this.readiness();
       const provider = randomUUID();
       const seed = randomBytes(4).readUInt32BE();
@@ -295,9 +304,13 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   }
   async create(owner: string, thread: string, raw: unknown): Promise<AiImageGenerationJob> {
     const j = await this.admit(owner, thread, raw);
+    await this.dispatchAdmitted(j);
+    return this.get(owner, j.thread_id, j.request_id);
+  }
+  private async dispatchAdmitted(j: ImageJobRow): Promise<void> {
     if (j.state === 'admitted') {
       const claimed = await this.value<boolean>('SELECT ai_image_dispatch($1,$2) AS value', [
-        owner,
+        j.owner_principal_id,
         j.request_id,
       ]);
       if (claimed) {
@@ -309,7 +322,81 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         }
       }
     }
-    return this.get(owner, j.thread_id, j.request_id);
+  }
+  async createFromTool(
+    owner: string,
+    thread: string,
+    parent: string,
+    prompt: string,
+    size: AiImageSize,
+    signal: AbortSignal,
+  ): Promise<AiImageGenerationJob> {
+    const input = imageInput({ requestId: randomUUID(), prompt, size });
+    if (signal.aborted) throw new AiImageError('ai_image_cancelled', 409, 'Запрос остановлен.');
+    const availability = await this.readiness();
+    const provider = randomUUID(),
+      seed = randomBytes(4).readUInt32BE();
+    const digest = imageWorkflowDigest(
+      input.prompt,
+      input.size,
+      seed,
+      'ASA_' + provider.replaceAll('-', ''),
+    );
+    const j = await this.value<ImageJobRow>(
+      'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar) AS value',
+      [
+        owner,
+        imageId(thread),
+        imageId(parent),
+        input.requestId,
+        input.prompt,
+        input.size,
+        provider,
+        seed,
+        availability.ready,
+        digest,
+      ],
+    );
+    const cancel = () => {
+      void this.cancel(owner, thread, j.request_id).catch(() => undefined);
+    };
+    signal.addEventListener('abort', cancel, { once: true });
+    try {
+      if (signal.aborted) await this.cancel(owner, thread, j.request_id);
+      else await this.dispatchAdmitted(j);
+      return await this.get(owner, thread, j.request_id);
+    } finally {
+      signal.removeEventListener('abort', cancel);
+    }
+  }
+  async nativeSchemaReady(): Promise<boolean> {
+    const result = await this.pool.query<{ ready: boolean }>(
+      "SELECT to_regprocedure('public.ai_tool_image_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying)') IS NOT NULL AND to_regprocedure('public.ai_tool_request_options(uuid,uuid,uuid,jsonb,boolean)') IS NOT NULL AS ready",
+    );
+    return result.rows[0]?.ready === true;
+  }
+  async replayTool(
+    owner: string,
+    thread: string,
+    parent: string,
+  ): Promise<AiImageGenerationJob | null> {
+    const j = await this.value<ImageJobRow | null>(
+      'SELECT ai_tool_image_receipt($1,$2,$3) AS value',
+      [owner, imageId(thread), imageId(parent)],
+    );
+    if (!j) return null;
+    // GET-only reconciliation belongs to the worker; a replay never retries GPU submission.
+    return this.get(owner, thread, j.request_id);
+  }
+  async pendingTools(owner: string, thread: string): Promise<readonly AiImageGenerationJob[]> {
+    const rows = await this.value<readonly ImageJobRow[]>(
+      'SELECT ai_tool_image_pending($1,$2) AS value',
+      [owner, imageId(thread)],
+    );
+    return rows.map(imageJob);
+  }
+  toolContext(owner: string, thread: string): Promise<unknown> {
+    return this.value('SELECT ai_tool_image_context($1,$2) AS value', [owner, imageId(thread)]);
   }
   async get(owner: string, thread: string, request: string): Promise<AiImageGenerationJob> {
     return imageJob(
@@ -399,6 +486,10 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
             j.request_id,
             lease,
           ]);
+        return;
+      }
+      if (j.state === 'admitted') {
+        await this.dispatchAdmitted(j);
         return;
       }
       if (j.state === 'storing') {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type {
   AiImageGenerationJob,
   AiImageGenerationStatus,
@@ -6,6 +6,20 @@ import type {
 } from '@asa-lab/contracts';
 import { createAiScopeCall } from './ai-scope-api';
 import './ai-image-generation.css';
+import type { ImageGenerationMode } from './image-generation-intent';
+
+export interface ImageComposerController {
+  follow: (job: AiImageGenerationJob) => void;
+  submit: (prompt: string, size: AiImageSize) => Promise<void>;
+  cancel: () => Promise<void>;
+}
+export interface ImageComposerState {
+  busy: boolean;
+  canCancel: boolean;
+  canSubmit: boolean;
+  notice: string;
+  sizes: readonly AiImageSize[];
+}
 
 const terminal = (job: AiImageGenerationJob) =>
   ['complete', 'failed', 'cancelled'].includes(job.state);
@@ -23,8 +37,8 @@ export function imageGenerationStatusShape(value: unknown): value is AiImageGene
   );
 }
 const labels: Record<AiImageGenerationJob['state'], string> = {
-  admitted: 'Задание принято. Ожидаем GPU…',
-  submitting: 'Передаём задание локальному GPU…',
+  admitted: 'Задание принято…',
+  submitting: 'Передаём задание модели…',
   unknown: 'Результат пока неизвестен. Проверяем сохранённое задание без повторной отправки.',
   running: 'Создаём изображение…',
   storing: 'Сохраняем изображение…',
@@ -39,6 +53,15 @@ export function AiImageGeneration({
   createThread,
   onComplete,
   onClose,
+  initialPrompt = '',
+  autoSubmit = false,
+  modeChoice = 'flux2-klein-4b-v1',
+  onModeChange,
+  onPromptChange,
+  headless = false,
+  controllerRef,
+  onStateChange,
+  providedStatus,
 }: {
   threadId: string | null;
   seatId?: string | undefined;
@@ -46,10 +69,19 @@ export function AiImageGeneration({
   createThread: () => Promise<string | null>;
   onComplete: (threadId: string) => void;
   onClose: () => void;
+  initialPrompt?: string;
+  autoSubmit?: boolean;
+  modeChoice?: ImageGenerationMode;
+  onModeChange?: (mode: ImageGenerationMode) => void;
+  onPromptChange?: (prompt: string) => void;
+  headless?: boolean;
+  controllerRef?: Ref<ImageComposerController>;
+  onStateChange?: (state: ImageComposerState) => void;
+  providedStatus?: AiImageGenerationStatus | null;
 }) {
   const call = useRef(createAiScopeCall(seatId)).current;
   const [status, setStatus] = useState<AiImageGenerationStatus | null>(null);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [size, setSize] = useState<AiImageSize>(512);
   const [job, setJob] = useState<AiImageGenerationJob | null>(null);
   const [notice, setNotice] = useState('');
@@ -67,6 +99,12 @@ export function AiImageGeneration({
   const key = (id: string) => 'asa-ai-image:' + (seatId || 'personal') + ':' + id;
   useEffect(() => {
     mounted.current = true;
+    if (headless) {
+      setStatus(providedStatus ?? null);
+      return () => {
+        mounted.current = false;
+      };
+    }
     void call<AiImageGenerationStatus>('/api/ai/image-generation/status').then((result) => {
       if (!mounted.current) return;
       if (result.ok && imageGenerationStatusShape(result.data)) {
@@ -79,7 +117,7 @@ export function AiImageGeneration({
     return () => {
       mounted.current = false;
     };
-  }, [call]);
+  }, [call, headless, providedStatus]);
   useEffect(() => {
     const version = ++recoveryVersion.current;
     let live = true;
@@ -95,7 +133,29 @@ export function AiImageGeneration({
     } catch {
       /* storage may be disabled */
     }
-    if (!requestId) return;
+    if (!requestId) {
+      if (!headless) return;
+      void call<readonly AiImageGenerationJob[]>(
+        '/api/ai/threads/' + encodeURIComponent(threadId) + '/tool-image-generations',
+        { signal: controller.signal },
+      )
+        .then((reply) => {
+          if (
+            !live ||
+            version !== recoveryVersion.current ||
+            !reply.ok ||
+            !Array.isArray(reply.data)
+          )
+            return;
+          const pending = reply.data.find((item) => item.threadId === threadId && !terminal(item));
+          if (pending) follow(pending);
+        })
+        .catch(() => undefined);
+      return () => {
+        live = false;
+        controller.abort();
+      };
+    }
     setUnresolved(true);
     const path =
       '/api/ai/threads/' +
@@ -138,11 +198,22 @@ export function AiImageGeneration({
       window.clearTimeout(timer);
     };
   }, [threadId, check, call]);
-  async function send() {
+  function follow(value: AiImageGenerationJob) {
+    if (!mounted.current || scope.current !== value.threadId) return;
+    try {
+      sessionStorage.setItem(key(value.threadId), value.requestId);
+    } catch {
+      /* Server pending receipt also recovers after reload. */
+    }
+    setJob(value);
+    setUnresolved(!terminal(value));
+    setCheck((n) => n + 1);
+  }
+  async function send(submittedPrompt = prompt, submittedSize = size) {
     if (
       inFlight.current ||
       disabled ||
-      !prompt.trim() ||
+      !submittedPrompt.trim() ||
       !status?.enabled ||
       !status.ready ||
       status.remainingToday < 1
@@ -174,7 +245,7 @@ export function AiImageGeneration({
         '/api/ai/threads/' + encodeURIComponent(id) + '/image-generations',
         {
           method: 'POST',
-          body: JSON.stringify({ requestId, prompt: prompt.trim(), size }),
+          body: JSON.stringify({ requestId, prompt: submittedPrompt.trim(), size: submittedSize }),
         },
       );
       // Only this ASA admission-boundary receipt proves the fresh POST never
@@ -215,6 +286,7 @@ export function AiImageGeneration({
       if (result.ok) {
         setJob(result.data);
         setPrompt('');
+        onPromptChange?.('');
       } else
         setNotice(
           result.status
@@ -249,69 +321,193 @@ export function AiImageGeneration({
     setCheck((n) => n + 1);
   }
   const pending = job && !terminal(job);
+  const automaticStarted = useRef(false);
+  const submitLatest = useRef(() => void send());
+  submitLatest.current = () => void send();
+  useEffect(() => {
+    if (
+      autoSubmit &&
+      !automaticStarted.current &&
+      !disabled &&
+      status?.enabled &&
+      status.ready &&
+      status.remainingToday > 0 &&
+      !unresolved
+    ) {
+      automaticStarted.current = true;
+      submitLatest.current();
+    }
+  }, [autoSubmit, disabled, status, unresolved]);
+  useImperativeHandle(controllerRef, () => ({ submit: send, cancel, follow }));
+  useEffect(() => {
+    onStateChange?.({
+      busy: sending || !!pending || unresolved,
+      canCancel: !!pending && !job.cancelRequested,
+      canSubmit:
+        !disabled &&
+        !sending &&
+        !pending &&
+        !unresolved &&
+        !!status?.enabled &&
+        status.ready &&
+        status.remainingToday > 0,
+      sizes: status?.sizes || [512],
+      notice:
+        notice ||
+        (job
+          ? job.cancelRequested && !terminal(job)
+            ? 'Отмена запрошена. Проверяем состояние задания…'
+            : labels[job.state]
+          : status && (!status.enabled || !status.ready)
+            ? 'Генерация изображений сейчас недоступна.'
+            : status && status.remainingToday < 1
+              ? 'Дневной лимит изображений исчерпан.'
+              : ''),
+    });
+  }, [disabled, sending, pending, job, unresolved, status, notice, onStateChange]);
+  if (headless) return null;
   return (
     <section className="ai-image-mode" aria-label="Создать изображение">
-      <strong>Создать изображение</strong>
-      <p>
-        Локальный GPU · без списания лимита текстовой модели. Вложения и интернет-поиск здесь не
-        используются.
-      </p>
-      <textarea
-        autoFocus
-        aria-label="Описание изображения"
-        placeholder="Опишите изображение"
-        maxLength={3000}
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        disabled={sending || !!pending || disabled}
-      />
-      <div className="ai-image-mode-controls">
-        <select
-          aria-label="Размер изображения"
-          value={size}
-          onChange={(e) => setSize(Number(e.target.value) as AiImageSize)}
-          disabled={sending || !!pending}
-        >
-          {(status?.sizes || [512]).map((value) => (
-            <option key={value} value={value}>
-              {value} × {value}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          disabled={
-            disabled ||
-            sending ||
-            unresolved ||
-            !!pending ||
-            !status?.enabled ||
-            !status.ready ||
-            status.remainingToday < 1 ||
-            !prompt.trim()
-          }
-          onClick={() => void send()}
-        >
-          Создать изображение
-        </button>
-        {pending ? (
-          <button type="button" disabled={job.cancelRequested} onClick={() => void cancel()}>
-            {job.cancelRequested ? 'Отмена запрошена' : 'Отменить задание'}
-          </button>
-        ) : null}
-        <button type="button" disabled={sending} onClick={onClose}>
-          К текстовому чату
-        </button>
-      </div>
+      <form
+        className="chat-composer compact ai-image-composer"
+        data-composer-state={sending || pending ? 'busy' : !prompt ? 'idle' : 'ready'}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void send();
+        }}
+      >
+        <textarea
+          autoFocus
+          aria-label="Описание изображения"
+          placeholder="Опишите изображение"
+          maxLength={3000}
+          value={prompt}
+          onChange={(event) => {
+            setPrompt(event.target.value);
+            onPromptChange?.(event.target.value);
+          }}
+          disabled={sending || !!pending || disabled}
+          rows={1}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+        />
+        <div className="chat-composer-controls">
+          <details className="chat-tools-menu">
+            <summary
+              className="chat-attach-button"
+              aria-label="Настройки изображения"
+              title="Настройки изображения"
+            >
+              <span aria-hidden="true">+</span>
+            </summary>
+            <div className="chat-tools-popup ai-image-options">
+              <label>
+                <span>Создать изображение</span>
+                <select
+                  aria-label="Режим создания изображений"
+                  value={modeChoice}
+                  disabled={sending || !!pending || unresolved}
+                  onChange={(event) => {
+                    const choice = event.target.value as ImageGenerationMode;
+                    if (onModeChange) onModeChange(choice);
+                    else if (choice !== 'flux2-klein-4b-v1') onClose();
+                  }}
+                >
+                  <option value="off">Выключено</option>
+                  <option value="auto">Авто</option>
+                  <option value="flux2-klein-4b-v1">FLUX.2 Klein 4B</option>
+                </select>
+              </label>
+              <label>
+                <span>Размер PNG</span>
+                <select
+                  aria-label="Размер изображения"
+                  value={size}
+                  onChange={(event) => setSize(Number(event.target.value) as AiImageSize)}
+                  disabled={sending || !!pending}
+                >
+                  {(status?.sizes || [512]).map((value) => (
+                    <option key={value} value={value}>
+                      {value} × {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </details>
+          <div className="chat-composer-end">
+            <span className="chat-tools-model-caption">FLUX.2 Klein 4B</span>
+            <button
+              className="ai-image-exit"
+              type="button"
+              aria-label="К текстовому чату"
+              title="Выключить создание изображений"
+              disabled={sending || !!pending || unresolved}
+              onClick={onClose}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+            <button
+              className="chat-send-button"
+              type={pending ? 'button' : 'submit'}
+              aria-label={pending ? 'Отменить задание' : 'Создать изображение'}
+              disabled={
+                pending
+                  ? !!job?.cancelRequested
+                  : disabled ||
+                    sending ||
+                    unresolved ||
+                    !status?.enabled ||
+                    !status.ready ||
+                    status.remainingToday < 1 ||
+                    !prompt.trim()
+              }
+              onClick={pending ? () => void cancel() : undefined}
+            >
+              {pending ? (
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 19V5m-6 6 6-6 6 6" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
       {unresolved && !job ? (
         <button type="button" onClick={() => setCheck((n) => n + 1)}>
           Проверить статус задания
         </button>
       ) : null}
-      <p role="status">
+      <p role="status" className={notice || job || !status?.ready ? 'ai-image-status' : 'sr-only'}>
         {notice ||
           (job
-            ? labels[job.state]
+            ? job.cancelRequested && !terminal(job)
+              ? 'Отмена запрошена. Проверяем состояние задания…'
+              : labels[job.state]
             : status
               ? !status.enabled
                 ? 'Генерация выключена администратором.'

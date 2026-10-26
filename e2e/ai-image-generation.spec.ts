@@ -271,6 +271,59 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+test('image intent is a removable token in the same input and preserves the draft', async ({
+  page,
+}) => {
+  const fixture = await imageFixture(page);
+  await page.goto('/#/ai');
+  const input = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await input.fill('Робот на белом фоне');
+  const originalInput = await input.elementHandle();
+  await page.getByLabel('Инструменты чата').click();
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
+  await expect(input).toHaveValue('Робот на белом фоне');
+  expect(await originalInput!.evaluate((node) => node.isConnected)).toBe(true);
+  await page.getByRole('combobox', { name: 'Размер изображения' }).selectOption('1024');
+  await page.getByRole('button', { name: 'Убрать изображение из запроса' }).click();
+  await expect(input).toHaveValue('Робот на белом фоне');
+  await expect(page.getByRole('combobox', { name: 'Размер изображения' })).toHaveCount(0);
+  await page.getByLabel('Инструменты чата').click();
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
+  await input.press('Control+Home');
+  await input.press('Backspace');
+  await expect(input).toHaveValue('Робот на белом фоне');
+  await expect(page.getByRole('combobox', { name: 'Размер изображения' })).toHaveCount(0);
+  expect(await originalInput!.evaluate((node) => node.isConnected)).toBe(true);
+  expect(fixture.imagePosts).toHaveLength(0);
+});
+
+test('image Auto routes an explicit chat request to one GPU job without a text-model request', async ({
+  page,
+}) => {
+  const fixture = await imageFixture(page);
+  const textPosts: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      /\/messages(?:\/stream)?$/.test(new URL(request.url()).pathname)
+    )
+      textPosts.push(request.url());
+  });
+  await page.goto('/#/ai');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Нарисуй кота на белом фоне');
+  await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+  await expect.poll(() => fixture.imagePosts.length).toBe(1);
+  expect(fixture.imagePosts[0]?.prompt).toBe('Нарисуй кота на белом фоне');
+  expect(textPosts).toEqual([]);
+  await expect(page.getByRole('button', { name: 'Отменить задание', exact: true })).toBeVisible();
+  fixture.complete();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
+    timeout: 18000,
+  });
+  expect(fixture.imagePosts).toHaveLength(1);
+  expect(textPosts).toEqual([]);
+});
+
 for (const width of [1440, 1024, 390, 320]) {
   for (const theme of ['light', 'dark']) {
     test(`local image generation and settings at ${width} ${theme}`, async ({ page }, testInfo) => {
@@ -279,10 +332,10 @@ for (const width of [1440, 1024, 390, 320]) {
       const fixture = await imageFixture(page);
       await page.goto('/#/ai');
       await page.getByLabel('Инструменты чата').click();
-      await page.getByRole('button', { name: 'Создать изображение', exact: true }).click();
+      await page.getByRole('button', { name: 'Изображение', exact: true }).click();
       const mode = page.getByRole('region', { name: 'Создать изображение' });
       await page
-        .getByRole('textbox', { name: 'Описание изображения' })
+        .getByRole('textbox', { name: 'Сообщение ИИ' })
         .fill(
           'Птица на дереве. Подробное русское описание с длинным текстом для проверки формы изображения.',
         );
@@ -299,7 +352,7 @@ for (const width of [1440, 1024, 390, 320]) {
       const download = page.waitForEvent('download');
       await page.getByRole('link', { name: 'Скачать PNG' }).click();
       expect((await download).suggestedFilename()).toMatch(/^asa-image-.*\.png$/);
-      await mode.getByRole('button', { name: 'К текстовому чату' }).click();
+      await mode.getByRole('button', { name: 'Убрать изображение из запроса' }).click();
       await noOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`image-complete-${width}-${theme}.png`) });
       await page.goto('/#/admin/ai');
@@ -327,8 +380,8 @@ test('unknown image POST resumes with GET only after reload', async ({ page }) =
   fixture.uncertain();
   await page.goto('/#/ai');
   await page.getByLabel('Инструменты чата').click();
-  await page.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Описание изображения' }).fill('Птица на дереве');
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   await page
     .getByRole('region', { name: 'Создать изображение' })
     .getByRole('button', { name: 'Создать изображение', exact: true })
@@ -349,17 +402,15 @@ test('an older image API leaves text tools intact and generation disabled', asyn
   );
   await page.goto('/#/ai');
   await page.getByLabel('Инструменты чата').click();
-  await expect(
-    page.getByRole('button', { name: 'Создать изображение', exact: true }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Изображение', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Фото и файлы', exact: true })).toBeEnabled();
 });
 test('a cancelled image job is never labelled complete', async ({ page }) => {
   const fixture = await imageFixture(page);
   await page.goto('/#/ai');
   await page.getByLabel('Инструменты чата').click();
-  await page.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await page.getByRole('textbox', { name: 'Описание изображения' }).fill('Птица на дереве');
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   const mode = page.getByRole('region', { name: 'Создать изображение' });
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
   await expect(page.getByText('Задание принято. Ожидаем GPU…')).toBeVisible();
@@ -385,9 +436,9 @@ test('a confirmed rejected first image POST permits an explicit corrected reques
   });
   await page.goto('/#/ai');
   await page.getByLabel('Инструменты чата').click();
-  await page.getByRole('button', { name: 'Создать изображение', exact: true }).click();
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
   const mode = page.getByRole('region', { name: 'Создать изображение' });
-  await page.getByRole('textbox', { name: 'Описание изображения' }).fill('Птица на дереве');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
   await expect(mode.getByText('Размер больше не разрешён.', { exact: true })).toBeVisible();
   await expect(

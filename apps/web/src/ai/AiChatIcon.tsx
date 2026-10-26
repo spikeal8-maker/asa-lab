@@ -3,10 +3,13 @@ import type { ReactNode } from 'react';
 export type AiChatIconName =
   | 'attachment'
   | 'image'
+  | 'video'
   | 'search'
   | 'sparkles'
   | 'new-chat'
   | 'copy'
+  | 'edit'
+  | 'download'
   | 'refresh'
   | 'sidebar'
   | 'file'
@@ -23,6 +26,12 @@ const paths: Record<AiChatIconName, ReactNode> = {
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="m21 15-5-5L5 21" />
+    </>
+  ),
+  video: (
+    <>
+      <rect x="3" y="5" width="14" height="14" rx="2" />
+      <path d="m17 10 4-3v10l-4-3" />
     </>
   ),
   search: (
@@ -47,6 +56,18 @@ const paths: Record<AiChatIconName, ReactNode> = {
     <>
       <rect x="8" y="8" width="13" height="13" rx="2" />
       <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 3v12m-5-5 5 5 5-5" />
+      <path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
     </>
   ),
   refresh: (

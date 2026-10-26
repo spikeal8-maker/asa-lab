@@ -19,6 +19,7 @@ import {
   requireAiSameOrigin,
 } from './ai-access.service.js';
 import { AiImageError, AiImageService } from './ai-image.service.js';
+import { AiToolPolicyError } from './ai-tool-policy.js';
 import { AiServiceError } from './ai-chat.service.js';
 import type { SeatContextUseCase } from './seat-context.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
@@ -28,7 +29,7 @@ async function safe<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (e) {
-    if (e instanceof AiImageError || e instanceof AiServiceError)
+    if (e instanceof AiImageError || e instanceof AiServiceError || e instanceof AiToolPolicyError)
       throw new HttpException({ error: { code: e.code, message: e.message } }, e.status);
     throw e;
   }
@@ -61,6 +62,27 @@ export class AiImageController {
     return safe(async () => {
       requireAiSameOrigin(request);
       return this.images.create(await this.owner(request), thread, body);
+    });
+  }
+  @Get('threads/:threadId/tool-image-generations') pendingTools(
+    @Req() request: FastifyRequest,
+    @Param('threadId') thread: string,
+  ) {
+    return safe(async () => {
+      const owner = await this.owner(request);
+      return (await this.images.nativeSchemaReady()) ? this.images.pendingTools(owner, thread) : [];
+    });
+  }
+  @Get('threads/:threadId/requests/:requestId/image-generation') toolReceipt(
+    @Req() request: FastifyRequest,
+    @Param('threadId') thread: string,
+    @Param('requestId') id: string,
+  ) {
+    return safe(async () => {
+      const owner = await this.owner(request);
+      return (await this.images.nativeSchemaReady())
+        ? this.images.replayTool(owner, thread, id)
+        : null;
     });
   }
   @Get('threads/:threadId/image-generations/:requestId') get(
