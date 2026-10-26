@@ -285,8 +285,77 @@ describe('provider JSON completion semantics', () => {
 
   it('marks a locally bounded JSON response as stopped', () => {
     expect(
-      parseProviderText('openai', { status: 'completed', output_text: 'a'.repeat(9000) }),
-    ).toEqual({ text: 'a'.repeat(8192), stopped: true });
+      parseProviderText('openai', { status: 'completed', output_text: 'a'.repeat(65537) }),
+    ).toEqual({ text: 'a'.repeat(65536), stopped: true });
+  });
+
+  it('preserves a complete code file beyond the former 8192-character ceiling in JSON and SSE', async () => {
+    const code =
+      '<!doctype html>\n<script>\n' + 'const step = () => {};\n'.repeat(600) + '</script>';
+    expect(code.length).toBeGreaterThan(8192);
+    expect(parseProviderText('openai', { status: 'completed', output_text: code })).toEqual({
+      text: code,
+      stopped: false,
+    });
+    for (const provider of ['openai', 'deepseek', 'ollama-cloud'] as const) {
+      const body =
+        provider === 'openai'
+          ? 'event: response.output_text.delta\ndata: ' +
+            JSON.stringify({ delta: code }) +
+            '\n\nevent: response.completed\ndata: {"type":"response.completed"}\n\n'
+          : 'data: ' +
+            JSON.stringify({ choices: [{ delta: { content: code }, finish_reason: null }] }) +
+            '\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n';
+      const fetchImpl = vi.fn<typeof fetch>(async () => fakeSse(body));
+      const delta = vi.fn();
+      const result = await streamProviderText({
+        fetchImpl,
+        provider,
+        model:
+          provider === 'openai'
+            ? 'gpt-5-mini'
+            : provider === 'deepseek'
+              ? 'deepseek-flash'
+              : 'gemma4:31b',
+        apiKey: 'test-only',
+        context: [],
+        instructions: '',
+        signal: new AbortController().signal,
+        onDelta: delta,
+      });
+      expect(result).toEqual({ text: code, stopped: false });
+      expect(delta.mock.calls.map(([part]) => part).join('')).toBe(code);
+      expect(fetchImpl).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('preserves OpenAI token-limit text as incomplete instead of reporting success or discarding it', async () => {
+    const response = {
+      status: 'incomplete',
+      output_text: 'Часть',
+      incomplete_details: { reason: 'max_output_tokens' },
+    };
+    expect(parseProviderText('openai', response)).toEqual({ text: 'Часть', stopped: true });
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      fakeSse(
+        'event: response.output_text.delta\ndata: {"delta":"Часть"}\n\nevent: response.incomplete\ndata: ' +
+          JSON.stringify({ response }) +
+          '\n\n',
+      ),
+    );
+    expect(
+      await streamProviderText({
+        fetchImpl,
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        apiKey: 'test',
+        context: [],
+        instructions: '',
+        signal: new AbortController().signal,
+        onDelta: vi.fn(),
+      }),
+    ).toEqual({ text: 'Часть', stopped: true });
+    expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
   it.each([null, [], 'invalid'])('rejects malformed JSON payload %s', (body) => {

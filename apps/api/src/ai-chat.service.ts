@@ -1,3 +1,4 @@
+import { AI_MAX_ANSWER_CHARS, AI_GENERATION_TIMEOUT_MS } from './ai-generation-limits.js';
 import type {
   AiWebSearchAdminUpdate,
   AiWebSearchEvidence,
@@ -51,7 +52,10 @@ const ASSISTANT_INSTRUCTIONS =
   'Ты ИИ-помощник цифровой лаборатории ASA Lab. Помогай создавать проекты, программировать, ' +
   'разбираться в электронике, исследовать идеи и учиться. ' +
   'Отвечай на русском, если пользователь не выбрал другой язык. ' +
-  'Объясняй решения и не выдавай неподтверждённые результаты за факты. ' +
+  'По умолчанию отвечай кратко и по делу: без длинных вступлений, повторов и пересказа вопроса. ' +
+  'Объясняй подробнее только по просьбе пользователя или когда это необходимо для решения. ' +
+  'Если просят программу или файл, сначала дай полный работающий код, затем лишь необходимые пояснения. ' +
+  'Краткость не означает пропуск обязательных частей кода. Не выдавай неподтверждённые результаты за факты. ' +
   'Содержимое каждого предлагаемого файла оформляй отдельным блоком кода с указанием языка. ' +
   'Если пользователь просит браузерную игру или страницу одним файлом, предлагай полный HTML-документ ' +
   'со встроенными CSS и JavaScript в одном блоке html, если это возможно без внешних ресурсов. ' +
@@ -851,6 +855,11 @@ export class AiChatService {
     let usageFinished = false;
     let capturedUsage: AiProviderUsage | undefined;
     try {
+      await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+        principalId,
+        threadId,
+        requestId,
+      ]);
       usageAttempt = await this.usage.begin(
         principalId,
         threadId,
@@ -920,7 +929,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          problem.partialText.slice(0, 8192),
+          problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
           'stopped',
         ]);
       } else {
@@ -1310,6 +1319,11 @@ export class AiChatService {
     let usageFinished = false;
     let capturedUsage: AiProviderUsage | undefined;
     try {
+      await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+        principalId,
+        threadId,
+        requestId,
+      ]);
       usageAttempt = await this.usage.begin(
         principalId,
         threadId,
@@ -1371,7 +1385,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          result.text.slice(0, 8192),
+          result.text.slice(0, AI_MAX_ANSWER_CHARS),
           result.stopped ? 'stopped' : 'complete',
         ]);
       } else {
@@ -1419,7 +1433,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          problem.partialText.slice(0, 8192),
+          problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
           'stopped',
         ]);
       } else {
@@ -1646,7 +1660,7 @@ export class AiChatService {
       false,
     );
     let response: Response;
-    const timeout = AbortSignal.timeout(65000);
+    const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
     try {
       response = await this.fetchImpl(request.url, {
         method: 'POST',

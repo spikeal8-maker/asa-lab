@@ -138,11 +138,25 @@ export class AiTextHistoryStore {
       [owner, threadId, requestId],
     );
     if (result.rows.length === 0) throw new Error('AI_CONTEXT_UNAVAILABLE');
-    return result.rows.map((row, index) => ({
-      role: row.role,
-      content:
-        row.content.slice(0, 3000) +
-        (index === result.rows.length - 1 ? webEvidenceContext(row.web_search) : ''),
-    }));
+    // Keep the latest complete answer available for code follow-ups, with a fixed
+    // total history budget. Trim oldest rows first instead of every answer at 3000.
+    let remaining = 96000;
+    const context = result.rows.map((row) => ({ role: row.role, content: row.content }));
+    for (let index = context.length - 1; index >= 0; index--) {
+      const item = context[index]!;
+      item.content = item.content.slice(
+        0,
+        Math.min(item.role === 'user' ? 3000 : 65536, remaining),
+      );
+      remaining -= item.content.length;
+    }
+    return context
+      .filter((item) => item.content.length > 0)
+      .map((item, index, items) => ({
+        ...item,
+        content:
+          item.content +
+          (index === items.length - 1 ? webEvidenceContext(result.rows.at(-1)?.web_search) : ''),
+      }));
   }
 }

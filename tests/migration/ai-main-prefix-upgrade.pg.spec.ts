@@ -34,6 +34,7 @@ const expectedPending = [
   '0252', // Additive Ollama Cloud credentials preserve installed history.
   '0253', // Optional scoped campaign observations and factual catalog projections.
   '0254', // Free server internet evidence and bounded public weather cache.
+  '0255', // Bounded complete AI answers and generation lease.
 ];
 
 interface Identity {

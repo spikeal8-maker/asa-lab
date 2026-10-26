@@ -48,6 +48,7 @@ function fixture() {
       return { rows: [{ admitted: true }] };
     }
     if (sql.includes('ai_text_generation_context')) return { rows: context };
+    if (sql.includes('ai_chat_generation_lease')) return { rows: [] };
     if (sql.includes('ai_text_request_messages')) return { rows: messages };
     if (sql.includes('ai_chat_finish')) {
       messages = [

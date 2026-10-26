@@ -813,7 +813,7 @@ for (const outcome of ['current', 'legacy', 'recovery', 'stopped'] as const) {
     // A valid large completion must succeed through SSE, without a hidden
     // history-recovery GET masking a parser failure.
     expect(fake.historyCursors).toHaveLength(outcome === 'recovery' ? 3 : 2);
-    if (outcome === 'stopped') await expect(turns.last()).toContainText('Ответ остановлен.');
+    if (outcome === 'stopped') await expect(turns.last()).toContainText('Ответ не завершён.');
     await expect(page.locator('.asa-ai-error')).toHaveCount(0);
     await older.click();
     await expect(turns).toHaveCount(122);
@@ -876,7 +876,7 @@ test('AI pending and stopped replays keep request identity and state', async ({ 
   await expect(composer).toBeEnabled();
   await expect(composer).toHaveValue('');
   await expect(turns).toHaveCount(2);
-  await expect(turns.last()).toContainText('Ответ остановлен.');
+  await expect(turns.last()).toContainText('Ответ не завершён.');
   await expect(page.locator('.asa-ai-error')).toHaveCount(0);
   expect(new Set(fake.requests).size).toBe(1);
 });
@@ -1594,7 +1594,7 @@ test('AI stop control saves a stopped reply and unlocks the composer', async ({ 
   await expect.poll(() => fake.requests.length).toBe(1);
   await expectChatFits(page);
   await page.getByRole('button', { name: 'Остановить генерацию' }).click();
-  await expect(page.getByText('Ответ остановлен.')).toBeVisible();
+  await expect(page.getByText('Ответ не завершён.')).toBeVisible();
   await expect(composer).toBeEnabled();
   expect(stopRequests).toBe(1);
   expect(fake.requests).toHaveLength(1);

@@ -1,3 +1,8 @@
+import {
+  AI_MAX_ANSWER_CHARS,
+  AI_MAX_OUTPUT_TOKENS,
+  AI_GENERATION_TIMEOUT_MS,
+} from './ai-generation-limits.js';
 /** Server-only Ollama transport. Supports loopback, private LAN, and Docker host gateway.
  * Never accepts browser-supplied endpoints, follows redirects, or logs prompts/addresses.
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
@@ -230,7 +235,7 @@ export async function streamOllamaText(
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
   if (args.signal.aborted) return { text: '', stopped: true };
-  const timeout = AbortSignal.timeout(110000);
+  const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
   const signal = AbortSignal.any([args.signal, timeout]);
   let response: Response;
   try {
@@ -254,7 +259,7 @@ export async function streamOllamaText(
         // Donor IZO_ASA also disables thinking for short school-facing inference.
         // Some reasoning models otherwise spend the token/time budget without visible text.
         think: false,
-        options: { num_predict: 1600 },
+        options: { num_predict: AI_MAX_OUTPUT_TOKENS },
       }),
     });
   } catch {
@@ -268,6 +273,7 @@ export async function streamOllamaText(
   let buffer = '';
   let text = '';
   let done = false;
+  let lengthLimited = false;
   let usage: AiProviderUsage | undefined;
   const frame = (line: string): void => {
     if (!line.trim()) return;
@@ -279,19 +285,27 @@ export async function streamOllamaText(
     }
     if (!data || typeof data !== 'object')
       throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
-    const packet = data as { message?: { content?: unknown }; done?: unknown; error?: unknown };
+    const packet = data as {
+      message?: { content?: unknown };
+      done?: unknown;
+      done_reason?: unknown;
+      error?: unknown;
+    };
     usage = mergeProviderUsage(usage, providerUsage('ollama', packet));
     if (packet.error)
       throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
     if (typeof packet.message?.content === 'string') {
-      const delta = packet.message.content.slice(0, 8192 - text.length);
+      const delta = packet.message.content.slice(0, AI_MAX_ANSWER_CHARS - text.length);
       text += delta;
       if (delta) args.onDelta(delta);
     }
-    if (packet.done === true) done = true;
+    if (packet.done === true) {
+      done = true;
+      lengthLimited = packet.done_reason === 'length';
+    }
   };
   try {
-    while (!done && !signal.aborted && text.length < 8192) {
+    while (!done && !signal.aborted && text.length < AI_MAX_ANSWER_CHARS) {
       const part = await reader.read();
       if (part.done) break;
       buffer += decoder.decode(part.value, { stream: true });
@@ -305,7 +319,7 @@ export async function streamOllamaText(
         buffer = buffer.slice(boundary + 1);
         // Stop immediately even when many token frames were coalesced into
         // this same HTTP chunk; do not emit queued deltas after cancellation.
-        if (done || signal.aborted || text.length >= 8192) break;
+        if (done || signal.aborted || text.length >= AI_MAX_ANSWER_CHARS) break;
         boundary = buffer.indexOf('\n');
       }
       if (!done && buffer.length > 16 * 1024)
@@ -329,9 +343,13 @@ export async function streamOllamaText(
   }
   if (timeout.aborted && !args.signal.aborted)
     throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text, usage);
-  if (!done && !args.signal.aborted && text.length < 8192)
+  if (!done && !args.signal.aborted && text.length < AI_MAX_ANSWER_CHARS)
     throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text, usage);
   if (!text.trim() && !args.signal.aborted)
     throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.', '', usage);
-  return { text, stopped: args.signal.aborted || text.length >= 8192, ...(usage ? { usage } : {}) };
+  return {
+    text,
+    stopped: args.signal.aborted || lengthLimited || text.length >= AI_MAX_ANSWER_CHARS,
+    ...(usage ? { usage } : {}),
+  };
 }

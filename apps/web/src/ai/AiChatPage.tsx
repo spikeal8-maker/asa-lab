@@ -1636,7 +1636,7 @@ export function AiChatPage({
                           />
                           {message.state === 'stopped' ? (
                             <span className="chat-runtime-note" role="status">
-                              Ответ остановлен.
+                              Ответ не завершён.
                             </span>
                           ) : null}
                           <div className="chat-message-actions">
