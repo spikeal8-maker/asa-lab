@@ -5,6 +5,7 @@ import { publicProjectsApi, type PublicProject } from './api';
 import { CopyPublicProject } from './CopyPublicProject';
 import { PublicationPreview } from './PublicationPreview';
 import { SharePublicationLink } from './SharePublicationLink';
+import { ReportPublicProject } from './ReportPublicProject';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
 import './public-projects.css';
 
@@ -157,6 +158,11 @@ export function PublicProjectPage({
               <SharePublicationLink
                 key={publication.publicationId}
                 publicationId={publication.publicationId}
+              />
+              <ReportPublicProject
+                key={publication.revisionId}
+                publication={publication}
+                onRefresh={() => void reload()}
               />
             </div>
             <p className="public-project-license">

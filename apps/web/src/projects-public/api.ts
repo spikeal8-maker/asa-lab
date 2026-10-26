@@ -64,6 +64,21 @@ export interface PublicProjectCopy {
 
 /** Public reads use only the immutable publication namespace. */
 export const publicProjectsApi = {
+  report: (
+    publicationId: string,
+    payload: PublicationReportPayload,
+    key: string,
+    signal: AbortSignal,
+  ) =>
+    call<PublicationReportReceipt>(
+      `/api/public-projects/${encodeURIComponent(publicationId)}/reports`,
+      {
+        method: 'POST',
+        headers: { 'Idempotency-Key': key },
+        body: JSON.stringify(payload),
+        signal,
+      },
+    ),
   list: (input: { search?: string; module?: string; offset?: number } = {}) => {
     const query = new URLSearchParams({ offset: String(input.offset ?? 0), limit: '24' });
     if (input.search) query.set('q', input.search);
@@ -96,6 +111,17 @@ export const publicProjectsApi = {
       method: 'DELETE',
     }),
 };
+
+export interface PublicationReportPayload {
+  readonly revisionId: string;
+  readonly reason: string;
+  readonly comment: string;
+}
+export interface PublicationReportReceipt {
+  readonly reportId: string;
+  readonly status: 'received';
+  readonly duplicate: boolean;
+}
 
 export function publicationError(
   result: Extract<ApiResult<unknown>, { ok: false }>,

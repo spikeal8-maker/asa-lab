@@ -625,3 +625,86 @@
   font-size: 12px;
   font-weight: 700;
 }
+
+.public-report-menu {
+  position: relative;
+  margin-left: auto;
+}
+.public-report-menu > summary {
+  min-height: 44px;
+  box-sizing: border-box;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 24px;
+  line-height: 1.2;
+}
+.public-report-menu > button {
+  position: absolute;
+  right: 0;
+  z-index: 2;
+  padding: 12px 16px;
+  background: var(--asa-white, #fff);
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.public-report-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  color: var(--asa-slate-900, #172431);
+  background: var(--asa-white, #fff);
+}
+.public-report-dialog::backdrop {
+  background: #0f172a80;
+}
+.public-report-dialog form {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.public-report-dialog h2,
+.public-report-dialog p {
+  margin: 0;
+}
+.public-report-project {
+  overflow-wrap: anywhere;
+  color: #526078;
+}
+.public-report-dialog select,
+.public-report-dialog textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  font: inherit;
+  background: var(--asa-white, #fff);
+  color: inherit;
+}
+.public-report-dialog textarea {
+  resize: vertical;
+}
+.public-report-dialog small {
+  text-align: right;
+}
+.public-report-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.public-report-dialog :focus-visible,
+.public-report-menu :focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 3px;
+}

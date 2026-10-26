@@ -23,6 +23,8 @@ for (const path of browser
       'tests/migration/project-publication-editorial.pg.spec.ts',
       'tests/migration/project-publication-pins.pg.spec.ts',
       'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
+      'apps/web/src/projects-public/ReportPublicProject.spec.ts',
+      'apps/web/src/projects-public/report-api.spec.ts',
       'apps/api/src/public-project-reports.controller.spec.ts',
       'tests/migration/project-publication-reports.pg.spec.ts',
       'tests/portal/public-project-reports.http.pg.spec.ts',

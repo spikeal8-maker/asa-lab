@@ -1033,3 +1033,152 @@ test('archiving a previously public source closes metadata and images through th
     await guest.context.close();
   }
 });
+
+test('Account report dialog records the exact private revision and keeps the publication visible at seven widths', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await register(page, 'Автор проверки жалоб');
+  const projectId = await createProject(
+    page,
+    'Проверка жалобы — публикация',
+    await raster(page, 'R1'),
+  );
+  const state = await publish(page, projectId);
+  const original = await publication(page, state.publicationId);
+
+  // Use the same canonical detail route as the existing publication journeys.
+  await page.goto(`/#/public-projects/${state.publicationId}`);
+  await expect(page.getByTestId('public-project-detail')).toBeVisible();
+  for (const width of WIDTHS) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByLabel('Другие действия', { exact: true }).click();
+    await page.getByRole('button', { name: 'Пожаловаться', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Пожаловаться', exact: true });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Причина', { exact: true }).selectOption('personal_data');
+    await dialog
+      .getByLabel('Комментарий (необязательно)')
+      .fill('  <img src=x onerror=alert(1)> 🚀  ');
+    await expectNoOverflow(page);
+    expect(await page.evaluate(() => innerWidth)).toBe(width);
+    if ([320, 390, 1440].includes(width))
+      await page.screenshot({ path: `${EVIDENCE}/report-dialog-${width}.png`, fullPage: false });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByLabel('Другие действия', { exact: true })).toBeFocused();
+  }
+  await page.getByLabel('Другие действия', { exact: true }).click();
+  await page.getByRole('button', { name: 'Пожаловаться', exact: true }).click();
+  const response = page.waitForResponse(
+    (r) =>
+      r.url().endsWith(`/api/public-projects/${state.publicationId}/reports`) &&
+      r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  const accepted = await response;
+  expect(accepted.status()).toBe(200);
+  const receipt = await accepted.json();
+  await expect(page.getByRole('status').filter({ hasText: 'Жалоба получена.' })).toBeVisible();
+  const row = await admin.query(
+    'SELECT publication_id, revision_id, reason, comment FROM project_publication_reports WHERE id=$1',
+    [receipt.reportId],
+  );
+  expect(row.rows).toEqual([
+    {
+      publication_id: state.publicationId,
+      revision_id: state.revisionId,
+      reason: 'personal_data',
+      comment: '<img src=x onerror=alert(1)> 🚀',
+    },
+  ]);
+  await page.reload();
+  await expect(page.getByTestId('public-project-detail')).toBeVisible();
+  expect(await publication(page, state.publicationId)).toEqual(original);
+  const guest = await browser.newContext();
+  try {
+    const guestPage = await guest.newPage();
+    await guestPage.goto(`${origin(page)}/#/public-projects/${state.publicationId}`);
+    await guestPage.getByLabel('Другие действия', { exact: true }).click();
+    await guestPage.getByRole('button', { name: 'Пожаловаться', exact: true }).click();
+    await guestPage.getByLabel('Причина', { exact: true }).selectOption('spam');
+    await guestPage.getByRole('button', { name: 'Отправить', exact: true }).click();
+    await expect(
+      guestPage.getByRole('alert').filter({ hasText: 'Войдите в личный аккаунт' }),
+    ).toBeVisible();
+    await expect(guestPage.getByRole('dialog').getByRole('status')).toHaveCount(0);
+  } finally {
+    await guest.close();
+  }
+});
+
+test('report dialog fences offline retries, changed revision, revoked publication and mixed Seat context', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await register(page, 'Проверка отказов жалобы');
+  const projectId = await createProject(page, 'Отказы жалобы', await raster(page, 'R2'));
+  const state = await publish(page, projectId);
+  await page.goto(`/#/public-projects/${state.publicationId}`);
+  await page.getByLabel('Другие действия', { exact: true }).click();
+  await page.getByRole('button', { name: 'Пожаловаться', exact: true }).click();
+  await page.getByLabel('Причина', { exact: true }).selectOption('spam');
+  await page.context().setOffline(true);
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Отправка не подтверждена' }),
+  ).toBeVisible();
+  await page.context().setOffline(false);
+  await publish(page, projectId, { title: 'Новая опубликованная редакция' });
+  const changed = page.waitForResponse(
+    (r) => r.url().endsWith('/reports') && r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  expect((await changed).status()).toBe(409);
+  await expect(page.getByRole('alert').filter({ hasText: 'Публикация изменилась' })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Обновить страницу проекта' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByTestId('public-project-title')).toHaveText(
+    'Новая опубликованная редакция',
+  );
+  await page.getByLabel('Другие действия', { exact: true }).click();
+  await page.getByRole('button', { name: 'Пожаловаться', exact: true }).click();
+  await page.getByLabel('Причина', { exact: true }).selectOption('spam');
+  await ok(
+    await page.request.delete(`/api/projects/${projectId}/publication`, {
+      headers: { origin: origin(page) },
+    }),
+  );
+  const revoked = page.waitForResponse(
+    (r) => r.url().endsWith('/reports') && r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  expect((await revoked).status()).toBe(404);
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Публикация больше недоступна' }),
+  ).toBeVisible();
+  expect(
+    (
+      await admin.query('SELECT id FROM project_publication_reports WHERE publication_id=$1', [
+        state.publicationId,
+      ])
+    ).rows,
+  ).toHaveLength(0);
+  await publish(page, projectId);
+  await page.reload();
+  await page
+    .context()
+    .addCookies([
+      { name: 'asa_student_session', value: 'not-an-account-fallback', url: origin(page) },
+    ]);
+  await page.getByLabel('Другие действия', { exact: true }).click();
+  await page.getByRole('button', { name: 'Пожаловаться', exact: true }).click();
+  await page.getByLabel('Причина', { exact: true }).selectOption('spam');
+  const forbidden = page.waitForResponse(
+    (r) => r.url().endsWith('/reports') && r.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Отправить', exact: true }).click();
+  expect((await forbidden).status()).toBe(403);
+  await expect(page.getByRole('alert').filter({ hasText: 'отправка запрещена' })).toBeVisible();
+});
