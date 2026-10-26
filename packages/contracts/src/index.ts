@@ -27,3 +27,17 @@ export interface PackageInfo {
 export function packageInfo(): PackageInfo {
   return { name: PACKAGE_NAME, stable: false };
 }
+
+export {
+  ELECTRONICS_DISPLAY_LIMITS,
+  validatePublicProjectDisplayArtifact,
+} from './public-project-display-artifact.js';
+export type {
+  ElectronicsDisplayArtifact,
+  PublicProjectDisplayArtifact,
+  PublicDisplayComponent,
+  PublicDisplayConnection,
+  PublicDisplayPoint,
+  PublicDisplayComponentKind,
+  PublicDisplayVisualProperties,
+} from './public-project-display-artifact.js';

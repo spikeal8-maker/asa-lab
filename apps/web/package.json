@@ -5,6 +5,7 @@
   "dependencies": {
     "@asa-lab/checkers": "workspace:*",
     "@asa-lab/chess": "workspace:*",
+    "@asa-lab/contracts": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
     "@asa-lab/module-sdk": "workspace:*",
     "@asa-lab/three-d": "workspace:*",

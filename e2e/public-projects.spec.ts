@@ -92,10 +92,15 @@ async function raster(page: Page, version: string, color = '#2464bd'): Promise<s
   );
 }
 
-async function createProject(page: Page, title: string, image: string): Promise<string> {
+async function createProject(
+  page: Page,
+  title: string,
+  image: string,
+  module = 'electronics',
+): Promise<string> {
   const created = await page.request.post('/api/projects', {
     headers: { origin: origin(page), 'idempotency-key': `publication-${randomUUID()}` },
-    data: { scope: 'personal', module: 'electronics', title },
+    data: { scope: 'personal', module, title },
   });
   await ok(created, 201);
   const { project } = await created.json();
@@ -168,6 +173,15 @@ async function expectPublicImage(page: Page): Promise<void> {
       }),
     )
     .toBe(true);
+}
+
+async function expectEmptyElectronicsScene(page: Page): Promise<void> {
+  // These metadata/version fixtures intentionally contain the editor's empty
+  // initial document. Raster integrity remains asserted separately through HTTP.
+  await expect(page.getByTestId('public-electronics-scene')).toBeVisible();
+  await expect(page.getByTestId('public-electronics-component')).toHaveCount(0);
+  await expect(page.getByTestId('public-electronics-wire')).toHaveCount(0);
+  await expect(page.getByTestId('public-project-preview')).toHaveCount(0);
 }
 
 async function expectNoOverflow(page: Page): Promise<void> {
@@ -477,7 +491,7 @@ test('ordinary Account publishes in UI; anonymous V1 survives draft V2 until exp
     await expect(guest.getByTestId('public-project-description')).toContainText(
       'Первая неизменяемая',
     );
-    await expectPublicImage(guest);
+    await expectEmptyElectronicsScene(guest);
     const v1 = await publication(guest, publicationId);
     assertPublicDto(v1, [projectId, owner.accountId, owner.email]);
     const v1Hash = await imageHash(guest, v1.preview.url);
@@ -488,7 +502,7 @@ test('ordinary Account publishes in UI; anonymous V1 survives draft V2 until exp
     );
     await guest.reload();
     await expect(guest.getByTestId('public-project-title')).toHaveText(titleV1);
-    await expectPublicImage(guest);
+    await expectEmptyElectronicsScene(guest);
     await guest.screenshot({ path: `${EVIDENCE}/02-anonymous-v1-desktop.png`, fullPage: true });
 
     // Save real Working Draft V2 and new raster, without any publication mutation.
@@ -562,7 +576,7 @@ test('ordinary Account publishes in UI; anonymous V1 survives draft V2 until exp
     await ok(await guest.request.get(v1.preview.url), 404);
     await guest.reload();
     await expect(guest.getByTestId('public-project-title')).toHaveText(titleV2);
-    await expectPublicImage(guest);
+    await expectEmptyElectronicsScene(guest);
     await guest.setViewportSize({ width: 390, height: 844 });
     await expectNoOverflow(guest);
     await guest.screenshot({ path: `${EVIDENCE}/04-explicit-v2-mobile.png`, fullPage: true });
@@ -621,7 +635,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
   let firstId = '';
   for (let i = 0; i < 8; i++) {
     const title = i === 0 ? longTitle : `${prefix} — исследование ${i + 1}`;
-    const id = await createProject(page, title, image);
+    // Keep real raster loading/error regression on a module using the cover fallback.
+    // Electronics' actual SVG scene has its own seven-width editor-backed journey.
+    const id = await createProject(page, title, image, 'three-d');
     const published = await publish(page, id, {
       title,
       description,
@@ -715,8 +731,8 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         };
         return {
           heading: rect('header'),
-          cover: rect('figure'),
-          actions: rect('aside'),
+          workspace: rect('[aria-label="Просмотр проекта"]'),
+          actions: rect('[aria-label="Действия с проектом"]'),
           about: rect('[aria-label="О проекте"]'),
           nestedScroll: [...article.querySelectorAll('*')].some((element) => {
             const style = getComputedStyle(element);
@@ -727,16 +743,14 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           }),
         };
       });
-      expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.cover.top);
+      expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.workspace.top);
+      expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.actions.top);
+      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
+      expect(geometry.workspace.width).toBeGreaterThan(width * 0.8);
+      await expect(guest.getByTestId('public-project-detail').locator('aside, figure')).toHaveCount(
+        0,
+      );
       expect(geometry.nestedScroll).toBe(false);
-      if (width < 1024) {
-        expect(geometry.cover.bottom).toBeLessThanOrEqual(geometry.actions.top);
-        expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
-      } else {
-        expect(geometry.cover.right).toBeLessThanOrEqual(geometry.actions.left);
-        expect(geometry.cover.width).toBeGreaterThan(geometry.actions.width * 1.8);
-        expect(geometry.about.top).toBeGreaterThanOrEqual(geometry.cover.bottom);
-      }
       await guest.screenshot({ path: `${EVIDENCE}/detail-${width}.png`, fullPage: true });
       if ([320, 390, 1440].includes(width)) {
         await captureDetailViewport(guest, `detail-viewport-${width}`);
