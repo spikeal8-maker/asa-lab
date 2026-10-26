@@ -679,3 +679,23 @@
   font-size: 12px;
   font-weight: 700;
 }
+
+.public-project-title-group {
+  min-width: 0;
+}
+.public-project-title-group h1.is-collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.public-project-title-toggle {
+  display: inline-block;
+  border: 0;
+  padding: 6px 0;
+  background: transparent;
+  color: var(--asa-slate-700);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}

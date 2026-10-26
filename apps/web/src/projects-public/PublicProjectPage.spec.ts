@@ -58,6 +58,7 @@ it('reads title, honest cover, real actions, then description and publication fa
     'SECTION',
   ]);
   expect(article.querySelector('header')?.textContent).toContain('Автор');
+  expect(container.querySelector('.public-project-title-toggle')).toBeNull();
   expect(article.querySelector('figcaption')?.textContent).toBe('Обложка проекта');
   expect(article.querySelector('figure button')).toBeNull();
   expect(article.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('/cover.png');
@@ -128,4 +129,26 @@ it('keeps a compact refresh action after an image load failure', async () => {
     container.querySelector<HTMLButtonElement>('.public-project-refresh')!.click(),
   );
   expect(get).toHaveBeenCalledTimes(2);
+});
+
+it('reveals and collapses a long full heading through an accessible control', async () => {
+  const title = 'Оченьдлинноеназвание'.repeat(9);
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, title } },
+  });
+  await render();
+  const heading = container.querySelector('h1')!;
+  const toggle = container.querySelector<HTMLButtonElement>('.public-project-title-toggle')!;
+  expect(heading.textContent).toBe(title);
+  expect(toggle.getAttribute('aria-controls')).toBe(heading.id);
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(toggle.textContent).toBe('Свернуть название');
+  expect(heading.textContent).toBe(title);
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(toggle.textContent).toBe('Название целиком');
 });

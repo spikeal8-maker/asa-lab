@@ -4,6 +4,7 @@ import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
 import { CopyPublicProject } from './CopyPublicProject';
 import { PublicationPreview } from './PublicationPreview';
+import { PublicProjectTitle } from './PublicProjectTitle';
 import { SharePublicationLink } from './SharePublicationLink';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
 import './public-projects.css';
@@ -118,7 +119,7 @@ export function PublicProjectPage({
                 </span>
               ) : null}
             </div>
-            <h1 data-testid="public-project-title">{publication.title}</h1>
+            <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             <p className="public-project-detail-author">{publication.authorLabel}</p>
           </header>
           <figure className="public-project-viewer" aria-label="Обложка проекта">

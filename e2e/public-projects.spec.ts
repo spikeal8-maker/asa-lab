@@ -256,6 +256,21 @@ async function expectNoOverflow(page: Page): Promise<void> {
   expect(sizes.body).toBeLessThanOrEqual(sizes.viewport);
 }
 
+async function captureDetailViewport(page: Page, name: string): Promise<void> {
+  // Override smooth scrolling for this operation, then prove the captured origin.
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  const heading = await page.getByTestId('public-project-title').boundingBox();
+  const banner = await page.getByRole('banner').boundingBox();
+  expect(heading).not.toBeNull();
+  expect(banner).not.toBeNull();
+  expect(heading!.y).toBeGreaterThanOrEqual(banner!.y + banner!.height);
+  const back = await page.getByRole('link', { name: '← Проекты', exact: true }).boundingBox();
+  expect(back).not.toBeNull();
+  expect(back!.y).toBeGreaterThanOrEqual(banner!.y + banner!.height);
+  await page.screenshot({ path: `${EVIDENCE}/${name}.png` });
+}
+
 function assertPublicDto(value: unknown, privateValues: string[]): void {
   const serialized = JSON.stringify(value);
   for (const secret of privateValues) expect(serialized).not.toContain(secret);
@@ -406,6 +421,14 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
       path: `${EVIDENCE}/00-real-editor-publication-mobile.png`,
       fullPage: true,
     });
+    for (const width of [320, 390, 1440]) {
+      await guest.setViewportSize({ width, height: 900 });
+      await expectNoOverflow(guest);
+      await expect(
+        guest.getByRole('button', { name: 'Название целиком', exact: true }),
+      ).toHaveCount(0);
+      await captureDetailViewport(guest, `detail-normal-viewport-${width}`);
+    }
   } finally {
     await guestContext.close();
   }
@@ -657,6 +680,23 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await expect(guest.getByTestId('public-project-title')).toHaveText(longTitle);
       await expectPublicImage(guest);
       await expectNoOverflow(guest);
+      if (width === 320) {
+        const heading = guest.getByTestId('public-project-title');
+        const collapsed = await heading.boundingBox();
+        const lineHeight = await heading.evaluate((element) =>
+          parseFloat(getComputedStyle(element).lineHeight),
+        );
+        expect(collapsed!.height).toBeLessThanOrEqual(lineHeight * 3 + 1);
+        const toggle = guest.getByRole('button', { name: 'Название целиком', exact: true });
+        await toggle.focus();
+        await guest.keyboard.press('Enter');
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        expect((await heading.boundingBox())!.height).toBeGreaterThan(collapsed!.height);
+        await expectNoOverflow(guest);
+        await guest.keyboard.press('Enter');
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(lineHeight * 3 + 1);
+      }
       const geometry = await guest.getByTestId('public-project-detail').evaluate((article) => {
         const rect = (selector: string) => {
           const bounds = article.querySelector(selector)!.getBoundingClientRect();
@@ -694,8 +734,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       }
       await guest.screenshot({ path: `${EVIDENCE}/detail-${width}.png`, fullPage: true });
       if ([320, 390, 1440].includes(width)) {
-        await guest.evaluate(() => scrollTo(0, 0));
-        await guest.screenshot({ path: `${EVIDENCE}/detail-viewport-${width}.png` });
+        await captureDetailViewport(guest, `detail-viewport-${width}`);
       }
     }
 
