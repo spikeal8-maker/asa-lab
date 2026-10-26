@@ -345,3 +345,70 @@ switch`, а не тестировать каждую функцию только
 
 После повторной попытки заполнить exact-SHA, receipt, время,
 миграции, object SHA256, web/API health и пользовательскую приёмку.
+
+## 12. Второй сбой preserve-mode: неправильный build context и ложная метка SHA
+
+Операция `06c59006cf044cc1bc6812ac97ee2425`, job
+`8867ac7cd474`, целевой GitHub SHA
+`452cec488fc0a566c2b6482931b386cb12bdcc07`.
+
+После исправления поиска **остановленного** MinIO обновление дошло до
+переключения. API/Web/Scratch/Search/MinIO контейнеры стали healthy,
+HTTPS ответил 200, однако конечная проверка обнаружила реальную PostgreSQL
+schema **0255 вместо 0260**. Это корректный отказ: никакое изменение
+строки schema_migrations вручную не допускается. Rollback:
+`failed_rolled_back`; все шесть старых сервисов healthy; данные
+94 аккаунта / 31 класс / 1712 проектов и schema 0255 сохранены.
+
+### Точная первопричина
+
+Оператор запускал:
+
+~~~text
+docker compose --project-directory /srv/asa-lab   -f /srv/asa-lab-source-build/452cec.../compose.yaml build ...
+~~~
+
+Но все пять сервисов Compose используют `build.context: .`. Значение
+`--project-directory /srv/asa-lab` заставило Docker брать **старый checkout**,
+а Docker ARG `ASA_BUILD_REVISION` присвоил новым образам **ложную метку
+GitHub SHA**. Это доказано прямыми конфигурациями Compose:
+
+- неправильная: build.context API/Web/Scratch/Search = `/srv/asa-lab`;
+- правильная: build.context = `/srv/asa-lab-source-build/<SHA>`;
+- в неправильно построенном API образе отсутствуют миграции
+  `0256–0260`, хотя в новом Git worktree они присутствуют;
+- `db:migrate` работал честно на **старом коде** и сообщил
+  `Applied 0 migration(s)`. Это ложный успех с точки зрения target SHA,
+  а не дефект SQL или RLS.
+
+### Инженерное исправление
+
+1. **Разные project-directory:** `docker compose build` работает со
+   строго закреплённым Git worktree; runtime `run/up/ps` использует
+   **существующий** `/srv/asa-lab` и те же project/volumes/ports.
+2. До сборки оператор проверяет, что реально разрешённые Docker
+   `build.context` находятся внутри pinned Git source (не старый checkout,
+   не произвольный каталог).
+3. **До остановки действующего приложения** сравнивается SHA256
+   последней SQL-миграции исходников с файлом в API Docker image;
+   также сравниваются прямые статические артефакты Web, Scratch и Search.
+4. Правильный SHA в Docker LABEL **недостаточен**. Для `--reuse-images`
+   нужен серверный private proof с source SHA, source path и точными Docker
+   Image IDs. Кэш, не имеющий такого proof, **отвергается**, даже если
+   метки совпадают. Это значит, что ошибочно построенные образы
+   `git-452cec488fc0` требуется **пересобрать**, а не переиспользовать.
+5. После восстановления тестовой PostgreSQL скрипт читает **фактический**
+   `MAX(schema_migrations.version)` и сравнивает его с максимальной
+   SQL-миграцией source. Этот gate обязателен **перед live switch**.
+6. Регрессионные тесты должны доказать, что ошибочный build context,
+   поддельный SHA label и схема ниже цели завершают запуск отказом
+   **до простоя тестового сайта**.
+
+В source-mode никогда не исправлять ошибку подделкой
+`.asa/installed-release.json` и никогда не ослаблять контроль схемы.
+
+**План приёмки:** провести повторную реальную source-сборку именно из
+Git worktree target SHA, проверить provenance, изолированные миграции,
+предварительную копию PostgreSQL/MinIO, staged schema 0260,
+после switch — runtime SHA, шесть healthy, HTTP/HTTPS и неизменность
+user objects/record counts. Дополнить этот раздел фактическим receipt.

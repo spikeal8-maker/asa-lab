@@ -6,7 +6,6 @@ Run: python3 -m unittest tools.test_asa_test_refresh -v
 import io
 import os
 import json
-import os
 from pathlib import Path
 import stat
 import tarfile
@@ -18,6 +17,7 @@ from tools.asa_test_refresh import (
     Blocked, SAFE_DB, env_read, env_replace, extract_snapshot, image_overrides,
     merge_student_keys, sha256, source_services, ensure_source_service_secrets,
     normalize_minio_stage, introduced_runtime_services, reconcile_database_rollback,
+    compose, attest_build_contexts, image_proof, verify_images, assert_staged_schema,
 )
 
 
@@ -329,6 +329,91 @@ class RealFailureRegressionTests(unittest.TestCase):
             with self.assertRaisesRegex(Blocked, "Ambiguous"):
                 reconcile_database_rollback(Path("/test"), "old_backup", "staging")
             query.assert_not_called()
+
+
+
+class ExactSourceBuildProvenanceTests(unittest.TestCase):
+    def test_build_context_is_pinned_source_but_runtime_keeps_existing_root(self):
+        root = Path("/srv/live-asa")
+        source = Path("/srv/sha-checkout")
+        env = root / ".asa" / "candidate.env"
+        runtime = compose(root, source, env)
+        build = compose(root, source, env, source_build=True)
+        self.assertEqual(runtime[:4], ["docker", "compose", "--project-directory", str(root)])
+        self.assertEqual(build[:4], ["docker", "compose", "--project-directory", str(source)])
+        self.assertIn(str(root / ".env"), build)
+        self.assertIn(str(env), build)
+        self.assertIn(str(source / "compose.yaml"), build)
+
+    def test_source_build_context_outside_worktree_is_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "installed"
+            source = Path(tmp) / "new-git-sha"
+            source.mkdir()
+            context = json.dumps({"services": {"api": {"build": {"context": str(root)}}}})
+            with patch("tools.asa_test_refresh.docker", return_value=context):
+                with self.assertRaisesRegex(Blocked, "escaped pinned Git checkout"):
+                    attest_build_contexts(root, source, root / "overlay", ["api"])
+            valid = json.dumps({"services": {"api": {"build": {"context": str(source)}}}})
+            with patch("tools.asa_test_refresh.docker", return_value=valid) as call:
+                attest_build_contexts(root, source, root / "overlay", ["api"])
+                self.assertTrue(call.call_args.kwargs.get("source_build"))
+
+    def test_cache_cannot_reuse_fake_tag_without_private_image_proof(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "installed"
+            source = Path(tmp) / "new-git-sha"
+            source.mkdir()
+            root.mkdir()
+            sha = "e" * 40
+            image = f"asa-lab-api:git-{sha[:12]}"
+            with patch("tools.asa_test_refresh.source_services",
+                       return_value=(["api"], ["api"], {image: "api"})), \
+                 patch("tools.asa_test_refresh.run", return_value="sha256:validated-build"):
+                with self.assertRaisesRegex(Blocked, "no attested source-build proof"):
+                    image_proof(root, source, root / "candidate.env", sha, create=False)
+                image_proof(root, source, root / "candidate.env", sha, create=True)
+                image_proof(root, source, root / "candidate.env", sha, create=False)
+            proof = root / ".asa" / "test-refresh" / "verified-images" / f"{sha}.json"
+            self.assertEqual(stat.S_IMODE(proof.stat().st_mode), 0o600)
+            with patch("tools.asa_test_refresh.source_services",
+                       return_value=(["api"], ["api"], {image: "api"})), \
+                 patch("tools.asa_test_refresh.run", return_value="sha256:tampered"):
+                with self.assertRaisesRegex(Blocked, "proof mismatch"):
+                    image_proof(root, source, root / "candidate.env", sha, create=False)
+
+    def test_new_sha_label_over_old_code_is_rejected_by_migration_checksum(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "new-checkout"
+            (source / "migrations").mkdir(parents=True)
+            (source / "migrations" / "0260_provenance.sql").write_text(
+                "-- modern migration, not in previously deployed code\n")
+            sha = "a" * 40
+            refs = {f"asa-lab-{name}:git-{sha[:12]}": name
+                    for name in ("api", "web", "scratch")}
+            def fake_run(*argv, **kwargs):
+                if argv[:3] == ("docker", "image", "inspect"):
+                    return sha if "--format" in argv else ""
+                if "stat" in argv:
+                    return "644"
+                if "sha256sum" in argv:
+                    return "0" * 64 + "  " + argv[-1]
+                raise AssertionError(f"unexpected command: {argv}")
+            with patch("tools.asa_test_refresh.source_services",
+                       return_value=(["api", "web", "scratch"], [], refs)), \
+                 patch("tools.asa_test_refresh.run", side_effect=fake_run):
+                with self.assertRaisesRegex(Blocked, "API source provenance mismatch"):
+                    verify_images(Path(tmp) / "live", source, Path(tmp) / "overlay", sha)
+
+    def test_migration_must_reach_exact_source_schema_before_switch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp)
+            (source / "migrations").mkdir()
+            (source / "migrations" / "0260_new_schema.sql").write_text("-- latest\n")
+            with self.assertRaisesRegex(Blocked, "Isolated database schema mismatch"):
+                assert_staged_schema(source, ["94", "31", "1712", "0255"])
+            self.assertEqual(assert_staged_schema(source, ["94", "31", "1712", "0260"]), 260)
+
 
 if __name__ == "__main__":
     unittest.main()

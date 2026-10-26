@@ -82,8 +82,12 @@ def git(root: Path, *args: str) -> str:
     return run("runuser", "-u", operator(root), "--", "git", "-C", str(root), *args)
 
 
-def compose(root: Path, source: Path | None = None, overlay: Path | None = None) -> list[str]:
-    base = ["docker", "compose", "--project-directory", str(root)]
+def compose(root: Path, source: Path | None = None, overlay: Path | None = None,
+            *, source_build: bool = False) -> list[str]:
+    # Runtime commands MUST keep the existing deployment root; builds MUST use
+    # the pinned source checkout as the root for relative build.context: .
+    demand(not source_build or source is not None, "Source worktree required for Docker build")
+    base = ["docker", "compose", "--project-directory", str(source if source_build else root)]
     if overlay:
         base.extend(["--env-file", str(root / ".env"), "--env-file", str(overlay)])
     base.extend(["-f", str((source or root) / "compose.yaml"),
@@ -92,8 +96,8 @@ def compose(root: Path, source: Path | None = None, overlay: Path | None = None)
 
 
 def docker(root: Path, *args: str, source: Path | None = None,
-           overlay: Path | None = None, **kwargs) -> str:
-    return run(*compose(root, source, overlay), *args, **kwargs)
+           overlay: Path | None = None, source_build: bool = False, **kwargs) -> str:
+    return run(*compose(root, source, overlay, source_build=source_build), *args, **kwargs)
 
 
 def env_read(path: Path) -> dict[str, str]:
@@ -313,6 +317,53 @@ def checked_root(root: Path, expected_origin: str) -> dict[str, str]:
     return values
 
 
+def attest_build_contexts(root: Path, source: Path, overlay: Path,
+                          targets: list[str]) -> None:
+    """Resolved Docker build contexts must lie inside the pinned Git checkout."""
+    conf = json.loads(docker(root, "config", "--format", "json",
+                             source=source, overlay=overlay, source_build=True))
+    source_path = source.resolve()
+    for service in targets:
+        build = conf["services"][service].get("build")
+        context = build.get("context") if isinstance(build, dict) else None
+        demand(isinstance(context, str) and bool(context),
+               f"Source build context not declared for {service}")
+        demand(Path(context).resolve().is_relative_to(source_path),
+               f"Source build context escaped pinned Git checkout: {service}")
+    audit("pinned_source_build_contexts_verified", services=targets)
+
+
+def image_proof(root: Path, source: Path, overlay: Path, sha: str,
+                *, create: bool) -> None:
+    """Private image-ID proof; a revision LABEL alone is never sufficient."""
+    _, _, by_image = source_services(root, source, overlay, sha)
+    path = root / ".asa" / "test-refresh" / "verified-images" / f"{sha}.json"
+    ids = {image: run("docker", "image", "inspect", image, "--format", "{{.Id}}")
+           for image in sorted(by_image)}
+    expected = {"format": "asa-test-source-image-proof-v1", "revision": sha,
+                "source_root": str(source.resolve()),
+                "build_context": str(source.resolve()), "images": ids}
+    if create:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(path.parent, 0o700)
+        atomic_text(path, json.dumps(expected, sort_keys=True, indent=2) + "\n")
+        audit("source_image_proof_created", image_count=len(ids), revision=sha)
+    else:
+        demand(path.is_file(), "Cached images have no attested source-build proof; rebuild required")
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        demand(saved == expected, "Source-build image proof mismatch; rebuild required")
+        audit("cached_source_images_verified", image_count=len(ids), revision=sha)
+
+
+def image_file_hash(image: str, image_path: str) -> str:
+    result = run("docker", "run", "--rm", "--network", "none", "--entrypoint",
+                 "sha256sum", image, image_path, timeout=120)
+    digest = result.split()[0] if result.split() else ""
+    demand(re.fullmatch(r"[a-f0-9]{64}", digest) is not None,
+           "Image file did not produce a SHA256 checksum")
+    return digest
+
+
 def verify_images(root: Path, source: Path, overlay: Path, sha: str) -> None:
     build_targets, _, by_image = source_services(root, source, overlay, sha)
     for image, service in by_image.items():
@@ -328,6 +379,29 @@ def verify_images(root: Path, source: Path, overlay: Path, sha: str) -> None:
         mode = run("docker", "run", "--rm", "--network", "none", "--entrypoint",
                    "stat", image, "-c", "%a", path)
         demand(int(mode, 8) & 0o004 != 0, f"{name} is unreadable to the container user")
+    # A Docker ARG can put the right SHA LABEL on an image built from WRONG
+    # sources. Verify immutable bytes copied into runtime images, before freeze.
+    latest = max((p for p in (source / "migrations").glob("[0-9]*_*.sql")),
+                 key=lambda p: int(p.name[:4]))
+    api = f"asa-lab-api:git-{sha[:12]}"
+    demand(image_file_hash(api, f"/app/migrations/{latest.name}") == sha256(latest),
+           "API source provenance mismatch: latest migration differs from pinned Git SHA")
+    for name, source_relative, image_absolute in (
+        ("web", "apps/web/public/runtime-config.js", "/srv/runtime-config.js"),
+        ("scratch", "infra/scratch-editor/host/main.js",
+         "/usr/share/nginx/html/main.js"),
+        ("search", "infra/search/asa_search_app.py",
+         "/usr/local/share/asa-search/asa_search_app.py"),
+    ):
+        tag = f"asa-lab-{name}:git-{sha[:12]}"
+        if tag not in by_image:
+            continue
+        origin_file = source / source_relative
+        demand(origin_file.is_file(), f"Pinned source artifact missing for {name}")
+        demand(image_file_hash(tag, image_absolute) == sha256(origin_file),
+               f"Built {name} artifact differs from pinned Git SHA")
+    audit("built_artifact_sha256_verified", revision=sha,
+          latest_migration=latest.name)
     audit("verified_source_images", build_services=build_targets)
 
 
@@ -342,6 +416,14 @@ def database_query(root: Path, sql: str) -> str:
 def db_names(root: Path) -> set[str]:
     result = database_query(root, "SELECT datname FROM pg_database;\n")
     return set(result.splitlines())
+
+
+def assert_staged_schema(source: Path, rows: list[str]) -> int:
+    expected = max(int(p.name[:4]) for p in (source / "migrations").glob("[0-9]*_*.sql"))
+    demand(bool(rows) and rows[-1] == f"{expected:04d}",
+           f"Isolated database schema mismatch after migration: expected {expected:04d}, "
+           f"observed {rows[-1] if rows else 'unavailable'}")
+    return expected
 
 
 def create_stage_db(root: Path, source: Path, overlay: Path, name: str, dump: Path,
@@ -372,7 +454,10 @@ def create_stage_db(root: Path, source: Path, overlay: Path, name: str, dump: Pa
                     "migration", "tools/migrate.mjs", "--plan",
                     source=source, overlay=stage, timeout=240)
     demand("Planned 0 pending migration(s)" in result, "Migration rehearsal incomplete")
-    audit("migration_rehearsed", database=name)
+    staged_counts = database_counts(root, name)
+    expected_schema = assert_staged_schema(source, staged_counts)
+    audit("migration_rehearsed", database=name, schema=expected_schema,
+          candidate_counts=staged_counts)
 
 
 def minio_mount(root: Path) -> Path:
@@ -600,10 +685,12 @@ def apply(args) -> None:
             checkpoint("image_build")
             build_targets, _, _ = source_services(root, source, overlay, args.sha)
             introduced_services = introduced_runtime_services(root, source, overlay, args.sha)
+            attest_build_contexts(root, source, overlay, build_targets)
             if not args.reuse_images:
                 docker(root, "build", *build_targets, source=source, overlay=overlay,
-                       timeout=5400, log=log)
+                       source_build=True, timeout=5400, log=log)
             verify_images(root, source, overlay, args.sha)
+            image_proof(root, source, overlay, args.sha, create=not args.reuse_images)
             if snapshot:
                 checkpoint("isolated_restore")
                 create_stage_db(root, source, overlay, stage_db, snapshot / "database.dump", base, job)
