@@ -1,3 +1,4 @@
+import type { AiGeneratedImage } from '@asa-lab/contracts';
 import { AI_MAX_ANSWER_CHARS, AI_GENERATION_TIMEOUT_MS } from './ai-generation-limits.js';
 import type {
   AiGenerationPolicyUpdate,
@@ -109,6 +110,8 @@ export interface AiThread {
 }
 
 export interface AiMessage {
+  readonly generationKind?: 'image';
+  readonly generatedImages?: readonly AiGeneratedImage[];
   readonly webSearch?: AiWebSearchEvidence;
   readonly id: string;
   readonly role: 'user' | 'assistant';

@@ -1280,3 +1280,25 @@ tests:
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [test-report]
+
+  - id: TST-AI-IMAGE-CORE-001
+    title: Local image job ownership, at-most-once dispatch, bounded PNG and recoverable private storage
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-image-comfyui.spec.ts tests/admin/ai-image-generation.embedded.spec.ts apps/web/src/ai/ai-image-generation.spec.ts apps/web/src/admin/testing/ai-images.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-IMAGE-E2E-001
+    title: Image mode, private PNG preview and download, readonly recovery and image administration
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-image-generation.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]

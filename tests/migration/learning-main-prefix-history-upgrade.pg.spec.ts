@@ -164,6 +164,11 @@ const upgradeArtifacts = [
     '0256_ai_generation_policy.sql',
     'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
   ],
+  [
+    '0257',
+    '0257_ai_local_image_generation.sql',
+    '659cad6dc281a882ef100d3137ab39fab00a0d18dad3eb05deceff56046fd145',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

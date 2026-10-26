@@ -91,6 +91,17 @@ async function adminFixture(page: Page) {
         revision: 1,
         updatedAt: null,
       });
+    if (path === '/api/admin/v1/ai/images')
+      return json({
+        configurationVersion: 1,
+        enabled: false,
+        dailyLimit: 10,
+        globalConcurrency: 1,
+        sizes: [512],
+        ready: false,
+        reason: 'disabled',
+        recipe: 'flux2-klein-4b-v1',
+      });
     if (path === '/api/admin/v1/ai/comfyui/status')
       return json({
         connected: true,
@@ -219,7 +230,7 @@ for (const width of [1440, 1024, 390, 320]) {
       fullPage: true,
     });
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'ComfyUI', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Изображения', exact: true })).toBeVisible();
     await noOverflow(page);
     expect(fixture.errors).toEqual([]);
   });

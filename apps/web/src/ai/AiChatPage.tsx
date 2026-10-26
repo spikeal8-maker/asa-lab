@@ -12,6 +12,9 @@ import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scop
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
+import { AiImageGeneration, imageGenerationStatusShape } from './AiImageGeneration';
+import { AiGeneratedImage } from './AiGeneratedImage';
+import type { AiGeneratedImage as ImageReceipt, AiImageGenerationStatus } from '@asa-lab/contracts';
 import { AiAnswerDownloads } from './AiAnswerDownloads';
 import type { AiWebSearchEvidence, AiWebSearchMode, AiWebSearchStatus } from '@asa-lab/contracts';
 import { AiWebEvidence } from './AiWebEvidence';
@@ -38,6 +41,8 @@ interface AiMessage {
   readonly sourcePrompt?: string;
   readonly regenerated?: boolean;
   readonly webSearch?: AiWebSearchEvidence;
+  readonly generatedImages?: readonly ImageReceipt[];
+  readonly generationKind?: 'image';
 }
 
 type WebRequestArguments = [
@@ -134,6 +139,8 @@ export function AiChatPage({
   scopeControl,
 }: { seatId?: string; scopeControl?: ReactNode } = {}): JSX.Element {
   const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
+  const [imageMode, setImageMode] = useState(false);
+  const [imageStatus, setImageStatus] = useState<AiImageGenerationStatus | null>(null);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
   const [webSearchStatus, setWebSearchStatus] = useState<AiWebSearchStatus | null>(null);
@@ -572,6 +579,14 @@ export function AiChatPage({
   useEffect(() => {
     let active = true;
     setWebSearchStatus(null);
+    void call<AiImageGenerationStatus>('/api/ai/image-generation/status')
+      .then((reply) => {
+        if (active && reply.ok && imageGenerationStatusShape(reply.data))
+          setImageStatus(reply.data);
+      })
+      .catch(() => {
+        if (active) setImageStatus(null);
+      });
     void call<AiWebSearchStatus>('/api/ai/web-search/status')
       .then((reply) => {
         if (
@@ -765,6 +780,12 @@ export function AiChatPage({
     attachmentHistoryScope.current.loaded.clear();
     setHistoryAttachments({});
     setCurrentId(id);
+    try {
+      if (sessionStorage.getItem('asa-ai-image:' + (seatId || 'personal') + ':' + id))
+        setImageMode(true);
+    } catch {
+      /* Storage is optional for reading existing history. */
+    }
     currentArchived.current = !!(threads.find((thread) => thread.id === id) ?? currentThread)
       ?.archivedAt;
     setCurrentThread(
@@ -1590,7 +1611,8 @@ export function AiChatPage({
                               ))}
                             </div>
                           ) : null}
-                          {message.id === lastQuestion?.id &&
+                          {message.generationKind !== 'image' &&
+                          message.id === lastQuestion?.id &&
                           !messages.some(
                             (answer) =>
                               answer.role === 'assistant' &&
@@ -1634,6 +1656,16 @@ export function AiChatPage({
                               composer.current?.focus();
                             }}
                           />
+                          {currentId
+                            ? message.generatedImages?.map((image) => (
+                                <AiGeneratedImage
+                                  key={image.requestId}
+                                  image={image}
+                                  threadId={currentId}
+                                  seatId={seatId}
+                                />
+                              ))
+                            : null}
                           {message.state === 'stopped' ? (
                             <span className="chat-runtime-note" role="status">
                               Ответ не завершён.
@@ -1653,7 +1685,9 @@ export function AiChatPage({
                               <AiChatIcon name="copy" size={17} />
                               <span>Копировать</span>
                             </button>
-                            {sourceFor(message) ? (
+                            {message.generationKind !== 'image' &&
+                            !message.generatedImages?.length &&
+                            sourceFor(message) ? (
                               <button
                                 type="button"
                                 disabled={
@@ -1769,288 +1803,319 @@ export function AiChatPage({
           ) : null}
           <div className="chat-composer-dock">
             <div className="chat-composer-wrap">
-              <form
-                className={
-                  (composerExpanded ? 'chat-composer expanded' : 'chat-composer compact') +
-                  (composerMaximized ? ' maximized' : '')
-                }
-                onSubmit={(event) => void send(event)}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  addFiles(Array.from(event.dataTransfer.files));
-                }}
-              >
-                {attachments.length ? (
-                  <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
-                    {attachments.map((item) => (
-                      <div key={item.uploadId} className="chat-attachment-chip">
-                        {item.preview ? (
-                          <img src={item.preview} alt="" />
-                        ) : (
-                          <AiChatIcon name="file" size={20} />
-                        )}
-                        <span title={item.file.name}>
-                          {item.file.name}
-                          <small>
-                            {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
-                              ' · ' +
-                              Math.ceil(item.file.size / 1024) +
-                              ' КБ'}
-                          </small>
-                        </span>
+              {imageMode ? (
+                <AiImageGeneration
+                  threadId={currentId}
+                  seatId={seatId}
+                  disabled={interactionBusy || archived || !historyReady || schoolPolicyDenied}
+                  createThread={() => newChat()}
+                  onComplete={(id) => {
+                    if (id === currentId) void selectThread(id);
+                  }}
+                  onClose={() => {
+                    setImageMode(false);
+                    requestAnimationFrame(() => composer.current?.focus());
+                  }}
+                />
+              ) : (
+                <form
+                  className={
+                    (composerExpanded ? 'chat-composer expanded' : 'chat-composer compact') +
+                    (composerMaximized ? ' maximized' : '')
+                  }
+                  onSubmit={(event) => void send(event)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    addFiles(Array.from(event.dataTransfer.files));
+                  }}
+                >
+                  {attachments.length ? (
+                    <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
+                      {attachments.map((item) => (
+                        <div key={item.uploadId} className="chat-attachment-chip">
+                          {item.preview ? (
+                            <img src={item.preview} alt="" />
+                          ) : (
+                            <AiChatIcon name="file" size={20} />
+                          )}
+                          <span title={item.file.name}>
+                            {item.file.name}
+                            <small>
+                              {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
+                                ' · ' +
+                                Math.ceil(item.file.size / 1024) +
+                                ' КБ'}
+                            </small>
+                          </span>
+                          <button
+                            type="button"
+                            disabled={interactionBusy}
+                            aria-label={'Удалить ' + item.file.name}
+                            onClick={() => removeFile(item.uploadId)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    multiple
+                    accept={AI_CHAT_FILE_ACCEPT}
+                    className="sr-only"
+                    aria-label="Выбрать файлы для ИИ"
+                    onChange={(event) => {
+                      addFiles(Array.from(event.currentTarget.files ?? []));
+                      event.currentTarget.value = '';
+                      event.currentTarget.accept = AI_CHAT_FILE_ACCEPT;
+                    }}
+                  />
+                  <textarea
+                    ref={composer}
+                    value={draft}
+                    maxLength={3000}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === 'Enter' &&
+                        !event.shiftKey &&
+                        !event.nativeEvent.isComposing
+                      ) {
+                        event.preventDefault();
+                        event.currentTarget.form?.requestSubmit();
+                      }
+                    }}
+                    rows={1}
+                    placeholder="Спросить ASA Lab"
+                    disabled={interactionBusy || archived || schoolPolicyDenied}
+                    aria-label="Сообщение ИИ"
+                    aria-describedby="ai-composer-note"
+                  />
+                  {composerExpanded && draft ? (
+                    <button
+                      type="button"
+                      className="chat-composer-expand"
+                      aria-label={
+                        composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'
+                      }
+                      title={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
+                      aria-pressed={composerMaximized}
+                      onClick={() => {
+                        setComposerMaximized((value) => !value);
+                        composer.current?.focus();
+                      }}
+                    >
+                      <span aria-hidden="true">{composerMaximized ? '↙' : '↗'}</span>
+                    </button>
+                  ) : null}
+                  <div className="chat-composer-controls">
+                    <details
+                      className="chat-tools-menu"
+                      ref={toolsMenu}
+                      onToggle={(event) => {
+                        if (event.currentTarget.open) positionToolsMenu(event.currentTarget);
+                      }}
+                    >
+                      <summary
+                        onClick={() => {
+                          // Set placement before the native <details> default toggle;
+                          // the first opened frame must already fit the canvas.
+                          if (toolsMenu.current && !toolsMenu.current.open)
+                            positionToolsMenu(toolsMenu.current);
+                        }}
+                        className="chat-attach-button"
+                        aria-label="Инструменты чата"
+                        title="Инструменты"
+                      >
+                        <span aria-hidden="true">+</span>
+                      </summary>
+                      <div className="chat-tools-popup" role="group" aria-label="Добавить в чат">
                         <button
                           type="button"
-                          disabled={interactionBusy}
-                          aria-label={'Удалить ' + item.file.name}
-                          onClick={() => removeFile(item.uploadId)}
+                          disabled={interactionBusy || archived}
+                          onClick={() => {
+                            if (fileInput.current) {
+                              fileInput.current.accept = 'image/png,image/jpeg,image/webp';
+                              fileInput.current.click();
+                            }
+                            toolsMenu.current?.removeAttribute('open');
+                          }}
                         >
-                          ×
+                          <AiChatIcon name="image" size={20} /> Добавить изображение
+                        </button>
+                        <button
+                          type="button"
+                          disabled={interactionBusy || archived}
+                          onClick={() => {
+                            if (fileInput.current) {
+                              fileInput.current.accept = AI_CHAT_FILE_ACCEPT;
+                              fileInput.current.click();
+                            }
+                            toolsMenu.current?.removeAttribute('open');
+                          }}
+                        >
+                          <AiChatIcon name="file" size={20} /> Фото и файлы
+                        </button>
+                        <div className="chat-tools-divider" />
+                        <button
+                          type="button"
+                          disabled={
+                            interactionBusy ||
+                            !webSearchStatus?.enabled ||
+                            !webSearchStatus.configured
+                          }
+                          title={
+                            webSearchStatus?.enabled && webSearchStatus.configured
+                              ? 'Включить поиск с источниками'
+                              : 'Интернет-поиск не подключён администратором'
+                          }
+                          onClick={() => {
+                            setWebSearchMode('web');
+                            toolsMenu.current?.removeAttribute('open');
+                            composer.current?.focus();
+                          }}
+                        >
+                          <AiChatIcon name="search" size={19} /> Поиск в интернете
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            interactionBusy ||
+                            archived ||
+                            schoolPolicyDenied ||
+                            !imageStatus?.enabled ||
+                            !imageStatus.ready
+                          }
+                          title={
+                            imageStatus?.enabled && imageStatus.ready
+                              ? 'Создать на локальном GPU'
+                              : 'Локальная генерация недоступна или выключена администратором'
+                          }
+                          onClick={() => {
+                            setImageMode(true);
+                            toolsMenu.current?.removeAttribute('open');
+                          }}
+                        >
+                          <AiChatIcon name="sparkles" size={20} /> Создать изображение
                         </button>
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-                <input
-                  ref={fileInput}
-                  type="file"
-                  multiple
-                  accept={AI_CHAT_FILE_ACCEPT}
-                  className="sr-only"
-                  aria-label="Выбрать файлы для ИИ"
-                  onChange={(event) => {
-                    addFiles(Array.from(event.currentTarget.files ?? []));
-                    event.currentTarget.value = '';
-                    event.currentTarget.accept = AI_CHAT_FILE_ACCEPT;
-                  }}
-                />
-                <textarea
-                  ref={composer}
-                  value={draft}
-                  maxLength={3000}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === 'Enter' &&
-                      !event.shiftKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  rows={1}
-                  placeholder="Спросить ASA Lab"
-                  disabled={interactionBusy || archived || schoolPolicyDenied}
-                  aria-label="Сообщение ИИ"
-                  aria-describedby="ai-composer-note"
-                />
-                {composerExpanded && draft ? (
-                  <button
-                    type="button"
-                    className="chat-composer-expand"
-                    aria-label={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
-                    title={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
-                    aria-pressed={composerMaximized}
-                    onClick={() => {
-                      setComposerMaximized((value) => !value);
-                      composer.current?.focus();
-                    }}
-                  >
-                    <span aria-hidden="true">{composerMaximized ? '↙' : '↗'}</span>
-                  </button>
-                ) : null}
-                <div className="chat-composer-controls">
-                  <details
-                    className="chat-tools-menu"
-                    ref={toolsMenu}
-                    onToggle={(event) => {
-                      if (event.currentTarget.open) positionToolsMenu(event.currentTarget);
-                    }}
-                  >
-                    <summary
-                      onClick={() => {
-                        // Set placement before the native <details> default toggle;
-                        // the first opened frame must already fit the canvas.
-                        if (toolsMenu.current && !toolsMenu.current.open)
-                          positionToolsMenu(toolsMenu.current);
-                      }}
-                      className="chat-attach-button"
-                      aria-label="Инструменты чата"
-                      title="Инструменты"
-                    >
-                      <span aria-hidden="true">+</span>
-                    </summary>
-                    <div className="chat-tools-popup" role="group" aria-label="Добавить в чат">
-                      <button
-                        type="button"
-                        disabled={interactionBusy || archived}
-                        onClick={() => {
-                          if (fileInput.current) {
-                            fileInput.current.accept = 'image/png,image/jpeg,image/webp';
-                            fileInput.current.click();
+                    </details>
+                    {webSearchStatus ? (
+                      <label className="asa-ai-internet-control">
+                        <span className="sr-only">Режим интернет-поиска</span>
+                        <AiChatIcon name="search" size={15} />
+                        <select
+                          aria-label="Режим интернет-поиска"
+                          value={
+                            !webSearchStatus.configured && webSearchMode !== 'weather'
+                              ? 'off'
+                              : webSearchMode
                           }
-                          toolsMenu.current?.removeAttribute('open');
-                        }}
-                      >
-                        <AiChatIcon name="image" size={20} /> Добавить изображение
-                      </button>
-                      <button
-                        type="button"
-                        disabled={interactionBusy || archived}
-                        onClick={() => {
-                          if (fileInput.current) {
-                            fileInput.current.accept = AI_CHAT_FILE_ACCEPT;
-                            fileInput.current.click();
+                          disabled={
+                            interactionBusy ||
+                            !webSearchStatus.enabled ||
+                            (!webSearchStatus.configured && !webSearchStatus.weatherConfigured)
                           }
-                          toolsMenu.current?.removeAttribute('open');
-                        }}
-                      >
-                        <AiChatIcon name="file" size={20} /> Фото и файлы
-                      </button>
-                      <div className="chat-tools-divider" />
+                          title={
+                            webSearchStatus.enabled &&
+                            (webSearchStatus.configured || webSearchStatus.weatherConfigured)
+                              ? 'Поиск через сервер ASA · SearxNG'
+                              : 'Поиск не подключён администратором'
+                          }
+                          onChange={(event) =>
+                            setWebSearchMode(event.target.value as AiWebSearchMode)
+                          }
+                        >
+                          <option value="auto" disabled={!webSearchStatus.configured}>
+                            Интернет · Авто
+                          </option>
+                          <option value="off">Без интернета</option>
+                          <option value="web" disabled={!webSearchStatus.configured}>
+                            Веб-поиск
+                          </option>
+                          <option value="images" disabled={!webSearchStatus.configured}>
+                            Картинки
+                          </option>
+                          <option value="weather">Погода</option>
+                        </select>
+                      </label>
+                    ) : null}
+                    <div className="chat-composer-end">
+                      {scopeControl}
+                      <div className="asa-ai-provider-label">
+                        {(status?.availableModels?.length ?? 0) > 1 ? (
+                          <select
+                            className="asa-ai-model-picker"
+                            aria-label="Модель ИИ"
+                            title="Выбрать модель"
+                            value={selectedModel || status?.model}
+                            onChange={(event) => setSelectedModel(event.target.value)}
+                            disabled={interactionBusy || !status?.enabled}
+                          >
+                            {status?.availableModels?.map((name) => (
+                              <option key={name} value={name}>
+                                {name === 'ollama-local'
+                                  ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                                  : name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="asa-ai-model-single">
+                            {status?.enabled
+                              ? status.model === 'ollama-local'
+                                ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                                : status.model
+                              : schoolPolicyDenied
+                                ? 'Доступ закрыт'
+                                : 'Модель'}
+                          </span>
+                        )}
+                      </div>
                       <button
-                        type="button"
-                        disabled={
-                          interactionBusy ||
-                          !webSearchStatus?.enabled ||
-                          !webSearchStatus.configured
-                        }
-                        title={
-                          webSearchStatus?.enabled && webSearchStatus.configured
-                            ? 'Включить поиск с источниками'
-                            : 'Интернет-поиск не подключён администратором'
-                        }
-                        onClick={() => {
-                          setWebSearchMode('web');
-                          toolsMenu.current?.removeAttribute('open');
-                          composer.current?.focus();
-                        }}
-                      >
-                        <AiChatIcon name="search" size={19} /> Поиск в интернете
-                      </button>
-                      <button
+                        className="chat-microphone"
                         type="button"
                         disabled
-                        title="Генерация изображений пока не реализована"
+                        title="Голосовой ввод пока не доступен"
+                        aria-label="Голосовой ввод пока не доступен"
                       >
-                        <AiChatIcon name="sparkles" size={20} /> Создать изображение
-                        <small>Скоро</small>
+                        <svg
+                          width="19"
+                          height="19"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          aria-hidden="true"
+                        >
+                          <rect x="9" y="2" width="6" height="13" rx="3" />
+                          <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
+                        </svg>
+                      </button>
+                      <button
+                        type={busy ? 'button' : 'submit'}
+                        className="chat-send-button"
+                        disabled={
+                          (!busy && (!status?.enabled || archived)) ||
+                          creatingChat ||
+                          threadActionBusy ||
+                          (!busy && (!historyReady || !draft.trim()))
+                        }
+                        onClick={busy ? () => void stop() : undefined}
+                        aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
+                      >
+                        {busy ? '■' : '↑'}
                       </button>
                     </div>
-                  </details>
-                  {webSearchStatus ? (
-                    <label className="asa-ai-internet-control">
-                      <span className="sr-only">Режим интернет-поиска</span>
-                      <AiChatIcon name="search" size={15} />
-                      <select
-                        aria-label="Режим интернет-поиска"
-                        value={
-                          !webSearchStatus.configured && webSearchMode !== 'weather'
-                            ? 'off'
-                            : webSearchMode
-                        }
-                        disabled={
-                          interactionBusy ||
-                          !webSearchStatus.enabled ||
-                          (!webSearchStatus.configured && !webSearchStatus.weatherConfigured)
-                        }
-                        title={
-                          webSearchStatus.enabled &&
-                          (webSearchStatus.configured || webSearchStatus.weatherConfigured)
-                            ? 'Поиск через сервер ASA · SearxNG'
-                            : 'Поиск не подключён администратором'
-                        }
-                        onChange={(event) =>
-                          setWebSearchMode(event.target.value as AiWebSearchMode)
-                        }
-                      >
-                        <option value="auto" disabled={!webSearchStatus.configured}>
-                          Интернет · Авто
-                        </option>
-                        <option value="off">Без интернета</option>
-                        <option value="web" disabled={!webSearchStatus.configured}>
-                          Веб-поиск
-                        </option>
-                        <option value="images" disabled={!webSearchStatus.configured}>
-                          Картинки
-                        </option>
-                        <option value="weather">Погода</option>
-                      </select>
-                    </label>
-                  ) : null}
-                  <div className="chat-composer-end">
-                    {scopeControl}
-                    <div className="asa-ai-provider-label">
-                      {(status?.availableModels?.length ?? 0) > 1 ? (
-                        <select
-                          className="asa-ai-model-picker"
-                          aria-label="Модель ИИ"
-                          title="Выбрать модель"
-                          value={selectedModel || status?.model}
-                          onChange={(event) => setSelectedModel(event.target.value)}
-                          disabled={interactionBusy || !status?.enabled}
-                        >
-                          {status?.availableModels?.map((name) => (
-                            <option key={name} value={name}>
-                              {name === 'ollama-local'
-                                ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
-                                : name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="asa-ai-model-single">
-                          {status?.enabled
-                            ? status.model === 'ollama-local'
-                              ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
-                              : status.model
-                            : schoolPolicyDenied
-                              ? 'Доступ закрыт'
-                              : 'Модель'}
-                        </span>
-                      )}
-                    </div>
-                    <button
-                      className="chat-microphone"
-                      type="button"
-                      disabled
-                      title="Голосовой ввод пока не доступен"
-                      aria-label="Голосовой ввод пока не доступен"
-                    >
-                      <svg
-                        width="19"
-                        height="19"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        aria-hidden="true"
-                      >
-                        <rect x="9" y="2" width="6" height="13" rx="3" />
-                        <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
-                      </svg>
-                    </button>
-                    <button
-                      type={busy ? 'button' : 'submit'}
-                      className="chat-send-button"
-                      disabled={
-                        (!busy && (!status?.enabled || archived)) ||
-                        creatingChat ||
-                        threadActionBusy ||
-                        (!busy && (!historyReady || !draft.trim()))
-                      }
-                      onClick={busy ? () => void stop() : undefined}
-                      aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
-                    >
-                      {busy ? '■' : '↑'}
-                    </button>
                   </div>
-                </div>
-                <span className="chat-composer-hint sr-only">Shift + Enter — новая строка</span>
-                <span className="chat-character-count sr-only">{draft.length} / 3000</span>
-              </form>
+                  <span className="chat-composer-hint sr-only">Shift + Enter — новая строка</span>
+                  <span className="chat-character-count sr-only">{draft.length} / 3000</span>
+                </form>
+              )}
               <p className="sr-only" id="ai-composer-note">
                 Проверяйте важные ответы. Не отправляйте пароли и личные данные.
               </p>

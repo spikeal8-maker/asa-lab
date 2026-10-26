@@ -1,6 +1,16 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
 export type {
+  AiImageSize,
+  AiImageJobState,
+  AiGeneratedImage,
+  AiImageGenerationStatus,
+  AiImageGenerationRequest,
+  AiImageGenerationJob,
+  AiImageGenerationAdminConfig,
+  AiImageGenerationAdminUpdate,
+} from './ai-image-generation.js';
+export type {
   AiPromptVariable,
   AiGenerationModel,
   AiGenerationPolicy,

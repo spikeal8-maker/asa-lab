@@ -1,3 +1,9 @@
+import { AiImageService } from './ai-image.service.js';
+import {
+  AI_IMAGE_SERVICE,
+  AiImageController,
+  AiImageAdminController,
+} from './ai-image.controller.js';
 import { CrmResponsibilitiesController } from './crm-responsibilities.controller.js';
 import { EmailService } from './email.service.js';
 import { EmailController } from './email.controller.js';
@@ -167,6 +173,7 @@ export class AppModule {
     const aiAttachmentService = new AiAttachmentService(pool);
     const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService });
     const aiAccessService = new AiAccessService(requirePool());
+    const aiImageService = new AiImageService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
       new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
@@ -220,6 +227,8 @@ export class AppModule {
         AiChatController,
         AiAccessController,
         AiAttachmentController,
+        AiImageController,
+        AiImageAdminController,
         AiAdminController,
         AdminLogsController,
         ClientDiagnosticsController,
@@ -271,6 +280,7 @@ export class AppModule {
         { provide: TOKENS.accountVerification, useValue: accountVerification },
         { provide: TOKENS.emailService, useValue: emailService },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
+        { provide: AI_IMAGE_SERVICE, useValue: aiImageService },
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },
         { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
