@@ -10,7 +10,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from deployment.contracts import Blocked, LEGACY_SERVICES, REGISTRY, SERVICES, validate_release
+from deployment.contracts import Blocked, LEGACY_SERVICES, REGISTRY, SERVICES, read_env, validate_release
 from deployment.search_secret import InvalidSearchSecret, ensure_secret, inspect_secret
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -79,20 +79,20 @@ class SearchComponentTests(unittest.TestCase):
 
     def test_existing_quoted_and_unquoted_keys_are_never_rewritten(self):
         synthetic_key = b"Ab" * 32
-        for prefix, quote, ending in (
-            (b"", b"", b"\n"),
-            (b"export ", b"'", b"\r\n"),
-            (b"  \t", b'"', b"\n"),
-            (b"\texport\t", b'"', b"\r\n"),
+        for quote, ending in (
+            (b"", b"\n"),
+            (b"'", b"\r\n"),
+            (b'"', b"\n"),
         ):
-            with self.subTest(prefix=prefix, quote=quote), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(quote=quote), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / ".env"
                 original = b"# synthetic, not a real key" + ending
-                original += prefix + b"ASA_SEARCH_SECRET = " + quote + synthetic_key + quote + ending
+                original += b"ASA_SEARCH_SECRET=" + quote + synthetic_key + quote + ending
                 original += b"AFTER_KEY=unchanged" + ending
                 path.write_bytes(original)
                 before = path.stat()
                 self.assertEqual(inspect_secret(path), ("valid", original))
+                self.assertEqual(read_env(path)["ASA_SEARCH_SECRET"], synthetic_key.decode())
                 self.assertFalse(ensure_secret(path))
                 self.assertFalse(ensure_secret(path))
                 after = path.stat()
@@ -119,6 +119,9 @@ class SearchComponentTests(unittest.TestCase):
             b"ASA_SEARCH_SECRET='" + key + b" '\n",
             b"ASA_SEARCH_SECRET='" + key[:-1] + b"'\n",
             b"ASA_SEARCH_SECRET='" + key + b"0'\n",
+            b"ASA_SEARCH_SECRET = '" + key + b"'\n",
+            b"export ASA_SEARCH_SECRET='" + key + b"'\n",
+            b" ASA_SEARCH_SECRET='" + key + b"'\n",
             b"ASA_SEARCH_SECRET=$(printf dangerous)\n",
             b"ASA_SEARCH_SECRET=$" + b"{INJECTED}\n",
             b"ASA_SEARCH_SECRET=" + key + b"\rOTHER=1\n",

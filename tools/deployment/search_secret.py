@@ -35,7 +35,7 @@ def inspect_secret(path):
     # No interpolation, escaping, inline comments, padding *inside* quotes,
     # shell substitutions or more than one assignment. Preserve the raw bytes.
     valid_line = (
-        r"[ \t]*(?:export[ \t]+)?ASA_SEARCH_SECRET[ \t]*=[ \t]*"
+        r"ASA_SEARCH_SECRET=[ \t]*"
         r"(?:[a-fA-F0-9]{64}|'[a-fA-F0-9]{64}'|\"[a-fA-F0-9]{64}\")[ \t]*"
     )
     if len(lines) != 1 or re.fullmatch(valid_line, lines[0]) is None:
