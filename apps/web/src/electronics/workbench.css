@@ -6030,3 +6030,19 @@ html.arduino-palette-resizing * {
     padding-bottom: 11px;
   }
 }
+
+
+/* Portal help remains outside the toolbar's intentional scrolling clip. */
+.workbench-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: #253448;
+  color: #fff;
+  font: 13px/1.4 Arial, sans-serif;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 6px #0003;
+}

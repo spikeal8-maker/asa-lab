@@ -22,6 +22,7 @@ import {
   ViewIcon,
   WireIcon,
 } from './workbench-icons';
+import { WorkbenchTooltip } from './WorkbenchTooltip';
 import { WIRE_COLORS, type ToolButtonProps, type WorkbenchView } from './workbench-model';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 
@@ -76,7 +77,7 @@ function ToolButton({
       type="button"
       className={className ?? `workbench-tool${active ? ' active' : ''}${danger ? ' danger' : ''}`}
       aria-label={ariaLabel}
-      title={title}
+      data-workbench-tooltip={title}
       disabled={disabled}
       onPointerDown={(event) => {
         suppressTouchClick.current = false;
@@ -193,6 +194,7 @@ export function WorkbenchHeader({
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
   const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
   const avatar = useEditorAvatar(user);
 
   return (
@@ -261,6 +263,7 @@ export function WorkbenchHeader({
         </nav>
       </header>
       <div
+        ref={toolbarRef}
         className={`workbench-toolbar ${view}`}
         role="toolbar"
         aria-label="Инструменты редактора"
@@ -319,7 +322,7 @@ export function WorkbenchHeader({
             </ToolButton>
             <span className="workbench-toolbar-gap small" />
             <details className="workbench-wire-color" ref={wireColorMenuRef}>
-              <summary aria-label="Цвет провода" title="Цвет провода">
+              <summary aria-label="Цвет провода" data-workbench-tooltip="Цвет провода">
                 <span style={{ background: c.activeWireColor }} />
                 <ChevronIcon />
               </summary>
@@ -336,7 +339,7 @@ export function WorkbenchHeader({
                       wireColorMenuRef.current?.removeAttribute('open');
                     }}
                     aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
-                    title={WIRE_COLOR_NAMES[color]}
+                    data-workbench-tooltip={WIRE_COLOR_NAMES[color]}
                   >
                     <span style={{ background: color }} />
                   </button>
@@ -349,7 +352,7 @@ export function WorkbenchHeader({
               className={`workbench-wire-style${c.orthogonalWireMode ? ' active' : ''}`}
               aria-label="Автоматическая прокладка провода под 90 градусов"
               aria-pressed={c.orthogonalWireMode}
-              title={
+              data-workbench-tooltip={
                 c.orthogonalWireMode ? 'Фиксация под 90° включена' : 'Включить фиксацию под 90°'
               }
               onClick={c.toggleWireRoute}
@@ -415,7 +418,7 @@ export function WorkbenchHeader({
               className="workbench-pill emergency-copy"
               onClick={c.exportEmergencyCopy}
               aria-label="Получить аварийную копию проекта"
-              title="Скачать всю схему и скетчи Arduino в JSON"
+              data-workbench-tooltip="Скачать схему и код в JSON"
             >
               Копия JSON
             </button>
@@ -424,7 +427,7 @@ export function WorkbenchHeader({
             type="button"
             className="workbench-mobile-library-toggle"
             aria-label="Каталог деталей"
-            title="Каталог деталей"
+            data-workbench-tooltip="Каталог деталей"
             aria-pressed={c.libraryOpen && !codeOpen}
             onClick={onToggleLibrary}
           >
@@ -433,7 +436,7 @@ export function WorkbenchHeader({
           <button
             type="button"
             className={`workbench-pill code${codeOpen ? ' active' : ''}`}
-            title={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
+            data-workbench-tooltip={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
             aria-label={codeOpen ? 'Закрыть редактор кода' : 'Открыть редактор кода'}
             aria-pressed={codeOpen}
             onClick={onToggleCode}
@@ -448,7 +451,7 @@ export function WorkbenchHeader({
             data-simulation-status={c.simulationStatus}
             aria-pressed={c.simulationRunning}
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
-            title={`${
+            data-workbench-tooltip={`${
               c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
             } (Ctrl/⌘+Enter)`}
           >
@@ -469,7 +472,7 @@ export function WorkbenchHeader({
           <button
             type="button"
             className="workbench-pill"
-            title="Публикация и совместный доступ пока недоступны в локальной версии"
+            data-workbench-tooltip="Общий доступ пока недоступен"
             aria-label="Отправить — пока недоступно"
             aria-disabled="true"
             disabled
@@ -479,6 +482,7 @@ export function WorkbenchHeader({
           </button>
         </div>
       </div>
+      <WorkbenchTooltip root={toolbarRef} />
       {c.simulationMessage ? (
         <div
           className="workbench-simulation-message"
