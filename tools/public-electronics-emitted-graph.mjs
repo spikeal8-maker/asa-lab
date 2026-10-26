@@ -21,7 +21,10 @@ const receipt = {
   revision,
   status: 'FAIL',
   scope:
-    'ElectronicsPublicationScene emitted static and dynamic import closure; rendered modules only. Reachability is not a claim that shared helper functions execute or mount.',
+    'PublicProjectsSurface and ElectronicsPublicationScene mandatory static closure plus checked viewer/public lazy imports. Known unrelated App router optional imports are reported separately, not asserted loaded. Shared helper presence does not imply mounted persistence.',
+  mandatoryStaticEdges: [],
+  checkedPublicLazyEdges: [],
+  excludedOptionalEdges: [],
   chunks: [],
   sharedHelpers: [],
   violations: [],
@@ -42,7 +45,7 @@ const forbidden = [
   /apps\/web\/src\/electronics\/(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
   /apps\/web\/src\/electronics\/(?:arduino-blocks|arduino-block-ui|arduino-program-state|arduino-pin-inputs)(?:\.|\/)/,
   /contexts\/electronics\/(?:engine|simulation|module)\.ts$/,
-  /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*runtime)(?:\.|\/)/,
+  /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*(?:runtime|transient-model|audio-model))(?:\.|\/)/,
   /apps\/web\/src\/modules\/(?:use-project|project-autosave|use-module-project)/,
 ];
 try {
@@ -63,12 +66,13 @@ try {
   if (index.format !== 'asa-web-rendered-modules-v1' || index.revision !== revision)
     throw Error('missing exact emitted rendered-module index');
   receipt.moduleIndexSha256 = sha256(readFileSync(indexPath));
-  const entries = Object.keys(manifest).filter((key) =>
-    /(?:^|\/)ElectronicsPublicationScene\.tsx$/.test(key),
-  );
-  if (entries.length !== 1 || !manifest[entries[0]].isDynamicEntry)
-    throw Error('missing unique ElectronicsPublicationScene dynamic entry');
-  receipt.entry = entries[0];
+  const entries = ['ElectronicsPublicationScene', 'PublicProjectsSurface'].map((name) => {
+    const matches = Object.keys(manifest).filter((key) => key.endsWith(`/${name}.tsx`));
+    if (matches.length !== 1 || !manifest[matches[0]].isDynamicEntry)
+      throw Error(`missing unique ${name} dynamic entry`);
+    return matches[0];
+  });
+  receipt.entries = entries;
   const queue = [...entries],
     seen = new Set();
   while (queue.length) {
@@ -99,7 +103,9 @@ try {
       const normalized = module.id.replaceAll('\\', '/');
       if (forbidden.some((rule) => rule.test(normalized)))
         receipt.violations.push({ chunk: chunk.file, source: normalized });
-      if (/(?:project-draft-storage|commonjsHelpers)(?:\.|\/|$)/i.test(normalized))
+      if (
+        /(?:project-draft-storage|project-local-draft|commonjsHelpers)(?:\.|\/|$)/i.test(normalized)
+      )
         receipt.sharedHelpers.push({
           chunk: chunk.file,
           source: normalized,
@@ -119,7 +125,44 @@ try {
       });
       if (JSON.stringify([...manifestFiles].sort()) !== JSON.stringify([...emitted[edge]].sort()))
         throw Error(`manifest/emitted dependency mismatch: ${key}`);
-      for (const dependency of chunk[edge] ?? []) queue.push(dependency);
+      for (const dependency of chunk[edge] ?? []) {
+        if (edge === 'imports') {
+          receipt.mandatoryStaticEdges.push({ from: key, to: dependency });
+          queue.push(dependency);
+          continue;
+        }
+        if (!Array.isArray(emitted.dynamicImportOwners))
+          throw Error('missing dynamic import ownership');
+        const targetFile = manifest[dependency].file;
+        const owners = emitted.dynamicImportOwners.filter(
+          (owner) => owner.targetFile === targetFile,
+        );
+        // No provenance means conservative inclusion, never silent exclusion.
+        const unrelated =
+          owners.length > 0 &&
+          owners.every(
+            (owner) =>
+              owner.importer === 'apps/web/src/App.tsx' &&
+              /^apps\/web\/src\/(?:pages\/[A-Za-z]+Page\.tsx|ai\/AiChatWorkspace\.tsx|modules\/ModuleEditorHost\.tsx|admin\/AdminPage\.tsx|analytics-runtime\.ts)$/.test(
+                owner.targetModule,
+              ),
+          );
+        const evidence = {
+          from: key,
+          to: dependency,
+          owners,
+          reason: unrelated
+            ? 'Known App bootstrap-router optional edge; not loaded by the public viewer path.'
+            : owners.length
+              ? 'Viewer/public or conservatively checked non-router lazy edge.'
+              : 'Unknown owner: conservatively checked.',
+        };
+        if (unrelated) receipt.excludedOptionalEdges.push(evidence);
+        else {
+          receipt.checkedPublicLazyEdges.push(evidence);
+          queue.push(dependency);
+        }
+      }
     }
     receipt.chunks.push({
       key,

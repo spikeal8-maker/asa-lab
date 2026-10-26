@@ -23,6 +23,11 @@ export function renderedModuleEvidence({ revision, repositoryRoot, output }) {
             : path.split(sep).join('/');
         };
         const assets = {};
+        const moduleChunks = new Map();
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== 'chunk') continue;
+          for (const id of Object.keys(chunk.modules)) moduleChunks.set(id, chunk.fileName);
+        }
         for (const chunk of Object.values(bundle)) {
           if (chunk.type !== 'chunk' || !chunk.fileName.endsWith('.js')) continue;
           const modules = Object.entries(chunk.modules).map(([id, module]) => ({
@@ -34,6 +39,13 @@ export function renderedModuleEvidence({ revision, repositoryRoot, output }) {
             bytes: Buffer.byteLength(chunk.code),
             imports: chunk.imports,
             dynamicImports: chunk.dynamicImports,
+            dynamicImportOwners: Object.keys(chunk.modules).flatMap((importer) =>
+              (this.getModuleInfo(importer)?.dynamicallyImportedIds ?? []).map((target) => ({
+                importer: sanitize(importer),
+                targetModule: sanitize(target),
+                targetFile: moduleChunks.get(target) ?? null,
+              })),
+            ),
             modules: modules.filter((module) => module.renderedLength > 0),
             zeroLengthModules: modules
               .filter((module) => module.renderedLength === 0)

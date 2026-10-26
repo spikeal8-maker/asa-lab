@@ -168,6 +168,10 @@ export default defineConfig(({ command }) => {
               : 'assets/[name]-[hash][extname]';
           },
           manualChunks(id) {
+            // Pure rendering topology must not be absorbed into the solver chunk.
+            if (id.includes('/contexts/electronics/domain/switch-topology.')) {
+              return 'electronics-rendering-topology';
+            }
             // Shared storage and CommonJS interop are also used on Home. Keep
             // them separate so Home does not eagerly load the Electronics engine.
             if (

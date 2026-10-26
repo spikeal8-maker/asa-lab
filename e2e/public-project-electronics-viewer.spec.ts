@@ -9,6 +9,47 @@ import { loginWithOrganization } from './organization-login';
 const EVIDENCE = 'e2e/artifacts/public-electronics-viewer';
 const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440];
 const headers = (page: Page) => ({ origin: new URL(page.url()).origin });
+function publicScriptEvidence(page: Page, revision: string) {
+  const index = JSON.parse(
+    readFileSync(`apps/web/private-symbols/web-rendered-modules-${revision}.json`, 'utf8'),
+  );
+  expect(index.revision).toBe(revision);
+  const forbiddenFiles = new Set(
+    Object.entries(index.assets)
+      .filter(([, value]) => {
+        const chunk = value as { modules: { id: string; renderedLength: number }[] };
+        return chunk.modules.some(
+          (module) =>
+            module.renderedLength > 0 &&
+            (/apps\/web\/src\/electronics\/(?:use-electronics-workbench|use-workbench-project-state|workbench-autosave|Workbench|Arduino|.*worker.*|live-simulation|use-piezo-audio)/i.test(
+              module.id,
+            ) ||
+              /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*(?:runtime|transient|audio))/.test(
+                module.id,
+              )),
+        );
+      })
+      .map(([file]) => file),
+  );
+  const requested: string[] = [];
+  // Observe from before navigation; do not intercept, suppress, or alter scripts.
+  page.on('request', (request) => {
+    if (request.resourceType() === 'script' || new URL(request.url()).pathname.endsWith('.js'))
+      requested.push(new URL(request.url()).pathname);
+  });
+  return async (label: string) => {
+    const forbidden = requested.filter((file) => forbiddenFiles.has(file));
+    await test.info().attach(`${label}-actual-script-requests.json`, {
+      body: JSON.stringify({ revision, requested, forbidden }),
+      contentType: 'application/json',
+    });
+    expect(requested.some((file) => /ElectronicsPublicationScene-/.test(file))).toBe(true);
+    expect(
+      forbidden,
+      `${label} must not fetch emitted editor or executable runtime chunks`,
+    ).toEqual([]);
+  };
+}
 function png(): string {
   // This valid cover is setup only. Every viewer screenshot must contain the SVG circuit.
   const image = new PNG({ width: 32, height: 32 });
@@ -164,6 +205,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     await snapshot(page, id, v1.revision);
     const publication = await publish(page, id);
     const guest = await guestContext.newPage();
+    const assertGuestScripts = publicScriptEvidence(guest, metadata.revision);
     const mutations: string[] = [],
       workers: string[] = [];
     guest.on('request', (request) => {
@@ -263,6 +305,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     expect(await frozen()).toEqual(before);
     expect(mutations).toEqual([]);
     expect(workers).toEqual([]);
+    await assertGuestScripts('guest-after-pan-zoom-keyboard');
 
     // Owner draft V2 is saved explicitly, while public V1 stays byte-identical.
     const changed = {
@@ -318,6 +361,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     expect(code.status()).toBe(201);
     const studentCode = (await code.json()).studentCode;
     const seat = await seatContext.newPage();
+    const assertSeatScripts = publicScriptEvidence(seat, metadata.revision);
     await seat.goto('/#/explore');
     expect(
       (
@@ -358,6 +402,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect.poll(() => seat.evaluate(() => scrollY)).toBeGreaterThan(0);
     await touch.detach();
+    await assertSeatScripts('seat-after-touch-and-scroll');
 
     // A transport failure uses the honest cover fallback, then a fresh navigation recovers.
     await guest.route('**/api/public-projects/*/artifact?*', (intercepted) =>
@@ -389,6 +434,7 @@ test('editor-created immutable Electronics publication is a real inert responsiv
     await expect(guest.getByRole('heading', { name: 'Публикация недоступна' })).toBeVisible();
     expect(mutations).toEqual([]);
     expect(workers).toEqual([]);
+    await assertGuestScripts('guest-after-republish-and-revoke');
   } finally {
     await guestContext.close();
     await teacherContext.close();
