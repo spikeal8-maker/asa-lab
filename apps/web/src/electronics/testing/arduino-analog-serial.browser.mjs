@@ -122,79 +122,86 @@ try {
       await page.waitForFunction(() => window.probe.horizon === 9000);
     };
     const text = () => page.locator('.arduino-serial-output').innerText();
-    // Real Worker rejects RX before begin; UI must retain the unsent message.
-    phase = 'serial-begin-input';
-    const message = page.getByLabel('Сообщение в последовательный порт');
-    const send = page.getByRole('button', { name: 'Отпр.' });
-    await page.evaluate(() => window.fixture.start(false, 'void setup(){}void loop(){delay(1);}'));
-    await wait();
-    assert.match(await page.locator('.arduino-serial-status').innerText(), /Ожидает Serial.begin/);
-    await message.fill('A');
-    const sendCount = await page.evaluate(() => window.probe.sends.length);
-    if (serialBeginBefore) {
-      assert.equal(await send.isEnabled(), true);
-      await send.click();
-      assert.equal(await message.inputValue(), '');
-      await page.evaluate(() => window.fixture.advance(18000));
-      await page.waitForFunction(() => window.probe.horizon === 18000);
-      assert.equal(await text(), '');
-      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 1);
-      await page.screenshot({ path: resolve(output, 'before-serial-begin-' + width + '.png') });
-      receipts.push({ width, expectedBeforeInputLoss: true, ignoredRx: 'A', tx: '' });
-    } else {
-      assert.equal(await send.isDisabled(), true);
-      await message.press('Enter');
-      assert.equal(await message.inputValue(), 'A');
-      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount);
+    if (!before) {
+      // Real Worker rejects RX before begin; UI must retain the unsent message.
+      phase = 'serial-begin-input';
+      const message = page.getByLabel('Сообщение в последовательный порт');
+      const send = page.getByRole('button', { name: 'Отпр.' });
       await page.evaluate(() =>
-        window.fixture.start(
-          false,
-          'void setup(){Serial.begin(9600);}void loop(){if(Serial.available()){Serial.println(Serial.read());}delay(1);}',
-        ),
+        window.fixture.start(false, 'void setup(){}void loop(){delay(1);}'),
       );
       await wait();
-      assert.equal(await message.inputValue(), 'A');
-      assert.equal(await send.isEnabled(), true);
-      assert.equal(await text(), '');
-      await message.press('Enter');
-      await page.evaluate(() => window.fixture.advance(18000));
-      await page.waitForFunction(() => window.probe.horizon === 18000);
-      assert.equal((await text()).trim(), '65');
-      assert.equal(await message.inputValue(), '');
-      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 1);
-      await message.fill('B');
-      await page.evaluate(() => window.fixture.stop());
-      assert.equal(await message.inputValue(), 'B');
-      assert.equal(await send.isDisabled(), true);
-      await page.evaluate(() => window.fixture.run());
-      await wait();
-      assert.equal(await message.inputValue(), 'B');
-      assert.equal(await text(), '');
-      await page.evaluate(() => window.fixture.reset());
-      await wait();
-      assert.equal(await message.inputValue(), 'B');
-      assert.equal(await text(), '');
-      await send.click();
-      await page.evaluate(() => window.fixture.advance(18000));
-      await page.waitForFunction(() => window.probe.horizon === 18000);
-      assert.equal((await text()).trim(), '66');
-      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 2);
-      assert.deepEqual(await page.evaluate(() => window.probe.errors), []);
-      assert.deepEqual(errors, []);
-      await page.screenshot({ path: resolve(output, 'serial-begin-' + width + '.png') });
-      receipts.push({
-        width,
-        beginGuard: true,
-        inputPreserved: true,
-        enterRx: 65,
-        buttonRx: 66,
-        stopRunReset: true,
-      });
-    }
-    if (serialBeginOnly) {
-      await page.evaluate(() => window.fixture.dispose());
-      await page.close();
-      continue;
+      assert.match(
+        await page.locator('.arduino-serial-status').innerText(),
+        /Ожидает Serial.begin/,
+      );
+      await message.fill('A');
+      const sendCount = await page.evaluate(() => window.probe.sends.length);
+      if (serialBeginBefore) {
+        assert.equal(await send.isEnabled(), true);
+        await send.click();
+        assert.equal(await message.inputValue(), '');
+        await page.evaluate(() => window.fixture.advance(18000));
+        await page.waitForFunction(() => window.probe.horizon === 18000);
+        assert.equal(await text(), '');
+        assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 1);
+        await page.screenshot({ path: resolve(output, 'before-serial-begin-' + width + '.png') });
+        receipts.push({ width, expectedBeforeInputLoss: true, ignoredRx: 'A', tx: '' });
+      } else {
+        assert.equal(await send.isDisabled(), true);
+        await message.press('Enter');
+        assert.equal(await message.inputValue(), 'A');
+        assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount);
+        await page.evaluate(() =>
+          window.fixture.start(
+            false,
+            'void setup(){Serial.begin(9600);}void loop(){if(Serial.available()){Serial.println(Serial.read());}delay(1);}',
+          ),
+        );
+        await wait();
+        assert.equal(await message.inputValue(), 'A');
+        assert.equal(await send.isEnabled(), true);
+        assert.equal(await text(), '');
+        await message.press('Enter');
+        await page.evaluate(() => window.fixture.advance(18000));
+        await page.waitForFunction(() => window.probe.horizon === 18000);
+        assert.equal((await text()).trim(), '65');
+        assert.equal(await message.inputValue(), '');
+        assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 1);
+        await message.fill('B');
+        await page.evaluate(() => window.fixture.stop());
+        assert.equal(await message.inputValue(), 'B');
+        assert.equal(await send.isDisabled(), true);
+        await page.evaluate(() => window.fixture.run());
+        await wait();
+        assert.equal(await message.inputValue(), 'B');
+        assert.equal(await text(), '');
+        await page.evaluate(() => window.fixture.reset());
+        await wait();
+        assert.equal(await message.inputValue(), 'B');
+        assert.equal(await text(), '');
+        await send.click();
+        await page.evaluate(() => window.fixture.advance(18000));
+        await page.waitForFunction(() => window.probe.horizon === 18000);
+        assert.equal((await text()).trim(), '66');
+        assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 2);
+        assert.deepEqual(await page.evaluate(() => window.probe.errors), []);
+        assert.deepEqual(errors, []);
+        await page.screenshot({ path: resolve(output, 'serial-begin-' + width + '.png') });
+        receipts.push({
+          width,
+          beginGuard: true,
+          inputPreserved: true,
+          enterRx: 65,
+          buttonRx: 66,
+          stopRunReset: true,
+        });
+      }
+      if (serialBeginOnly) {
+        await page.evaluate(() => window.fixture.dispose());
+        await page.close();
+        continue;
+      }
     }
     await page.evaluate(() => window.fixture.start());
     await wait();
