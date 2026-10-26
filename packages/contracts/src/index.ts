@@ -1,5 +1,13 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
+export { PUBLIC_ARTIFACT_V1_LIMITS, validatePublicArtifact } from './public-artifact.js';
+export type {
+  PublicArtifact,
+  PublicArtifactProvenance,
+  PublicArtifactViewerFamily,
+  PublicArtifactCapabilities,
+  PublicArtifactValidation,
+} from './public-artifact.js';
 export type {
   AiWebSearchMode,
   AiWebSource,
