@@ -1,0 +1,32 @@
+name: ASA Backup Retention Safety
+
+on:
+  pull_request:
+    paths:
+      - 'tools/asa_backup_retention.py'
+      - 'tools/test_asa_backup_retention.py'
+      - 'docs/deployment/ASA_BACKUP_RETENTION_AND_BOOTSTRAP.md'
+      - '.github/workflows/asa-backup-retention-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-retention:
+    name: Local snapshot pruning safety (no server credentials)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pinned PR revision
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python compilation
+        run: python3 -m py_compile tools/asa_backup_retention.py tools/test_asa_backup_retention.py
+      - name: Offline integrity and deletion safeguards
+        run: python3 -m unittest tools.test_asa_backup_retention -v
