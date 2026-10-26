@@ -1,0 +1,1158 @@
+{
+  "task": "TASK-ELECTRONICS-SERVO-POTENTIOMETER-001",
+  "issue": 784,
+  "sourceBaseline": "b6b6d23936006d295124bd3aaaadbc87a7acbff8",
+  "command": "node apps/web/src/electronics/testing/servo-runtime.browser.mjs --potentiometer-only",
+  "result": "PASS",
+  "samples": 12,
+  "scope": "TEST ONLY; product unchanged. Real Worker + mounted workbench hook/Stage, static assets/API fixture ports; no installed SaveCAS/release claim.",
+  "physicalInput": "Native mouse on actual unobstructed Stage potentiometer knob, confirmed by elementFromPoint; live wiper 0,0.5,1 with fixed program per mode. No injected angle/ADC or per-position source change.",
+  "semantics": "ADC = round(clamped measured A0 relative to ground / measured5V reference *1023); committed ADC must match1023*(1-liveWiper) within1count. map truncates integer angle; pulse=round(544+1856*angle/180); model decodes actual pulse. Midpoint may be ADC511or512 according to actual measured voltage, so angle89or90; no forced90.",
+  "carriedEvidence": [
+    "0a51bef4 accepted angles/expressions/power/raw pulses/lifecycle/native committed presentation",
+    "ef7b7b1e accepted horn clipping and unchanged geometry"
+  ],
+  "fixturePreparation": "Fixture-only development: first observer expected omitted committed controllerState (actual Worker continuation provides state); second attempt exposed overlapping Uno ground hit and was interrupted. Components were separated and native knob hit asserted. Self-review then caught a stale-committed-frame race in a provisional passing receipt: final wait requires measured ADC matching the live wiper before PWM/model/horn assertions. All provisional receipts are superseded. Corrected final new mode ran once and passed12samples. No product defect, timeout/tolerance weakening, old-matrix replay or full product build. Final correlation was then strengthened to exact active-session/generation/input-digest/committed-horizon matching and the isolated mode rerun once for that concrete synchronization change:12PASS. No arbitrary latest response accepted.",
+  "notClaimed": [
+    "whole consolidated11 acceptance",
+    "multiple physical servos",
+    "long-loop acceptance",
+    "installed or SaveCAS behavior",
+    "new full gate/build or bundle evidence"
+  ],
+  "receipts": [
+    {
+      "width": 1440,
+      "programs": [
+        {
+          "mode": "text",
+          "source": "#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(map(analogRead(A0),0,1023,0,180));delay(20);}",
+          "circuit": {
+            "schemaVersion": 4,
+            "components": [
+              {
+                "id": "uno",
+                "kind": "visual",
+                "componentTypeId": "arduino-uno",
+                "value": 5,
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "pinIds": [
+                  "d9",
+                  "d13",
+                  "power-5v",
+                  "power-3v3",
+                  "power-gnd-1",
+                  "a0"
+                ],
+                "stateProperties": {
+                  "arduinoSource": "#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(map(analogRead(A0),0,1023,0,180));delay(20);}"
+                },
+                "variantId": "arduino-uno"
+              },
+              {
+                "id": "servo",
+                "kind": "visual",
+                "componentTypeId": "servo-motor",
+                "variantId": "servo-motor",
+                "value": 0,
+                "position": {
+                  "x": 1000,
+                  "y": 40
+                },
+                "pinIds": [
+                  "gnd",
+                  "vcc",
+                  "signal"
+                ],
+                "stateProperties": {}
+              },
+              {
+                "id": "pot",
+                "kind": "potentiometer",
+                "componentTypeId": "potentiometer",
+                "value": 10000,
+                "wiperPosition": 0,
+                "position": {
+                  "x": 800,
+                  "y": 220
+                },
+                "pinIds": [
+                  "terminal-1",
+                  "terminal-2",
+                  "wiper"
+                ],
+                "variantId": "potentiometer",
+                "stateProperties": {
+                  "resistanceUnit": "kΩ"
+                }
+              }
+            ],
+            "connections": [
+              {
+                "id": "w0",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "vcc"
+                }
+              },
+              {
+                "id": "w1",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "gnd"
+                }
+              },
+              {
+                "id": "w2",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "d9"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "signal"
+                }
+              },
+              {
+                "id": "pot-a",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-1"
+                }
+              },
+              {
+                "id": "pot-b",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-2"
+                }
+              },
+              {
+                "id": "pot-wiper",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "a0"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "wiper"
+                }
+              }
+            ],
+            "viewport": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1
+            },
+            "simulation": {
+              "running": true,
+              "maxIterations": 24
+            }
+          },
+          "samples": [
+            {
+              "width": 1440,
+              "blocks": false,
+              "position": 0,
+              "actualWiper": 0,
+              "adc": 1023,
+              "angle": 180,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 2400,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 180,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 5.005e-9,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 5.4,
+              "correlation": {
+                "projectSessionId": "servo-project-1",
+                "generationId": 1,
+                "committedAtMicroseconds": 5400,
+                "responseHorizonMicroseconds": 5400,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 70,
+              "horn": "rotate(90 114.5 314)"
+            },
+            {
+              "width": 1440,
+              "blocks": false,
+              "position": 0.5,
+              "actualWiper": 0.5000002602339464,
+              "adc": 511,
+              "angle": 89,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 1462,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 89.030172,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 1.6e-11,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 73,
+              "correlation": {
+                "projectSessionId": "servo-project-1",
+                "generationId": 1,
+                "committedAtMicroseconds": 73000,
+                "responseHorizonMicroseconds": 73000,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 48,
+              "horn": "rotate(-0.9698280000000068 114.5 314)"
+            },
+            {
+              "width": 1440,
+              "blocks": false,
+              "position": 1,
+              "actualWiper": 0.9999997918121428,
+              "adc": 0,
+              "angle": 0,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 544,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 0,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 5.9e-11,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 139.5,
+              "correlation": {
+                "projectSessionId": "servo-project-1",
+                "generationId": 1,
+                "committedAtMicroseconds": 139500,
+                "responseHorizonMicroseconds": 139500,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 52,
+              "horn": "rotate(-90 114.5 314)"
+            }
+          ]
+        },
+        {
+          "mode": "real Blockly-generated",
+          "source": "// C++ code generated by ASA Lab\n// Arduino Uno R3\n\n#include <Servo.h>\nServo servo_9;\n\nvoid setup()\n{\n  servo_9.attach(9);\n}\n\nvoid loop()\n{\n  servo_9.write(map(analogRead(A0), 0, 1023, 0, 180));\n  delay(20);\n}\n",
+          "circuit": {
+            "schemaVersion": 4,
+            "components": [
+              {
+                "id": "uno",
+                "kind": "visual",
+                "componentTypeId": "arduino-uno",
+                "value": 5,
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "pinIds": [
+                  "d9",
+                  "d13",
+                  "power-5v",
+                  "power-3v3",
+                  "power-gnd-1",
+                  "a0"
+                ],
+                "stateProperties": {
+                  "arduinoSource": "// C++ code generated by ASA Lab\n// Arduino Uno R3\n\n#include <Servo.h>\nServo servo_9;\n\nvoid setup()\n{\n  servo_9.attach(9);\n}\n\nvoid loop()\n{\n  servo_9.write(map(analogRead(A0), 0, 1023, 0, 180));\n  delay(20);\n}\n"
+                },
+                "variantId": "arduino-uno"
+              },
+              {
+                "id": "servo",
+                "kind": "visual",
+                "componentTypeId": "servo-motor",
+                "variantId": "servo-motor",
+                "value": 0,
+                "position": {
+                  "x": 1000,
+                  "y": 40
+                },
+                "pinIds": [
+                  "gnd",
+                  "vcc",
+                  "signal"
+                ],
+                "stateProperties": {}
+              },
+              {
+                "id": "pot",
+                "kind": "potentiometer",
+                "componentTypeId": "potentiometer",
+                "value": 10000,
+                "wiperPosition": 0,
+                "position": {
+                  "x": 800,
+                  "y": 220
+                },
+                "pinIds": [
+                  "terminal-1",
+                  "terminal-2",
+                  "wiper"
+                ],
+                "variantId": "potentiometer",
+                "stateProperties": {
+                  "resistanceUnit": "kΩ"
+                }
+              }
+            ],
+            "connections": [
+              {
+                "id": "w0",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "vcc"
+                }
+              },
+              {
+                "id": "w1",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "gnd"
+                }
+              },
+              {
+                "id": "w2",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "d9"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "signal"
+                }
+              },
+              {
+                "id": "pot-a",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-1"
+                }
+              },
+              {
+                "id": "pot-b",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-2"
+                }
+              },
+              {
+                "id": "pot-wiper",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "a0"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "wiper"
+                }
+              }
+            ],
+            "viewport": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1
+            },
+            "simulation": {
+              "running": true,
+              "maxIterations": 24
+            }
+          },
+          "samples": [
+            {
+              "width": 1440,
+              "blocks": true,
+              "position": 0,
+              "actualWiper": 0,
+              "adc": 1023,
+              "angle": 180,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 2400,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 180,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 5.005e-9,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 15.6,
+              "correlation": {
+                "projectSessionId": "servo-project-2",
+                "generationId": 1,
+                "committedAtMicroseconds": 15600,
+                "responseHorizonMicroseconds": 15600,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 84,
+              "horn": "rotate(90 114.5 314)"
+            },
+            {
+              "width": 1440,
+              "blocks": true,
+              "position": 0.5,
+              "actualWiper": 0.5000002602339464,
+              "adc": 511,
+              "angle": 89,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 1462,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 89.030172,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 1.6e-11,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 77.8,
+              "correlation": {
+                "projectSessionId": "servo-project-2",
+                "generationId": 1,
+                "committedAtMicroseconds": 77800,
+                "responseHorizonMicroseconds": 77800,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 52,
+              "horn": "rotate(-0.9698280000000068 114.5 314)"
+            },
+            {
+              "width": 1440,
+              "blocks": true,
+              "position": 1,
+              "actualWiper": 0.9999997918121428,
+              "adc": 0,
+              "angle": 0,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 544,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 0,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 5.9e-11,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 146,
+              "correlation": {
+                "projectSessionId": "servo-project-2",
+                "generationId": 1,
+                "committedAtMicroseconds": 146000,
+                "responseHorizonMicroseconds": 146000,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 55,
+              "horn": "rotate(-90 114.5 314)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "width": 390,
+      "programs": [
+        {
+          "mode": "text",
+          "source": "#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(map(analogRead(A0),0,1023,0,180));delay(20);}",
+          "circuit": {
+            "schemaVersion": 4,
+            "components": [
+              {
+                "id": "uno",
+                "kind": "visual",
+                "componentTypeId": "arduino-uno",
+                "value": 5,
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "pinIds": [
+                  "d9",
+                  "d13",
+                  "power-5v",
+                  "power-3v3",
+                  "power-gnd-1",
+                  "a0"
+                ],
+                "stateProperties": {
+                  "arduinoSource": "#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(map(analogRead(A0),0,1023,0,180));delay(20);}"
+                },
+                "variantId": "arduino-uno"
+              },
+              {
+                "id": "servo",
+                "kind": "visual",
+                "componentTypeId": "servo-motor",
+                "variantId": "servo-motor",
+                "value": 0,
+                "position": {
+                  "x": 1000,
+                  "y": 40
+                },
+                "pinIds": [
+                  "gnd",
+                  "vcc",
+                  "signal"
+                ],
+                "stateProperties": {}
+              },
+              {
+                "id": "pot",
+                "kind": "potentiometer",
+                "componentTypeId": "potentiometer",
+                "value": 10000,
+                "wiperPosition": 1.4614973485583538e-7,
+                "position": {
+                  "x": 800,
+                  "y": 220
+                },
+                "pinIds": [
+                  "terminal-1",
+                  "terminal-2",
+                  "wiper"
+                ],
+                "variantId": "potentiometer",
+                "stateProperties": {
+                  "resistanceUnit": "kΩ"
+                }
+              }
+            ],
+            "connections": [
+              {
+                "id": "w0",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "vcc"
+                }
+              },
+              {
+                "id": "w1",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "gnd"
+                }
+              },
+              {
+                "id": "w2",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "d9"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "signal"
+                }
+              },
+              {
+                "id": "pot-a",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-1"
+                }
+              },
+              {
+                "id": "pot-b",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-2"
+                }
+              },
+              {
+                "id": "pot-wiper",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "a0"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "wiper"
+                }
+              }
+            ],
+            "viewport": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1
+            },
+            "simulation": {
+              "running": true,
+              "maxIterations": 24
+            }
+          },
+          "samples": [
+            {
+              "width": 390,
+              "blocks": false,
+              "position": 0,
+              "actualWiper": 1.4614973485583538e-7,
+              "adc": 1023,
+              "angle": 180,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 2400,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 180,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 2.61e-10,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 17.1,
+              "correlation": {
+                "projectSessionId": "servo-project-1",
+                "generationId": 1,
+                "committedAtMicroseconds": 17100,
+                "responseHorizonMicroseconds": 17100,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 91,
+              "horn": "rotate(90 114.5 314)"
+            },
+            {
+              "width": 390,
+              "blocks": false,
+              "position": 0.5,
+              "actualWiper": 0.49999906506445135,
+              "adc": 512,
+              "angle": 90,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 1472,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 90,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 1.6e-11,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 77.7,
+              "correlation": {
+                "projectSessionId": "servo-project-1",
+                "generationId": 1,
+                "committedAtMicroseconds": 77700,
+                "responseHorizonMicroseconds": 77700,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 52,
+              "horn": "rotate(0 114.5 314)"
+            },
+            {
+              "width": 390,
+              "blocks": false,
+              "position": 1,
+              "actualWiper": 1,
+              "adc": 0,
+              "angle": 0,
+              "supply": 4.9999500005,
+              "pulseWidthMicroseconds": 544,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.9999500005,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 0,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 5.005e-9,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 147.4,
+              "correlation": {
+                "projectSessionId": "servo-project-1",
+                "generationId": 1,
+                "committedAtMicroseconds": 147400,
+                "responseHorizonMicroseconds": 147400,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 58,
+              "horn": "rotate(-90 114.5 314)"
+            }
+          ]
+        },
+        {
+          "mode": "real Blockly-generated",
+          "source": "// C++ code generated by ASA Lab\n// Arduino Uno R3\n\n#include <Servo.h>\nServo servo_9;\n\nvoid setup()\n{\n  servo_9.attach(9);\n}\n\nvoid loop()\n{\n  servo_9.write(map(analogRead(A0), 0, 1023, 0, 180));\n  delay(20);\n}\n",
+          "circuit": {
+            "schemaVersion": 4,
+            "components": [
+              {
+                "id": "uno",
+                "kind": "visual",
+                "componentTypeId": "arduino-uno",
+                "value": 5,
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "pinIds": [
+                  "d9",
+                  "d13",
+                  "power-5v",
+                  "power-3v3",
+                  "power-gnd-1",
+                  "a0"
+                ],
+                "stateProperties": {
+                  "arduinoSource": "// C++ code generated by ASA Lab\n// Arduino Uno R3\n\n#include <Servo.h>\nServo servo_9;\n\nvoid setup()\n{\n  servo_9.attach(9);\n}\n\nvoid loop()\n{\n  servo_9.write(map(analogRead(A0), 0, 1023, 0, 180));\n  delay(20);\n}\n"
+                },
+                "variantId": "arduino-uno"
+              },
+              {
+                "id": "servo",
+                "kind": "visual",
+                "componentTypeId": "servo-motor",
+                "variantId": "servo-motor",
+                "value": 0,
+                "position": {
+                  "x": 1000,
+                  "y": 40
+                },
+                "pinIds": [
+                  "gnd",
+                  "vcc",
+                  "signal"
+                ],
+                "stateProperties": {}
+              },
+              {
+                "id": "pot",
+                "kind": "potentiometer",
+                "componentTypeId": "potentiometer",
+                "value": 10000,
+                "wiperPosition": 1.4614973485583538e-7,
+                "position": {
+                  "x": 800,
+                  "y": 220
+                },
+                "pinIds": [
+                  "terminal-1",
+                  "terminal-2",
+                  "wiper"
+                ],
+                "variantId": "potentiometer",
+                "stateProperties": {
+                  "resistanceUnit": "kΩ"
+                }
+              }
+            ],
+            "connections": [
+              {
+                "id": "w0",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "vcc"
+                }
+              },
+              {
+                "id": "w1",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "gnd"
+                }
+              },
+              {
+                "id": "w2",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "d9"
+                },
+                "to": {
+                  "componentId": "servo",
+                  "terminal": "signal"
+                }
+              },
+              {
+                "id": "pot-a",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-5v"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-1"
+                }
+              },
+              {
+                "id": "pot-b",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "power-gnd-1"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "terminal-2"
+                }
+              },
+              {
+                "id": "pot-wiper",
+                "from": {
+                  "componentId": "uno",
+                  "terminal": "a0"
+                },
+                "to": {
+                  "componentId": "pot",
+                  "terminal": "wiper"
+                }
+              }
+            ],
+            "viewport": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1
+            },
+            "simulation": {
+              "running": true,
+              "maxIterations": 24
+            }
+          },
+          "samples": [
+            {
+              "width": 390,
+              "blocks": true,
+              "position": 0,
+              "actualWiper": 1.4614973485583538e-7,
+              "adc": 1023,
+              "angle": 180,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 2400,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 180,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 2.61e-10,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 11.7,
+              "correlation": {
+                "projectSessionId": "servo-project-2",
+                "generationId": 1,
+                "committedAtMicroseconds": 11700,
+                "responseHorizonMicroseconds": 11700,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 67,
+              "horn": "rotate(90 114.5 314)"
+            },
+            {
+              "width": 390,
+              "blocks": true,
+              "position": 0.5,
+              "actualWiper": 0.49999906506445135,
+              "adc": 512,
+              "angle": 90,
+              "supply": 4.999950000499,
+              "pulseWidthMicroseconds": 1472,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.999950000499,
+                  "signal": 0
+                },
+                "power": 0,
+                "servoAngleDegrees": 90,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 1.6e-11,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 70.7,
+              "correlation": {
+                "projectSessionId": "servo-project-2",
+                "generationId": 1,
+                "committedAtMicroseconds": 70700,
+                "responseHorizonMicroseconds": 70700,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 56,
+              "horn": "rotate(0 114.5 314)"
+            },
+            {
+              "width": 390,
+              "blocks": true,
+              "position": 1,
+              "actualWiper": 1,
+              "adc": 0,
+              "angle": 0,
+              "supply": 4.9999500005,
+              "pulseWidthMicroseconds": 544,
+              "model": {
+                "componentId": "servo",
+                "voltageDrop": 0,
+                "current": 0,
+                "terminalVoltages": {
+                  "gnd": 0,
+                  "vcc": 4.9999500005,
+                  "signal": 4.99999999995
+                },
+                "power": 0,
+                "servoAngleDegrees": 0,
+                "brightness": 0
+              },
+              "quality": {
+                "finite": true,
+                "passed": true,
+                "maxKclResidualAmp": 5.01e-9,
+                "maxSourceVoltageResidualVolt": 0,
+                "powerBalanceResidualWatt": 0,
+                "powerBalanceToleranceWatt": 1e-9,
+                "kclToleranceAmp": 0.000001,
+                "sourceVoltageToleranceVolt": 1e-9
+              },
+              "modelTimeMs": 140.5,
+              "correlation": {
+                "projectSessionId": "servo-project-2",
+                "generationId": 1,
+                "committedAtMicroseconds": 140500,
+                "responseHorizonMicroseconds": 140500,
+                "inputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633",
+                "responseInputDigest": "f065d71d99f0eb173bc5b408058fa3f4820e6fb40b4d896ac162caec8597e633"
+              },
+              "wallElapsedMs": 55,
+              "horn": "rotate(-90 114.5 314)"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "validation": [
+    "final isolated native mode:12samples PASS, no cache",
+    "scoped Prettier/ESLint PASS",
+    "selected documentation routing PASS",
+    "XML/art/production source unchanged"
+  ],
+  "synchronization": "Read actual Worker continuation only from ready response in active projectSession and highest generation whose simulationInputDigest matches the committed result and whose committedHorizonMicroseconds equals committed frame.atMicroseconds. Every sample records this correlation. Physical ADC ratio check precedes matching runtime commanded angle/PWM/model/horn."
+}
