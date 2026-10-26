@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 // Share aliases explicitly while keeping the projects' file sets disjoint.
 const sharedAliases = [
   {
+    find: '@asa-lab/contracts',
+    replacement: fileURLToPath(new URL('./packages/contracts/src/index.ts', import.meta.url)),
+  },
+  {
     find: '@asa-lab/electronics/engine',
     replacement: fileURLToPath(new URL('./contexts/electronics/engine.ts', import.meta.url)),
   },

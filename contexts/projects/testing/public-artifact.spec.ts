@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  PUBLIC_ARTIFACT_V1_LIMITS,
-  validatePublicArtifact,
-} from '../../../packages/contracts/src/public-artifact.js';
+import { PUBLIC_ARTIFACT_V1_LIMITS, validatePublicArtifact } from '@asa-lab/contracts';
 
 function fixture() {
   return {
