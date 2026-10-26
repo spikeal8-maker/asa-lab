@@ -102,51 +102,36 @@ export function PublicProjectPage({
         </p>
       ) : (
         <article className="public-project-layout" data-testid="public-project-detail">
-          <figure className="public-project-viewer">
-            <PublicationPreview key={publication.revisionId} publication={publication} detail />
-            <figcaption>Статический просмотр опубликованной версии</figcaption>
-            <button type="button" className="btn-secondary" onClick={() => void reload()}>
-              Обновить страницу проекта
-            </button>
-          </figure>
-          <div className="public-project-info">
-            <span className="publication-module" data-module={publication.moduleKey}>
-              {publicModuleName(publication.moduleKey)}
-            </span>
-            {publication.pinned ? (
-              <span className="public-project-pinned" data-testid="public-project-pinned">
-                Закреплено
+          <header className="public-project-heading">
+            <div className="public-project-badges">
+              <span className="publication-module" data-module={publication.moduleKey}>
+                {publicModuleName(publication.moduleKey)}
               </span>
-            ) : null}
-            {publication.featured ? (
-              <span className="public-project-featured" data-testid="public-project-featured">
-                ★ Выбор редакции
-              </span>
-            ) : null}
+              {publication.pinned ? (
+                <span className="public-project-pinned" data-testid="public-project-pinned">
+                  Закреплено
+                </span>
+              ) : null}
+              {publication.featured ? (
+                <span className="public-project-featured" data-testid="public-project-featured">
+                  ★ Выбор редакции
+                </span>
+              ) : null}
+            </div>
             <h1 data-testid="public-project-title">{publication.title}</h1>
             <p className="public-project-detail-author">{publication.authorLabel}</p>
-            <p className="public-project-version">
-              Версия проекта {publication.versionNo} · Публикация {publication.revisionNo}
-              <br />
-              <time dateTime={publication.publishedAt}>{time.date(publication.publishedAt)}</time>
-            </p>
-            {publication.description ? (
-              <p className="public-project-description" data-testid="public-project-description">
-                {publication.description}
-              </p>
-            ) : null}
-            {publication.tags.length ? (
-              <ul className="public-project-tags" aria-label="Теги">
-                {publication.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            ) : null}
+          </header>
+          <figure className="public-project-viewer" aria-label="Обложка проекта">
+            <figcaption>Обложка проекта</figcaption>
+            <PublicationPreview key={publication.revisionId} publication={publication} detail />
+          </figure>
+          <aside className="public-project-info" aria-label="Действия с проектом">
+            <h2>Работа с проектом</h2>
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
               {publication.preview ? (
                 <a
-                  className="btn-primary"
+                  className="btn-secondary"
                   href={publication.preview.url}
                   target="_blank"
                   rel="noreferrer"
@@ -158,12 +143,52 @@ export function PublicProjectPage({
                 key={publication.publicationId}
                 publicationId={publication.publicationId}
               />
+              <button
+                type="button"
+                className="public-project-refresh"
+                onClick={() => void reload()}
+              >
+                Обновить публикацию
+              </button>
             </div>
-            <p className="public-project-license">
-              <strong>Лицензия</strong>
-              <span>{licence}</span>
-            </p>
-          </div>
+          </aside>
+          <section className="public-project-about" aria-label="О проекте">
+            {publication.description ? (
+              <>
+                <h2>О проекте</h2>
+                <p className="public-project-description" data-testid="public-project-description">
+                  {publication.description}
+                </p>
+              </>
+            ) : null}
+            {publication.tags.length ? (
+              <ul className="public-project-tags" aria-label="Теги">
+                {publication.tags.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            ) : null}
+            <dl className="public-project-facts">
+              <div>
+                <dt>Лицензия</dt>
+                <dd>{licence}</dd>
+              </div>
+              <div>
+                <dt>Опубликовано</dt>
+                <dd>
+                  <time dateTime={publication.publishedAt}>
+                    {time.date(publication.publishedAt)}
+                  </time>
+                </dd>
+              </div>
+              <div>
+                <dt>Версия проекта</dt>
+                <dd>
+                  {publication.versionNo} · Публикация {publication.revisionNo}
+                </dd>
+              </div>
+            </dl>
+          </section>
         </article>
       )}
     </main>

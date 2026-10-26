@@ -657,14 +657,90 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await expect(guest.getByTestId('public-project-title')).toHaveText(longTitle);
       await expectPublicImage(guest);
       await expectNoOverflow(guest);
+      const geometry = await guest.getByTestId('public-project-detail').evaluate((article) => {
+        const rect = (selector: string) => {
+          const bounds = article.querySelector(selector)!.getBoundingClientRect();
+          return {
+            top: bounds.top,
+            bottom: bounds.bottom,
+            left: bounds.left,
+            right: bounds.right,
+            width: bounds.width,
+          };
+        };
+        return {
+          heading: rect('header'),
+          cover: rect('figure'),
+          actions: rect('aside'),
+          about: rect('[aria-label="О проекте"]'),
+          nestedScroll: [...article.querySelectorAll('*')].some((element) => {
+            const style = getComputedStyle(element);
+            return (
+              ['auto', 'scroll'].includes(style.overflowY) &&
+              element.scrollHeight > element.clientHeight
+            );
+          }),
+        };
+      });
+      expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.cover.top);
+      expect(geometry.nestedScroll).toBe(false);
+      if (width < 1024) {
+        expect(geometry.cover.bottom).toBeLessThanOrEqual(geometry.actions.top);
+        expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
+      } else {
+        expect(geometry.cover.right).toBeLessThanOrEqual(geometry.actions.left);
+        expect(geometry.cover.width).toBeGreaterThan(geometry.actions.width * 1.8);
+        expect(geometry.about.top).toBeGreaterThanOrEqual(geometry.cover.bottom);
+      }
       await guest.screenshot({ path: `${EVIDENCE}/detail-${width}.png`, fullPage: true });
+      if ([320, 390, 1440].includes(width)) {
+        await guest.evaluate(() => scrollTo(0, 0));
+        await guest.screenshot({ path: `${EVIDENCE}/detail-viewport-${width}.png` });
+      }
     }
+
+    // A failed real image request preserves the cover boundary and the real actions.
+    const coverUrl = await guest.getByTestId('public-project-preview').getAttribute('src');
+    expect(coverUrl).toBeTruthy();
+    const coverPattern = new URL(coverUrl!, guest.url()).href;
+    await guest.route(coverPattern, (route) => route.abort('failed'));
+    await guest.reload();
+    await expect(guest.getByTestId('public-project-preview-unavailable')).toContainText(
+      'Изображение не загрузилось',
+    );
+    await expectNoOverflow(guest);
+    await guest.screenshot({ path: `${EVIDENCE}/detail-image-error.png`, fullPage: true });
+    await guest.unroute(coverPattern);
+    await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+    await expectPublicImage(guest);
+
+    // Exercise the actual share fallback and keyboard focus without replacing API data.
+    const share = guest.getByRole('button', { name: 'Поделиться', exact: true });
+    await share.focus();
+    await expect(share).toBeFocused();
+    await guest.keyboard.press('Enter');
+    await expect(guest.getByRole('textbox', { name: 'Публичная ссылка на проект' })).toHaveValue(
+      new RegExp(`/#/public-projects/${firstId}$`),
+    );
+    const copy = guest.getByRole('button', { name: 'Создать свою копию', exact: true });
+    await expect(copy).toBeDisabled();
+    await guestContext.setOffline(true);
+    await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+    await expect(guest.getByTestId('public-project-error')).toBeVisible();
+    await expectNoOverflow(guest);
+    await guest.screenshot({ path: `${EVIDENCE}/detail-network-error.png`, fullPage: true });
+    await guestContext.setOffline(false);
+    await guest.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expectPublicImage(guest);
 
     // A held PostgreSQL read proves the loading state without inventing API data.
     const lock = await admin.connect();
     try {
       await lock.query('BEGIN');
       await lock.query('LOCK TABLE project_publication_state IN ACCESS EXCLUSIVE MODE');
+      await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+      await expect(guest.getByTestId('public-project-loading')).toBeVisible();
+      await guest.screenshot({ path: `${EVIDENCE}/detail-loading.png`, fullPage: true });
       await guest.goto('/#/explore');
       await expect(guest.getByTestId('public-projects-loading')).toBeVisible();
       await guest.screenshot({ path: `${EVIDENCE}/catalogue-loading.png`, fullPage: true });

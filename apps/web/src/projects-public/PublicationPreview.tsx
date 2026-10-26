@@ -26,7 +26,7 @@ export function PublicationPreview({
       ) : (
         <p className="publication-preview-missing" data-testid="public-project-preview-unavailable">
           {failed ? 'Изображение не загрузилось' : 'Предпросмотр недоступен'}
-          {detail ? <span>Обновите страницу проекта, чтобы проверить публикацию.</span> : null}
+          {detail ? <span>Проверьте публикацию с помощью «Обновить публикацию».</span> : null}
         </p>
       )}
     </div>
