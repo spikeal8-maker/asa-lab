@@ -6465,15 +6465,15 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-      issue: 713
+      id: TASK-PROJ-R8-03D-REPORT-UI-001
+      issue: 721
       branch: main
-      candidate_branch: codex/public-reports-20261024
+      candidate_branch: codex/public-project-reports-ui-20261026
       base_branch: main
-      pr: 717
+      pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: pins_merged_resume_existing_B1_with_focused_repairs
+      checkpoint: B1_merged_B2_user_report_dialog_selected
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6507,7 +6507,17 @@ parallel_lanes:
         repair idempotency/comment/session error handling and refresh fixtures,
         wire PG/API/HTTP into the focused gate. Do not implement B2 before B1
         acceptance. No production action.
+        Final B1 candidate68eae0f19b91099a36c89c81820bc06d5425cf16 passed
+        General40316339889 and PublicProjects40316339667. Separate independent
+        Code and Security agents returned exact-SHA PASS. Report receipt:
+        docs/product/projects/evidence/reports-b1-20261026-acceptance.md.
+        PR717 merged at7a6558cacd4fe7d4f50517a3e34c10287f698d30. Select B2
+        issue721 now: one compact accessible dialog and existing report API,
+        real server receipt and retries, guest/Seat denial, browser persistence
+        and responsive evidence. Do not write a second backend or implement B3
+        before accepted B2. Post-merge runs remain separately observed evidence.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
         - docs/product/projects/tasks/PROJ-R8-03.md
@@ -13220,29 +13230,6 @@ blocking:
     reason: Unpublished prototype3e706b5e passed independent functional/native review but actual224410/222000 bytes FAIL. Owner explicitly retained222000 and requested separate cleanup first on2026-10-25. Preserve prototype and require actual measured headroom before feature publication.
     unblock_requires: A fully reviewed L03 candidate that actually passes the existing budget, or an accepted bounded prerequisite establishing enough measured room. Any different cap requires a separate explicit owner decision after concrete evidence; no automatic waiver.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
-  - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
-    kind: acceptance_blocker
-    lane: projects
-    task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-    blocks:
-      - technical_acceptance
-      - integration
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_repair
-      - regression_authoring
-      - documentation_update
-      - focused_verification
-      - independent_source_review
-    reason: >-
-      PR704 merged at107bbc6b with complete candidate CI and independent reviews.
-      Existing backend-only PR717 c420833c may now be repaired against this
-      accepted source. Unpublished report0240 conflicts with published history;
-      assign the actual free successor after0258 and preserve old migrations.
-      Integration remains blocked until refreshed focused PG/API/HTTP and
-      required General evidence plus independent Code/Security acceptance.
-    evidence: https://github.com/spikeal8-maker/asa-lab/pull/717
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
     lane: electronics-field-grab
