@@ -90,7 +90,7 @@ $$;
 REVOKE ALL ON FUNCTION public.ai_text_begin_local(uuid,uuid,uuid,varchar,bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ai_text_begin_local(uuid,uuid,uuid,varchar,bigint) TO asalab_app;
 
-CREATE FUNCTION public.ai_text_regenerate_begin_local(
+CREATE OR REPLACE FUNCTION public.ai_text_regenerate_begin_local(
   p_owner uuid,p_thread uuid,p_request uuid,p_source uuid,p_expected_revision bigint
 ) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
