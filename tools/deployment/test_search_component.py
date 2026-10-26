@@ -158,7 +158,7 @@ class SearchComponentTests(unittest.TestCase):
             invalid = "unique-secret-value-must-not-leak"
             path.write_text("ASA_SEARCH_SECRET='" + invalid + "'\n")
             stderr = io.StringIO()
-            with patch.object(asa_manager, "Installation", return_value=object()), \
+            with patch.object(asa_manager, "Installation", return_value=type("MockInstall", (), {"root": Path(directory)})()), \
                  patch.object(asa_manager, "operation_lock", return_value=contextlib.nullcontext()), \
                  patch.object(asa_manager, "update", side_effect=lambda *a, **k: inspect_secret(path)), \
                  contextlib.redirect_stderr(stderr):
