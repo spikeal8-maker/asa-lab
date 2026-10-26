@@ -74,7 +74,8 @@ const receipts = [];
 let activePage;
 try {
   for (const width of [1440, 390, 320]) {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const page = await browser.newPage({ viewport: { width, height: 900 }, hasTouch: true });
+    const cdp = await page.context().newCDPSession(page);
     activePage = page;
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -134,6 +135,133 @@ try {
       initial.publishes,
       'presentation must not publish',
     );
+    // Pointer input goes through the real Blockly gesture/drag pipeline.
+    const drag = async (id, dx, dy, touch = false) => {
+      const point = await page.evaluate((id) => {
+        const b = window.fixture.S.common.getMainWorkspace().getBlockById(id);
+        const r = b.getSvgRoot().querySelector('.blocklyPath').getBoundingClientRect();
+        return {
+          x: r.x + Math.min(25, r.width / 2),
+          y: r.y + 10,
+          fill: b.getSvgRoot().querySelector('.blocklyPath').getAttribute('fill'),
+        };
+      }, id);
+      if (touch) {
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [{ x: point.x, y: point.y }],
+        });
+        for (let step = 1; step <= 12; step++) {
+          await cdp.send('Input.dispatchTouchEvent', {
+            type: 'touchMove',
+            touchPoints: [{ x: point.x + (dx * step) / 12, y: point.y + (dy * step) / 12 }],
+          });
+        }
+      } else {
+        await page.mouse.move(point.x, point.y);
+        await page.mouse.down();
+        await page.mouse.move(point.x + dx, point.y + dy, { steps: 12 });
+      }
+      await page.waitForTimeout(250);
+      const during = await page.evaluate((id) => {
+        const w = window.fixture.S.common.getMainWorkspace(),
+          b = w.getBlockById(id);
+        return {
+          opacity: b.getSvgRoot().style.opacity,
+          parent: b.getParent()?.id ?? null,
+          dragging: b.getSvgRoot().classList.contains('blocklyDragging'),
+          fill: b.getSvgRoot().querySelector('.blocklyPath').getAttribute('fill'),
+          descendants: b.getDescendants(false).map((child) => child.getSvgRoot().style.opacity),
+        };
+      }, id);
+      assert.equal(during.fill, point.fill, 'drag preserves capability color');
+      assert.ok(during.descendants.every((opacity) => opacity !== '0.45'));
+      await page.screenshot({
+        path: resolve(output, `${width}-${id}-${touch ? 'touch' : 'mouse'}-drag.png`),
+      });
+      if (touch) await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      else await page.mouse.up();
+      await page.waitForTimeout(250);
+      return during;
+    };
+    const palettePoint = await page.evaluate(() => {
+      const w = window.fixture.S.common.getMainWorkspace();
+      const b = w.getFlyout().getWorkspace().getTopBlocks(false)[0];
+      const r = b.getSvgRoot().querySelector('.blocklyPath').getBoundingClientRect();
+      return { x: r.x + 15, y: r.y + 10 };
+    });
+    await page.mouse.move(palettePoint.x, palettePoint.y);
+    await page.mouse.down();
+    await page.mouse.move(220, 500, { steps: 15 });
+    await page.waitForTimeout(250);
+    const paletteDrag = await page.evaluate(() => {
+      const w = window.fixture.S.common.getMainWorkspace();
+      const b = w
+        .getAllBlocks(false)
+        .find((b) => b.getSvgRoot()?.classList.contains('blocklyDragging'));
+      return b ? { id: b.id, opacity: b.getSvgRoot().style.opacity } : null;
+    });
+    assert.ok(paletteDrag, 'palette creates a native dragged block');
+    assert.equal(paletteDrag.opacity, '');
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+    await page.click('#undo');
+    await page.waitForTimeout(250);
+    assert.deepEqual(
+      await page.evaluate(() =>
+        window.fixture.S.common
+          .getMainWorkspace()
+          .getAllBlocks(false)
+          .map((b) => b.id)
+          .sort(),
+      ),
+      initial.ids,
+    );
+    await page.evaluate(() => window.fixture.S.common.getMainWorkspace().clearUndo());
+    const nativeDrag = await drag('repeat', 50, 160);
+    console.log('native drag', width, nativeDrag);
+    assert.equal(nativeDrag.parent, null);
+    assert.equal(nativeDrag.opacity, '');
+    assert.equal(nativeDrag.dragging, true);
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.fixture.S.common.getMainWorkspace().getBlockById('repeat').getSvgRoot().style
+            .opacity,
+      ),
+      '0.45',
+    );
+    await drag('repeat', -50, -160);
+    await page.waitForFunction((source) => window.latest.source === source, initial.source);
+    assert.equal(
+      await page.evaluate(
+        () => window.fixture.S.common.getMainWorkspace().getBlockById('repeat').getParent()?.id,
+      ),
+      'loop',
+    );
+    const nestedDrag = await drag('print', 60, 100);
+    assert.equal(nestedDrag.dragging, true);
+    assert.equal(nestedDrag.opacity, '');
+    await page.click('#undo');
+    await page.waitForFunction((source) => window.latest.source === source, initial.source);
+    await page.evaluate(() => {
+      const w = window.fixture.S.common.getMainWorkspace(),
+        b = w.getBlockById('detached-lcd');
+      const p = b.getRelativeToSurfaceXY();
+      b.moveBy(350 - p.x, 430 - p.y);
+    });
+    const inactiveDrag = await drag('detached-lcd', 35, 45, true);
+    assert.equal(inactiveDrag.dragging, true);
+    assert.equal(inactiveDrag.opacity, '');
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.fixture.S.common.getMainWorkspace().getBlockById('detached-lcd').getSvgRoot().style
+            .opacity,
+      ),
+      '0.45',
+    );
+    await page.evaluate(() => window.fixture.S.common.getMainWorkspace().clearUndo());
     await page.evaluate(() => {
       const { S } = window.fixture,
         w = S.common.getMainWorkspace();
@@ -220,10 +348,19 @@ try {
       ),
       '0.45',
     );
+    const rootlessSource = await page.evaluate(() => window.latest.source);
+    const rootlessDrag = await drag('repeat', 25, 25, true);
+    assert.equal(rootlessDrag.opacity, '');
+    assert.equal(await page.evaluate(() => window.latest.source), rootlessSource);
     assert.deepEqual(errors, []);
     receipts.push({
       width,
       initial,
+      nativeDrag,
+      paletteDrag,
+      inactiveDrag,
+      nestedDrag,
+      rootlessDrag,
       detached,
       saved,
       reopen: 'exact serialized state',
