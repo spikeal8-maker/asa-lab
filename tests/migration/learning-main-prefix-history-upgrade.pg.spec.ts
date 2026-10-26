@@ -177,7 +177,7 @@ const upgradeArtifacts = [
   [
     '0259',
     '0259_project_publication_reports.sql',
-    '40c2005909ad41c641d01d974dd4df6ee1288ae939677a9351551e8149861ee0',
+    'c8332e0ee625d680442673bc662fa5cc631c5f31f45a75693b1e9ba5a5294b9d',
   ],
 ] as const;
 
