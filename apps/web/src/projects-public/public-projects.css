@@ -550,7 +550,7 @@
 }
 @media (min-width: 1024px) {
   .public-project-layout {
-    grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
   .public-project-heading {
     grid-column: 1 / -1;
@@ -698,4 +698,155 @@
   text-decoration: underline;
   cursor: pointer;
   font-size: 13px;
+}
+
+.portal-shell.public-projects-guest > .public-project-detail {
+  width: calc(100% - 32px);
+  max-width: 1680px;
+}
+.public-project-commandbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 10px 20px;
+  padding-block: 12px;
+  border-block: 1px solid var(--asa-slate-200);
+}
+.public-project-commandbar .public-project-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.public-project-copy-policy {
+  order: 1;
+  max-width: 420px;
+  font-size: 12px;
+}
+.public-project-copy-policy summary {
+  cursor: pointer;
+  padding-block: 12px;
+}
+.public-project-commandbar .public-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.public-project-commandbar .publication-share {
+  width: auto;
+  max-width: 100%;
+}
+.public-project-commandbar :is(button, a) {
+  max-width: 100%;
+}
+.public-project-viewer {
+  width: 100%;
+}
+.public-project-detail .public-project-layout {
+  gap: 16px;
+}
+.public-project-detail .public-project-heading {
+  gap: 6px;
+}
+.public-electronics-viewer {
+  overflow: hidden;
+  border: 1px solid #cddbd8;
+  border-radius: 14px;
+  background: #f6faf8;
+}
+.public-electronics-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  background: white;
+  border-bottom: 1px solid #dce7e2;
+}
+.public-electronics-tools > span {
+  flex: 1 1 160px;
+  color: #426456;
+  font-size: 13px;
+}
+.public-electronics-tools button {
+  min-width: 44px;
+  padding: 8px 12px;
+  border: 1px solid #ceddd6;
+  border-radius: 8px;
+  background: white;
+  color: #234e3d;
+  cursor: pointer;
+}
+.public-electronics-tools output {
+  width: 54px;
+  text-align: center;
+  font-size: 12px;
+}
+.public-electronics-scene {
+  display: block;
+  width: 100%;
+  height: clamp(300px, calc(100svh - 360px), 620px);
+  touch-action: pan-y;
+  cursor: grab;
+  background: radial-gradient(#dce8e1 1px, transparent 1px) 0 0 / 20px 20px;
+}
+.public-electronics-scene:active {
+  cursor: grabbing;
+}
+.public-electronics-scene:focus-visible {
+  outline: 3px solid var(--asa-cyan-600);
+  outline-offset: -4px;
+}
+.public-electronics-hint {
+  margin: 0;
+  padding: 9px 12px;
+  color: #526d60;
+  background: white;
+  font-size: 12px;
+}
+.public-artifact-state {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+  background: #f6faf8;
+  border-radius: 14px;
+}
+@media (max-width: 600px) {
+  .public-project-detail {
+    padding-top: 10px;
+  }
+  .public-project-detail .public-project-back {
+    margin-bottom: 4px;
+  }
+  .public-project-detail .public-project-layout {
+    gap: 12px;
+  }
+  .public-electronics-tools {
+    position: relative;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    padding: 8px 10px;
+  }
+  .public-electronics-tools > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .public-electronics-tools output {
+    flex: 0 0 46px;
+  }
+  .public-electronics-scene {
+    height: clamp(280px, calc(100svh - 280px), 540px);
+  }
+  .public-project-commandbar {
+    padding-block: 10px;
+  }
 }

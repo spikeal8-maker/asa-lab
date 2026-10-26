@@ -4,7 +4,11 @@ export const PIN_ANCHOR_TOLERANCE_MM = 0.25 as const;
 
 // Contact topology belongs to the shared browser/server domain. Re-export it
 // here for the visual contract tests instead of maintaining a second mapping.
-export { buttonContactPairs, spdtConnections, type SpdtThrow } from '@asa-lab/electronics';
+export {
+  buttonContactPairs,
+  spdtConnections,
+  type SpdtThrow,
+} from '@asa-lab/electronics/rendering';
 
 export type OrdinaryLedColour = 'blue' | 'green' | 'orange' | 'red' | 'white' | 'yellow';
 export type OrdinaryLedFault = 'none' | 'reverse' | 'overcurrent' | 'burned';

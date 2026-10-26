@@ -73,9 +73,9 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
       runtime = new pg.Pool({ connectionString: runtimeTarget.href, max: 20 });
 
       const plan = planMigrations();
-      expect(plan.find((item) => item.version === '0259')?.file).toBe(
-        '0259_project_publication_reports.sql',
-      );
+      expect(
+        plan.some((migration) => migration.file === '0259_project_publication_reports.sql'),
+      ).toBe(true);
       const migrator = await admin.connect();
       try {
         expect(await applyIsolatedTestPlan(migrator, plan)).toBe(plan.length);

@@ -176,6 +176,9 @@ importers:
       '@asa-lab/classroom':
         specifier: workspace:*
         version: link:../../contexts/classroom
+      '@asa-lab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@asa-lab/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -257,6 +260,9 @@ importers:
       '@asa-lab/chess':
         specifier: workspace:*
         version: link:../../contexts/chess
+      '@asa-lab/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@asa-lab/electronics':
         specifier: workspace:*
         version: link:../../contexts/electronics
@@ -381,6 +387,8 @@ importers:
         version: link:../../packages/module-sdk
 
   packages/authz: {}
+
+  packages/contracts: {}
 
   packages/database: {}
 

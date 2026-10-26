@@ -181,27 +181,32 @@ const upgradeArtifacts = [
   ],
   [
     '0260',
-    '0260_ai_complete_answers.sql',
-    '88902e1f957c99c1857e24d75a196af9b956966b15851f3bdae3ebba87e33c48',
+    '0260_public_project_artifact_document.sql',
+    'a7a2e2f208a356bbee227f3ca2e0ad95fcbcee36ed6ed51401caccb672e41dcf',
   ],
   [
     '0261',
-    '0261_ai_generation_policy.sql',
-    'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
+    '0261_ai_complete_answers.sql',
+    '88902e1f957c99c1857e24d75a196af9b956966b15851f3bdae3ebba87e33c48',
   ],
   [
     '0262',
-    '0262_ai_local_image_generation.sql',
-    '31a461e8943133697ff575ff0146f813f03ec2aac06e6118e979795c4e41f58b',
+    '0262_ai_generation_policy.sql',
+    'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
   ],
   [
     '0263',
-    '0263_ai_native_image_tools.sql',
-    '1f12daf30bc9f49fa9e6049873c97e574872a6395068f2ab5308041a695b1459',
+    '0263_ai_local_image_generation.sql',
+    '31a461e8943133697ff575ff0146f813f03ec2aac06e6118e979795c4e41f58b',
   ],
   [
     '0264',
-    '0264_ai_tool_policy.sql',
+    '0264_ai_native_image_tools.sql',
+    '1f12daf30bc9f49fa9e6049873c97e574872a6395068f2ab5308041a695b1459',
+  ],
+  [
+    '0265',
+    '0265_ai_tool_policy.sql',
     '526f22047a29335f096660d4a833063899a57d0eb71e2f45ebf751c977215d35',
   ],
 ] as const;

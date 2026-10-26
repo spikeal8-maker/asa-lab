@@ -211,7 +211,13 @@ type ExpressionSyntax =
       readonly left: ExpressionSyntax;
       readonly right: ExpressionSyntax;
     }
-  | { readonly kind: 'call'; readonly name: string; readonly args: readonly ExpressionSyntax[] };
+  | { readonly kind: 'call'; readonly name: string; readonly args: readonly ExpressionSyntax[] }
+  | {
+      readonly kind: 'conditional';
+      readonly condition: ExpressionSyntax;
+      readonly whenTrue: ExpressionSyntax;
+      readonly whenFalse: ExpressionSyntax;
+    };
 interface PreparedExpression {
   readonly tokens: readonly Token[];
   readonly syntax?: ExpressionSyntax;
@@ -373,7 +379,7 @@ function incrementWaitText(instruction: CompiledInstruction | undefined): string
       : instruction?.kind === 'branch'
         ? instruction.condition
         : '';
-  return /(?:\+\+|--|\brandom(?:Seed)?\s*\()/i.test(text) &&
+  return /(?:\?|\+\+|--|\brandom(?:Seed)?\s*\()/i.test(text) &&
     /\b(?:pulseIn|readUltrasonicCm)\s*\(/i.test(text)
     ? text
     : undefined;
@@ -819,7 +825,7 @@ function tokenize(expression: string): readonly Token[] {
       index += 1;
       continue;
     }
-    if ('(),.'.includes(character)) {
+    if ('(),.?:'.includes(character)) {
       tokens.push({ kind: 'punctuation', value: character });
       index += 1;
       continue;
@@ -894,7 +900,7 @@ function prepareExpression(tokens: readonly Token[]): PreparedExpression {
     if (['!', '-', '+'].includes(token.value))
       return { kind: 'unary', operator: token.value, operand: primary() };
     if (token.value === '(') {
-      const node = binary(1);
+      const node = conditional();
       if (!take(')')) throw new SyntaxError();
       return node;
     }
@@ -903,7 +909,7 @@ function prepareExpression(tokens: readonly Token[]): PreparedExpression {
       const args: ExpressionSyntax[] = [];
       if (!take(')')) {
         do {
-          args.push(binary(1));
+          args.push(conditional());
         } while (take(','));
         if (!take(')')) throw new SyntaxError();
       }
@@ -924,8 +930,16 @@ function prepareExpression(tokens: readonly Token[]): PreparedExpression {
     }
     return left;
   };
+  const conditional = (): ExpressionSyntax => {
+    const condition = binary(1);
+    if (!take('?')) return condition;
+    countNode();
+    const whenTrue = conditional();
+    if (!take(':')) throw new SyntaxError();
+    return { kind: 'conditional', condition, whenTrue, whenFalse: conditional() };
+  };
   try {
-    const syntax = binary(1);
+    const syntax = conditional();
     return index === tokens.length ? { tokens: [], syntax } : { tokens };
   } catch {
     // The original validator alone owns supported syntax and diagnostic priority.
@@ -989,7 +1003,7 @@ class ExpressionParser {
   }
 
   parse(): ArduinoValue {
-    const value = this.parseOr();
+    const value = this.parseConditional();
     if (this.current())
       throw new SyntaxError(
         `Лишний элемент «${this.current()!.value}» в выражении. Проверьте точку с запятой.`,
@@ -1012,6 +1026,22 @@ class ExpressionParser {
     if (!token || (value !== undefined && token.value !== value)) return undefined;
     this.index += 1;
     return token;
+  }
+
+  private parseConditional(): ArduinoValue {
+    const condition = this.parseOr();
+    if (!this.take('?')) return condition;
+    const selected = condition.value !== 0;
+    if (!selected) this.suppressed++;
+    const whenTrue = this.parseConditional();
+    if (!selected) this.suppressed--;
+    if (!this.take(':')) throw new SyntaxError('Ожидается : в условном выражении.');
+    if (selected) this.suppressed++;
+    const whenFalse = this.parseConditional();
+    if (selected) this.suppressed--;
+    const type =
+      whenTrue.type === whenFalse.type ? whenTrue.type : commonType(whenTrue.type, whenFalse.type);
+    return convertValue(selected ? whenTrue : whenFalse, type, this.validateOnly);
   }
 
   private parseOr(): ArduinoValue {
@@ -1181,7 +1211,7 @@ class ExpressionParser {
     if (!token) throw new SyntaxError('Ожидается выражение.');
     if (token.kind === 'number') return parseNumericLiteral(token.value);
     if (token.value === '(') {
-      const value = this.parseOr();
+      const value = this.parseConditional();
       if (!this.take(')')) throw new SyntaxError('Ожидается закрывающая скобка.');
       return value;
     }
@@ -1223,7 +1253,7 @@ class ExpressionParser {
         do {
           const start = this.index;
           if (macro) this.suppressed++;
-          argumentsList.push(this.parseOr());
+          argumentsList.push(this.parseConditional());
           if (macro) this.suppressed--;
           argumentTokens.push(this.tokens.slice(start, this.index));
         } while (this.take(','));
@@ -1435,6 +1465,14 @@ function evaluateSyntax(
   if (node.kind === 'binding') return readBinding(state.scopes, node.name, validateOnly);
   if (node.kind === 'unary')
     return unaryValue(node.operator, evaluateSyntax(node.operand, state, suppressed), validateOnly);
+  if (node.kind === 'conditional') {
+    const selected = evaluateSyntax(node.condition, state, suppressed).value !== 0;
+    const whenTrue = evaluateSyntax(node.whenTrue, state, suppressed || !selected);
+    const whenFalse = evaluateSyntax(node.whenFalse, state, suppressed || selected);
+    const type =
+      whenTrue.type === whenFalse.type ? whenTrue.type : commonType(whenTrue.type, whenFalse.type);
+    return convertValue(selected ? whenTrue : whenFalse, type, validateOnly);
+  }
   if (node.kind === 'call') {
     if (
       state.ownedClockCalls &&
@@ -2790,6 +2828,10 @@ export function createOwnedClockedArduinoRuntime(source: string, initial?: Ardui
     node.kind === 'binding' ||
     (node.kind === 'unary' && safe(node.operand)) ||
     (node.kind === 'binary' && safe(node.left) && safe(node.right)) ||
+    (node.kind === 'conditional' &&
+      safe(node.condition) &&
+      safe(node.whenTrue) &&
+      safe(node.whenFalse)) ||
     (node.kind === 'call' && ['millis', 'micros'].includes(node.name) && node.args.every(safe));
   // These routes have no reader, member/peripheral effect or importer normalization.
   // Other supported programmes keep the public interpreter's original importer.

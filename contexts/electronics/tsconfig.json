@@ -11,6 +11,7 @@
     "index.ts",
     "engine.ts",
     "simulation.ts",
+    "rendering.ts",
     "domain/**/*.ts",
     "application/**/*.ts",
     "infrastructure/**/*.ts",

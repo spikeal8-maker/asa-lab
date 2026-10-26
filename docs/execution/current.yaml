@@ -6509,16 +6509,28 @@ parallel_lanes:
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
+      - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
+        issue: 211
+        pr: 785
+        accepted_candidate_sha: 9f18bcc1d340c4606a0618c5fedddc5ed992ffa7
+        integrated_sha: 28055932d15e38eed4076249547fe09a227d42ca
+        independent_review: approved
+        exact_candidate_focused_run: 40361199752
+        exact_candidate_general_run: 40361199670
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
     task:
       id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
       issue: 211
       branch: main
       candidate_branch: codex/public-electronics-viewer-20261026
       base_branch: main
-      pr: null
-      pr_draft: true
-      status: in_progress
-      checkpoint: visible_electronics_schematic_full_width_workspace_selected
+      pr: 785
+      pr_draft: false
+      status: done
+      checkpoint: electronics_viewer_merged_visual_verified_no_deployment
       kind: implementation
       risk: high
       semantic_change: 'yes'
@@ -12186,7 +12198,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: sustained25_complete_select_live_servo_pot_chain
+      checkpoint: numeric_conditional16_complete_select_display13_parity
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12195,13 +12207,13 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
-      current_slice: TASK-ELECTRONICS-SERVO-POTENTIOMETER-001
-      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
-      consolidated_partial: [11, 13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
+      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-PARITY-001
+      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
+      consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: 25integrated13cNEWindependent10sMODEL39checkpointsPASS;24SOURCEverified. Next784test-onlylivepotADCcomputedServoPWMrenderevidence, productunchanged no duplicatefullgate/build. Field544fixalreadyancestor f5c9inmain andzeroactualdirtywriters; onlyacceptanceblocked548 remains, doNOTreimplement. Servo11remainspartialmultiservo/longloop. No compiler/refactor/server/foreignwork. Prior783authorsSTOP.
+      execution_coordination: Numericconditional787integratedc2fcNEWindependentAPPROVE plus2345tests71freshNx/allcapsPASS,16stillpartial25SOURCEverified. Next788test-onlyactualBlockly/textdigitsDPalloffCA-CCnativeparity usingexplicit1ksegmentloads, original330ownerfixture/goldensunchanged. Countersbuttons13andlag14remainseparate. No fullgatebuildrepeat/refactor/server/foreignwork. Prior787authorsSTOP. Continueindependentbranchesifmainforeignblockedperowner.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13256,12 +13268,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_test_only_live_pot_adc_servo_chain
+      checkpoint: independently_verified_live_pot_servo_chain_integrated
       owner_acceptance: pending
+      accepted_candidate_sha: d122fde5e5dd9954dd349f80116d2f2c60a71f84
+      independent_review_sha: d122fde5e5dd9954dd349f80116d2f2c60a71f84
+      technical_evidence: NEWindependentnative12casesPASS text/realBlockly3liveknobpositions1440/390, physicalADCwiperWithin1Count computedintegeranglePWMmodelhorn5VKCLfinitequality andstrictprojectSession/generation/inputDigest/committedframecorrelation. Productunchanged, no fullgatebuildoldmatrixrepeat. Whole11remainspartialmultiservo/longrun. Candidatewaspreservedbyownerrequeste8dc; foreignauthorindependentlyreconciled781inefb, recoverySAFE_TO_START, no foreignfieldeditedhere.
       owner_authorization: Explicitwhole45programmecontinue; nextsmallmissingServo11livepotentiometerADCcomputedanglephysicalPWMandvisiblehorn proof. Priorfixedangle/pulse/clipmatricescarried, no repeats/refactor/server.
       coordinated_write_paths:
         - apps/web/src/electronics/testing/servo-runtime.browser.mjs
@@ -13278,6 +13293,137 @@ parallel_lanes:
         sha: 13c6b6cc48e6564ec50892088b3a72ba8c5daaf9
       observed_at: '2026-10-26T14:25:31.605143+00:00'
       observation_note: Fresh fetch main beforeedits clean13c, exactGeneralinprogress ScratchdocsPASS no overallCIclaim. Missinglivepotchain diagnosedread-only; Servoangles/pulse/power/clipalreadyaccepted. Testonly784 no prodbytes or newbudgetchase. Field544sourcealreadyinmain, no repeatimplementation.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+
+  - id: electronics-owner45-servo-multi-sustained
+    parent_lane: electronics
+    worktree_id: electronics-owner45-servo-multi-sustained
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SERVO-MULTI-SUSTAINED-001.md
+      - docs/product/electronics/evidence/servo-multi-sustained-786.json
+    task:
+      id: TASK-ELECTRONICS-SERVO-MULTI-SUSTAINED-001
+      issue: 786
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: independently_verified_two_servo_sustained_source_integrated
+      owner_acceptance: pending
+      accepted_candidate_sha: e34c23a45e9d6d271ee809b1199463b4c0239e38
+      independent_review_sha: e34c23a45e9d6d271ee809b1199463b4c0239e38
+      technical_evidence: NEWindependentunmodifiednativePASS1440/39042checkpointseach actually10.1106/10.1076sMODEL. TwoobjectsD9D10 PWM20ms544/2400 powereddecodersmodelsBOTHhorns exactcommittedframe/digest/generation, finiteKCLquality. Short200msALLparsedstateequal; byteJSONequalityFALSEkeyordercaveatdocumented nofielddrops/tolerances. Resetgenerationincreases/pendingStopPASS. Productunchanged/no timeoutphysicsbypass/fullgatebuild. Carriedfixedangle/pulse/power/lifecycle/clip+784pot+786multi10s support11SOURCEverified. No mechanicalload/stallcurrent/realUno5Vsafety/installedclaim.
+      owner_authorization: Explicitlatestcontinuewhole45 includingindependentworkwhenmainblocked. Foreignblockerselfresolvedbeforeselection. Onecohesive11remainingmultiphysicalServo10squalification, no refactor/server/foreignchanges.
+      coordinated_write_paths:
+        - apps/web/src/electronics/testing/servo-runtime.browser.mjs
+      gate_evidence_boundary: Productunchanged priorcanonical2301tests71freshNx/source/type/build/capscarried; onlynewnative--multi-servo-sustained-only formatlintselectedrouting. No newfullgateexecutionclaim.
+      runner_coordination: OneauthorCPUthenindependentreviewer;784authorsSTOP. Rootcurrentyamlonly.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 897634e431c47a49df41d807307a83814bcaab54
+      head_sha: null
+      main:
+        branch: main
+        sha: 897634e431c47a49df41d807307a83814bcaab54
+      observed_at: '2026-10-26T16:13:13.986173+00:00'
+      observation_note: Fresh fetch main beforeedits. ForeignPR781reconciledbyitsauthorinefb, recoverySAFEandcontrolplanePASS, noforeignfieldmutation.784actualsourcecodeunchanged2test/evidencefiles accepted897; independentproofcarried. Existing5Vmodeldoesnotmodelmechanicalload/stallcurrent, no hardwarepowersafetyclaim. Source-only786 no newbudgetchase/build.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+
+  - id: electronics-owner45-numeric-conditional
+    parent_lane: electronics
+    worktree_id: electronics-owner45-numeric-conditional
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NUMERIC-CONDITIONAL-001.md
+      - docs/product/electronics/evidence/numeric-conditional-787.json
+    task:
+      id: TASK-ELECTRONICS-NUMERIC-CONDITIONAL-001
+      issue: 787
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: independently_verified_numeric_conditional_source_integrated
+      owner_acceptance: pending
+      accepted_candidate_sha: 2a9b6922ed45e3af8ffcbc6c7553ff18abcca95a
+      independent_review_sha: 2a9b6922ed45e3af8ffcbc6c7553ff18abcca95a
+      technical_evidence: NEWindependentAPPROVE281focused plusnumeric/nestedmacro/typed/budgets1-2-7/owned-invalid-forgedadversarials, pendingRX/ADCpreservebranch andlegitimatemacrosecondread; actualWorkerClientController1440/390PASS. Old476595BoracleSHA4256419df00f33dc1841f9c47afc4464622c51be978bb57dd527f4ee5c520264 and236JSONexact independentlyPASS,2oldliteralquestionprogramsold/newfullJSONequal. Author2345tests71freshNx/caps222000-1999944PASS; original697auditDtimeoutthenisolated109ms andONEunchangedretryPASSretained. Runtime129531below153189. NumericVALUEsubsetonly,16remainspartialno fullCPP/installedclaim.
+      owner_authorization: Explicitwhole45continueincludingindependentbranchworkwhilemainunavailable. NextsmallestfunctionalCPPgapnumericvalueconditional beforelargerswitch. PriorServo11sourceaccepted; no refactor/foreign/serverchanges.
+      coordinated_write_paths:
+        - contexts/electronics/domain/arduino-program-runtime.ts
+        - contexts/electronics/domain/arduino-capabilities.ts
+        - apps/web/src/electronics/arduino-command-reference.ts
+        - contexts/electronics/testing/**
+        - apps/web/src/electronics/testing/arduino-loops.browser.mjs
+      scope_boundary: NumericVALUEonly existingcontexts, rightassoc/lazyselectedbranch/AVRcommontype. No pointers/classes/void/conditionallvalue/newcommaassignment/omittedmiddle; no switchscopeexpansion. Preserveoldvalidstreams/state/events/fingerprints andjournalforgedguards.
+      runner_coordination: OneexecutorCPUthenNEWindependentreviewer, prior786authorsSTOP. Rootcurrentyamlonly. Mainforeignblock meanscandidatepreserve+otherindependentwork notforeignrepair.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ddc2deb7447c50880852a287c6454758ea18f5c7
+      head_sha: null
+      main:
+        branch: main
+        sha: ddc2deb7447c50880852a287c6454758ea18f5c7
+      observed_at: '2026-10-26T16:29:20.210203+00:00'
+      observation_note: Fresh fetch main beforeedits clean ddc2, exactworkflowsqueued no globalPASSclaim. Runtime127658reviewed3156 afterRNG5f unchanged; guard153189. Sourcecaps222000/1999944 from782. PrimaryN3337expr.cond verifiedofficialWG21source. OldCPPbyteoracle BEFORE anyedits, no sourcefunctionmoves/refactor/deferredcleanup.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+
+  - id: electronics-owner45-seven-segment-parity
+    parent_lane: electronics
+    worktree_id: electronics-owner45-seven-segment-parity
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-PARITY-001.md
+      - docs/product/electronics/evidence/seven-segment-parity-788.json
+    task:
+      id: TASK-ELECTRONICS-SEVEN-SEGMENT-PARITY-001
+      issue: 788
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: selected_test_only_native_blocks_text_common_mode_parity
+      owner_acceptance: pending
+      owner_authorization: Explicitwhole45continueincludingindependentworkifmainunavailable. Nextsmall13missingBlockly-textCA-CCnativeparity, notnewphysics/performancefix. Preserveoriginalowner330/no-delay andgoldens, no foreignchanges/refactor/server.
+      coordinated_write_paths:
+        - apps/web/src/electronics/testing/servo-runtime.browser.mjs
+      gate_evidence_boundary: Productunchanged prior787canonical2345tests71freshNx/type/build/capscarried; newnative--seven-segment-parity-only plusformatlintselectedrouting only. No newfullgateclaim.
+      runner_coordination: OneexecutorCPUthenindependentreviewer,787authorsSTOP. Rootcurrentyamlonly; representativeimages not96screenshots.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: c2fc3f8fe6ce067dbf52a9ce3887b30dfcef7a06
+      head_sha: null
+      main:
+        branch: main
+        sha: c2fc3f8fe6ce067dbf52a9ce3887b30dfcef7a06
+      observed_at: '2026-10-26T16:52:48.621407+00:00'
+      observation_note: Fresh fetch main beforeedits c2fc source3pathsidenticalreviewed2a9, mainCIqueued notPASSclaim. CanonicalmodelCA-CCsupported, domain0-9/DP/thermal/currentproofalreadyexists; currentnativeonlytextCC. Test-onlyparity withsafe1koption notlag14repair. Priorruntime129531/caps222000-1999944accepted unchanged.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
