@@ -6473,29 +6473,24 @@ parallel_lanes:
       pr: 704
       pr_draft: true
       status: in_progress
-      checkpoint: renumber_unpublished_pins_after_published_0246
+      checkpoint: owner_resumed_independent_agent_reviews_and_refreshed_checks
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-25 owner requested publication of all finished Public Projects
-        work to main, allowing ordinary Draft transition and merge ONLY after
-        all mandatory exact-SHA focused/General CI, independent Code/Security
-        reviews and other branch/security controls actually pass. No waiver or
-        force push. Existing #704 currently has 0242_project_publication_pins.sql
-        but main already published foreign 0242-0246 migrations, so only the
-        unpublished pins migration may receive the next free number (expected
-        0247, subject to actual frontier). Preserve its exact SQL bytes and
-        checksum; extend strict own/required migration-history contracts while
-        retaining published checksum identity and rejecting corrupt histories.
-        Public Projects only: do not modify Identity, Auth, MAX, AI, Courses,
-        Scratch, Electronics, Analytics, other product tests or workflows.
-        Preserve existing B1 reports Draft #717 at
-        c420833c0b1aa5e2cf98a2d4bd46e233c19eca48, still unmerged, with
-        provisional migration 0240; prepare B1 as dependent successor only
-        once #704 integrates (expected 0248 if frontier remains unchanged).
-        Current pinning Security approval is missing and cannot be
-        self-issued; keep SECURITY_ACCEPTANCE_PENDING and no merge until
-        genuine independent reviewer and required green checks.
-        No school database, working production instance or deployment work.
+        On 2026-10-26 owner explicitly requested completion of existing Public
+        Projects work #704, #717, #211, #721 and #723. Asked about the separately
+        required external GitHub security reviewer, owner answered:
+        "нет такого человека без него продолжай". This supersedes the external
+        human-reviewer prerequisite only: retain separate independent agent Code
+        and Security verdicts on the final source, exact-SHA focused PostgreSQL
+        and browser evidence, required General CI and all GitHub protections.
+        Do not invent a formal GitHub APPROVE or use author self-review as an
+        independent verdict. Ordinary Draft transition and merge of accepted
+        slices are authorized after these requirements actually pass.
+        Reuse the existing PRs and preserve published migration history; assign
+        unpublished pin/report migrations the next free actual versions. Keep
+        current retained-publication metadata visibility when composing pins.
+        Continue #717, then #721 and #723 only across their accepted dependency
+        boundaries. No force push, school/production database or deployment.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -12150,9 +12145,8 @@ parallel_lanes:
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
       current_slice: TASK-ELECTRONICS-INCREMENT-EXPRESSION-001
-      parallel_slice: TASK-ELECTRONICS-SOCKET-MATRIX-001
-      consolidated_source_verified: [1, 2, 3, 6, 7, 8, 10, 12, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
-      consolidated_partial: [4, 5, 11, 13, 14, 15, 16, 17, 19, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
+      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
+      consolidated_partial: [11, 13, 14, 15, 16, 17, 19, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 18, 38, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38confirmedownerSVG missing;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
@@ -12950,8 +12944,12 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_correct_prefix_postfix_expression_semantics
+      checkpoint: review_fail_wait_call_repair_optional_journal_authorized
       owner_acceptance: pending
+      rejected_review_sha: 7ab3e669528d0484042c5c6d02ef2fa5173b9916
+      rejected_review_reason: P1 actualclockedpulseIn(n++,HIGH,5) resumeswithn4 andcontinuationmismatch insteadn3andtimeout0; readUltrasonicCm likewise. No mainintegrationoracceptance. Fullgate2202andnativebasicproof passed butdidnotcoverwaitingcallsideeffects.
+      repair_decision: Controllerauthorizesboundedoptionalpendinginstruction evaluationjournal fornewincrementplusblockingcall; no version/protocolbump. Cachecompletedsubtrees andargumentreads/effects exactlyonce includingSerial/micros/ADC acrossJSON. Preservependingn3, no rollbackapproximation. StrictfiniteboundsPC/program/wait validation; oldvalidnonincstatebyteexact; brokenunpublished7abpartialstateswithoutjournalreject/reset. No randomswitchorgenericrefactor.
+      runner_coordination: Socket774 acceptedandstopped; increment773author ownsheavyCPU afteroptionaljournaldecision canonical. Independent773reviewer readonlyuntilfinalfreezehandoff. No concurrenttimingprobes.
       owner_authorization: Complete45programme actualquality; independentreview confirmedpreexistingwhile(++checks<3) giveschecks0instead3. Repair scopedtypedprefix/postfix++/-- not parsedasunarysigns. Preserveordinaryspacedunarysigns oldvalidprogramstreams/state/clock andallphysics. No randomswitchorgenericparserrefactor.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -12982,14 +12980,19 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_parallel_supporting_matrix_cpu_wait
+      checkpoint: supporting_matrix_source_native_integrated_review_pass
       owner_acceptance: pending
+      candidate_sha: f5428464254e3bd41235558569b2e1069d6996f7
+      source_integrated_sha: f5428464254e3bd41235558569b2e1069d6996f7
+      integration_merge_sha: efc35bf9d23f8c7bd170817300eeb45194f8caa8
+      independent_review: NEW APPROVE exactf54296focusedtests22legacybyteexactoracle44nativegesturesPASS including6desktopcrossshape6CDPtouchcrossshape andall4screens. AssertconnectionIDbeforelooseLogicmount, notfakegesture. Finalmerge2testfiles byteidenticalf542, onlypriorforeigneditorUIformat elsewhere. No productionedits; nofullgateforpuretests. Points4/5 sourceverified,42wholelegacy and43wholedevice/installed acceptance remainpartial.
+      author_evidence: Twoexistingtestfilesonly 96focusedPASS44nativegestures22legacybyteexactoraclePASS lintformat. No productdefectfound or productionedits. Independentreviewpending actualnative rerun; no fullgateforpuretests.
       owner_authorization: Explicit45programme throughbots; independentpoints4/5/42 testmatrix has no overlap773parser/capability/help/looptests. Preparetestsonly thenwaitCPUhandoff. Existing67Number compat covered; close8Boolean reverse legacyCOUNT andcomputedpinroundtrip gaps.
-      runner_coordination: Increment773 owns allheavyCPU. Socket774 may inspectandedit supportingtestpaths only; no unit/native/build untilcontrollerhandoff. No concurrenttimingtests. Productdefectrequirescause reportbeforeedits.
+      runner_coordination: Socket774authorandreviewerSTOP, CPUreleasedto773repair. No concurrenttimingtests; no productionedits in774.
       deployment: prohibited_by_owner
       database_actions: none_live
     revisions:
@@ -13081,16 +13084,16 @@ blocking:
       - independent_source_review
       - documentation_update
     reason: >-
-      Public Projects pinning PR #704 passed focused CI on 7035c3873913db897bc9cb8fe70ba8d337434f59 but lacks
-      independent Security verdict and required General CI. Main has published
-      unrelated 0242-0246 migrations; 0242 pin version now conflicts and must be
-      renumbered to the next free version before refreshed exact-SHA CI.
-      Bounded repair/verification is allowed, NOT merge/release/acceptance.
-      A new exact-SHA independent Security verdict and owner-authorized Draft
-      transition/merge are still required. Existing security handoff
-      is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
-      Do not repeat the same review request or waive security. An external review
-      or owner decision is required before pinning integration.
+      Owner decision on 2026-10-26 permits continuation without an external human
+      GitHub reviewer, as recorded in the projects task authorization. This does
+      not waive independent agent Code/Security review, refreshed exact-SHA
+      focused PostgreSQL/browser and General CI or branch protections. Current
+      published migration frontier has moved beyond the historical handoff;
+      unpublished pins must follow the actual frontier and preserve migration
+      0255 retained-publication visibility. Keep integration blocked until the
+      composed candidate has the required evidence; no formal GitHub approval
+      may be fabricated. Historical external-review handoff remains evidence,
+      not the current human-reviewer prerequisite.
     evidence: https://github.com/spikeal8-maker/asa-lab/pull/704
   - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
     kind: acceptance_blocker

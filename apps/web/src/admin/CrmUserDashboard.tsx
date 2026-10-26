@@ -104,9 +104,9 @@ function MiniChart({
               if (next === null) return;
               event.preventDefault();
               setSelected(next);
-              event.currentTarget.ownerSVGElement
-                ?.querySelectorAll<SVGCircleElement>('circle')
-                [next]?.focus?.();
+              const points =
+                event.currentTarget.ownerSVGElement?.querySelectorAll<SVGCircleElement>('circle');
+              points?.[next]?.focus?.();
             }}
             aria-label={`${day.date} UTC: ${day[field]}`}
           >
