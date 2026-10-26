@@ -12161,7 +12161,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: seeded_random_integrated_runtime_review_and_spst_asset
+      checkpoint: runtime_review_complete_owner_corrected_spst_derivation
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12170,8 +12170,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
-      current_slice: TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
-      parallel_slice: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
+      current_slice: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 18, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
       consolidated_partial: [11, 13, 14, 15, 16, 17, 19, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 38, 39]
@@ -13088,6 +13087,7 @@ parallel_lanes:
     owned_paths:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001.md
       - docs/product/electronics/candidates/spst/**
+      - docs/product/electronics/candidates/spst-from-spdt/**
     task:
       id: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
       issue: 777
@@ -13098,9 +13098,12 @@ parallel_lanes:
       kind: implementation
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_independent_asset_candidate_not_component_enable
+      checkpoint: owner_rejected_rocker_select_existing_spdt_outer_leg_derivation
       owner_acceptance: pending
-      owner_authorization: Whole45programme andSVGpolicy permitnewindependentasset. Existingownerinventory only3pinSPDT/momentarybuttons, nogenuineSPST. Prepareconcreteselfauthoredtwo-terminal latchedcandidate forownerconfirmation; no tracing replacing orusingprotectedartwork. Productioncomponentdisabled untilconfirmation.
+      rejected_candidate_sha: 57dc43f96a7910c010e636b43f4188c5e5661042
+      owner_correction: Ownerexplicitlyrejectsnewrockerimage. UseexistingownerSPDTbody andremoveoneOUTERleg notcentre. ChooseRIGHTouterremove retainLEFTplusCOMMON, original3pinfilesunchanged. ThisexplicitlyauthorizesderivedSVG; no repeatedpermissionquestionforverifiedexactrecipe.
+      corrected_asset_scope: MarkoldrockerREADME/pinmaprejectedhistorical, newdocs/candidates/spst-from-spdt derivedleft/right SVG+parenthash/pinmap/removalproof/preview only. BodyviewBoxslider andretainedlegsunchanged. Separatetrue2terminalSPSTmodelimplementationnext; neverfakebyhidingthirdmodelterminal.
+      owner_authorization: Latestdirectownerinstruction supersedesearlierindependentcandidate; deriveexistingconfirmed3pinSPDT byremovingoneouterleg andkeepcentre/body. Originals preserved; explicitderivationpermission accepted, requiredexactrecipeverification beforecomponentenable. No furthernewart.
       runner_coordination: Random775ownsheavyCPU. Assetauthorlightpreflight/design only; browserrender andtests waitcontrollerhandoff. No model/catalog/sourcewrites.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -13112,7 +13115,7 @@ parallel_lanes:
         branch: main
         sha: 9c81bc643cafc34f8cc52f11572f49f43bc4f159
       observed_at: '2026-10-26T11:35:51Z'
-      observation_note: Fresh fetch main beforeedits. ReadonlySPSTinventory confirms exactownerSPDT3contacts and4pinmomentarybutton only; no confirmedtwo-terminalSVG. Newcandidateoutsideprotectedassets/projectruntime, notowner_supplied. Actualpreview +independentreviewbeforeownerquestion.
+      observation_note: Fresh fetch main beforeedits. Ownerrejected57rocker andexplicitlyauthorizedexistingSPDTderivation. Sourceparentleft2e0f6d29/right8622c1ef manifestconfirmed. Removeonlyright11.54 retainleft6.46 common9.00 inbothstates; strictretainedgeometry/sourcehashproof beforefurthercomponentwork.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -13131,12 +13134,14 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: maintenance
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_bounded_accepted_runtime_review_no_refactor
+      checkpoint: accepted_runtime_responsibility_review_integrated_warning
       owner_acceptance: pending
+      source_integrated_sha: 3156bed03703ff150ff5a19f67bd3bf5c918e0ab
+      evidence: NEWindependentAPPROVEexact3156 threeauthorizeddocsonly, runtime127658blobc25786f8 andPRNGhelper7e007a85 unchangedaccepted5f. Actualgrowth/responsibility/L2windowreview,114routing/selectedrouting/CPPASS. Baselineonlyruntimebytes+rationale, allotherentries50k/20percent/checkpoint/retirement unchanged. WARNING retainsdecomp/legacy/overduecadence and33/50bundleheadroom, no wholeprogramme/owner/releaseacceptance. No productioncodechanges or2292gate duplication.
       coordinated_write_paths:
         - docs/product/electronics/evidence/hygiene-baseline.yaml
       context_hints:
@@ -13192,8 +13197,8 @@ blocking:
     task_id: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
     blocks: [component_enable, owner_acceptance, release_claim]
     allows: [candidate_asset_creation, candidate_render_review]
-    reason: AGENTS requires confirmedownerSVG beforecomponentenable; independentcandidate mustreceiveexplicitownerconfirmationwithassetidentity first. ExistingSPDTcannotbemisrepresentedbyhidingpin.
-    evidence: Readonlyinventory owner-supplied/manifest.json218 andowner-audit/components/switch/left.svg3 identifyexplicit3contactSPDT; catalog17077 likewise3pins. Onlymomentary4pinbuttonselsewhere. No confirmedSPST found; newcandidate mustremainunregistereduntilownerapproval.
+    reason: Ownerrejectednewrocker, explicitlyauthorizedoneouterlegremovalfromexistingSPDT. Enableawaitsverifiedexactderivedassetidentity andtrue2terminalmodel, no morehumanpermissionneededforexactrecipe. OriginalSPDTmustremain3pin.
+    evidence: Directuserreply saysremoveoneSIDEleg notcentre andkeeprest. Existingmanifestleft2e0f6d29/right8622c1ef areconfirmedparents; proposedderivedretainsleft6.46/common9.00 removesright11.54. Independentrecipeverificationpending; rejectedrocker4b1d50 mustnotbeenabled.
 
   - id: ELECTRONICS-752-CLASSROOM-BASELINE
     kind: acceptance_blocker
