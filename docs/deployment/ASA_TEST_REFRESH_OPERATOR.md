@@ -474,7 +474,8 @@ source-сборку успешным выпуском.
 - `failed_rolled_back`: после фактического рестарта прежнего runtime
   оператор перепроверил исходный Git SHA, SHA256 оригинального `.env`,
   идентичность PostgreSQL, прежние counts/schema, прежний MinIO volume,
-  готовность всех Compose services и HTTP/HTTPS. Записывается
+  побайтовое сравнение через `rsync --checksum --dry-run` с сохранённой
+  копией при остановленном MinIO, готовность всех Compose services и HTTP/HTTPS. Записывается
   `rollback_verified=true`, `rollback_required=false`. Просто успешный
   exit code команды `docker compose up` недостаточен.
 - `manual_recovery_required`: любая неопределённость, прерывание между
