@@ -98,9 +98,19 @@ it('shows loading, retries a failed request, and closes an unavailable publicati
   );
   await render();
   expect(container.querySelector('[role="status"]')?.textContent).toContain('Загружаем');
-  await act(async () => finish({ ok: false, status: 503 }));
+  await act(async () =>
+    finish({
+      ok: false,
+      status: 503,
+      error: { code: 'server_error', message: 'Сервис недоступен' },
+    }),
+  );
   expect(container.querySelector('[role="alert"]')?.textContent).toContain('Не удалось загрузить');
-  get.mockResolvedValueOnce({ ok: false, status: 404 });
+  get.mockResolvedValueOnce({
+    ok: false,
+    status: 404,
+    error: { code: 'not_found', message: 'Публикация не найдена' },
+  });
   await act(async () => container.querySelector<HTMLButtonElement>('button')!.click());
   expect(container.querySelector('h1')?.textContent).toBe('Публикация недоступна');
   expect(container.querySelector('article')).toBeNull();
