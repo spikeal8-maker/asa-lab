@@ -12151,7 +12151,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: increment_replay_integrated_select_seeded_random
+      checkpoint: seeded_random_integrated_runtime_review_and_spst_asset
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12160,13 +12160,14 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
-      current_slice: TASK-ELECTRONICS-SEEDED-RANDOM-001
-      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
+      current_slice: TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
+      parallel_slice: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
+      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 18, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
       consolidated_partial: [11, 13, 14, 15, 16, 17, 19, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
-      consolidated_pending: [9, 18, 38, 39]
+      consolidated_pending: [9, 38, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38confirmedownerSVG missing;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: Increment773 repairedafterreviewFAIL andintegrated6048 withNEWindependentPASS; socket774accepted. Select seededrandom18 pinnedAVRsubset usingnewreplay foronce-onlywaitingcalls. Separate author/reviewer soleheavyCPU. Switch anddisplaylag remainopen, no foreignrepair/deferredcleanup/paused682reuse.
+      execution_coordination: Random18integrated5f57afterNEWindependentPASS. BeforefurtherCppfeature selectboundedruntime-responsibilitydocs review ofaccepted771/773/775, no codecleanup/refactor. ParallelSPSTasset777 independentcandidate only, no componentenable. Bothauthorsseparateworktrees andrender/validators serialized; switch/displaylag remainopen, no foreignrepair/deferred25/paused682reuse.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13042,12 +13043,16 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_pinned_per_board_random_and_seed
+      checkpoint: source_worker_block_text_integrated_independent_review_pass
       owner_acceptance: pending
+      source_integrated_sha: 5f57d0716e8bb2b923cc0ace69c78e7c014d4643
+      completed_at: '2026-10-26T11:46:37Z'
+      evidence: Fresh2292tests1213core1079web71uncachedNx typesbuildPASS caps221950of222000and1999967of2000000; runtime127658underold127670guard. NEWindependent188focused5600BigIntreferencedraws112uintseedsinclhighbit/zeroPASS,9malformedstates immutability/repeatabilityPASS. ActualChromium1440/390 realWorkercontrollergeneratedScratchBlocks green/inclusiverange/detachednodraw JSONbudget1/direct multiboard lifecycle/sourceeditsPASS. BSDnotice retainedsourceandbuiltWorker/core; oldnonrandomstate/events hash preserved.
+      remaining_acceptance: PinnedlogicalAVRsubset notcompletehardware/toolchain emulation. OverallCI installed fullappSaveCAS owner acceptance notclaimed. FullCpp16/switch17/wholemixed15 remainpartial.
       owner_authorization: Complete45programme; actualexistingrandomreportergraybecauseVMunsupported. ImplementpinnedArduinoCoreAVR1.8.6/avrLibc2.0logicalsequenceandbounds perboard serializedstate, no hardware/toolchainaccuracyclaim. Activateexistingblock andhelp; preserveoldnonrandomstatebyteexact. Reusereplay forwaitingcallsideeffects once-only.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -13066,6 +13071,87 @@ parallel_lanes:
         commands:
           - pnpm gate:electronics-m1
           - pnpm bundle:check
+
+  - id: electronics-owner45-spst-asset
+    parent_lane: electronics
+    worktree_id: electronics-owner45-spst-asset
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001.md
+      - docs/product/electronics/candidates/spst/**
+    task:
+      id: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
+      issue: 777
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: low
+      semantic_change: 'no'
+      checkpoint: selected_independent_asset_candidate_not_component_enable
+      owner_acceptance: pending
+      owner_authorization: Whole45programme andSVGpolicy permitnewindependentasset. Existingownerinventory only3pinSPDT/momentarybuttons, nogenuineSPST. Prepareconcreteselfauthoredtwo-terminal latchedcandidate forownerconfirmation; no tracing replacing orusingprotectedartwork. Productioncomponentdisabled untilconfirmation.
+      runner_coordination: Random775ownsheavyCPU. Assetauthorlightpreflight/design only; browserrender andtests waitcontrollerhandoff. No model/catalog/sourcewrites.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 9c81bc643cafc34f8cc52f11572f49f43bc4f159
+      head_sha: null
+      main:
+        branch: main
+        sha: 9c81bc643cafc34f8cc52f11572f49f43bc4f159
+      observed_at: '2026-10-26T11:35:51Z'
+      observation_note: Fresh fetch main beforeedits. ReadonlySPSTinventory confirms exactownerSPDT3contacts and4pinmomentarybutton only; no confirmedtwo-terminalSVG. Newcandidateoutsideprotectedassets/projectruntime, notowner_supplied. Actualpreview +independentreviewbeforeownerquestion.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+
+  - id: electronics-owner45-runtime-responsibility
+    parent_lane: electronics
+    worktree_id: electronics-owner45-runtime-responsibility
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001.md
+      - docs/product/electronics/evidence/runtime-responsibility-20261026.md
+    task:
+      id: TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
+      issue: 778
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: selected_bounded_accepted_runtime_review_no_refactor
+      owner_acceptance: pending
+      coordinated_write_paths:
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+      context_hints:
+        - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+      shared_path_coordination: AGENTSdirectmain makesownedpathsadvisory; selectedcardauthorizesonlyruntimeentry incommonbaseline. Preserve641historicalwaitingintegrationtask unchanged. RootcheckedALLregisteredworktrees baselinepathzeroDIRTY beforeselection; no concurrentwriter. Recordcommonwriteexplicitlyhere ratherthan falselyclaimsecondexclusiveownership orchangevalidator.
+      owner_authorization: Whole45programme includesnecessaryroutinggates. ENGINEERING_HYGIENE_CONTRACT6/8 mandates selectedreview forlarge-source baseline, notautomatic splitting. Acceptedruntime127658 nearold106392review20percent. Reviewactualaccepted771/773/775 code/evidence, updateonlyruntimebaselineafterNEWindependentreview. No codecleanup/refactor or deferred25import.
+      runner_coordination: All775authorsreviewersSTOP. Responsibilityauthor mayrunroutingvalidator; SPST777renderwaitsoneCPUslot. No physics/full2292gate repetition fordocumentationonlyreview.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 5f57d0716e8bb2b923cc0ace69c78e7c014d4643
+      head_sha: null
+      main:
+        branch: main
+        sha: 5f57d0716e8bb2b923cc0ace69c78e7c014d4643
+      observed_at: '2026-10-26T11:46:37Z'
+      observation_note: Fresh fetch main beforeedits. Freezeactualacceptedsourcebytes/Gitblob, scopeL2windowlast3runtime slices andexplicitfindings. Existing50k/20percent/checkpoint/legacyclasses remainunchanged; baseline notjustnumberbump. UnrelatedscopeBLOCK notclosed.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-RUNTIME-RESPONSIBILITY-001
+          - pnpm control-plane:check
 
 integration:
   owner_lane: visual-programming
@@ -13090,6 +13176,15 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-SPST-OWNER-SVG-777
+    kind: acceptance_blocker
+    lane: electronics-owner45-spst-asset
+    task_id: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
+    blocks: [component_enable, owner_acceptance, release_claim]
+    allows: [candidate_asset_creation, candidate_render_review]
+    reason: AGENTS requires confirmedownerSVG beforecomponentenable; independentcandidate mustreceiveexplicitownerconfirmationwithassetidentity first. ExistingSPDTcannotbemisrepresentedbyhidingpin.
+    evidence: Readonlyinventory owner-supplied/manifest.json218 andowner-audit/components/switch/left.svg3 identifyexplicit3contactSPDT; catalog17077 likewise3pins. Onlymomentary4pinbuttonselsewhere. No confirmedSPST found; newcandidate mustremainunregistereduntilownerapproval.
+
   - id: ELECTRONICS-752-CLASSROOM-BASELINE
     kind: acceptance_blocker
     lane: electronics-owner23-potentiometer-hygiene
