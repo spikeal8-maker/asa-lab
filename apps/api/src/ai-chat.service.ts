@@ -920,7 +920,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          problem.partialText.slice(0, 8192),
+          problem.partialText,
           'stopped',
         ]);
       } else {
@@ -1371,7 +1371,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          result.text.slice(0, 8192),
+          result.text,
           result.stopped ? 'stopped' : 'complete',
         ]);
       } else {
@@ -1419,7 +1419,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          problem.partialText.slice(0, 8192),
+          problem.partialText,
           'stopped',
         ]);
       } else {

@@ -141,8 +141,7 @@ export class AiTextHistoryStore {
     return result.rows.map((row, index) => ({
       role: row.role,
       content:
-        row.content.slice(0, 3000) +
-        (index === result.rows.length - 1 ? webEvidenceContext(row.web_search) : ''),
+        row.content + (index === result.rows.length - 1 ? webEvidenceContext(row.web_search) : ''),
     }));
   }
 }
