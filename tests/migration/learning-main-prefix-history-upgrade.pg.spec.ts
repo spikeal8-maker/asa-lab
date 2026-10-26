@@ -116,8 +116,58 @@ const upgradeArtifacts = [
   ],
   [
     '0247',
-    '0247_project_publication_pins.sql',
-    '1dd6cb6eebd25257fa55b9acf493a4ecde4c4d0d5ea8998d4fd63e02b0d62908',
+    '0247_crm_user_cards.sql',
+    '82b6a82c1e3a71fed096de87fa068a54fa052c707ea1a5e4166bc91dc0038b29',
+  ],
+  [
+    '0248',
+    '0248_verified_email_smtp.sql',
+    'e8a1932af2b356614db98ea52af861803992fba6c09f48ab849c632af0ef3a56',
+  ],
+  [
+    '0249',
+    '0249_crm_directory.sql',
+    '5ea5756bb4e61a926f48e67469b799395b2f3c19e068569a3b8e809031961b12',
+  ],
+  [
+    '0250', // Exact Seat retained detail and immutable educational notes.
+    '0250_crm_retained_detail.sql',
+    '4f305043bb40aea37c4ee33afb3fea87775df6855c9f9941eb50a9e7c0b04ff7',
+  ],
+  [
+    '0251', // Scoped organization and exact-class responsibilities.
+    '0251_crm_responsibilities.sql',
+    'b25d2cc12e0f75ee98a90d8e574ad38d9b66eb213b01add1c5341f831130a094',
+  ],
+  [
+    '0252',
+    '0252_ai_ollama_cloud.sql',
+    '575c4b4bf41e0bdb5a4652f141289f6c0bfaa8171fd7feec60f519776ae53957',
+  ],
+  [
+    '0253', // Optional scoped campaign observations and factual catalog projections.
+    '0253_crm_acquisition_observations.sql',
+    'eeb2f35f7c2408d8edb3400aef18b5db88e6e6985aeebf2911c976db9a0cd8dc',
+  ],
+  [
+    '0254',
+    '0254_ai_web_search.sql',
+    'f308015796eb1ccfcfa43c4015bb2b6b78cc141bc41a6e94354c02c3878df2d5',
+  ],
+  [
+    '0255',
+    '0255_admin_legacy_publication_visibility.sql',
+    '6839dd782fc3ced49f399f3ffd3e46481f40e3b65c177da40bda3f1fb0805cc5',
+  ],
+  [
+    '0256',
+    '0256_crm_user_dashboard.sql',
+    'e73e3533fe386dfdabc04067eaba05198118d1686f55e352670b5e8a9ad6e349',
+  ],
+  [
+    '0257',
+    '0257_project_publication_pins.sql',
+    '5dc9b4051ed78f80ec35963f006b630cc01ea52f5e4b9a6eacdcf499db5bb1fe',
   ],
 ] as const;
 
@@ -614,6 +664,11 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (await pool.query('SELECT * FROM ai_assistant_request_quota ORDER BY request_id')).rows,
       ).toEqual(quota.map((row) => ({ ...row, owner_principal_id: fixture.principal })));
+      // Adding a provider must not retimestamp the slots created by migration 0227.
+      const providerCatalogAppliedAt = afterLedger.find(
+        (row) => row.version === '0227',
+      )!.applied_at;
+      const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0252')!.applied_at;
       const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(migratedConfig).toEqual({
         ...config,
@@ -621,7 +676,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         enabled: false,
         configuration_version: String(Number(config.configuration_version) + 1),
         migrated_from_model: 'deepseek-chat',
-        updated_at: expect.any(Date),
+        updated_at: providerCatalogAppliedAt,
       });
       expect(migratedConfig.updated_at.getTime()).toBeGreaterThanOrEqual(
         config.updated_at.getTime(),
@@ -639,13 +694,22 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           updated_at: migratedConfig.updated_at,
         },
         {
+          provider: 'ollama-cloud',
+          model: 'gemma4:31b',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: cloudProviderAppliedAt,
+        },
+        {
           provider: 'openai',
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,
           api_key_auth_tag: null,
           key_fingerprint: null,
-          updated_at: expect.any(Date),
+          updated_at: providerCatalogAppliedAt,
         },
       ]);
       expect(

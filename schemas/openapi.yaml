@@ -15,6 +15,613 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/admin/v1/users:
+    get:
+      operationId: getFilteredCrmUsers
+      summary: Read typed authorized filtered catalog and full-base factual aggregates
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: kind
+          required: false
+          schema: { type: string, enum: [all, accounts, students] }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, active, inactive] }
+        - in: query
+          name: sort
+          required: false
+          schema: { type: string, enum: [name, last_activity, activity, created] }
+        - in: query
+          name: direction
+          required: false
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string, maxLength: 4096 }
+        - in: query
+          name: role
+          required: false
+          schema:
+            {
+              type: string,
+              enum:
+                [
+                  all,
+                  learner,
+                  creator,
+                  educator,
+                  registered_student,
+                  guardian,
+                  platform_admin,
+                  owner,
+                  school_admin,
+                  member,
+                ],
+            }
+        - in: query
+          name: classId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: organizationId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: age
+          required: false
+          schema: { type: string, enum: [all, known, unknown] }
+        - in: query
+          name: ageMin
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: ageMax
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: email
+          required: false
+          schema: { type: string, enum: [all, present, absent, verified, unverified] }
+        - in: query
+          name: activity
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: registeredAfter
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: registeredBefore
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: source
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, enum: [7, 30, 90] }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryPage' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/users-export:
+    get:
+      operationId: prepareFilteredCrmCsv
+      summary: Prepare all authorized filtered rows as BOM semicolon CSV in JSON; reject oversize exports
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: kind
+          required: false
+          schema: { type: string, enum: [all, accounts, students] }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [all, active, inactive] }
+        - in: query
+          name: sort
+          required: false
+          schema: { type: string, enum: [name, last_activity, activity, created] }
+        - in: query
+          name: direction
+          required: false
+          schema: { type: string, enum: [asc, desc] }
+        - in: query
+          name: role
+          required: false
+          schema:
+            {
+              type: string,
+              enum:
+                [
+                  all,
+                  learner,
+                  creator,
+                  educator,
+                  registered_student,
+                  guardian,
+                  platform_admin,
+                  owner,
+                  school_admin,
+                  member,
+                ],
+            }
+        - in: query
+          name: classId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: organizationId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: age
+          required: false
+          schema: { type: string, enum: [all, known, unknown] }
+        - in: query
+          name: ageMin
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: ageMax
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 120 }
+        - in: query
+          name: email
+          required: false
+          schema: { type: string, enum: [all, present, absent, verified, unverified] }
+        - in: query
+          name: activity
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: registeredAfter
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: registeredBefore
+          required: false
+          schema: { type: string, format: date }
+        - in: query
+          name: source
+          required: false
+          schema: { type: string, enum: [all, observed, unknown] }
+        - in: query
+          name: days
+          required: false
+          schema: { type: integer, enum: [7, 30, 90] }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryCsv' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/users-filter-options:
+    get:
+      operationId: getCrmFilterOptions
+      summary: Search current authorized class and organization filter values (up to 100 each)
+      parameters:
+        - in: query
+          name: scopeKind
+          required: true
+          schema: { type: string, enum: [platform, organization] }
+        - in: query
+          name: scopeId
+          required: false
+          schema: { type: string, format: uuid }
+        - in: query
+          name: search
+          required: false
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Fresh server-authorized result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryOptions' }
+        '400':
+          description: Invalid filter or cursor
+        '401':
+          description: Session missing or revoked
+        '403':
+          description: Current scope or exact class binding denied
+        '413':
+          description: Export exceeds 10000 rows or 16 MiB; no partial CSV
+        '422':
+          description: Query exceeded its eight second budget; narrow filters
+        '429':
+          description: Another export is running for this actor or process
+  /api/admin/v1/organization-class-bindings:
+    get:
+      operationId: searchExplicitOrganizationClassBindings
+      summary: Platform-only search of classes and organizations (100 matches each)
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 100 }
+      responses:
+        '200':
+          description: Authorized candidates and current explicit bindings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrmDirectoryOptions' }
+        '403':
+          description: Platform administrator required
+    put:
+      operationId: setExplicitOrganizationClassBinding
+      summary: Platform-only audited compare-and-set of one class organization; no ownership transfer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [classId, workspaceId, expectedWorkspaceId, reason]
+              properties:
+                classId: { type: string, format: uuid }
+                workspaceId: { type: [string, 'null'], format: uuid }
+                expectedWorkspaceId: { type: [string, 'null'], format: uuid }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200':
+          description: Binding saved and audited; next reads use current mapping
+        '400':
+          description: Invalid class, organization or reason
+        '403':
+          description: Platform administrator required
+        '409':
+          description: Current binding differs from expected; submitted UI input is retained
+  /api/admin/v1/auth/email:
+    get:
+      operationId: getAdminEmailConfig
+      summary: Read redacted platform SMTP settings
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmtpStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+    put:
+      operationId: putAdminEmailConfig
+      summary: Save encrypted platform SMTP settings with optimistic version
+      description: >-
+        Platform administrator only. Password is write-only, encrypted under the existing installation settings key and never returned or audited. Site origin is an explicit validated external choice, never derived from Host headers. Saving resets readiness and invalidates previous links by configuration version.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmtpUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmtpStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/admin/v1/auth/email/test:
+    post:
+      operationId: postAdminEmailTest
+      summary: Test SMTP connection or send one explicit test message
+      description: >-
+        Platform administrator only. A successful connection/authentication check does not prove inbox delivery. Test acceptance does not enable global confirmation policy or enforcement eligibility.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SmtpTest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmtpStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email:
+    get:
+      operationId: getOwnEmailStatus
+      summary: Read current Account email and pending proof status
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email/request:
+    post:
+      operationId: postOwnEmailProof
+      summary: Send proof of the current Account email
+      description: >-
+        Requires current authenticated Account and expected Account ID. Does not change email or revoke sessions. Request UUID deduplicates lost-response retries; one minute cooldown and five Account requests per hour apply.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OwnEmailRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email/cancel:
+    post:
+      operationId: cancelOwnEmailProof
+      summary: Cancel own pending email proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCancel'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/auth/email/confirm:
+    post:
+      operationId: consumeEmailProof
+      summary: Atomically consume one short-lived email proof
+      description: >-
+        Public proof endpoint with JSON and same-origin mutation protection and bounded attempts. Raw proof arrives only in the body, is hashed immediately, and is never returned or logged. Browser removes the fragment before diagnostics. Expired, reused, cancelled, superseded, configuration-stale or inactive Account proof is rejected. Change revokes old sessions and refresh credentials; own verification preserves sessions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailConsume'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofResult'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/crm/v1/users/account/{target}/email:
+    parameters:
+      - in: path
+        name: target
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getCrmEmailStatus
+      summary: Read exact Account pending email status
+      description: >-
+        Platform administrator only; StudentSeat and classroom teachers do not gain Account email write authority. Existing login and verification state remain effective until proof. No raw token is returned to the administrator.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+    post:
+      operationId: requestCrmEmailChange
+      summary: Request proven email change on the exact existing Account
+      description: >-
+        Platform administrator only; StudentSeat and classroom teachers do not gain Account email write authority. Existing login and verification state remain effective until proof. No raw token is returned to the administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrmEmailRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
+  /api/crm/v1/users/account/{target}/email/cancel:
+    parameters:
+      - in: path
+        name: target
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: cancelCrmEmailChange
+      summary: Cancel exact Account pending email change
+      description: >-
+        Platform administrator only; StudentSeat and classroom teachers do not gain Account email write authority. Existing login and verification state remain effective until proof. No raw token is returned to the administrator.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailCancel'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailProofStatus'
+        '400':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '401':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '403':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '409':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '429':
+          description: Rejected request; sanitized error and unchanged Account identity
+        '503':
+          description: Rejected request; sanitized error and unchanged Account identity
   /api/auth/providers:
     get:
       operationId: getAuthProviders
@@ -948,6 +1555,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/analytics/v2/acquisition:
+    post:
+      operationId: observeOptionalCampaignClaim
+      description: Independent optional authenticated current-document UTM slugs. Browser claims are not proven registration sources. No raw URLs, anonymous stitching or canonical visit changes. Observations visible for 90 days; digest-only receipts retained separately for 97 days. Per subject/context daily limit 32, bounded cleanup 100 rows per intake.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './acquisition-observation.schema.json' }
+      responses:
+        '200':
+          {
+            description: Exact persisted acquisition receipt,
+            including eventId,
+            receiptId,
+            operation and timestamps,
+          }
+        '400': { description: Invalid slug/envelope or subject daily limit }
+        '401': { description: No current authenticated actor }
+        '403': { description: Current canonical context denied }
+        '409': { description: Actor context or immutable receipt binding conflict }
+        '429': { description: Bounded delivery capacity exhausted }
+        '503': { description: Optional persistence unavailable }
   /api/analytics/v2/events:
     post:
       operationId: observeProductVisit
@@ -6829,6 +7459,173 @@ paths:
             minimum: 0
             maximum: 100000
             default: 0
+  /api/crm/v1/users/{kind}/{target}/dashboard:
+    parameters:
+      - { in: path, name: kind, required: true, schema: { type: string, enum: [account, student] } }
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: classroomId, schema: { type: string, format: uuid } }
+    get:
+      operationId: getCrmUserDashboard
+      summary: Read bounded authorized Account or exact-class StudentSeat dashboard
+      description: >-
+        Current server-side session and fresh CRM subject authorization required.
+        StudentSeat reads require the exact classroom scope; linked personal Account
+        history is never merged. Successful reads are audited. Activity has exactly
+        30 densely filled UTC days; latestActions contains at most five retained
+        actions. Project and publication totals cover retained history, including
+        withdrawn publications, rather than only currently public work. Token totals
+        are decimal strings or null when unknown; coverage describes incomplete
+        retained telemetry. Classroom rating uses its own configured period; a common
+        Account rating is not configured. Reading never awards bonuses.
+      responses:
+        '200':
+          description: Retained dashboard projection with explicit telemetry coverage
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    generatedAt,
+                    period,
+                    lastSeenAt,
+                    lastActionAt,
+                    totals,
+                    activity,
+                    latestActions,
+                    rating,
+                    coverage,
+                  ]
+                properties:
+                  generatedAt: { type: string, format: date-time }
+                  period: { type: object, required: [days, timeZone, from, to] }
+                  lastSeenAt: { type: [string, 'null'], format: date-time }
+                  lastActionAt: { type: [string, 'null'], format: date-time }
+                  totals:
+                    {
+                      type: object,
+                      required:
+                        [
+                          projects,
+                          publications,
+                          events,
+                          aiRequests,
+                          aiErrors,
+                          inputTokens,
+                          outputTokens,
+                        ],
+                    }
+                  activity:
+                    type: array
+                    minItems: 30
+                    maxItems: 30
+                    items: { type: object, required: [date, events, aiRequests] }
+                  latestActions:
+                    type: array
+                    maxItems: 5
+                    items: { type: object, required: [occurredAt, eventType, module] }
+                  rating: { type: object, required: [kind, value, rank, label, periodDays] }
+                  coverage:
+                    {
+                      type: object,
+                      required: [activityFrom, limited, aiDetailedRequests, tokenRequests],
+                    }
+        '400': { description: Invalid typed identity or classroom scope }
+        '401': { description: Current session required }
+        '403': { description: Fresh CRM subject or exact Seat/class scope denied }
+  /api/crm/v1/users/student/{target}/detail:
+    parameters:
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: classroomId, required: true, schema: { type: string, format: uuid } }
+      - {
+          in: query,
+          name: category,
+          required: true,
+          schema: { type: string, enum: [notes, projects, publications, ai] },
+        }
+      - { in: query, name: cursor, schema: { type: string } }
+    get:
+      operationId: getCrmSeatRetainedDetail
+      summary: Read exact-class authorized retained Seat notes and history
+      description: Fresh CRM subject authorization; bounded cursor pages; linked Account content never included. Successful reads audited.
+      responses:
+        '200': { description: Retained items and opaque continuation cursor }
+        '400': { description: Invalid or expired continuation }
+        '401': { description: Current session required }
+        '403': { description: Exact Seat/class scope denied }
+  /api/crm/v1/users/student/{target}/notes:
+    parameters:
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+    put:
+      operationId: appendCrmSeatEducationalNote
+      summary: Append immutable educational note with reason and expected list version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [classroomId, version, text, reason]
+              properties:
+                classroomId: { type: string, format: uuid }
+                version: { type: string, minLength: 64, maxLength: 64 }
+                text: { type: string, minLength: 1, maxLength: 2000 }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Current first note page }
+        '400': { description: Invalid note }
+        '401': { description: Current session required }
+        '403': { description: Exact Seat/class scope denied }
+        '409': { description: Note list changed; nothing appended }
+  /api/crm/v1/responsibilities/{kind}/{scope}/{target}:
+    parameters:
+      - {
+          in: path,
+          name: kind,
+          required: true,
+          schema: { type: string, enum: [organization, classroom] },
+        }
+      - { in: path, name: scope, required: true, schema: { type: string, format: uuid } }
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+    get:
+      operationId: getCrmScopedResponsibility
+      summary: Read scoped responsibility and server-authorized role ceiling
+      responses:
+        '200':
+          {
+            description: Exact membership with version and allowed roles; no private Account content,
+          }
+        '401': { description: Current session required }
+        '403': { description: Scope denied }
+    put:
+      operationId: updateCrmScopedResponsibility
+      summary: Apply versioned audited organization membership or exact-class co-teacher command
+      description: Server role ceiling; legacy student memberships read-only; primary class owner preserved; last active organization owner and administrator protected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, role, state, reason]
+              properties:
+                version: { type: string, minLength: 64, maxLength: 64 }
+                role:
+                  {
+                    type: string,
+                    enum:
+                      [owner, school_admin, member, educator, billing_admin, moderator, co_teacher],
+                  }
+                state: { type: string, enum: [active, suspended, revoked] }
+                reason: { type: string, minLength: 3, maxLength: 500 }
+      responses:
+        '200': { description: Current scoped responsibility }
+        '400': { description: Invalid command or protected responsibility }
+        '401': { description: Current session required }
+        '403': { description: Current actor scope denied }
+        '409': { description: Membership changed; nothing overwritten }
 components:
   responses:
     AuthValidationError:
@@ -6918,6 +7715,183 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    CrmDirectoryPage:
+      type: object
+      required: [items, matchedCount, analytics, asOf, next, studentCoverage]
+      properties:
+        items: { type: array, maxItems: 100, items: { type: object } }
+        matchedCount: { type: integer, minimum: 0 }
+        asOf: { type: string, format: date-time }
+        next: { type: [string, 'null'] }
+        studentCoverage:
+          type: object
+          properties:
+            state: { type: string, enum: [complete, unavailable] }
+        analytics:
+          type: object
+          description: Full filtered base; Account and Seat are separate records, never asserted unique people. Registration source and IP geography unavailable. First retained referrer is client-declared. Org AI covers only authorized Seats; private Account AI is unavailable. Retained quota admissions are deduplicated with journal requests and have unknown tokens.
+          properties:
+            accounts: { type: integer, minimum: 0 }
+            students: { type: integer, minimum: 0 }
+            linkedRecords: { type: [integer, 'null'], minimum: 0 }
+            aiCoverage: { type: string, enum: [all_authorized, students_only_accounts_unavailable] }
+            aiRequests: { type: [integer, 'null'] }
+            aiLegacyRequests: { type: [integer, 'null'] }
+            aiTokenCovered: { type: [integer, 'null'] }
+            periodDays: { type: integer, enum: [7, 30, 90] }
+            daily:
+              type: array
+              maxItems: 90
+              items:
+                type: object
+                properties:
+                  date: { type: string, format: date }
+                  registrations: { type: integer, minimum: 0 }
+                  events: { type: integer, minimum: 0 }
+    CrmDirectoryCsv:
+      type: object
+      required: [csv, count]
+      description: Entire filtered table or explicit error; final exact-row mapping and role checks and fresh session check occur after buffering. Audit means prepared, not confirmed download. Secrets and credentials excluded; formula prefixes neutralized.
+      properties:
+        csv: { type: string }
+        count: { type: integer, minimum: 0, maximum: 10000 }
+    CrmDirectoryOptions:
+      type: object
+      required: [classes, organizations]
+      properties:
+        classes:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+              workspaceId: { type: [string, 'null'], format: uuid }
+        organizations:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
+    SmtpConfig:
+      type: object
+      additionalProperties: false
+      required: [enabled, host, port, sender, username, siteOrigin]
+      properties:
+        enabled: { type: boolean }
+        host: { type: string, maxLength: 253 }
+        port: { type: integer, enum: [465, 587] }
+        sender:
+          type: string
+          maxLength: 254
+          anyOf: [{ const: '' }, { format: email, minLength: 1 }]
+        username: { type: string, maxLength: 254 }
+        siteOrigin:
+          type: string
+          maxLength: 2048
+          anyOf: [{ const: '' }, { format: uri, minLength: 1 }]
+      allOf:
+        - if:
+            properties:
+              enabled: { const: true }
+          then:
+            properties:
+              host: { minLength: 1 }
+              sender: { minLength: 1 }
+              username: { minLength: 1 }
+              siteOrigin: { minLength: 1 }
+    SmtpStatus:
+      type: object
+      additionalProperties: false
+      required: [config, version, passwordConfigured, encryptionReady, testOk]
+      properties:
+        config: { type: object, description: Public SMTP fields, empty before first configuration }
+        version: { type: integer, minimum: 1 }
+        passwordConfigured: { type: boolean }
+        encryptionReady: { type: boolean }
+        testOk: { type: boolean }
+        testedVersion: { type: [integer, 'null'] }
+        deliveryVerifiedVersion: { type: [integer, 'null'] }
+        testedAt: { type: [string, 'null'], format: date-time }
+        testKind: { type: string, enum: [connection, message] }
+    SmtpUpdate:
+      type: object
+      additionalProperties: false
+      required: [version, config]
+      properties:
+        version: { type: integer, minimum: 1 }
+        config: { $ref: '#/components/schemas/SmtpConfig' }
+        password: { type: string, minLength: 1, maxLength: 1024, writeOnly: true }
+        clearPassword: { type: boolean }
+    SmtpTest:
+      type: object
+      additionalProperties: false
+      required: [version, to]
+      properties:
+        version: { type: integer, minimum: 1 }
+        to:
+          {
+            type: [string, 'null'],
+            format: email,
+            description: Null tests connection; one explicit address sends a test message,
+          }
+    EmailProofStatus:
+      type: object
+      additionalProperties: false
+      required: [accountId, email, verified, pending]
+      properties:
+        accountId: { type: string, format: uuid }
+        email: { type: [string, 'null'], format: email }
+        verified: { type: boolean }
+        pending:
+          type: [object, 'null']
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+            purpose: { type: string, enum: [verify, change] }
+            state: { type: string, enum: [sending, sent, failed, cancelled, expired, consumed] }
+            createdAt: { type: string, format: date-time }
+            expiresAt: { type: string, format: date-time }
+    OwnEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, requestId]
+      properties:
+        accountId: { type: string, format: uuid }
+        requestId: { type: string, format: uuid }
+    CrmEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [email, version, reason, requestId]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        version: { type: string, pattern: '^[a-f0-9]{64}$' }
+        reason: { type: string, minLength: 3, maxLength: 500 }
+        requestId: { type: string, format: uuid }
+    EmailCancel:
+      type: object
+      additionalProperties: false
+      required: [intentId]
+      properties:
+        intentId: { type: string, format: uuid }
+    EmailConsume:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, pattern: '^[A-Za-z0-9_-]{43}$', writeOnly: true }
+    EmailProofResult:
+      type: object
+      additionalProperties: false
+      required: [confirmed]
+      properties:
+        confirmed: { type: boolean }
+        changed: { type: boolean }
     CoursePrepublicationDiagnostic:
       type: object
       additionalProperties: false

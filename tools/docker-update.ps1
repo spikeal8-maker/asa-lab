@@ -184,7 +184,7 @@ function Test-SamePath {
 }
 
 function Get-MixedOriginServices {
-  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch', 'minio'))
+  param([string[]]$Services = @('postgres', 'api', 'web', 'scratch', 'minio', 'search'))
 
   $drift = @()
   foreach ($service in $Services) {
@@ -366,6 +366,10 @@ function Wait-ExactReadiness {
         $scratchRevision = & docker @script:ComposeArguments exec -T scratch wget -q -O - http://127.0.0.1:8080/asa-commit.txt 2>$null
         if ($LASTEXITCODE -ne 0 -or ($scratchRevision | Out-String).Trim() -ne $Revision) { Start-Sleep -Seconds 3; continue }
         & docker @script:ComposeArguments exec -T scratch wget -q -O - http://127.0.0.1:8080/healthz *> $null
+        if ($LASTEXITCODE -ne 0) { Start-Sleep -Seconds 3; continue }
+        $searchRevision = & docker @script:ComposeArguments exec -T search cat /usr/local/share/asa-search/asa-commit.txt 2>$null
+        if ($LASTEXITCODE -ne 0 -or ($searchRevision | Out-String).Trim() -ne $Revision) { Start-Sleep -Seconds 3; continue }
+        & docker @script:ComposeArguments exec -T search /usr/local/searxng/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()" *> $null
         if ($LASTEXITCODE -eq 0) { return $ready }
       }
     }
@@ -389,7 +393,7 @@ function Write-Receipt {
 }
 
 function Invoke-GuardedUpdate {
-  foreach ($command in @('git', 'docker', 'node')) {
+  foreach ($command in @('git', 'docker', 'node', 'python')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
       throw "Required command is missing: $command"
     }
@@ -408,6 +412,7 @@ function Invoke-GuardedUpdate {
   if ($Profile -eq 'production' -and (Get-EnvValue 'ASA_SEED_DEV') -ne 'false') {
     throw 'Production update requires ASA_SEED_DEV=false in .env.'
   }
+  Invoke-Native python @('tools/deployment/search_secret.py')
   $blocksRuntimeKey = Get-EnvValue 'ASA_BLOCKS_RUNTIME_SIGNING_KEY'
   $needsBlocksRuntimeKey = -not ($blocksRuntimeKey -match '^[a-fA-F0-9]{64}$')
   $storageNames = @('ASA_OBJECT_STORAGE_ENDPOINT','ASA_OBJECT_STORAGE_REGION','ASA_OBJECT_STORAGE_BUCKET','ASA_OBJECT_STORAGE_ACCESS_KEY','ASA_OBJECT_STORAGE_SECRET_KEY','ASA_OBJECT_STORAGE_FORCE_PATH_STYLE')
@@ -496,6 +501,7 @@ function Invoke-GuardedUpdate {
   $rollbackApi = Save-RollbackImage 'api' $oldRevision
   $rollbackWeb = Save-RollbackImage 'web' $oldRevision
   $rollbackScratch = Save-RollbackImage 'scratch' $oldRevision
+  $rollbackSearch = Save-RollbackImage 'search' $oldRevision
 
   Invoke-Native git pull --ff-only origin main
   $newRevision = (& git rev-parse HEAD).Trim()
@@ -520,6 +526,7 @@ function Invoke-GuardedUpdate {
     Write-Host 'Added private self-hosted Blocks object-storage configuration to the existing .env.'
   }
 
+  Invoke-Native python @('tools/deployment/search_secret.py', '--create')
   $schemaVersion = Get-LatestSchemaVersion
   $env:ASA_BUILD_REVISION = $newRevision
   $env:ASA_IMAGE_TAG = $newRevision.Substring(0, 12)
@@ -533,7 +540,7 @@ function Invoke-GuardedUpdate {
       throw "Updater or Compose changed during fast-forward ($($bootstrapChanged -join ', ')). Re-run the updated guarded updater; the verified backup is preserved."
     }
     Invoke-Compose -Arguments @('config', '--quiet')
-    foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
+    foreach ($service in @('minio', 'search', 'scratch', 'api', 'web')) { Invoke-Compose -Arguments @('build', $service) }
     Invoke-Native git fetch origin main
     $latestRemoteRevision = (& git rev-parse origin/main).Trim()
     if ($LASTEXITCODE -ne 0 -or $latestRemoteRevision -ne $newRevision) {
@@ -565,6 +572,7 @@ function Invoke-GuardedUpdate {
       rollback_api_image = $rollbackApi
       rollback_web_image = $rollbackWeb
       rollback_scratch_image = $rollbackScratch
+      rollback_search_image = $rollbackSearch
       scratch_revision = $newRevision
       entry_origin = $EntryOrigin
       entry_http = 'pass'

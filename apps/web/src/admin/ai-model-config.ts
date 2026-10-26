@@ -1,4 +1,4 @@
-export type AiProvider = 'openai' | 'deepseek';
+export type AiProvider = 'openai' | 'deepseek' | 'ollama-cloud';
 
 export interface AiModelOption {
   readonly id: string;
@@ -56,7 +56,7 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function provider(value: unknown): value is AiProvider {
-  return value === 'openai' || value === 'deepseek';
+  return value === 'openai' || value === 'deepseek' || value === 'ollama-cloud';
 }
 
 function nullableText(value: unknown): boolean {
@@ -77,9 +77,9 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     !Array.isArray(models) ||
     !models.length ||
     !Array.isArray(providers) ||
-    providers.length !== 2 ||
+    ![2, 3].includes(providers.length) ||
     !Array.isArray(slots) ||
-    slots.length !== 2 ||
+    slots.length !== providers.length ||
     !record(features) ||
     !['textChat', 'streaming', 'imageInput', 'fileAttachments', 'imageGeneration'].every(
       (key) => typeof features[key] === 'boolean',
@@ -111,7 +111,11 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     models.some((model) => model.id === id && model.provider === owner);
   if (
     new Set(models.map((model) => model.id)).size !== models.length ||
-    new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !== 2 ||
+    ![2, 3].includes(providers.length) ||
+    !providers.some((item) => record(item) && item['id'] === 'openai') ||
+    !providers.some((item) => record(item) && item['id'] === 'deepseek') ||
+    new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !==
+      providers.length ||
     !providers.every(
       (item) =>
         record(item) &&
@@ -119,7 +123,9 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         typeof item['label'] === 'string' &&
         hasModel(item['defaultModel'], item['id']),
     ) ||
-    new Set(slots.map((item) => (record(item) ? item['provider'] : null))).size !== 2 ||
+    slots.length !== providers.length ||
+    new Set(slots.map((item) => (record(item) ? item['provider'] : null))).size !==
+      providers.length ||
     !slots.every(
       (item) =>
         record(item) &&

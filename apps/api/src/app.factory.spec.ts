@@ -130,6 +130,23 @@ describe('API application factory', () => {
     await Promise.all([app.close(), app.close()]);
     expect(end).toHaveBeenCalledOnce();
   });
+  it('owns and closes optional acquisition resources independently of canonical analytics', async () => {
+    const main = { query: vi.fn(), end: vi.fn(async () => undefined) } as unknown as pg.Pool;
+    const canonical = { query: vi.fn(), end: vi.fn(async () => undefined) } as unknown as pg.Pool;
+    const acquisition = { query: vi.fn(), end: vi.fn(async () => undefined) } as unknown as pg.Pool;
+    const app = await createApiApp({
+      pool: main,
+      analyticsPool: canonical,
+      acquisitionPool: acquisition,
+      webDist: null,
+    });
+    await Promise.all([app.close(), app.close()]);
+    expect(main.end).toHaveBeenCalledOnce();
+    expect(canonical.end).toHaveBeenCalledOnce();
+    expect(acquisition.end).toHaveBeenCalledOnce();
+    expect(canonical.query).not.toHaveBeenCalled();
+    expect(acquisition.query).not.toHaveBeenCalled();
+  });
   it('keeps public HTTPS protection without upgrading HTTP LAN assets to a nonexistent TLS port', async () => {
     for (const host of ['192.168.1.115', '172.20.0.3', '10.1.2.3', '100.105.67.69', '[fd12::1]']) {
       expect(contentSecurityPolicyFor('http', host)).not.toContain('upgrade-insecure-requests');

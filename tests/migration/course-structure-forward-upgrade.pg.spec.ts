@@ -117,7 +117,17 @@ describe('Course Builder structure forward upgrade', () => {
         '0244', // Private usage journal is additive and preserves historic quota.
         '0245', // Typed admin catalog and bounded server keyset continuation.
         '0246', // Read-only retained per-user history.
-        '0247', // Additive Public Projects pin preserves course history.
+        '0247', // Full typed CRM cards and exact teacher educational reads.
+        '0248', // Encrypted SMTP and one-use verified Account email proof.
+        '0249', // Filtered CRM aggregates/export and explicit organization class binding.
+        '0250', // Exact Seat retained detail and immutable educational notes.
+        '0251', // Scoped organization and exact-class responsibilities.
+        '0252', // Additive Ollama Cloud credentials preserve course data.
+        '0253', // Optional scoped campaign observations and factual catalog projections.
+        '0254', // Free server internet evidence and bounded public weather cache.
+        '0255', // Read-only administrative visibility of retained legacy publications.
+        '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+        '0257', // Immutable Public Projects publication pins.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -394,7 +404,17 @@ describe('Course Builder structure forward upgrade', () => {
           '0244', // Current-only AI usage admissions.
           '0245', // Typed admin catalog and bounded server keyset continuation.
           '0246', // Read-only retained per-user history.
-          '0247', // Additive Public Projects pin preserves course history.
+          '0247', // Full typed CRM cards and exact teacher educational reads.
+          '0248', // Encrypted SMTP and one-use verified Account email proof.
+          '0249', // Filtered CRM aggregates/export and explicit organization class binding.
+          '0250', // Exact Seat retained detail and immutable educational notes.
+          '0251', // Scoped organization and exact-class responsibilities.
+          '0252', // Additive Ollama Cloud credentials preserve course data.
+          '0253', // Optional scoped campaign observations and factual catalog projections.
+          '0254', // Free server internet evidence and bounded public weather cache.
+          '0255', // Read-only administrative visibility of retained legacy publications.
+          '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+          '0257', // Immutable Public Projects publication pins.
         ]);
         expect(
           await applyIsolatedTestPlan(

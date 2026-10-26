@@ -3,10 +3,12 @@ import { call } from './admin-api';
 import './admin-publications.css';
 
 interface Publication {
+  readonly schemaVersion?: number;
+  readonly moderationSupported?: boolean;
   readonly publicationId: string;
   readonly revisionId: string;
   readonly title: string;
-  readonly authorLabel: string;
+  readonly authorLabel: string | null;
   readonly moduleKey: string;
   readonly publishedAt: string;
   readonly state: string;
@@ -39,7 +41,7 @@ const dateTime = (value: string): string => {
 
 function Preview({ publication }: { readonly publication: Publication }): JSX.Element {
   const [failed, setFailed] = useState(false);
-  return failed ? (
+  return failed || publication.moderationSupported === false ? (
     <span className="admin-publication-preview" role="img" aria-label="Превью недоступно">
       <span aria-hidden="true">▧</span>
     </span>
@@ -352,7 +354,7 @@ export function AdminPublicationsPage({
             <div className="admin-publication-details">
               <h3>{item.title}</h3>
               <p>
-                {item.authorLabel} · {item.moduleKey}
+                {item.authorLabel || 'Автор не указан'} · {item.moduleKey}
               </p>
               <p>
                 <time dateTime={item.publishedAt}>{dateTime(item.publishedAt)}</time>
@@ -369,6 +371,12 @@ export function AdminPublicationsPage({
               {item.pinned && item.editorialEligible && !item.hidden ? (
                 <p className="admin-publication-pinned" data-testid="admin-publication-pinned">
                   Закреплено
+                </p>
+              ) : null}
+              {item.moderationSupported === false ? (
+                <p className="admin-publication-legacy">
+                  Сохранённая публикация прежнего формата. Для просмотра и модерации автору нужно
+                  заново опубликовать проект. Исходные данные сохранены.
                 </p>
               ) : null}
               {item.featured && item.editorialEligible && !item.hidden ? (
@@ -406,19 +414,21 @@ export function AdminPublicationsPage({
                   {item.featured ? 'Снять отметку' : 'Выбор редакции'}
                 </button>
               ) : null}
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={loading || saving || denied}
-                onClick={(event) => {
-                  trigger.current = event.currentTarget;
-                  setReason('');
-                  setError(null);
-                  setSelected(item);
-                }}
-              >
-                {item.hidden ? 'Восстановить' : 'Скрыть'}
-              </button>
+              {item.moderationSupported !== false ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={loading || saving || denied}
+                  onClick={(event) => {
+                    trigger.current = event.currentTarget;
+                    setReason('');
+                    setError(null);
+                    setSelected(item);
+                  }}
+                >
+                  {item.hidden ? 'Восстановить' : 'Скрыть'}
+                </button>
+              ) : null}
             </div>
           </li>
         ))}

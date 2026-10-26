@@ -14,7 +14,8 @@ from urllib.request import urlopen
 
 REPOSITORY = "spikeal8-maker/asa-lab"
 REGISTRY = f"ghcr.io/{REPOSITORY}"
-SERVICES = ("api", "web", "scratch", "minio")
+LEGACY_SERVICES = ("api", "web", "scratch", "minio")
+SERVICES = (*LEGACY_SERVICES, "search")
 MOSCOW = dt.timezone(dt.timedelta(hours=3))
 DEFAULT_WINDOW = {"weekday": 6, "start": "03:00", "end": "05:00", "utcOffsetMinutes": 180}
 
@@ -191,7 +192,7 @@ def in_window(window, now=None, reserve_minutes=0):
 
 
 def validate_release(payload):
-    require(isinstance(payload, dict) and payload.get("format") == "asa-deployment-v1",
+    require(isinstance(payload, dict) and payload.get("format") in ("asa-deployment-v1", "asa-deployment-v2"),
             "RELEASE", "Unsupported release manifest.")
     require(payload.get("repository") == REPOSITORY, "RELEASE", "Foreign release repository.")
     require(re.fullmatch(r"[a-f0-9]{40}", payload.get("revision", "")), "RELEASE", "Invalid release SHA.")
@@ -200,8 +201,9 @@ def validate_release(payload):
     require(payload.get("platform") == "linux/amd64", "RELEASE", "Unsupported image platform.")
     require(type(payload.get("publicationRunId")) is int and payload["publicationRunId"] > 0,
             "RELEASE", "Publication workflow ID is required.")
-    require(set(payload.get("images", {})) == set(SERVICES), "RELEASE", "Incomplete image set.")
-    for name in SERVICES:
+    expected_services = LEGACY_SERVICES if payload["format"] == "asa-deployment-v1" else SERVICES
+    require(set(payload.get("images", {})) == set(expected_services), "RELEASE", "Incomplete image set.")
+    for name in expected_services:
         ref = payload["images"][name]
         require(isinstance(ref, str) and re.fullmatch(re.escape(f"{REGISTRY}/{name}@sha256:") + r"[a-f0-9]{64}", ref),
                 "RELEASE", f"Unpinned or foreign {name} image.")

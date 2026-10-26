@@ -45,6 +45,7 @@ describe('server-owned catalog and provider request policy', () => {
     expect(catalog.providers.map((provider) => provider.defaultModel)).toEqual([
       'gpt-6-luna',
       'deepseek-flash',
+      'gemma4:31b',
     ]);
     expect(catalog.models.find((model) => model.id === 'deepseek-flash')?.inputModalities).toEqual([
       'text',

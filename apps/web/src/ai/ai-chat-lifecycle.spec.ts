@@ -26,12 +26,15 @@ function ok(data: unknown): ApiResult<unknown> {
   return { ok: true, status: 200, data };
 }
 
-function pendingCreation() {
+function pendingCreation(webStatus?: unknown) {
   let resolve!: (value: ApiResult<unknown>) => void;
   const promise = new Promise<ApiResult<unknown>>((complete) => {
     resolve = complete;
   });
   vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path === '/api/ai/web-search/status' && webStatus) return ok(await webStatus);
+    if (path === '/api/ai/web-search/status')
+      return { ok: false, status: 404, error: { code: 'not_found', message: 'Old server' } };
     if (path === '/api/ai/scopes') {
       return ok({
         personal: true,
@@ -47,6 +50,8 @@ function pendingCreation() {
       });
     }
     if (path === '/api/ai/threads' && init?.method === 'POST') return promise;
+    if (path === '/api/ai/threads/' + CREATED_THREAD + '/messages')
+      return ok({ items: [], nextCursor: null });
     if (path === '/api/ai/threads') {
       const school = new Headers(init?.headers).get('x-asa-ai-seat') === SEAT;
       return ok({
@@ -149,6 +154,64 @@ function historyTitles() {
 }
 
 describe('first-send lifecycle', () => {
+  it.each([true, false])(
+    'retries the original UUID and payload when internet capabilities arrive after an uncertain send: configured=$0',
+    async (configured) => {
+      let release!: (data: unknown) => void;
+      const webStatus = new Promise((resolve) => {
+        release = resolve;
+      });
+      const completeCreation = pendingCreation(webStatus);
+      vi.mocked(streamAiRequest).mockRejectedValueOnce(new Error('Uncertain provider result'));
+      await mount();
+      await submit('Первый вопрос');
+      await act(async () => completeCreation());
+      expect(streamAiRequest).toHaveBeenCalledTimes(1);
+      const first = vi.mocked(streamAiRequest).mock.calls[0]!;
+      expect(first).toHaveLength(7);
+      expect(composer().value).toBe('Первый вопрос');
+      await act(async () =>
+        release({
+          schemaVersion: 1,
+          provider: 'searxng',
+          configured,
+          enabled: true,
+          weatherConfigured: true,
+        }),
+      );
+      await submit('Первый вопрос');
+      const retry = vi.mocked(streamAiRequest).mock.calls[1]!;
+      expect(retry[2]).toBe(first[2]);
+      expect(retry).toHaveLength(7);
+    },
+  );
+  it.each([
+    {
+      schemaVersion: 2,
+      enabled: true,
+      configured: true,
+      weatherConfigured: true,
+      provider: 'searxng',
+    },
+    {
+      schemaVersion: 1,
+      enabled: true,
+      configured: true,
+      weatherConfigured: true,
+      provider: 'unknown',
+    },
+  ])(
+    'keeps the original message protocol when web capabilities are incompatible: $provider/$schemaVersion',
+    async (webStatus) => {
+      const completeCreation = pendingCreation(webStatus);
+      await mount();
+      await submit('Первый вопрос');
+      await act(async () => completeCreation());
+      expect(streamAiRequest).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(streamAiRequest).mock.calls[0]).toHaveLength(7);
+      expect(host.querySelector('[aria-label="Режим интернет-поиска"]')).toBeNull();
+    },
+  );
   it.each([
     { from: 'personal', to: SEAT, history: SCHOOL_HISTORY },
     { from: SEAT, to: 'personal', history: PERSONAL_HISTORY },

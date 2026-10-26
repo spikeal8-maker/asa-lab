@@ -114,6 +114,7 @@
             "administration.account.suspend",
             "administration.ai_configuration.update",
             "administration.ai_ollama.update",
+            "administration.ai_web_search.update",
             "administration.ip.label.clear",
             "administration.ip.label.set",
             "administration.max_configuration.update",
@@ -121,7 +122,10 @@
             "administration.platform_admin.grant",
             "administration.platform_admin.revoke",
             "administration.session.revoke",
-            "administration.verification_policy.update"
+            "administration.smtp.test",
+            "administration.smtp.update",
+            "administration.verification_policy.update",
+            "crm.dashboard.read"
           ]
         },
         "reason_code": {

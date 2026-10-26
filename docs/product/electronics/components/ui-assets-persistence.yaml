@@ -18,6 +18,8 @@ components:
     - apps/web/src/electronics/testing/arduino-value-inputs.spec.ts
     - apps/web/src/electronics/testing/arduino-value-inputs.browser.mjs
     - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+    - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
+    - apps/web/src/electronics/testing/arduino-inactive-blocks.browser.mjs
     - apps/web/src/electronics/testing/arduino-editor-ui.browser.mjs
     - e2e/electronics-interactions.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
@@ -31,6 +33,7 @@ components:
     - configureArduinoPaletteScroll
     - arduinoBlockTooltip
     - literalArduinoPin
+    - activeArduinoGraph
     notes: Blockly message initialization and editor lifecycle; preserve generated code and saved workspace.
   electronics.ui.workbench:
     ownership: asa
@@ -40,6 +43,7 @@ components:
     - docs/product/electronics/README.md#8-провода-и-breadboard
     sources:
     - apps/web/src/electronics/use-electronics-workbench.ts
+    - apps/web/src/electronics/workbench-shortcuts.ts
     - apps/web/src/pages/SchematicEditor.tsx
     - apps/web/src/electronics/WorkbenchStage.tsx
     - apps/web/src/electronics/ProductionComponentVisual.tsx
@@ -52,6 +56,10 @@ components:
     - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
+    - apps/web/src/electronics/testing/workbench-shortcuts.spec.ts
+    - apps/web/src/electronics/testing/workbench-keyboard-ui.browser.mjs
+    - apps/web/src/electronics/testing/reverse-led-colour.browser.mjs
+    - apps/web/src/electronics/testing/spdt-active-shadow.browser.mjs
     - apps/web/src/electronics/testing/workbench-native-wheel.spec.ts
     - e2e/electronics-native-wheel.spec.ts
     - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts

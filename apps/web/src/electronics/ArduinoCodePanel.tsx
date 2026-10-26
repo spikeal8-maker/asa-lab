@@ -1,7 +1,7 @@
+import { activeArduinoGraph } from './arduino-pin-inputs';
 import {
   ARDUINO_SCRATCH_THEME,
   ARDUINO_WORKSPACE_PLUGINS,
-  scrollArduinoPalette,
   configureArduinoPaletteScroll,
   configureArduinoConnections,
 } from './arduino-block-ui';
@@ -660,13 +660,39 @@ export function ScratchWorkspace({
       ScratchBlocks.svgResize(workspace);
     });
 
+    const originalBlockOpacity = new Map<SVGElement, string>();
+    const draggedBlocks = new Set<string>();
+    const updateBlockActivity = (): void => {
+      const { active } = activeArduinoGraph(workspace);
+      for (const block of workspace.getAllBlocks(false)) {
+        const svg = block.getSvgRoot();
+        if (!svg) continue;
+        if (!originalBlockOpacity.has(svg)) originalBlockOpacity.set(svg, svg.style.opacity);
+        const parent = block.getParent();
+        const inactiveRoot = !active.has(block) && (!parent || active.has(parent));
+        svg.style.opacity =
+          inactiveRoot && !draggedBlocks.has(block.id) ? '0.45' : originalBlockOpacity.get(svg)!;
+      }
+    };
     const publish = (): void => {
+      updateBlockActivity();
       const state = ScratchBlocks.serialization.workspaces.save(workspace);
       changeRef.current(JSON.stringify(state), generateArduinoCode(workspace));
     };
     publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
+      if (event.type === ScratchBlocks.Events.BLOCK_DRAG) {
+        const drag = event as ScratchBlocks.Events.BlockDrag;
+        draggedBlocks.clear();
+        if (drag.isStart) {
+          for (const block of drag.blocks ?? []) draggedBlocks.add(block.id);
+          if (drag.blockId) draggedBlocks.add(drag.blockId);
+        }
+        updateBlockActivity();
+        return;
+      }
       if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
+      updateBlockActivity();
       if (
         event.type === ScratchBlocks.Events.VAR_CREATE ||
         event.type === ScratchBlocks.Events.VAR_DELETE ||
@@ -690,6 +716,7 @@ export function ScratchWorkspace({
       window.removeEventListener('pointerdown', closeFloatingUi, true);
       window.removeEventListener('keydown', closeWithEscape, true);
       workspace.removeChangeListener(listener);
+      for (const [svg, opacity] of originalBlockOpacity) svg.style.opacity = opacity;
       workspace.dispose();
       workspaceRef.current = null;
       refreshToolboxRef.current = null;
@@ -759,26 +786,6 @@ export function ScratchWorkspace({
   return (
     <>
       <div className="arduino-scratch-host" ref={hostRef} data-testid="arduino-block-workspace" />
-      <div className="arduino-palette-scroll" role="group" aria-label="Прокрутка палитры блоков">
-        <button
-          type="button"
-          aria-label="Прокрутить палитру вверх"
-          onClick={() => {
-            if (workspaceRef.current) scrollArduinoPalette(workspaceRef.current, -1);
-          }}
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          aria-label="Прокрутить палитру вниз"
-          onClick={() => {
-            if (workspaceRef.current) scrollArduinoPalette(workspaceRef.current, 1);
-          }}
-        >
-          ↓
-        </button>
-      </div>
       {blockContextMenu
         ? createPortal(
             <div

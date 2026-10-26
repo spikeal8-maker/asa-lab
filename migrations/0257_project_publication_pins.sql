@@ -86,7 +86,8 @@ BEGIN
     END IF;
     WITH page AS (
         SELECT state.id, revision.id AS revision_id, revision.title, revision.author_label,
-               revision.module_key, revision.published_at, state.state,
+               COALESCE(revision.module_key, 'legacy') AS module_key,
+               revision.published_at, revision.schema_version, state.state,
                COALESCE(moderation.hidden, false) AS hidden,
                COALESCE(moderation.moderation_version, 0) AS moderation_version, moderation.reason, moderation.acted_at,
                COALESCE(editorial.editorial_version,0) AS editorial_version,
@@ -105,9 +106,9 @@ BEGIN
             ON revision.id = state.current_revision_id AND revision.publication_id = state.id
           LEFT JOIN public.project_publication_moderation moderation ON moderation.publication_id = state.id
           LEFT JOIN public.project_publication_editorial editorial ON editorial.publication_id = state.id
-           LEFT JOIN public.project_publication_pin pin ON pin.publication_id = state.id
+          LEFT JOIN public.project_publication_pin pin ON pin.publication_id = state.id
           LEFT JOIN public.project_publication_editorial_lifecycle epoch ON epoch.publication_id = state.id
-         WHERE revision.schema_version = 2 AND (state.state = 'public' OR moderation.hidden)
+         WHERE (state.state = 'public' OR moderation.hidden)
          ORDER BY revision.published_at DESC, state.id
          LIMIT p_limit + 1 OFFSET p_offset
     ), numbered AS (
@@ -115,6 +116,7 @@ BEGIN
     )
     SELECT COALESCE(jsonb_agg(jsonb_build_object(
         'publicationId', id, 'revisionId', revision_id, 'title', title,
+        'schemaVersion', schema_version, 'moderationSupported', schema_version = 2,
         'authorLabel', author_label, 'moduleKey', module_key, 'publishedAt', published_at,
         'state', state, 'hidden', hidden, 'moderationVersion', moderation_version,
         'reason', reason, 'moderatedAt', acted_at,
@@ -130,6 +132,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.admin_publications_list(uuid,integer,integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_publications_list(uuid,integer,integer) TO asalab_app;
+
 
 CREATE FUNCTION public.admin_publication_pin_set(
     p_actor uuid, p_publication uuid, p_pinned boolean, p_request_id varchar,

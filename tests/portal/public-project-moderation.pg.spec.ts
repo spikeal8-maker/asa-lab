@@ -185,6 +185,78 @@ async function unavailable(source: Awaited<ReturnType<typeof publication>>) {
 }
 
 describe('publication moderation with real runtime privileges and sessions', () => {
+  it('lists retained legacy metadata without reopening unsupported public reads or mutations', async () => {
+    const source = await publication();
+    const platform = await identity('legacy-catalog', 'verified');
+    const current = await publication();
+    const legacyRevision = randomUUID();
+    await admin.query(
+      `INSERT INTO project_publication_revisions
+       (id,publication_id,tenant_id,project_id,revision_no,project_version_id,title,published_by_principal_id,schema_version)
+       SELECT $1,publication_id,tenant_id,project_id,revision_no+1,project_version_id,'Retained legacy project',published_by_principal_id,1
+       FROM project_publication_revisions WHERE id=$2`,
+      [legacyRevision, source.revisionId],
+    );
+    await admin.query('UPDATE project_publication_state SET current_revision_id=$1 WHERE id=$2', [
+      legacyRevision,
+      source.publicationId,
+    ]);
+    const before = await original(source.projectId);
+    const page = (
+      await runtime.query('SELECT admin_publications_list($1,0,50) AS result', [
+        platform.principalId,
+      ])
+    ).rows[0].result;
+    expect(
+      page.items.find(
+        (item: { publicationId: string }) => item.publicationId === source.publicationId,
+      ),
+    ).toMatchObject({
+      title: 'Retained legacy project',
+      schemaVersion: 1,
+      moderationSupported: false,
+      editorialEligible: false,
+      featured: false,
+      pinned: false,
+      pinVersion: 0,
+    });
+    expect(
+      page.items.find(
+        (item: { publicationId: string }) => item.publicationId === current.publicationId,
+      ),
+    ).toMatchObject({
+      schemaVersion: 2,
+      moderationSupported: true,
+      editorialEligible: true,
+      pinned: false,
+      pinVersion: 0,
+    });
+    await expect(
+      runtime.query('SELECT admin_publication_pin_set($1,$2,true,$3,0,$4,0,0)', [
+        platform.principalId,
+        source.publicationId,
+        randomUUID(),
+        legacyRevision,
+      ]),
+    ).rejects.toMatchObject({ code: 'P5P04' });
+    expect(
+      (
+        await runtime.query('SELECT * FROM admin_publication_image($1,$2)', [
+          platform.principalId,
+          source.publicationId,
+        ])
+      ).rows,
+    ).toEqual([]);
+    await expect(
+      transition(platform.principalId, source.publicationId, true),
+    ).rejects.toMatchObject({ code: 'P5P04' });
+    expect(
+      (await runtime.query('SELECT * FROM public_project_image($1,NULL)', [source.publicationId]))
+        .rows,
+    ).toEqual([]);
+    expect(await original(source.projectId)).toEqual(before);
+  });
+
   it('denies anonymous, ordinary, school moderator, unverified capability and Seat-selected requests', async () => {
     const source = await publication();
     const platform = await identity('platform', 'verified');

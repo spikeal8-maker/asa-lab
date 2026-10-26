@@ -94,3 +94,56 @@
   border-color: var(--ai-border);
   background: var(--ai-bg);
 }
+.asa-ai-layout .asa-ai-code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding-inline: 8px;
+}
+.asa-ai-layout .asa-ai-code-actions > span {
+  margin-right: auto;
+  color: var(--ai-muted);
+  font-size: 12px;
+}
+.asa-ai-layout .asa-ai-code-block .asa-ai-code-actions button {
+  margin-left: 0;
+}
+.asa-ai-layout .chat-answer-download {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ai-muted);
+}
+.asa-ai-layout .chat-answer-download summary {
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.asa-ai-layout .chat-answer-formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.asa-ai-layout .chat-answer-download :is(summary, button):hover {
+  background: var(--ai-bg);
+}
+.asa-ai-layout .chat-history-resizer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5;
+  background: transparent;
+}
+.asa-ai-layout .chat-history-resizer:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--ai-text) 18%, transparent);
+  outline: 0;
+}
+@media (min-width: 1120px) {
+  .asa-ai-layout .asa-ai-chat .chat-sidebar {
+    position: relative;
+    width: var(--ai-history-width, 264px);
+  }
+}

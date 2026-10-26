@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
+import { AdminAiWebSearch } from './AdminAiWebSearch';
 import type { AiAdminConfig, AiProvider } from './ai-model-config';
 import { call } from './admin-api';
 import './ai-ollama.css';
 import './ai-admin.css';
 
 type ProviderChoice = AiProvider | 'ollama';
-type AiSection = 'connections' | 'comfyui';
+type AiSection = 'connections' | 'comfyui' | 'internet';
 
 interface LocalState {
   enabled: boolean;
@@ -17,6 +18,7 @@ interface LocalState {
 
 const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string }> = [
   { id: 'ollama', label: 'Ollama', hint: 'Локально · без ключа' },
+  { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
 ];
@@ -84,6 +86,17 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
         >
           ComfyUI · изображения
         </button>
+        <button
+          type="button"
+          role="tab"
+          id="ai-tab-internet"
+          aria-selected={section === 'internet'}
+          aria-controls="ai-panel-internet"
+          className={section === 'internet' ? 'active' : ''}
+          onClick={() => setSection('internet')}
+        >
+          Интернет-поиск
+        </button>
       </nav>
       {section === 'connections' ? (
         <section
@@ -137,6 +150,10 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
             />
           )}
         </section>
+      ) : section === 'internet' ? (
+        <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">
+          <AdminAiWebSearch onAccessDenied={onAccessDenied} />
+        </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">
           <AdminComfyUiPage onAccessDenied={onAccessDenied} />

@@ -1,3 +1,8 @@
+import {
+  ADC_OBSERVATION,
+  unconnectedAdcReading,
+  type ObservedArduinoInputs,
+} from './arduino-adc-observation.js';
 import type { Terminal } from './document.js';
 import {
   advanceArduinoPulseWait,
@@ -123,6 +128,9 @@ export interface ArduinoRuntimeDiagnostic {
   readonly severity: 'error';
   readonly message: string;
   readonly line?: number;
+  readonly start?: number;
+  readonly length?: number;
+  readonly column?: number;
 }
 
 interface ArduinoUltrasonicAdapterState {
@@ -251,6 +259,7 @@ interface BranchInstruction {
 interface JumpInstruction {
   readonly kind: 'jump';
   target: number;
+  readonly unwindScopes?: number;
 }
 
 type ScopeInstruction = { readonly kind: 'enter-scope' } | { readonly kind: 'exit-scope' };
@@ -596,8 +605,12 @@ function consumeStatement(state: RuntimeState): boolean {
   return true;
 }
 
-function removeComments(source: string): string {
+function removeComments(source: string, offsets?: number[]): string {
   let output = '';
+  const emit = (text: string, start: number): void => {
+    output += text;
+    for (let offset = 0; offset < text.length; offset += 1) offsets?.push(start + offset);
+  };
   let quote: '"' | "'" | null = null;
   let lineComment = false;
   let blockComment = false;
@@ -607,12 +620,12 @@ function removeComments(source: string): string {
     if (lineComment) {
       if (character === '\n') {
         lineComment = false;
-        output += '\n';
+        emit('\n', index);
       }
       continue;
     }
     if (blockComment) {
-      output += character === '\n' ? '\n' : ' ';
+      emit(character === '\n' ? '\n' : ' ', index);
       if (character === '*' && next === '/') {
         blockComment = false;
         index += 1;
@@ -620,9 +633,9 @@ function removeComments(source: string): string {
       continue;
     }
     if (quote) {
-      output += character;
+      emit(character, index);
       if (character === '\\') {
-        output += next;
+        emit(next, index + 1);
         index += 1;
       } else if (character === quote) {
         quote = null;
@@ -631,7 +644,7 @@ function removeComments(source: string): string {
     }
     if (character === '"' || character === "'") {
       quote = character;
-      output += character;
+      emit(character, index);
       continue;
     }
     if (character === '/' && next === '/') {
@@ -640,12 +653,12 @@ function removeComments(source: string): string {
       continue;
     }
     if (character === '/' && next === '*') {
-      output += ' ';
+      emit(' ', index);
       blockComment = true;
       index += 1;
       continue;
     }
-    output += character;
+    emit(character, index);
   }
   return output;
 }
@@ -828,6 +841,8 @@ function referenceVoltage(inputs: ArduinoTerminalVoltages): number {
 }
 
 export function arduinoAnalogReading(inputs: ArduinoTerminalVoltages, terminal: Terminal): number {
+  const context = (inputs as ObservedArduinoInputs)[ADC_OBSERVATION];
+  if (context?.unconnected.has(terminal)) return unconnectedAdcReading(context, terminal);
   const voltage = Number(inputs[terminal]) - groundVoltage(inputs);
   return Math.round(
     (clamp(voltage, 0, referenceVoltage(inputs)) / referenceVoltage(inputs)) * 1023,
@@ -1554,13 +1569,25 @@ function splitForHeader(source: string): readonly [string, string, string] {
   return [parts[0] ?? '', parts[1] ?? '', parts[2] ?? ''];
 }
 
-function compileError(diagnostics: string[], message: string): void {
-  if (diagnostics.length === 0) diagnostics.push(message);
+interface CompileMessage {
+  readonly message: string;
+  readonly start: number;
+  readonly length: number;
 }
 
-function structuralCompileError(source: string): string | null {
+function compileError(
+  diagnostics: CompileMessage[],
+  message: string,
+  start: number,
+  length: number,
+): void {
+  if (diagnostics.length === 0) diagnostics.push({ message, start, length });
+}
+
+function structuralCompileError(source: string): CompileMessage | null {
   const stack: Array<{ readonly character: '(' | '{'; readonly index: number }> = [];
   let quote: '"' | "'" | null = null;
+  let quoteStart = 0;
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index] ?? '';
     if (quote) {
@@ -1570,6 +1597,7 @@ function structuralCompileError(source: string): string | null {
     }
     if (character === '"' || character === "'") {
       quote = character;
+      quoteStart = index;
       continue;
     }
     if (character === '(' || character === '{') {
@@ -1580,32 +1608,128 @@ function structuralCompileError(source: string): string | null {
     const expected = character === ')' ? '(' : '{';
     const opening = stack.pop();
     if (!opening || opening.character !== expected) {
-      return `Ошибка синтаксиса Arduino: лишняя закрывающая скобка «${character}».`;
+      return {
+        message: `Ошибка синтаксиса Arduino: лишняя закрывающая скобка «${character}».`,
+        start: index,
+        length: 1,
+      };
     }
   }
-  if (quote) return 'Ошибка синтаксиса Arduino: строка или символ не закрыты кавычкой.';
+  if (quote)
+    return {
+      message: 'Ошибка синтаксиса Arduino: строка или символ не закрыты кавычкой.',
+      start: quoteStart,
+      length: 1,
+    };
   const opening = stack.pop();
   if (!opening) return null;
   const expected = opening.character === '(' ? ')' : '}';
-  return `Ошибка синтаксиса Arduino: для «${opening.character}» не найдена закрывающая скобка «${expected}».`;
+  return {
+    message: `Ошибка синтаксиса Arduino: для «${opening.character}» не найдена закрывающая скобка «${expected}».`,
+    start: opening.index,
+    length: 1,
+  };
+}
+
+// Keep a dangling else attached to its nearest if when locating a loop body.
+function controlledStatement(
+  source: string,
+  start: number,
+): { content: string; end: number; offset: number } | null {
+  start = skipWhitespace(source, start);
+  if (source[start] === '{') {
+    const block = balancedSlice(source, start, '{', '}');
+    return block ? { ...block, offset: start + 1 } : null;
+  }
+  const control = /^(if|while|for)\b/.exec(source.slice(start));
+  if (control) {
+    const header = balancedSlice(
+      source,
+      skipWhitespace(source, start + control[0].length),
+      '(',
+      ')',
+    );
+    if (!header) return null;
+    const body = controlledStatement(source, header.end);
+    if (!body) return null;
+    let end = body.end;
+    const next = skipWhitespace(source, end);
+    if (control[1] === 'if' && /^else\b/.test(source.slice(next))) {
+      const alternate = controlledStatement(source, next + 4);
+      if (!alternate) return null;
+      end = alternate.end;
+    }
+    return { content: source.slice(start, end), offset: start, end };
+  }
+  let depth = 0;
+  let quoted = false;
+  for (let end = start; end < source.length; end += 1) {
+    const character = source[end];
+    if (character === '"' && (source.slice(0, end).match(/\\*$/)?.[0].length ?? 0) % 2 === 0)
+      quoted = !quoted;
+    if (quoted) continue;
+    if (character === '(') depth += 1;
+    if (character === ')') depth -= 1;
+    if (character === '{' || character === '}' || depth < 0) return null;
+    if (character === ';' && depth === 0)
+      return { content: source.slice(start, end + 1), offset: start, end: end + 1 };
+  }
+  return null;
+}
+
+interface CompilingLoop {
+  readonly scopeDepth: number;
+  readonly breaks: JumpInstruction[];
+  readonly continues: JumpInstruction[];
 }
 
 function compileStatements(
   source: string,
   instructions: CompiledInstruction[] = [],
-  diagnostics: string[] = [],
+  diagnostics: CompileMessage[] = [],
   scope: 'setup' | 'loop' = 'loop',
   firstLine = 1,
   forHeaderName?: string,
+  firstOffset = 0,
+  locations = new Map<object, { start: number; length: number }>(),
+  loop?: CompilingLoop,
+  scopeDepth = 0,
 ): readonly CompiledInstruction[] {
   const lineAt = (offset: number): number =>
     firstLine + (source.slice(0, offset).match(/\n/g)?.length ?? 0);
-  const compileBlock = (body: string, offset: number, headerName?: string): void => {
+  const compileBlock = (
+    body: string,
+    offset: number,
+    headerName?: string,
+    bodyLoop = loop,
+    parentDepth = scopeDepth,
+  ): void => {
     instructions.push({ kind: 'enter-scope' });
-    compileStatements(body, instructions, diagnostics, scope, lineAt(offset), headerName);
+    compileStatements(
+      body,
+      instructions,
+      diagnostics,
+      scope,
+      lineAt(offset),
+      headerName,
+      firstOffset + offset,
+      locations,
+      bodyLoop,
+      parentDepth + 1,
+    );
     instructions.push({ kind: 'exit-scope' });
   };
   let index = 0;
+  let end = 0;
+  const error = (
+    message: string,
+    start = index,
+    length = source.slice(index, end).trimEnd().length,
+  ): void => compileError(diagnostics, message, firstOffset + start, Math.max(1, length));
+  const record = (instruction: CompiledInstruction, start = index, length = end - index): void => {
+    locations.set(instruction, { start: firstOffset + start, length: Math.max(1, length) });
+    instructions.push(instruction);
+  };
   while (index < source.length) {
     index = skipWhitespace(source, index);
     if (index >= source.length) break;
@@ -1615,11 +1739,12 @@ function compileStatements(
       continue;
     }
     const remaining = source.slice(index);
+    end = index + (/^[A-Za-z_]\w*/.exec(remaining)?.[0].length ?? 1);
     const line = lineAt(index);
     if (source[index] === '{') {
       const block = balancedSlice(source, index, '{', '}');
       if (!block) {
-        compileError(diagnostics, 'Незакрытый блок.');
+        error('Незакрытый блок.');
         break;
       }
       compileBlock(block.content, index + 1);
@@ -1631,48 +1756,58 @@ function compileStatements(
       let cursor = skipWhitespace(source, index + control[0].length);
       const condition = balancedSlice(source, cursor, '(', ')');
       if (!condition) {
-        compileError(
-          diagnostics,
+        error(
           `Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается условие в круглых скобках.`,
         );
         break;
       }
       cursor = skipWhitespace(source, condition.end);
-      const body = balancedSlice(source, cursor, '{', '}');
+      const body = controlledStatement(source, cursor);
       if (!body) {
-        compileError(
-          diagnostics,
-          `Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается блок в фигурных скобках.`,
-        );
+        error(`Ошибка синтаксиса в ${scope}(): после ${control[1]} ожидается команда или блок.`);
         break;
       }
       cursor = skipWhitespace(source, body.end);
-      let elseBody: { readonly content: string; readonly end: number } | null = null;
+      let elseBody: {
+        readonly content: string;
+        readonly end: number;
+        readonly offset: number;
+      } | null = null;
       if (control[1] === 'if' && /^else\b/.test(source.slice(cursor))) {
+        const elseStart = cursor;
         cursor = skipWhitespace(source, cursor + 4);
-        elseBody = balancedSlice(source, cursor, '{', '}');
+        elseBody = controlledStatement(source, cursor);
         if (elseBody) cursor = elseBody.end;
         else if (!/^if\b/.test(source.slice(cursor))) {
-          compileError(
-            diagnostics,
-            `Ошибка синтаксиса в ${scope}(): после else ожидается блок в фигурных скобках.`,
+          error(
+            `Ошибка синтаксиса в ${scope}(): после else ожидается команда или блок.`,
+            elseStart,
+            4,
           );
           break;
         }
       }
 
       const branchIndex = instructions.length;
-      instructions.push({ kind: 'branch', condition: condition.content, falseTarget: -1, line });
-      compileBlock(body.content, body.end - body.content.length - 1);
+      record(
+        { kind: 'branch', condition: condition.content, falseTarget: -1, line },
+        index,
+        condition.end - index,
+      );
+      const bodyLoop: CompilingLoop | undefined =
+        control[1] === 'while' ? { scopeDepth, breaks: [], continues: [] } : loop;
+      compileBlock(body.content, body.offset, undefined, bodyLoop);
       if (diagnostics.length > 0) break;
       if (control[1] === 'while') {
         instructions.push({ kind: 'jump', target: branchIndex });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+        for (const jump of bodyLoop!.breaks) jump.target = instructions.length;
+        for (const jump of bodyLoop!.continues) jump.target = branchIndex;
       } else if (elseBody) {
         const jumpIndex = instructions.length;
         instructions.push({ kind: 'jump', target: -1 });
         (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
-        compileBlock(elseBody.content, elseBody.end - elseBody.content.length - 1);
+        compileBlock(elseBody.content, elseBody.offset);
         if (diagnostics.length > 0) break;
         (instructions[jumpIndex] as JumpInstruction).target = instructions.length;
       } else {
@@ -1685,49 +1820,61 @@ function compileStatements(
       let cursor = skipWhitespace(source, index + 3);
       const header = balancedSlice(source, cursor, '(', ')');
       if (!header) {
-        compileError(
-          diagnostics,
-          `Ошибка синтаксиса в ${scope}(): после for ожидаются круглые скобки.`,
-        );
+        error(`Ошибка синтаксиса в ${scope}(): после for ожидаются круглые скобки.`);
         break;
       }
       cursor = skipWhitespace(source, header.end);
-      const body = balancedSlice(source, cursor, '{', '}');
+      const body = controlledStatement(source, cursor);
       if (!body) {
-        compileError(
-          diagnostics,
-          `Ошибка синтаксиса в ${scope}(): после for ожидается блок в фигурных скобках.`,
-        );
+        error(`Ошибка синтаксиса в ${scope}(): после for ожидается команда или блок.`);
         break;
       }
       if ((header.content.match(/;/g) ?? []).length !== 2) {
-        compileError(
-          diagnostics,
+        error(
           `Ошибка синтаксиса в ${scope}(): заголовок for должен содержать две точки с запятой.`,
         );
         break;
       }
       const [initialization, condition, increment] = splitForHeader(header.content);
       instructions.push({ kind: 'enter-scope' });
-      if (initialization) instructions.push({ kind: 'simple', statement: initialization, line });
+      if (initialization)
+        record(
+          { kind: 'simple', statement: initialization, line },
+          header.end - header.content.length - 1 + header.content.indexOf(initialization),
+          initialization.length,
+        );
       const branchIndex = instructions.length;
-      instructions.push({ kind: 'branch', condition: condition || '1', falseTarget: -1, line });
+      record(
+        { kind: 'branch', condition: condition || '1', falseTarget: -1, line },
+        index,
+        header.end - index,
+      );
+      const bodyLoop: CompilingLoop = { scopeDepth: scopeDepth + 1, breaks: [], continues: [] };
       compileBlock(
         body.content,
-        body.end - body.content.length - 1,
+        body.offset,
         parseDeclaration(initialization)?.name,
+        bodyLoop,
+        scopeDepth + 1,
       );
       if (diagnostics.length > 0) break;
-      if (increment) instructions.push({ kind: 'simple', statement: increment, line });
+      for (const jump of bodyLoop.continues) jump.target = instructions.length;
+      if (increment)
+        record(
+          { kind: 'simple', statement: increment, line },
+          header.end - header.content.length - 1 + header.content.lastIndexOf(increment),
+          increment.length,
+        );
       instructions.push({ kind: 'jump', target: branchIndex });
       (instructions[branchIndex] as BranchInstruction).falseTarget = instructions.length;
+      for (const jump of bodyLoop.breaks) jump.target = instructions.length;
       instructions.push({ kind: 'exit-scope' });
       index = body.end;
       continue;
     }
 
     let depth = 0;
-    let end = index;
+    end = index;
     for (; end < source.length; end += 1) {
       if (source[end] === '(') depth += 1;
       if (source[end] === ')') depth -= 1;
@@ -1735,19 +1882,28 @@ function compileStatements(
     }
     if (end >= source.length) {
       if (source.slice(index).trim()) {
-        compileError(
-          diagnostics,
-          `Ошибка синтаксиса в ${scope}(): команда должна заканчиваться точкой с запятой.`,
-        );
+        error(`Ошибка синтаксиса в ${scope}(): команда должна заканчиваться точкой с запятой.`);
       }
       break;
     }
     const statement = source.slice(index, end).trim();
     if (forHeaderName && parseDeclaration(statement)?.name === forHeaderName) {
-      compileError(diagnostics, `Повторное объявление «${forHeaderName}» в теле его цикла for.`);
+      error(`Повторное объявление «${forHeaderName}» в теле его цикла for.`);
       break;
     }
-    if (statement) instructions.push({ kind: 'simple', statement, line });
+    if (statement === 'break' || statement === 'continue') {
+      if (!loop) {
+        error(`Команда ${statement} допустима только внутри цикла.`);
+        break;
+      }
+      const jump: JumpInstruction = {
+        kind: 'jump',
+        target: -1,
+        unwindScopes: scopeDepth - loop.scopeDepth,
+      };
+      record(jump);
+      (statement === 'break' ? loop.breaks : loop.continues).push(jump);
+    } else if (statement) record({ kind: 'simple', statement, line });
     index = end + 1;
   }
   return instructions;
@@ -1785,7 +1941,7 @@ function declareVariable(
   const scope = state.scopes[state.scopes.length - 1]!;
   if (scope.has(name)) throw new SyntaxError(`Повторное объявление «${name}» в одной области.`);
   if (
-    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while)$/.test(
+    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|break|continue)$/.test(
       name,
     )
   )
@@ -1809,8 +1965,11 @@ function declareVariable(
   }
 }
 
-function globalDeclarations(source: string): readonly GlobalDeclaration[] {
-  const statements: string[] = [];
+function globalDeclarations(
+  source: string,
+  locations?: Map<object, { start: number; length: number }>,
+): readonly GlobalDeclaration[] {
+  const statements: Array<{ text: string; start: number }> = [];
   let depth = 0;
   let start = 0;
   for (let index = 0; index < source.length; index += 1) {
@@ -1827,30 +1986,36 @@ function globalDeclarations(source: string): readonly GlobalDeclaration[] {
     if (source[index] === ';' && depth === 0) {
       // A supported #include must not hide the first numeric declaration when
       // both precede the first semicolon. Keep the original source for lines.
-      statements.push(
-        source
+      statements.push({
+        start,
+        text: source
           .slice(start, index)
           .replace(/^[\t ]*#[^\r\n]*/gm, '')
           .trim(),
-      );
+      });
       start = index + 1;
     }
   }
 
-  return statements.flatMap((statement) => {
+  return statements.flatMap(({ text: statement, start }) => {
     const declaration = parseDeclaration(statement);
     if (!declaration) return [];
-    return [
-      {
-        ...declaration,
-        line: 1 + (source.slice(0, source.indexOf(statement)).match(/\n/g)?.length ?? 0),
-      },
-    ];
+    const result = {
+      ...declaration,
+      line: 1 + (source.slice(0, source.indexOf(statement)).match(/\n/g)?.length ?? 0),
+    };
+    locations?.set(result, { start: source.indexOf(statement, start), length: statement.length });
+    return [result];
   });
 }
 
-function initializeGlobals(declarations: readonly GlobalDeclaration[], state: RuntimeState): void {
+function initializeGlobals(
+  declarations: readonly GlobalDeclaration[],
+  state: RuntimeState,
+  locate?: (declaration: GlobalDeclaration) => void,
+): void {
   for (const declaration of declarations) {
+    locate?.(declaration);
     declareVariable(declaration, state, true);
   }
 }
@@ -2008,8 +2173,11 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
 }
 
 function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilation {
-  const cleanSource = removeComments(source);
-  const messages: string[] = [];
+  const offsets: number[] = [];
+  const cleanSource = removeComments(source, offsets);
+  offsets.push(source.length);
+  const messages: CompileMessage[] = [];
+  const locations = new Map<object, { start: number; length: number }>();
   const structuralError = structuralCompileError(cleanSource);
   if (structuralError) messages.push(structuralError);
   const declaredSetup = /\bvoid\s+setup\b/i.test(cleanSource);
@@ -2017,27 +2185,57 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   const extractedSetupBody = functionBody(cleanSource, 'setup');
   const extractedLoopBody = functionBody(cleanSource, 'loop');
   if (!structuralError && declaredSetup && extractedSetupBody === null) {
-    messages.push(
-      'Ошибка синтаксиса Arduino: функция setup() должна иметь корректное тело в фигурных скобках.',
-    );
+    messages.push({
+      message:
+        'Ошибка синтаксиса Arduino: функция setup() должна иметь корректное тело в фигурных скобках.',
+      start: cleanSource.search(/\bvoid\s+setup\b/i),
+      length: 4,
+    });
   }
   if (!structuralError && declaredLoop && extractedLoopBody === null) {
-    messages.push(
-      'Ошибка синтаксиса Arduino: функция loop() должна иметь корректное тело в фигурных скобках.',
-    );
+    messages.push({
+      message:
+        'Ошибка синтаксиса Arduino: функция loop() должна иметь корректное тело в фигурных скобках.',
+      start: cleanSource.search(/\bvoid\s+loop\b/i),
+      length: 4,
+    });
   }
   const setupBody = extractedSetupBody ?? '';
   const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
   const servoDeclarations = arduinoServoDeclarationNames(cleanSource);
-  const declarations = globalDeclarations(cleanSource);
+  const declarations = globalDeclarations(cleanSource, locations);
   const bodyLine = (name: string): number => {
     const match = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(cleanSource);
     return match
       ? 1 + (cleanSource.slice(0, match.index + match[0].length).match(/\n/g)?.length ?? 0)
       : 1;
   };
-  const setupInstructions = compileStatements(setupBody, [], messages, 'setup', bodyLine('setup'));
-  const loopInstructions = compileStatements(loopBody, [], messages, 'loop', bodyLine('loop'));
+  const bodyOffset = (name: string): number => {
+    const match = new RegExp(`\\bvoid\\s+${name}\\s*\\(\\s*(?:void\\s*)?\\)\\s*\\{`).exec(
+      cleanSource,
+    );
+    return match ? match.index + match[0].length : 0;
+  };
+  const setupInstructions = compileStatements(
+    setupBody,
+    [],
+    messages,
+    'setup',
+    bodyLine('setup'),
+    undefined,
+    bodyOffset('setup'),
+    locations,
+  );
+  const loopInstructions = compileStatements(
+    loopBody,
+    [],
+    messages,
+    'loop',
+    bodyLine('loop'),
+    undefined,
+    bodyOffset('loop'),
+    locations,
+  );
   const expressions: Record<string, PreparedExpression> = Object.create(null);
   // Parse every instruction, including unreachable branches, before driving GPIO.
   // This is validation of the bounded language, not execution of the sketch.
@@ -2059,12 +2257,16 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
           expressions[expression] = prepareExpression(tokens);
       },
     };
+    let position = { start: 0, length: 0 };
     try {
-      initializeGlobals(declarations, validation);
+      initializeGlobals(declarations, validation, (declaration) => {
+        position = locations.get(declaration)!;
+      });
       const globals = new Map(validation.scopes[0]);
       for (const instructions of [setupInstructions, loopInstructions]) {
         validation.scopes.splice(0, validation.scopes.length, new Map(globals), new Map());
         for (const instruction of instructions) {
+          position = locations.get(instruction) ?? position;
           validation.statementCount = 0;
           validation.actions.length = 0;
           if (instruction.kind === 'branch') evaluate(instruction.condition, validation);
@@ -2080,7 +2282,12 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
     } catch (error) {
       if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
         throw error;
-      compileError(messages, `Ошибка программы Arduino: ${error.message}`);
+      compileError(
+        messages,
+        `Ошибка программы Arduino: ${error.message}`,
+        position.start,
+        position.length,
+      );
     }
   }
   return {
@@ -2091,11 +2298,22 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
     setupInstructions,
     loopInstructions,
     expressions,
-    diagnostics: messages.map((message) => ({
-      code: 'compile_error',
-      severity: 'error',
-      message,
-    })),
+    diagnostics: messages.map(({ message, start: offset, length: size }) => {
+      const start = offsets[offset] ?? source.length;
+      const end = size
+        ? (offsets[Math.min(cleanSource.length, offset + size - 1)] ?? start) + 1
+        : start;
+      const line = 1 + (source.slice(0, start).match(/\n/g)?.length ?? 0);
+      return {
+        code: 'compile_error',
+        severity: 'error',
+        message,
+        start,
+        length: end - start,
+        line,
+        column: start - source.lastIndexOf('\n', start - 1),
+      };
+    }),
   };
 }
 
@@ -2621,6 +2839,8 @@ function advanceRuntime(
     const instruction = instructions[programCounter];
     if (!instruction) break;
     if (instruction.kind === 'jump') {
+      for (let count = 0; count < (instruction.unwindScopes ?? 0); count += 1)
+        applyScopeInstruction({ kind: 'exit-scope' }, scopes, owned?.inactiveScopes);
       programCounter = instruction.target;
       consumeClockInstruction();
       continue;

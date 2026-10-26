@@ -65,6 +65,8 @@ function controller(options: {
       studentCoverage: { state: 'complete' },
       asOf: '2026-10-25T12:00:00.123456Z',
     })),
+    exportUsers: vi.fn(async () => ({ csv: 'prepared', count: 1 })),
+    authorize: vi.fn(() => true),
     accountCrm: vi.fn(async (_access, input) => ({ accountId: input.targetAccountId })),
     userHistory: vi.fn(async () => ({ items: [], next: null, coverage: 'retained' })),
     addAccountNote: vi.fn(async () => ({ id: '60000000-0000-4000-8000-000000000001' })),
@@ -611,4 +613,22 @@ describe('administrative control-plane transport', () => {
       }),
     ).rejects.toMatchObject({ status: 400 });
   });
+});
+
+it('reauthenticates the same session after buffering CSV and refuses session revocation', async () => {
+  const scope: ResolvedAdminAccess['scopes'][number] = {
+    kind: 'platform',
+    id: null,
+    title: 'ASA',
+    role: 'platform_admin',
+    permissions: ['administration.open', 'administration.accounts.read'],
+  };
+  const target = controller({ context: CONTEXT, access: access([scope]) });
+  vi.mocked(target.activeContext.resolve)
+    .mockResolvedValueOnce(CONTEXT)
+    .mockResolvedValueOnce(null);
+  await expect(
+    target.value.usersExport(request(), { scopeKind: 'platform' }),
+  ).rejects.toMatchObject({ status: 401 });
+  expect(target.controlPlane.exportUsers).toHaveBeenCalledOnce();
 });

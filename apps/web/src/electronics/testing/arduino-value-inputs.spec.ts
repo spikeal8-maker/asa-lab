@@ -123,7 +123,16 @@ function countBody(loop: ScratchBlocks.Block) {
 describe('Arduino expression sockets', () => {
   it('executes repeat COUNT from a pupil variable named repeatIndex without capturing it', () => {
     initializeVariable('repeatIndex', '3');
-    workspace.getVariableMap().createVariable('repeatIndex_1');
+    const collision = workspace.newBlock('asa_var_set');
+    collision.setFieldValue(
+      workspace.getVariableMap().createVariable('repeatIndex_1').getId(),
+      'NAME',
+    );
+    workspace
+      .getAllBlocks(false)
+      .find((block) => block.type === 'asa_setup')!
+      .getInputTargetBlock('DO')!
+      .nextConnection!.connect(collision.previousConnection!);
     const repeat = workspace.newBlock('asa_repeat');
     inLoop(repeat);
     attach(repeat, 'COUNT', namedReporter('repeatIndex'));
@@ -178,12 +187,15 @@ describe('Arduino expression sockets', () => {
   });
   it('does not shadow pupil variables or loop counters with the note-duration temporary', () => {
     const variable = workspace.getVariableMap().createVariable('asaNoteDurationMs');
-    workspace.getVariableMap().createVariable('asaNoteDurationMs_1');
+    const collisionVariable = workspace.getVariableMap().createVariable('asaNoteDurationMs_1');
     const setup = workspace.newBlock('asa_setup');
     const assignment = workspace.newBlock('asa_var_set');
     assignment.setFieldValue(variable.getId(), 'NAME');
     attach(assignment, 'VALUE', reporter('asa_number', '440'));
     setup.getInput('DO')!.connection!.connect(assignment.previousConnection!);
+    const collision = workspace.newBlock('asa_var_set');
+    collision.setFieldValue(collisionVariable.getId(), 'NAME');
+    assignment.nextConnection!.connect(collision.previousConnection!);
     const loop = workspace.newBlock('asa_for');
     inLoop(loop);
     loop.setFieldValue('asaNoteDurationMs_2', 'NAME');

@@ -75,17 +75,6 @@ export function configureArduinoConnections(workspace: ScratchBlocks.WorkspaceSv
   }
 }
 
-export function scrollArduinoPalette(
-  workspace: ScratchBlocks.WorkspaceSvg,
-  direction: -1 | 1,
-): void {
-  const palette = workspace.getFlyout()?.getWorkspace();
-  const metrics = palette?.getMetrics();
-  if (!palette || !metrics) return;
-  const distance = Math.max(80, metrics.viewHeight * 0.7);
-  palette.scroll(palette.scrollX, palette.scrollY - direction * distance);
-}
-
 const BLOCK_HELP: Readonly<Record<string, string>> = {
   asa_setup: 'Выполняет вложенные команды один раз при запуске Arduino.',
   asa_loop: 'Повторяет вложенные команды снова и снова, пока Arduino включена.',
@@ -210,7 +199,7 @@ export const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduin
   },
   fontStyle: {
     family: 'Arial, sans-serif',
-    weight: '600',
+    weight: '500',
     size: 12,
   },
 });

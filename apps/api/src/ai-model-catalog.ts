@@ -6,8 +6,34 @@
  * https://api-docs.deepseek.com/quick_start/pricing/
  * https://api-docs.deepseek.com/guides/thinking_mode/
  * Migration 0227 mirrors only the closed SQL boundary; a regression checks parity.
+ * Ollama Cloud names verified 2026-10-25 at https://ollama.com/api/tags.
+ * https://docs.ollama.com/api/openai-compatibility; migration 0252 extends the same guards.
  */
 const MODELS = [
+  {
+    id: 'gemma4:31b',
+    provider: 'ollama-cloud',
+    label: 'Gemma 4 31B · Ollama Cloud',
+    vision: true,
+    shutdownDate: null,
+    reasoning: null,
+  },
+  {
+    id: 'gpt-oss:120b',
+    provider: 'ollama-cloud',
+    label: 'GPT-OSS 120B · Ollama Cloud',
+    vision: false,
+    shutdownDate: null,
+    reasoning: null,
+  },
+  {
+    id: 'gpt-oss:20b',
+    provider: 'ollama-cloud',
+    label: 'GPT-OSS 20B · Ollama Cloud',
+    vision: false,
+    shutdownDate: null,
+    reasoning: null,
+  },
   {
     id: 'gpt-6-luna',
     provider: 'openai',
@@ -56,6 +82,7 @@ export type AiModel = (typeof MODELS)[number]['id'];
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI (GPT)', defaultModel: 'gpt-6-luna' },
   { id: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-flash' },
+  { id: 'ollama-cloud', label: 'Ollama Cloud', defaultModel: 'gemma4:31b' },
 ] as const;
 
 /** Provider support does not enable an ASA upload, document or image generation adapter. */
@@ -144,13 +171,16 @@ export function buildAiTextRequest(
         },
       }
     : {
-        url: 'https://api.deepseek.com/chat/completions',
+        url:
+          provider === 'ollama-cloud'
+            ? 'https://ollama.com/v1/chat/completions'
+            : 'https://api.deepseek.com/chat/completions',
         body: {
           ...(stream ? { stream_options: { include_usage: true } } : {}),
           model,
           messages: [{ role: 'system', content: instructions }, ...context],
           max_tokens: 1600,
-          thinking: { type: 'disabled' },
+          ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
           stream,
         },
       };

@@ -1,6 +1,7 @@
 /** Injection tokens for the composition root. */
 export const TOKENS = {
   pool: 'PG_POOL',
+  emailService: 'EMAIL_SERVICE',
   presentationPreferences: 'PRESENTATION_PREFERENCES',
   runtimeMetrics: 'RUNTIME_METRICS',
   moduleRegistry: 'MODULE_REGISTRY',
@@ -41,6 +42,7 @@ export const TOKENS = {
   refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
   productAnalytics: 'PRODUCT_ANALYTICS',
+  acquisitionAnalytics: 'ACQUISITION_ANALYTICS',
   chessLiveRepository: 'CHESS_LIVE_REPOSITORY',
   chessLiveService: 'CHESS_LIVE_SERVICE',
 } as const;

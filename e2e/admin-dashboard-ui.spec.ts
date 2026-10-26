@@ -1,7 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { adminDashboardFixture } from '../apps/web/src/admin/testing/admin-dashboard.fixture';
+import {
+  crmProfileFixture,
+  crmDashboardFixture,
+} from '../apps/web/src/admin/testing/crm-user.fixture';
 import {
   catalogUserFixture,
   catalogPageFixture,
@@ -24,6 +28,10 @@ async function fixture(page: Page) {
     empty = false;
   let accessCalls = 0;
   let catalogMode = false;
+  let directoryMode = false,
+    bound = false;
+  const exportQueries: URLSearchParams[] = [];
+  let crmConflict = false;
   const catalogQueries: URLSearchParams[] = [];
   const accessQueue: Array<(status?: number) => Promise<void>> = [];
   const dashboardQueue: Array<() => Promise<void>> = [];
@@ -40,6 +48,162 @@ async function fixture(page: Page) {
     }
     const reply = (data: unknown, status = 200) => route.fulfill({ json: data, status });
     const path = url.pathname;
+    if (path.startsWith('/api/crm/v1/responsibilities/')) {
+      const [, , , , , kind, scope, target] = path.split('/');
+      return reply({
+        kind,
+        scopeId: scope,
+        targetId: target,
+        role: 'member',
+        state: route.request().method() === 'PUT' ? route.request().postDataJSON().state : 'active',
+        version: 'a'.repeat(64),
+        allowedRoles: kind === 'classroom' ? ['co_teacher'] : ['member', 'educator'],
+      });
+    }
+    if (path.startsWith('/api/crm/v1/users/')) {
+      const kind = path.includes('/student/') ? 'student' : 'account';
+      if (path.endsWith('/dashboard')) return reply(crmDashboardFixture(kind));
+      if (path.endsWith('/email') || path.endsWith('/email/cancel'))
+        return reply({
+          accountId: OTHER,
+          email: 'profile@example.test',
+          verified: true,
+          pending: {
+            id: WORKSPACE,
+            email: 'new.long.pending.email.for.layout.review@example.test',
+            purpose: 'change',
+            state: path.endsWith('/cancel') ? 'cancelled' : 'sent',
+            expiresAt: '2030-01-01T12:00:00Z',
+            createdAt: '2026-10-25T10:00:00Z',
+          },
+        });
+
+      if (path.endsWith('/detail') || path.endsWith('/notes')) {
+        const category = url.searchParams.get('category');
+        const notes = category === 'notes' || path.endsWith('/notes');
+        const next = url.searchParams.has('cursor');
+        return reply({
+          items: notes
+            ? [
+                {
+                  id: OTHER,
+                  key: `note:${OTHER}`,
+                  text: 'Сохранённая учебная заметка',
+                  occurredAt: '2026-10-25T10:00:00Z',
+                },
+              ]
+            : category === 'ai'
+              ? [
+                  {
+                    id: next ? ACCOUNT : OTHER,
+                    key: `ai:${next ? ACCOUNT : OTHER}`,
+                    type: 'ai',
+                    status: 'failed',
+                    model: null,
+                    inputTokens: null,
+                    outputTokens: null,
+                    errorCode: 'ai_ollama_timeout',
+                    occurredAt: '2026-10-25T10:00:00Z',
+                  },
+                ]
+              : category === 'publications'
+                ? [
+                    {
+                      id: OTHER,
+                      key: `publication:${OTHER}`,
+                      type: 'publication',
+                      title: 'Сохранённая публикация ученика',
+                      projectId: OTHER,
+                      revision: 2,
+                      occurredAt: '2026-10-25T10:00:00Z',
+                    },
+                  ]
+                : [
+                    {
+                      id: OTHER,
+                      key: `version:${OTHER}`,
+                      type: 'version',
+                      title: 'Сохранённая работа ученика',
+                      projectId: OTHER,
+                      revision: 2,
+                      occurredAt: '2026-10-25T10:00:00Z',
+                    },
+                  ],
+          next: category === 'ai' && !next ? 'seat-ai-next' : null,
+          canWrite: notes,
+          version: 'a'.repeat(64),
+        });
+      }
+      if (path.endsWith('/profile'))
+        return crmConflict
+          ? reply(
+              {
+                error: {
+                  code: 'crm_conflict',
+                  message: 'Данные уже изменились. Обновите карточку.',
+                },
+              },
+              409,
+            )
+          : reply({
+              ...crmProfileFixture(kind),
+              ...route.request().postDataJSON(),
+              version: 'b'.repeat(64),
+            });
+      if (path.endsWith('/content')) {
+        const category = url.searchParams.get('category'),
+          next = url.searchParams.has('cursor');
+        return reply({
+          items:
+            category === 'messages'
+              ? [
+                  {
+                    id: next ? 'message-two' : 'message-one',
+                    threadId: '20000000-0000-4000-8000-000000000005',
+                    requestId: '20000000-0000-4000-8000-000000000006',
+                    role: next ? 'assistant' : 'user',
+                    text: next
+                      ? 'Полный ответ искусственного интеллекта'
+                      : 'Очень длинный вопрос ученика: <script>window.__crmInjected = true</script>',
+                    state: 'complete',
+                    occurredAt: '2026-10-25T10:00:00Z',
+                  },
+                ]
+              : category === 'projects'
+                ? [
+                    {
+                      id: '20000000-0000-4000-8000-000000000003',
+                      title: 'Полная учебная работа по электронике',
+                      module: 'electronics',
+                      status: 'active',
+                      occurredAt: '2026-10-25T10:00:00Z',
+                    },
+                  ]
+                : [],
+          next: category === 'messages' && !next ? 'crm-next' : null,
+        });
+      }
+      if (path.includes('/projects/'))
+        return reply({
+          projectId: '20000000-0000-4000-8000-000000000003',
+          title: 'Полная учебная работа по электронике',
+          module: 'electronics',
+          revision: 3,
+          source: url.searchParams.has('versionId') ? 'saved_version' : 'draft',
+          updatedAt: '2026-10-25T10:00:00Z',
+          document: { circuit: 'Полное сохранённое содержимое' },
+        });
+      return reply(
+        url.searchParams.has('classroomId')
+          ? {
+              ...crmProfileFixture(kind),
+              canEdit: false,
+              canManageCapabilities: false,
+              linkedIdentities: [],
+            }
+          : crmProfileFixture(kind),
+      );
+    }
     if (path === '/api/auth/me')
       return reply({
         authenticated: true,
@@ -160,6 +324,41 @@ async function fixture(page: Page) {
         ],
       });
     }
+    if (path === '/api/admin/v1/users-export') {
+      exportQueries.push(url.searchParams);
+      return reply({
+        count: 61,
+        csv:
+          '\uFEFF"Тип записи";"Имя"\r\n' +
+          Array.from({ length: 61 }, (_, i) => `"Ученическое место";"Строка ${i}"`).join('\r\n'),
+      });
+    }
+    if (path === '/api/admin/v1/users-filter-options')
+      return reply({
+        classes: [
+          {
+            id: '40000000-0000-4000-8000-000000000001',
+            title: 'Очень длинное название учебного класса для фильтрации',
+          },
+        ],
+        organizations: [{ id: SCHOOL, title: 'Организация цифровых лабораторий' }],
+      });
+    if (path === '/api/admin/v1/organization-class-bindings') {
+      if (route.request().method() === 'PUT') {
+        bound = !!route.request().postDataJSON().workspaceId;
+        return reply({ ok: true });
+      }
+      return reply({
+        classes: [
+          {
+            id: '40000000-0000-4000-8000-000000000001',
+            title: 'Учебный класс цифровой лаборатории',
+            workspaceId: bound ? SCHOOL : null,
+          },
+        ],
+        organizations: [{ id: SCHOOL, title: 'Организация цифровых лабораторий' }],
+      });
+    }
     if (path === '/api/admin/v1/users') {
       catalogQueries.push(url.searchParams);
       if (!catalogMode) return reply(catalogPageFixture());
@@ -183,21 +382,75 @@ async function fixture(page: Page) {
               'Следующая ученица',
             ),
           ]
-        : [accountUser, ...(organization ? [] : [student])];
+        : [accountUser, ...(organization && !(directoryMode && bound) ? [] : [student])];
       const kind = url.searchParams.get('kind');
       if (kind === 'accounts') items = items.filter((item) => item.kind === 'account');
       if (kind === 'students') items = items.filter((item) => item.kind === 'student');
       if (url.searchParams.get('status') === 'inactive') items = [];
       const search = url.searchParams.get('search')?.toLowerCase();
       if (search) items = items.filter((item) => item.displayName.toLowerCase().includes(search));
+      const catalog = catalogPageFixture(
+        items,
+        url.searchParams.has('cursor') || kind !== 'all' || organization || search
+          ? null
+          : 'fixture-next',
+        organization && !directoryMode,
+      );
       return reply(
-        catalogPageFixture(
-          items,
-          url.searchParams.has('cursor') || kind !== 'all' || organization || search
-            ? null
-            : 'fixture-next',
-          organization,
-        ),
+        directoryMode
+          ? {
+              ...catalog,
+              matchedCount: 61,
+              items: catalog.items.map((item) => ({
+                ...item,
+                acquisitionLatest: {
+                  source: 'school',
+                  medium: 'email',
+                  campaign: 'autumn-2026',
+                  observedAt: '2026-10-25T10:00:00Z',
+                },
+              })),
+              analytics: {
+                accounts: 31,
+                students: 30,
+                linkedRecords: 2,
+                ageUnknown: 30,
+                emailAbsent: 30,
+                sourceUnknown: 60,
+                activeObserved: 12,
+                aiRequests: 4,
+                aiTokenCovered: 2,
+                aiInputTokens: '90071992547409931234567890',
+                aiOutputTokens: null,
+                periodDays: Number(url.searchParams.get('days') ?? 30),
+                roles: { learner: 30, creator: 10 },
+                referrers: { unknown: 60, 'https://example.test': 1 },
+                tools: { electronics: 12 },
+                devices: { desktop: 12, unknown: 49 },
+                ageGroups: { unknown: 30, '18–34': 31 },
+                loginMethods: { password: 12 },
+                registrationMethods: { password: 3, max: 1 },
+                acquisition: {
+                  retentionDays: 90,
+                  status: 'collecting_current_document',
+                  observedRecords: 2,
+                  unknownRecords: 59,
+                  observations: 2,
+                  sources: { school: 2 },
+                  mediums: { email: 2 },
+                  campaigns: { 'autumn-2026': 2 },
+                },
+                daily: Array.from(
+                  { length: Number(url.searchParams.get('days') ?? 30) },
+                  (_, i) => ({
+                    date: new Date(Date.UTC(2026, 6, 1 + i)).toISOString().slice(0, 10),
+                    events: i,
+                    registrations: 1,
+                  }),
+                ),
+              },
+            }
+          : catalog,
       );
     }
     if (path.startsWith('/api/admin/v1/accounts/') && path.endsWith('/crm')) {
@@ -223,10 +476,18 @@ async function fixture(page: Page) {
     return reply({ items: [], next: null });
   });
   return {
+    directory: () => {
+      directoryMode = true;
+      catalogMode = true;
+    },
+    exportQueries: () => exportQueries,
     catalog: (value: boolean) => {
       catalogMode = value;
     },
     catalogQueries: () => catalogQueries,
+    crmConflict: (value: boolean) => {
+      crmConflict = value;
+    },
     holdAccess: (value: boolean) => {
       holdAccess = value;
     },
@@ -300,7 +561,43 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
     const learningCard = page.locator('.admin-chart-card').filter({ has: learning(page) });
     await expect(learningCard.locator('.admin-chart-time-label')).toHaveCount(12);
+    const timeAxes = await page.locator('.admin-chart-canvas svg').evaluateAll((charts) =>
+      charts.map((chart) => {
+        const bounds = chart.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          labels: [...chart.querySelectorAll('.admin-chart-time-label')].map((label) => {
+            const box = label.getBoundingClientRect();
+            return { left: box.left, right: box.right, text: label.textContent };
+          }),
+        };
+      }),
+    );
+    for (const axis of timeAxes) {
+      // Compare the whole logical plot, including labels reached by local scrolling.
+      for (const [index, label] of axis.labels.entries()) {
+        expect(label.left, label.text ?? '').toBeGreaterThanOrEqual(axis.left);
+        expect(label.right, label.text ?? '').toBeLessThanOrEqual(axis.right);
+        if (index > 0)
+          expect(label.left, `${axis.labels[index - 1]!.text} / ${label.text}`).toBeGreaterThan(
+            axis.labels[index - 1]!.right,
+          );
+      }
+    }
     await expect(learningCard.getByRole('button', { name: 'Scratch', exact: true })).toBeVisible();
+    const chips = await learningCard.locator('.admin-chart-legend button').evaluateAll((buttons) =>
+      buttons.map((button) => ({
+        top: button.getBoundingClientRect().top,
+        width: button.getBoundingClientRect().width,
+      })),
+    );
+    expect(chips.every((chip) => chip.width < 150)).toBe(true);
+    if (width >= 1024) {
+      expect(new Set(chips.map((chip) => Math.round(chip.top))).size).toBe(1);
+      const cards = page.locator('.admin-dashboard-grid > .admin-chart-card');
+      expect((await cards.nth(0).boundingBox())!.y).toBe((await cards.nth(1).boundingBox())!.y);
+    }
     await expect(learningCard.getByRole('button', { name: 'Шахматы', exact: true })).toHaveCount(0);
     const games = page
       .locator('.admin-chart-card')
@@ -341,6 +638,211 @@ for (const width of [1440, 1024, 390, 320]) {
     const last = page.locator('.portal-admin-subnav-item').last();
     await last.focus();
     await expect(last).toBeInViewport();
+    await noPageOverflow(page);
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`compact CRM directory and accessible account/student dialogs at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.directory();
+    await page.goto('/#/admin/users');
+    const account = page.locator(`[data-actor-key="account:${OTHER}"]`);
+    const student = page.locator(`[data-actor-key="student:${OTHER}"]`);
+    await expect(account.locator('button.admin-user-row')).toBeInViewport();
+    await expect(student.locator('button.admin-user-row')).toBeInViewport();
+    const insights = page.locator('.crm-directory-insights');
+    await expect(insights).not.toHaveAttribute('open');
+    await expect(
+      page.getByRole('region', { name: 'Аналитика выбранных записей', exact: true }),
+    ).toBeHidden();
+    expect(
+      await page.locator('.admin-user-list').evaluate((list) => getComputedStyle(list).maxHeight),
+    ).toBe('none');
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({
+        path: `${evidence}/crm-compact-directory-${width}.png`,
+        fullPage: true,
+      });
+    for (const row of [account, student]) {
+      const trigger = row.locator('button.admin-user-row');
+      await trigger.click();
+      const dialog = row.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('heading', { level: 2 })).toContainText(/Яков|Анна/);
+      await expect(
+        dialog.getByRole('button', { name: 'Закрыть карточку пользователя', exact: true }),
+      ).toBeVisible();
+      const dashboard = dialog.getByRole('region', { name: 'Обзор пользователя', exact: true });
+      await expect(dashboard).toBeVisible();
+      await expect(dashboard.getByRole('img')).toHaveCount(2);
+      await expect(dashboard.locator('circle[tabindex="0"]')).toHaveCount(2);
+      await dashboard.locator('circle[tabindex="0"]').first().focus();
+      await page.keyboard.press('End');
+      await expect(dashboard.locator('svg').first().locator('circle').last()).toHaveAttribute(
+        'tabindex',
+        '0',
+      );
+      expect(
+        await dashboard
+          .locator('.crm-person-dates')
+          .first()
+          .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+      ).toBeGreaterThanOrEqual(12);
+      await expect(dashboard).toContainText('Сохранение проекта');
+      if (width >= 1024) {
+        const charts = dashboard.locator('.crm-person-chart');
+        expect((await charts.nth(0).boundingBox())!.y).toBe((await charts.nth(1).boundingBox())!.y);
+      }
+      expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      await noPageOverflow(page);
+      if (width === 1440 || width === 390)
+        await page.screenshot({
+          path: `${evidence}/crm-dialog-${row === account ? 'account' : 'student'}-${width}.png`,
+          fullPage: true,
+        });
+      await dialog
+        .getByRole(row === account ? 'tab' : 'button', { name: 'Профиль', exact: true })
+        .click();
+      await expect(dialog.getByRole('textbox', { name: 'Имя', exact: true })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+    }
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`full CRM profile actual AI transcript and project reader at ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.catalog(true);
+    await page.goto('/#/admin/users');
+    const account = page.locator('[data-actor-key="account:20000000-0000-4000-8000-000000000002"]');
+    await account.locator('button.admin-user-row').click();
+    await account.getByRole('tab', { name: 'Профиль', exact: true }).click();
+    const card = account.getByRole('region', { name: 'Полная карточка пользователя', exact: true });
+    await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(/Полное имя/);
+    await expect(card.getByText('36 лет', { exact: true })).toBeVisible();
+    await expect(account.getByRole('tab')).toHaveCount(8);
+    await expect(card.getByRole('navigation', { name: 'Разделы CRM' })).toHaveCount(0);
+    await card
+      .getByRole('textbox', { name: 'Имя', exact: true })
+      .fill('Изменённое полное имя пользователя');
+    await card
+      .getByRole('textbox', { name: 'Причина изменения', exact: true })
+      .fill('Обращение пользователя');
+    f.crmConflict(true);
+    await card.getByRole('button', { name: 'Сохранить профиль', exact: true }).click();
+    await expect(card.getByRole('alert')).toContainText('Данные уже изменились');
+    await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(
+      'Изменённое полное имя пользователя',
+    );
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-profile-${width}.png`, fullPage: true });
+    await account.getByRole('tab', { name: 'Безопасность и доступ', exact: true }).click();
+    await expect(
+      account.getByRole('button', { name: 'Назначить администратором', exact: true }),
+    ).toBeVisible();
+    await expect(
+      card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
+    ).toContainText('Ожидает подтверждения: new.long.pending.email.for.layout.review@example.test');
+    await expect(
+      card.getByRole('region', { name: 'Смена электронной почты', exact: true }),
+    ).toContainText('Текущий адрес: profile@example.test');
+    const responsibilities = account.getByRole('region', {
+      name: 'Роли в организациях и классах',
+      exact: true,
+    });
+    await responsibilities
+      .getByRole('textbox', { name: 'Поиск организации или класса по названию', exact: true })
+      .fill('Организация цифровых лабораторий');
+    await responsibilities.getByRole('button', { name: 'Найти по названию', exact: true }).click();
+    await responsibilities
+      .getByRole('combobox', { name: 'Название области', exact: true })
+      .selectOption(SCHOOL);
+    await responsibilities.getByRole('button', { name: 'Загрузить доступ', exact: true }).click();
+    await responsibilities
+      .getByRole('combobox', { name: 'Роль', exact: true })
+      .selectOption('educator');
+    await responsibilities
+      .getByRole('textbox', { name: 'Причина изменения', exact: true })
+      .fill('Назначение ответственности');
+    await responsibilities.getByRole('button', { name: 'Назначить', exact: true }).click();
+    await expect(responsibilities.getByRole('status')).toContainText('Доступ сохранён');
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-access-${width}.png`, fullPage: true });
+    await account.getByRole('tab', { name: 'Переписка с ИИ', exact: true }).click();
+    await expect(
+      account.getByText('Очень длинный вопрос ученика:', { exact: false }),
+    ).toBeVisible();
+    await account.getByRole('button', { name: 'Ещё записи', exact: true }).click();
+    await expect(
+      account.getByText('Полный ответ искусственного интеллекта', { exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => '__crmInjected' in window)).toBe(false);
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-transcript-${width}.png`, fullPage: true });
+    await account.getByRole('tab', { name: 'Проекты', exact: true }).click();
+    await account.getByRole('button', { name: 'Просмотр проекта', exact: true }).click();
+    await account.getByText('Полные данные проекта — только просмотр', { exact: true }).click();
+    await expect(account.locator('pre')).toContainText('Полное сохранённое содержимое');
+    await account.getByRole('tab', { name: 'Входы и действия', exact: true }).click();
+    await expect(
+      account.getByRole('heading', { name: 'Все входы и устройства', exact: true }),
+    ).toBeVisible();
+    await expect(account.getByRole('heading', { name: 'Все действия', exact: true })).toBeVisible();
+    await noPageOverflow(page);
+    await account.getByRole('tab', { name: 'Заметки', exact: true }).click();
+    await expect(account.getByPlaceholder('Добавить внутренний комментарий')).toBeVisible();
+    await noPageOverflow(page);
+    await account
+      .getByRole('button', { name: 'Закрыть карточку пользователя', exact: true })
+      .click();
+    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
+    await student.locator('button.admin-user-row').click();
+    await expect(
+      student
+        .getByRole('region', { name: 'Полная карточка пользователя', exact: true })
+        .getByText('11 лет', { exact: true }),
+    ).toBeVisible();
+    await student.getByRole('button', { name: 'Заметки', exact: true }).click();
+    await expect(
+      student.getByRole('region', { name: 'Учебные заметки', exact: true }),
+    ).toContainText('Сохранённая учебная заметка');
+    await student
+      .getByRole('textbox', { name: 'Новая учебная заметка', exact: true })
+      .fill('Проверенная учебная заметка');
+    await student
+      .getByRole('textbox', { name: 'Причина добавления', exact: true })
+      .fill('Учебное наблюдение');
+    await student.getByRole('button', { name: 'Добавить заметку', exact: true }).click();
+    await student.getByRole('button', { name: 'Публикации и история', exact: true }).click();
+    await expect(student.getByText('Сохранённая работа ученика', { exact: false })).toBeVisible();
+    await student.getByRole('button', { name: 'Просмотр сохранённой версии', exact: true }).click();
+    await expect(
+      student.getByRole('button', { name: 'Скачать документ JSON', exact: true }),
+    ).toBeVisible();
+    await expect(student.locator('details[open]')).toHaveCount(0);
+    await noPageOverflow(page);
+    await student.getByRole('button', { name: 'Безопасность и доступ', exact: true }).click();
+    await expect(
+      student.getByRole('button', { name: 'Приостановить доступ ученика', exact: true }),
+    ).toBeDisabled();
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-seat-access-${width}.png`, fullPage: true });
+    await student.getByRole('button', { name: 'Входы и действия', exact: true }).click();
+    await expect(
+      student.getByRole('heading', { name: 'Все входы и устройства', exact: true }),
+    ).toBeVisible();
     await noPageOverflow(page);
   });
 }
@@ -493,17 +995,31 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(student.getByRole('button')).toHaveCount(1);
     await expect(student).toContainText('Выдано');
     await noPageOverflow(page);
-    await student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }).click();
-    const history = student.getByRole('region', { name: 'История пользователя' });
+    await student.locator('button.admin-user-row').click();
+    await student.getByRole('button', { name: 'Публикации и история', exact: true }).click();
+    const history = student.getByRole('region', { name: 'Сохранённая история ученика' });
     await expect(history.getByText('Сохранённая версия', { exact: false })).toBeVisible();
-    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('publications');
+    await history.getByRole('button', { name: 'Публикации', exact: true }).click();
     await expect(history.getByText('Версия публикации', { exact: false })).toBeVisible();
-    await history.getByRole('combobox', { name: 'Раздел истории' }).selectOption('ai');
-    await expect(history.getByText('Входные токены: Неизвестно', { exact: false })).toBeVisible();
-    await expect(history.getByText('Код ошибки: ai_ollama_timeout')).toBeVisible();
-    await history.getByRole('button', { name: 'Показать ещё записи' }).click();
-    await expect(history.getByText('Загружено записей: 2.')).toBeVisible();
-    await expect(history.getByRole('button', { name: 'Показать ещё записи' })).toHaveCount(0);
+    const aiRead = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return (
+        url.pathname === `/api/crm/v1/users/student/${OTHER}/detail` &&
+        url.searchParams.get('category') === 'ai' &&
+        url.searchParams.get('classroomId') === SCHOOL
+      );
+    });
+    await history.getByRole('button', { name: 'Использование ИИ', exact: true }).click();
+    await aiRead;
+    await expect(history.getByText('вход: неизвестно', { exact: false })).toBeVisible();
+    await expect(history.getByText('ai_ollama_timeout', { exact: false })).toBeVisible();
+    await history.getByRole('button', { name: 'Показать ещё', exact: true }).click();
+    await expect(history.getByRole('listitem')).toHaveCount(2);
+    await expect(history.getByRole('button', { name: 'Показать ещё', exact: true })).toHaveCount(0);
+    await student
+      .getByRole('button', { name: 'Закрыть карточку пользователя', exact: true })
+      .click();
+    await page.getByText('Дополнительные фильтры', { exact: true }).click();
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/users-${width}.png`, fullPage: true });
@@ -514,8 +1030,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect.poll(() => f.catalogQueries().at(-1)!.get('sort')).toBe('name');
     expect(f.catalogQueries().at(-1)!.has('cursor')).toBe(false);
     await account.locator('button.admin-user-row').click();
-    await expect(account.getByRole('tab', { name: 'Управление', exact: true })).toBeVisible();
-    await account.getByRole('tab', { name: 'История', exact: true }).click();
+    await expect(
+      account.getByRole('tab', { name: 'Безопасность и доступ', exact: true }),
+    ).toBeVisible();
+    await account.getByRole('tab', { name: 'Публикации и история', exact: true }).click();
     await expect(
       account
         .getByRole('region', { name: 'История пользователя' })
@@ -524,6 +1042,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/account-history-${width}.png`, fullPage: true });
+    await account
+      .getByRole('button', { name: 'Закрыть карточку пользователя', exact: true })
+      .click();
     await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
     await expect(account).toHaveCount(0);
     await expect(student).toBeVisible();
@@ -531,6 +1052,8 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(page.getByRole('status')).toContainText(
       'связь классов с организацией не подтверждена',
     );
+    // A different administrative scope mounts a fresh, compact directory.
+    await page.getByText('Дополнительные фильтры', { exact: true }).click();
     await expect(page.getByRole('combobox', { name: 'Тип записи', exact: true })).toHaveValue(
       'all',
     );
@@ -545,3 +1068,153 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
   });
 }
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`CRM filtered analytics full CSV and explicit organization binding at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.directory();
+    await page.goto('/#/admin/users');
+    await expect(page.getByText('Найдено записей: 61.', { exact: false })).toBeVisible();
+    await page.getByText('Дополнительные фильтры', { exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Возможность или роль', exact: true })
+      .selectOption('learner');
+    await expect.poll(() => f.catalogQueries().at(-1)?.get('role')).toBe('learner');
+    await page.getByRole('combobox', { name: 'Возраст', exact: true }).selectOption('unknown');
+    await expect.poll(() => f.catalogQueries().at(-1)?.get('age')).toBe('unknown');
+    await page.getByRole('button', { name: 'Найти значения фильтра', exact: true }).click();
+    await page
+      .getByRole('combobox', { name: 'Класс', exact: true })
+      .selectOption('40000000-0000-4000-8000-000000000001');
+    await expect
+      .poll(() => f.catalogQueries().at(-1)?.get('classId'))
+      .toBe('40000000-0000-4000-8000-000000000001');
+    const ready = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Скачать все результаты (CSV)', exact: true }).click();
+    const download = await ready;
+    const file = await download.path();
+    expect(file).not.toBeNull();
+    const csv = readFileSync(file!, 'utf8');
+    expect(csv.charCodeAt(0)).toBe(0xfeff);
+    expect(csv).toContain('Строка 60');
+    expect(csv.split('\r\n')).toHaveLength(62);
+    expect(f.exportQueries().at(-1)?.get('classId')).toBe('40000000-0000-4000-8000-000000000001');
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
+    const analytics = page.getByRole('region', {
+      name: 'Аналитика выбранных записей',
+      exact: true,
+    });
+    // A named section without an explicit role is exposed as a region.
+    await expect(analytics).toBeVisible();
+    await expect(analytics).toContainText('это не число уникальных людей');
+    const events = analytics.getByRole('group', {
+      name: 'Сохранённые события по дням UTC',
+      exact: true,
+    });
+    const records = analytics.getByRole('group', {
+      name: 'Создано аккаунтов и ученических мест по дням UTC',
+      exact: true,
+    });
+    await expect(events).toBeVisible();
+    await expect(records).toBeVisible();
+    await expect(events.locator('circle')).toHaveCount(30);
+    await page
+      .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
+      .selectOption('90');
+    // A new server-filtered page starts with optional analytics collapsed.
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
+    await expect(events.locator('circle')).toHaveCount(90);
+    await expect(records.locator('circle')).toHaveCount(90);
+    await events.locator('circle').nth(10).focus();
+    await expect(analytics.locator('.crm-analytics-chart-value').last()).toContainText('UTC: 10');
+    await page.keyboard.press('Tab');
+    await expect(analytics.locator('.crm-analytics-chart-value').last()).toContainText('UTC: 11');
+    await page
+      .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
+      .selectOption('7');
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
+    await expect(events.locator('circle')).toHaveCount(7);
+    await page
+      .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
+      .selectOption('30');
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
+    await expect(events.locator('circle')).toHaveCount(30);
+    await analytics.getByText('Наблюдения источников и кампаний', { exact: true }).click();
+    await expect(analytics).toContainText('Хранение: 90 дней');
+    await expect(
+      page.locator('.admin-user-list').getByText('Метки браузера за 90 дней:', { exact: false }),
+    ).toHaveCount(0);
+    await noPageOverflow(page);
+    await page.screenshot({ path: `${evidence}/crm-directory-${width}.png`, fullPage: true });
+    await page.getByText('Связь классов с организациями', { exact: true }).click();
+    await page.getByRole('button', { name: 'Найти классы и организации', exact: true }).click();
+    const manager = page.locator('.crm-directory-bindings');
+    await manager
+      .getByRole('combobox', { name: 'Класс', exact: true })
+      .selectOption('40000000-0000-4000-8000-000000000001');
+    await manager
+      .getByRole('combobox', { name: 'Организация класса', exact: true })
+      .selectOption(SCHOOL);
+    await manager
+      .getByRole('textbox', { name: 'Причина изменения', exact: true })
+      .fill('Явное поручение владельца организации');
+    await manager.getByRole('button', { name: 'Сохранить привязку', exact: true }).click();
+    await expect(manager.getByRole('status')).toContainText('Привязка сохранена');
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: `${evidence}/crm-binding-${width}.png`, fullPage: true });
+    await page.getByRole('combobox', { name: 'Область управления' }).selectOption({ index: 1 });
+    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
+    await expect(student).toBeVisible();
+    await expect(
+      student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }),
+    ).toHaveCount(0);
+    await student.locator('button.admin-user-row').click();
+    await expect(student.locator('.crm-full-card')).toBeVisible();
+    await student.getByRole('button', { name: 'Профиль', exact: true }).click();
+    await expect(student.getByRole('textbox', { name: 'Имя', exact: true })).toBeDisabled();
+    await expect(
+      student.getByRole('button', { name: 'Публикации и история', exact: true }),
+    ).toBeVisible();
+    await student.getByRole('button', { name: 'Безопасность и доступ', exact: true }).click();
+    await expect(
+      student.getByRole('button', { name: 'Приостановить доступ ученика', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      student.getByText('Изменение доступа недоступно.', { exact: false }),
+    ).toBeVisible();
+    await noPageOverflow(page);
+  });
+}
+
+test('catalog CSV cancellation blocks a late download', async ({ page }) => {
+  const f = await fixture(page);
+  f.catalog(true);
+  let finish!: () => Promise<void>;
+  await page.route('**/api/admin/v1/users-export?*', async (route) => {
+    await new Promise<void>((resolve) => {
+      finish = async () => {
+        resolve();
+      };
+    });
+    await route.fulfill({ json: { csv: 'late', count: 1 } }).catch(() => {});
+  });
+  await page.goto('/#/admin/users');
+  await page.getByRole('button', { name: 'Скачать все результаты (CSV)', exact: true }).click();
+  await page.getByRole('button', { name: 'Отменить выгрузку', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Скачать все результаты (CSV)', exact: true }),
+  ).toBeEnabled();
+  let downloads = 0;
+  page.on('download', () => {
+    downloads++;
+  });
+  await expect.poll(() => typeof finish).toBe('function');
+  await finish();
+  await page.getByText('О данных и выгрузке', { exact: true }).click();
+  await expect(page.getByText('CSV: до 10 000 записей', { exact: false })).toBeVisible();
+  expect(downloads).toBe(0);
+});

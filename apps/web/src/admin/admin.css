@@ -779,8 +779,7 @@
 }
 
 .admin-user-list {
-  overflow: auto;
-  max-height: min(72vh, 760px);
+  overflow: visible;
   border: 1px solid var(--admin-line);
   border-radius: 14px;
   background: #fff;
@@ -1410,9 +1409,8 @@
 
 .admin-dashboard-kpis {
   display: grid;
-  grid-template-columns: repeat(8, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 6px;
-  overflow-x: auto;
   padding-bottom: 2px;
 }
 
@@ -1441,7 +1439,7 @@
 
 .admin-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1479,6 +1477,9 @@
 
 .admin-chart-legend button {
   display: inline-flex;
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
   min-height: 25px;
   align-items: center;
   gap: 5px;
@@ -1523,13 +1524,12 @@
 .admin-chart-canvas svg {
   display: block;
   width: 100%;
-  min-width: 960px;
-  min-height: 205px;
+  min-width: 600px;
   overflow: visible;
 }
 
 .admin-dashboard-grid > .admin-chart-card:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .admin-chart-grid {
@@ -1851,7 +1851,7 @@
   }
 
   .admin-dashboard-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-confirmation-settings,
@@ -2070,6 +2070,9 @@
 .admin-users-catalog .admin-user-row {
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.9fr) 22px;
 }
+.admin-users-catalog .admin-user-row > span:nth-child(4) {
+  display: grid;
+}
 .admin-users-catalog .admin-user-row-readonly {
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 0.9fr);
 }
@@ -2096,6 +2099,9 @@
 @media (max-width: 620px) {
   .admin-users-catalog .admin-user-row {
     grid-template-columns: minmax(0, 1fr) 22px;
+  }
+  .admin-users-catalog .admin-user-row > span:nth-child(4) {
+    display: none;
   }
   .admin-users-catalog .admin-user-row-readonly {
     grid-template-columns: minmax(0, 1fr);
