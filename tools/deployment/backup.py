@@ -75,6 +75,14 @@ def attest_backup_mounts(root, config):
     expected_store = (Path(root) / ".asa" / "diagnostics" / "store").resolve()
     for name, service in config["services"].items():
         for mount in service.get("volumes", []):
+            if (name == "api" and mount.get("type") == "volume"
+                    and mount.get("target") == "/var/lib/asa-application-logs"
+                    and service.get("environment", {}).get("ASA_APPLICATION_LOG_STORE") == "/var/lib/asa-application-logs"):
+                # Bounded diagnostic evidence is independent of application-data
+                # recovery, like the host-owned store below. Preserve its volume
+                # in place; backups do not claim to export diagnostic history.
+                external_diagnostics = True
+                continue
             if (name == "api" and mount.get("type") == "bind"
                     and mount.get("target") == "/var/lib/asa-logs"
                     and mount.get("read_only") is True

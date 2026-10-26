@@ -1136,7 +1136,136 @@ P — сценарии и fixtures, не global userType. Каждый пасп�
 
 **Цель:** эксплуатация ASA Lab. **Основание:** защищённый global grant, не регистрация/школа. **Данные:** разрешённые operations/security/identity, не автоматически academic content. **Кабинет:** existing platform admin shell. **CTA:** health/jobs/allowed account actions/roles по grants и step-up. **Настройки:** platform policy в принятом объёме. **Запрет:** bypass immutable history, собственная оценка, credentials других людей. **Ошибка:** degraded не green; missing step-up блокирует операцию. **PERSONA-AC-18:** authorized platform operation и отказ academic self-review/неразрешённого content.
 
+### Каталог пользователей администратора
+
+Служебный каталог различает Account и StudentSeat по паре kind+UUID; связанное
+ученическое место не превращается в Account и не объединяется с ним. Principal
+берётся только из канонической identity, отсутствие обозначается NULL без
+создания нового владельца. Account сохраняет существующую CRM и разрешённые
+действия; StudentSeat в этом срезе имеет только read-only сведения о классе,
+состоянии, активности и наблюдаемом IP/устройстве, без account controls.
+
+StudentCode не является публичным username: login_handle ученика исключён из
+projection и search, чтобы каталог не раскрывал credential и не был oracle.
+Публичный username Account остаётся доступен; NULL email внешнего входа
+сохраняется NULL, не мешая поиску по имени и username.
+
+Platform admin видит оба типа в полном каталоге. Org scope использует прежнюю
+авторизацию account membership; совпадение tenant, названия школы или teacher
+membership не доказывает связь класса с organization workspace. Начиная с reader
+0249 платформа явно связывает один класс с одной организацией через отдельную
+аудируемую привязку с причиной и проверкой предыдущего значения. Только текущие
+owner/school_admin действующей организации получают учебные StudentSeat-карточки
+точно связанных классов; снятие привязки или членства действует на следующем
+чтении и финальной проверке выгрузки. Личные Account-проекты и переписка по этой
+связи недоступны, связанные Account ID в учебной карточке скрыты. Непривязанные
+классы не входят в эту выборку; studentCoverage нового reader complete описывает
+именно явную область. Старый reader 0245 сохраняется для совместимости и сообщает
+unavailable. Новая модель не переносит владение классом или личными материалами.
+
+Поиск, тип, состояние записи, сортировка и направление выполняются сервером
+до limit 1..100 и keyset pagination. Действующие записи: Account active,
+StudentSeat issued/active; это не online и не обещание разрешения конкретного
+учебного действия. Фактические статусы сохраняются отдельно. Порядок по имени,
+зафиксированной активности, числу событий за 30 дней или created time имеет
+детерминированные kind+UUID ties и NULL last. Mutable heartbeat показывается
+отдельно; якорь активности — сохранённые события и начало сессии.
+
+Cursor — недоверенное продолжение, а не полномочие: закрытая версия/tuple,
+fingerprint actor/scope/filters/sort/direction, точные microseconds и cutoff
+asOf с максимальным возрастом час. Каждый запрос заново проверяет server scope.
+Менять criteria означает сбросить cursor; старый ответ не заполняет новый scope.
+Cutoff ограничивает окно событий и excludes позднюю persistence, но не является
+MVCC snapshot имён, статусов или прочих меняющихся данных. Метаданные устройства
+являются наблюдением со слов клиента, а не доказанной физической моделью.
+
+Расширенный reader применяет capability/scoped role, класс, фактическое членство
+организации, известность/границы возраста, email/подтверждение, наблюдавшуюся
+активность, даты создания и известность первого сохранённого реферера до paging.
+Все условия входят в fingerprint. Каталог показывает полное matchedCount и
+агрегаты той же разрешённой выборки, отдельно Account/Seat/записи со связанным профилем (без удвоения направлений связи),
+возрастные группы/unknown, методы входа, устройства, среды, события и UTC-дни.
+Первые сохранённые клиентские referrer observations не являются источником
+регистрации. Исторические кампании/география не выдумываются. UTM не добавляются
+в старую нормализацию visit/receipt, чтобы не ломать replay сохранённых событий.
+ИИ учитывает journal и оставшиеся quota admissions без дублирования owner/request;
+у старых admissions токены неизвестны. В org scope ИИ только разрешённых Seat,
+личная Account-активность недоступна. Отсутствие сохранённого события не доказывает
+отсутствие использования.
+
+CSV UTF-8 BOM/semicolon содержит всю разрешённую фильтрованную выборку или явную
+ошибку при превышении 10 000 записей/16 МБ/8 секунд запроса. На процесс допускается
+две выгрузки и одна на actor. Подготовка файла аудируется с count и hash criteria,
+не как подтверждённое скачивание; после буферизации проверяются текущие права,
+все точные typed IDs/привязки и действующая сессия. Credentials, proof tokens,
+SMTP secrets не экспортируются; формулы нейтрализуются перед CSV quoting.
+
 <a id="persona-p19"></a>
+
+#### Постраничная история пользователя
+
+`GET /api/admin/v1/users/:kind/:targetId/history` отдельно читает `projects`,
+`publications`, `ai`. Kind+UUID остаётся точной identity; Seat/Account linking
+не объединяет их историю. Только platform admin получает retained metadata:
+текущие принадлежащие identity проекты (включая архивные), immutable сохранённые
+версии, все retained publication revisions, отдельно помеченные legacy gallery
+rows, private AI usage journal и retained pre-journal quota admissions без
+выдуманных model/token/result facts. Совпадающий owner+request уже из журнала
+не дублируется. Тексты чатов, document_json,
+credentials, preview bytes и произвольные provider errors не раскрываются.
+NULL token usage означает неизвестное значение, не ноль; bigint выводится строкой.
+Статусы проектов/публикаций/AI являются текущими, а не историческим snapshot.
+Не заявляется восстановление удалённых строк, каждого autosave, прошлых владельцев
+или полной хронологии переходов публикации, которые ранее не журналировались.
+
+History limit 1..100 применяется сервером, default 50 (UI 25). Порядок time DESC,
+typed record key ASC, cursor сохраняет microseconds, fingerprint actor/scope/
+typed target/category, cutoff asOf и срок час. Каждый page read заново проверяет
+grant и exact target. Cutoff не является MVCC snapshot mutable metadata или
+поздно committed backdated records. Ошибка продолжения сохраняет уже загруженные
+строки; смена раздела/identity/scope сбрасывает cursor и игнорирует поздний ответ.
+Success audit записывается после успешного SQL read и до выдачи данных.
+
+Account membership не даёт org admin доступ к personal project/AI history.
+Пока у источников нет точной organization workspace lineage, возвращается
+`coverage=unavailable_scope`, а не ложный пустой полный каталог. Совпадение tenant
+не расширяет полномочия. StudentSeat за пределами platform scope запрещён.
+
+#### Полная CRM-карточка — принято владельцем 25.10.2026
+
+Platform admin имеет явное право читать полную карточку каждой точной identity
+Account/StudentSeat, сохранённые вопросы и ответы ИИ и содержимое её проектов.
+Это не выдаёт права менять Project Core/оценки под видом просмотра. Учитель
+читает только Seat своего точного класса по действующему classroom manager grant;
+связанный личный Account, его контакты, диалоги и независимые проекты не наследуются.
+Новый reader `/api/crm/v1/users/:kind/:target` не меняет прежний metadata-only
+контракт endpoint истории. Дополнительных кодов или step-up для чтения нет.
+
+Полная карточка содержит профиль, возраст (если известен), исходные capabilities,
+workspace memberships, преподавательские классы и отдельные связанные identity.
+Настройки профиля Account пишут канонические accounts/profiles; дата рождения
+Seat хранится отдельно и не выдумывается из age_band. Account остаётся 18+;
+изменение DOB не обход проверки регистрации. Только platform admin может менять
+профиль/capabilities и приостанавливать Seat из CRM. Classroom teacher получает
+read-only CRM; прежние разрешённые teacher management commands сохраняются.
+
+Изменение требует exact version fingerprint, причины и текущего server grant;
+конкурирующая версия возвращает409 без перезаписи. Аудит содержит actor, target,
+reason и before/after профиля/прав; записи неизменяемы, не содержат credentials.
+Нельзя менять собственные capabilities из CRM; platform_admin управляется
+отдельной прежней командой с self-protection. Отзыв platform role и блокировка
+Account сериализуются общим advisory transaction lock до повторной авторизации,
+чтобы два администратора не могли одновременно отозвать друг друга.
+
+Сохранённые сообщения ИИ, проекты, сессии и наблюдаемые события имеют серверные
+страницы по25 (SQL максимум50), точные SQL timestamps и subject/context/category-
+bound cursor со сроком час. Старые summaries first8/20 не заменяют полную выдачу.
+Результат ИИ отражает сохранённые сообщения; удалённые диалоги не восстанавливаются.
+Просмотр проекта проверяет exact owner/class lineage, показывает сохранённый
+PNG/WebP preview если есть и полный документ в read-only JSON, без запуска
+пользовательского кода или открытия привилегированного редактора. Saved version
+доступна по exact project+version; подмена соседнего id запрещена. Каждое чтение
+контента фиксируется в административном аудите без текста диалога/документа.
 
 ### P19 — Поддержка (R14)
 
@@ -1177,6 +1306,33 @@ PERSONA-AC-20…28: mixed learner/teacher/personal; editor А/publisher Б; revi
 | UI-26 | Известный материал, условия deliver/copy, target ownership; Запросить/Отменить/Применить разрешённое; без learner data |
 | UI-31 | Общие вкладки teaching/review/help/coordination; один источник work, задачи только assigned |
 | UI-32 | Own доступные события, непрочитанные; Открыть/Прочитано/Настроить; count не review count, revoke не leak preview |
+
+**Почта в UI-24 / CRM (решение владельца от 25.10.2026).** Настройки почты находятся
+в «Администрирование → Подтверждения» рядом с MAX и Telegram. Общее правило входа
+показывается кратко, каналы — в отдельных доступных с клавиатуры вкладках; технические
+диагностики подключения свёрнуты. Пароль SMTP хранится зашифрованным существующим
+ключом настроек установки, не возвращается в UI, audit или export. Поддерживаются
+TLS 465 и обязательный STARTTLS 587 с проверкой сертификата. Успех подключения
+не равен доставке в ящик и не включает общее правило подтверждения автоматически.
+
+Администратор платформы запрашивает смену почты **существующего точного Account**
+с причиной, ожидаемой версией карточки и идентификатором намерения. Старый адрес,
+вход и признак подтверждения сохраняются до одноразовой ссылки на новом адресе
+(30 минут). Есть статус, отмена и повторная отправка с минутным интервалом,
+не более пяти запросов на Account в час. Новый запрос, изменение конфигурации,
+истечение срока, отмена, закрытый/приостановленный Account и повторное применение
+делают старую ссылку непригодной. Конфликт занятого адреса не перезаписывает другого
+пользователя. Успешная смена завершает старые сеансы и refresh credentials;
+самостоятельное подтверждение текущей почты сеансы сохраняет. Владелец внешнего
+Account без почты может получить проверенный адрес в том же Account без создания
+или слияния идентичностей. StudentSeat не становится Account ради почты; учитель
+своего класса не получает права менять личный адрес связанного Account.
+
+Подтверждение текущего адреса доступно владельцу Account из безопасности аккаунта
+и экрана обязательного подтверждения. Почта участвует в обязательной проверке
+только после проверки подключения **и** фактического применения письма для текущей
+конфигурации. Недоступная почта не подменяет доказательство и сохраняет существующий
+fallback MAX/Telegram/пароля. Новых кодов для просмотра CRM-карточки нет.
 
 Каждая форма реализации имеет screen/element ID, label, permission, resource, server-supported feature, default/current value, validation, expected version, command, pending/success/error/retry/cancel, effect, audit и test. Никакая таблица не разрешает вывести неработающую кнопку до backend support.
 
@@ -1349,3 +1505,39 @@ timeLimit; reconnect/reload возобновляет ту же Attempt. Закр
 Четыре области и единая авторская библиотека определены в Integrated V1.5 §21.
 Знания — discovery тех же published roots, включая задания, тесты и программирование;
 это не параллельная база авторства. Старые accepted receipts не переводятся на 2.2.
+
+
+#### CRM scoped operations — owner-authorized completion 25.10.2026
+
+CRM organization responsibility commands operate only on organization workspaces.
+Platform administrators may manage supported organization memberships, including
+owner, with last-active-owner and last-active-administrator protection. An active
+organization owner may manage non-owner memberships (member, educator,
+school_admin, billing_admin, moderator), but cannot alter an existing owner. An
+active school_admin may manage only member/educator memberships and cannot modify
+administrative memberships or promote itself. Existing legacy student memberships
+remain visible and read-only; these commands never grant student status or convert
+Account and Seat identities. Membership commands serialize the organization,
+recheck the current server actor, require expected version and reason, and audit
+before/after. Organization management exposes scoped membership data, never a
+person's private Account projects, correspondence or unrelated memberships.
+
+Platform CRM may explicitly assign/revoke an eligible Account as co_teacher of an
+exact class. This preserves the canonical educator eligibility, active Account,
+five-colleague limit and legacy tenant user/link requirements. The primary owner
+is never reassigned by this command. Membership changes grant no global teacher
+role and do not merge identities.
+
+Seat CRM notes are append-only educational observations with an expected note-list
+version, reason and audit. Archived classes preserve read-only notes/history;
+append requires the current active-class write grant and the server canWrite flag
+controls the form. Exact-class teachers and explicitly bound organization
+managers use the same fresh crm_subject_allowed authorization for notes and the
+new retained-history reader. Retained history follows exact Seat/class project
+ownership, saved versions, publication revisions and Seat AI receipts; it never
+follows a linked personal Account. The legacy metadata-only Account history API
+retains its original scope behavior. Saved project versions never display a newer
+snapshot as their historical image. Read-only inspection offers saved metadata,
+available preview, on-demand JSON and JSON download without editor grants or code
+execution. CSV cancellation ends client waiting/download; server limits remain
+10,000 records, 16 MiB and eight seconds per query.

@@ -1,6 +1,33 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-WEB-SEARCH
+    routes: [/api/ai/web-search/status, /api/admin/v1/ai/web-search, '/api/ai/threads/:threadId/web-search/:requestId/images/:imageId']
+    implementation:
+      files: [apps/api/src/ai-web-search.ts, apps/api/src/ai-web-search-provider.ts, packages/contracts/src/ai-web-search.ts, migrations/0254_ai_web_search.sql, apps/web/src/ai/AiWebEvidence.tsx, apps/web/src/admin/AdminAiWebSearch.tsx]
+    invariants: [AI-WEB-SEARCH-001, AI-OWNER-001, AI-REPLAY-001]
+    tests: [TST-AI-WEB-CORE-001, TST-AI-WEB-PG-001, TST-AI-WEB-E2E-001]
+    controls:
+      - id: CTRL-AI-WEB-SEARCH
+        label: Free owner-bound retrieval and durable source evidence
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-web-search.ts, apps/api/src/ai-web-search-provider.ts, migrations/0254_ai_web_search.sql]
+        invariants: [AI-WEB-SEARCH-001, AI-OWNER-001, AI-REPLAY-001]
+        tests: [TST-AI-WEB-CORE-001, TST-AI-WEB-PG-001, TST-AI-WEB-E2E-001]
+
+  - id: SURF-AI-CLOUD-PROVIDERS
+    routes: [/api/admin/v1/ai, /api/admin/v1/ai/test, /api/ai/status]
+    implementation:
+      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-model-catalog.ts, apps/api/src/ai-provider-stream.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/web/src/admin/AdminAiPage.tsx, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/ai-admin.css, apps/web/src/admin/ai-model-config.ts, migrations/0252_ai_ollama_cloud.sql]
+    invariants: [AI-CLOUD-CREDENTIAL-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
+    tests: [TST-AI-TEXT-CORE-001, TST-AI-CLOUD-PG-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
+    controls:
+      - id: CTRL-AI-CLOUD-PROVIDER
+        label: Configure isolated encrypted cloud credentials and perform one explicitly admitted connection test
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-model-catalog.ts, apps/api/src/ai-provider-stream.ts, apps/web/src/admin/AdminAiPage.tsx, migrations/0252_ai_ollama_cloud.sql]
+        invariants: [AI-CLOUD-CREDENTIAL-001, AI-REPLAY-001, AI-USAGE-001]
+        tests: [TST-AI-TEXT-CORE-001, TST-AI-CLOUD-PG-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
   - id: SURF-AI-PRIVATE-ATTACHMENTS
     routes:
       [
@@ -78,20 +105,20 @@ surfaces:
   - id: SURF-AI-TEXT-HISTORY
     routes: ['#/ai', /api/ai/threads, '/api/ai/threads/:threadId/archive', '/api/ai/threads/:threadId/requests/:requestId', '/api/ai/threads/:threadId/regenerations/stream']
     implementation:
-      files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
-    invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-HISTORY-001, AI-VARIANT-001, AI-CONTENT-001]
+      files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, migrations/0244_ai_usage_journal.sql, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/AiAnswerDownloads.tsx, apps/web/src/ai/ai-download.ts, apps/web/src/ai/ai-document-export.ts, apps/web/src/ai/AiHistoryAttachment.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
+    invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-USAGE-001, AI-HISTORY-001, AI-VARIANT-001, AI-CONTENT-001]
     tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
     controls:
       - id: CTRL-AI-TEXT-HISTORY-VARIANT
         label: Search all own history, archive or restore without data loss and generate a separate source-bound paid answer
         change_class: L3_CRITICAL
-        files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql]
-        invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-HISTORY-001, AI-VARIANT-001]
+        files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, migrations/0244_ai_usage_journal.sql]
+        invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-USAGE-001, AI-HISTORY-001, AI-VARIANT-001]
         tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-PG-001]
       - id: CTRL-AI-TEXT-CONTENT
         label: Preserve selected conversation and draft while searching, checking a saved variant and safely rendering mathematical Markdown
         change_class: L1_UI_BEHAVIOR
-        files: [apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
+        files: [apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/AiAnswerDownloads.tsx, apps/web/src/ai/ai-download.ts, apps/web/src/ai/ai-document-export.ts, apps/web/src/ai/AiHistoryAttachment.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
         invariants: [AI-HISTORY-001, AI-VARIANT-001, AI-CONTENT-001, AI-UI-SCOPE-001]
         tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-E2E-001]
   - id: SURF-AI-CHAT-ACCESS

@@ -30,6 +30,8 @@ import { TelegramAuthService } from './telegram-auth.service.js';
 import { ProviderConfigurationError } from './auth-provider-availability.js';
 import { AccountVerificationService } from './account-verification.service.js';
 import { AllowUnverifiedAccount } from './account-verification.guard.js';
+import { parseCatalogQuery, parseCatalogFilters } from './admin-user-catalog.js';
+import { parseHistoryQuery } from './admin-user-history.js';
 
 const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
   '1h',
@@ -146,6 +148,162 @@ export class AdminController {
         search: this.search(searchRaw),
         limit: this.limit(limitRaw),
         cursor: this.listCursor(beforeRaw, beforeIdRaw),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users')
+  async users(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') scopeKindRaw: string | undefined,
+    @Query('scopeId') scopeIdRaw: string | undefined,
+    @Query('search') searchRaw: string | undefined,
+    @Query('kind') kind: string | undefined,
+    @Query('status') status: string | undefined,
+    @Query('sort') sort: string | undefined,
+    @Query('direction') direction: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+    @Query() advanced: Record<string, unknown> = {},
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      const query = parseCatalogQuery({
+        kind,
+        status,
+        sort,
+        direction,
+        limit,
+        cursor,
+        search: searchRaw,
+        scopeKind: scopeKindRaw,
+        scopeId: scopeIdRaw,
+      });
+      return await this.controlPlane.listUsers(access, {
+        scope: this.scope(scopeKindRaw, scopeIdRaw),
+        search: this.search(searchRaw),
+        ...query,
+        filters: parseCatalogFilters(advanced),
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users-export')
+  async usersExport(
+    @Req() request: FastifyRequest,
+    @Query() raw: Record<string, string | undefined>,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      const prepared = await this.controlPlane.exportUsers(access, {
+        ...parseCatalogQuery(raw),
+        scope: this.scope(raw.scopeKind, raw.scopeId),
+        search: this.search(raw.search),
+        requestId: request.id,
+      });
+      const fresh = await this.requireAdmin(request);
+      if (
+        fresh.access.subject.principalId !== access.subject.principalId ||
+        !this.controlPlane.authorize(
+          fresh.access,
+          'administration.accounts.read',
+          this.scope(raw.scopeKind, raw.scopeId),
+        )
+      )
+        throw Object.assign(new Error('ADMIN_SCOPE_DENIED'), { code: '42501' });
+      return prepared;
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+  @Get('users-filter-options')
+  async catalogFilterOptions(
+    @Req() request: FastifyRequest,
+    @Query('scopeKind') kind: string | undefined,
+    @Query('scopeId') id: string | undefined,
+    @Query('search') search: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.catalogFilterOptions(access, {
+        scope: this.scope(kind, id),
+        search: this.search(search),
+        requestId: request.id,
+      });
+    } catch (problem) {
+      this.rethrowAdminFailure(problem);
+    }
+  }
+  @Get('organization-class-bindings')
+  async classBindings(@Req() request: FastifyRequest, @Query('search') search: string | undefined) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      return await this.controlPlane.classBindings(access, this.search(search));
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+  @Put('organization-class-bindings')
+  async bindClass(
+    @Req() request: FastifyRequest,
+    @Body()
+    raw: {
+      classId: string;
+      workspaceId: string | null;
+      expectedWorkspaceId: string | null;
+      reason: string;
+    },
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      if (
+        !raw ||
+        typeof raw.reason !== 'string' ||
+        raw.reason.trim().length < 3 ||
+        raw.reason.length > 500
+      )
+        throw Object.assign(new Error('invalid'), { code: '22023' });
+      return await this.controlPlane.bindClass(access, {
+        classId: this.uuid(raw.classId, 'classId'),
+        workspaceId: raw.workspaceId === null ? null : this.uuid(raw.workspaceId, 'workspaceId'),
+        expectedWorkspaceId:
+          raw.expectedWorkspaceId === null
+            ? null
+            : this.uuid(raw.expectedWorkspaceId, 'expectedWorkspaceId'),
+        reason: raw.reason,
+        requestId: request.id,
+      });
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('users/:kind/:targetId/history')
+  async userHistory(
+    @Req() request: FastifyRequest,
+    @Param('kind') kind: string,
+    @Param('targetId') targetId: string,
+    @Query('scopeKind') scopeKind: string | undefined,
+    @Query('scopeId') scopeId: string | undefined,
+    @Query('category') category: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Query('cursor') cursor: string | undefined,
+  ) {
+    const { access } = await this.requireAdmin(request);
+    try {
+      if (kind !== 'account' && kind !== 'student')
+        throw new HttpException(error('validation_error', 'invalid user kind'), 400);
+      return await this.controlPlane.userHistory(access, {
+        ...parseHistoryQuery({ category, limit, cursor, scopeKind, scopeId }),
+        kind,
+        targetId: this.uuid(targetId, 'targetId'),
+        scope: this.scope(scopeKind, scopeId),
         requestId: request.id,
       });
     } catch (failure) {
@@ -741,6 +899,29 @@ export class AdminController {
     if (message === 'ADMIN_SCOPE_DENIED' || pgCode === '42501') {
       throw new HttpException(error('admin_scope_forbidden', 'administrative scope denied'), 403);
     }
+    if (message === 'CRM_EXPORT_TOO_LARGE')
+      throw new HttpException(
+        error(
+          'crm_export_too_large',
+          'Слишком большая выгрузка: уточните фильтры (до 10 000 записей и 16 МБ).',
+        ),
+        413,
+      );
+    if (message === 'CRM_EXPORT_BUSY')
+      throw new HttpException(
+        error('crm_export_busy', 'Выгрузка уже выполняется. Повторите позже.'),
+        429,
+      );
+    if (pgCode === '57014')
+      throw new HttpException(
+        error('crm_query_timeout', 'Запрос слишком большой: уточните фильтры.'),
+        422,
+      );
+    if (pgCode === '40001')
+      throw new HttpException(
+        error('crm_conflict', 'Привязка уже изменена. Обновите список.'),
+        409,
+      );
     if (pgCode === '22023') {
       throw new HttpException(error('validation_error', 'invalid administrative query'), 400);
     }

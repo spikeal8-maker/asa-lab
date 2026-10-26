@@ -103,6 +103,102 @@ def editor_classification_fixture(root, compressed):
 
 
 class CollectorTests(unittest.TestCase):
+    def audit_fixture(self, root, count=8):
+        c = Collector(root, {})
+        segments = {}
+        for i in range(count):
+            event = normalize('api', 'retained '+str(i), now(), 'retained-'+str(i))
+            c.add(event)
+            seq = c.db.execute('SELECT max(seq) FROM events').fetchone()[0]
+            meta = c.write_segment(f'seg-{seq:016d}-{seq:016d}.jsonl', [event])
+            segments[meta['file']] = meta
+            c.db.execute('UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq=?', (seq,))
+        c.set_state('segments', segments)
+        c.validate_history_index()
+        c.set_state('history:audit', {})
+        c.db.commit()
+        return c
+
+    def test_incremental_audit_bounds_and_fresh_publication(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            c = self.audit_fixture(Path(temp))
+            try:
+                for i in range(4):
+                    c.add(normalize('api', 'fresh', now(), 'fresh-'+str(i)))
+                    opened = []
+                    path_open = Path.open
+                    def tracked_open(path, *args, **kwargs):
+                        if path.name.startswith('seg-') and args and args[0] == 'rb': opened.append(path.name)
+                        return path_open(path, *args, **kwargs)
+                    with patch.object(Path, 'open', tracked_open): c.publish()
+                    self.assertEqual(len(set(opened)), 2)
+                    catalog = json.loads((c.store/'catalog.json').read_text())
+                    self.assertEqual(sum(s['count'] for s in catalog['segments']), 9+i)
+                    self.assertEqual(catalog['historyAudit']['checked'], (i+1)*2)
+                    self.assertEqual(catalog['historyAudit']['state'], 'complete' if i == 3 else 'running')
+                    self.assertIsNotNone(catalog['historyAudit']['generation'])
+                self.assertIsNotNone(catalog['historyAudit']['lastCompletedAt'])
+            finally: c.db.close()
+
+    def test_incremental_audit_same_size_corruption_is_terminal(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            c = self.audit_fixture(Path(temp))
+            try:
+                target = sorted(c.store.glob('seg-*'))[-1]
+                data = target.read_bytes(); target.write_bytes(data.replace(b'retained 7', b'corrupt! 7'))
+                self.assertEqual(target.stat().st_size, len(data))
+                for _ in range(3): c.publish()
+                before = (c.store/'catalog.json').read_bytes()
+                with self.assertRaisesRegex(RuntimeError, 'checksum'): c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'error')
+                with self.assertRaisesRegex(RuntimeError, 'previously failed'): c.publish()
+                self.assertEqual((c.store/'catalog.json').read_bytes(), before)
+            finally: c.db.close()
+
+    def test_incremental_audit_overdue_is_visible_in_existing_error_health(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            root = Path(temp); c = self.audit_fixture(root)
+            try:
+                c.publish(); audit = c.state('history:audit'); audit['deadline'] = 0
+                c.set_state('history:audit', audit); c.publish()
+                write_collector_health(root, 'ok', now(), sources=[dict(source='api', state='ok')])
+                health = json.loads((c.store/'collector-health.json').read_text())
+                self.assertEqual(health['state'], 'error')
+                self.assertFalse(health['coverageComplete'])
+                self.assertEqual(health['historyAudit']['state'], 'overdue')
+            finally: c.db.close()
+
+    def test_new_segment_corruption_fails_before_catalog_publication(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c = Collector(Path(temp), {})
+            try:
+                c.add(normalize('api', 'fresh', now(), 'fresh'))
+                write = c.write_segment
+                def corrupt(*args):
+                    meta = write(*args); file = c.store/meta['file']
+                    file.write_bytes(file.read_bytes().replace(b'fresh', b'wrong'))
+                    return meta
+                with patch.object(c, 'write_segment', side_effect=corrupt):
+                    with self.assertRaisesRegex(RuntimeError, 'checksum'): c.publish()
+                self.assertFalse((c.store/'catalog.json').exists())
+                self.assertEqual(c.db.execute('SELECT published FROM events').fetchone()[0], 0)
+            finally: c.db.close()
+
+    def test_late_audit_completion_stays_incomplete_until_timely_full_pass(self):
+        with tempfile.TemporaryDirectory() as temp, patch('collect_logs.HISTORY_AUDIT_SEGMENTS', 2):
+            root = Path(temp); c = self.audit_fixture(root, 4)
+            try:
+                c.publish(); audit = c.state('history:audit'); audit['deadline'] = 0
+                c.set_state('history:audit', audit); c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'overdue')
+                c.publish()
+                write_collector_health(root, 'ok', now(), sources=[dict(source='api', state='ok')])
+                self.assertEqual(json.loads((c.store/'collector-health.json').read_text())['state'], 'error')
+                c.publish()
+                self.assertEqual(c.state('history:audit')['state'], 'complete')
+                self.assertFalse(c.state('history:audit')['incomplete'])
+            finally: c.db.close()
+
     @staticmethod
     def open_and_close(root):
         Collector(root,{}).db.close()
@@ -657,6 +753,53 @@ class CollectorTests(unittest.TestCase):
             with patch('collect_logs.time.time',return_value=10020+RETIRE_SECONDS):c.publish()
             self.assertFalse(file.exists());c.db.close()
 
+    def retired_receipt_fixture(self, root, *, compressed=False, gapped=False):
+        c = Collector(root, {}); c.reader_format = 2 if compressed else 1
+        event = normalize('api', 'retired reference', now(), 'retired-reference')
+        c.add(event)
+        if gapped:
+            c.add(event)
+            c.add(normalize('api', 'second reference', now(), 'second-reference'))
+        c.publish(); c.publish()  # Persist the original bytes+mapping HMAC receipt.
+        catalog_path = c.store/'catalog.json'
+        catalog = json.loads(catalog_path.read_text()); name = catalog['segments'][0]['file']
+        catalog['segments'] = []; catalog_path.write_text(json.dumps(catalog))
+        c.set_state('segments', {}); c.set_state('retired:segments', {name: 1})
+        c.set_state('retired:metadata', {}); c.db.execute('DELETE FROM events'); c.db.commit()
+        c.db.close()
+        return name
+
+    def test_legacy_retirement_recovers_only_authenticated_contiguous_receipt(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); name = self.retired_receipt_fixture(root, compressed=compressed)
+                c = Collector(root, {})
+                try:
+                    self.assertNotIn(name, c.verified_metadata)
+                    c.publish()
+                    self.assertFalse((c.store/name).exists())
+                    self.assertNotIn(name, c.state('retired:segments'))
+                finally: c.db.close()
+
+    def test_legacy_retirement_without_authentic_mapping_fails_before_publication(self):
+        for mode in ('missing', 'forged', 'corrupt', 'gapped'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); name = self.retired_receipt_fixture(root, gapped=mode == 'gapped')
+                c = Collector(root, {})
+                try:
+                    if mode == 'missing': c.db.execute('DELETE FROM segment_verification WHERE name=?', (name,))
+                    elif mode == 'forged': c.db.execute('UPDATE segment_verification SET proof=? WHERE name=?', ('0'*64,name))
+                    elif mode == 'corrupt':
+                        file = c.store/name; file.write_bytes(file.read_bytes().replace(b'retired reference', b'corrupt reference'))
+                    c.db.commit()
+                    before = self.history_bytes(c)
+                    c.add(normalize('api', 'fresh must wait', now(), 'fresh-waits'))
+                    with self.assertRaisesRegex(RuntimeError, 'retired segment.*recovery'):
+                        c.publish()
+                    self.assertEqual(self.history_bytes(c), before)
+                    self.assertIn(name, c.state('retired:segments'))
+                finally: c.db.close()
+
     def test_email_redaction_handles_long_identifiers_without_quadratic_delay(self):
         started=time.monotonic()
         for value in ['a'*100000, 'a'*100000+'@invalid', 'a'*100000+'@example.org', 'user.name+tag@example.org']:
@@ -843,6 +986,9 @@ class CollectorTests(unittest.TestCase):
             self.assertLessEqual(catalog['activeStorageBytes'], 3 * 1024 * 1024)
             kept=[json.loads(line) for s in catalog['segments'] for line in gzip.decompress((collector.store/s['file']).read_bytes()).decode().splitlines()]
             self.assertIn(app['id'],[e['id'] for e in kept])
+            # An owned VACUUM advances SQLite's schema cookie; it must not be
+            # confused with an external index replacement on the next publish.
+            collector.publish()
             collector.db.close()
 
 

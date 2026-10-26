@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { api, type Course, type CourseSection } from '../../api';
 import { CoursesPanel } from '../../components/CoursesPanel';
+import { installCourseEditorTestDom } from '../../components/course-editor-test-dom';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 const modes = ['new course', 'existing course', 'new section', 'existing section'] as const;
@@ -45,11 +46,14 @@ const originalSection: CourseSection = {
 
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let restoreBrowserApis: () => void;
 
 beforeAll(() => {
+  restoreBrowserApis = installCourseEditorTestDom();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
 });
 afterAll(() => {
+  restoreBrowserApis();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 afterEach(async () => {
@@ -269,8 +273,10 @@ async function setup(mode: Mode, failFirst = false, { fromList = false } = {}) {
       await flush();
     });
     await act(async () => {
-      if (mode === 'existing course') button('Настройки').click();
-      else if (mode === 'new section') button('Добавить раздел').click();
+      if (mode === 'existing course') {
+        container!.querySelector<HTMLElement>('.course-actions-menu summary')!.click();
+        button('Настройки').click();
+      } else if (mode === 'new section') button('Добавить раздел').click();
       else container!.querySelector<HTMLButtonElement>('.course-section-name')!.click();
     });
   }

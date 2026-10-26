@@ -42,6 +42,20 @@ export type PortalSection = CreatorPortalSection;
 const sectionHref = (section: PortalSection): string =>
   `/#/${section === 'classes' ? 'classrooms' : section === 'gallery' ? 'explore' : section}`;
 
+// Compact VK mark: original path from Simple Icons (CC0, simpleicons.org/icons/vk).
+// One community destination shared by the sidebar and the account dropdown.
+const ASA_LAB_VK_COMMUNITY = 'https://vk.ru/asalabru';
+const VK_COMPACT_LOGO_PATH =
+  'm9.489.004.729-.003h3.564l.73.003.914.01.433.007.418.011.403.014.388.016.374.021.36.025.345.03.333.033c1.74.196 2.933.616 3.833 1.516.9.9 1.32 2.092 1.516 3.833l.034.333.029.346.025.36.02.373.025.588.012.41.013.644.009.915.004.98-.001 3.313-.003.73-.01.914-.007.433-.011.418-.014.403-.016.388-.021.374-.025.36-.03.345-.033.333c-.196 1.74-.616 2.933-1.516 3.833-.9.9-2.092 1.32-3.833 1.516l-.333.034-.346.029-.36.025-.373.02-.588.025-.41.012-.644.013-.915.009-.98.004-3.313-.001-.73-.003-.914-.01-.433-.007-.418-.011-.403-.014-.388-.016-.374-.021-.36-.025-.345-.03-.333-.033c-1.74-.196-2.933-.616-3.833-1.516-.9-.9-1.32-2.092-1.516-3.833l-.034-.333-.029-.346-.025-.36-.02-.373-.025-.588-.012-.41-.013-.644-.009-.915-.004-.98.001-3.313.003-.73.01-.914.007-.433.011-.418.014-.403.016-.388.021-.374.025-.36.03-.345.033-.333c.196-1.74.616-2.933 1.516-3.833.9-.9 2.092-1.32 3.833-1.516l.333-.034.346-.029.36-.025.373-.02.588-.025.41-.012.644-.013.915-.009ZM6.79 7.3H4.05c.13 6.24 3.25 9.99 8.72 9.99h.31v-3.57c2.01.2 3.53 1.67 4.14 3.57h2.84c-.78-2.84-2.83-4.41-4.11-5.01 1.28-.74 3.08-2.54 3.51-4.98h-2.58c-.56 1.98-2.22 3.78-3.8 3.95V7.3H10.5v6.92c-1.6-.4-3.62-2.34-3.71-6.92Z';
+
+function VkBrandGlyph(): JSX.Element {
+  return (
+    <svg className="portal-vk-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={VK_COMPACT_LOGO_PATH} />
+    </svg>
+  );
+}
+
 /** Guest state of the common ASA header; it does not fabricate an account. */
 export function PortalGuestHeader({
   onHome,
@@ -192,7 +206,22 @@ export function PortalHeader({
   // AI owns the available workspace without saving a new preference for the
   // other sections. Administrative routes retain their normal navigation.
   const aiLayout = active === 'ai' && !adminNavigation?.active;
-  const sidebarCollapsed = aiLayout || presentation.draft.sidebar === 'collapsed';
+  // AI starts with the ASA navigation collapsed, but the owner can reopen it.
+  // Never replace the saved preference for other ASA sections.
+  const [aiSidebarExpanded, setAiSidebarExpanded] = useState(false);
+  const sidebarCollapsed = aiLayout
+    ? !aiSidebarExpanded
+    : presentation.draft.sidebar === 'collapsed';
+  useEffect(() => {
+    if (!aiLayout) setAiSidebarExpanded(false);
+  }, [aiLayout]);
+  useEffect(() => {
+    if (!aiLayout) return;
+    // Chat history and the main ASA panel are alternative workspace drawers.
+    const closeForHistory = (): void => setAiSidebarExpanded(false);
+    window.addEventListener('asa-ai-chat-history-opened', closeForHistory);
+    return () => window.removeEventListener('asa-ai-chat-history-opened', closeForHistory);
+  }, [aiLayout]);
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -582,6 +611,21 @@ export function PortalHeader({
                 </span>
                 <span>Помощь и сообщество</span>
               </button>
+              <a
+                href={ASA_LAB_VK_COMMUNITY}
+                className="portal-account-item portal-account-vk"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={closeAccountMenu}
+              >
+                <span className="portal-account-item-icon" aria-hidden="true">
+                  <VkBrandGlyph />
+                </span>
+                <span>ASA Lab ВКонтакте</span>
+                <span className="portal-account-vk-external" aria-hidden="true">
+                  ↗
+                </span>
+              </a>
             </div>
 
             {seatLearner || !session.navigation.classes ? null : (
@@ -807,20 +851,32 @@ export function PortalHeader({
               <span className="portal-nav-label">{settingsNavigation.label}</span>
             </PortalLink>
           ) : null}
-          {helpNavigation ? (
-            <PortalLink
-              href={sectionHref('help')}
-              className={active === 'help' ? 'portal-nav-item active' : 'portal-nav-item'}
-              aria-label={helpNavigation.label}
-              aria-current={active === 'help' ? 'page' : undefined}
-              onNavigate={() => go('help')}
+          <div className="portal-sidebar-help-row">
+            {helpNavigation ? (
+              <PortalLink
+                href={sectionHref('help')}
+                className={active === 'help' ? 'portal-nav-item active' : 'portal-nav-item'}
+                aria-label={helpNavigation.label}
+                aria-current={active === 'help' ? 'page' : undefined}
+                onNavigate={() => go('help')}
+              >
+                <span className="portal-nav-glyph" aria-hidden="true">
+                  {sectionIcon('help')}
+                </span>
+                <span className="portal-nav-label">{helpNavigation.label}</span>
+              </PortalLink>
+            ) : null}
+            <a
+              className="portal-sidebar-vk"
+              href={ASA_LAB_VK_COMMUNITY}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Сообщество ASA Lab ВКонтакте"
+              title="Сообщество ASA Lab ВКонтакте — новая вкладка"
             >
-              <span className="portal-nav-glyph" aria-hidden="true">
-                {sectionIcon('help')}
-              </span>
-              <span className="portal-nav-label">{helpNavigation.label}</span>
-            </PortalLink>
-          ) : null}
+              <VkBrandGlyph />
+            </a>
+          </div>
           <button
             type="button"
             className="portal-nav-item portal-mobile-logout"
@@ -830,20 +886,31 @@ export function PortalHeader({
             <span className="portal-nav-label">Выход</span>
           </button>
         </div>
-        {!seatLearner && !aiLayout ? (
+        {!seatLearner || aiLayout ? (
           <button
             type="button"
             className="portal-sidebar-collapse"
             aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
+            aria-controls="portal-sidebar"
+            aria-expanded={!sidebarCollapsed}
             title={
-              settingsDirty
+              !aiLayout && settingsDirty
                 ? 'Сначала сохраните или отмените изменения настроек'
                 : sidebarCollapsed
                   ? 'Развернуть'
                   : 'Свернуть'
             }
-            disabled={presentation.busy || !presentation.loaded || settingsDirty}
-            onClick={() => void presentation.toggleSidebar()}
+            disabled={!aiLayout && (presentation.busy || !presentation.loaded || settingsDirty)}
+            onClick={() => {
+              if (aiLayout) {
+                if (!aiSidebarExpanded) {
+                  window.dispatchEvent(new Event('asa-ai-portal-sidebar-expanded'));
+                }
+                setAiSidebarExpanded(!aiSidebarExpanded);
+              } else {
+                void presentation.toggleSidebar();
+              }
+            }}
           >
             <span className="portal-sidebar-collapse-visual" aria-hidden="true">
               {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}

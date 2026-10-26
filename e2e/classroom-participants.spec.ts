@@ -238,7 +238,23 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       (await (await student.request.get('/api/class-join/participants/me')).json()).metrics
         .avatarUrl,
     ).toBe(ownBefore.metrics.avatarUrl);
-    await page.getByLabel('Роль в классе').selectOption('helper');
+    // Role administration moved into the single teacher Settings category.
+    // Return to merits to preserve the existing real award/revocation journey.
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Настройки', exact: true })
+      .click();
+    const identity = page
+      .getByRole('region', { name: 'Настройки ученика', exact: true })
+      .getByRole('button', { name: /^Данные и роль/ });
+    await identity.click();
+    const role = page.getByRole('combobox', { name: 'Роль ученика в настройках' });
+    await role.selectOption('helper');
+    await expect(role).toHaveValue('helper');
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Заслуги', exact: true })
+      .click();
     expect((await student.request.get(`/api/classrooms/${classId}/participants`)).status()).toBe(
       401,
     );

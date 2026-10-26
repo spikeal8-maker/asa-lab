@@ -1,3 +1,10 @@
+import { activeArduinoGraph } from './arduino-pin-inputs';
+import {
+  ARDUINO_SCRATCH_THEME,
+  ARDUINO_WORKSPACE_PLUGINS,
+  configureArduinoPaletteScroll,
+  configureArduinoConnections,
+} from './arduino-block-ui';
 import {
   useCallback,
   useEffect,
@@ -153,63 +160,6 @@ function arduinoVariableChoices(
 function blockStackCount(block: ScratchBlocks.Block): number {
   return block.getDescendants(false).filter((descendant) => !descendant.isShadow()).length;
 }
-
-const ARDUINO_SCRATCH_THEME = ScratchBlocks.Theme.defineTheme('asa-arduino', {
-  name: 'asa-arduino',
-  base: ScratchBlocks.Themes.Zelos,
-  blockStyles: {
-    motion: {
-      colourPrimary: '#4C97FF',
-      colourSecondary: '#4280D7',
-      colourTertiary: '#3373CC',
-    },
-    sensing: {
-      colourPrimary: '#9966FF',
-      colourSecondary: '#855CD6',
-      colourTertiary: '#774DCB',
-    },
-    more: {
-      colourPrimary: '#8E8E8E',
-      colourSecondary: '#7A7A7A',
-      colourTertiary: '#666666',
-    },
-    control: {
-      colourPrimary: '#FFAB19',
-      colourSecondary: '#EC9C13',
-      colourTertiary: '#CF8B17',
-    },
-    operators: {
-      colourPrimary: '#40BF4A',
-      colourSecondary: '#35A941',
-      colourTertiary: '#2D9238',
-    },
-    data: {
-      colourPrimary: '#CF63CF',
-      colourSecondary: '#C94FC9',
-      colourTertiary: '#BD42BD',
-    },
-    textField: {
-      colourPrimary: '#FFFFFF',
-      colourSecondary: '#FFFFFF',
-      colourTertiary: '#D5D5D5',
-    },
-  },
-  componentStyles: {
-    workspaceBackgroundColour: '#FFFFFF',
-    toolboxBackgroundColour: '#F7F7F7',
-    toolboxForegroundColour: '#43536A',
-    flyoutBackgroundColour: '#F7F7F7',
-    flyoutForegroundColour: '#43536A',
-    flyoutOpacity: 1,
-    scrollbarColour: '#C5CBD3',
-    scrollbarOpacity: 0.75,
-  },
-  fontStyle: {
-    family: 'Arial, sans-serif',
-    weight: '600',
-    size: 12,
-  },
-});
 
 function applyScratchMediaAssets(host: HTMLElement): void {
   const setImage = (selector: string, url: string): void => {
@@ -505,7 +455,7 @@ function ChevronDown(): JSX.Element {
   );
 }
 
-function ScratchWorkspace({
+export function ScratchWorkspace({
   initialWorkspace,
   category,
   flyoutWidth,
@@ -548,17 +498,19 @@ function ScratchWorkspace({
       theme: ARDUINO_SCRATCH_THEME,
       trashcan: true,
       sounds: false,
+      plugins: ARDUINO_WORKSPACE_PLUGINS,
       scrollbars: true,
       zoom: {
         controls: true,
         wheel: true,
-        startScale: 0.86,
+        startScale: host.clientWidth <= 600 ? 0.72 : 0.86,
         maxScale: 1.5,
         minScale: 0.45,
         scaleSpeed: 1.1,
       },
       move: { scrollbars: true, drag: true, wheel: true },
     });
+    configureArduinoConnections(workspace);
     const flyout = workspace.getFlyout() as
       | (ScratchBlocks.VerticalFlyout & {
           getWidth: () => number;
@@ -578,6 +530,7 @@ function ScratchWorkspace({
       flyout.getWorkspace().setScale(paletteScaleRef.current);
       flyout.reflow();
     }
+    configureArduinoPaletteScroll(workspace);
     workspaceRef.current = workspace;
     document.documentElement.classList.add('arduino-block-editor-active');
 
@@ -707,13 +660,39 @@ function ScratchWorkspace({
       ScratchBlocks.svgResize(workspace);
     });
 
+    const originalBlockOpacity = new Map<SVGElement, string>();
+    const draggedBlocks = new Set<string>();
+    const updateBlockActivity = (): void => {
+      const { active } = activeArduinoGraph(workspace);
+      for (const block of workspace.getAllBlocks(false)) {
+        const svg = block.getSvgRoot();
+        if (!svg) continue;
+        if (!originalBlockOpacity.has(svg)) originalBlockOpacity.set(svg, svg.style.opacity);
+        const parent = block.getParent();
+        const inactiveRoot = !active.has(block) && (!parent || active.has(parent));
+        svg.style.opacity =
+          inactiveRoot && !draggedBlocks.has(block.id) ? '0.45' : originalBlockOpacity.get(svg)!;
+      }
+    };
     const publish = (): void => {
+      updateBlockActivity();
       const state = ScratchBlocks.serialization.workspaces.save(workspace);
       changeRef.current(JSON.stringify(state), generateArduinoCode(workspace));
     };
     publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
+      if (event.type === ScratchBlocks.Events.BLOCK_DRAG) {
+        const drag = event as ScratchBlocks.Events.BlockDrag;
+        draggedBlocks.clear();
+        if (drag.isStart) {
+          for (const block of drag.blocks ?? []) draggedBlocks.add(block.id);
+          if (drag.blockId) draggedBlocks.add(drag.blockId);
+        }
+        updateBlockActivity();
+        return;
+      }
       if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
+      updateBlockActivity();
       if (
         event.type === ScratchBlocks.Events.VAR_CREATE ||
         event.type === ScratchBlocks.Events.VAR_DELETE ||
@@ -737,6 +716,7 @@ function ScratchWorkspace({
       window.removeEventListener('pointerdown', closeFloatingUi, true);
       window.removeEventListener('keydown', closeWithEscape, true);
       workspace.removeChangeListener(listener);
+      for (const [svg, opacity] of originalBlockOpacity) svg.style.opacity = opacity;
       workspace.dispose();
       workspaceRef.current = null;
       refreshToolboxRef.current = null;

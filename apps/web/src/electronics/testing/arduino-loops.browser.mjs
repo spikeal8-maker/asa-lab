@@ -1,0 +1,205 @@
+// Real Chromium Worker + production lifecycle controller ports; no server/DB/SaveCAS.
+/* global window */
+import assert from 'node:assert/strict';
+import console from 'node:console';
+import { URL } from 'node:url';
+import { createRequire } from 'node:module';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { chromium } from '@playwright/test';
+const require = createRequire(import.meta.url);
+const { build } = createRequire(require.resolve('vite'))('esbuild');
+const alias = {
+  '@asa-lab/electronics/simulation': resolve('contexts/electronics/simulation.ts'),
+  '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
+  '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
+};
+const worker = await build({
+  entryPoints: ['apps/web/src/electronics/simulation.worker.ts'],
+  bundle: true,
+  write: false,
+  format: 'esm',
+  platform: 'browser',
+  alias,
+});
+const source = `int total=0;void setup(){pinMode(13,OUTPUT);Serial.begin(9600);
+for(int i=0;i<3;i++){if(i==1)continue;for(int j=0;j<3;j++){
+if(j==2)break;Serial.println(i*10+j);digitalWrite(13,j);delay(1);total++;}}
+Serial.println(total);}void loop(){delay(100);}`;
+const postTestSource = `int total=0;void setup(){pinMode(13,OUTPUT);Serial.begin(9600);
+do {total++;if(total==2)continue;if(total==4)break;
+Serial.println(total);digitalWrite(13,total==1);delay(1);delayMicroseconds(3);
+} while(total<9);do {Serial.println(10);} while(false);}
+void loop(){delay(100);}`;
+const entry = await build({
+  stdin: {
+    resolveDir: resolve('apps/web'),
+    loader: 'ts',
+    contents: `
+import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
+import {ElectronicsLiveSimulationWorkerController} from './src/electronics/live-simulation-worker-controller';
+import {advanceElectronicsToHorizon,resetElectronicsTimedState} from '@asa-lab/electronics/engine';
+import {advanceClockedArduinoRuntime} from '../../contexts/electronics/domain/arduino-program-runtime';
+const initial=${JSON.stringify(postTestSource)};
+const legacy=${JSON.stringify(source)};
+const doc=(source)=>({schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',pinIds:['d13','power-5v','power-3v3','power-gnd-1'],position:{x:0,y:0},value:5,stateProperties:{arduinoSource:source}}],connections:[],viewport:{x:0,y:0,zoom:1},simulation:{running:true,maxIterations:24}});
+const factory=()=>new Worker('/worker.js',{type:'module'});
+window.proof=async()=>{
+ const client=new ElectronicsSimulationWorkerClient(factory);
+ try{
+ const generation=client.beginGeneration('loop-proof');
+ const proofs=[];
+ for(const source of [legacy,initial]){
+  let state=resetElectronicsTimedState();let advance;
+  for(const horizon of [500,1500,20000]){
+   advance=await client.advance(generation,doc(source),JSON.parse(JSON.stringify(state)),horizon);
+   state=advance.state;
+  }
+  const direct=advanceElectronicsToHorizon(doc(source),{state:resetElectronicsTimedState(),requestedHorizonMicroseconds:20000});
+  let runtime;const events=[];let slices=0;
+  do {const step=advanceClockedArduinoRuntime(source,{},20,runtime,undefined,{instructionBudget:1});
+   runtime=JSON.parse(JSON.stringify(step.state));events.push(...step.events);slices++;
+   if(step.executionStatus!=='yielded')break;
+  }while(slices<10000);
+  proofs.push({advance,direct,budgetOne:{runtime,events,slices}});
+ }
+ return proofs;
+ }finally{client.dispose();}
+};
+const client=new ElectronicsSimulationWorkerClient(factory);
+const controller=new ElectronicsLiveSimulationWorkerController(client);
+let running=false,ready=false,results=0,committed=0,failure=null,serial=[];
+const input=document.querySelector('textarea');input.value=initial;
+const current=()=>doc(input.value);
+const render=()=>{window.receipt={running,ready,results,committed,failure,serial};document.querySelector('output').textContent=JSON.stringify(window.receipt)};
+const callbacks={onInitialReady:()=>{ready=true;render();controller.update(current(),20000)},onResult:()=>{results++;render()},onCommittedHorizon:h=>{committed=h;render()},onSerialProjection:s=>{serial=s;render()},onFailure:f=>{failure=f;running=false;render()}};
+document.querySelector('#run').onclick=()=>{running=true;ready=false;failure=null;committed=0;controller.start('loop-native',current(),callbacks);render()};
+document.querySelector('#stop').onclick=()=>{controller.stop();running=false;render()};
+document.querySelector('#reset').onclick=()=>{ready=false;failure=null;committed=0;controller.restart(current());render()};
+input.oninput=()=>{if(running)controller.update(current(),30000);render()};
+window.fixture={dispose:()=>controller.dispose()};render();
+`,
+  },
+  bundle: true,
+  write: false,
+  format: 'iife',
+  platform: 'browser',
+  alias,
+});
+const output = resolve('test-results/arduino-loops');
+await mkdir(output, { recursive: true });
+const browser = await chromium.launch({ headless: true });
+const receipts = [];
+try {
+  for (const width of [1440, 390]) {
+    const context = await browser.newContext({ viewport: { width, height: 900 } });
+    const page = await context.newPage();
+    const errors = [];
+    let workers = 0;
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('worker', () => workers++);
+    await context.route('**/*', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/worker.js')
+        return route.fulfill({ contentType: 'text/javascript', body: worker.outputFiles[0].text });
+      if (path === '/')
+        return route.fulfill({
+          contentType: 'text/html',
+          body: '<meta name="viewport" content="width=device-width,initial-scale=1"><style>textarea{display:block;width:95%;height:320px}output{display:block;overflow-wrap:anywhere}button{min-height:44px}</style><button id="run">Run</button><button id="stop">Stop</button><button id="reset">Reset</button><textarea aria-label="source"></textarea><output></output>',
+        });
+      return route.abort();
+    });
+    await page.goto('https://asa-loops.invalid/');
+    await page.addScriptTag({ content: entry.outputFiles[0].text });
+    const proofs = await page.evaluate(() => window.proof());
+    const proof = proofs[1];
+    for (const result of proofs) {
+      assert.equal(result.advance.executionStatus, 'ready');
+      assert.deepEqual(result.advance.diagnostics, []);
+      assert.deepEqual(result.advance.state, result.direct.state);
+      const board = JSON.parse(result.advance.state.continuation.serializedState).boards[0].runtime;
+      assert.deepEqual(result.budgetOne.runtime, board);
+      assert.ok(result.budgetOne.slices > 1);
+    }
+    assert.equal(proof.advance.executionStatus, 'ready');
+    assert.deepEqual(proof.advance.diagnostics, []);
+    assert.deepEqual(proof.advance.state, proof.direct.state);
+    const runtime = JSON.parse(proof.advance.state.continuation.serializedState).boards[0].runtime;
+    assert.equal(runtime.variables.total, 4);
+    assert.deepEqual(
+      runtime.serial.tx.map((e) => e.text),
+      ['1\n', '3\n', '10\n'],
+    );
+    assert.equal(runtime.outputVoltages.d13, 0);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    assert.equal((await page.evaluate(() => window.receipt)).failure, null);
+    assert.deepEqual((await page.evaluate(() => window.receipt)).serial[0].tx, runtime.serial.tx);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const afterReset = await page.evaluate(() => window.receipt);
+    assert.deepEqual(afterReset.serial[0].tx, runtime.serial.tx);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const stopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), stopped);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill('void setup(){do {unknown();}while(false);}void loop(){}');
+    await page.waitForFunction(() => window.receipt.failure !== null);
+    const invalid = await page.evaluate(() => window.receipt);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await page.getByRole('textbox', { name: 'source' }).fill(postTestSource);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(
+      () => window.receipt.committed === 20000 && window.receipt.failure === null,
+    );
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(postTestSource.replace('Serial.println(10)', 'Serial.println(42)'));
+    await page.waitForFunction(
+      () =>
+        window.receipt.committed === 30000 && window.receipt.serial[0]?.tx.at(-1)?.text === '42\n',
+    );
+    const edited = await page.evaluate(() => window.receipt);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill('void setup(){do {continue;}while(true);}void loop(){}');
+    await page.waitForFunction(
+      () => window.receipt.committed === 30000 && window.receipt.serial.length === 0,
+    );
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const infiniteStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), infiniteStopped);
+    assert.deepEqual(errors, []);
+    assert.ok(workers >= 5);
+    await page.screenshot({ path: resolve(output, 'loops-' + width + '.png') });
+    receipts.push({
+      width,
+      workers,
+      realWorkerMatchesDirect: true,
+      goldenTotal: runtime.variables.total,
+      postTestSerial: runtime.serial.tx,
+      budgetOneSlices: proof.budgetOne.slices,
+      workerJsonHorizons: [500, 1500, 20000],
+      afterReset,
+      stopped,
+      invalid,
+      edited,
+      infiniteStopped,
+    });
+    await page.evaluate(() => window.fixture.dispose());
+    await context.close();
+  }
+  await writeFile(resolve(output, 'receipts.json'), JSON.stringify(receipts, null, 2));
+  console.log(
+    'PASS real simulation.worker equals direct complete state; native controller-port Run/Stop/Reset/source invalidation 1440/390; no server, DB, SaveCAS or listening ports',
+  );
+} finally {
+  await browser.close();
+}

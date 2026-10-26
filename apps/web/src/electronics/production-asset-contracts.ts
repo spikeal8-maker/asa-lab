@@ -156,7 +156,7 @@ export function ordinaryLedState(
 
 export function ordinaryLedAsset(state: OrdinaryLedState): string {
   if (state.fault === 'reverse')
-    return '/assets/electronics/component-database/components/led/special/led_red_reverse_polarity.svg';
+    return `/assets/electronics/component-database/components/led/${state.colour}/led_${state.colour}_i000.svg`;
   if (state.fault === 'overcurrent')
     return '/assets/electronics/component-database/components/led/special/led_orange_overcurrent.svg';
   if (state.fault === 'burned')

@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import { HttpException, type ArgumentsHost } from '@nestjs/common';
 import { BaseExceptionFilter } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
@@ -66,7 +67,11 @@ export function safeValidationReason(value: unknown): string | undefined {
 export function diagnosticContext(request: FastifyRequest) {
   const instance = request.headers['x-asa-diagnostic-instance'];
   const module = request.headers['x-asa-diagnostic-module'];
+  const attempt = request.headers['x-asa-client-attempt-id'];
   return {
+    ...(typeof attempt === 'string' && UUID.test(attempt)
+      ? { clientAttemptId: attempt, untrustedClientContext: true }
+      : {}),
     ...(typeof instance === 'string' && UUID.test(instance) ? { instanceId: instance } : {}),
     ...(typeof module === 'string' && MODULES.has(module)
       ? { module, untrustedClientContext: true }
@@ -169,7 +174,7 @@ export function recordServerFailure(
   }
   requestFailures.set(request, failure.errorCode);
   if (status >= 500)
-    process.stdout.write(
+    emitApplicationLog(
       `${JSON.stringify({ time: new Date().toISOString(), kind: 'server_error', level: 'error', requestId: request.id, revision: revision, method: request.method, path: safeLogPath(request.raw.url), subsystem: logSubsystem('api', request.raw.url), status, ...failure, ...diagnosticContext(request), sessionDatabase: sessionDatabaseDiagnostics(request), runtime: { rssBytes: process.memoryUsage().rss, heapUsedBytes: process.memoryUsage().heapUsed, cpuMicros: process.cpuUsage(), pool: pool ? { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount } : null } })}\n`,
     );
 }

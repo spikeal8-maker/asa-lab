@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { createReadStream, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import {
@@ -449,7 +452,7 @@ describe('accepted per-LED temporal presentation', () => {
     expect(presentation.sample().get('led')).toBe(40);
     const held = window(25_000, 50_000, [channel('led', [point(25_000, 0), point(50_000, 0)])]);
     presentation.accept(electrical(held), held, 200_000);
-    expect(presentation.nextNativeAssetFrame?.atMicroseconds).toBe(50_000);
+    expect(presentation.nextNativeAssetFrame?.atMicroseconds).toBe(41_667);
     expect(presentation.nextNativeAssetFrame?.brightness.get('led')).toBe(0);
     expect(presentation.sample().get('led')).toBe(40);
   });
@@ -1099,7 +1102,7 @@ describe('accepted per-LED temporal presentation', () => {
     },
   );
 
-  it.each([1000, 16_666, 24_999])(
+  it.each([1000, 16_666])(
     'shows a steady measured cycle mean at %i us phases without a window beat',
     (half) => {
       const presentation = new LedTemporalPresentation();
@@ -1207,9 +1210,9 @@ describe('accepted per-LED temporal presentation', () => {
   });
 
   it.each([0, 80])(
-    'expires a former fast cycle exactly 25,000 us after the last edge, held %i',
+    'expires a former fast cycle exactly 16,667 us after the last edge, held %i',
     (level) => {
-      for (const age of [24_999, 25_000]) {
+      for (const age of [16_666, 16_667]) {
         const presentation = new LedTemporalPresentation();
         // End at the existing edge into the requested held state, so no programme
         // change or structural reset is invented at an already committed time.
@@ -1220,7 +1223,7 @@ describe('accepted per-LED temporal presentation', () => {
           channel('led', [point(lastEdge, level), point(lastEdge + age, level)]),
         ]);
         const mean = presentation.accept(electrical(held), held).get('led');
-        if (age === 24_999) expect(mean).toBe(40);
+        if (age === 16_666) expect(mean).toBe(40);
         else expect(mean).toBeUndefined();
       }
     },
@@ -1299,6 +1302,9 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
         frame: { arduinoLStates: ReadonlyMap<string, boolean> };
       } | null,
     };
+    Object.assign(state, {
+      nativeOpticalPresentation: { getSnapshot: () => ({ committed: state.liveObservation }) },
+    });
     const active = runInNewContext(
       ts.transpileModule(`${declarations.join('\n')}\ncomponentArduinoLActive;`, {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
@@ -1614,15 +1620,8 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       ts.isArrowFunction(node.initializer)
     )
       hostClosures.set('raf', node.initializer.getText(host));
-    if (
-      ts.isCallExpression(node) &&
-      ts.isIdentifier(node.expression) &&
-      node.expression.text === 'useLayoutEffect' &&
-      node.arguments[0] &&
-      ts.isArrowFunction(node.arguments[0]) &&
-      node.arguments[0].getText(host).includes('const publication = opticalPublicationRef.current;')
-    )
-      hostClosures.set('layout', node.arguments[0].getText(host));
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'finishNativeLayout' && node.body)
+      hostClosures.set('layout', `() => ${node.body.getText(host)}`);
     if (ts.isFunctionDeclaration(node) && node.name?.text === 'rollbackComponentLedAsset')
       hostClosures.set('rollbackSelector', node.getText(host));
     if (ts.isFunctionDeclaration(node) && node.name?.text === 'clearDisplayedObservation')
@@ -1758,6 +1757,17 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
+    state.nativeOpticalPresentation = { commit: () => {} };
+    if (name === 'raf') {
+      // Bind the real RAF's new display-only metric dependencies. The actual
+      // mounted suite separately verifies source mismatch and lifecycle cancellation;
+      // these closure cases continue to challenge native cleanup and rollback.
+      const source = Object.freeze({ identity: 'closure-source' });
+      state.nativePreparationSource = source;
+      state.nativePreparationSourceRef = { current: source };
+      state.latestCommittedHorizon = 0;
+      state.setCommittedHorizonMicroseconds = () => {};
+    }
     const text = `${hostClosures.get('clearDisplay')!}\nconst presentLeds = ${hostClosures.get(name)!}; presentLeds();`;
     runInNewContext(
       ts.transpileModule(text, {
@@ -1832,6 +1842,14 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       opticalPublicationRef: { current: publication as typeof publication | null },
       rollbackLedAssets: assets,
     };
+    Object.assign(state, {
+      nativeOpticalPresentation: {
+        getSnapshot: () => ({
+          observation: state.liveObservation,
+          rollback: state.rollbackLedAssets,
+        }),
+      },
+    });
     const select = runInNewContext(
       ts.transpileModule(`${hostClosures.get('rollbackSelector')!}; rollbackComponentLedAsset;`, {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
@@ -1934,5 +1952,715 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(presenter.displayedFrame).toBe(previous.frame);
     expect(live).toEqual([]);
     expect(rollback).toEqual([]);
+  });
+});
+
+describe('owner repeated short optical phases', () => {
+  it.each([16_667, 20_000, 24_999, 30_000, 50_000, 100_000])(
+    'keeps every complete %i us phase binary over twelve cycles',
+    (phase) => {
+      const presenter = new LedTemporalPresentation();
+      // Complete windows retain every physical edge even when a window spans phases.
+      for (let from = 0; from < phase * 24; from += 25_000) {
+        const to = Math.min(from + 25_000, phase * 24);
+        const observation = window(from, to, [square(from, to, phase)]);
+        presenter.accept(electrical(observation), observation, from);
+        if (from === 0) drawFrame(presenter, 0);
+        for (let at = from + 1000; at <= to; at += 1000) {
+          const values = drawFrame(presenter, at);
+          expect(values.get('led')).toBe(Math.floor(at / phase) % 2 === 0 ? 80 : 0);
+        }
+      }
+      expect(presenter.reanchorCount).toBe(0);
+    },
+  );
+
+  it('requests the current complete phase instead of an obsolete fast-cycle transient without advancing state', () => {
+    const presenter = new LedTemporalPresentation();
+    const observation = window(0, 25_000);
+    presenter.accept(electrical(observation), observation, 0);
+    drawFrame(presenter, 0);
+    const before = {
+      frame: presenter.displayedFrame,
+      cursor: presenter.presentedMicroseconds,
+      pending: presenter.preparedFrame,
+      distinct: presenter.canPublishDistinctFrame,
+    };
+    const demand = presenter.nextNativeAssetFrameAt(24_000)!;
+    expect(demand.atMicroseconds).toBe(24_000);
+    expect(demand.brightness.get('led')).toBe(40);
+    expect({
+      frame: presenter.displayedFrame,
+      cursor: presenter.presentedMicroseconds,
+      pending: presenter.preparedFrame,
+      distinct: presenter.canPublishDistinctFrame,
+    }).toEqual(before);
+  });
+
+  it('still prepares the nearest upcoming slow edge when the current native vector is resident', () => {
+    const presenter = new LedTemporalPresentation();
+    const observation = window(0, 25_000, [
+      channel('led', [point(0, 0), point(20_000, 80), point(25_000, 80)]),
+    ]);
+    presenter.accept(electrical(observation), observation, 0);
+    drawFrame(presenter, 0);
+    expect(presenter.nextNativeAssetFrameAt(10_000)?.atMicroseconds).toBe(20_000);
+    expect(presenter.nextNativeAssetFrameAt(10_000)?.brightness.get('led')).toBe(80);
+  });
+});
+
+describe('native repeated-phase oracle with prospective instruction timing', () => {
+  const text = readFileSync(
+    new URL('../../../../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile(
+    'native.ts',
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const declaration = parsed.statements.find(
+    (row) => ts.isFunctionDeclaration(row) && row.name?.text === 'realtime682ShortCycleAudit',
+  )!;
+  const javascript = ts.transpileModule(declaration.getText(parsed), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  type Edge = { at: number; high: boolean };
+  const audit = runInNewContext(`${javascript}; realtime682ShortCycleAudit`) as (
+    ms: number,
+    h0: number,
+    electrical: Edge[],
+    native: Edge[],
+  ) => { errors: string[]; phaseErrors: number[] };
+  const physical = (ms: number) =>
+    Array.from({ length: 21 }, (_, index) => ({
+      at: 2 + Math.floor(index / 2) * (2 * ms * 1000 + 5) + (index % 2) * (ms * 1000 + 2),
+      high: index % 2 === 0,
+    }));
+  const native = (ms: number) =>
+    physical(ms).map((edge) => ({
+      ...edge,
+      at: Math.ceil((1000 + edge.at / 1000) / (1000 / 60)) * (1000 / 60),
+    }));
+
+  it.each([20, 30, 50, 100])(
+    'accepts exactly ten actual %i ms cycles quantized to 60 Hz, with no widened tolerance',
+    (ms) => {
+      expect(audit(ms, 1000, physical(ms), native(ms)).errors).toEqual([]);
+    },
+  );
+
+  it.each([
+    'cold65ms',
+    'lost-front',
+    'extra-front',
+    'late-worker',
+    'drift',
+    'wrong-duty',
+    'wrong-electrical-time',
+  ] as const)('rejects %s rather than reanchoring or hiding first phases', (fault) => {
+    const electrical = physical(30),
+      shown = native(30);
+    if (fault === 'cold65ms') shown[1]!.at = shown[0]!.at + 65.3;
+    if (fault === 'lost-front') shown.splice(1, 2);
+    if (fault === 'extra-front')
+      shown.splice(
+        1,
+        0,
+        { at: shown[0]!.at + 5, high: false },
+        { at: shown[0]!.at + 10, high: true },
+      );
+    if (fault === 'late-worker') for (const edge of shown) edge.at += 100;
+    if (fault === 'drift') for (const [index, edge] of shown.entries()) edge.at += index * 3;
+    if (fault === 'wrong-duty')
+      for (const [index, edge] of shown.entries()) if (index % 2) edge.at += 18;
+    if (fault === 'wrong-electrical-time') electrical[1]!.at++;
+    expect(audit(30, 1000, electrical, shown).errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('dark H0 bootstrap remains an unacknowledged native candidate', () => {
+  it('does not count a fictitious RAF or reset the wall epoch', () => {
+    const presenter = new LedTemporalPresentation();
+    const h0 = window(0, 0, [channel('led', [point(0, 0)])]);
+    presenter.accept(electrical(h0), h0, 100_000);
+    const initial = presenter.prepareInitialFrame()!;
+    expect(initial.atMicroseconds).toBe(0);
+    expect(presenter.displayedFrame).toBeNull();
+    expect(presenter.prepareInitialFrame()).toBeNull();
+    expect(presenter.acknowledgeFrame(initial, 100_000)).toBe(true);
+    expect(presenter.canPublishDistinctFrame).toBe(false);
+    const high = window(0, 16_000, [
+      channel('led', [point(0, 0), point(2, 80), point(16_000, 80)]),
+    ]);
+    presenter.accept(electrical(high), high, 116_000);
+    const first = presenter.prepareFrame(116_000)!;
+    expect(first.atMicroseconds).toBe(16_000);
+    expect(first.brightness.get('led')).toBe(80);
+    expect(presenter.canPublishDistinctFrame).toBe(true);
+  });
+  it.each(['nonzero', 'partial', 'rejected', 'board-L'] as const)(
+    'rejects %s H0 rather than bypassing the normal RAF',
+    (state) => {
+      const presenter = new LedTemporalPresentation();
+      let observation = window(0, state === 'partial' ? 1 : 0, [
+        channel(
+          'led',
+          state === 'partial'
+            ? [point(0, 0), point(1, 0)]
+            : [point(0, state === 'nonzero' ? 80 : 0)],
+        ),
+      ]);
+      let result = electrical(observation);
+      if (state === 'rejected') result = { ...result, solved: false };
+      if (state === 'board-L') {
+        observation = {
+          ...observation,
+          arduinoIndicators: [
+            { componentId: 'uno', truncated: false, samples: [{ atMicroseconds: 0, voltage: 5 }] },
+          ],
+        };
+        result = {
+          ...result,
+          components: [
+            ...result.components,
+            {
+              componentId: 'uno',
+              current: 0,
+              voltageDrop: 5,
+              terminalVoltages: { d13: 5 },
+            },
+          ],
+        };
+      }
+      presenter.accept(result, observation, 0);
+      expect(presenter.prepareInitialFrame()).toBeNull();
+      expect(presenter.preparedFrame).toBeNull();
+    },
+  );
+});
+
+describe('actual native observer render-opportunity callback ordering', () => {
+  const text = readFileSync(
+    new URL('../../../../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const start = text.indexOf('    let capturingShortCycles = false;');
+  const end =
+    text.indexOf('\n    requestAnimationFrame(paint);', start) +
+    '\n    requestAnimationFrame(paint);'.length;
+  const javascript = ts.transpileModule(text.slice(start, end), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  function observer() {
+    let now = 0,
+      high = true;
+    const frames: Array<() => void> = [],
+      tasks: Array<() => void> = [];
+    const rows: Array<{
+      kind: string;
+      at: number;
+      witnessAt?: number;
+      witnessKind?: string;
+      leds?: Array<{ brightness: number }>;
+    }> = [];
+    const box = { left: 0, top: 0, right: 10, bottom: 10 };
+    const image = { getBoundingClientRect: () => box };
+    const visual = { getAttribute: () => (high ? '80' : '0') };
+    const root = {
+      querySelector: (selector: string) => (selector === '[data-led-brightness]' ? visual : image),
+    };
+    const host = {} as { __realtime682ShortCapture: () => void };
+    runInNewContext(javascript, {
+      host,
+      document: {
+        querySelector: (selector: string) =>
+          selector === '.arduino-serial-output'
+            ? null
+            : selector === '.workbench-stage'
+              ? image
+              : root,
+      },
+      performance: { now: () => now },
+      loaded: new Map([[image, { href: 'real-native.svg', at: 0 }]]),
+      href: () => 'real-native.svg',
+      visible: Boolean,
+      invalidate: () => {},
+      mutations: { takeRecords: () => [] },
+      requestAnimationFrame: (callback: () => void) => frames.push(callback),
+      setTimeout: (callback: () => void) => tasks.push(callback),
+      push: (kind: string, data: object) => rows.push({ kind, at: now, ...data }),
+    });
+    return {
+      rows,
+      arm: () => host.__realtime682ShortCapture(),
+      high: (value: boolean) => {
+        high = value;
+      },
+      raf: (at: number) => {
+        now = at;
+        const callback = frames.shift();
+        if (!callback) throw new Error('Observer RAF missing');
+        callback();
+      },
+      task: (at: number) => {
+        now = at;
+        const callback = tasks.shift();
+        if (!callback) throw new Error('Observer task missing');
+        callback();
+      },
+    };
+  }
+
+  it('rejects phantom HIGH seen by an early observer RAF but replaced LOW by the product in the same RAF batch', () => {
+    const actual = observer();
+    actual.arm();
+    actual.raf(16);
+    // The product RAF follows the observer and removes HIGH before render.
+    actual.high(false);
+    actual.task(16.8);
+    actual.raf(33);
+    expect(actual.rows.find((row) => row.kind === 'raf-snapshot')!.leds).toBeUndefined();
+    const witnessed = actual.rows.filter((row) => row.kind === 'paint');
+    expect(witnessed).toHaveLength(1);
+    expect(witnessed[0]!.leds![0]!.brightness).toBe(0);
+    expect(witnessed[0]!.witnessAt).toBe(16.8);
+    expect(witnessed[0]!.witnessKind).toBe('render-opportunity-task');
+  });
+
+  it('retains a legitimate single-frame HIGH without requiring two identical RAF samples', () => {
+    const actual = observer();
+    actual.arm();
+    actual.raf(16);
+    actual.task(16.8);
+    actual.raf(33);
+    actual.high(false);
+    actual.task(33.8);
+    actual.raf(50);
+    expect(
+      actual.rows.filter((row) => row.kind === 'paint').map((row) => row.leds![0]!.brightness),
+    ).toEqual([80, 0]);
+    expect(actual.rows.filter((row) => row.kind.startsWith('render-opportunity-'))).toEqual([]);
+  });
+
+  it('marks an unobserved short-cycle frame when its task misses the next RAF, and does not promote a stale task', () => {
+    const actual = observer();
+    actual.arm();
+    actual.raf(16);
+    actual.raf(33);
+    actual.task(33.8);
+    expect(actual.rows.some((row) => row.kind === 'render-opportunity-missed')).toBe(true);
+    expect(actual.rows.some((row) => row.kind === 'render-opportunity-late')).toBe(true);
+    expect(actual.rows.filter((row) => row.kind === 'paint')).toEqual([]);
+  });
+
+  it('does not raise workload gap failures for idle unarmed background sampling', () => {
+    const actual = observer();
+    actual.raf(16);
+    actual.raf(33);
+    actual.task(33.8);
+    expect(actual.rows.filter((row) => row.kind.startsWith('render-opportunity-'))).toEqual([]);
+  });
+});
+
+describe('prospective repeated long-cycle stream and timing oracle', () => {
+  const text = readFileSync(
+    new URL('../../../../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile(
+    'native.ts',
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const names = [
+    'realtime682ShortCycleAudit',
+    'createRealtime682LongAudit',
+    'readRealtime682LongAudit',
+  ];
+  const declarations = names.map((name) =>
+    parsed.statements
+      .find((row) => ts.isFunctionDeclaration(row) && row.name?.text === name)!
+      .getText(parsed),
+  );
+  const javascript = ts.transpileModule(declarations.join('\n'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  type Envelope = { kind: string; data: Record<string, unknown> };
+  type Result = {
+    errors: string[];
+    errorCount: number;
+    sequence: number;
+    readyCount: number;
+    report: { expected: unknown[]; shown: unknown[] };
+  };
+  const functions = runInNewContext(
+    `${javascript}; ({createRealtime682LongAudit,readRealtime682LongAudit});`,
+    { createReadStream, createInterface },
+  ) as {
+    createRealtime682LongAudit: (
+      phase: number,
+      source: string,
+    ) => {
+      envelope: (row: Envelope) => void;
+      state: () => { retainedEdges: number };
+      finish: () => Result;
+    };
+    readRealtime682LongAudit: (path: string, phase: number, source: string) => Promise<Result>;
+  };
+  const source = 'prospective-long-cycle-fixture';
+  function fixture(phase: number) {
+    const envelopes: Envelope[] = [{ kind: 'start-action', data: { at: 990, source } }];
+    let sequence = 0,
+      from = 0,
+      previous = false;
+    const push = (kind: string, at: number, extra: Record<string, unknown>) =>
+      envelopes.push({ kind: 'browser', data: { sequence: ++sequence, kind, at, ...extra } });
+    const ready = (to: number, high: boolean, at: number) => {
+      const sample = (time: number, level: boolean) => ({
+        atMicroseconds: time,
+        brightness: level ? 70 : 0,
+        current: level ? 0.01 : 0,
+      });
+      push('response', at, {
+        source,
+        ok: true,
+        generation: 1,
+        requestGeneration: 1,
+        computeMs: 0.5,
+        advance: {
+          executionStatus: 'ready',
+          requestedHorizonMicroseconds: to,
+          committedHorizonMicroseconds: to,
+          diagnostics: [],
+          result: { solved: true, quality: { passed: true } },
+          ledTemporal: {
+            fromMicroseconds: from,
+            toMicroseconds: to,
+            components: [0, 1, 2].map((index) => ({
+              componentId: `led${index}`,
+              truncated: false,
+              samples:
+                from === to
+                  ? [sample(to, high && index === 0)]
+                  : [sample(from, previous && index === 0), sample(to, high && index === 0)],
+            })),
+          },
+        },
+      });
+      from = to;
+      previous = high;
+    };
+    const paint = (at: number, high: boolean) =>
+      push('paint', at + 1000 / 60, {
+        witnessAt: at,
+        witnessKind: 'render-opportunity-task',
+        leds: [0, 1, 2].map((index) => ({
+          brightness: high && index === 0 ? 70 : 0,
+          loadedAt: 980,
+          visible: true,
+        })),
+      });
+    ready(0, false, 1000);
+    for (let index = 0; index < 7; index++) {
+      const time =
+        2 + Math.floor(index / 2) * (2 * phase * 1000 + 5) + (index % 2) * (phase * 1000 + 2);
+      ready(time, index % 2 === 0, 1000 + time / 1000 + 1);
+      paint(Math.ceil((1000 + time / 1000) / (1000 / 60)) * (1000 / 60), index % 2 === 0);
+    }
+    const stop = Number(envelopes.at(-1)!.data.at) + 5;
+    envelopes.push({ kind: 'long-stop-action', data: { at: stop } });
+    push('input', stop + 1, {
+      type: 'click',
+      trusted: true,
+      controlLabel: 'Остановить моделирование',
+    });
+    envelopes.push({ kind: 'long-stop-ui', data: { visible: true } });
+    envelopes.push({
+      kind: 'ack-barrier',
+      data: { sent: sequence, acknowledged: sequence, dropped: 0, errors: [] },
+    });
+    return envelopes;
+  }
+  const audit = (phase: number, rows: Envelope[]) => {
+    const state = functions.createRealtime682LongAudit(phase, source);
+    for (const row of rows) state.envelope(row);
+    return { result: state.finish(), retainedEdges: state.state().retainedEdges };
+  };
+
+  it.each([1000, 5000, 10000, 20000])(
+    'accepts three complete real-length %i ms cycles with the same absolute phase bounds',
+    (phase) => {
+      const { result, retainedEdges } = audit(phase, fixture(phase));
+      expect(result.errors).toEqual([]);
+      expect(result.errorCount).toBe(0);
+      expect(result.report.expected).toHaveLength(7);
+      expect(result.report.shown).toHaveLength(7);
+      expect(retainedEdges).toBeLessThanOrEqual(18);
+    },
+  );
+
+  it.each([
+    'lost-middle',
+    'mid-bad-ready',
+    'wrong-order',
+    'scaled-clock',
+    'drift',
+    'wrong-duty',
+    'cold-late',
+    'lost-ACK',
+    'missing-native',
+    'forged-Stop',
+    'reanchored-H0',
+    'extra-front',
+  ] as const)(
+    'rejects %s in the full original stream rather than the retained RAM tail',
+    (fault) => {
+      const rows = fixture(20_000);
+      const browser = rows.filter((row) => row.kind === 'browser');
+      if (fault === 'lost-middle') rows.splice(rows.indexOf(browser[4]!), 1);
+      if (fault === 'mid-bad-ready') {
+        const middle = browser.filter((row) => row.data.kind === 'response')[3]!;
+        (
+          (middle.data.advance as Record<string, unknown>).result as Record<string, unknown>
+        ).quality = { passed: false };
+      }
+      const paints = browser.filter((row) => row.data.kind === 'paint');
+      if (fault === 'wrong-order')
+        (paints[2]!.data.leds as Array<Record<string, unknown>>)[0]!.brightness = 0;
+      if (fault === 'scaled-clock')
+        for (const row of paints)
+          row.data.witnessAt = 1000 + (Number(row.data.witnessAt) - 1000) * 8;
+      if (fault === 'drift')
+        for (const [index, row] of paints.entries())
+          row.data.witnessAt = Number(row.data.witnessAt) + index * 10;
+      if (fault === 'wrong-duty')
+        for (const [index, row] of paints.entries())
+          if (index % 2) row.data.witnessAt = Number(row.data.witnessAt) + 100;
+      if (fault === 'cold-late')
+        paints[0]!.data.witnessAt = Number(paints[0]!.data.witnessAt) + 100;
+      if (fault === 'reanchored-H0') {
+        const middle = browser.filter((row) => row.data.kind === 'response')[3]!;
+        const advance = middle.data.advance as Record<string, unknown>;
+        advance.committedHorizonMicroseconds = 0;
+        advance.requestedHorizonMicroseconds = 0;
+      }
+      if (fault === 'extra-front') {
+        const first = paints[0]!;
+        const low = structuredClone(first),
+          high = structuredClone(first);
+        low.data.at = 1166.667;
+        low.data.witnessAt = 1150;
+        (low.data.leds as Array<Record<string, unknown>>)[0]!.brightness = 0;
+        high.data.at = 1183.334;
+        high.data.witnessAt = 1166.667;
+        rows.splice(rows.indexOf(first) + 1, 0, low, high);
+        let sequence = 0;
+        for (const row of rows) if (row.kind === 'browser') row.data.sequence = ++sequence;
+        rows.at(-1)!.data.sent = sequence;
+        rows.at(-1)!.data.acknowledged = sequence;
+      }
+      if (fault === 'lost-ACK') rows.at(-1)!.data.acknowledged = 1;
+      if (fault === 'missing-native')
+        (paints[2]!.data.leds as Array<Record<string, unknown>>)[0]!.loadedAt = null;
+      if (fault === 'forged-Stop') browser.at(-1)!.data.trusted = false;
+      expect(audit(20_000, rows).result.errorCount).toBeGreaterThan(0);
+    },
+  );
+
+  it.each([
+    'absent-generation',
+    'zero-generation',
+    'fractional-generation',
+    'mismatched-generation',
+    'switched-generation',
+    'foreign-fault',
+    'sample-before-window',
+    'sample-after-window',
+    'sample-out-of-order',
+    'missing-start',
+    'missing-end',
+  ] as const)('rejects independently demonstrated integrity fault %s', (fault) => {
+    const rows = fixture(1000);
+    const responses = rows.filter((row) => row.kind === 'browser' && row.data.kind === 'response');
+    const middle = responses[3]!;
+    if (fault === 'absent-generation') {
+      delete middle.data.generation;
+      delete middle.data.requestGeneration;
+    }
+    if (fault === 'zero-generation') middle.data.generation = middle.data.requestGeneration = 0;
+    if (fault === 'fractional-generation')
+      middle.data.generation = middle.data.requestGeneration = 1.5;
+    if (fault === 'mismatched-generation') middle.data.requestGeneration = 2;
+    if (fault === 'switched-generation')
+      for (const row of responses.slice(3)) row.data.generation = row.data.requestGeneration = 2;
+    if (fault === 'foreign-fault') {
+      const foreign = structuredClone(middle);
+      foreign.data.source = 'foreign-program';
+      foreign.data.ok = false;
+      foreign.data.advance = null;
+      rows.splice(rows.indexOf(middle), 0, foreign);
+      let sequence = 0;
+      for (const row of rows) if (row.kind === 'browser') row.data.sequence = ++sequence;
+      rows.at(-1)!.data.sent = rows.at(-1)!.data.acknowledged = sequence;
+    }
+    const observation = (
+      middle.data.advance as {
+        ledTemporal: {
+          fromMicroseconds: number;
+          toMicroseconds: number;
+          components: Array<{
+            samples: Array<{ atMicroseconds: number; brightness: number; current: number }>;
+          }>;
+        };
+      }
+    ).ledTemporal;
+    const samples = observation.components[0]!.samples;
+    if (fault === 'sample-before-window') samples.unshift({ ...samples[0]!, atMicroseconds: -1 });
+    if (fault === 'sample-after-window')
+      samples.push({ ...samples.at(-1)!, atMicroseconds: observation.toMicroseconds + 1 });
+    if (fault === 'sample-out-of-order') samples.splice(1, 0, { ...samples[0]! });
+    if (fault === 'missing-start') samples.shift();
+    if (fault === 'missing-end') samples.pop();
+    expect(audit(1000, rows).result.errorCount).toBeGreaterThan(0);
+  });
+
+  it.each([
+    'before',
+    'after',
+    'fractional',
+    'order',
+    'nonfinite',
+    'missing-id',
+    'duplicate-id',
+  ] as const)('rejects corrupt inactive LED electrical evidence: %s', (fault) => {
+    const rows = fixture(1000);
+    const middle = rows.filter((row) => row.kind === 'browser' && row.data.kind === 'response')[3]!;
+    const observation = (
+      middle.data.advance as {
+        ledTemporal: {
+          fromMicroseconds: number;
+          toMicroseconds: number;
+          components: Array<{
+            componentId: string;
+            samples: Array<{ atMicroseconds: number; brightness: number }>;
+          }>;
+        };
+      }
+    ).ledTemporal;
+    const led = observation.components[1]!;
+    if (fault === 'before') led.samples[0]!.atMicroseconds = observation.fromMicroseconds - 1;
+    if (fault === 'after') led.samples.at(-1)!.atMicroseconds = observation.toMicroseconds + 1;
+    if (fault === 'fractional') led.samples[0]!.atMicroseconds += 0.5;
+    if (fault === 'order') led.samples.splice(1, 0, { ...led.samples[0]! });
+    if (fault === 'nonfinite') led.samples[0]!.brightness = NaN;
+    if (fault === 'missing-id') observation.components.splice(1, 1);
+    if (fault === 'duplicate-id') led.componentId = 'led0';
+    expect(audit(1000, rows).result.errorCount).toBeGreaterThan(0);
+  });
+
+  it('streams every durable original, including a midstream bad result, without keeping full ready payloads in RAM', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'asa-long-stream-'));
+    const path = join(directory, 'raw.jsonl');
+    try {
+      const rows = fixture(1000);
+      writeFileSync(path, rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      const clean = await functions.readRealtime682LongAudit(path, 1000, source);
+      expect(clean.errors).toEqual([]);
+      const middle = rows.find(
+        (row) =>
+          row.kind === 'browser' &&
+          row.data.kind === 'response' &&
+          Number((row.data.advance as Record<string, unknown>).committedHorizonMicroseconds) > 2,
+      )!;
+      ((middle.data.advance as Record<string, unknown>).result as Record<string, unknown>).solved =
+        false;
+      writeFileSync(path, rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      expect(
+        (await functions.readRealtime682LongAudit(path, 1000, source)).errorCount,
+      ).toBeGreaterThan(0);
+      writeFileSync(path, '{corrupted original}\n');
+      await expect(functions.readRealtime682LongAudit(path, 1000, source)).rejects.toThrow();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds only long-case Node retention at2048 while persisting and acknowledging all4096 originals', async () => {
+    const declaration = parsed.statements.find(
+      (row) => ts.isFunctionDeclaration(row) && row.name?.text === 'realtime682Journal',
+    )!;
+    const code = ts.transpileModule(declaration.getText(parsed), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    for (const phase of [null, 20_000]) {
+      const durable: Array<{ kind: string; data: { sequence?: number } }> = [];
+      let binding: ((sender: unknown, batch: Array<Record<string, unknown>>) => number) | undefined;
+      let limit: number | undefined;
+      let observed = 0;
+      const make = runInNewContext(`${code}; realtime682Journal`, {
+        writeFileSync: () => {},
+        appendFileSync: (_path: string, line: string, options: { flush: boolean }) => {
+          expect(options.flush).toBe(true);
+          expect(line.endsWith('\n')).toBe(true);
+          durable.push(
+            ...line
+              .slice(0, -1)
+              .split('\n')
+              .map((row) => JSON.parse(row)),
+          );
+        },
+      }) as (
+        page: unknown,
+        path: string,
+        long?: { phaseMs: number; observe: () => void },
+      ) => Promise<{ records: Array<{ sequence: number }>; errors: string[] }>;
+      const page = {
+        exposeBinding: async (_name: string, callback: typeof binding) => {
+          binding = callback;
+        },
+        addInitScript: async (_callback: unknown, recordLimit: number) => {
+          limit = recordLimit;
+        },
+      };
+      const journal = await make(
+        page,
+        '/test/raw.jsonl',
+        phase === null
+          ? undefined
+          : {
+              phaseMs: phase,
+              observe: () => {
+                observed++;
+              },
+            },
+      );
+      for (let first = 1; first <= 4096; first += 256) {
+        const batch = Array.from({ length: 256 }, (_, index) => ({
+          sequence: first + index,
+          kind: 'diagnostic',
+          at: first + index,
+        }));
+        const ack = binding!({}, batch);
+        expect(ack).toBe(first + 255);
+        expect(durable.filter((row) => row.kind === 'browser').length).toBe(ack);
+      }
+      expect(
+        durable.filter((row) => row.kind === 'browser').map((row) => row.data.sequence),
+      ).toEqual(Array.from({ length: 4096 }, (_, index) => index + 1));
+      expect(journal.records.length).toBe(phase === null ? 4096 : 2048);
+      expect(journal.records[0]!.sequence).toBe(phase === null ? 1 : 2049);
+      expect(observed).toBe(phase === null ? 0 : 4096);
+      expect(limit).toBe(phase === null ? 30_000 : 76_000);
+      expect(journal.errors).toEqual([]);
+      expect(() => binding!({}, [{ sequence: 4098, kind: 'diagnostic', at: 4098 }])).toThrow(
+        'sequence gap',
+      );
+      expect(journal.errors).toEqual(['Error: Baseline journal sequence gap']);
+    }
   });
 });

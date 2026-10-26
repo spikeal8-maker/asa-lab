@@ -77,7 +77,6 @@ test('project cards show a picture of the work for every module', async ({ page 
   await page.goto('/#/');
   await page.getByTestId('entry-sign-up').click();
   await page.getByLabel('Email').fill(`preview_${unique}@preview-e2e.test`);
-  await page.getByLabel('Имя пользователя').fill(`preview_${unique}`.slice(0, 36));
   await page.getByLabel('Отображаемое имя (необязательно)').fill('Пётр Превьюев');
   await page.getByLabel('Дата рождения').fill('1990-02-11');
   await page.getByLabel('Пароль').fill(`Safe-${unique}-Password`);

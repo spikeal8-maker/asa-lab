@@ -224,7 +224,21 @@ export class ProductAnalyticsService {
           input.networkKind ?? 'unknown',
           input.userAgentSummary?.trim().slice(0, 128) || null,
         ],
-      );
+      ).catch((cause: unknown) => {
+        const sql = cause as { code?: unknown; message?: unknown } | null;
+        // Only these explicit policy refusals from this operation are expected
+        // non-acceptance. Missing grants, connection failures and timeouts must
+        // remain delivery failures. Throw through the queue so its persisted
+        // counter cannot report a denied operation as a durable write.
+        if (
+          sql?.code === '42501' &&
+          (sql.message === 'module session actor denied' ||
+            sql.message === 'module session context denied' ||
+            sql.message === 'module session identifier collision')
+        )
+          throw new AnalyticsDeliveryError('context_denied');
+        throw cause;
+      });
       const persistedId: unknown = result.rows[0]?.analytics_start_module_session;
       if (
         typeof persistedId !== 'string' ||
@@ -245,7 +259,18 @@ export class ProductAnalyticsService {
       const result = await this.pool!.query(
         'SELECT analytics_touch_module_session($1,$2,$3,$4,$5)',
         [input.sessionId, values[0], values[1], values[2], input.closed],
-      );
+      ).catch((cause: unknown) => {
+        const sql = cause as { code?: unknown; message?: unknown } | null;
+        // Keep a refused heartbeat distinct from an unavailable delivery, with
+        // the same queue rejection accounting as a refused session start.
+        if (
+          sql?.code === '42501' &&
+          (sql.message === 'module session denied' ||
+            sql.message === 'module session project denied')
+        )
+          throw new AnalyticsDeliveryError('context_denied');
+        throw cause;
+      });
       if (!Number.isInteger(result.rows[0]?.analytics_touch_module_session))
         throw new AnalyticsDeliveryError('telemetry_unavailable');
       return true;
@@ -293,6 +318,21 @@ export class ProductAnalyticsService {
         receivedAt,
       ),
     );
+  }
+  persistAcquisition(
+    eventId: string,
+    actor: AnalyticsActor,
+    semantic: object,
+    receivedAt: string,
+  ): Promise<AnalyticsReceipt> {
+    const frozen = structuredClone({ actor: actorValues(actor), semantic });
+    return this.submit(async () => {
+      const result = await this.pool!.query(
+        'SELECT analytics_acquisition_ingest($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::timestamptz) AS receipt',
+        [eventId, ...frozen.actor, JSON.stringify(frozen.semantic), receivedAt],
+      );
+      return confirmedReceipt(result.rows[0]?.receipt, eventId, 'acquisition.observed');
+    });
   }
   enqueueEvent(event: ProductAnalyticsEvent): { state: 'queued' | 'unavailable' } {
     const eventId = randomUUID();

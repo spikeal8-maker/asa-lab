@@ -247,8 +247,13 @@ export class ElectronicsLiveSimulationWorkerController {
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
   private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
+  private firstPositiveObservation = false;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
+  private readonly serialPrograms = new Map<
+    string,
+    { fingerprint: string | undefined; revision: number }
+  >();
 
   constructor(
     private readonly executor: ElectronicsSimulationWorkerExecutor = new ElectronicsSimulationWorkerClient(),
@@ -374,6 +379,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const projectSessionId = this.projectSessionId;
     if (!projectSessionId) return;
     this.canonicalDocument = document;
+    this.serialPrograms.clear();
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.dispatchedDocument = null;
@@ -384,6 +390,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
     this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
+    this.firstPositiveObservation = false;
     this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
@@ -411,6 +418,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
     this.horizonOffsetMicroseconds = 0;
+    this.firstPositiveObservation = false;
     this.inFlight = false;
     this.inFlightKind = null;
   }
@@ -505,7 +513,12 @@ export class ElectronicsLiveSimulationWorkerController {
             committed,
             Math.min(
               pendingTarget.requestedHorizonMicroseconds,
-              committed + this.observationWindowMicroseconds,
+              committed +
+                (this.firstPositiveObservation &&
+                pendingTarget === this.latestTarget &&
+                this.pendingInputEvents.length === 0
+                  ? Math.min(1000, this.observationWindowMicroseconds)
+                  : this.observationWindowMicroseconds),
             ),
           ),
         };
@@ -569,7 +582,31 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     const previouslyCommitted = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     this.timedState = advance.state;
-    this.callbacks?.onSerialProjection?.(advance.serial);
+    // UI-only identity from the accepted MCU state: source text or TX contents
+    // cannot distinguish a reset with identical output from a retained stream.
+    const fingerprints = new Map<string, string>();
+    try {
+      const snapshot = JSON.parse(advance.state.continuation?.serializedState ?? '{}') as {
+        boards?: readonly { componentId: string; runtime?: { programFingerprint?: string } }[];
+      };
+      for (const board of snapshot.boards ?? [])
+        if (typeof board.runtime?.programFingerprint === 'string')
+          fingerprints.set(board.componentId, board.runtime.programFingerprint);
+    } catch {
+      // An absent/invalid optional continuation supplies no program identity.
+      fingerprints.clear();
+    }
+    const serial = advance.serial.map((entry) => {
+      const fingerprint = fingerprints.get(entry.componentId);
+      const previous = this.serialPrograms.get(entry.componentId);
+      const revision = (previous?.revision ?? 0) + (previous?.fingerprint !== fingerprint ? 1 : 0);
+      this.serialPrograms.set(entry.componentId, { fingerprint, revision });
+      return {
+        ...entry,
+        streamGeneration: `${this.projectSessionId}:${generationId}:${revision}`,
+      };
+    });
+    this.callbacks?.onSerialProjection?.(serial);
     this.retimePendingInputsAfterCommitted(
       advance.committedHorizonMicroseconds,
       target.requestedHorizonMicroseconds,
@@ -610,8 +647,11 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));
       return;
     }
+    if (advance.committedHorizonMicroseconds > 0) this.firstPositiveObservation = false;
     const isStartup = target === this.startupTarget;
+    const completedDocument = this.dispatchedDocument;
     if (isStartup) {
+      this.firstPositiveObservation = this.callbacks?.readHostHorizonMicroseconds !== undefined;
       this.startupTarget = null;
       this.callbacks?.onInitialReady?.(this.horizonOffsetMicroseconds);
       if (generationId !== this.generationId) return;
@@ -626,6 +666,40 @@ export class ElectronicsLiveSimulationWorkerController {
       } else {
         this.callbacks?.onResult(advance.result, undefined, clockProfileId);
       }
+    }
+    if (isStartup && completedDocument !== null) {
+      const pull = () => {
+        const current = () =>
+          generationId === this.generationId &&
+          this.canonicalDocument === completedDocument &&
+          this.startupTarget === null &&
+          !this.inFlight;
+        if (!current()) return false;
+        const host = this.callbacks?.readHostHorizonMicroseconds?.();
+        if (
+          !current() ||
+          typeof host !== 'number' ||
+          !Number.isSafeInteger(host) ||
+          host < this.horizonOffsetMicroseconds
+        )
+          return false;
+        const horizon = host - this.horizonOffsetMicroseconds;
+        const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+        if (horizon <= committed) return horizon === committed;
+        this.firstPositiveObservation = true;
+        this.latestTarget = {
+          requestedHorizonMicroseconds: Math.max(
+            horizon,
+            this.latestTarget?.requestedHorizonMicroseconds ?? 0,
+          ),
+        };
+        this.pump();
+        return false;
+      };
+      if (pull())
+        queueMicrotask(() => {
+          pull();
+        });
     }
     this.pump();
   }

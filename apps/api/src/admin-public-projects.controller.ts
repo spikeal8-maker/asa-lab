@@ -220,6 +220,67 @@ export class AdminPublicProjectsController {
     return result.rows[0].result;
   }
 
+  @Post(':publicationId/pin')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async pin(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Body() body: unknown,
+  ) {
+    const actor = await this.actor(request);
+    uuid(publicationId);
+    const shape = checkBodyShape(body, [
+      'pinned',
+      'expectedVersion',
+      'expectedRevisionId',
+      'expectedModerationVersion',
+      'expectedLifecycleVersion',
+    ]);
+    if (!shape.ok || typeof shape.body['pinned'] !== 'boolean') {
+      throw new BadRequestException();
+    }
+    const expectedVersion = shape.body['expectedVersion'];
+    const expectedModerationVersion = shape.body['expectedModerationVersion'];
+    const expectedLifecycleVersion = shape.body['expectedLifecycleVersion'];
+    if (
+      typeof expectedVersion !== 'number' ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0 ||
+      expectedVersion > 2147483646 ||
+      typeof expectedModerationVersion !== 'number' ||
+      !Number.isInteger(expectedModerationVersion) ||
+      expectedModerationVersion < 0 ||
+      expectedModerationVersion > 2147483646 ||
+      typeof expectedLifecycleVersion !== 'number' ||
+      !Number.isInteger(expectedLifecycleVersion) ||
+      expectedLifecycleVersion < 0 ||
+      expectedLifecycleVersion > 2147483646
+    ) {
+      throw new BadRequestException();
+    }
+    const expectedRevisionId = shape.body['expectedRevisionId'];
+    if (typeof expectedRevisionId !== 'string') throw new BadRequestException();
+    uuid(expectedRevisionId);
+    if (typeof request.id !== 'string' || !request.id.trim() || request.id.length > 128) {
+      throw new BadRequestException();
+    }
+    const result = await this.query<{ result: unknown }>(
+      'SELECT public.admin_publication_pin_set($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+      [
+        actor,
+        publicationId,
+        shape.body['pinned'],
+        request.id,
+        expectedVersion,
+        expectedRevisionId,
+        expectedModerationVersion,
+        expectedLifecycleVersion,
+      ],
+    );
+    return result.rows[0].result;
+  }
+
   @Post(':publicationId/hide')
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')

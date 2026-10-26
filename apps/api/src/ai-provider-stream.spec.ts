@@ -29,6 +29,43 @@ const input = {
 };
 
 describe('provider SSE adapter', () => {
+  it('uses only the fixed Ollama Cloud endpoint with Bearer key and records reported usage', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
+      expect(url).toBe('https://ollama.com/v1/chat/completions');
+      expect(new Headers(options?.headers).get('authorization')).toBe('Bearer test-cloud-key');
+      expect(options?.redirect).toBe('error');
+      const body = JSON.parse(String(options?.body));
+      expect(body.model).toBe('gemma4:31b');
+      expect(body.thinking).toBeUndefined();
+      return fakeSse(
+        'data: {"model":"gemma4:31b","choices":[{"delta":{"content":"Привет"},"finish_reason":null}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":4}}\n\ndata: [DONE]\n\n',
+        [3, 7, 1, 15],
+      );
+    });
+    const result = await streamProviderText({
+      ...input,
+      provider: 'ollama-cloud',
+      model: 'gemma4:31b',
+      apiKey: 'test-cloud-key',
+      fetchImpl,
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+    });
+    expect(result).toMatchObject({
+      text: 'Привет',
+      stopped: false,
+      usage: { inputTokens: 12, outputTokens: 4, actualModel: 'gemma4:31b' },
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(
+      parseProviderText('ollama-cloud', {
+        choices: [{ message: { content: 'JSON' }, finish_reason: 'length' }],
+      }),
+    ).toMatchObject({ text: 'JSON', stopped: true });
+    expect(() =>
+      parseProviderText('ollama-cloud', { choices: [{ message: { content: 'incomplete' } }] }),
+    ).toThrow('Модель не завершила ответ');
+  });
   it('decodes OpenAI multi-byte text across SSE and UTF-8 boundaries', async () => {
     const text =
       'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"Привет"}\n\n' +

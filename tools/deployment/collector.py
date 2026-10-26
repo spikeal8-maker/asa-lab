@@ -49,7 +49,7 @@ def command(args, *, allow_missing=False):
 
 def digest(root):
     value = hashlib.sha256()
-    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py"):
+    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py", "memory_sampling.py"):
         path = root / "tools" / name
         value.update(name.encode()); value.update(path.read_bytes())
     return value.hexdigest()
@@ -106,7 +106,50 @@ def linux_operator():
     return operator
 
 
+def native_application_logging(install):
+    """Attest the selected resolved Compose capability, never an environment hint."""
+    if not (install.root / 'compose.yaml').is_file(): return False
+    config = json.loads(install.compose('config', '--format', 'json', capture=True))
+    api = config.get('services', {}).get('api', {})
+    return (api.get('environment', {}).get('ASA_APPLICATION_LOG_STORE') == '/var/lib/asa-application-logs'
+            and 'application-logs' in config.get('volumes', {})
+            and any(m.get('type') == 'volume' and m.get('source') == 'application-logs'
+                    and m.get('target') == '/var/lib/asa-application-logs' and not m.get('read_only')
+                    for m in api.get('volumes', [])))
+
+
 def prepare(install):
+    try:
+        return _prepare_host(install)
+    except Blocked as exc:
+        operational = (exc.code in ('COLLECTOR_OPERATOR', 'COLLECTOR_RUNNER_PERMISSION')
+                       or exc.code == 'COLLECTOR_RUNNER' and any(
+                           marker in str(exc) for marker in ('outcome=tool-unavailable', 'outcome=permission-denied', 'outcome=manager-unavailable')))
+        if not operational or not native_application_logging(install): raise
+        # Configuration/identity/path failures are never an operational fallback.
+        # Recheck before writing a degradation receipt, and preserve registration.
+        safe_paths(install); validate_config(install)
+        configured = install.env.get('ASA_LOG_READER_GID')
+        require(configured is None or configured.isdecimal() and int(configured) > 0,
+                'COLLECTOR_READER_GROUP', 'Persisted diagnostic reader GID must be a positive integer.')
+        previous = read_json(install.state / 'collector-runner.json', {})
+        require(not previous or previous.get('root') == str(install.root) and previous.get('project') == install.project,
+                'COLLECTOR_RUNNER_IDENTITY', 'Runner registration belongs to another installation.')
+        for path in (install.state / 'diagnostics/store', install.state / 'diagnostics/private'):
+            path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        config_path = install.state / 'log-collector.json'
+        if not config_path.exists():
+            atomic_json(config_path, {'version': 1, 'project': install.project, 'retentionDays': 30,
+                                     'maxBytes': 1024**3, 'intervalSeconds': 20, 'fileSources': []})
+        result = {'state': 'degraded', 'code': exc.code, 'detail': str(exc)[:500],
+                  'readerGroupChanged': False, 'applicationCollection': 'embedded'}
+        atomic_json(install.state / 'collector-operation.json',
+                    {'at': dt.datetime.now(dt.timezone.utc).isoformat(), **result})
+        print('COLLECTOR degraded: optional host runner unavailable; application-owned collection remains enabled')
+        return result
+
+
+def _prepare_host(install):
     """Run only inside an authorized install/up/update, before the Compose switch."""
     safe_paths(install)
     records = install.identity(existing=False)
@@ -240,6 +283,20 @@ def verify_windows_task(xml, identity, resolved_sid=None):
     actions = task.findall("t:Actions/t:Exec", NS)
     require(len(actions) == 1 and len(list(task.find('t:Actions', NS))) == 1 and len(task.findall('t:Principals/t:Principal', NS)) == 1,
             "COLLECTOR_RUNNER_IDENTITY", "Unexpected task actions or principals.")
+    principals = task.findall('t:Principals', NS)
+    principal_node = task.find('t:Principals/t:Principal', NS)
+    require(len(principals) == 1 and len(list(principals[0])) == 1 and
+            len(principal_node.findall('t:UserId', NS)) == 1 and
+            len(principal_node.findall('t:LogonType', NS)) == 1 and
+            all(child.tag in {f'{{{NS["t"]}}}{name}' for name in ('UserId', 'LogonType', 'RunLevel')}
+                for child in principal_node),
+            "COLLECTOR_RUNNER_IDENTITY", "Unexpected task principal fields.")
+    run_levels = principal_node.findall('t:RunLevel', NS)
+    # Task Scheduler may omit its default LUA value when exporting a task.
+    # Absence means LeastPrivilege; a present element must be unambiguous.
+    require(not run_levels or len(run_levels) == 1 and run_levels[0].text == 'LeastPrivilege' and
+            not list(run_levels[0]) and not run_levels[0].attrib,
+            "COLLECTOR_RUNNER_IDENTITY", "Unexpected task run level.")
     action = actions[0]
     root = identity["root"]
     principal = task.findtext('t:Principals/t:Principal/t:UserId', namespaces=NS) or ''
@@ -250,8 +307,7 @@ def verify_windows_task(xml, identity, resolved_sid=None):
             principal and (principal.lower() in
                 {identity["owner"].lower(), identity.get('ownerSid', '').lower()} or
                 bool(identity.get('ownerSid')) and resolved_sid == identity['ownerSid']) and
-            task.findtext("t:Principals/t:Principal/t:LogonType", namespaces=NS) == "InteractiveToken" and
-            task.findtext("t:Principals/t:Principal/t:RunLevel", namespaces=NS) == "LeastPrivilege",
+            task.findtext("t:Principals/t:Principal/t:LogonType", namespaces=NS) == "InteractiveToken",
             "COLLECTOR_RUNNER_IDENTITY", "Existing task is not this installation's least-privilege collector.")
 
 
@@ -581,7 +637,11 @@ def main(argv=None):
     except (Blocked, OSError, ValueError, KeyError) as exc:
         result = {'state': 'degraded', 'code': getattr(exc, 'code', 'COLLECTOR_CONFIGURATION'), 'detail': str(exc)[:500]}
     print(json.dumps(result))
-    return 0 if result.get("state") != "degraded" else 2
+    # Source up wrappers use prepare as a pre-start guard. A verified native
+    # capability permits optional host degradation; status/reconcile still
+    # report their own degraded state with a nonzero diagnostic exit code.
+    native_prepare = args.action == 'prepare' and result.get('applicationCollection') == 'embedded'
+    return 0 if result.get("state") != "degraded" or native_prepare else 2
 
 
 if __name__ == "__main__":

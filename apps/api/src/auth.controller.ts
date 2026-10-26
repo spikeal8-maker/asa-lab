@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import {
   Body,
   Controller,
@@ -81,9 +82,10 @@ const AUTH_FLOW_MAX_AGE_SECONDS = 20 * 60;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface PublicUser {
+  identityKind?: 'account';
   id: string;
   displayName: string;
-  email: string;
+  email: string | null;
 }
 
 interface SessionPayload {
@@ -319,6 +321,7 @@ export class AuthController {
       ? []
       : effectiveAccountActions(context, capabilities, workspaces);
     const account = {
+      identityKind: 'account' as const,
       id: context.accountId,
       displayName: context.displayName,
       email: context.email,
@@ -1517,7 +1520,7 @@ export class AuthController {
       reason: 'seat_active' | 'refresh_required' | 'stale' | 'invalid' | 'reused' | 'rotated',
     ) => {
       try {
-        process.stdout.write(
+        emitApplicationLog(
           `${JSON.stringify({
             time: new Date().toISOString(),
             kind: 'auth_session_recovery',

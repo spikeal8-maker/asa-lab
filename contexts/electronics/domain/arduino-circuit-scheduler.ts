@@ -6,8 +6,11 @@ import {
   type ArduinoRuntimeEvent,
   type ArduinoRuntimeState,
   type ArduinoToneState,
+  type ArduinoTerminalVoltages,
+  type ArduinoPinMode,
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
+import { observeArduinoInputs } from './arduino-adc-observation.js';
 import {
   ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT,
   enqueueArduinoSerialRx,
@@ -437,6 +440,7 @@ interface ClockPreparation {
   readonly observeLedState?: LedElectricalObserver;
 }
 type OwnedClockRequest = {
+  readonly validatedDigest?: string;
   runtime?: ReturnType<typeof createOwnedClockedArduinoRuntime>;
   source?: string;
   continued: boolean;
@@ -588,12 +592,18 @@ export function createOwnedArduinoCircuitClockRequest(
   } catch {
     // Malformed public arguments retain their original validation/exception path.
   }
+  let validatedDigest: string | undefined;
   const check = () => {
     admitted = admitted && originalOwnedProducers();
     return admitted;
   };
   return {
     check,
+    validateDigest: () => {
+      const digest = simulationInputDigest(document, 0);
+      validatedDigest = check() ? digest : undefined;
+      return digest;
+    },
     create: (
       target: number,
       initial: ArduinoCircuitClockState | undefined,
@@ -610,6 +620,7 @@ export function createOwnedArduinoCircuitClockRequest(
         options,
         observeLedTemporal,
         check,
+        validatedDigest,
       ),
   };
 }
@@ -624,6 +635,7 @@ function createArduinoCircuitClockRequest(
   },
   observeLedTemporal: boolean,
   stillOwned: () => boolean,
+  validatedDigest?: string,
 ) {
   let collector = observeLedTemporal
     ? createLedTemporalObservation(
@@ -641,7 +653,10 @@ function createArduinoCircuitClockRequest(
     operatingPoint: createArduinoOperatingPointReuse(),
     ...(collector ? { observeLedState: collector.observe } : {}),
   };
-  const ownership: OwnedClockRequest = { continued: false };
+  const ownership: OwnedClockRequest = {
+    continued: false,
+    ...(validatedDigest === undefined ? {} : { validatedDigest }),
+  };
   if (stillOwned()) ownedClockRequests.set(preparation, ownership);
   let previous = initial;
   let data: { document: ElectronicsDocument; target: number; options: typeof options } | undefined =
@@ -828,7 +843,8 @@ export function advanceArduinoCircuitClock(
     return fault('invalid_board_count', 'Профиль поддерживает не более 8 плат Arduino.');
   let digest: string;
   try {
-    digest = ownedPreparation?.digest ?? simulationInputDigest(document, 0);
+    digest =
+      ownedPreparation?.digest ?? ownership?.validatedDigest ?? simulationInputDigest(document, 0);
     if (ownedPreparation) ownedPreparation.digest = digest;
   } catch {
     return fault('invalid_document', 'Электрический документ содержит некорректные значения.');
@@ -1183,6 +1199,20 @@ export function advanceArduinoCircuitClock(
   };
   const operatingPointReuse =
     ownedPreparation?.operatingPoint ?? createArduinoOperatingPointReuse();
+  const adcInputs = (
+    boardId: string,
+    time: number,
+    voltages: ArduinoTerminalVoltages,
+    ownModes?: ReadonlyMap<string, ArduinoPinMode>,
+  ) =>
+    observeArduinoInputs(
+      voltages,
+      activeDocument,
+      preparation()(activeDocument)!.terminalNodes,
+      boardId,
+      time,
+      (id, pin) => (id === boardId && ownModes ? ownModes.get(pin) : states.get(id)?.pinModes[pin]),
+    );
   const advancePhysics = (time: number) =>
     withQuality(
       solveRcCircuitWithHeldArduino(
@@ -1470,12 +1500,15 @@ export function advanceArduinoCircuitClock(
             {},
             Math.min(targetMicroseconds, electricalBarrier - 1) / 1000,
             currentRuntime,
-            ({ simulationTimeMs }) => {
+            ({ simulationTimeMs, pinModes }) => {
               const at = Math.round(simulationTimeMs * 1000);
               if (!commitPhysics(at)) readFailed = true;
-              return (
+              return adcInputs(
+                onlyBoard.id,
+                at,
                 sample(at).components.find((c) => c.componentId === onlyBoard.id)
-                  ?.terminalVoltages ?? {}
+                  ?.terminalVoltages ?? {},
+                pinModes,
               );
             },
             { instructionBudget: budget - clockEvents, stopAtElectricalBoundary: true },
@@ -1645,11 +1678,15 @@ export function advanceArduinoCircuitClock(
               {},
             time / 1000,
             state,
-            lazyPhysicsObservation
-              ? () =>
-                  observe().components.find((entry) => entry.componentId === board.id)
-                    ?.terminalVoltages ?? {}
-              : undefined,
+            ({ pinModes }) =>
+              adcInputs(
+                board.id,
+                time,
+                (lazyPhysicsObservation ? observe() : frame)?.components.find(
+                  (entry) => entry.componentId === board.id,
+                )?.terminalVoltages ?? {},
+                pinModes,
+              ),
             { instructionBudget: 1, pulseInputSample },
           );
       // A failed lazy read precedes any interpreter failure and discards all of

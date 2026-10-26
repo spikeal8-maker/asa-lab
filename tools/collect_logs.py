@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import io
 import json
+import bisect
 import os
 import re
 import shutil
@@ -24,10 +25,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
 from resource_sampling import ResourceSampler
+from memory_sampling import CAPTURE_SECONDS, capture_memory
 
 UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
 RETIRE_SECONDS = 600  # Longer than five-minute resumable searches and exports.
+HISTORY_AUDIT_SEGMENTS = 2048
+HISTORY_AUDIT_BYTES = 128 * 1024 * 1024
+HISTORY_AUDIT_SECONDS = 5
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
 DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
     'apps/api/src/database-diagnostic-contract.json').read_text(encoding='utf-8'))
@@ -352,7 +357,18 @@ class Collector:
         self.db.executescript("""CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE,time TEXT,source TEXT,payload TEXT,published INTEGER DEFAULT 0);
             CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT);
             CREATE TABLE IF NOT EXISTS sources(name TEXT PRIMARY KEY,payload TEXT);
-            CREATE TABLE IF NOT EXISTS segment_verification(name TEXT PRIMARY KEY,proof TEXT NOT NULL,metadata TEXT NOT NULL);""")
+            CREATE TABLE IF NOT EXISTS segment_verification(name TEXT PRIMARY KEY,proof TEXT NOT NULL,metadata TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS history_mapping_changes(seq INTEGER PRIMARY KEY);
+            CREATE TRIGGER IF NOT EXISTS history_mapping_update AFTER UPDATE OF seq,id ON events BEGIN
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(old.seq);
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(new.seq);
+            END;
+            CREATE TRIGGER IF NOT EXISTS history_mapping_delete AFTER DELETE ON events BEGIN
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(old.seq);
+            END;
+            CREATE TRIGGER IF NOT EXISTS history_mapping_insert AFTER INSERT ON events BEGIN
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(new.seq);
+            END;""")
         # A cache receipt is not authority by itself. Bind the exact compressed
         # bytes AND current private sequence/identity mapping to this store's
         # private key. Copied/edited cache rows require full verification again.
@@ -372,22 +388,46 @@ class Collector:
             self.validate_history_index()
             self.upgrade_index()
             self.finish_compaction()
+            # Table replacement during legacy upgrade drops its triggers.
+            self.db.executescript('''CREATE TRIGGER IF NOT EXISTS history_mapping_update AFTER UPDATE OF seq,id ON events BEGIN
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(old.seq);
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(new.seq); END;
+                CREATE TRIGGER IF NOT EXISTS history_mapping_delete AFTER DELETE ON events BEGIN
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(old.seq); END;
+                CREATE TRIGGER IF NOT EXISTS history_mapping_insert AFTER INSERT ON events BEGIN
+                INSERT OR IGNORE INTO history_mapping_changes VALUES(new.seq); END;''')
+            info = index.stat()
+            self.index_identity = (info.st_dev, info.st_ino)
+            self.index_schema = self.db.execute('PRAGMA schema_version').fetchone()[0]
+            self.index_data_version = self.db.execute('PRAGMA data_version').fetchone()[0]
             self.db.executescript('''CREATE TABLE IF NOT EXISTS database_observations(
                 event_id BLOB PRIMARY KEY, native_key BLOB NOT NULL, fields TEXT NOT NULL);
                 CREATE INDEX IF NOT EXISTS database_native_key ON database_observations(native_key);''')
+            self.index_schema = self.db.execute('PRAGMA schema_version').fetchone()[0]
         except Exception:
             self.db.close()
             raise
 
-    def validate_history_index(self):
+    def validate_history_index(self, *, continuous=False):
         """Verify history ownership before upgrade, retirement or publication.
 
         Sequence gaps from duplicate inserts are valid. Retired originals can
         have missing/remapped rows; only durable retirement or compaction intent
         permits that exception, never an unrecognized orphan filename.
         """
+        audit = {}
         try:
-            self.verified_metadata = {}
+            if continuous:
+                info = (self.private/'index.sqlite').stat()
+                if (info.st_dev, info.st_ino) != self.index_identity or self.db.execute('PRAGMA schema_version').fetchone()[0] != self.index_schema:
+                    raise ValueError('private index identity or schema changed during collection')
+                version = self.db.execute('PRAGMA data_version').fetchone()[0]
+                if version != self.index_data_version:
+                    self.validate_history_index()
+                    self.index_data_version = version
+            trusted = getattr(self, 'verified_metadata', {}) if continuous else {}
+            self.verified_metadata = dict(trusted)
+            started = time.monotonic()
             files = {p.name: p for p in self.store.glob('seg-*.jsonl*') if SEGMENT_PATTERN.fullmatch(p.name)}
             retired = self.state('retired:segments', {})
             pending = self.state('compaction:pending')
@@ -397,6 +437,16 @@ class Collector:
             metadata.update(self.state('segments', {}))
             referenced.update(name for name in self.state('segments', {}) if name not in retired)
             if not referenced.issubset(files): raise ValueError('a referenced immutable segment is missing')
+            active = sorted(set(files) - set(retired))
+            audit = self.state('history:audit', {})
+            if continuous and audit.get('state') == 'error': raise ValueError('retained history audit previously failed')
+            if continuous and (not audit or audit.get('state') == 'complete' or audit.get('completedAt')):
+                audit = dict(generation=uuid.uuid4().hex, cursor='', boundary=max(active, default=''),
+                    checked=0, total=len(active), startedAt=now(), deadline=time.time()+900,
+                    lastCompletedAt=audit.get('lastCompletedAt'), lastMissedDeadlineAt=audit.get('lastMissedDeadlineAt'),
+                    incomplete=audit.get('incomplete', False), state='running')
+            changed = [row[0] for row in self.db.execute('SELECT seq FROM history_mapping_changes ORDER BY seq')] if continuous else []
+            audited_bytes = audited_count = 0
             sequence = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()
             high = sequence[0] if sequence else 0
             required = self.db.execute('SELECT coalesce(max(seq),0) FROM events').fetchone()[0]
@@ -413,17 +463,34 @@ class Collector:
                     raise ValueError('unpublished payload identity differs from private index')
             covered = []
             pending_ids = None
-            for name, file in files.items():
+            started = time.monotonic()
+            for name, file in sorted(files.items()):
                 # Durable retirement authorizes eventual deletion, including
                 # compaction originals whose IDs now own different sequences.
                 if name in retired: continue
                 first, last = map(int, name.split('.')[0].split('-')[1:])
+                due = continuous and audit['cursor'] < name <= audit['boundary']
+                budget = audited_count < HISTORY_AUDIT_SEGMENTS and audited_bytes < HISTORY_AUDIT_BYTES and time.monotonic()-started < HISTORY_AUDIT_SECONDS
+                pos = bisect.bisect_left(changed, first)
+                mandatory = name not in trusted or pos < len(changed) and changed[pos] <= last
+                verify = not continuous or mandatory or due and budget
+                if not verify:
+                    expected = metadata.get(name, {})
+                    if expected.get('sha256') != trusted[name].get('sha256') or expected.get('rawBytes') != trusted[name].get('rawBytes'):
+                        raise ValueError(f'immutable segment metadata differs from verified history: {name}')
+                    covered.append((first,last))
+                    continue
+                if due and budget:
+                    audited_count += 1
+                    audited_bytes += file.stat().st_size
+                    audit['cursor'] = name
+                    audit['checked'] += 1
                 rows = self.db.execute('SELECT seq,id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
                 indexed = [bytes.fromhex(row[1]) if isinstance(row[1],str) else row[1] for row in rows]
                 mapping = hashlib.sha256()
                 for row, identity in zip(rows, indexed):
                     mapping.update(str(row[0]).encode('ascii') + b':' + identity)
-                # Hash actual file bytes on EVERY check: size/mtime/file IDs
+                # Hash actual file bytes on every selected check: size/mtime/file IDs
                 # alone cannot detect same-size corruption or restored times.
                 digest = hashlib.sha256()
                 with file.open('rb') as stream:
@@ -482,7 +549,25 @@ class Collector:
                 end = max(end,last)
             if self.db.execute('SELECT 1 FROM events WHERE published=1 AND seq>? LIMIT 1',(end,)).fetchone():
                 raise ValueError('published private index row has no immutable payload')
+            if continuous:
+                remaining = sum(audit['cursor'] < name <= audit['boundary'] for name in active)
+                audit['total'] = audit['checked'] + remaining
+                late = time.time() > audit['deadline']
+                if not remaining:
+                    audit['completedAt'] = now()
+                    if not late: audit.update(state='complete', lastCompletedAt=now(), incomplete=False)
+                if late:
+                    audit.update(state='overdue', incomplete=True, lastMissedDeadlineAt=now())
+                self.set_state('history:audit', audit)
+            else:
+                self.set_state('history:audit', dict(generation=uuid.uuid4().hex, cursor=max(active, default=''),
+                    checked=len(active), total=len(active), lastCompletedAt=now(), deadline=time.time()+900, state='complete'))
+            self.db.execute('DELETE FROM history_mapping_changes')
         except (ValueError, TypeError, KeyError, IndexError, OSError, EOFError, sqlite3.Error, zlib.error) as exc:
+            if continuous:
+                audit.update(state='error', detail=clean(str(exc))[:500])
+                self.set_state('history:audit', audit)
+                self.db.commit()
             raise history_error(str(exc)) from exc
 
     def upgrade_index(self):
@@ -1124,6 +1209,62 @@ class Collector:
         immutable_segment_bytes(self.store / file, data)
         return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({classify_event(e)["module"] for e in events}), levels=sorted({e["level"] for e in events}))
 
+    def verify_affected_segment(self, meta, *, mapping=True):
+        """Verify bytes before retirement/deletion, and ownership before remap."""
+        file = self.store/meta['file']
+        opener = gzip.open if file.name.endswith('.gz') else open
+        try:
+            with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
+            if len(raw) != meta.get('rawBytes') or hashlib.sha256(raw).hexdigest() != meta.get('sha256'):
+                raise ValueError('affected immutable segment checksum differs')
+            if mapping:
+                first,last = map(int, file.name.split('.')[0].split('-')[1:])
+                rows = self.db.execute('SELECT id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
+                indexed = [bytes.fromhex(r[0]) if isinstance(r[0],str) else r[0] for r in rows]
+                if indexed != [bytes.fromhex(json.loads(line)['id']) for line in raw.splitlines()]:
+                    raise ValueError('affected immutable segment index differs')
+        except (ValueError, KeyError, OSError, EOFError, zlib.error) as exc:
+            raise history_error(str(exc)) from exc
+
+    def recover_retired_metadata(self, name):
+        """Recover only a still-authentic receipt with a reconstructible mapping.
+
+        A contiguous filename range plus authenticated count reconstructs the
+        original mapping. Gapped sequences cannot be inferred after retirement.
+        Current bytes alone never establish a new reference checksum.
+        """
+        trusted = self.verified_metadata.get(name)
+        if trusted:
+            self.verify_affected_segment(trusted, mapping=False)
+            return trusted
+        try:
+            receipt = self.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+            if not receipt: raise ValueError('saved verification receipt is missing')
+            meta = json.loads(receipt[1])
+            first,last = map(int, name.split('.')[0].split('-')[1:])
+            if meta['file'] != name or type(meta['count']) is not int or meta['count'] != last-first+1:
+                raise ValueError('original sequence mapping cannot be reconstructed')
+            file = self.store/name
+            if file.stat().st_size > 8*1024*1024: raise ValueError('retired segment exceeds bounded recovery size')
+            digest = hashlib.sha256()
+            with file.open('rb') as stream:
+                while chunk := stream.read(1024*1024): digest.update(chunk)
+            opener = gzip.open if name.endswith('.gz') else open
+            with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
+            if len(raw) != meta['rawBytes'] or not raw.endswith(b'\n') or hashlib.sha256(raw).hexdigest() != meta['sha256']:
+                raise ValueError('retired segment differs from saved checksum')
+            ids = [bytes.fromhex(json.loads(line)['id']) for line in raw.splitlines()]
+            if len(ids) != meta['count'] or any(len(identity) != 32 for identity in ids) or len(set(ids)) != len(ids):
+                raise ValueError('retired segment identities are invalid')
+            mapping = hashlib.sha256()
+            for seq, identity in enumerate(ids, first): mapping.update(str(seq).encode('ascii') + b':' + identity)
+            identity_proof = name + ':' + digest.hexdigest() + ':' + mapping.hexdigest() + ':'
+            proof = hmac.new(self.verification_key, (identity_proof + receipt[1]).encode('utf-8'), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(receipt[0], proof): raise ValueError('saved verification receipt cannot authenticate original ownership')
+            return meta
+        except (ValueError, TypeError, KeyError, OSError, EOFError, zlib.error) as exc:
+            raise history_error(f'retired segment {name} requires verified diagnostic snapshot recovery: {exc}') from exc
+
     def system_metadata(self, meta, cached):
         """Repair classification hints without rewriting immutable segment payloads."""
         if meta['sources'] and self.host_segment(meta):
@@ -1141,7 +1282,7 @@ class Collector:
         cached[meta['file']] = hashlib.sha256(('editor-classification-v1:' + json.dumps(meta, sort_keys=True)).encode()).hexdigest()
         return meta
 
-    def finish_compaction(self):
+    def finish_compaction(self, *, newly_reserved=False):
         """Complete a durable compaction intent before accepting new events.
 
         Files named by the old catalog survive the normal reader grace period.
@@ -1150,7 +1291,7 @@ class Collector:
         """
         intent = self.state("compaction:pending")
         if not intent: return
-        self.validate_history_index()
+        if not newly_reserved: self.validate_history_index()
         events = []
         for meta in intent["originals"]:
             data = (self.store / meta["file"]).read_bytes()
@@ -1177,6 +1318,8 @@ class Collector:
             segments.pop(original["file"], None)
             retired[original["file"]] = None
         segments[meta["file"]] = meta
+        self.verify_affected_segment(meta)
+        self.verified_metadata[meta['file']] = meta
         self.set_state("segments", segments)
         self.set_state("retired:segments", retired)
         self.db.execute("DELETE FROM state WHERE key='compaction:pending'")
@@ -1194,6 +1337,7 @@ class Collector:
                 selected.append(meta); size += meta["rawBytes"]
                 if len(selected) == 32: break
             if len(selected) < 4: continue
+            for meta in selected: self.verify_affected_segment(meta)
             first = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()[0] + 1
             count = sum(m["count"] for m in selected)
             self.set_state("segments", {m["file"]: m for m in segments})
@@ -1201,7 +1345,7 @@ class Collector:
             self.set_state("compaction:pending", dict(originals=selected, first=first, count=count))
             self.db.execute("UPDATE sqlite_sequence SET seq=? WHERE name='events'", (first+count-1,))
             self.db.commit()
-            self.finish_compaction()
+            self.finish_compaction(newly_reserved=True)
             return list(self.state("segments").values()), self.state("retired:segments", {})
         return segments, retired
 
@@ -1220,6 +1364,7 @@ class Collector:
 
     def import_history(self, path: Path):
         """Operator-only recovery from an existing, normalized ASA diagnostic ZIP."""
+        self.validate_history_index()
         digest = hashlib.sha256()
         with path.open("rb") as stream:
             for block in iter(lambda: stream.read(1024 * 1024), b""): digest.update(block)
@@ -1275,10 +1420,19 @@ class Collector:
         return result
 
     def publish(self):
-        self.validate_history_index()
+        self.validate_history_index(continuous=True)
         self.finish_compaction()
         self.db.commit()
         retired = self.state("retired:segments", {})
+        retired_metadata = self.state('retired:metadata', {})
+        # Resolve every existing legacy retirement before any cleanup or fresh
+        # publication. Unverifiable debt must not disappear behind active quota.
+        for name in retired:
+            if not SEGMENT_PATTERN.fullmatch(name): raise history_error('invalid retired segment name')
+            if name not in retired_metadata and (self.store/name).exists():
+                retired_metadata[name] = self.recover_retired_metadata(name)
+            if name in retired_metadata and retired_metadata[name].get('file') != name:
+                raise history_error('retired segment metadata names a different file')
         catalog_path = self.store / "catalog.json"
         # A previous crash may have committed retirement before replacing the
         # catalog. Never remove a file still named by the published snapshot.
@@ -1291,9 +1445,11 @@ class Collector:
             elif at is None:
                 retired[name] = time.time()
             elif SEGMENT_PATTERN.fullmatch(name) and time.time() - at >= RETIRE_SECONDS:
+                if (self.store/name).exists(): self.verify_affected_segment(retired_metadata[name], mapping=False)
                 (self.store / name).unlink(missing_ok=True)
                 self.db.execute('DELETE FROM segment_verification WHERE name=?', (name,))
                 retired.pop(name)
+                retired_metadata.pop(name, None)
         previous = self.state("segments", {})
         # Classification/range hints are derived from verified immutable bytes,
         # never accepted merely because someone edited the cached state JSON.
@@ -1315,6 +1471,8 @@ class Collector:
             if not rows: break
             name = f"seg-{rows[0][0]:016d}-{rows[-1][0]:016d}.jsonl"
             written = self.write_segment(name, events)
+            self.verify_affected_segment(written)
+            self.verified_metadata[written['file']] = written
             previous[written["file"]] = written
             self.db.executemany("UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq=?", [(r[0],) for r in rows])
             self.db.commit()
@@ -1323,12 +1481,16 @@ class Collector:
         files = {p.name: p for p in self.store.glob("seg-*.jsonl*") if SEGMENT_PATTERN.fullmatch(p.name) and p.name not in retired}
         for name, file in sorted(files.items()):
             if not name.endswith(".gz") and name + ".gz" in files:
+                self.verify_affected_segment(previous[name])
+                self.verify_affected_segment(previous[name+'.gz'])
                 retired.setdefault(name, None)
                 continue
             meta = previous.get(name)
             if self.reader_format >= 2 and not name.endswith(".gz"):
+                self.verify_affected_segment(meta)
                 events = [self.upgrade_file_event(json.loads(line)) for line in file.read_text(encoding="utf-8").splitlines()]
                 meta = self.write_segment(name, events)
+                self.verify_affected_segment(meta)
                 retired.setdefault(name, None)
             elif not meta or "sourceRanges" not in meta or (not meta.get("originRanges") and any(s in ("audit", "auth") for s in meta["sources"])):
                 raw = file.read_bytes()
@@ -1349,6 +1511,8 @@ class Collector:
             return {json.loads(line)["id"] for line in content.decode("utf-8").splitlines()}
         for segment in sorted(segments, key=lambda s: (bounds(s)[0], -bounds(s)[1])):
             if canonical and bounds(segment)[0] <= bounds(canonical[-1])[1]:
+                self.verify_affected_segment(segment)
+                self.verify_affected_segment(canonical[-1])
                 if bounds(segment)[1] > bounds(canonical[-1])[1] or not identities(segment).issubset(identities(canonical[-1])):
                     raise RuntimeError("Overlapping diagnostic segments; originals were preserved")
                 retired.setdefault(segment["file"], None)
@@ -1357,6 +1521,7 @@ class Collector:
         segments = []
         for meta in canonical:
             if meta["last"] < cutoff:
+                self.verify_affected_segment(meta)
                 retired.setdefault(meta["file"], None)
                 self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", bounds(meta))
             else: segments.append(meta)
@@ -1367,6 +1532,7 @@ class Collector:
         def evict():
             nonlocal total, trimmed
             oldest = min(segments, key=lambda s: (0 if self.host_segment(s) else 1, s["last"]))
+            self.verify_affected_segment(oldest)
             retired.setdefault(oldest["file"], None)
             segments.remove(oldest); total -= oldest["bytes"]
             first, last = map(int, oldest["file"].split(".")[0].split("-")[1:])
@@ -1377,8 +1543,11 @@ class Collector:
         self.prune_database_observations()
         self.db.commit()
         self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        if trimmed or self.state("vacuum:day") != datetime.now(UTC).date().isoformat():
+        # Physical quota is still a hard invariant. This existing full rewrite
+        # remains an explicit freshness limitation pending separate storage work.
+        if trimmed:
             self.db.execute("VACUUM")
+            self.index_schema = self.db.execute('PRAGMA schema_version').fetchone()[0]
             self.set_state("vacuum:day", datetime.now(UTC).date().isoformat()); self.db.commit()
         def active_bytes():
             # Retired immutable files protect in-flight 120-second readers;
@@ -1389,6 +1558,7 @@ class Collector:
             while segments and total > target: evict()
             self.prune_database_observations()
             self.db.commit(); self.db.execute("VACUUM"); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            self.index_schema = self.db.execute('PRAGMA schema_version').fetchone()[0]
         sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
         for source in sources:
             current = datetime.now(UTC)
@@ -1411,6 +1581,10 @@ class Collector:
         self.set_state("segments", {s["file"]: s for s in segments})
         self.set_state("classification:system_metadata", {s['file']: system_metadata[s['file']] for s in segments if s['file'] in system_metadata})
         self.set_state("retired:segments", retired)
+        for name in retired:
+            if name in previous: retired_metadata[name] = previous[name]
+            elif name in self.verified_metadata: retired_metadata[name] = self.verified_metadata[name]
+        self.set_state('retired:metadata', retired_metadata)
         self.set_state("evicted:sources", evicted)
         if trimmed: self.set_state("trimmedAt", now())
         self.db.commit(); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
@@ -1443,8 +1617,14 @@ class Collector:
                             detail='Resource coverage incomplete; inspect durable dropped/expired/quota counters')
                     elif len(acknowledged) != len(getattr(self, 'metrics_pending', [])):
                         source.update(state='pending', detail='Resource samples remain in durable spool until retained catalog publication')
-        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), sources=sources, segments=segments)
+        self.db.execute('DELETE FROM history_mapping_changes')
+        self.db.commit()
+        audit = self.state('history:audit', {})
+        audit_public = {k:v for k,v in audit.items() if k not in ('boundary',)}
+        if audit and audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0): audit_public['state'] = 'overdue'
+        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), historyAudit=audit_public, sources=sources, segments=segments)
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
+        self.verified_metadata = {s['file']: s for s in segments}
         # The resource spool remains replayable until both index and catalog
         # are durable. A failure above must never acknowledge unpublished data.
         if getattr(self, 'sampler', None) and self.sampler.spool:
@@ -1538,6 +1718,7 @@ class Collector:
 
     def sample_resources(self, ids, postgres, previous):
         # Runs on producer thread: never access state()/db/status()/add().
+        memory_deadline = time.monotonic() + CAPTURE_SECONDS
         previous = dict(previous)
         measured = now()
         metrics = dict(kind="runtime_metrics", module="system", sampledAt=measured, host={},
@@ -1552,7 +1733,8 @@ class Collector:
                 memory = Memory(); memory.length = ctypes.sizeof(memory)
                 if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
                     metrics["host"].update(memoryTotalBytes=memory.total, memoryAvailableBytes=memory.available,
-                        commitLimitBytes=memory.pageTotal, commitAvailableBytes=memory.pageAvailable)
+                        commitLimitBytes=memory.pageTotal, commitAvailableBytes=memory.pageAvailable,
+                        memoryCommittedBytes=memory.pageTotal-memory.pageAvailable)
                 idle, kernel, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
                 if ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
                     value = lambda v: v.dwHighDateTime*2**32+v.dwLowDateTime
@@ -1569,6 +1751,7 @@ class Collector:
                 metrics["host"]["loadAverage"] = list(os.getloadavg())
             else:
                 metrics.setdefault('failedComponents', []).append('host')
+            metrics['host']['memoryDiagnostics'] = capture_memory(deadline=memory_deadline)
             warnings = resource_warnings(metrics['host'])
             if warnings: metrics.update(resourceWarnings=warnings, level='warn')
             if ids:
@@ -1602,11 +1785,23 @@ def write_collector_health(root, state, last_success=None, detail="", duration=N
         try: last_success = json.loads(target.read_text(encoding="utf-8")).get("lastSuccessAt")
         except (OSError, ValueError): pass
     value = dict(version=1, state=state, checkedAt=now(), lastSuccessAt=last_success, detail=clean(str(detail))[:500], durationMs=duration)
+    catalog_path = store/'catalog.json'
+    if catalog_path.exists():
+        try:
+            audit = json.loads(catalog_path.read_text(encoding='utf-8')).get('historyAudit')
+            if isinstance(audit, dict):
+                value['historyAudit'] = audit
+                if audit.get('incomplete') or audit.get('state') != 'complete' and time.time() > audit.get('deadline', 0):
+                    value.update(state='error', detail='Retained history audit overdue; integrity coverage incomplete')
+                    value['historyAudit']['state'] = 'overdue'
+        except (OSError, ValueError, TypeError):
+            value.update(state='error', detail='Retained history audit status unavailable')
     if sources is not None:
         applicable = [s for s in sources if s.get('applicable', True)]
         value['excludedNotApplicable'] = len(sources) - len(applicable)
         value['sourceStates'] = {state: sum(s.get('state') == state for s in applicable) for state in ('ok', 'pending', 'unavailable', 'error')}
         value['coverageComplete'] = bool(applicable) and not any(s.get('state') != 'ok' or s.get('possibleCoverageGap') for s in applicable)
+        if value['state'] == 'error': value['coverageComplete'] = False
     atomic_bytes(target, json.dumps(value, ensure_ascii=False).encode('utf-8'))
 
 

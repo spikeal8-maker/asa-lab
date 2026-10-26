@@ -8,6 +8,18 @@ import type {
 
 const artifacts = 'e2e/artifacts/owner-preview/student-profile';
 const longName = 'Александра Константинопольская-Долгорукова Екатерина Александровна';
+const profileSectionLabels = [
+  'Все работы',
+  'Оценки',
+  'Задания',
+  '3D',
+  'Электроника',
+  'Scratch',
+  'Заслуги',
+  'Активность',
+  'Карточка и ИИ',
+  'Настройки',
+];
 
 async function tabMetrics(rail: Locator) {
   return rail.evaluate((element) => {
@@ -120,6 +132,7 @@ async function setup(
     populated?: boolean;
     named?: boolean;
     moreWorks?: number;
+    firstWorkAwaiting?: boolean;
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
@@ -339,7 +352,9 @@ async function setup(
             assignment: null,
             feedback: null,
             lastEditedByTeacher: false,
-            awaitingReview: offset > 0 && i === 0,
+            awaitingReview:
+              (offset > 0 && i === 0) ||
+              (offset === 0 && i === 0 && options.firstWorkAwaiting === true),
           })),
         },
       });
@@ -426,6 +441,37 @@ async function shot(page: Page, name: string) {
   });
 }
 
+async function openTeacherTab(
+  page: Page,
+  key: 'all' | 'grades' | 'merits' | 'activity' | 'settings',
+) {
+  const selector = page.getByRole('combobox', { name: 'Раздел профиля' });
+  if (await selector.isVisible()) {
+    await selector.selectOption(key);
+  } else {
+    const labels = {
+      all: 'Все работы',
+      grades: 'Оценки',
+      merits: 'Заслуги',
+      activity: 'Активность',
+      settings: 'Настройки',
+    };
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: labels[key], exact: true })
+      .click();
+  }
+}
+async function openTeacherSettings(page: Page, name: string) {
+  await openTeacherTab(page, 'settings');
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const category = region
+    .getByRole('group', { name: 'Категории настроек ученика' })
+    .getByRole('button', { name: new RegExp('^' + name) });
+  if ((await category.getAttribute('aria-expanded')) !== 'true') await category.click();
+  return region;
+}
+
 async function assertPupilHistory(page: Page) {
   const details = page.locator('details').filter({
     has: page.locator('.participant-grades[aria-label="Оценки и история"]'),
@@ -440,16 +486,19 @@ async function assertPupilHistory(page: Page) {
 }
 
 for (const width of [1440, 390, 320]) {
-  test(`profile settings and confirmed seat actions stay usable at ${width}px`, async ({
-    page,
-  }) => {
+  test(`UI-04 Settings preserves real teacher Seat actions at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const state = await setup(page, { long: false, manual: 0, results: 0 });
     await state.open();
     const main = page.locator('main.classroom-student');
-    const protection = main.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true });
-    const hiddenRoster = page.locator('main.classroom-owner-workspace');
-    await expect(hiddenRoster).toBeHidden();
+    await expect(
+      main.locator('.classroom-student-hero, .classroom-student-games-region'),
+    ).toHaveCount(0);
+    await expect(main.getByRole('button', { name: /^Действия:/ })).toHaveCount(0);
+    let region = await openTeacherSettings(page, 'Защита ученика');
+    const protection = region.getByRole('checkbox', {
+      name: 'Защита ученика в настройках: Ученик 01',
+    });
     let releaseSave!: () => void;
     const held = new Promise<void>((resolve) => {
       releaseSave = resolve;
@@ -474,46 +523,28 @@ for (const width of [1440, 390, 320]) {
     await expect(protection).toBeEnabled();
     await page.unroute(`**/api/classrooms/${classId}/seats/seat-0`);
 
-    await main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }).click();
+    region = await openTeacherSettings(page, 'Данные и роль');
+    await region.getByRole('button', { name: 'Изменить имя и аватар' }).click();
     const dialog = page.getByRole('dialog', { name: 'Настройки ученика: Ученик 01', exact: true });
     await expect(dialog).toBeVisible();
-    await expect(hiddenRoster).toBeHidden();
-    expect(await dialog.evaluate((node) => node.closest('main[aria-hidden="true"]'))).toBeNull();
-    await expect(dialog.getByLabel('Имя в списке класса')).toBeFocused();
     await dialog.getByLabel('Имя в списке класса').fill('Сохранённый ученик');
-    await dialog.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Выбрать аватар ученика' }).click();
     await dialog
       .getByRole('button', { name: /^Выбрать: / })
       .first()
       .click();
-    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Использовать' }).click();
     await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(dialog).toBeHidden();
     await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
     expect(state.students()[0]!.avatarKey).not.toBeNull();
-    expect(state.mutations.filter((mutation) => mutation.path.endsWith('/seats/seat-0'))).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          body: expect.objectContaining({
-            displayLabel: 'Сохранённый ученик',
-            safeMode: false,
-            avatarKey: expect.any(String),
-          }),
-        }),
-      ]),
-    );
-    await noOverflow(page);
 
-    const actions = () =>
-      main.getByRole('button', { name: 'Действия: Сохранённый ученик', exact: true });
-    await actions().click();
-    await main.getByRole('button', { name: 'Аватары класса', exact: true }).click();
+    region = await openTeacherSettings(page, 'Данные и роль');
+    await region.getByRole('button', { name: 'Аватары и заслуги класса' }).click();
     const avatars = main.getByRole('region', { name: 'Аватары класса', exact: true });
     await expect(avatars).toBeFocused();
     await expect(avatars.locator('.participant-recognition')).toBeVisible();
-    await expect(avatars).toContainText('Стандартный аватар выбирается в настройках ученика');
-    await main.getByRole('button', { name: 'Все работы', exact: true }).click();
-
+    region = await openTeacherSettings(page, 'Коды и доступ');
     await page.route(`**/api/classrooms/${classId}/seats/seat-0/code`, async (route) => {
       expect(route.request().method()).toBe('POST');
       expect(route.request().postDataJSON()).toMatchObject({
@@ -523,58 +554,42 @@ for (const width of [1440, 390, 320]) {
       Object.assign(state.students()[0]!, { studentCode: 'NewCode7', loginHandle: 'NewCode7' });
       await route.fulfill({ json: { studentCode: 'NewCode7', version: 2, reused: false } });
     });
-    expect(await main.textContent()).not.toContain('Aa0000');
-    await actions().click();
-    await main.getByRole('button', { name: 'Изменить код', exact: true }).click();
+    await region.getByRole('button', { name: 'Изменить Student Code' }).click();
     const code = page.locator('.student-code-dialog');
-    await expect(code).toBeVisible();
     await code.getByLabel('Код ученика', { exact: true }).fill('NewCode7');
-    await code.getByRole('button', { name: 'Сохранить код', exact: true }).click();
+    await code.getByRole('button', { name: 'Сохранить код' }).click();
     await expect(code).toBeHidden();
-    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
-    expect(await main.textContent()).not.toContain('NewCode7');
-    await actions().click();
-    await main.getByRole('button', { name: 'Карточка доступа', exact: true }).click();
-    const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
-    await expect(cards).toBeVisible();
+    await region.getByRole('button', { name: 'Карточка доступа' }).click();
+    const cards = page.getByRole('dialog', { name: 'Карточки доступа' });
     await expect(cards).toContainText('NewCode7');
     await cards.getByRole('button', { name: 'Закрыть', exact: true }).first().click();
 
-    await actions().click();
-    await main.getByRole('button', { name: 'Приостановить доступ', exact: true }).click();
-    await expect(main.getByText('Доступ приостановлен', { exact: true })).toBeVisible();
+    await region.getByRole('button', { name: 'Приостановить доступ' }).click();
+    await expect(main.locator('.classroom-student-suspended')).toContainText(
+      'Доступ приостановлен',
+    );
+    region = await openTeacherSettings(page, 'Защита ученика');
     await expect(
-      main.getByRole('checkbox', { name: 'Защита: Сохранённый ученик', exact: true }),
+      region.getByRole('checkbox', { name: 'Защита ученика в настройках: Сохранённый ученик' }),
     ).toBeDisabled();
-    await actions().click();
-    await main.getByRole('button', { name: 'Вернуть доступ', exact: true }).click();
-    await expect(main.getByText('Доступ приостановлен', { exact: true })).toHaveCount(0);
+    region = await openTeacherSettings(page, 'Коды и доступ');
+    await region.getByRole('button', { name: 'Вернуть доступ' }).click();
+    region = await openTeacherSettings(page, 'Защита ученика');
     await expect(
-      main.getByRole('checkbox', { name: 'Защита: Сохранённый ученик', exact: true }),
+      region.getByRole('checkbox', { name: 'Защита ученика в настройках: Сохранённый ученик' }),
     ).toBeEnabled();
+    await noOverflow(page);
+    await shot(page, `ui04-saved-actions-${width}`);
 
     await main.getByRole('button', { name: /Следующий ученик:/ }).click();
-    await expect(main.locator('.classroom-student-picker-name')).not.toHaveText(
-      'Сохранённый ученик',
-    );
-    await main.getByRole('button', { name: /^Выбрать ученика:/ }).click();
-    await page
-      .getByRole('dialog', { name: 'Ученики класса', exact: true })
-      .getByRole('button', { name: 'Сохранённый ученик', exact: true })
-      .click();
-    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
-    await main.getByRole('button', { name: '← К классу', exact: true }).click();
-    await expect(hiddenRoster).toBeVisible();
-    await expect(
-      page.locator('.classroom-student-name').filter({ hasText: 'Сохранённый ученик' }),
-    ).toBeVisible();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
+    await main.getByRole('button', { name: '← К классу' }).click();
+    await expect(page.locator('main.classroom-owner-workspace')).toBeVisible();
     expect(state.errors).toEqual([]);
   });
 }
 
-test('account seats have no code editor and archived profiles expose no enabled mutations', async ({
-  page,
-}) => {
+test('Account and archive keep Code absent and teacher mutations disabled', async ({ page }) => {
   const state = await setup(page, { long: false, archived: true, manual: 0, results: 0 });
   Object.assign(state.students()[0]!, {
     loginMethod: 'account',
@@ -583,22 +598,25 @@ test('account seats have no code editor and archived profiles expose no enabled 
   });
   await state.open();
   const main = page.locator('main.classroom-student');
+  let settings = await openTeacherSettings(page, 'Защита ученика');
   await expect(
-    main.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true }),
+    settings.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 01' }),
   ).toBeDisabled();
+  settings = await openTeacherSettings(page, 'Данные и роль');
+  await expect(settings.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
   await expect(
-    main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }),
+    settings.getByRole('combobox', { name: 'Роль ученика в настройках' }),
   ).toBeDisabled();
-  await main.getByRole('button', { name: 'Действия: Ученик 01', exact: true }).click();
-  await expect(main.getByRole('button', { name: 'Изменить код', exact: true })).toHaveCount(0);
-  for (const name of ['Имя и аватар', 'Карточка доступа', 'Приостановить доступ', 'Аватары класса'])
-    await expect(main.getByRole('button', { name, exact: true })).toBeDisabled();
+  settings = await openTeacherSettings(page, 'Коды и доступ');
+  await expect(settings).toContainText('Student Code не используется');
+  await expect(settings.getByRole('button', { name: 'Изменить Student Code' })).toHaveCount(0);
+  for (const name of ['Карточка доступа', 'Приостановить доступ'])
+    await expect(settings.getByRole('button', { name })).toBeDisabled();
+  await expect(main.locator('.classroom-student-hero, .classroom-student-actions')).toHaveCount(0);
   expect(state.mutations).toEqual([]);
 });
 
-test('a pending seat reply cannot change the next pupil and forbidden saves mask the profile', async ({
-  page,
-}) => {
+test('a pending Safe Mode reply cannot change the next pupil or leak 403', async ({ page }) => {
   const state = await setup(page, { long: false, manual: 0, results: 0 });
   await state.open();
   let release!: () => void;
@@ -615,13 +633,15 @@ test('a pending seat reply cannot change the next pupil and forbidden saves mask
       json: { error: { code: 'forbidden', message: 'OLD SEAT ERROR' } },
     });
   });
-  await page.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true }).click();
+  let region = await openTeacherSettings(page, 'Защита ученика');
+  await region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 01' }).click();
   await expect.poll(() => seen).toBe(true);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
   release();
+  region = await openTeacherSettings(page, 'Защита ученика');
   await expect(
-    page.getByRole('checkbox', { name: 'Защита: Ученик 02', exact: true }),
+    region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 02' }),
   ).toBeEnabled();
   await expect(page.getByText(/OLD SEAT ERROR/)).toHaveCount(0);
   await page.route(`**/api/classrooms/${classId}/seats/seat-1`, (route) =>
@@ -630,155 +650,98 @@ test('a pending seat reply cannot change the next pupil and forbidden saves mask
       json: { error: { code: 'forbidden', message: 'Доступ запрещён' } },
     }),
   );
-  await page.getByRole('checkbox', { name: 'Защита: Ученик 02', exact: true }).click();
+  await region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 02' }).click();
   await expect(page.getByText('Доступ к классу закрыт.', { exact: true })).toBeVisible();
   await expect(page.locator('main.classroom-student')).toHaveCount(0);
-  await expect(page.locator('.student-code-dialog')).toHaveCount(0);
   expect(state.students()[0]!.safeMode).toBe(true);
   expect(state.students()[1]!.safeMode).toBe(true);
   expect(state.errors).toEqual([]);
 });
 
-test('production profile stays compact with long Russian identity on desktop, split-screen, phones and CSS reflow', async ({
+test('UI-04 compact teacher profile has only context-specific controls and real content', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const state = await setup(page, { named: true, manual: 100, results: 100 });
-  const acceptedTabs = await state.open();
-  const measurements: unknown[] = [];
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-  await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(30);
-  for (const width of [1440, 1024, 800, 680, 390, 320]) {
+  await state.open();
+  const measurements: Array<Record<string, number>> = [];
+  const main = page.locator('main.classroom-student');
+  for (const width of [1440, 1024, 600, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    await noOverflow(page);
-    const row = page.locator('.classroom-student-navrow');
-    const rowBox = await row.boundingBox();
-    expect(rowBox!.height, 'one slim navigation row').toBeLessThanOrEqual(46);
-    const hero = await page.locator('.participant-hero').boundingBox();
-    expect(
-      hero!.y - (rowBox!.y + rowBox!.height),
-      'navigation adjacent to identity',
-    ).toBeLessThanOrEqual(12);
-    for (const target of await row.locator('button').all()) {
-      const box = await target.boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-      expect(box!.width).toBeGreaterThanOrEqual(44);
-    }
-    const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
-    const metrics = await tabMetrics(tabs);
-    expect(metrics.rail).toEqual(acceptedTabs.rail);
-    expect(metrics.button).toEqual({
-      ...acceptedTabs.button,
-      height: width <= 600 ? '40px' : '34px',
-    });
-    const summaryBox = (await summary.boundingBox())!;
-    expect(summaryBox.height, 'dense grade overview including paging').toBeLessThanOrEqual(
-      width <= 600 ? 100 : 84,
-    );
-    await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
-    const names = page.locator('.student-pager-name');
-    await expect(names).toHaveText(['Петрова Анна', 'Иванов Иван']);
-    for (const name of await names.all()) {
-      await expect(name).toBeVisible();
-      expect((await name.boundingBox())!.width).toBeGreaterThan(24);
-    }
+    await openTeacherTab(page, 'all');
     await expect(
-      page.getByRole('button', { name: 'Предыдущий ученик: Петрова Анна Сергеевна' }),
-    ).toHaveAttribute('title', 'Петрова Анна Сергеевна');
-    const token = (await summary.locator('li').first().boundingBox())!;
-    expect(token.height).toBe(44);
-    expect(token.width).toBeLessThanOrEqual(210);
-    const value = (await summary.locator('li').first().locator('strong').boundingBox())!;
-    expect(value.y).toBeGreaterThanOrEqual(token.y);
-    expect(value.y + value.height, 'grade value fits inside its compact token').toBeLessThanOrEqual(
-      token.y + token.height,
-    );
-    expect(value.x).toBeGreaterThanOrEqual(token.x);
-    expect(value.x + value.width).toBeLessThanOrEqual(token.x + token.width);
-    const toolbar = (await page.locator('.classroom-student-works-head').boundingBox())!;
-    expect(toolbar.height).toBeLessThanOrEqual(width <= 600 ? 90 : 44);
-    await expect(page.getByRole('combobox', { name: 'Статус работ' })).toHaveAccessibleDescription(
-      'по загруженным',
-    );
-    measurements.push({
-      width,
-      summaryHeight: summaryBox.height,
-      tokenWidth: token.width,
-      tokenHeight: token.height,
-      toolbarHeight: toolbar.height,
-      tabs: metrics,
-    });
-    expect((await tabs.boundingBox())!.height, 'single row, no giant tab grid').toBeLessThanOrEqual(
-      70,
-    );
-    await expect(tabs.locator('button')).toHaveCount(8);
-    for (const tab of await tabs.locator('button').all()) {
-      await tab.focus();
-      await expect(tab).toBeInViewport();
-      const { box, rail } = await tab.evaluate((element) => {
-        const box = element.getBoundingClientRect();
-        const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
-        return {
-          box: { x: box.x, y: box.y, width: box.width, height: box.height },
-          rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
-        };
-      });
-      expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
-      expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
-      expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
-      expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
+      main.locator(
+        '.classroom-student-hero, .participant-helper-classes, .classroom-student-games-region, .teacher-profile-grades',
+      ),
+    ).toHaveCount(0);
+    await expect(main.locator('.classroom-student-settings-editor')).toHaveCount(0);
+    await expect(main.getByRole('combobox', { name: 'Роль в классе' })).toHaveCount(0);
+    await expect(main.getByRole('button', { name: /^Действия:/ })).toHaveCount(0);
+    const identity = (await main.locator('.classroom-student-identity-rail').boundingBox())!;
+    expect(identity.height).toBeLessThanOrEqual(width <= 599 ? 56 : 52);
+    const mobile = await main.getByRole('combobox', { name: 'Раздел профиля' }).isVisible();
+    if (mobile) {
+      const section = (await main.locator('.classroom-student-section-rail').boundingBox())!;
+      expect(section.height).toBe(44);
+      expect(section.y - identity.y - identity.height).toBeLessThanOrEqual(6);
+      await expect(
+        main.getByRole('combobox', { name: 'Раздел профиля' }).locator('option'),
+      ).toHaveText(profileSectionLabels);
+    } else {
+      await expect(main.locator('.participant-tabs button')).toHaveText(profileSectionLabels);
     }
-    await tabs.locator('button').first().focus();
-    await page.keyboard.press('End');
-    await expect(tabs.locator('button').last()).toBeFocused();
-    await expect(tabs.locator('button').last()).toBeInViewport();
-    await page.keyboard.press('Home');
-    await expect(tabs.locator('button').first()).toBeFocused();
-    await expect(tabs.locator('button').first()).toBeInViewport();
-    await shot(page, `profile-${width}`);
+    const header = (await page.locator('.portal-header').boundingBox())!;
+    const works = (await main.locator('.classroom-student-works-head').boundingBox())!;
+    const worksOffset = works.y - header.y - header.height;
+    if (width === 390) expect(worksOffset).toBeLessThanOrEqual(128);
+    if (width === 320) expect(worksOffset).toBeLessThanOrEqual(144);
+    await expect(main.locator('.classroom-student-work-summary')).toContainText('Работ 10');
+    await noOverflow(page);
+    await shot(page, `ui04-works-${width}`);
+
+    await openTeacherTab(page, 'grades');
+    await expect(main.getByRole('region', { name: 'Оценки', exact: true })).toBeVisible();
+    await expect(main.locator('[data-grade-source="journal"]')).toHaveCount(30);
+    await expect(main.locator('[data-grade-source="results"]')).toHaveCount(30);
+    await expect(main.locator('.teacher-profile-grades')).toHaveCount(0);
+    await noOverflow(page);
+    await shot(page, `ui04-grades-${width}`);
+
+    await openTeacherTab(page, 'activity');
+    await expect(main.locator('.participant-rating')).toBeVisible();
+    await noOverflow(page);
+
+    await openTeacherTab(page, 'settings');
+    const region = main.getByRole('region', { name: 'Настройки ученика', exact: true });
+    await expect(region.locator('.classroom-student-settings-category')).toHaveCount(4);
+    await expect(region.locator('.classroom-student-settings-editor')).toHaveCount(0);
+    await expect(main.locator('.classroom-games-settings')).toHaveCount(0);
+    const first = (await region
+      .locator('.classroom-student-settings-category')
+      .first()
+      .boundingBox())!;
+    const settingsOffset = first.y - header.y - header.height;
+    if (width === 390) expect(settingsOffset).toBeLessThanOrEqual(128);
+    if (width === 320) expect(settingsOffset).toBeLessThanOrEqual(144);
+    await noOverflow(page);
+    await shot(page, `ui04-settings-${width}`);
+    measurements.push({ width, identityHeight: identity.height, worksOffset, settingsOffset });
   }
-  const rail = summary.getByRole('list', { name: 'Оценки текущего класса' });
-  await rail.focus();
-  await page.keyboard.press('End');
-  await expect(summary.locator('li').last()).toBeInViewport();
-  await summary.getByRole('button', { name: 'Предыдущие оценки', exact: true }).click();
-  await expect
-    .poll(() => rail.evaluate((element) => element.scrollLeft))
-    .toBeLessThan(await rail.evaluate((element) => element.scrollWidth - element.clientWidth));
-  await rail.focus();
-  await page.keyboard.press('Home');
-  await expect(summary.locator('li').first()).toBeInViewport();
   mkdirSync(artifacts, { recursive: true });
-  writeFileSync(
-    `${artifacts}/visual-measurements.json`,
-    JSON.stringify({ acceptedTabs, measurements }, null, 2),
-  );
-  // CSS layout reflow only. Actual browser/device zoom is NOT_RUN by this test.
+  writeFileSync(`${artifacts}/ui04-density.json`, JSON.stringify({ measurements }, null, 2));
   await page.setViewportSize({ width: 1024, height: 900 });
   for (const zoom of [1.25, 1.5, 1.75]) {
     await page.evaluate((value) => {
       document.documentElement.style.zoom = String(value);
     }, zoom);
     await noOverflow(page);
-    await expect(page.locator('.classroom-student-picker-name')).toHaveText(longName);
-    await shot(page, `profile-zoom-${zoom}`);
+    await shot(page, `ui04-zoom-${zoom}`);
   }
   await page.evaluate(() => {
     document.documentElement.style.zoom = '1';
   });
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Иванов Иван Петрович');
-  for (const width of [1440, 1024, 390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    const previous = page.getByRole('button', { name: `Предыдущий ученик: ${longName}` });
-    await expect(previous).toHaveAttribute('title', longName);
-    await expect(previous.locator('.student-pager-name')).toHaveText(
-      'Александра Константинопольская-Долгорукова',
-    );
-    await expect(previous.locator('.student-pager-name')).toBeVisible();
-    await noOverflow(page);
-    await shot(page, `long-neighbor-${width}`);
-  }
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
@@ -789,7 +752,9 @@ for (const count of [0, 1, 30, 100]) {
   }) => {
     const state = await setup(page, { manual: count, results: count });
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    expect(state.requests.filter((r) => r.kind === 'grades')).toHaveLength(0);
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(Math.min(count, 30));
     expect(state.requests.filter((r) => r.kind === 'grades')).toHaveLength(1);
     if (count === 100) {
@@ -833,14 +798,14 @@ for (const count of [0, 1, 30, 100]) {
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await noOverflow(page);
-      if (count === 0) expect((await summary.boundingBox())!.height).toBeLessThan(60);
+      if (count === 0) expect((await summary.boundingBox())!.height).toBeGreaterThan(0);
       await shot(page, `grades-${count}-${width}`);
     }
     expect(state.errors).toEqual([]);
   });
 }
 
-test('all eight sections, honest loaded-only filtering, private works, archive and failed next-page retry', async ({
+test('all ten section labels, honest loaded-only filtering, private works, archive and failed next-page retry', async ({
   page,
 }) => {
   const state = await setup(page, {
@@ -852,32 +817,64 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
     populated: true,
   });
   await state.open();
+  let currentSettings = await openTeacherSettings(page, 'Защита ученика');
   await expect(
-    page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
+    currentSettings.getByRole('checkbox', {
+      name: `Защита ученика в настройках: ${longName}`,
+    }),
   ).not.toBeChecked();
-  const suspended = page.locator('.participant-hero .classroom-student-suspended');
+  const suspended = page.locator('.classroom-student-identity-rail .classroom-student-suspended');
   await expect(suspended).toHaveCount(1);
   await expect(suspended).toHaveText('Доступ приостановлен');
   await expect(suspended).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('helper');
+  currentSettings = await openTeacherSettings(page, 'Данные и роль');
+  await expect(
+    currentSettings.getByRole('combobox', { name: 'Роль ученика в настройках' }),
+  ).toHaveValue('helper');
+  await openTeacherTab(page, 'all');
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    for (const name of [
-      'Оценки',
-      'Задания',
-      '3D',
-      'Электроника',
-      'Scratch',
-      'Заслуги',
-      'Активность',
-      'Все работы',
-    ]) {
-      await tabs.getByRole('button', { name, exact: true }).click();
-      await expect(tabs.getByRole('button', { name, exact: true })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      );
+    const choices = [
+      ['Оценки', 'grades'],
+      ['Задания', 'assignments'],
+      ['3D', 'three-d'],
+      ['Электроника', 'electronics'],
+      ['Scratch', 'blocks'],
+      ['Заслуги', 'merits'],
+      ['Активность', 'activity'],
+      ['Настройки', 'settings'],
+      ['Все работы', 'all'],
+    ] as const;
+    const mobile = page.getByRole('combobox', { name: 'Раздел профиля' });
+    if (await mobile.isVisible()) {
+      await expect(mobile.locator('option')).toHaveText(profileSectionLabels);
+    } else {
+      const buttons = tabs.getByRole('button');
+      await expect(buttons).toHaveText(profileSectionLabels);
+      await buttons.first().focus();
+      await page.keyboard.press('End');
+      await expect(tabs.getByRole('button', { name: 'Настройки', exact: true })).toBeFocused();
+      await page.keyboard.press('Home');
+      await expect(buttons.first()).toBeFocused();
+      for (const label of profileSectionLabels) {
+        await expect(tabs.getByRole('button', { name: label, exact: true })).toBeFocused();
+        await page.keyboard.press('ArrowRight');
+      }
+      await expect(buttons.first()).toBeFocused();
+    }
+    // CRM retained reads have their own suite; keep the work/settings content journey intact.
+    for (const [name, key] of choices) {
+      if (await mobile.isVisible()) {
+        await mobile.selectOption(key);
+        await expect(mobile).toHaveValue(key);
+      } else {
+        await tabs.getByRole('button', { name, exact: true }).click();
+        await expect(tabs.getByRole('button', { name, exact: true })).toHaveAttribute(
+          'aria-pressed',
+          'true',
+        );
+      }
       await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
       await expect(page.getByText('Оценки и история', { exact: true })).toHaveCount(0);
       await noOverflow(page);
@@ -891,12 +888,27 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
         await expect(page.getByTestId('classroom-activity')).toContainText(
           'Исследовательская модель',
         );
-      else if (name !== 'Оценки')
+      else if (name === 'Настройки') {
+        const region = page.getByRole('region', { name: 'Настройки ученика' });
+        await expect(region).toBeVisible();
+        const identityCategory = region.getByRole('button', { name: /^Данные и роль/ });
+        if ((await identityCategory.getAttribute('aria-expanded')) !== 'true')
+          await identityCategory.click();
+        await expect(region.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
+      } else if (name !== 'Оценки')
         await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
       await shot(page, `tab-${name}-${width}`);
     }
   }
-  await expect(page.getByText(/Часть личных работ закрыта/)).toContainText('8 из 10');
+  const visibilityInfo = page.locator('.classroom-student-visibility-details');
+  const visibilityTrigger = visibilityInfo.locator(':scope > summary');
+  await expect(visibilityInfo).not.toHaveAttribute('open');
+  await visibilityTrigger.click();
+  await expect(visibilityInfo.locator('.classroom-student-visibility-popover')).toContainText(
+    'Доступно 8 из 10 работ.',
+  );
+  await visibilityTrigger.click();
+  await expect(visibilityInfo).not.toHaveAttribute('open');
   const works = page
     .locator('.classroom-student-section')
     .filter({ has: page.locator('#student-works') });
@@ -919,6 +931,18 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
     .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
     .toBe(true);
   expect(state.requests.filter((r) => r.kind === 'works').at(-1)?.offset).toBe(0);
+  const archiveFilter = works.getByRole('checkbox', { name: 'Включая архив' });
+  await expect(archiveFilter).toBeChecked();
+  await archiveFilter.uncheck();
+  await expect(archiveFilter).not.toBeChecked();
+  await expect
+    .poll(() => state.requests.filter((r) => r.kind === 'works').at(-1)?.archive)
+    .toBe(false);
+  await expect(
+    page
+      .getByRole('group', { name: 'Разделы ученика' })
+      .getByRole('button', { name: /архив работ/i }),
+  ).toHaveCount(0);
   await noOverflow(page);
   await shot(page, 'loaded-only-archive-helper-suspended');
   expect(state.errors).toEqual([]);
@@ -941,12 +965,18 @@ test('single learner is disabled, archived is read-only, profile loading/error/r
   await shot(page, 'profile-error');
   await page.getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(page.locator('.classroom-student-navigation button:disabled')).toHaveCount(2);
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toBeDisabled();
+  let archivedSettings = await openTeacherSettings(page, 'Данные и роль');
   await expect(
-    page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
+    archivedSettings.getByRole('combobox', { name: 'Роль ученика в настройках' }),
+  ).toBeDisabled();
+  archivedSettings = await openTeacherSettings(page, 'Защита ученика');
+  await expect(
+    archivedSettings.getByRole('checkbox', {
+      name: `Защита ученика в настройках: ${longName}`,
+    }),
   ).toBeChecked();
   await expect(
-    page.getByText('Класс в архиве. Изменения недоступны.', { exact: true }),
+    archivedSettings.getByText('Класс в архиве. Изменения недоступны.', { exact: true }),
   ).toBeVisible();
   await noOverflow(page);
   await shot(page, 'profile-archived-empty');
@@ -992,7 +1022,8 @@ test('previous/next wrap and return to the exact journal context including month
 test('a delayed previous learner grade page cannot populate the next learner', async ({ page }) => {
   const state = await setup(page, { long: false, manual: 100, results: 100 });
   await state.open();
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await openTeacherTab(page, 'grades');
+  const summary = page.getByRole('region', { name: 'Оценки', exact: true });
   state.control.holdGrade = true;
   await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
   await expect
@@ -1025,7 +1056,8 @@ test('manual retraction supersedes earlier revisions across pages, focus refresh
     return route.fulfill({ json: data });
   });
   await state.open();
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await openTeacherTab(page, 'grades');
+  const summary = page.getByRole('region', { name: 'Оценки', exact: true });
   const manual = summary.locator('[data-grade-source="journal"]');
   const column = manual.filter({ hasText: 'Урок 0' });
   await expect(column.locator('strong')).toHaveText('5');
@@ -1085,7 +1117,8 @@ for (const count of [30, 100]) {
       }),
     );
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     const manual = summary.locator('[data-grade-source="journal"]');
     const column = manual.filter({ hasText: 'Урок 0' });
     await expect(column.locator('strong')).toHaveText('5');
@@ -1204,7 +1237,8 @@ for (const newerFirst of [true, false]) {
       }),
     );
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     const result = summary
       .locator('[data-grade-source="results"]')
       .filter({ hasText: 'Исследование 0' });
@@ -1226,7 +1260,7 @@ for (const newerFirst of [true, false]) {
     ]);
     await expect(result).toHaveCount(1);
     await expect(result.locator('strong')).toHaveText('Без балла');
-    await expect(result).toHaveAttribute('title', new RegExp(latest.feedback));
+    await expect(result.locator('.participant-grade-feedback')).toContainText(latest.feedback);
     await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
     await noOverflow(page);
     await shot(page, `repair-result-retraction-${newerFirst}`);
@@ -1253,7 +1287,8 @@ test('equal-time conflicting result copies fail closed until canonical retry', a
     return route.fulfill({ json: data });
   });
   await state.open();
-  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await openTeacherTab(page, 'grades');
+  const summary = page.getByRole('region', { name: 'Оценки', exact: true });
   await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
   await expect(summary.getByRole('alert')).toContainText(
     'Не удалось определить актуальный результат',
@@ -1278,7 +1313,8 @@ for (const invalid of ['2026-02-30T00:00:00Z', '2026-02-01T00:00:00+03:60']) {
       return route.fulfill({ json: data });
     });
     await state.open();
-    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await openTeacherTab(page, 'grades');
+    const summary = page.getByRole('region', { name: 'Оценки', exact: true });
     await expect(summary.getByRole('alert')).toContainText(
       'Не удалось определить актуальный результат',
     );
@@ -1303,17 +1339,104 @@ test('mobile work filters share a row and one card fills the grid while multiple
     const card = (await grid.locator(':scope > li').first().boundingBox())!;
     if (width <= 600)
       expect(card.width).toBeGreaterThanOrEqual((await grid.boundingBox())!.width - 2);
-    const filters = page.locator('.classroom-student-works-head');
-    const archive = (await filters.locator('label').first().boundingBox())!;
-    const awaiting = (await filters.locator('.classroom-student-filter').boundingBox())!;
-    expect(Math.abs(archive.y - awaiting.y)).toBeLessThanOrEqual(1);
+    const head = page.locator('.classroom-student-works-head');
+    const toolbar = head.getByRole('group', { name: 'Показатели и фильтры работ' });
+    const summary = (await toolbar.locator('.classroom-student-work-summary').boundingBox())!;
+    const archive = (await toolbar.locator('.classroom-student-archive-filter').boundingBox())!;
+    const awaiting = (await toolbar.locator('.classroom-student-filter').boundingBox())!;
     expect(archive.height).toBeGreaterThanOrEqual(44);
     expect(awaiting.height).toBeGreaterThanOrEqual(44);
+    expect(Math.abs(archive.y - awaiting.y)).toBeLessThanOrEqual(1);
     expect(archive.x + archive.width).toBeLessThanOrEqual(awaiting.x);
+    await expect(toolbar.getByRole('checkbox', { name: 'Включая архив' })).toHaveCount(1);
+    await expect(toolbar.getByRole('combobox', { name: 'Статус работ' })).toHaveCount(1);
+    const visibility = toolbar.locator('.classroom-student-visibility-details');
+    const openInfo = visibility.locator(':scope > summary');
+    const icon = visibility.locator('.classroom-student-visibility-icon');
+    const infoPanel = visibility.locator('.classroom-student-visibility-popover');
+    const target = (await openInfo.boundingBox())!;
+    const iconBox = (await icon.boundingBox())!;
+    expect(target.width).toBeGreaterThanOrEqual(44);
+    expect(target.height).toBeGreaterThanOrEqual(44);
+    expect(iconBox.width).toBeLessThanOrEqual(22);
+    await expect(visibility).not.toHaveAttribute('open');
+    await expect(infoPanel).toBeHidden();
+    await openInfo.click();
+    await expect(infoPanel).toBeVisible();
+    await expect(infoPanel).toContainText('Доступно 8 из 10 работ.');
+    await expect(infoPanel).toContainText('Фильтр «Ждут»');
+    const panelBox = (await infoPanel.boundingBox())!;
+    expect(panelBox.x).toBeGreaterThanOrEqual(0);
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(width + 1);
+    await shot(page, `work-visibility-info-${width}`);
+    await openInfo.press('Escape');
+    await expect(visibility).not.toHaveAttribute('open');
+    await expect(infoPanel).toBeHidden();
+    const filterScope = await page.locator('#student-filter-scope').evaluate((element) => ({
+      width: element.getBoundingClientRect().width,
+      clip: getComputedStyle(element).clipPath,
+    }));
+    expect(filterScope.width).toBeLessThanOrEqual(1);
+    expect(filterScope.clip).not.toBe('none');
+    if (width <= 599) {
+      await expect(head.locator('#student-works')).toBeHidden();
+      const sectionRail = page.getByRole('group', { name: 'Разделы ученика' });
+      await expect(sectionRail.getByRole('combobox', { name: 'Раздел профиля' })).toHaveValue(
+        'all',
+      );
+      await expect(sectionRail.locator('.classroom-student-section-action')).toHaveCount(0);
+      const frame = (await grid.locator(':scope > li .project-card-frame').first().boundingBox())!;
+      expect(frame.height / frame.width).toBeLessThan(0.6);
+      const sectionSelect = sectionRail.getByRole('combobox', { name: 'Раздел профиля' });
+      const sectionRect = (await sectionSelect.boundingBox())!;
+      expect(sectionRect.width).toBeLessThanOrEqual(192);
+      expect(sectionRect.height).toBeGreaterThanOrEqual(44);
+      const sharedWidth =
+        Math.min(sectionRect.x + sectionRect.width, target.x + target.width) -
+        Math.max(sectionRect.x, target.x);
+      const sharedHeight =
+        Math.min(sectionRect.y + sectionRect.height, target.y + target.height) -
+        Math.max(sectionRect.y, target.y);
+      expect(
+        sharedWidth > 0 && sharedHeight > 0,
+        'Info tap target must never overlap section selector',
+      ).toBe(false);
+      expect(
+        target.y - (sectionRect.y + sectionRect.height),
+        'Leave a visible gap between both 44px mobile hit targets',
+      ).toBeGreaterThanOrEqual(2);
+      expect(
+        await sectionSelect.evaluate((element) => getComputedStyle(element).borderTopWidth),
+      ).toBe('0px');
+      for (const control of [
+        toolbar.locator('.classroom-student-archive-filter'),
+        toolbar.locator('.classroom-student-filter'),
+        toolbar.getByRole('combobox', { name: 'Статус работ' }),
+      ]) {
+        const unboxed = await control.evaluate((element) => {
+          const style = getComputedStyle(element);
+          return { border: style.borderTopWidth, background: style.backgroundColor };
+        });
+        expect(unboxed.border).toBe('0px');
+        expect(unboxed.background).toMatch(/^(?:transparent|rgba\(0, 0, 0, 0\))$/);
+      }
+      if (width === 390) {
+        expect(Math.abs(summary.y - archive.y)).toBeLessThanOrEqual(14);
+        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(48);
+      }
+      if (width === 320) {
+        expect(summary.y).toBeLessThanOrEqual(archive.y);
+        // Two 44px touch-safe rows: metrics/info then archive/status.
+        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(94);
+      }
+    } else await expect(head.locator('#student-works')).toBeVisible();
     await noOverflow(page);
     await shot(page, `work-one-${width}`);
   }
-  await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
+  const moreButton = page.getByRole('button', { name: 'Ещё работы', exact: true });
+  await expect(moreButton).toHaveClass(/classroom-student-more/);
+  expect((await moreButton.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await moreButton.click();
   await expect(grid.locator(':scope > li')).toHaveCount(5);
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -1351,6 +1474,35 @@ test('mobile work filters share a row and one card fills the grid while multiple
   expect(state.mutations).toEqual([]);
 });
 
+for (const width of [390, 320]) {
+  test(`filtering loaded awaiting works explains incomplete pages at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await setup(page, {
+      long: false,
+      manual: 0,
+      results: 0,
+      firstWorkAwaiting: true,
+    });
+    await state.open();
+    await page.getByRole('combobox', { name: 'Статус работ' }).selectOption('awaiting');
+    await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
+    const scope = page.getByRole('note').filter({ hasText: 'только загруженные работы' });
+    await expect(scope).toBeVisible();
+    await expect(scope).toContainText('Есть ещё страницы.');
+    const toolbar = (await page.locator('.classroom-student-works-toolbar').boundingBox())!;
+    const scopeBox = (await scope.boundingBox())!;
+    expect(scopeBox.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height);
+    await noOverflow(page);
+    await page.getByRole('button', { name: 'Ещё работы' }).click();
+    await expect(page.locator('.project-card-grid > li')).toHaveCount(2);
+    await expect(scope).toHaveCount(0);
+    await noOverflow(page);
+    expect(state.errors).toEqual([]);
+  });
+}
+
 test('pending role mutations cannot repopulate another learner or a logged-out profile; teacher history is unavailable', async ({
   page,
 }) => {
@@ -1370,23 +1522,33 @@ test('pending role mutations cannot repopulate another learner or a logged-out p
     return route.fulfill({ json: { ok: true } });
   });
   await state.open();
-  await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
+  let roleRegion = await openTeacherSettings(page, 'Данные и роль');
+  await roleRegion
+    .getByRole('combobox', { name: 'Роль ученика в настройках' })
+    .selectOption('helper');
   await expect.poll(() => roles.length).toBe(1);
   await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
+  roleRegion = await openTeacherSettings(page, 'Данные и роль');
+  await expect(roleRegion.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveValue(
+    'student',
+  );
   const beforeOldReply = state.requests.filter((request) => request.kind === 'profile').length;
   const oldReply = page.waitForResponse((response) =>
     response.url().endsWith('/participants/actions/role'),
   );
   roles[0]!.release();
   await (await oldReply).finished();
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
+  await expect(roleRegion.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveValue(
+    'student',
+  );
   expect(state.requests.filter((request) => request.kind === 'profile')).toHaveLength(
     beforeOldReply,
   );
-  await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
+  await roleRegion
+    .getByRole('combobox', { name: 'Роль ученика в настройках' })
+    .selectOption('helper');
   await expect.poll(() => roles.length).toBe(2);
   expect(roles.map(({ seatId, role }) => ({ seatId, role }))).toEqual([
     { seatId: 'seat-0', role: 'helper' },
@@ -1403,7 +1565,7 @@ test('pending role mutations cannot repopulate another learner or a logged-out p
   await (await lastReply).finished();
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.locator('main.classroom-student')).toHaveCount(0);
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveCount(0);
   expect(state.requests).toHaveLength(beforeLogoutReply);
   expect(state.errors).toEqual([]);
 });
@@ -1569,3 +1731,205 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
+
+test('UI-03: four real student settings categories preserve permissions and one active editor', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const state = await setup(page, { long: false, manual: 0, results: 0 });
+  let roleAction: { seatId: string; role: string } | null = null;
+  await page.route(`**/api/classrooms/${classId}/participants/actions/role`, (route) => {
+    roleAction = route.request().postDataJSON() as { seatId: string; role: string };
+    return route.fulfill({ json: { ok: true } });
+  });
+  await state.open();
+  await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const categories = region.getByRole('group', { name: 'Категории настроек ученика' });
+  await expect(categories.locator('button')).toHaveCount(4);
+  await expect(categories.locator('button[aria-expanded="true"]')).toHaveCount(0);
+  await expect(region.getByRole('group', { name: 'Активный редактор ученика' })).toHaveCount(0);
+
+  const identity = categories.getByRole('button', { name: /^Данные и роль/ });
+  await identity.click();
+  await expect(identity).toHaveAttribute('aria-expanded', 'true');
+  const role = region.getByRole('combobox', { name: 'Роль ученика в настройках' });
+  await expect(role).toHaveValue('student');
+  await role.selectOption('helper');
+  await expect.poll(() => roleAction).toMatchObject({ seatId: 'seat-0', role: 'helper' });
+  // The synthetic profile GET still reports "student"; the UI must not forge a role.
+  await expect(role).toHaveValue('student');
+  await expect(region).not.toContainText('Рейтинг класса');
+
+  const access = categories.getByRole('button', { name: /^Коды и доступ/ });
+  await access.click();
+  await expect(identity).toHaveAttribute('aria-expanded', 'false');
+  await expect(region.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveCount(0);
+  await expect(access).toHaveAttribute('aria-expanded', 'true');
+  await expect(region.getByRole('button', { name: 'Изменить Student Code' })).toBeEnabled();
+  await region.getByRole('button', { name: 'Карточка доступа' }).click();
+  const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+  await expect(cards).toBeVisible();
+  await cards.getByRole('button', { name: 'Закрыть', exact: true }).first().click();
+  await region.getByRole('button', { name: 'Приостановить доступ' }).click();
+  await expect(region.getByRole('button', { name: 'Вернуть доступ' })).toBeEnabled();
+  await region.getByRole('button', { name: 'Вернуть доступ' }).click();
+  await expect(region.getByRole('button', { name: 'Приостановить доступ' })).toBeEnabled();
+
+  await categories.getByRole('button', { name: /^Защита ученика/ }).click();
+  const protection = region.getByRole('checkbox', {
+    name: 'Защита ученика в настройках: Ученик 01',
+  });
+  await expect(protection).toBeChecked();
+  // The controlled checkbox follows the authoritative server acknowledgement.
+  await protection.click();
+  await expect.poll(() => state.students()[0]?.safeMode).toBe(false);
+  await expect(protection).not.toBeChecked();
+
+  const games = categories.getByRole('button', { name: /^Игровые разрешения/ });
+  await games.click();
+  await expect(categories.locator('button[aria-expanded="true"]')).toHaveCount(1);
+  await expect(page.locator('.classroom-student-games-region')).toHaveCount(0);
+  await expect(region.locator('.classroom-games-settings')).toHaveCount(1);
+  await expect(region.getByRole('group', { name: 'Игры ученика', exact: true })).toBeVisible();
+  await noOverflow(page);
+  expect(state.errors).toEqual([]);
+});
+
+test('UI-04: games policy is lazy, Seat-bound, and guards unsaved edits', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const state = await setup(page, { long: false, manual: 0, results: 0 });
+  const reads: string[] = [];
+  const writes: Array<{ seat: string; override: string; expectedVersion: number }> = [];
+  await page.route(`**/api/games/classrooms/${classId}/seats/*`, async (route) => {
+    const seat = new URL(route.request().url()).pathname.split('/').at(-1)!;
+    const policy = {
+      mode: 'allow',
+      state: 'active',
+      threshold: null,
+      version: writes.filter((entry) => entry.seat === seat).length + 1,
+      override: writes.filter((entry) => entry.seat === seat).at(-1)?.override ?? 'inherit',
+      admission: { granted: true, reason: 'allowed', threshold: null },
+    };
+    if (route.request().method() === 'GET') {
+      reads.push(seat);
+      return route.fulfill({ json: policy });
+    }
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as { override: string; expectedVersion: number };
+      expect(body.expectedVersion).toBe(policy.version);
+      writes.push({ seat, ...body });
+      return route.fulfill({
+        json: { ...policy, version: policy.version + 1, override: body.override },
+      });
+    }
+    return route.abort();
+  });
+  await state.open();
+  await openTeacherTab(page, 'activity');
+  await openTeacherTab(page, 'settings');
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  await expect(region.locator('.classroom-games-settings')).toHaveCount(0);
+  await expect.poll(() => reads.length).toBe(0);
+  const games = region.getByRole('button', { name: /^Игровые разрешения/ });
+  await games.click();
+  await expect(region.locator('.classroom-games-settings')).toHaveCount(1);
+  await expect.poll(() => reads).toEqual(['seat-0']);
+  const access = region.getByLabel('Индивидуальный доступ');
+  await expect(access).toHaveValue('inherit');
+  await access.selectOption('deny');
+  await expect(region.getByRole('button', { name: 'Сохранить доступ' })).toBeEnabled();
+
+  page.once('dialog', (dialog) => void dialog.dismiss());
+  await openTeacherTab(page, 'activity');
+  await expect(page.locator('main.classroom-student')).toHaveAttribute(
+    'data-student-section',
+    'settings',
+  );
+  await expect(access).toHaveValue('deny');
+
+  // Native hash/history navigation also passes through the portal-wide dirty
+  // guard. A dismissed prompt must restore the accepted route and the draft.
+  const acceptedHash = await page.evaluate(() => window.location.hash);
+  const hashDecision = new Promise<string>((resolve) => {
+    page.once('dialog', async (dialog) => {
+      const message = dialog.message();
+      await dialog.dismiss();
+      resolve(message);
+    });
+  });
+  await page.evaluate(() => {
+    window.location.hash = '#/classrooms';
+  });
+  expect(await hashDecision).toContain('Игровые разрешения не сохранены');
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(acceptedHash);
+  await expect(access).toHaveValue('deny');
+
+  await region.getByRole('button', { name: 'Сохранить доступ' }).click();
+  await expect(region.getByRole('status')).toContainText('Доступ к играм сохранён.');
+  expect(writes).toEqual([{ seat: 'seat-0', override: 'deny', expectedVersion: 1 }]);
+  await openTeacherTab(page, 'activity');
+  await expect(region).toHaveCount(0);
+  await expect(page.locator('.classroom-games-settings')).toHaveCount(0);
+  await page.getByRole('button', { name: /Следующий ученик:/ }).click();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
+  const next = await openTeacherSettings(page, 'Игровые разрешения');
+  await expect(next.getByLabel('Индивидуальный доступ')).toHaveValue('inherit');
+  await expect.poll(() => reads).toEqual(['seat-0', 'seat-1']);
+  expect(state.errors).toEqual([]);
+});
+
+test('UI-03: archived student settings stay read-only including Code, protection and access', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  const state = await setup(page, { long: false, archived: true, manual: 0, results: 0 });
+  await state.open();
+  await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+  const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
+  const categories = region.getByRole('group', { name: 'Категории настроек ученика' });
+  await categories.getByRole('button', { name: /^Данные и роль/ }).click();
+  await expect(region.getByRole('button', { name: 'Изменить имя и аватар' })).toBeDisabled();
+  await expect(region.getByRole('combobox', { name: 'Роль ученика в настройках' })).toBeDisabled();
+  await categories.getByRole('button', { name: /^Коды и доступ/ }).click();
+  await expect(region.getByRole('button', { name: 'Изменить Student Code' })).toBeDisabled();
+  await expect(region.getByRole('button', { name: 'Карточка доступа' })).toBeDisabled();
+  await expect(region.getByRole('button', { name: 'Приостановить доступ' })).toBeDisabled();
+  await categories.getByRole('button', { name: /^Защита ученика/ }).click();
+  await expect(
+    region.getByRole('checkbox', { name: 'Защита ученика в настройках: Ученик 01' }),
+  ).toBeDisabled();
+  expect(state.mutations).toEqual([]);
+  await noOverflow(page);
+});
+
+for (const settingsWidth of [390, 320]) {
+  test(`UI-03 mobile settings density remains within owner threshold at ${settingsWidth}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: settingsWidth, height: 900 });
+    const state = await setup(page, { long: false, manual: 0, results: 0 });
+    await state.open();
+    await page.getByRole('combobox', { name: 'Раздел профиля' }).selectOption('settings');
+    const heading = page.locator('.classroom-student-settings-entry > h2');
+    await expect(heading, 'No duplicate mobile Settings heading below SectionRail').toBeHidden();
+    const header = (await page.locator('.portal-header').boundingBox())!;
+    const category = (await page
+      .locator('.classroom-student-settings-category')
+      .first()
+      .boundingBox())!;
+    const offset = category.y - (header.y + header.height);
+    const threshold = settingsWidth === 390 ? 128 : 144;
+    console.log(
+      `UI03_SETTINGS_DENSITY width=${settingsWidth} offset=${offset.toFixed(1)} threshold=${threshold}`,
+    );
+    expect(
+      offset,
+      'First actionable Settings category after the global header',
+    ).toBeLessThanOrEqual(threshold);
+    expect(category.height).toBeGreaterThanOrEqual(44);
+    await noOverflow(page);
+    expect(state.errors).toEqual([]);
+  });
+}

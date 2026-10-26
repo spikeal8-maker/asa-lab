@@ -3421,3 +3421,278 @@ describe('prospective eighth-pace discovery and lossless transport', () => {
     ).toEqual([0, 0, 1, 1]);
   });
 });
+
+describe('Issue 682 durable batch and active long interval', () => {
+  const text = readFileSync(
+    new URL('../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile('interactions.ts', text, ts.ScriptTarget.Latest, true);
+  const actualFunction = (name: string) =>
+    parsed.statements
+      .find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name)!
+      .getText(parsed);
+  const compile = (source: string) =>
+    ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
+  async function journal(failure?: 'write' | 'partial' | 'observe') {
+    let binding!: (_: unknown, rows: Row[]) => number;
+    let clock = 100;
+    let bytes = '';
+    let armed = false;
+    const events: string[] = [];
+    const append = (_: string, value: string, options: { flush: boolean }) => {
+      expect(options.flush).toBe(true);
+      events.push('append');
+      if (armed && failure === 'partial') bytes += value.slice(0, 13);
+      if (armed && (failure === 'write' || failure === 'partial')) throw new Error(failure);
+      bytes += value;
+      events.push('durable');
+    };
+    const create = runInNewContext(
+      compile(actualFunction('realtime682Journal') + '\nrealtime682Journal;'),
+      {
+        appendFileSync: append,
+        writeFileSync: () => {},
+        Date: { now: () => clock++ },
+      },
+    );
+    // Finish initialization before inducing a filesystem error on a browser batch.
+    const page = {
+      exposeBinding: async (_: string, callback: typeof binding) => {
+        binding = callback;
+      },
+      addInitScript: async () => {},
+    };
+    const result = await create(page, 'journal', {
+      phaseMs: 1000,
+      observe: () => {
+        events.push('observe');
+        if (armed && failure === 'observe') throw new Error('observe');
+      },
+    });
+    bytes = '';
+    events.length = 0;
+    clock = 100;
+    armed = true;
+    return { send: (rows: Row[]) => binding(null, rows), result, events, bytes: () => bytes };
+  }
+  const rows = (count = 256): Row[] =>
+    Array.from({ length: count }, (_, index) => ({
+      sequence: index + 1,
+      kind: 'paint',
+      at: index / 2,
+      value: `original-${index}`,
+    }));
+  it('writes identical per-row envelopes in one flushed append before every observer and ACK', async () => {
+    const run = await journal();
+    const batch = rows();
+    expect(run.send(batch)).toBe(256);
+    expect(run.bytes()).toBe(
+      batch
+        .map((data, index) => JSON.stringify({ kind: 'browser', nodeAt: 100 + index, data }) + '\n')
+        .join(''),
+    );
+    expect(run.events).toEqual(['append', 'durable', ...Array(256).fill('observe')]);
+    expect(run.send([{ sequence: 257, kind: 'paint', at: 129 }])).toBe(257);
+  });
+  it.each(['gap', 'NaN', 'serialization', 'empty', 'oversized'] as const)(
+    'rejects the whole %s batch without append, observation or later ACK',
+    async (failure) => {
+      const run = await journal();
+      const batch = rows(3);
+      if (failure === 'gap') batch[2]!.sequence = 5;
+      if (failure === 'NaN') batch[2]!.at = NaN;
+      if (failure === 'serialization') batch[2]!.value = BigInt(1);
+      expect(() =>
+        run.send(failure === 'empty' ? [] : failure === 'oversized' ? rows(257) : batch),
+      ).toThrow();
+      expect(run.bytes()).toBe('');
+      expect(run.events).toEqual([]);
+      expect(() => run.send(rows(1))).toThrow('no ACK');
+    },
+  );
+  it.each(['write', 'partial'] as const)(
+    'retains %s failure without observation or a subsequent ACK',
+    async (failure) => {
+      const run = await journal(failure);
+      expect(() => run.send(rows(2))).toThrow(failure);
+      expect(run.events).toEqual(['append']);
+      expect(run.result.records).toEqual([]);
+      expect(run.result.errors).toEqual([`Error: ${failure}`]);
+      const original = run.bytes();
+      expect(() => run.send(rows(2))).toThrow('no ACK');
+      expect(run.bytes()).toBe(original);
+    },
+  );
+  it('latches an observer failure after durability without a later duplicate append or ACK', async () => {
+    const run = await journal('observe');
+    const batch = rows(2);
+    expect(() => run.send(batch)).toThrow('observe');
+    expect(run.events).toEqual(['append', 'durable', 'observe']);
+    expect(run.result.errors).toEqual(['Error: observe']);
+    const originals = run.bytes();
+    expect(originals.split('\n')).toHaveLength(3);
+    expect(() => run.send(batch)).toThrow('no ACK');
+    expect(run.bytes()).toBe(originals);
+    expect(run.events).toEqual(['append', 'durable', 'observe']);
+  });
+  const long = runInNewContext(
+    compile(
+      actualFunction('realtime682ShortCycleAudit') +
+        '\n' +
+        actualFunction('createRealtime682LongAudit') +
+        '\ncreateRealtime682LongAudit;',
+    ),
+  );
+  it.each(['render-opportunity-missed', 'render-opportunity-late'])(
+    'retains %s as a failure only inside the active interval',
+    (kind) => {
+      const evaluate = (at: number) => {
+        const audit = long(1000, 'source');
+        audit.envelope({ kind: 'start-action', data: { at: 0 } });
+        audit.accept({
+          sequence: 1,
+          kind: 'response',
+          source: 'source',
+          at: 1,
+          ok: true,
+          generation: 1,
+          requestGeneration: 1,
+          computeMs: 0,
+          advance: {
+            executionStatus: 'ready',
+            requestedHorizonMicroseconds: 0,
+            committedHorizonMicroseconds: 0,
+            result: { solved: true, quality: { passed: true } },
+            diagnostics: [],
+            ledTemporal: {
+              fromMicroseconds: 0,
+              toMicroseconds: 0,
+              components: ['led0', 'led1', 'led2'].map((componentId) => ({
+                componentId,
+                samples: [{ atMicroseconds: 0, brightness: 0, current: 0 }],
+              })),
+            },
+          },
+        });
+        audit.envelope({ kind: 'long-stop-action', data: { at: 10 } });
+        audit.accept({ sequence: 2, kind, at });
+        return audit.finish();
+      };
+      expect(evaluate(9).errors).toContain('unobserved-render-opportunity');
+      for (const at of [10, 11]) {
+        const result = evaluate(at);
+        expect(result.errors).not.toContain('unobserved-render-opportunity');
+        expect(result.errors).toContain('missing-native-Stop');
+        expect(result.errors).toContain('incomplete-final-ACK');
+        expect(result.sequence).toBe(2);
+      }
+    },
+  );
+});
+
+describe('Issue 682 native pointer receipt', () => {
+  const text = readFileSync(
+    new URL('../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile('interactions.ts', text, ts.ScriptTarget.Latest, true);
+  const release = parsed.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'realtime682ButtonRelease',
+  )!;
+  const check = runInNewContext(
+    ts.transpileModule(release.getText(parsed) + '\nrealtime682ButtonRelease;', {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    }).outputText,
+  ) as (rows: Record<string, unknown>[]) => boolean;
+  const start = text.indexOf('    const buttonPointers = new Set<number>();');
+  const end = text.indexOf('    const visible =', start);
+  function capture() {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const rows: Record<string, unknown>[] = [];
+    class Target {
+      tagName = 'rect';
+      id = '';
+      constructor(
+        readonly component: string | null,
+        readonly stage = true,
+      ) {}
+      closest(selector: string) {
+        if (selector === '[data-component-id]') return this.component ? this : null;
+        if (selector === '.workbench-stage') return this.stage ? this : null;
+        return null;
+      }
+      getAttribute(name: string) {
+        return name === 'data-component-id' ? this.component : 'raw-stage-class';
+      }
+    }
+    runInNewContext(
+      ts.transpileModule(text.slice(start, end), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022 },
+      }).outputText,
+      {
+        document: {
+          addEventListener: (type: string, listener: (event: unknown) => void) =>
+            listeners.set(type, listener),
+        },
+        HTMLInputElement: class {},
+        push: (kind: string, row: Record<string, unknown>) => rows.push({ kind, ...row }),
+      },
+    );
+    const emit = (type: string, component: string | null, pointerId = 7, trusted = true) =>
+      listeners.get(type)!({
+        target: new Target(component),
+        pointerId,
+        buttons: type === 'pointerdown' ? 1 : 0,
+        isTrusted: trusted,
+      });
+    return { rows, emit };
+  }
+  it('retains the actual stage release separately from its genuine button origin', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointerup', null);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({
+      target: 'stage',
+      pointerOrigin: 'button-682',
+      pointerId: 7,
+      buttons: 0,
+      trusted: true,
+      rawTarget: { component: null, stage: true, className: 'raw-stage-class' },
+    });
+    expect(check(rows)).toBe(true);
+  });
+  it('rejects absent, orphan, mismatched, untrusted and cancelled releases', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointerup', null);
+    expect(check(rows.slice(0, 1))).toBe(false);
+    expect(check(rows.slice(1))).toBe(false);
+    for (const mutation of [
+      { pointerId: 8 },
+      { trusted: false },
+      { buttons: 1 },
+      { type: 'pointercancel' },
+    ])
+      expect(check([rows[0]!, { ...rows[1]!, ...mutation }])).toBe(false);
+    expect(check([{ ...rows[0]!, trusted: false }, rows[1]!])).toBe(false);
+  });
+  it('cancellation clears the actual capture and cannot be redeemed by a later release', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointercancel', null);
+    emit('pointerup', null);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]!.type).toBe('pointercancel');
+    expect(check(rows)).toBe(false);
+  });
+  it('never invents a stage release without a genuine down for that pointer', () => {
+    const { rows, emit } = capture();
+    emit('pointerdown', 'button-682');
+    emit('pointerup', null, 8);
+    expect(rows).toHaveLength(1);
+    expect(check(rows)).toBe(false);
+  });
+});

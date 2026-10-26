@@ -20,6 +20,7 @@ const publication: PublicProject = {
   moduleKey: 'electronics',
   authorLabel: 'Author A',
   featured: false,
+  pinned: false,
   publishedAt: '2026-10-21T10:00:00Z',
   preview: null,
   capabilities: { viewer: 'static', canCopy: true, downloadFormats: [] },

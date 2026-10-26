@@ -16,6 +16,7 @@ components:
     - contexts/electronics/testing/arduino-correctness.spec.ts
     - contexts/electronics/testing/arduino-runtime-state.spec.ts
     - contexts/electronics/testing/arduino-values.spec.ts
+    - contexts/electronics/testing/arduino-servo-runtime.spec.ts
     dependencies:
     - electronics.clock.canonical
     notes: Educational deterministic subset; not arbitrary AVR/Uno emulation.

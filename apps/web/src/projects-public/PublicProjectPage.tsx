@@ -113,6 +113,11 @@ export function PublicProjectPage({
             <span className="publication-module" data-module={publication.moduleKey}>
               {publicModuleName(publication.moduleKey)}
             </span>
+            {publication.pinned ? (
+              <span className="public-project-pinned" data-testid="public-project-pinned">
+                Закреплено
+              </span>
+            ) : null}
             {publication.featured ? (
               <span className="public-project-featured" data-testid="public-project-featured">
                 ★ Выбор редакции

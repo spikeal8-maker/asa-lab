@@ -42,7 +42,7 @@ function healthyProviders(): AuthProviderAvailability[] {
   ];
 }
 
-type FixtureIdentity = { id: string; email: string; displayName: string };
+type FixtureIdentity = { id: string; email: string | null; displayName: string };
 
 interface UiState {
   identity: FixtureIdentity | null;
@@ -259,6 +259,24 @@ async function fixture(
     if (path === '/api/diagnostics/client' && method === 'POST') {
       return reply({ accepted: true }, 202);
     }
+    if (path === '/api/auth/email')
+      return reply({
+        accountId: identity().id,
+        email: identity().email,
+        verified: false,
+        pending: null,
+      });
+    if (path === '/api/admin/v1/auth/email')
+      return reply({
+        config: {},
+        version: 1,
+        passwordConfigured: false,
+        encryptionReady: true,
+        testedVersion: null,
+        testedAt: null,
+        testOk: false,
+        deliveryVerifiedVersion: null,
+      });
     if (path === '/api/auth/me')
       return reply(state.signedIn ? session() : { authenticated: false });
     if (path === '/api/class-join/me') return reply({ authenticated: false });
@@ -289,6 +307,18 @@ async function fixture(
     if (path === '/api/auth/login') {
       state.signedIn = true;
       return reply(session());
+    }
+    if (path === '/api/auth/register') {
+      profile = {
+        ...profile,
+        email: String(body.email),
+        username: String(body.username),
+        displayName: String(body.displayName),
+        birthDate: String(body.birthDate),
+        country: String(body.country),
+      };
+      state.signedIn = true;
+      return reply(session(), 201);
     }
     if (path === '/api/auth/logout') {
       state.signedIn = false;
@@ -411,9 +441,26 @@ async function fixture(
       }
       if (path === `/api/auth/${provider}/pairing/register`) {
         expect(pairings.has(String(body.pairingToken))).toBe(true);
+        if (provider === 'max') {
+          expect(body).not.toHaveProperty('email');
+          expect(body).not.toHaveProperty('password');
+          const birthDate = new Date(`${String(body.birthDate)}T00:00:00Z`);
+          if (!Number.isFinite(birthDate.getTime()))
+            return error('validation_error', 'Укажите дату рождения.', 400);
+          const adultCutoff = new Date();
+          adultCutoff.setUTCFullYear(adultCutoff.getUTCFullYear() - 18);
+          if (birthDate > adultCutoff)
+            return error('age_routed', 'Личный аккаунт доступен с 18 лет.', 422);
+          state.passwordConfigured = false;
+          state.identity = {
+            id: '20000000-0000-4000-8000-000000000009',
+            email: null,
+            displayName: String(body.displayName),
+          };
+        }
         profile = {
           ...profile,
-          email: String(body.email),
+          email: provider === 'max' ? '' : String(body.email),
           username: String(body.username),
           displayName: String(body.displayName),
           birthDate: String(body.birthDate),
@@ -578,7 +625,7 @@ async function releaseHeldRequest(page: Page, body: unknown): Promise<void> {
 }
 
 async function passwordLogin(page: Page, identifier = 'auth-review-account'): Promise<void> {
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill(identifier);
+  await page.getByLabel('Почта или логин', { exact: true }).fill(identifier);
   await page.getByLabel('Пароль', { exact: true }).fill('synthetic-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот' }).focus();
   await page.keyboard.press('Space');
@@ -599,6 +646,94 @@ async function passwordLogin(page: Page, identifier = 'auth-review-account'): Pr
 }
 
 for (const width of [1440, 1024, 390, 320]) {
+  test(`public landing keeps direct account entry without opening the menu at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    await fixture(page);
+    await visit(page, '/');
+    const header = page.locator('.public-home-header');
+    const login = header.getByRole('button', { name: 'Войти', exact: true });
+    await expect(login).toBeVisible();
+    await expect(login).toBeInViewport();
+    const loginBox = await login.boundingBox();
+    expect(loginBox!.width).toBeGreaterThanOrEqual(44);
+    expect(loginBox!.height).toBeGreaterThanOrEqual(44);
+    const brandBox = await header.locator('.public-home-brand').boundingBox();
+    expect(brandBox!.x + brandBox!.width).toBeLessThanOrEqual(loginBox!.x);
+    const menu = header.locator('.public-home-mobile-menu');
+    if (width <= 1120) {
+      await expect(menu).toHaveJSProperty('open', false);
+      const menuBox = await menu.boundingBox();
+      expect(loginBox!.x + loginBox!.width).toBeLessThanOrEqual(menuBox!.x);
+      await menu.locator('summary').click();
+      await expect(menu.getByRole('link', { name: 'Инструменты', exact: true })).toBeVisible();
+      await expect(
+        menu.getByRole('button', { name: 'Создать аккаунт', exact: true }),
+      ).toBeVisible();
+      await expect(menu.getByRole('button', { name: 'Войти', exact: true })).toHaveCount(0);
+      await menu.locator('summary').click();
+    }
+    const hero = page.locator('.public-home-hero');
+    await expect(hero.getByRole('button', { name: 'Создать аккаунт', exact: true })).toBeVisible();
+    await expect(hero.getByRole('link', { name: 'Смотреть проекты', exact: true })).toHaveAttribute(
+      'href',
+      '#community',
+    );
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`landing-entry-${width}-viewport.png`) });
+    await login.focus();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/#\/sign-in$/);
+    await visit(page, '/');
+    await page
+      .locator('.public-home-hero')
+      .getByRole('button', { name: 'Создать аккаунт', exact: true })
+      .click();
+    await expect(page).toHaveURL(/#\/sign-up$/);
+  });
+
+  test(`static landing retains a visible native sign-in link with JavaScript disabled at ${width}px`, async ({
+    browser,
+    baseURL,
+  }) => {
+    if (!baseURL) throw new Error('Auth UI fixture baseURL is required');
+    const context = await browser.newContext({
+      javaScriptEnabled: false,
+      viewport: { width, height: width < 600 ? 720 : 900 },
+    });
+    try {
+      await context.route('https://st.max.ru/**', (route) => route.abort());
+      const page = await context.newPage();
+      await page.goto(baseURL);
+      const login = page
+        .locator('.seo-fallback .seo-header')
+        .getByRole('link', { name: 'Войти', exact: true });
+      await expect(login).toBeVisible();
+      await expect(login).toBeInViewport();
+      await expect(login).toHaveAttribute('href', '/#/sign-in');
+      const box = await login.boundingBox();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+      await expect(
+        page
+          .locator('.seo-fallback .seo-actions')
+          .getByRole('link', { name: 'Создать аккаунт', exact: true }),
+      ).toHaveAttribute('href', '/#/sign-up');
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+        .toBe(true);
+      await page.screenshot({ path: test.info().outputPath(`static-entry-${width}-viewport.png`) });
+      await login.focus();
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(/#\/sign-in$/); // Native route only; SPA authentication needs JS.
+    } finally {
+      await context.close();
+    }
+  });
+
   test(`auth surfaces and long account data fit at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
     const state = await fixture(page);
@@ -606,18 +741,78 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('#login-identifier-hint')).toBeVisible();
+    await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveAttribute(
+      'aria-describedby',
+      /login-identifier-hint/,
+    );
     await screenshot(page, `login-${width}`);
+    state.providersFailure = true;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    const providerError = page.locator('.auth-provider-status');
+    await expect(providerError).toContainText('Не удалось проверить вход через мессенджеры');
+    const providerRetry = providerError.getByRole('button', {
+      name: 'Проверить ещё раз',
+      exact: true,
+    });
+    const retryBox = await providerRetry.boundingBox();
+    expect(retryBox!.height).toBeGreaterThanOrEqual(44);
+    expect(retryBox!.width).toBeGreaterThanOrEqual(44);
+    await screenshot(page, `provider-error-${width}`);
+    state.providersFailure = false;
+    await providerRetry.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeVisible();
+    await expect(providerError).toHaveCount(0);
     await visit(page, '/sign-up');
     await expect(
       page.getByRole('button', { name: 'Создать через MAX', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('#register-username')).toHaveCount(0);
+    await expect(page.getByText('Почта будет вашим логином.', { exact: true })).toBeVisible();
+    for (const [field, hint] of [
+      ['register-email', 'register-email-hint'],
+      ['register-password', 'register-password-hint'],
+      ['register-birth-date', 'register-age-hint'],
+    ]) {
+      await expect(page.locator(`#${field}`)).toHaveAttribute('aria-describedby', hint);
+      await expect(page.locator(`#${hint}`)).toBeVisible();
+    }
+    const help = page.locator('.auth-field-help');
+    await expect(help).toHaveJSProperty('open', false);
+    const helpBox = await help.locator('summary').boundingBox();
+    expect(helpBox!.height).toBeGreaterThanOrEqual(44);
+    expect(helpBox!.width).toBeGreaterThanOrEqual(44);
+    await help.locator('summary').focus();
+    await page.keyboard.press('Enter');
+    await expect(help).toHaveJSProperty('open', true);
+    await expect(help.locator('p')).toContainText('Ученики могут входить по коду класса');
+    await page.keyboard.press('Enter');
+    await expect(help).toHaveJSProperty('open', false);
     await screenshot(page, `register-${width}`);
     state.nextPairing = 'registration_required';
     await page.getByRole('button', { name: 'Создать через MAX', exact: true }).click();
     await expect(
+      page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }),
+    ).toHaveCount(0);
+    await expect(
       page.getByRole('heading', { name: 'Завершить регистрацию', exact: true }),
     ).toBeVisible();
     await expect(page.locator('.auth-social-registration input[type="date"]')).toHaveValue('');
+    await expect(
+      page.locator(
+        '.auth-social-registration input[type="email"], .auth-social-registration input[type="password"]',
+      ),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('.auth-social-registration input[autocomplete="username"]'),
+    ).toHaveCount(0);
     await screenshot(page, `social-registration-${width}`);
     state.signedIn = true;
     state.policyEnabled = true;
@@ -633,6 +828,11 @@ for (const width of [1440, 1024, 390, 320]) {
       page.getByRole('switch', { name: 'Обязательное подтверждение входа', exact: true }),
     ).toBeChecked();
     await expect(page.getByLabel('Имя бота', { exact: true })).toHaveCount(2);
+    await expect(page.getByRole('tab', { name: 'MAX', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByRole('form', { name: 'Telegram', exact: true })).toBeHidden();
     await screenshot(page, `admin-required-${width}`);
     expect(
       state.requests.filter((request) => request.path === '/api/admin/v1/dashboard'),
@@ -646,6 +846,46 @@ for (const width of [1440, 1024, 390, 320]) {
     await screenshot(page, `account-methods-${width}`);
   });
 }
+
+for (const route of ['/sign-in', '/sign-up']) {
+  test(`provider-check failure is explained and can retry without clearing credentials on ${route}`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, { providersFailure: true });
+    await visit(page, route);
+    const identifier =
+      route === '/sign-in'
+        ? page.getByLabel('Почта или логин', { exact: true })
+        : page.getByLabel('Email', { exact: true });
+    await identifier.fill('kept@example.test');
+    const status = page.locator('.auth-provider-status');
+    await expect(status).toHaveAttribute('role', 'status');
+    await expect(status).toContainText('Не удалось проверить вход через мессенджеры');
+    await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+    await expect(page.locator('.auth-provider-button')).toHaveCount(0);
+    state.providersFailure = false;
+    await status.getByRole('button', { name: 'Проверить ещё раз', exact: true }).click();
+    await expect(
+      page.getByRole('button', {
+        name: route === '/sign-in' ? 'Войти через MAX' : 'Создать через MAX',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(status).toHaveCount(0);
+    await expect(identifier).toHaveValue('kept@example.test');
+    expect(
+      state.requests.filter((request) => request.path === '/api/auth/providers').length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+}
+
+test('a successful empty provider list does not claim a network failure', async ({ page }) => {
+  await fixture(page, { providers: [] });
+  await visit(page, '/sign-in');
+  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  await expect(page.locator('.auth-provider-status')).toHaveCount(0);
+  await expect(page.locator('.auth-provider-button')).toHaveCount(0);
+});
 
 for (const failure of ['invalid_token', 'delivery_unavailable', 'api_error'] as const) {
   test(`unavailable providers are hidden and password login works: ${failure}`, async ({
@@ -679,7 +919,7 @@ test('a health update hides the dead button without clearing the password form',
   const state = await fixture(page);
   await visit(page, '/sign-in');
   await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeVisible();
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('kept-identifier');
+  await page.getByLabel('Почта или логин', { exact: true }).fill('kept-identifier');
   state.providers = state.providers.map((entry) =>
     entry.id === 'max' ? { ...entry, available: false, reason: 'invalid_token' } : entry,
   );
@@ -688,9 +928,7 @@ test('a health update hides the dead button without clearing the password form',
   await expect(
     page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
   ).toBeVisible();
-  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
-    'kept-identifier',
-  );
+  await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('kept-identifier');
 });
 
 test('overdue password sign-in links the same account and resumes after server confirmation', async ({
@@ -757,11 +995,11 @@ test('new social registration collects a real birth date and backup password', a
   const state = await fixture(page, { nextPairing: 'registration_required' });
   await visit(page, '/sign-in');
   await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
   const form = page.locator('.auth-social-registration');
   await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveValue('');
   await expect(page.locator('input#identifier')).toBeHidden();
   await form.getByLabel('Email', { exact: true }).fill('new-account@example.test');
-  await form.getByLabel('Имя пользователя', { exact: true }).fill('new-account');
   await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
   await form.getByLabel('Повторите пароль', { exact: true }).fill('different-password-2026');
@@ -777,7 +1015,7 @@ test('new social registration collects a real birth date and backup password', a
     state.requests.find((request) => request.path === '/api/auth/telegram/pairing/register')?.body,
   ).toMatchObject({
     email: 'new-account@example.test',
-    username: 'new-account',
+    username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
     birthDate: '1988-03-01',
     country: 'RU',
     password: 'backup-password-2026',
@@ -805,22 +1043,185 @@ test('a bot failure during confirmation rechecks server policy before releasing 
   await expect(page.locator('.auth-provider-button')).toHaveCount(0);
 });
 
-test('an unknown social identity can return to its existing password account without registering', async ({
+test('an unknown Telegram identity can return to its existing password account without registering', async ({
   page,
 }) => {
   const state = await fixture(page, { nextPairing: 'registration_required' });
   await visit(page, '/sign-in');
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
-  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
-  await page
-    .getByRole('button', { name: 'У меня уже есть аккаунт — войти по паролю', exact: true })
-    .click();
-  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
-    'existing-account',
-  );
+  await page.getByLabel('Почта или логин', { exact: true }).fill('existing-account');
+  await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
+  await page.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
+  await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('existing-account');
   await expect(page.locator('.auth-social-registration')).toHaveCount(0);
   expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
 });
+
+for (const width of [1440, 390]) {
+  test(`ordinary account registration uses email without requesting a public handle at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const state = await fixture(page);
+    await visit(page, '/sign-up');
+    await expect(page.locator('#register-username')).toHaveCount(0);
+    await page.getByLabel('Email', { exact: true }).fill('private-registration@example.test');
+    await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+    await page.getByLabel('Пароль', { exact: true }).fill('registration-password-2026');
+    await screenshot(page, `email-registration-${width}`);
+    await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).press('Space');
+    await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+    await expect.poll(() => state.signedIn).toBe(true);
+    const registered = state.requests.filter((request) => request.path === '/api/auth/register');
+    expect(registered).toHaveLength(1);
+    expect(registered[0].body).toMatchObject({
+      email: 'private-registration@example.test',
+      displayName: 'Пользователь',
+      username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
+    });
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`MAX-only registration asks for age without account choice or password at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const state = await fixture(page, { nextPairing: 'registration_required' });
+    await visit(page, '/sign-in');
+    await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+    const form = page.locator('.auth-social-registration');
+    await expect(
+      form.getByRole('heading', { name: 'Завершить регистрацию', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      form.locator('input[type="email"], input[type="password"], input[autocomplete="username"]'),
+    ).toHaveCount(0);
+    await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveAttribute('required', '');
+    await expect(page.getByText('Нет аккаунта?', { exact: true })).toBeHidden();
+    const birthDateBox = await form.getByLabel('Дата рождения', { exact: true }).boundingBox();
+    const birthDateLabelBox = await form
+      .locator('label', { hasText: 'Дата рождения' })
+      .boundingBox();
+    const countryLabelBox = await form.locator('label', { hasText: 'Страна' }).boundingBox();
+    expect(birthDateBox).not.toBeNull();
+    expect(birthDateLabelBox).not.toBeNull();
+    expect(countryLabelBox).not.toBeNull();
+    if (width >= 1024) expect(birthDateBox!.width).toBeGreaterThanOrEqual(200);
+    expect(birthDateLabelBox!.y + birthDateLabelBox!.height).toBeLessThanOrEqual(birthDateBox!.y);
+    expect(birthDateBox!.y + birthDateBox!.height).toBeLessThanOrEqual(countryLabelBox!.y);
+    await expect(form.getByLabel('Отображаемое имя', { exact: true })).toHaveValue(
+      'Новый участник',
+    );
+    expect(state.requests.filter((r) => r.path === '/api/auth/max/pairing/register')).toHaveLength(
+      0,
+    );
+    await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+    await screenshot(page, `max-external-registration-${width}`);
+    await form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true }).click();
+    await expect.poll(() => state.signedIn).toBe(true);
+    await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+    const writes = state.requests.filter((r) => r.path === '/api/auth/max/pairing/register');
+    expect(writes).toHaveLength(1);
+    expect(writes[0].body).toEqual({
+      pairingToken: expect.any(String),
+      username: expect.stringMatching(/^u_[a-f0-9]{32}$/),
+      displayName: 'Новый участник',
+      birthDate: '1988-03-01',
+      country: 'RU',
+    });
+    expect(state.passwordConfigured).toBe(false);
+    expect(state.identity?.email).toBeNull();
+    expect(state.linked.max).toBe(true);
+    expect(state.identity?.id).not.toBe(ACCOUNT_ID);
+    expect(
+      state.requests.filter((r) => r.path === '/api/auth/login' || r.path === '/api/auth/register'),
+    ).toHaveLength(0);
+    expect(state.requests.filter((r) => r.path === '/api/auth/max/pairing/start')).toHaveLength(1);
+  });
+
+  test(`already-linked MAX identity enters its existing account directly at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const identity = {
+      id: ACCOUNT_ID,
+      email: 'existing@example.test',
+      displayName: 'Существующий аккаунт',
+    };
+    const state = await fixture(page, {
+      nextPairing: 'authenticated',
+      linked: { max: true, telegram: false },
+      identity,
+    });
+    await visit(page, '/sign-in');
+    await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+    await expect.poll(() => state.signedIn).toBe(true);
+    await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
+    await expect(
+      page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
+    ).toHaveCount(0);
+    expect(state.identity?.id).toBe(ACCOUNT_ID);
+    expect(
+      state.requests.filter((r) => r.path.endsWith('/register') || r.path === '/api/auth/login'),
+    ).toHaveLength(0);
+  });
+}
+
+test('MAX-only registration keeps the adult requirement without asking for email', async ({
+  page,
+}) => {
+  const state = await fixture(page, { nextPairing: 'registration_required' });
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  const form = page.locator('.auth-social-registration');
+  await form.getByLabel('Дата рождения', { exact: true }).fill('2015-03-01');
+  await form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true }).click();
+  await expect(form.getByRole('alert')).toContainText('18');
+  expect(state.signedIn).toBe(false);
+  expect(state.linked.max).toBe(false);
+  await expect(form.locator('input[type="email"], input[type="password"]')).toHaveCount(0);
+});
+
+test('MAX-only registration sends one request while a duplicate submit is pending', async ({
+  page,
+}) => {
+  const state = await fixture(page, { nextPairing: 'registration_required' });
+  await holdAuthRequest(page, '/api/auth/max/pairing/register', 'POST');
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  const form = page.locator('.auth-social-registration');
+  await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  const submit = form.locator('button[type="submit"]');
+  await submit.click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await expect(submit).toBeDisabled();
+  await form.dispatchEvent('submit');
+  await form.dispatchEvent('submit');
+  expect(await heldRequests(page)).toBe(1);
+  expect(state.signedIn).toBe(false);
+  await visit(page, '/sign-in'); // Discard this deliberately unacknowledged synthetic attempt.
+});
+
+for (const identifier of [
+  'long.account.name.for.layout.review@example.test',
+  'auth-review-account',
+]) {
+  test(`password sign-in keeps existing email or legacy handle: ${identifier}`, async ({
+    page,
+  }) => {
+    const state = await fixture(page);
+    await visit(page, '/sign-in');
+    await passwordLogin(page, identifier);
+    await expect.poll(() => state.signedIn).toBe(true);
+    expect(
+      state.requests.find((request) => request.path === '/api/auth/login')?.body.identifier,
+    ).toBe(identifier);
+  });
+}
 
 test('a revoked identity is a terminal error and stops polling', async ({ page }) => {
   await page.clock.install();
@@ -946,6 +1347,7 @@ test('an administrator checks transport then confirms the current configuration 
   });
   await visit(page, '/admin/confirmations');
   const max = page.getByRole('form', { name: 'MAX', exact: true });
+  await max.getByText('Подробности подключения', { exact: true }).click();
   const native = max.locator('dl > div').filter({ hasText: 'Подтверждение человеком' });
   await expect(native).toContainText('Ещё не проверено');
   await expect(max).toContainText('https://asa.example.test/api/auth/max/webhook');
@@ -995,6 +1397,7 @@ test('an HTTP administration address is not prefilled as the public HTTPS receiv
     ),
   });
   await visit(page, '/admin/confirmations');
+  await page.getByRole('tab', { name: 'Telegram', exact: true }).click();
   const telegram = page.getByRole('form', { name: 'Telegram', exact: true });
   const receiver = telegram.getByLabel('Публичный HTTPS-адрес ASA Lab', { exact: true });
   await expect(receiver).toHaveValue('');
@@ -1028,7 +1431,7 @@ test('a stalled pairing start can be cancelled and its late success is ignored',
   const state = await fixture(page);
   await holdAuthRequest(page, '/api/auth/max/pairing/start', 'POST');
   await visit(page, '/sign-in');
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('kept-account');
+  await page.getByLabel('Почта или логин', { exact: true }).fill('kept-account');
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
   await expect.poll(() => heldRequests(page)).toBe(1);
   await page.getByRole('button', { name: 'Отмена', exact: true }).click();
@@ -1038,9 +1441,7 @@ test('a stalled pairing start can be cancelled and its late success is ignored',
     expiresAt: new Date(Date.now() + 600_000).toISOString(),
   });
   await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeEnabled();
-  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
-    'kept-account',
-  );
+  await expect(page.getByLabel('Почта или логин', { exact: true })).toHaveValue('kept-account');
   await expect(page.locator('.auth-social-pending')).toHaveCount(0);
   expect(
     state.requests.filter((request) => request.path.endsWith('/pairing/complete')),
@@ -1079,9 +1480,9 @@ test('a stalled registration can return to password login without accepting its 
   await holdAuthRequest(page, '/api/auth/telegram/pairing/register', 'POST');
   await visit(page, '/sign-in');
   await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
   const form = page.locator('.auth-social-registration');
   await form.getByLabel('Email', { exact: true }).fill('new-account@example.test');
-  await form.getByLabel('Имя пользователя', { exact: true }).fill('new-account');
   await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
   await form.getByLabel('Повторите пароль', { exact: true }).fill('backup-password-2026');
@@ -1116,10 +1517,13 @@ test('confirmation checks are single flight and logout remains usable during a s
   expect(await heldRequests(page)).toBe(1);
   await page.getByRole('button', { name: 'Выйти', exact: true }).click();
   await expect.poll(() => state.signedIn).toBe(false);
-  // The shared logout event returns App to public Home. Use its normal entry
-  // action to check that a late result cannot restore the authenticated view.
+  // Baseline route timing may land on public Home or directly on SignIn after
+  // leaving a protected route. Both are logged out; the late-result fence is
+  // the contract here, not which of these two valid entry routes wins.
   const publicSignIn = page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true });
-  await expect(publicSignIn).toBeVisible();
+  const password = page.getByLabel('Пароль', { exact: true });
+  const loggedOutEntry = publicSignIn.or(password).first();
+  await expect(loggedOutEntry).toBeVisible();
   await releaseHeldRequest(page, {
     policyEnabled: false,
     required: false,
@@ -1128,8 +1532,24 @@ test('confirmation checks are single flight and logout remains usable during a s
     verifiedProvider: null,
     providers: healthyProviders(),
   });
-  await publicSignIn.click();
-  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  // Let the released response and its render complete before proving that it
+  // neither restored the protected view nor introduced an authenticated shell.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(loggedOutEntry).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Выйти', exact: true })).toHaveCount(0);
+  if (!(await password.isVisible())) {
+    // Same-document navigation preserves the held-fetch counters and the late
+    // response proof. A new document would reset that evidence.
+    await page.evaluate(() => {
+      window.location.hash = '#/sign-in';
+    });
+  }
+  await expect(password).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Подтвердите аккаунт', exact: true })).toHaveCount(
     0,
   );
@@ -1196,7 +1616,6 @@ test('password sign-in cancels the pending social attempt and ignores its late a
 
 async function submitRegistration(page: Page): Promise<void> {
   await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
   await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
@@ -1281,7 +1700,6 @@ test('registration timeout retains unknown-result guidance and does not repeat t
   await visit(page, '/sign-up');
   // Complete the anti-bot interaction normally, then control only the request deadline.
   await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
-  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
   await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
   await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
@@ -1303,7 +1721,7 @@ async function expectReadableProviderSaveActions(page: Page, width: number): Pro
   const buttons = page
     .locator('.auth-admin-provider > footer')
     .getByRole('button', { name: 'Проверить и сохранить', exact: true });
-  await expect(buttons).toHaveCount(2);
+  await expect(buttons).toHaveCount(1);
   const measurements = await buttons.evaluateAll((elements) =>
     elements.map((button) => {
       const lines = (range: Range): number =>
@@ -1381,12 +1799,16 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       max.getByRole('button', { name: 'Подтвердить в боте MAX', exact: true }),
     ).toBeEnabled();
+    await max.getByText('Подробности подключения', { exact: true }).click();
     await expect(
       max.locator('dl > div').filter({ hasText: 'Подтверждение человеком' }),
     ).toContainText('Ещё не проверено');
     await screenshot(page, `admin-readiness-${width}-normal`);
     await enlargeText(page);
     await screenshot(page, `admin-readiness-${width}-font150`);
+    await expectReadableProviderSaveActions(page, width);
+    await page.getByRole('tab', { name: 'Telegram', exact: true }).click();
+    await screenshot(page, `admin-telegram-${width}-font150`);
     await expectReadableProviderSaveActions(page, width);
     expect(state.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
   });
@@ -1756,3 +2178,240 @@ for (const provider of METHODS) {
     expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
   });
 }
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`mail settings in confirmations are concise, accessible and responsive at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page, { signedIn: true, admin: true });
+    let smtp = {
+      config: {} as Record<string, unknown>,
+      version: 1,
+      passwordConfigured: false,
+      encryptionReady: true,
+      testedVersion: null as number | null,
+      testedAt: null as string | null,
+      testOk: false,
+      deliveryVerifiedVersion: null,
+    };
+    const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
+    let fail = false;
+    await page.route(/\/api\/admin\/v1\/auth\/email(?:\/test)?$/, async (route) => {
+      const path = new URL(route.request().url()).pathname,
+        body = route.request().postData() ? route.request().postDataJSON() : {};
+      calls.push({ path, body });
+      if (route.request().method() === 'PUT') {
+        smtp = {
+          ...smtp,
+          config: body.config,
+          version: smtp.version + 1,
+          passwordConfigured: !!body.password || smtp.passwordConfigured,
+          testOk: false,
+        };
+      }
+      if (path.endsWith('/test')) {
+        smtp = {
+          ...smtp,
+          testedVersion: smtp.version,
+          testedAt: '2026-10-25T10:00:00Z',
+          testOk: !fail,
+        };
+        if (fail)
+          return route.fulfill({
+            status: 503,
+            json: {
+              error: {
+                code: 'mail_test_failed',
+                message:
+                  'Подключение не прошло проверку. Проверьте сервер, пароль и доступ к почте.',
+              },
+            },
+          });
+      }
+      return route.fulfill({ json: smtp });
+    });
+    await visit(page, '/admin/confirmations');
+    await expect(page.getByRole('tab', { name: 'MAX', exact: true })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await expect(page.getByText('Подробности подключения', { exact: true }).first()).toBeVisible();
+    await page.getByRole('tab', { name: 'MAX', exact: true }).focus();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('tab', { name: 'Почта', exact: true })).toBeFocused();
+    const mail = page.getByRole('region', { name: 'Почта', exact: true });
+    await expect(
+      mail.getByRole('button', { name: 'Проверить подключение', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      mail.getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true }),
+    ).not.toBeChecked();
+    await expect(mail).toContainText('Без почтового сервера оставьте почту выключенной');
+    await expect(mail).toContainText('Настройки не включают обязательное');
+    expect(calls.filter((x) => Object.keys(x.body).length)).toHaveLength(0);
+    await mail
+      .getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true })
+      .check();
+    await mail
+      .getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true })
+      .uncheck();
+    await mail.getByLabel('Адрес сайта для ссылок', { exact: true }).fill('');
+    await mail.getByRole('button', { name: 'Сохранить почту', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Почта выключена');
+    expect(calls.at(-1)?.body.config).toMatchObject({
+      enabled: false,
+      host: '',
+      sender: '',
+      username: '',
+      siteOrigin: '',
+    });
+    await screenshot(page, `smtp-unconfigured-${width}`);
+    await mail
+      .getByLabel('Почтовый сервер', { exact: true })
+      .fill('smtp.a-very-long-mail-configuration.example.test');
+    await mail
+      .getByLabel('Адрес отправителя', { exact: true })
+      .fill('long-sender-name-for-layout-review@example.test');
+    await mail
+      .getByLabel('Имя для входа в почту', { exact: true })
+      .fill('long-smtp-user-for-layout-review@example.test');
+    await mail
+      .getByLabel('Пароль почты', { exact: true })
+      .fill('fixture-password-must-not-be-returned');
+    await mail
+      .getByLabel('Адрес сайта для ссылок', { exact: true })
+      .fill('https://portal.example.test');
+    await mail.getByLabel('Отправлять письма подтверждения', { exact: true }).check();
+    await mail.getByRole('button', { name: 'Сохранить почту', exact: true }).click();
+    await expect(mail.getByLabel('Пароль почты', { exact: true })).toHaveValue('');
+    await expect(mail).not.toContainText('fixture-password-must-not-be-returned');
+    fail = true;
+    await mail.getByRole('button', { name: 'Проверить подключение', exact: true }).click();
+    await expect(mail.getByRole('alert')).toContainText('Подключение не прошло');
+    await screenshot(page, `smtp-error-${width}`);
+    fail = false;
+    await mail.getByRole('button', { name: 'Проверить подключение', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Подключение и вход');
+    await mail
+      .getByLabel('Получатель проверочного письма', { exact: true })
+      .fill('one-recipient@example.test');
+    await mail.getByRole('button', { name: 'Отправить проверочное письмо', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Сервер принял');
+    expect(calls.filter((x) => x.path.endsWith('/test')).at(-1)?.body.to).toBe(
+      'one-recipient@example.test',
+    );
+    await screenshot(page, `smtp-configured-${width}`);
+    // A broken unsaved draft must never prevent the administrator from turning OFF mail.
+    await mail.getByLabel('Почтовый сервер', { exact: true }).fill('invalid host');
+    await mail.getByLabel('Адрес отправителя', { exact: true }).fill('not-an-email');
+    await mail.getByRole('button', { name: 'Выключить почту', exact: true }).click();
+    await expect(mail.getByRole('status')).toContainText('Почта выключена');
+    await expect(
+      mail.getByRole('switch', { name: 'Отправлять письма подтверждения', exact: true }),
+    ).not.toBeChecked();
+    await expect(mail.getByLabel('Почтовый сервер', { exact: true })).toHaveValue(
+      'smtp.a-very-long-mail-configuration.example.test',
+    );
+    expect(calls.at(-1)?.body.config).toMatchObject({
+      enabled: false,
+      sender: 'long-sender-name-for-layout-review@example.test',
+    });
+    expect(calls.at(-1)?.body.password).toBeUndefined();
+  });
+  test(`public email proof erases the token and confirms once at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await fixture(page);
+    const token = 'B'.repeat(43),
+      calls: unknown[] = [];
+    await page.route('**/api/auth/email/confirm', (route) => {
+      calls.push(route.request().postDataJSON());
+      return route.fulfill({ json: { confirmed: true, changed: true } });
+    });
+    await page.goto('/confirm-email#' + token);
+    await expect(page).toHaveURL(/\/confirm-email$/);
+    await expect(page.getByRole('heading', { name: 'Подтверждение адреса' })).toBeVisible();
+    const proofCard = await page.locator('.email-public-card').boundingBox();
+    expect(proofCard).not.toBeNull();
+    expect(proofCard!.x).toBeGreaterThanOrEqual(16);
+    expect(proofCard!.x + proofCard!.width).toBeLessThanOrEqual(width - 16);
+    await screenshot(page, `email-proof-ready-${width}`);
+    await page.getByRole('button', { name: 'Подтвердить адрес', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Почта подтверждена', exact: true }),
+    ).toBeVisible();
+    expect(calls).toEqual([{ token }]);
+    await expect(page.locator('body')).not.toContainText(token);
+    await screenshot(page, `email-proof-confirmed-${width}`);
+    await page.reload();
+    await expect(page.getByRole('alert')).toContainText('Ссылка недействительна');
+    expect(calls).toHaveLength(1);
+    await screenshot(page, `email-proof-invalid-${width}`);
+  });
+}
+test('current account email verification sends a link without a social bot or changing login', async ({
+  page,
+}) => {
+  const state = await fixture(page, {
+    signedIn: true,
+    providers: healthyProviders().map((p) =>
+      p.id === 'email'
+        ? {
+            ...p,
+            available: true,
+            reason: 'ready',
+            enforcementEligible: false,
+            enforcementReason: 'delivery_unverified',
+          }
+        : p,
+    ),
+  });
+  const email = 'existing-email@example.test';
+  let pending = false;
+  await page.route('**/api/auth/email', (route) =>
+    route.fulfill({
+      json: {
+        accountId: ACCOUNT_ID,
+        email,
+        verified: false,
+        pending: pending
+          ? {
+              id: WORKSPACE_ID,
+              email,
+              purpose: 'verify',
+              state: 'sent',
+              expiresAt: '2030-01-01T12:00:00Z',
+              createdAt: '2026-10-25T10:00:00Z',
+            }
+          : null,
+      },
+    }),
+  );
+  await page.route('**/api/auth/email/request', (route) => {
+    const body = route.request().postDataJSON();
+    expect(body.accountId).toBe(ACCOUNT_ID);
+    expect(body.requestId).toMatch(/^[a-f0-9-]{36}$/);
+    pending = true;
+    return route.fulfill({
+      json: {
+        accountId: ACCOUNT_ID,
+        email,
+        verified: false,
+        pending: {
+          id: WORKSPACE_ID,
+          email,
+          purpose: 'verify',
+          state: 'sent',
+          expiresAt: '2030-01-01T12:00:00Z',
+          createdAt: '2026-10-25T10:00:00Z',
+        },
+      },
+    });
+  });
+  await visit(page, '/account/security');
+  const mail = page.getByRole('region', { name: 'Подтверждение почты', exact: true });
+  await expect(mail).toContainText(email);
+  await mail.getByRole('button', { name: 'Подтвердить почту по письму', exact: true }).click();
+  await expect(mail).toContainText('Письмо отправлено');
+  expect(state.requests.filter((r) => r.path.endsWith('/pairing/start'))).toHaveLength(0);
+});

@@ -63,7 +63,7 @@ def assert_ci(release):
 
 
 def fetch_images(release):
-    for service in SERVICES:
+    for service in release["images"]:
         reference = release["images"][service]
         print(f"IMAGE {service}: downloading missing layers", flush=True)
         run(["docker", "pull", "--platform", "linux/amd64", reference])
@@ -74,7 +74,7 @@ def fetch_images(release):
 
 def apply_release_environment(install, release):
     install.process_env.update({"ASA_BUILD_REVISION": release["revision"], "ASA_EXPECTED_SCHEMA_VERSION": str(release["schema"])})
-    for service in SERVICES:
+    for service in release["images"]:
         install.process_env[f"ASA_{service.upper()}_IMAGE"] = release["images"][service]
 
 
@@ -82,7 +82,7 @@ def validate_resolved_images(install, release):
     config = json.loads(install.compose("config", "--format", "json", capture=True))
     attest_embedded_editor(config, install.env.get('ASA_UPDATE_ENTRY_ORIGIN'), install.profile)
     attest_database_targets(config, config["services"]["postgres"]["environment"])
-    for service in (*SERVICES, "migration"):
+    for service in (*release["images"], "migration"):
         expected = release["images"]["api" if service == "migration" else service]
         require(config["services"][service]["image"] == expected, "IMAGE_OVERRIDE", f"Compose overrides the pinned {service} image.",
                 "Review the transport overlay; do not deploy mixed artifacts.")

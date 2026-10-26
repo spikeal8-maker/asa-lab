@@ -97,7 +97,6 @@ test('creator uses Home, honest resources, routing and the integrated account sh
   await page.goto('/#/');
   await page.getByTestId('entry-sign-up').click();
   await page.getByLabel('Email').fill(email);
-  await page.getByLabel('Имя пользователя').fill(username);
   await page.getByLabel('Отображаемое имя (необязательно)').fill('Алекс Автор');
   await page.getByLabel('Дата рождения').fill('1994-06-12');
   await page.getByLabel('Пароль').fill(password);
@@ -239,7 +238,6 @@ test('educator navigation follows server capability and active workspace scope',
   await page.goto('/#/');
   await page.getByTestId('entry-sign-up').click();
   await page.getByLabel('Email').fill(`${username}@r2-e2e.test`);
-  await page.getByLabel('Имя пользователя').fill(username);
   await page.getByLabel('Отображаемое имя (необязательно)').fill('Педагог R2');
   await page.getByLabel('Дата рождения').fill('1990-02-15');
   await page.getByLabel('Пароль').fill(`Safe-${unique}-Password`);

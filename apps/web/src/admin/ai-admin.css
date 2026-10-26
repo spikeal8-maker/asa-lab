@@ -1,202 +1,300 @@
-.asa-ai-admin {
-  display: grid;
-  gap: 18px;
-  max-width: 980px;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.asa-ai-admin-form {
-  display: grid;
-  gap: 18px;
-  max-width: 780px;
-  padding: 24px;
-  border: 1px solid #dce6eb;
-  border-radius: 14px;
-  background: #fff;
-  min-width: 0;
-}
-.asa-ai-admin-guide {
-  margin: 0;
-  color: #1b3344;
-}
-.asa-ai-admin-form label:not(.asa-ai-admin-check) {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  font-weight: 600;
-}
-.asa-ai-admin-form select,
-.asa-ai-admin-form input[type='password'],
-.asa-ai-admin-form input[type='number'] {
-  box-sizing: border-box;
-  min-width: 0;
-  width: 100%;
-  min-height: 44px;
-  padding: 9px 12px;
-  border: 1px solid #c7d6df;
-  border-radius: 9px;
-  background: white;
-  color: #1b3344;
-  font: inherit;
-}
-.asa-ai-admin :is(input, select, button, a):focus-visible {
-  outline: 3px solid #176953;
-  outline-offset: 3px;
-}
-.asa-ai-admin .admin-inline-error {
+/* Compact AI connections and cloud credential editor. */
+.asa-ai-connections {
   display: grid;
   gap: 12px;
-  justify-items: start;
-}
-.asa-ai-admin button {
-  max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.asa-ai-admin-status {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.asa-ai-admin-status > div {
-  display: grid;
-  gap: 6px;
-  padding: 16px;
-  border-radius: 10px;
-  background: #f4f8fb;
-}
-.asa-ai-admin-status span,
-.asa-ai-admin-fingerprint,
-.asa-ai-admin-actions small {
-  color: #506575;
-  font-size: 13px;
-}
-.asa-ai-admin-check {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.asa-ai-admin-check input {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-}
-.asa-ai-admin-warning {
-  padding: 12px;
-  border: 1px solid #e8c77b;
-  border-radius: 9px;
-  background: #fff7e6;
-}
-.asa-ai-admin-model-upgrade {
-  margin: 0;
-  color: #603f09;
-}
-.asa-ai-admin-success {
-  padding: 12px;
-  border-radius: 9px;
-  background: #edf8f5;
-  color: #176953;
-}
-.asa-ai-admin-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-.asa-ai-provider-slots,
-.asa-ai-model-capabilities {
-  display: grid;
-  gap: 10px;
   min-width: 0;
-  padding: 14px;
-  border: 1px solid #dce6eb;
-  border-radius: 10px;
-  background: #f4f8fb;
 }
-.asa-ai-provider-slots p {
+.asa-ai-connections-heading {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px 14px;
-}
-.asa-ai-provider-slots p,
-.asa-ai-model-capabilities p {
-  margin: 0;
-}
-.asa-ai-provider-slots small,
-.asa-ai-model-capabilities small {
-  color: #506575;
-}
-.asa-ai-model-capabilities dl {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  font-size: 13px;
-}
-.asa-ai-model-capabilities dl > div {
-  display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 14px;
+  gap: 10px;
 }
-.asa-ai-model-capabilities dd {
+.asa-ai-connections-heading h2 {
   margin: 0;
-  color: #506575;
+  font-size: 17px;
+  font-weight: 750;
 }
-@media (max-width: 640px) {
-  .asa-ai-admin-status {
-    grid-template-columns: 1fr;
-  }
-  .asa-ai-admin-form {
-    padding: 14px;
-  }
-  .asa-ai-admin-actions > * {
-    min-width: 0;
-  }
+.asa-ai-connections-heading span {
+  color: #607384;
+  font-size: 12px;
 }
-
-.asa-ai-admin-section {
+.asa-ai-provider-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+.asa-ai-provider-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  text-align: left;
+  min-height: 97px;
+  padding: 13px 15px;
+  border: 1px solid #d5e0e9;
+  border-radius: 10px;
+  background: #fff;
+  color: #16344b;
+  font: inherit;
+  cursor: pointer;
+}
+.asa-ai-provider-card:hover {
+  border-color: #57a8d4;
+}
+.asa-ai-provider-card.selected {
+  border-color: #0b80be;
+  background: #f0f8fc;
+  box-shadow: 0 0 0 1px #0b80be inset;
+}
+.asa-ai-provider-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 9px;
+  align-items: center;
+}
+.asa-ai-provider-card-top strong {
+  font-size: 14px;
+}
+.asa-ai-provider-card-top > span {
+  color: #0878ad;
+  font-weight: 800;
+}
+.asa-ai-provider-hint {
+  font-size: 11px;
+  color: #607384;
+}
+.asa-ai-provider-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #405b6e;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.asa-ai-provider-card .asa-ai-status-dot {
+  height: 7px;
+  width: 7px;
+}
+.asa-cloud-connection {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  padding: 19px 23px;
+  border: 1px solid #d5e0e9;
+  border-radius: 11px;
+  background: white;
+}
+.asa-cloud-form {
   display: grid;
   gap: 14px;
   min-width: 0;
 }
-.asa-ai-admin-section + .asa-ai-admin-section,
-.asa-ai-admin-actions + .asa-ai-admin-section {
-  padding-top: 18px;
-  border-top: 1px solid #dce6eb;
+.asa-cloud-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #dce5ec;
 }
-.asa-ai-admin-section h3 {
+.asa-cloud-top > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 11px;
+}
+.asa-cloud-top h2 {
   margin: 0;
-  color: #0b3558;
   font-size: 18px;
 }
-.asa-ai-admin-summary {
+.asa-cloud-top span {
+  color: #5c7282;
+  font-size: 12px;
+}
+.asa-cloud-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.asa-cloud-enabled input,
+.asa-cloud-consent input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.asa-cloud-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 20px;
-  margin: 0;
+  gap: 12px;
 }
-.asa-ai-admin-summary > div {
-  display: grid;
-  gap: 4px;
+.asa-cloud-field {
   min-width: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
 }
-.asa-ai-admin-summary dt {
-  color: #506575;
+.asa-cloud-field :is(input, select),
+.asa-cloud-limit input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 41px;
+  padding: 8px 11px;
+  border: 1px solid #b9c9d6;
+  border-radius: 8px;
+  background: white;
+  color: #16344b;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+}
+.asa-cloud-underfields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 17px;
+}
+.asa-cloud-limit {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  width: 168px;
+}
+.asa-cloud-key-help {
+  padding-bottom: 10px;
+  color: #607384;
+  font-size: 11px;
+}
+.asa-cloud-key-help a {
+  color: #117ab4;
+}
+.asa-cloud-consent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.asa-cloud-note {
+  margin: -7px 0 0;
+  color: #875c13;
+  font-size: 11px;
+}
+.asa-cloud-bottom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 11px;
+  border-top: 1px solid #dce5ec;
+  padding-top: 13px;
+}
+.asa-cloud-apply {
+  border: 1px solid #0873ae;
+  background: #087ab7;
+  color: white;
+  border-radius: 8px;
+  min-height: 42px;
+  min-width: 186px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.asa-cloud-apply:hover:not(:disabled) {
+  background: #056ea6;
+}
+.asa-cloud-apply:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+.asa-cloud-confirmed {
+  color: #176b53;
+  font-size: 12px;
+  font-weight: 650;
+}
+.asa-cloud-error {
+  color: #a92e2e;
+  margin: 0;
+  font-size: 12px;
+}
+.asa-cloud-error button {
+  margin-left: 10px;
+  border: 0;
+  background: transparent;
+  color: #087ab7;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.asa-cloud-busy {
+  color: #556e80;
   font-size: 13px;
 }
-.asa-ai-admin-summary dd {
-  margin: 0;
+.asa-cloud-more {
+  border-top: 1px solid #dce5ec;
+  padding-top: 9px;
+  color: #5c7282;
+  font-size: 11px;
 }
-.asa-ai-model-capabilities summary {
+.asa-cloud-more summary {
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 650;
 }
-.asa-ai-model-capabilities[open] > * + * {
-  margin-top: 10px;
+.asa-cloud-more[open] {
+  display: grid;
+  gap: 8px;
 }
-@media (max-width: 640px) {
-  .asa-ai-admin-summary {
-    grid-template-columns: 1fr;
+.asa-cloud-more p {
+  margin: 0;
+  line-height: 1.5;
+}
+.asa-cloud-connection :is(button, input, select, a):focus-visible,
+.asa-ai-provider-card:focus-visible {
+  outline: 2px solid #1686c5;
+  outline-offset: 2px;
+}
+@media (max-width: 680px) {
+  .asa-ai-provider-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .asa-ai-provider-card {
+    padding: 10px 8px;
+    min-height: 99px;
+  }
+  .asa-ai-provider-card-top strong {
+    font-size: 12px;
+  }
+  .asa-ai-provider-hint {
+    font-size: 10px;
+  }
+  .asa-cloud-connection {
+    padding: 14px;
+  }
+  .asa-cloud-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-cloud-key-help {
+    padding: 0;
+  }
+  .asa-cloud-apply {
+    width: 100%;
+  }
+  .asa-cloud-underfields {
+    align-items: center;
+  }
+}
+@media (max-width: 360px) {
+  .asa-ai-provider-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-ai-provider-card {
+    min-height: 0;
   }
 }

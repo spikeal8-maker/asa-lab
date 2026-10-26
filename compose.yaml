@@ -168,6 +168,8 @@ services:
       ASA_DB_STATEMENT_TIMEOUT_MS: ${ASA_DB_STATEMENT_TIMEOUT_MS:-15000}
       ASA_DB_QUERY_TIMEOUT_MS: ${ASA_DB_QUERY_TIMEOUT_MS:-15000}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
+      ASA_AI_SEARCH_ENDPOINT: http://search:8080
+      ASA_AI_GEOCODER_ENDPOINT: ${ASA_AI_GEOCODER_ENDPOINT:-https://nominatim.openstreetmap.org}
       CLASSROOM_CODE_SECRET: ${CLASSROOM_CODE_SECRET:-}
       ASA_STUDENT_CODE_PROTECTION_MODE: ${ASA_STUDENT_CODE_PROTECTION_MODE:-off}
       ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON: ${ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON:-}
@@ -185,8 +187,10 @@ services:
       ASA_TRUSTED_PROXY_CIDRS: ${ASA_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
       ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
       ASA_LOG_STORE: /var/lib/asa-logs
+      ASA_APPLICATION_LOG_STORE: /var/lib/asa-application-logs
     volumes:
       - ./.asa/diagnostics/store:/var/lib/asa-logs:ro
+      - application-logs:/var/lib/asa-application-logs
     expose:
       - '4611'
     tmpfs:
@@ -198,6 +202,51 @@ services:
     networks:
       - application
       - database
+    # LAN Ollama may run on the Docker host GPU; never expose its API through web.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  # Private metasearch component. Only the authenticated API exposes results.
+  # Search failure must not prevent ordinary chat or the rest of ASA from booting.
+  search:
+    build:
+      context: .
+      dockerfile: infra/search/Dockerfile
+      args:
+        ASA_BUILD_REVISION: ${ASA_BUILD_REVISION:-unknown}
+    image: ${ASA_SEARCH_IMAGE:-asa-lab-search:${ASA_IMAGE_TAG:-local}}
+    restart: unless-stopped
+    init: true
+    user: '977:977'
+    read_only: true
+    environment:
+      ASA_SEARCH_SECRET: ${ASA_SEARCH_SECRET:-}
+    tmpfs:
+      - /tmp:uid=977,gid=977,mode=0700,size=64m
+      - /etc/searxng:uid=977,gid=977,mode=0700,size=1m
+      - /var/cache/searxng:uid=977,gid=977,mode=0700,size=32m
+    healthcheck:
+      test:
+        [
+          'CMD',
+          '/usr/local/searxng/.venv/bin/python',
+          '-c',
+          'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8080/healthz",timeout=3).read()',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 1.0
+    pids_limit: 128
+    networks:
+      - application
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -271,5 +320,6 @@ networks:
     internal: true
 
 volumes:
+  application-logs:
   postgres-data:
   blocks-object-data:

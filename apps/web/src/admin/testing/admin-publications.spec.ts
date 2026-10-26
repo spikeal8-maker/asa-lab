@@ -25,6 +25,8 @@ const publication = {
   reason: null,
   moderatedAt: null,
   featured: false,
+  pinned: false,
+  pinVersion: 0,
   editorialEligible: true,
   editorialVersion: 0,
   lifecycleVersion: 0,
@@ -107,6 +109,56 @@ function submit() {
 }
 
 describe('publications moderation', () => {
+  it('keeps retained legacy metadata visible without unsupported image or moderation actions', async () => {
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            ...publication,
+            schemaVersion: 1,
+            moderationSupported: false,
+            editorialEligible: false,
+          },
+        ],
+        nextOffset: null,
+      },
+    });
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+    expect(host.textContent).toContain('Реальный проект');
+    expect(host.textContent).toContain('Исходные данные сохранены');
+    expect(host.querySelector('img')).toBeNull();
+    expect(host.querySelector('a')).toBeNull();
+    expect(button('Скрыть')).toBeUndefined();
+    expect(button('Выбор редакции')).toBeUndefined();
+    expect(button('Закрепить')).toBeUndefined();
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')).toBeNull();
+  });
+
+  it('keeps the loaded publication visible after a failed refresh and allows retry', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'temporarily_unavailable', message: 'Service unavailable' },
+    });
+    await click('Обновить');
+    expect(host.textContent).toContain('Реальный проект');
+    expect(host.querySelector('[role="alert"]')).not.toBeNull();
+    expect(host.textContent).not.toContain('Публикаций пока нет');
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { items: [publication], nextOffset: null },
+    });
+    await click('Обновить');
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(host.textContent).toContain('Реальный проект');
+  });
+
   it('exposes the route only for a platform administrator', () => {
     expect(adminHref('publications')).toBe('/#/admin/publications');
     expect(adminSectionFromLocation({ hash: '#/admin/publications' })).toBe('publications');
@@ -360,5 +412,73 @@ describe('publications moderation', () => {
     await click('Обновить');
     expect(host.textContent).toContain('Публикаций пока нет');
     expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications?offset=0&limit=25');
+  });
+
+  it('pins and unpins only after matching server CAS receipts without changing editorial choice', async () => {
+    await mount();
+    expect(button('Закрепить')).toBeDefined();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        publicationId: publication.publicationId,
+        revisionId: publication.revisionId,
+        pinned: true,
+        pinVersion: 1,
+        lifecycleVersion: 0,
+      },
+    });
+    await click('Закрепить');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications/publication-1/pin', {
+      method: 'POST',
+      body: JSON.stringify({
+        pinned: true,
+        expectedVersion: 0,
+        expectedRevisionId: publication.revisionId,
+        expectedModerationVersion: 0,
+        expectedLifecycleVersion: 0,
+      }),
+    });
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')?.textContent).toContain(
+      'Закреплено',
+    );
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        publicationId: publication.publicationId,
+        revisionId: publication.revisionId,
+        pinned: false,
+        pinVersion: 2,
+        lifecycleVersion: 0,
+      },
+    });
+    await click('Открепить');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications/publication-1/pin', {
+      method: 'POST',
+      body: JSON.stringify({
+        pinned: false,
+        expectedVersion: 1,
+        expectedRevisionId: publication.revisionId,
+        expectedModerationVersion: 0,
+        expectedLifecycleVersion: 0,
+      }),
+    });
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')).toBeNull();
+    expect(button('Закрепить')).toBeDefined();
+  });
+
+  it('retains unpinned UI after conflict and withholds the pin control for ineligible publication', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'conflict', message: 'Changed' },
+    });
+    await click('Закрепить');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Закрепление изменилось');
+    expect(host.querySelector('[data-testid="admin-publication-pinned"]')).toBeNull();
+    expect(button('Открепить')).toBeUndefined();
   });
 });

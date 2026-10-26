@@ -1,11 +1,37 @@
 name: ASA Portable Delivery Checks
 
-"on":
+'on':
   pull_request:
-    paths: ['tools/deployment/**', 'tools/*manager*', 'tools/*maintenance*', 'Dockerfile.*', 'compose*.yaml', 'infra/**', 'apps/web/src/blocks/**', 'apps/web/index.html', 'apps/web/public/runtime-config.js', 'docker/**', '.github/workflows/portable-*.yml']
+    paths:
+      [
+        'tools/deployment/**',
+        'tools/*manager*',
+        'tools/*maintenance*',
+        'Dockerfile.*',
+        'compose*.yaml',
+        'infra/**',
+        'apps/web/src/blocks/**',
+        'apps/web/index.html',
+        'apps/web/public/runtime-config.js',
+        'docker/**',
+        '.github/workflows/portable-*.yml',
+      ]
   push:
     branches: ['main']
-    paths: ['tools/deployment/**', 'tools/*manager*', 'tools/*maintenance*', 'Dockerfile.*', 'compose*.yaml', 'infra/**', 'apps/web/src/blocks/**', 'apps/web/index.html', 'apps/web/public/runtime-config.js', 'docker/**', '.github/workflows/portable-*.yml']
+    paths:
+      [
+        'tools/deployment/**',
+        'tools/*manager*',
+        'tools/*maintenance*',
+        'Dockerfile.*',
+        'compose*.yaml',
+        'infra/**',
+        'apps/web/src/blocks/**',
+        'apps/web/index.html',
+        'apps/web/public/runtime-config.js',
+        'docker/**',
+        '.github/workflows/portable-*.yml',
+      ]
   workflow_dispatch: {}
 
 permissions:
@@ -65,12 +91,12 @@ jobs:
           driver: docker
       - name: Build the source fallback once
         run: |
-          for service in minio scratch api web; do docker compose build "$service"; done
+          for service in minio search scratch api web; do docker compose build "$service"; done
           python - <<'PY'
           import json, os, pathlib, re
           schema = max(int(re.match(r'(\d+)_', p.name)[1]) for p in pathlib.Path('migrations').glob('*.sql'))
           pathlib.Path('/tmp/release.json').write_text(json.dumps({'revision': os.environ['ASA_BUILD_REVISION'], 'schema': schema,
-            'images': {name: f'asa-lab-{name}:ci' for name in ('api','web','scratch','minio')}}))
+            'images': {name: f'asa-lab-{name}:ci' for name in ('api','web','scratch','minio','search')}}))
           PY
       - name: Verify portable boot and complete backup restoration
         run: python tools/deployment/ci_smoke.py /tmp/release.json

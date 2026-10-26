@@ -56,8 +56,18 @@ tests:
     timeout_seconds: 180
     owner: ai-assistant
     artifacts: [vitest-report, private-storage-reconciliation-report]
+  - id: TST-AI-CLOUD-PG-001
+    title: Separate encrypted cloud provider credentials, Ollama Cloud transport, paid admission and durable usage
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-model-catalog.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TEXT-CORE-001
-    title: Complete owner history, archive, immutable answer receipts, safe math and forward upgrade
+    title: Complete owner history, immutable answer receipts, provider usage journal, safe math and forward upgrade
     suite: authorization
     level: system
     phase_available: PHASE-12
@@ -67,12 +77,12 @@ tests:
     owner: ai-assistant
     artifacts: [vitest-report, embedded-postgresql-report]
   - id: TST-AI-TEXT-PG-001
-    title: Restricted PostgreSQL owner history, non-refundable regeneration and concurrent admission or archive
+    title: Restricted PostgreSQL owner history, immutable usage journal, non-refundable regeneration and concurrent admission or archive
     suite: authorization
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec vitest run tests/admin/ai-text-history.pg.spec.ts
+    command: pnpm exec vitest run tests/admin/ai-text-history.pg.spec.ts tests/admin/ai-usage-journal.pg.spec.ts
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [vitest-report, postgresql-isolation-report]
@@ -1110,3 +1120,141 @@ tests:
     timeout_seconds: 300
     owner: identity
     artifacts: [playwright-report, games-admission-desktop-screenshot, games-admission-mobile-screenshot]
+
+  - id: TST-ADMIN-OVERVIEW-UNIT-001
+    title: Identity-bound admin access and scope-range-bound dashboard refresh with real readable chart axes
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/web/src/admin/testing/admin-dashboard.spec.ts apps/web/src/admin/testing/admin-shell.spec.ts apps/web/src/admin/testing/admin-page.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-OVERVIEW-UI-001
+    title: Built admin shell revalidation, revocation, cross-identity isolation and four viewport overview layout
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:settings-ui e2e/admin-dashboard-ui.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [playwright-report, admin-desktop-screenshot, admin-mobile-screenshot]
+
+  - id: TST-ADMIN-CATALOG-UNIT-001
+    title: Closed catalog query validation, read-only timeout boundary and typed stale-safe UI server pagination
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/admin-user-catalog.spec.ts apps/api/src/admin.controller.spec.ts apps/web/src/admin/testing/admin-user-catalog.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-CATALOG-PG-001
+    title: Full typed CRM filtering, aggregates, CSV bounds, exact organization bindings, revocation and microsecond cursor proof
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/crm-directory.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-catalog-report]
+
+  - id: TST-ADMIN-HISTORY-UNIT-001
+    title: Typed retained-history validation, success audit and stale-safe lazy UI pagination
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/admin-user-history.spec.ts apps/web/src/admin/testing/admin-user-history.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-ADMIN-HISTORY-PG-001
+    title: Retained history beyond fifty records, exact Account Seat separation, scope denial and cursor binding
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/admin-user-history.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-history-report]
+
+  - id: TST-CRM-CARD-UNIT-001
+    title: Typed full CRM request validation, profile conflicts, literal transcript rendering and stale response guards
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/crm-user.controller.spec.ts apps/api/src/crm-responsibilities.controller.spec.ts apps/web/src/admin/testing/crm-user-card.spec.ts apps/web/src/admin/testing/crm-seat-detail.spec.ts apps/web/src/admin/testing/crm-responsibilities.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-CRM-CARD-PG-001
+    title: Full retained CRM contents, exact teacher scope, immutable profile audit and concurrent administrator protection
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/crm-user-cards.pg.spec.ts tests/admin/crm-retained-detail.pg.spec.ts tests/admin/crm-responsibilities.pg.spec.ts
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-crm-report]
+
+  - id: TST-EMAIL-PROOF-UNIT-001
+    title: Secret storage, strict SMTP transport, honest readiness, proof redaction and current Account confirmation UI
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/email.service.spec.ts apps/api/src/email.controller.spec.ts apps/web/src/email-api.spec.ts apps/web/src/admin/testing/email-settings.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
+  - id: TST-EMAIL-PROOF-PG-001
+    title: Atomic one-use email changes, exact Account authority, races, expiry, duplicate email and immutable safe audit
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:email-verification:pg
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [vitest-report, isolated-postgresql-email-proof-report]
+
+  - id: TST-AI-WEB-CORE-001
+    title: Free retrieval provider bounds and immutable owner replay
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-web-search-provider.spec.ts tests/admin/ai-web-search.embedded.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-WEB-PG-001
+    title: Concurrent PostgreSQL retrieval intent and global geocoder admission
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-web-search.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-WEB-E2E-001
+    title: Source cards image previews forecast and internet settings
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-web-search.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]

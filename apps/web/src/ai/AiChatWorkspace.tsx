@@ -55,34 +55,30 @@ export function AiChatWorkspace() {
     );
   const current = scopes.items.find((scope) => scope.seatId === selected);
   const choices = scopes.items.length + (scopes.personal ? 1 : 0);
-  const scopeControl = (
-    <div className="chat-scope">
-      {choices > 1 ? (
-        <label>
-          Контекст чата
-          <select
-            aria-label="Контекст чата"
-            value={selected}
-            onChange={(event) => setSelected(event.currentTarget.value)}
-          >
-            {scopes.personal ? <option value="personal">Личный чат</option> : null}
-            {scopes.items.map((scope) => (
-              <option key={scope.seatId} value={scope.seatId}>
-                {scope.classroomTitle} · {scope.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <strong>{current ? 'Школьный чат' : 'Личный чат'}</strong>
-      )}
-      <span>
-        {current
-          ? current.classroomTitle + ' · ' + current.displayName
-          : 'История личного аккаунта'}
+  // A single owner needs no visible context stripe. With several valid owners,
+  // keep a compact selector in the one existing toolbar, not another header row.
+  const scopeControl =
+    choices > 1 ? (
+      <label className="chat-scope">
+        <span className="sr-only">Контекст чата</span>
+        <select
+          aria-label="Контекст чата"
+          value={selected}
+          onChange={(event) => setSelected(event.currentTarget.value)}
+        >
+          {scopes.personal ? <option value="personal">Личный чат</option> : null}
+          {scopes.items.map((scope) => (
+            <option key={scope.seatId} value={scope.seatId}>
+              {scope.classroomTitle} · {scope.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : current ? (
+      <span className="asa-ai-school-scope-label" title={current.classroomTitle}>
+        Школьный чат
       </span>
-    </div>
-  );
+    ) : null;
   return (
     <AiChatPage
       key={selected}

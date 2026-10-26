@@ -1,5 +1,13 @@
 /* @vitest-environment jsdom */
-import { act, createElement, startTransition, StrictMode, Suspense, useLayoutEffect } from 'react';
+import {
+  act,
+  createElement,
+  startTransition,
+  StrictMode,
+  Suspense,
+  useLayoutEffect,
+  useSyncExternalStore,
+} from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRoot, type Root } from 'react-dom/client';
@@ -16,8 +24,10 @@ import { loadSimulationWorkerController } from '../load-simulation-worker-contro
 import { SimulationFailure } from '../simulation-failure';
 import { catalogEntry } from '../component-catalog';
 import { configureProductionLibrary } from '../production-manifest-adapter';
-import { ProductionComponentVisual } from '../ProductionComponentVisual';
+import { ProductionComponentVisual, NativeOpticalProvider } from '../NativeOpticalComponentVisual';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
+import { SchematicView, BomView } from '../AlternateWorkbenchViews';
+import { WorkbenchHeader } from '../WorkbenchHeader';
 import { evaluateSimulationWorkerRequestBatched } from '../simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
@@ -123,54 +133,102 @@ let host: HTMLDivElement;
 let root: Root;
 let workbench: ReturnType<typeof useElectronicsWorkbench>;
 let renders: number;
+let headerMounted = false;
 let suspendRender: Promise<void> | null;
 let onLayoutCommit: (() => void) | null;
 let frameSequence = 0;
 const frameCallbacks = new Map<number, FrameRequestCallback>();
-function Probe({ id = 'clock-project' }: { id?: string }) {
+function NativeProjectionOutput() {
+  const snapshot = useSyncExternalStore(
+    workbench.nativeOpticalPresentation.subscribe,
+    workbench.nativeOpticalPresentation.getSnapshot,
+    workbench.nativeOpticalPresentation.getSnapshot,
+  );
+  useLayoutEffect(() => onLayoutCommit?.(), [snapshot]);
+  if (suspendRender) throw suspendRender;
+  return createElement(
+    'output',
+    {
+      'data-source': workbench.document?.components.find((c) => c.id === 'uno')?.stateProperties
+        ?.arduinoSource,
+    },
+    `${workbench.simulationTimeMs}:${workbench.result?.current}`,
+  );
+}
+function Probe({
+  id = 'clock-project',
+  view = 'breadboard',
+}: {
+  id?: string;
+  view?: 'breadboard' | 'schematic' | 'bom';
+}) {
   workbench = useElectronicsWorkbench(id, 'clock-pupil');
-  useLayoutEffect(() => onLayoutCommit?.());
   renders += 1;
   if (suspendRender) throw suspendRender;
   return createElement(
-    'div',
-    null,
+    NativeOpticalProvider,
+    { port: workbench.nativeOpticalPresentation },
     createElement(
-      'output',
-      {
-        'data-source': workbench.document?.components.find((component) => component.id === 'uno')
-          ?.stateProperties?.arduinoSource,
-      },
-      `${workbench.simulationTimeMs}:${workbench.result?.current}`,
-    ),
-    createElement(
-      'svg',
+      'div',
       null,
-      ...(workbench.document?.components ?? [])
-        .filter((component) => component.kind === 'led')
-        .map((component) => {
-          const entry = catalogEntry(component);
-          if (!entry) throw new Error('Mounted LED fixture requires its real catalogue entry');
-          return createElement(
-            'g',
-            { key: component.id, 'data-testid': `clock-led-${component.id}` },
-            createElement(ProductionComponentVisual, {
-              entry,
-              component,
-              width: 40,
-              height: 60,
-              visualState: workbench.componentVisualState(component),
-              effectiveBrightness: workbench.componentLedBrightness(component),
-              simulationRunning: workbench.simulationRunning,
-              simulationTimeMs: workbench.simulationTimeMs,
-              preparedLedAsset: workbench.preparedComponentLedAsset(component),
-              committedLedAsset: workbench.committedComponentLedAsset(component),
-              rollbackLedAsset: workbench.rollbackComponentLedAsset(component),
-              onLedAssetReadiness: workbench.onLedAssetReadiness,
-              result: workbench.runtimePresentationResultByComponent.get(component.id),
-            }),
-          );
-        }),
+      createElement(NativeProjectionOutput),
+      headerMounted
+        ? createElement(WorkbenchHeader, {
+            controller: workbench,
+            user: { id: 'clock-pupil', email: '', displayName: 'Pupil' },
+            view: 'breadboard',
+            notesOpen: false,
+            codeOpen: false,
+            onBack: () => {},
+            onViewChange: () => {},
+            onToggleNotes: () => {},
+            onToggleCode: () => {},
+            onToggleLibrary: () => {},
+            onOpenShare: () => {},
+            onExportView: () => {},
+          })
+        : null,
+      view !== 'breadboard' && workbench.document
+        ? view === 'schematic'
+          ? createElement(SchematicView, { document: workbench.document, controller: workbench })
+          : createElement(BomView, { document: workbench.document })
+        : createElement(
+            'svg',
+            null,
+            ...(workbench.document?.components ?? [])
+              .filter(
+                (component) =>
+                  component.kind === 'led' || component.componentTypeId === 'arduino-uno',
+              )
+              .map((component) => {
+                const entry = catalogEntry(component);
+                if (!entry) {
+                  if (component.kind === 'led')
+                    throw new Error('Mounted LED fixture requires its real catalogue entry');
+                  return null;
+                }
+                return createElement(
+                  'g',
+                  { key: component.id, 'data-testid': `clock-led-${component.id}` },
+                  createElement(ProductionComponentVisual, {
+                    entry,
+                    component,
+                    width: 40,
+                    height: 60,
+                    visualState: workbench.componentVisualState(component),
+                    effectiveBrightness: workbench.componentLedBrightness(component),
+                    effectiveArduinoLActive: workbench.componentArduinoLActive(component),
+                    simulationRunning: workbench.simulationRunning,
+                    simulationTimeMs: workbench.simulationTimeMs,
+                    preparedLedAsset: workbench.preparedComponentLedAsset(component),
+                    committedLedAsset: workbench.committedComponentLedAsset(component),
+                    rollbackLedAsset: workbench.rollbackComponentLedAsset(component),
+                    onLedAssetReadiness: workbench.onLedAssetReadiness,
+                    result: workbench.runtimePresentationResultByComponent.get(component.id),
+                  }),
+                );
+              }),
+          ),
     ),
   );
 }
@@ -235,6 +293,7 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue(ElectronicsLiveSimulationWorkerController);
   renders = 0;
+  headerMounted = false;
   suspendRender = null;
   onLayoutCommit = null;
   openedDocument = initial;
@@ -558,6 +617,120 @@ describe('mounted workbench host demand clock', () => {
     });
   }
 
+  it.each(['schematic', 'bom'] as const)(
+    'commits assetless Uno endpoints in actual %s view',
+    async (view) => {
+      await act(async () => root.render(createElement(Probe, { view })));
+      await act(async () => workbench.toggleSimulation());
+      await frame();
+      await tick(20);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(10_000);
+        worker().callbacks!.onResult({ ...ready, current: 2 }, undefined, 'dc-inputs-v1');
+      });
+      await frame();
+      expect(workbench.simulationTimeMs).toBe(10);
+      expect(workbench.result?.current).toBe(2);
+      expect(
+        host.querySelector(
+          view === 'schematic' ? '.workbench-schematic-view' : '.workbench-bom-view',
+        ),
+      ).not.toBeNull();
+    },
+  );
+
+  it.each(['schematic', 'bom'] as const)(
+    'retains an in-flight assetless endpoint when switching to %s',
+    async (view) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await frame();
+      await tick(20);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(10_000);
+        worker().callbacks!.onResult({ ...ready, current: 3 }, undefined, 'dc-inputs-v1');
+        root.render(
+          createElement(Suspense, { fallback: 'pending' }, createElement(Probe, { view })),
+        );
+      });
+      await frame();
+      expect(workbench.simulationTimeMs).toBe(10);
+      expect(workbench.result?.current).toBe(3);
+      const stale = worker();
+      await act(async () => workbench.toggleSimulation());
+      await act(async () =>
+        stale.callbacks!.onResult({ ...ready, current: 99 }, undefined, 'dc-inputs-v1'),
+      );
+      await frame();
+      expect(workbench.simulationTimeMs).toBe(0);
+      expect(workbench.simulationRunning).toBe(false);
+      expect(workbench.nativeOpticalPresentation.getSnapshot().committed).toBeNull();
+    },
+  );
+
+  it('updates the actual Header clock through four complete receipts and RAFs without whole Workbench renders', async () => {
+    headerMounted = true;
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await frame();
+    const before = renders;
+    for (let second = 1; second <= 4; second++) {
+      await tick(1000);
+      await act(async () => {
+        worker().callbacks!.onSerialProjection!([]);
+        worker().callbacks!.onCommittedHorizon!(second * 1_000_000);
+        worker().callbacks!.onResult({ ...ready, current: second }, undefined, 'dc-inputs-v1');
+      });
+      await frame();
+      expect(host.querySelector('.workbench-simulation-time')?.textContent).toContain(
+        `00:00:0${second}`,
+      );
+      expect(workbench.committedSimulationTimeMs).toBe(second * 1000);
+    }
+    expect(renders - before).toBe(0);
+  });
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'keeps the actual Header clock safe from queued publication after %s',
+    async (change) => {
+      headerMounted = true;
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await frame();
+      await tick(1000);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(1_000_000);
+        worker().callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+      });
+      await frame();
+      expect(host.querySelector('.workbench-simulation-time')?.textContent).toContain('00:00:01');
+      await tick(1000);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(2_000_000);
+        worker().callbacks!.onResult(ready, undefined, 'dc-inputs-v1');
+      });
+      const staleFrames = [...frameCallbacks.values()];
+      await act(async () => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        if (change === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        if (change === 'unmount') root.unmount();
+      });
+      await act(async () => {
+        for (const callback of staleFrames) callback(window.performance.now());
+      });
+      const clock = host.querySelector('.workbench-simulation-time');
+      if (change === 'Stop' || change === 'unmount') expect(clock).toBeNull();
+      else expect(clock?.textContent).toContain(change === 'source' ? '00:00:01' : '00:00:00');
+      expect(workbench.committedSimulationTimeMs).toBe(
+        change === 'source' || change === 'unmount' ? 1000 : 0,
+      );
+    },
+  );
+
   it('waits through preflight and H0, then retains elapsed demand across later ready frames', async () => {
     transport.autoReady = false;
     await mount();
@@ -864,10 +1037,11 @@ describe('mounted workbench host demand clock', () => {
       worker().callbacks!.onCommittedHorizon!(25_000);
       worker().callbacks!.onResult(next, undefined, 'dc-inputs-v1');
     });
-    expect(renders).toBeGreaterThan(before);
+    expect(renders).toBe(before);
     expect(workbench.result).toBe(ready);
     expect(workbench.simulationTimeMs).toBe(0);
-    expect(workbench.committedSimulationTimeMs).toBe(25);
+    // The canonical receipt is retained immediately; its UI metric joins the real RAF.
+    expect(workbench.committedSimulationTimeMs).toBe(0);
     expect(host.textContent).toBe('0:1');
     await frame();
     expect(workbench.result).toBe(next);
@@ -1079,6 +1253,7 @@ describe('mounted workbench LED temporal display', () => {
     if (to > 0) expect(worker().update.mock.calls.at(-1)![1]).toBeGreaterThanOrEqual(to);
     expect(to - next.observation.fromMicroseconds).toBeLessThanOrEqual(25_000);
     await act(async () => {
+      worker().callbacks!.onSerialProjection!([]);
       if (initialReady) worker().callbacks!.onInitialReady!(0);
       worker().callbacks!.onCommittedHorizon!(to);
       worker().callbacks!.onResult(next.result, next.observation, 'electrothermal-events-v2');
@@ -1451,6 +1626,330 @@ describe('mounted workbench LED temporal display', () => {
       expect(workbench.simulationTimeMs).toBe(0);
     },
   );
+
+  it('does not acknowledge an unseen LED/L vector during an alternate-view transition', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    await tick(10);
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 2, brightness: 70, current: 0.01 },
+        { atMicroseconds: 1000, brightness: 70, current: 0.01 },
+      ]),
+    );
+    await act(async () =>
+      root.render(
+        createElement(
+          Suspense,
+          { fallback: 'pending' },
+          createElement(Probe, { view: 'schematic' }),
+        ),
+      ),
+    );
+    await frame(8);
+    expect(host.querySelector('image')).toBeNull();
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+    expect(workbench.simulationTimeMs).toBe(0);
+    await act(async () => workbench.toggleSimulation());
+    await act(async () =>
+      root.render(createElement(Suspense, { fallback: 'pending' }, createElement(Probe))),
+    );
+    await loadMountedImages();
+    await frame();
+    expect(workbench.nativeOpticalPresentation.getSnapshot().committed).toBeNull();
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+  });
+
+  it('prepares a real native HIGH resource without rerendering the whole Workbench', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    await tick(10);
+    const before = renders;
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 2, brightness: 70, current: 0.01 },
+        { atMicroseconds: 1000, brightness: 70, current: 0.01 },
+      ]),
+    );
+    expect(renders - before).toBe(0);
+    expect(host.querySelector('image[href$="_i070.svg"]')).not.toBeNull();
+    expect(
+      workbench.componentLedBrightness(openedDocument.components.find((c) => c.kind === 'led')!),
+    ).toBe(0);
+    await frame(8);
+    const beforePublication = renders;
+    await loadMountedImages();
+    expect(renders - beforePublication).toBe(0);
+    expect(workbench.componentLedBrightness(led)).toBe(70);
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
+    expect(workbench.simulationTimeMs).toBe(1);
+    assertCommitted(70, 'lit');
+  });
+
+  it('coalesces four actual held receipts into one real RAF metric without four full Workbench renders', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    const before = renders;
+    worker().update.mockClear();
+    for (let index = 1; index <= 4; index++) {
+      await tick(10);
+      await receive(
+        observed([
+          { atMicroseconds: (index - 1) * 10_000, brightness: 0, current: 0 },
+          { atMicroseconds: index * 10_000, brightness: 0, current: 0 },
+        ]),
+      );
+    }
+    expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
+      10_000, 20_000, 30_000, 40_000,
+    ]);
+    expect(renders - before).toBe(0);
+    expect(workbench.committedSimulationTimeMs).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+    workbench.sendArduinoSerialRx('uno', 'unthrottled');
+    expect(worker().sendSerialRx).toHaveBeenLastCalledWith('uno', 'unthrottled', 40_000);
+    await frame();
+    expect(workbench.committedSimulationTimeMs).toBe(40);
+    expect(workbench.simulationTimeMs).toBe(40);
+    expect(renders - before).toBe(0);
+    assertCommitted(0, 'off');
+  });
+
+  it('publishes every nonempty Serial projection and clears it immediately without RAF', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const projection = {
+      componentId: 'uno',
+      begun: true,
+      baudRate: 9600,
+      tx: [],
+      rxPendingBytes: 0,
+    };
+    await act(async () => worker().callbacks!.onSerialProjection!([projection]));
+    expect(workbench.arduinoSerialByBoard.uno).toBe(projection);
+    const tx = { ...projection, tx: [{ sequence: 0, atMicroseconds: 1000, text: 'ready' }] };
+    await act(async () => worker().callbacks!.onSerialProjection!([tx]));
+    expect(workbench.arduinoSerialByBoard.uno).toBe(tx);
+    const rx = { ...tx, rxPendingBytes: 3, baudRate: 115200, begun: false };
+    await act(async () => worker().callbacks!.onSerialProjection!([rx]));
+    expect(workbench.arduinoSerialByBoard.uno).toBe(rx);
+    await act(async () => worker().callbacks!.onSerialProjection!([]));
+    expect(workbench.arduinoSerialByBoard).toEqual({});
+  });
+
+  it.each(['Reset', 'source'] as const)(
+    'preserves immediate empty Serial clearing after %s',
+    async (change) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await act(async () =>
+        worker().callbacks!.onSerialProjection!([
+          { componentId: 'uno', begun: true, baudRate: 9600, tx: [], rxPendingBytes: 2 },
+        ]),
+      );
+      await act(async () => {
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        else
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        // Controller owns generation filtering and projects [] immediately at generation entry.
+        worker().callbacks!.onSerialProjection!([]);
+      });
+      expect(workbench.arduinoSerialByBoard).toEqual({});
+    },
+  );
+
+  it.each(['Stop', 'unmount'] as const)(
+    'ignores stale Serial receipts after %s',
+    async (change) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      const stale = worker().callbacks!;
+      const projection = {
+        componentId: 'uno',
+        begun: true,
+        baudRate: 9600,
+        tx: [],
+        rxPendingBytes: 1,
+      };
+      await act(async () => stale.onSerialProjection!([projection]));
+      await act(async () => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'unmount') root.unmount();
+      });
+      const after = workbench.arduinoSerialByBoard;
+      const count = renders;
+      await act(async () => {
+        stale.onSerialProjection!([{ ...projection, rxPendingBytes: 99 }]);
+        stale.onSerialProjection!([]);
+      });
+      expect(workbench.arduinoSerialByBoard).toBe(after);
+      expect(renders).toBe(count);
+    },
+  );
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'cancels pending display-only committed time across %s without changing canonical inputs',
+    async (change) => {
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+      await frame();
+      await tick(10);
+      await receive(
+        observed([
+          { atMicroseconds: 0, brightness: 0, current: 0 },
+          { atMicroseconds: 10_000, brightness: 0, current: 0 },
+        ]),
+      );
+      expect(workbench.committedSimulationTimeMs).toBe(0);
+      await act(async () => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        if (change === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        if (change === 'unmount') root.unmount();
+      });
+      const rendersAfterCancellation = renders;
+      await frame();
+      expect(workbench.committedSimulationTimeMs).toBe(0);
+      if (change === 'unmount') expect(renders).toBe(rendersAfterCancellation);
+      if (change === 'Reset') {
+        workbench.sendArduinoSerialRx('uno', 'after-reset');
+        expect(worker().sendSerialRx).toHaveBeenLastCalledWith('uno', 'after-reset', 0);
+      }
+    },
+  );
+
+  it('does not spend the first real 16ms RAF displaying an already resident OFF H0 and miss the first 20ms HIGH', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await requestedHorizon(10_000);
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 2, brightness: 80, current: 0.01 },
+        { atMicroseconds: 10_000, brightness: 80, current: 0.01 },
+      ]),
+    );
+    await loadMountedImages();
+    // All resources are resident before the first actual RAF; no network/cold
+    // loading or changed physical timing can explain a lost first short phase.
+    await frame(6);
+    assertCommitted(80, 'lit');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
+    await requestedHorizon(20_004);
+    await receive(
+      observed([
+        { atMicroseconds: 10_000, brightness: 80, current: 0.01 },
+        { atMicroseconds: 20_004, brightness: 0, current: 0 },
+      ]),
+    );
+    await frame(7);
+    assertCommitted(0, 'off');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+  });
+
+  it('presents the first short HIGH at RAF16 even when complete history already includes LOW20004 and end25000', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    // Deliberately deliver a complete bounded future history before RAF16;
+    // do not let a latest-result LOW replace the earlier current HIGH.
+    const future = observed([
+      { atMicroseconds: 0, brightness: 0, current: 0 },
+      { atMicroseconds: 2, brightness: 80, current: 0.01 },
+      { atMicroseconds: 20_004, brightness: 0, current: 0 },
+      { atMicroseconds: 25_000, brightness: 0, current: 0 },
+    ]);
+    // Adversarial transport fixture: the hook receives a complete future window.
+    // This is not a claim that the current host naturally requests25ms at0ms.
+    await act(async () => {
+      worker().callbacks!.onCommittedHorizon!(25_000);
+      worker().callbacks!.onResult(future.result, future.observation, 'electrothermal-events-v2');
+    });
+    await loadMountedImages();
+    await frame(16);
+    assertCommitted(80, 'lit');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
+    await frame(17);
+    assertCommitted(0, 'off');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+  });
+
+  it('withholds the dark H0 bootstrap while its actual OFF native lease is unready', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+    expect(workbench.result).toBeNull();
+    await loadMountedImages();
+    assertCommitted(0, 'off');
+  });
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'rejects dark H0 readiness queued across %s',
+    async (change) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+      expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+      const before = workbench.preparedComponentLedAsset(led)?.token;
+      await loadMountedImages(() => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        if (change === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        if (change === 'unmount') root.unmount();
+      });
+      expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+      if (change === 'Stop' || change === 'Reset')
+        expect(workbench.preparedComponentLedAsset(led)?.token).not.toBe(before);
+    },
+  );
+
+  it('prepares the actual current complete fast-cycle resource instead of its obsolete first HIGH without moving the display', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    const prior = workbench.committedComponentLedAsset(led)!;
+    await requestedHorizon(24_000);
+    const samples = [{ atMicroseconds: 0, brightness: 0, current: 0 }];
+    for (let at = 1; at < 24_000; at += 1000) {
+      const brightness = Math.floor((at - 1) / 1000) % 2 === 0 ? 80 : 0;
+      samples.push({ atMicroseconds: at, brightness, current: brightness ? 0.01 : 0 });
+    }
+    samples.push({ ...samples.at(-1)!, atMicroseconds: 24_000 });
+    await receive(observed(samples));
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i040\.svg$/);
+    expect(workbench.committedComponentLedAsset(led)).toBe(prior);
+    expect(prior.isActive()).toBe(true);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+  });
 
   it('retires an existing speculative token on source layout without disturbing the displayed native lease', async () => {
     await mount();

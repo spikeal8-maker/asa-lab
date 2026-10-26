@@ -108,7 +108,7 @@ class Installation:
         for record in records:
             labels = record["labels"] or {}
             service = labels.get("com.docker.compose.service")
-            if service not in ("postgres", "api", "web", "scratch", "minio"):
+            if service not in ("postgres", "api", "web", "scratch", "minio", "search"):
                 continue
             project = labels.get("com.docker.compose.project")
             root = labels.get("com.docker.compose.project.working_dir", "")
@@ -168,6 +168,11 @@ class Installation:
                 "HEALTH", "Schema versions differ.")
         scratch = self.compose("exec", "-T", "scratch", "wget", "-qO-", "http://127.0.0.1:8080/asa-commit.txt", capture=True)
         require(scratch == rev, "HEALTH", "Scratch revision differs.")
+        if self.process_env.get("ASA_SEARCH_IMAGE"):
+            search = self.compose("exec", "-T", "search", "cat", "/usr/local/share/asa-search/asa-commit.txt", capture=True)
+            require(search == rev, "HEALTH", "Search revision differs.")
+            self.compose("exec", "-T", "search", "/usr/local/searxng/.venv/bin/python", "-c",
+                         "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz',timeout=3).read()", capture=True)
         scratch_port = int(self.env.get("ASA_BLOCKS_PORT", "4613"))
         with urllib.request.urlopen(f"http://127.0.0.1:{scratch_port}/healthz", timeout=5) as response:
             require(response.status == 200, "HEALTH", "Published Scratch port is unavailable.")

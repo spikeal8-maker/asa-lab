@@ -1,3 +1,5 @@
+import type { AiWebSearchMode } from '@asa-lab/contracts';
+import { AiWebSearchError, isWebSearchMode } from './ai-web-search.js';
 import {
   Body,
   Controller,
@@ -16,7 +18,13 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { isAiModel } from './ai-model-catalog.js';
-import { AiChatService, AiServiceError, type AiCursor, type AiModel } from './ai-chat.service.js';
+import { OLLAMA_SELECTION } from './ai-ollama.js';
+import {
+  AiChatService,
+  AiServiceError,
+  type AiCursor,
+  type AiChatModel,
+} from './ai-chat.service.js';
 import { AiAccessService, aiRequestActor, aiSeatSelector } from './ai-access.service.js';
 import type { SeatContextUseCase } from './seat-context.js';
 import { TOKENS } from './tokens.js';
@@ -66,11 +74,75 @@ export class AiChatController {
     try {
       return await call();
     } catch (problem) {
-      if (problem instanceof AiServiceError) {
+      if (problem instanceof AiServiceError || problem instanceof AiWebSearchError) {
         return reject(problem.code, problem.message, problem.status);
       }
       throw problem;
     }
+  }
+
+  private attachmentIds(value: unknown): readonly string[] {
+    if (value === undefined) return [];
+    if (
+      !Array.isArray(value) ||
+      value.length < 1 ||
+      value.length > 4 ||
+      value.some((id: unknown) => typeof id !== 'string' || !UUID.test(id)) ||
+      new Set(value.map((id: string) => id.toLowerCase())).size !== value.length
+    )
+      return reject('ai_attachment_invalid', 'Выберите не более четырёх разных файлов.', 400);
+    return (value as string[]).map((id) => id.toLowerCase());
+  }
+
+  private internetMode(body: Record<string, unknown>): AiWebSearchMode | undefined {
+    if (body['webSearchMode'] === undefined) return undefined;
+    if (!isWebSearchMode(body['webSearchMode']))
+      return reject('ai_web_mode_invalid', 'Выберите режим интернет-поиска.', 400);
+    return body['webSearchMode'];
+  }
+  private weatherCity(body: Record<string, unknown>): string | undefined {
+    const value = body['weatherCity'];
+    if (value === undefined) return undefined;
+    if (
+      typeof value !== 'string' ||
+      value.trim().length < 1 ||
+      value.length > 100 ||
+      /\p{Cc}/u.test(value)
+    )
+      return reject('ai_web_city_invalid', 'Укажите город до 100 символов.', 400);
+    return value.trim();
+  }
+
+  @Get('web-search/status')
+  async webSearchStatus(@Req() request: FastifyRequest) {
+    await this.requireOwner(request);
+    return this.safe(() => this.ai.webSearchStatus());
+  }
+
+  @Get('threads/:threadId/web-search/:requestId/images/:imageId')
+  async webSearchImage(
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+    @Param('threadId') thread: string,
+    @Param('requestId') requestId: string,
+    @Param('imageId') imageId: string,
+  ) {
+    const owner = await this.requireOwner(request);
+    if (!UUID.test(requestId) || !/^[1-6]$/.test(imageId))
+      return reject('ai_web_image_missing', 'Изображение недоступно.', 404);
+    const image = await this.safe(() =>
+      this.ai.webSearchImage(
+        owner.principalId,
+        this.threadId(thread),
+        requestId.toLowerCase(),
+        Number(imageId),
+      ),
+    );
+    reply
+      .header('Cache-Control', 'private, no-store')
+      .header('X-Content-Type-Options', 'nosniff')
+      .type(image.mediaType)
+      .send(image.bytes);
   }
 
   private threadId(value: string): string {
@@ -209,6 +281,31 @@ export class AiChatController {
     return this.safe(() => this.ai.messagePage(account.principalId, threadId, cursor));
   }
 
+  @Get('threads/:threadId/attachments')
+  async attachments(
+    @Req() request: FastifyRequest,
+    @Param('threadId') rawId: string,
+    @Query('requestIds') rawIds: string,
+  ) {
+    const account = await this.requireOwner(request);
+    const threadId = this.threadId(rawId);
+    const ids = typeof rawIds === 'string' ? rawIds.split(',') : [];
+    if (
+      !ids.length ||
+      ids.length > 50 ||
+      ids.some((id) => !UUID.test(id)) ||
+      new Set(ids.map((id) => id.toLowerCase())).size !== ids.length
+    )
+      return reject('ai_attachment_invalid', 'Неверный список сообщений.', 400);
+    return this.safe(() =>
+      this.ai.attachmentHistory(
+        account.principalId,
+        threadId,
+        ids.map((id) => id.toLowerCase()),
+      ),
+    );
+  }
+
   @Post('threads/:threadId/requests/:requestId/stop')
   @HttpCode(200)
   async stop(
@@ -272,8 +369,10 @@ export class AiChatController {
         400,
       );
     }
+    if (body['webSearchMode'] !== undefined || body['weatherCity'] !== undefined)
+      return reject('ai_request_id_reused', 'Вариант использует источники исходного вопроса.', 409);
     const model = body['model'];
-    if (model !== undefined && !isAiModel(model)) {
+    if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
     return this.streamResponse(
@@ -282,7 +381,7 @@ export class AiChatController {
       '',
       body['requestId'].toLowerCase(),
       reply,
-      model as AiModel | undefined,
+      model as AiChatModel | undefined,
       body['sourceUserMessageId'].toLowerCase(),
     );
   }
@@ -312,7 +411,7 @@ export class AiChatController {
     const message = body['message'] as string;
     const requestId = (body['requestId'] as string).toLowerCase();
     const model = body['model'];
-    if (model !== undefined && !isAiModel(model)) {
+    if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
 
@@ -322,7 +421,11 @@ export class AiChatController {
       message,
       requestId,
       reply,
-      model as AiModel | undefined,
+      model as AiChatModel | undefined,
+      undefined,
+      this.attachmentIds(body['attachmentIds']),
+      this.internetMode(body),
+      this.weatherCity(body),
     );
   }
 
@@ -332,8 +435,11 @@ export class AiChatController {
     message: string,
     requestId: string,
     reply: FastifyReply,
-    model?: AiModel,
+    model?: AiChatModel,
     sourceId?: string,
+    attachmentIds: readonly string[] = [],
+    webSearchMode?: AiWebSearchMode,
+    weatherCity?: string,
   ): Promise<void> {
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -360,6 +466,15 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
+        ...((webSearchMode !== undefined || weatherCity !== undefined
+          ? ([attachmentIds, webSearchMode, weatherCity] as const)
+          : attachmentIds.length
+            ? ([attachmentIds] as const)
+            : []) as [
+          attachmentIds?: readonly string[],
+          webSearchMode?: AiWebSearchMode,
+          weatherCity?: string,
+        ]),
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
@@ -369,9 +484,12 @@ export class AiChatController {
         ),
       });
     } catch (problem) {
-      const code = problem instanceof AiServiceError ? problem.code : 'ai_provider_unavailable';
+      const code =
+        problem instanceof AiServiceError || problem instanceof AiWebSearchError
+          ? problem.code
+          : 'ai_provider_unavailable';
       const message =
-        problem instanceof AiServiceError
+        problem instanceof AiServiceError || problem instanceof AiWebSearchError
           ? problem.message
           : 'Не удалось получить ответ модели. Сообщение сохранено.';
       event('error', { code, message });
@@ -400,12 +518,17 @@ export class AiChatController {
     if (typeof body['requestId'] !== 'string' || !UUID.test(body['requestId'])) {
       return reject('ai_request_id_invalid', 'Нужен уникальный идентификатор отправки.', 400);
     }
+    const webSearchMode = this.internetMode(body);
+    const weatherCity = this.weatherCity(body);
     return this.safe(() =>
       this.ai.send(
         account.principalId,
         threadId,
         body['message'] as string,
         (body['requestId'] as string).toLowerCase(),
+        ...((webSearchMode !== undefined || weatherCity !== undefined
+          ? ([webSearchMode, weatherCity] as const)
+          : []) as [AiWebSearchMode?, string?]),
       ),
     );
   }

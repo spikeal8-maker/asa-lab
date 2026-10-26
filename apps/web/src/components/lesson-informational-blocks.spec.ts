@@ -17,14 +17,18 @@ import {
   setLessonBlockHidden,
 } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
+import { installCourseEditorTestDom } from './course-editor-test-dom';
 
 const reactGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let restoreBrowserApis: () => void;
 beforeAll(() => {
+  restoreBrowserApis = installCourseEditorTestDom();
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = true;
 });
 afterAll(() => {
+  restoreBrowserApis();
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 afterEach(async () => {
@@ -207,8 +211,22 @@ describe('informational lesson blocks', () => {
     expect(markup).toContain('+ Строка');
     expect(markup).toContain('+ Добавить содержимое');
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).not.toContain('role="menu"');
-    expect(markup).not.toContain('+ Текст');
+    const document = new DOMParser().parseFromString(markup, 'text/html');
+    const addMenu = document.querySelector('[role="menu"]');
+    expect(addMenu?.getAttribute('aria-label')).toBe('Добавить содержимое урока');
+    expect(addMenu?.closest('details')?.open).toBe(false);
+    expect(
+      addMenu?.closest('details')?.querySelector('summary')?.getAttribute('aria-expanded'),
+    ).toBe('false');
+    expect([...document.querySelectorAll<HTMLDetailsElement>('.lesson-block-menu')]).toHaveLength(
+      blocks.length,
+    );
+    expect(
+      [...document.querySelectorAll<HTMLDetailsElement>('.lesson-block-menu')].every(
+        (menu) => !menu.open,
+      ),
+    ).toBe(true);
+    expect(addMenu?.textContent).toContain('+ Текст');
     expect(markup).toContain('type="button"');
   });
 
@@ -347,10 +365,14 @@ describe('informational lesson blocks', () => {
   it('opens the single native add-content menu and closes it after adding text', async () => {
     const original: LessonBlock = { id: 'existing', type: 'paragraph', text: 'Original' };
     const change = await mountEditor([original]);
-    const trigger = button('+ Добавить содержимое');
+    const disclosure = container!.querySelector<HTMLDetailsElement>('.lesson-block-add')!;
+    const trigger = disclosure.querySelector<HTMLElement>('summary')!;
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(container!.querySelector('[role="menu"]')).toBeNull();
-    await act(async () => trigger.click());
+    expect(disclosure.open).toBe(false);
+    await act(async () => {
+      trigger.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     const menu = container!.querySelector<HTMLElement>('[role="menu"]')!;
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     expect(menu.getAttribute('aria-label')).toBe('Добавить содержимое урока');
@@ -365,7 +387,7 @@ describe('informational lesson blocks', () => {
       original,
       expect.objectContaining({ type: 'paragraph', text: '' }),
     ]);
-    expect(container!.querySelector('[role="menu"]')).toBeNull();
+    expect(disclosure.open).toBe(false);
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 

@@ -20,6 +20,7 @@ export function studentSessionPayload(seat: ClassroomStudentSession): SessionPay
     // A seat has no address. Nothing in the portal writes to one; the field
     // exists because an account has it.
     email: '',
+    identityKind: 'student' as const,
   };
   return {
     authenticated: true,

@@ -162,3 +162,137 @@ equivalence. Unknown/invalid ownership or runtime never actuates. No synthetic
 events, invented geometry, cap increase, class-identity variant, core/hook/API or
 asset edits. NEW exact-source review, actual RAW<=218000 and all six native cases
 with independent actual review remain mandatory; proxy size is not acceptance.
+
+
+## 24 October: safe replacement after dynamic meter regression
+
+The [safe combined selection](../evidence/ui679-safe-budget-repair-selection-20261024.md)
+supersedes the preceding multimeter-compaction permission. Private f634 loses the
+actual owner button and focus on a normal readout update; restore multimeter
+byte-exact baseline984. Preserve f634 strict native same-owner PSU routing and
+honest F2 top-wire/resolved-owner journal, exact point/actions, full independent
+document, R3 storage and one Save/CAS.
+
+Only PSU/generator knob regions may share the raw arc-ratio helper and
+move/up/cancel factory, including selected PSU branch dedup. Preserve original
+clamp ordering, capture, state, exception and handler ordering. Omit only the existing PSU root SVG explicit default preserveAspectRatio prop;
+retain viewBox, x/y, dimensions, transforms and owner markup. Generator SVG
+attributes remain byte-exact. No meter/LED/FET/core/hook/API/
+persistence/asset/dependency/workflow/cap change. This remains679's budget
+dependency;681 stays closed. Preserve accepted961 clock blobs and sole682 controller.
+
+Independent proposal approval selects implementation only. Estimate217983 RAW
+with17 margin is not actual fit; jsdom/affine checks are not native CTM evidence.
+Require NEW final-source review, actual editor<=218000, all six original native
+cases and NEW actual/visual review. API remains separate under owner targeted UI
+acceptance; no full General PASS, physical acceptance, release or deployment.
+
+
+## 24 October: actual d8 exceeds retained cap by111; select two hunks only
+
+The [dated d8 receipt and selection](../evidence/ui679-d8-111-budget-repair-selection-20261024.md)
+supersedes only the preceding implementation permission. Exact d8 scoped run
+40035753201 completed all six cases, but General40035752095 Code measured218111
+RAW against218000: categoryA own budget FAIL111, Data/Access skipped. Functional
+success is not acceptance. Preserve d8 and all earlier immutable receipts.
+
+Select ONLY frozen stop-event extraction in the selected knob helper/PSU down
+hunk and owner/runtime selector constants in the new Stage routing hunk. Preserve
+all other seven selected source blobs and every byte outside these hunks exact d8;
+no JSX identity, event ordering, receiver, exception or native priority changes.
+Independent APPROVE_PROPOSAL_ONLY and119 module-proxy saving permit one source
+author after canonical publication; estimated8 margin proves no actual fit.
+Require NEW final-SHA source review, one justified actual Code/raw measurement,
+all six original cases and NEW actual/visual review before closure. Actual d8
+actual review NEEDS_FIX solely budget111; selected six cases PASS. Mobile clock is hidden by the
+existing toolbar; desktop visibility and mobile timing evidence do not establish
+mobile visible-clock acceptance. 568px landscape remains NOT_RUN. Preserve API-separate
+owner decision, sole682 controller,681 closed,548 blocker and544/547 open.
+No cap raise, blind variant, meter/core/hook/LED/API/assets/workflow/dependency
+change, global PASS, owner/device acceptance, release or deployment is selected.
+
+
+## Current-main integration selection — 24 October 2026
+
+The bounded historical candidate6dbab2cc7d181294e875e89895c231d0d86d61dc
+passed General40040123409 all four jobs and scoped40040123895 all three jobs,
+all six original native cases. Actual217998 RAW fit its218000 cap by2.
+NEW independent actual review APPROVE_TARGETED verified43 original hashes,
+4717 raw checks and20 PNGs, both complete F2 journeys with one Save/CAS/full
+fresh R3 document and all12 clock phases. Receipt SHA256
+`77f8474a3329dd535162acb34d1d97b2edc6bb7c6641493054523ec460792243`.
+This historical result does not accept a different current-main composition.
+
+See [current-main integration selection](../evidence/ui679-557-current-main-integration-selection-20261024.md)
+for the exact ten-path boundary. Preserve the foreign682 subscribed clock,
+optical renderer/runtime and separately owner-approved222000 cap. New composition
+source review, actual size, scoped/General execution and independent actual/visual
+review are still required. No new budget increase is selected; old218000 proof
+remains separate. Mobile label baseline is hidden/NOT_OBSERVED;568 is NOT_RUN.
+Source publication is separate from deployment, physical owner acceptance and
+release. Preserve681 CLOSED,552 blockers,682 pending qualification,548 and
+owner KEEP544/547OPEN; no foreign work or blocker is cleared.
+
+
+## Current composition budget326 repair selection — 24 October 2026
+
+Exact8415 scoped40087416800 passes all six original cases/all three jobs;
+General40087416057 Code fails only RAW222326/222000 by326, categoryA.
+Governance PASS; Data/Access SKIPPED. Independent actual NEEDS_FIX solely budget,
+functional/visual APPROVE_TARGETED6/6, receipt SHA256
+`febdad11e0129690c66de91e8b88de6f4045ae9874dd02c3a796345ad8be6456`.
+Both full F2 Save/CAS2to3/fresh R3 documents and all12 clock phases complete.
+
+The [pointer-down repair selection](../evidence/ui679-557-pointerdown-budget-repair-selection-20261024.md)
+suspends next integration qualification until one exact repair: frozen Visual
+helper plus two pointer-down bodies, and meaningful existing knob-controls
+regressions only. Preserve8415 Stage/Header/all other eight source blobs, whole
+clock browser and interaction assertions. Proposal-only independent review
+approves3812 dispatch comparisons;503 proxy savings/apparent177 margin proves
+no production fit. Preserve accepted foreign682222000 cap unchanged and keep
+historical6db217998/218000 separate. NEW exact-source review, one new scoped six
+plus General and NEW actual review precede679/557 integration/closure.
+No meter/SVG/wrapper/core/hook/LED/API/assets/workflow/dependency/cap/timer or
+assertion changes. Generator equivalence unit proof adds no native browser claim.
+Preserve552/682/548, KEEP544/547OPEN,681CLOSED and immutable receipts; mobile
+visibility/568 limits, deployment, physical acceptance and release stay pending.
+
+
+## Active-selector compatibility amendment — 24 October 2026
+
+The [compatibility selection](../evidence/ui679-557-active-selectors-compatibility-selection-20261024.md)
+replaces only prior c751 implementation permission after a concrete pre-CI
+source-contract failure: three active full PSU selectors became prefix-composed.
+Keep the frozen presentation contract unchanged. Apply ONLY corrected Visual
+proposal8724338063755ecbf2d3a07dd840ff19e144f0defb73b75e69092a048bf13b78
+plus meaningful existing knob-controls regressions. Keep the other eight source
+blobs of the ten-path8415 composition byte-exact, including Stage and Header.
+Temporary read-redirection focused checks82/82 and independent4352 dispatch
+comparisons pass; proposal approval is not final source or browser acceptance.
+Corrected334 module-proxy saving/apparent8 margin proves no actual fit; old503
+selection/receipt stays historical. Accepted222000 cap unchanged. NEW exact-source
+review, ONE qualified Code/scoped-six/General cycle and NEW actual review are
+required. Preserve557 target, all foreign/blocker state, old receipts and native
+assertions. No alternate variants, cap increase, extra paths, deployment or closure.
+
+
+## Final targeted technical closeout — 24 October 2026
+
+[The final dated receipt](../evidence/ui679-557-final-technical-closeout-20261024.md)
+records qualified source `5b5f2cf549d94473e0365c8938093d8026ac67f4` integrated in main
+`380d35bc67d22d2eb6e96c92dbdbb75a4211928c`, NEW independent source/integration and
+APPROVE_TARGETED actual/visual reviews, all six original native cases complete,
+and actual221965 RAW against unchanged accepted222000 cap (35 bytes remaining).
+Both F2 whole-document one-Save/CAS2→3/cookies-only R3 journeys and all12 clock
+phases completed.679 closed2026-10-24T11:40:48Z;557 closed11:40:51Z.
+General40089881977 SUCCESS, all four jobs on exact qualified5b5f2cf5;
+no new main or documentation-SHA General result is claimed. Historical selections and prior
+NOT_RUN/failure records remain immutable history; current completion is recorded
+only in current.yaml and this receipt. No new documentation-SHA runtime claim.
+
+Owner API-separate targeted UI acceptance covers these technical closures only.
+Physical owner acceptance, release and deployment remain pending. Mobile hidden
+clock visibility NOT_OBSERVED;568px NOT_RUN. Preserve552 blocker byte-exact,
+682 partial/all-eight pending,548 and owner KEEP544/547OPEN,681 already closed
+and every foreign state. Historical6db218000-cap evidence is not new fit proof.
+Source publication is not deployment. NEXT_ALLOWED_TASK: STOP.

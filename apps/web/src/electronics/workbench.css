@@ -14,6 +14,10 @@
 .workbench-shell.library-collapsed {
   --wb-library-width: 32px;
 }
+/* The rotating horn can extend beyond the owner's fixed SVG viewport. */
+svg[data-servo-angle-degrees] {
+  overflow: visible;
+}
 .workbench-loading {
   min-height: 100vh;
   display: grid;
@@ -3094,7 +3098,7 @@
   stroke-width: 2.2;
 }
 .workbench-led-visual.is-reverse .workbench-led-asset {
-  filter: grayscale(1) brightness(0.88) contrast(0.82);
+  filter: none;
 }
 .workbench-led-explosion-outer {
   fill: #ffd21d;
@@ -3548,7 +3552,7 @@ html.arduino-drawer-resizing * {
   border-radius: 3px;
   background: #fff;
   color: #202428;
-  font: 400 13px/1 var(--arduino-ui-font);
+  font: 400 13px/1.35 var(--arduino-ui-font);
 }
 .arduino-mode-menu > summary {
   display: flex;
@@ -3837,6 +3841,14 @@ html.arduino-drawer-resizing * {
   border-radius: 4px;
   background: #fff;
 }
+.arduino-command-library summary {
+  padding: 12px 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.arduino-command-library .arduino-command-reference-item {
+  margin-top: 6px;
+}
 .arduino-command-reference-item.support-limited {
   border-left-color: #d49b1d;
 }
@@ -4097,6 +4109,7 @@ html.arduino-palette-resizing * {
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .arduino-block-categories > button.active {
   background: #e8edf1;
@@ -4124,7 +4137,7 @@ html.arduino-palette-resizing * {
 }
 .arduino-block-editor .blocklyLabelField > .blocklyText,
 .arduino-block-editor .blocklyDropdownField > .blocklyText {
-  text-shadow: 0 1px 1px rgba(48, 51, 39, 0.42);
+  text-shadow: none;
 }
 .arduino-block-editor .blocklyFlyoutButton .blocklyText {
   fill: #43536a !important;
@@ -4863,30 +4876,26 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* Full running tools + clock + actions, including group padding, need 1373.703125px. */
-@media (min-width: 981px) and (max-width: 1373px) {
-  .workbench-shell {
-    --wb-toolbar-height: 96px;
-  }
-  .workbench-toolbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: repeat(2, 48px);
-  }
+/* Keep the actions and clock in one row; only the desktop tool strip scrolls. */
+@media (min-width: 981px) {
   .workbench-toolbar-group:not(.right) {
-    grid-column: 1 / -1;
-    grid-row: 1;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
   }
-  .workbench-toolbar-group.right {
-    grid-column: 2;
-    grid-row: 2;
+  .workbench-toolbar-group:not(.right) > * {
+    flex-shrink: 0;
   }
+  .workbench-toolbar-group.right,
   .workbench-simulation-time {
-    grid-column: 1;
-    grid-row: 2;
+    flex-shrink: 0;
   }
-  .workbench-toolbar-spacer {
-    display: none;
+  .workbench-wire-color-menu {
+    position: fixed;
+    top: calc(var(--wb-header-height) + var(--wb-toolbar-height));
+    left: 8px;
   }
 }
 
@@ -4939,39 +4948,6 @@ html.arduino-palette-resizing * {
 }
 .arduino-serial-monitor.open {
   flex-basis: min(230px, 35%);
-}
-
-/* Keep desktop action captions intact when the tool row and save actions no
-   longer fit together. Reserve the same two rows in the editor's height model;
-   the native wire menu can still open outside its tool row. */
-@media (min-width: 981px) and (max-width: 1280px) {
-  .workbench-shell {
-    --wb-toolbar-height: 96px;
-  }
-  .workbench-toolbar {
-    flex-wrap: wrap;
-  }
-  .workbench-toolbar-group.right {
-    box-sizing: border-box;
-    flex: 0 0 100%;
-    height: 48px;
-    justify-content: flex-end;
-  }
-}
-@media (min-width: 1281px) and (max-width: 1536px) {
-  .workbench-shell:has(.workbench-simulation-time):has(.emergency-copy) {
-    --wb-toolbar-height: 96px;
-  }
-  .workbench-toolbar:has(.workbench-simulation-time):has(.emergency-copy) {
-    flex-wrap: wrap;
-  }
-  .workbench-toolbar:has(.workbench-simulation-time):has(.emergency-copy)
-    .workbench-toolbar-group.right {
-    box-sizing: border-box;
-    flex: 0 0 100%;
-    height: 48px;
-    justify-content: flex-end;
-  }
 }
 
 /* Phones and tablets: a scrollable part strip and a resizable code sheet. */
@@ -6033,5 +6009,24 @@ html.arduino-palette-resizing * {
   .workbench-inspector:not(.wire-selected) .workbench-inspector-actions.vertical {
     gap: 3px;
     margin-top: 4px;
+  }
+}
+
+.arduino-block-editor .blocklyFlyoutScrollbar {
+  opacity: 1;
+}
+.arduino-block-editor-active .blocklyDropDownDiv .blocklyMenuItem {
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  padding: 3px 12px;
+  line-height: 22px;
+}
+@media (pointer: coarse) {
+  .arduino-block-editor-active .blocklyDropDownDiv .blocklyMenuItem {
+    height: 44px;
+    min-height: 44px;
+    padding-top: 11px;
+    padding-bottom: 11px;
   }
 }

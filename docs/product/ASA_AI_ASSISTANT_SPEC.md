@@ -125,6 +125,25 @@ HTML из ответа не исполняется, внешние изобра�
 как экранированный исходник; непредвиденная ошибка оформления ограничивается одним
 сообщением и не отключает чат. Широкие формулы и таблицы прокручиваются внутри ответа.
 
+У завершённого ответа видимы действия «Копировать», «Попробовать снова» и
+«Скачать ответ». Новый вариант сохраняет прежние ответы и расходует лимит по §4.2.
+Целый ответ можно локально скачать в PDF, DOCX, Markdown или TXT. PDF/DOCX —
+настоящие документы с кириллицей, заголовками, списками, таблицами и текстом кода;
+экспорт не является точной копией браузерной вёрстки, формулы сохраняют исходную запись.
+Байты экспорта не отправляются серверу или внешнему конвертеру.
+
+Блок кода имеет действия копирования и скачивания с расширением по языку:
+HTML, JS/TS/JSX/TSX, Python, JSON, CSV, CSS, Markdown, YAML, XML, SVG, SQL,
+C/C++/Arduino, Java, Rust, Go и shell. Полный HTML без языковой метки также
+распознаётся; неизвестный формат сохраняется как TXT. Кнопка скачивания кода
+недоступна, пока ответ ещё поступает. Скачивание не исполняет HTML/SVG в портале
+и не начинает новый запрос модели. Оно сохраняет выданный код, не собирая
+самостоятельно приложение из нескольких несвязанных блоков.
+
+Панель истории белая в светлой теме и отделена тонкой линией. На desktop
+разделитель меняет ширину от 240 до 420 px мышью или клавишами Left/Right,
+Home/End; выбранный размер сохраняется локально. На mobile остаётся drawer.
+
 ## 5. Вложения: раньше генерации
 
 ### 5.1. Общий контракт
@@ -167,10 +186,19 @@ DOCX, CSV, XLSX и другие документные форматы могут
 ### 5.3. Серверная основа приватных вложений
 
 Серверный контур хранит проверенные PNG/JPEG/WebP и UTF-8 текст, Markdown и исходники.
-Его API и SQL-привязка являются основой следующего пользовательского этапа:
-существующий текстовый Send пока не передаёт файлы провайдеру. Кнопка прикрепления,
-Vision, PDF/OCR и capability этих форматов не включаются только из-за готового
-хранилища.
+Пользовательский composer выбирает до четырёх файлов; до Send байты остаются
+локальными. Send загружает и привязывает файлы к исходному вопросу, а UTF-8 текст,
+Markdown и исходники передаются модели как материалы, не как инструкции.
+Изображения передаются только подключённой Ollama с подтверждённой capability
+Vision. Облачный путь OpenAI/DeepSeek пока явно отклоняет изображения; PDF/OCR
+и DOCX не подключены. Возможности модели и готовность хранилища сами по себе
+не включают поддержку формата в ASA.
+
+В сохранённой истории изображения показываются приватными миниатюрами, а файлы —
+карточками с именем, типом и размером. Видимые миниатюры читают байты через тот же
+авторизованный API и выбранный Account/Seat scope; публичных storage URL нет.
+При отказе чтения остаётся карточка с сообщением о недоступной миниатюре.
+Сворачивание/разворачивание длинного composer сохраняет черновик и доступность Send.
 
 Файл имеет неизменяемые `uploadId`, владельца, имя, размер и SHA-256. Владелец —
 канонический Account principal или StudentSeat principal, выбранный теми же
@@ -479,12 +507,44 @@ Forward migration 0227 сохраняет существующие допуст�
 к новой модели — отдельной платной проверки. История диалогов и платный журнал при обновлении
 не изменяются.
 
+### 11.2. Ollama Cloud
+
+Ollama Cloud (`ollama.com`) — отдельное подключение от локальной Ollama. Администратор
+выбирает облачную карточку, входит на официальный сайт по ссылке
+[«Войти в Ollama и получить ключ»](https://ollama.com/settings/keys), создаёт ключ
+и сохраняет его в ASA. Вход на сайте не передаёт ASA токен автоматически.
+Публичного OAuth-контракта для сторонних приложений в проверенной официальной
+документации не опубликовано; собственный OAuth-процесс не имитируется.
+
+Первая очередь каталога: `gemma4:31b`, `gpt-oss:120b`, `gpt-oss:20b` — имена
+подтверждены [облачным каталогом](https://ollama.com/api/tags) 2026-10-25.
+Прямой API использует эти имена без суффикса `-cloud`. Подключение выполняется
+только сервером через фиксированный `https://ollama.com/v1/chat/completions`
+с Bearer API-ключом; редиректы запрещены. Поддерживаются текстовые JSON/SSE
+ответы и прежние Stop/replay/owner/quota механизмы. Вложения-изображения
+облачному провайдеру пока не передаются.
+
+Ключ имеет отдельный зашифрованный слот `ollama-cloud`. Добавление, переключение
+и очистка не меняют ключи OpenAI/DeepSeek или историю. Проверка подключения
+требует положительного общего лимита и явного согласия на один потенциально
+платный запрос. Публичный ответ API не возвращает открытый ключ или ciphertext.
+Новая миграция добавляет слот и разрешённые модели без включения провайдера
+и без изменения tenant/RLS-модели. Web принимает прежний двухпровайдерный
+каталог и расширенный трёхпровайдерный; новый API/Web и миграция должны
+развёртываться согласованно. Старый Web, не понимающий третий провайдер,
+может отклонить административный DTO как несовместимый вместо неверной настройки.
+
+Источники: [авторизация](https://docs.ollama.com/api/authentication),
+[облачный API](https://docs.ollama.com/cloud),
+[OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility).
+
 ## 12. Privacy и безопасность
 
 AI Assistant работает с потенциально чувствительным учебным содержимым, поэтому обязательны:
 
 - серверное владение секретами провайдеров;
-- отсутствие provider API key во frontend bundle, localStorage и browser network payload;
+- отсутствие provider API key во frontend bundle, localStorage и ответах API; новый ключ
+  передаётся только явным авторизованным same-origin запросом администратора к ASA;
 - авторизация каждого диалога, сообщения и вложения;
 - tenant/workspace isolation;
 - запрет чтения чужих вложений;
@@ -493,6 +553,35 @@ AI Assistant работает с потенциально чувствитель
 - отсутствие секретов и полного содержимого приватных файлов в operational logs;
 - явная политика того, какие данные могут передаваться внешнему AI provider;
 - возможность отключить AI capability на уровне политики продукта/организации, если такой механизм будет введён.
+
+### Закрытый журнал использования ИИ
+
+Новые допущенные операции JSON, SSE, вложений и повторной генерации имеют одну
+долговечную запись по неизменяемым principal владельца и UUID запроса. Владелец
+Account или StudentSeat берётся из канонического admission; связь Seat с Account
+не переносит журнал, а удаление диалога его не удаляет. Запись admission создаётся
+атомарно с расходом лимита до вызова провайдера. Исторические записи не дополняются
+выдуманными моделями, токенами или результатами. Перед генерацией однократно
+фиксируются операция, транспорт, провайдер, запрошенная модель и начало.
+
+Завершение содержит время, длительность и результат: успех, остановка по лимиту,
+отмена или ошибка с фиксированным безопасным кодом. Фактическая модель и входные/
+выходные токены берутся только из ответа OpenAI, DeepSeek или Ollama; неизвестное
+значение — NULL, а не ноль и не оценка по длине текста. Повтор UUID не создаёт новый
+вызов или запись. Точный повтор завершения идемпотентен; противоречивый результат
+отклоняется. После сбоя процесса admission/running остаётся явно незавершённым.
+
+Закрытая таблица защищена RLS, runtime не имеет прямых прав; запись разрешена
+только через проверяющие владельца и admission SECURITY DEFINER функции с
+фиксированным search_path. Промпты, ответы, вложения, ключи, URL и произвольные
+ошибки в журнал не записываются. Диагностический server event `ai_usage` попадает
+в существующий сбор API-журналов: безопасный UUID операции, провайдер/модель,
+результат, nullable usage и длительность процесса без личности владельца.
+Канонический источник — закрытый журнал БД; server event является диагностической
+проекцией. Отказ финальной записи оставляет pending и безопасный `ai_usage_quality`,
+не уничтожает оплаченный ответ и не маскирует исходную ошибку. После успешного
+сохранения ответа отдельный отказ чтения истории не меняет результат генерации.
+Этот срез не добавляет пользовательский или административный интерфейс статистики.
 
 ## 13. Поведение при ошибках
 
@@ -648,3 +737,78 @@ AI Assistant не должен превращать ошибку провайд�
 Поток должен завершаться событием провайдера, а не простым закрытием соединения.
 Полученная часть оборванного ответа сохраняется с признаком незавершённого,
 а повтор того же requestId не создаёт ещё одно платное обращение.
+
+## 18. Ollama, LAN и источники повторного использования (AI-OLLAMA-LAN-001)
+
+Первая локальная языковая модель подключается независимо от оплачиваемых API.
+В админке `Администрирование → ИИ и модели` обязательны три верхних подраздела:
+**Ключи**, **Ollama**, **ComfyUI**. «Ключи» сохраняет текущие зашифрованные
+DeepSeek/OpenAI credentials и платный тест; «Ollama» имеет собственные URL,
+модель, флаг включения, открытие каталога `/api/tags`, отдельный тест реального
+текстового ответа и версию настроек. «ComfyUI» является отдельной будущей
+image-generation интеграцией; одноимённая вкладка не должна создавать ложного
+впечатления, что она уже работает.
+
+### 18.1. Обязательные исходники — не переписывать с нуля
+
+1. `spikeal8-maker/IZO_ASA`, donor main `51543df2b6a559d693e3ed75b11baeacdb9033d3`:
+   `backend/app/integrations/ollama.py` (discover, chat, residency/unload),
+   `backend/app/services/assistant_runtime.py` (local/external routing),
+   `backend/app/api/routers/phone_chat.py` (local model selection),
+   `docs/assistant-models-plan.md` (GPU, warmup and bounds),
+   `docs/comfyui-runtime-contract-20260727.md` (image worker).
+2. `spikeal8-maker/izo-asa-platform`, donor main
+   `321fcb4fe193993db70aa705a46842e9836daac0`:
+   `apps/web/src/shell/chat/ModelPicker.tsx`,
+   `apps/web/src/shell/chat/ChatSidebar.tsx`,
+   `apps/web/src/shell/chat/AttachmentControl.tsx`,
+   `apps/api/izo/chat/provider_openrouter.py`, canonical Chat policy and tests.
+3. ASA Lab source of truth remains its existing React/Nest/PostgreSQL architecture.
+   Donor UX/tests/adapters are adapted by exact-SHA comparison; never import
+   donor account identity, SQL migrations, provider keys, billing or unreviewed
+   large components wholesale. Each transfer records path, symbol, behavior,
+   adapted acceptance and safety decision.
+
+### 18.2. Network and request contract
+
+- Browser only calls authenticated ASA Lab `/api/ai/*`. The ASA API server calls
+  Ollama `/api/tags` and `/api/chat` on a private server-side endpoint.
+- Same host: `http://127.0.0.1:11434` only when API runs on the host;
+  for Docker the standard mapping is `http://host.docker.internal:11434`.
+  Another computer in LAN: e.g. `http://192.168.1.20:11434`. The target
+  Ollama process must bind an address reachable by the API container; a firewall
+  must limit access to trusted ASA API hosts. Do not publish 11434 on the Internet.
+- Server accepts only explicitly validated loopback/private IPv4 or Docker
+  host-gateway HTTP endpoints. Public IP, cloud metadata, arbitrary DNS hosts,
+  URL credentials, paths and redirects are denied; all probes are admin-only.
+  Never accept base URL or credential from the browser chat request.
+- Model discovery does not implicitly download or install models. Only a model
+  installed at the selected endpoint can pass the inference smoke.
+- The chat model selector advertises `ollama-local` when the independent
+  connection is enabled. Its effective internal Ollama model is a trusted,
+  versioned server setting, never a client-supplied upstream identifier.
+- Local requests retain Account/StudentSeat ownership, teacher admissions,
+  per-owner rate limits, immutable requestId replay, history, Stop and partial
+  answer semantics. They do not require an external API key and **do not reserve
+  the platform-wide quota of paid provider operations**. The local GPU still
+  requires a separate concurrency/load acceptance for production capacity.
+- No implicit local→paid fallback. Every potential paid call must pass the
+  existing explicit authorized paid admission, without automatically replaying
+  an unknown-outcome Ollama request through an external provider.
+- Initial migration: `0239_ai_ollama_local.sql`; default disabled, forward-only,
+  no edits to historical applied migrations or provider credentials.
+  Installed DB prefix and actual network/model performance are separate
+  acceptance gates; merged code never counts as completed deployment.
+
+
+## Бесплатный серверный интернет-поиск
+
+Интернет-режимы `off`, `auto`, `web`, `images`, `weather` используют один внутренний компонент SearxNG. Внешних платных поисковых API, поисковых ключей и подписок нет. Существующие настройки языковых моделей самостоятельны. Администратор управляет включением поиска, прогнозом и часовым бюджетом операций; сохранение настроек не выполняет запросов. Источники сохраняют порядок поисковика. Автоматический режим требует намерения искать свежую информацию: слова «сегодня» или «сейчас» сами по себе не отправляют личный текст в поиск. Передаётся только ограниченный текущий вопрос, без файлов и истории.
+
+Источники, безопасные изображения и прогноз сохраняются один раз после авторизации неизменяемого владельца и admission запроса. Повтор UUID и варианты используют исходный снимок, не повторяя поиск. Изменение режима или города под тем же UUID отклоняется. Приватная история Seat не доступна преподавателю. Удаление беседы очищает содержание, сохраняя бюджетный tombstone. Интеграция требует миграцию `0254` до запуска нового API.
+
+Изображения показываются только из типизированной выдачи через авторизованный same-origin proxy. Замкнутый список HTTPS CDN, запрет redirect, проверка фактического PNG/JPEG/WebP, 2 MB/2 MP и максимум восемь одновременных загрузок ограничивают транспорт. Произвольные модельные Markdown-картинки не получают этого разрешения. Ссылки и метаданные не означают, что модель видела пиксели.
+
+Прогноз бесплатно предоставляет MET Norway с явной атрибуцией и CC BY 4.0; это модельный прогноз, а не измерение станции. Время обновления данных отделено от времени получения. Давление обозначается hPa. HTTP Expires и If-Modified-Since управляют общим кэшем. Город вводится пользователем при отправке запроса: Nominatim не используется для автодополнения, адресов или массового геокодирования. Общая PostgreSQL-блокировка допускает один запрос геокодера одновременно, не чаще одного в секунду после окончания предыдущего; часовой лимит 60 новых городов и общий кэш обязательны. Неоднозначность требует выбора пользователем. Адрес геокодера заменяем доверенной переменной установки `ASA_AI_GEOCODER_ENDPOINT`. При недоступности прогноза доступна обычная поисковая выдача без выдуманной карточки.
+
+Первичные контракты: [SearxNG Search API](https://docs.searxng.org/dev/search_api.html), [MET Norway ForecastJSON](https://api.met.no/doc/ForecastJSON), [политика Nominatim](https://operations.osmfoundation.org/policies/nominatim/). Доступность всех сетей России не гарантируется; работоспособность конкретной установки подтверждается отдельным runtime evidence.

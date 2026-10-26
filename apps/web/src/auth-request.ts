@@ -16,6 +16,8 @@ export function isAuthRequest(path: string): boolean {
   const pathname = path.split('?')[0]!;
   return (
     pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/admin/v1/auth/email') ||
+    /^\/api\/crm\/v1\/users\/account\/[^/]+\/email(?:\/cancel)?$/.test(pathname) ||
     pathname === '/api/admin/v1/auth/verification-policy' ||
     /^\/api\/admin\/v1\/integrations\/(max|telegram)(\/check)?$/.test(pathname)
   );
