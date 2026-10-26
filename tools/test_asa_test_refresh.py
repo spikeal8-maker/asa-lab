@@ -529,11 +529,11 @@ class RecoveryReceiptSafetyTests(unittest.TestCase):
         root = Path("/test/asa-lab")
         original_minio = Path("/var/lib/docker/volumes/asa-lab-dev_blocks-object-data/_data")
         counts = ["94", "31", "1712", "0255"]
-        with patch("tools.asa_test_refresh.git", return_value=old_sha), \\
-             patch("tools.asa_test_refresh.sha256", return_value=old_env), \\
-             patch("tools.asa_test_refresh.db_names", return_value={"asalab"}), \\
-             patch("tools.asa_test_refresh.database_counts", return_value=counts), \\
-             patch("tools.asa_test_refresh.minio_mount", return_value=original_minio), \\
+        with patch("tools.asa_test_refresh.git", return_value=old_sha), \
+             patch("tools.asa_test_refresh.sha256", return_value=old_env), \
+             patch("tools.asa_test_refresh.db_names", return_value={"asalab"}), \
+             patch("tools.asa_test_refresh.database_counts", return_value=counts), \
+             patch("tools.asa_test_refresh.minio_mount", return_value=original_minio), \
              patch("tools.asa_test_refresh.health_check") as health:
             verify_rollback_state(root, old_sha, root / ".env", old_env,
                                   counts, "asa_previous_123", original_minio,
@@ -546,11 +546,11 @@ class RecoveryReceiptSafetyTests(unittest.TestCase):
         old_sha = "a" * 40
         old_env = "b" * 64
         root = Path("/test/asa-lab")
-        with patch("tools.asa_test_refresh.git", return_value=old_sha), \\
-             patch("tools.asa_test_refresh.sha256", return_value=old_env), \\
-             patch("tools.asa_test_refresh.db_names", return_value={"asalab"}), \\
+        with patch("tools.asa_test_refresh.git", return_value=old_sha), \
+             patch("tools.asa_test_refresh.sha256", return_value=old_env), \
+             patch("tools.asa_test_refresh.db_names", return_value={"asalab"}), \
              patch("tools.asa_test_refresh.database_counts",
-                   return_value=["94", "31", "1711", "0255"]), \\
+                   return_value=["94", "31", "1711", "0255"]), \
              patch("tools.asa_test_refresh.health_check") as health:
             with self.assertRaisesRegex(Blocked, "counts/schema mismatch"):
                 verify_rollback_state(root, old_sha, root / ".env", old_env,
