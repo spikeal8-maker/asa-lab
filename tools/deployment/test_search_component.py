@@ -11,7 +11,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import Blocked, LEGACY_SERVICES, REGISTRY, SERVICES, validate_release
-from deployment.search_secret import ensure_secret, inspect_secret
+from deployment.search_secret import InvalidSearchSecret, ensure_secret, inspect_secret
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -77,16 +77,72 @@ class SearchComponentTests(unittest.TestCase):
             if os.name != "nt":
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_existing_quoted_and_unquoted_keys_are_never_rewritten(self):
+        synthetic_key = b"Ab" * 32
+        for prefix, quote, ending in (
+            (b"", b"", b"\n"),
+            (b"export ", b"'", b"\r\n"),
+            (b"  \t", b'"', b"\n"),
+            (b"\texport\t", b'"', b"\r\n"),
+        ):
+            with self.subTest(prefix=prefix, quote=quote), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / ".env"
+                original = b"# synthetic, not a real key" + ending
+                original += prefix + b"ASA_SEARCH_SECRET = " + quote + synthetic_key + quote + ending
+                original += b"AFTER_KEY=unchanged" + ending
+                path.write_bytes(original)
+                before = path.stat()
+                self.assertEqual(inspect_secret(path), ("valid", original))
+                self.assertFalse(ensure_secret(path))
+                self.assertFalse(ensure_secret(path))
+                after = path.stat()
+                self.assertEqual(path.read_bytes(), original)
+                self.assertEqual((after.st_mtime_ns, after.st_ino, after.st_mode),
+                                 (before.st_mtime_ns, before.st_ino, before.st_mode))
+                self.assertEqual(list(Path(directory).iterdir()), [path])
+                result = subprocess.run([sys.executable, str(ROOT / "tools/deployment/search_secret.py"),
+                                         "--create", "--file", str(path)], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0)
+                self.assertEqual(result.stdout.strip(), "SEARCH_SECRET_PRESERVED")
+                self.assertNotIn(synthetic_key.decode(), result.stdout + result.stderr)
+                self.assertEqual(path.read_bytes(), original)
+
     def test_invalid_or_duplicate_key_never_rotated(self):
-        for raw in (b"ASA_SEARCH_SECRET=\n", b"ASA_SEARCH_SECRET=bad\n",
-                    b"ASA_SEARCH_SECRET=" + b"a" * 64 + b"\nASA_SEARCH_SECRET=" + b"b" * 64 + b"\n"):
+        key = b"Ab" * 32
+        for raw in (
+            b"ASA_SEARCH_SECRET=\n",
+            b"ASA_SEARCH_SECRET=bad\n",
+            b"ASA_SEARCH_SECRET=" + b"a" * 64 + b"\nASA_SEARCH_SECRET=" + b"b" * 64 + b"\n",
+            b"ASA_SEARCH_SECRET='" + key + b"\n",
+            b"ASA_SEARCH_SECRET=\"" + key + b"'\n",
+            b"ASA_SEARCH_SECRET='" + key + b"' # comment\n",
+            b"ASA_SEARCH_SECRET='" + key + b" '\n",
+            b"ASA_SEARCH_SECRET='" + key[:-1] + b"'\n",
+            b"ASA_SEARCH_SECRET='" + key + b"0'\n",
+            b"ASA_SEARCH_SECRET=$(printf dangerous)\n",
+            b"ASA_SEARCH_SECRET=$" + b"{INJECTED}\n",
+            b"ASA_SEARCH_SECRET=" + key + b"\rOTHER=1\n",
+            b"ASA_SEARCH_SECRET=" + key + b"\xe2\x80\xa8OTHER=1\n",
+            b"ASA_SEARCH_SECRET=\"" + key[:32] + b"\n" + key[32:] + b"\"\n",
+            b"ASA_SEARCH_SECRET=" + key + b"\nexport ASA_SEARCH_SECRET='" + key + b"'\n",
+        ):
             with self.subTest(raw=raw), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / ".env"
                 path.write_bytes(raw)
-                with self.assertRaises(ValueError):
+                with self.assertRaises(InvalidSearchSecret):
                     ensure_secret(path)
                 self.assertEqual(path.read_bytes(), raw)
                 self.assertEqual(list(Path(directory).iterdir()), [path])
+
+    def test_manager_exposes_only_stable_search_secret_error_code(self):
+        manager_source = (ROOT / "tools/asa_manager.py").read_text()
+        self.assertIn('"SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret)', manager_source)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / ".env"
+            path.write_bytes(b"ASA_SEARCH_SECRET='synthetic-not-a-key'\n")
+            with self.assertRaises(InvalidSearchSecret) as raised:
+                inspect_secret(path)
+            self.assertNotIn("synthetic-not-a-key", str(raised.exception))
 
     def test_runtime_template_never_gets_default_or_shared_key(self):
         spec = importlib.util.spec_from_file_location("asa_search_start", ROOT / "infra/search/start.py")

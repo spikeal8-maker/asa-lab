@@ -11,22 +11,36 @@ import tempfile
 KEY = "ASA_SEARCH_SECRET"
 
 
+class InvalidSearchSecret(ValueError):
+    """Existing private Search key is malformed; never include its value in errors."""
+
+
 def inspect_secret(path):
     path = Path(path)
     metadata = path.lstat()
     if not stat.S_ISREG(metadata.st_mode) or path.is_symlink() or (
         getattr(metadata, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
     ):
-        raise ValueError("Search secret requires an existing regular private environment file.")
+        raise InvalidSearchSecret("Search secret requires an existing regular private environment file.")
     raw = path.read_bytes()
-    lines = [line for line in raw.decode("utf-8-sig").splitlines()
-             if re.match(r"^\s*(?:export\s+)?ASA_SEARCH_SECRET(?=[\s=]|$)", line)]
+    contents = raw.decode("utf-8-sig")
+    # Dotenv records have LF or CRLF endings. Other separators must not split a
+    # malformed/multiline assignment into an apparently valid Search key.
+    if re.search(r"\r(?!\n)|[\x0b\x0c\x1c-\x1e\x85\u2028\u2029]", contents):
+        raise InvalidSearchSecret("Unsupported environment line break; no key was replaced.")
+    lines = [line for line in contents.splitlines()
+             if re.match(r"^[ \t]*(?:export[ \t]+)?ASA_SEARCH_SECRET(?=[ \t=]|$)", line)]
     if not lines:
         return "missing", raw
-    if len(lines) != 1 or not re.fullmatch(r"\s*(?:export\s+)?ASA_SEARCH_SECRET\s*=\s*[a-fA-F0-9]{64}\s*", lines[0]):
-        raise ValueError("Existing ASA_SEARCH_SECRET is invalid or duplicated; no key was replaced.")
+    # No interpolation, escaping, inline comments, padding *inside* quotes,
+    # shell substitutions or more than one assignment. Preserve the raw bytes.
+    valid_line = (
+        r"[ \t]*(?:export[ \t]+)?ASA_SEARCH_SECRET[ \t]*=[ \t]*"
+        r"(?:[a-fA-F0-9]{64}|'[a-fA-F0-9]{64}'|\"[a-fA-F0-9]{64}\")[ \t]*"
+    )
+    if len(lines) != 1 or re.fullmatch(valid_line, lines[0]) is None:
+        raise InvalidSearchSecret("Existing ASA_SEARCH_SECRET is invalid or duplicated; no key was replaced.")
     return "valid", raw
-
 
 def ensure_secret(path):
     path = Path(path)
