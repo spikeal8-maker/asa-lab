@@ -107,7 +107,7 @@ jobs:
   runtime-image:
     name: Standalone host image and health smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 55
     concurrency:
       group: scratch-runtime-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
