@@ -296,6 +296,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       if (
         problem instanceof AiImageError &&
         ([400, 403, 429].includes(problem.status) ||
+          (problem.status === 409 && problem.code === 'ai_image_disabled') ||
           (problem.status === 503 && problem.code === 'ai_image_unavailable'))
       )
         throw new AiImageError('ai_image_not_admitted', problem.status, problem.message);

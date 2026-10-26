@@ -14,7 +14,9 @@ function fixture(
   tool: 'web_search' | 'image_search' | 'weather' = 'web_search',
   toolQuery = 'Казань новости',
   disabledTools: readonly ('web_search' | 'image_search' | 'weather')[] = [],
-  weatherVariant: 'complete' | 'partial' | 'ambiguous' = 'complete',
+  weatherVariant: 'complete' | 'partial' | 'ambiguous' | 'future' = 'complete',
+  toolsCapable = true,
+  userPrompt = tool === 'weather' ? 'Какая погода сейчас в Казани?' : 'Найди факты',
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -107,6 +109,14 @@ function fixture(
                       },
                     },
                   },
+                  ...(weatherVariant === 'future'
+                    ? [
+                        {
+                          time: '2026-10-26T13:00:00Z',
+                          data: { instant: { details: { air_temperature: 1 } } },
+                        },
+                      ]
+                    : []),
                 ],
               },
             };
@@ -119,7 +129,7 @@ function fixture(
     }
     if (sql.includes('ai_web_search_claim')) return { rows: [{ status: 'ready' }] };
     if (sql.includes('ai_text_generation_context'))
-      return { rows: [{ role: 'user', content: 'Найди факты' }] };
+      return { rows: [{ role: 'user', content: userPrompt }] };
     if (sql.includes('ai_text_messages_page'))
       return {
         rows: answer
@@ -141,6 +151,10 @@ function fixture(
   const requests: { url: string; body?: Record<string, unknown> }[] = [];
   const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
     const address = String(url);
+    if (address.endsWith('/api/show'))
+      return new Response(
+        JSON.stringify({ capabilities: toolsCapable ? ['completion', 'tools'] : ['completion'] }),
+      );
     const body = options?.body
       ? (JSON.parse(String(options.body)) as Record<string, unknown>)
       : undefined;
@@ -148,7 +162,7 @@ function fixture(
     if (address.endsWith('/api/chat')) {
       const round = requests.filter((item) => item.url.endsWith('/api/chat')).length;
       const packet =
-        round === 1 && mode === 'auto' && disabledTools.length < 3
+        round === 1 && mode === 'auto' && toolsCapable && disabledTools.length < 3
           ? {
               message: {
                 tool_calls: [
@@ -188,7 +202,7 @@ function fixture(
     service.sendStream(
       OWNER,
       THREAD,
-      'Найди факты',
+      userPrompt,
       REQUEST,
       (chunk) => deltas.push(chunk),
       new AbortController().signal,
@@ -234,6 +248,19 @@ describe('native local internet tools', () => {
     expect(f.requests).toHaveLength(1);
     expect(f.requests[0]!.body?.tools).toBeUndefined();
     expect(f.calls.some((item) => item.sql.includes('ai_web_search_claim'))).toBe(false);
+  });
+
+  it('uses prepared auto-search for a local model without confirmed tools capability', async () => {
+    const f = fixture('auto', 'web_search', 'Казань новости', [], 'complete', false);
+    const result = await f.send();
+    expect(result.replayed).toBe(false);
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
+    expect(f.requests.find((item) => item.url.endsWith('/api/chat'))?.body?.tools).toBeUndefined();
+    expect(f.requests.filter((item) => item.url.includes('/search?'))).toHaveLength(1);
+    expect(f.calls.some((item) => item.sql.includes('ai_web_search_finish'))).toBe(true);
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Ответ по источнику',
+    );
   });
 
   it('omits a disabled native tool while retaining a per-tool admin instruction', async () => {
@@ -312,6 +339,58 @@ describe('native local internet tools', () => {
     expect(saved.params[3]).toContain('температура 4 °C');
     expect(saved.params[3]).not.toMatch(/влажность|ветер|давление| 0 /u);
     expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
+  });
+
+  it('keeps a future forecast question in the model follow-up with the requested day available', async () => {
+    const f = fixture(
+      'auto',
+      'weather',
+      'Казань',
+      [],
+      'future',
+      true,
+      'Какая погода завтра в Казани?',
+    );
+    await f.send();
+    const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
+    expect(rounds).toHaveLength(2);
+    expect(JSON.stringify(rounds[1]!.body?.messages)).toContain('2026-10-26T13:00:00.000Z');
+    expect(JSON.stringify(rounds[1]!.body?.messages)).toContain('не подставляй первый час');
+    expect(JSON.stringify(rounds[1]!.body?.messages)).toContain('pressureHpa — гПа');
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Ответ по источнику',
+    );
+  });
+
+  it.each([
+    'Какая погода сейчас в Казани и на выходных?',
+    'Какая погода сейчас в Казани и в понедельник?',
+  ])('does not shorten a mixed-period request to the first hour: %s', async (userPrompt) => {
+    const f = fixture('auto', 'weather', 'Казань', [], 'future', true, userPrompt);
+    await f.send();
+    const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
+    expect(rounds).toHaveLength(2);
+    expect(JSON.stringify(rounds[1]!.body?.messages)).toContain(userPrompt);
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Ответ по источнику',
+    );
+  });
+
+  it('does not render a current-weather shortcut for a city different from the request', async () => {
+    const f = fixture(
+      'auto',
+      'weather',
+      'Казань',
+      [],
+      'complete',
+      true,
+      'Какая погода сейчас в Москве?',
+    );
+    await f.send();
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(2);
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Ответ по источнику',
+    );
   });
 
   it('keeps the clarification model round for an ambiguous weather location', async () => {

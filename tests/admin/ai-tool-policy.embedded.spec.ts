@@ -167,7 +167,15 @@ it('freezes the admitted parent policy and blocks disabled manual web lookup bef
       prompt: 'A classroom globe',
       size: 512,
     }),
-  ).rejects.toMatchObject({ code: 'ai_image_disabled' });
+  ).rejects.toMatchObject({ code: 'ai_image_not_admitted' });
+  expect(
+    (
+      await db.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM ai_image_jobs WHERE owner_principal_id=$1 AND request_id=$2',
+        [owner, imageRequest],
+      )
+    ).rows[0]?.count,
+  ).toBe('0');
   const nextVersion = (await policy.admin(admin)).policy.configurationVersion;
   await policy.save(admin, {
     schemaVersion: 1,
