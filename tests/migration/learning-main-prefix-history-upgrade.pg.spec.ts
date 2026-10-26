@@ -162,7 +162,7 @@ const upgradeArtifacts = [
   [
     '0256',
     '0256_crm_user_dashboard.sql',
-    'e73e3533fe386dfdabc04067eaba05198118d1686f55e352670b5e8a9ad6e349',
+    '8aa19d8fc2ef76f8809f1f3dc2c8651132c59453e8712af70c56ff862132f9a8',
   ],
   [
     '0257',
