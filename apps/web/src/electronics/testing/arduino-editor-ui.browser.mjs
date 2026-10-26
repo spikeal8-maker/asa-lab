@@ -181,7 +181,10 @@ try {
         await page.locator('.arduino-snippet-drop-line').waitFor();
         nativeDrag = await page.locator('.arduino-snippet-drop-line').innerText();
         await page.mouse.up();
-        assert.match(await editor.inputValue(), /void loop\(\)\{\nservo.write\(90\);\n {2}\/\/ iii/);
+        assert.match(
+          await editor.inputValue(),
+          /void loop\(\)\{\nservo.write\(90\);\n {2}\/\/ iii/,
+        );
       }
       assert.match(await editor.inputValue(), /\/\/ iii WWW 123/);
       const saved = await page.evaluate(() => window.saved);
