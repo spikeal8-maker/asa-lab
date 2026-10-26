@@ -14,6 +14,10 @@
 .workbench-shell.library-collapsed {
   --wb-library-width: 32px;
 }
+/* The rotating horn can extend beyond the owner's fixed SVG viewport. */
+svg[data-servo-angle-degrees] {
+  overflow: visible;
+}
 .workbench-loading {
   min-height: 100vh;
   display: grid;

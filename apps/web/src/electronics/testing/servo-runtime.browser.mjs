@@ -1,6 +1,6 @@
 // Real Chromium Worker/client + mounted workbench hook + production Stage/owner SVG.
 // Project API responses and static assets are fixture ports; no server or listening ports.
-/* global window, document, URL, console */
+/* global window, document, URL, console, DOMPoint */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -78,6 +78,78 @@ const ui = (
 ).outputFiles[0].text;
 const browser = await chromium.launch({ headless: true });
 const all = [];
+async function checkHornClipping(page, width) {
+  const baseline = process.argv.includes('--horn-clip-baseline');
+  const samples = [];
+  for (const angle of [0, 45, 90, 135, 180]) {
+    await page.evaluate((a) => window.fixture.load(a), angle);
+    await page.waitForFunction(() => window.fixture.status() === 'ready');
+    await page.evaluate(() => window.fixture.start());
+    await page.waitForFunction(
+      (a) =>
+        window.fixture.state().result?.components.find((c) => c.componentId === 'servo')
+          ?.servoAngleDegrees === a &&
+        document.querySelector('[data-testid="servo-motor-horn"]')?.getAttribute('transform') ===
+          'rotate(' + (a - 90) + ' 114.5 314)',
+      angle,
+    );
+    // Native hit testing respects SVG viewport clipping. Temporarily opt only the
+    // horn into hit testing; the production visual normally has pointerEvents=none.
+    const probe = () =>
+      page.evaluate(() => {
+        const svg = document.querySelector('[data-testid="servo-motor-runtime"]');
+        const horn = svg.querySelector('[data-testid="servo-motor-horn"]');
+        const previous = horn.style.pointerEvents;
+        horn.style.pointerEvents = 'all';
+        try {
+          const matrix = horn.getScreenCTM();
+          const tips = [145, 483].map((y) => {
+            const point = new DOMPoint(114.5, y).matrixTransform(matrix);
+            return {
+              x: point.x,
+              y: point.y,
+              visible: document.elementsFromPoint(point.x, point.y).includes(horn),
+            };
+          });
+          const rect = (id) => {
+            const box = svg.querySelector('use[href$="#' + id + '"]').getBoundingClientRect();
+            return { x: box.x, y: box.y, width: box.width, height: box.height };
+          };
+          return { tips, body: rect('body'), connector: rect('connector') };
+        } finally {
+          horn.style.pointerEvents = previous;
+        }
+      });
+    const actual = await probe();
+    const hidden = await page.addStyleTag({
+      content: 'svg[data-servo-angle-degrees]{overflow:hidden!important}',
+    });
+    const clipped = await probe();
+    await hidden.evaluate((el) => el.remove());
+    assert.deepEqual(actual.body, clipped.body);
+    assert.deepEqual(actual.connector, clipped.connector);
+    assert.deepEqual(
+      actual.tips.map(({ x, y }) => [x, y]),
+      clipped.tips.map(({ x, y }) => [x, y]),
+    );
+    if (baseline) assert.deepEqual(actual.tips, clipped.tips);
+    else
+      assert.ok(
+        actual.tips.every((tip) => tip.visible),
+        `${width}/${angle}: both horn tips must render`,
+      );
+    if (angle !== 90)
+      assert.ok(
+        clipped.tips.some((tip) => !tip.visible),
+        `${width}/${angle}: clipping control must lose a tip`,
+      );
+    else assert.ok(clipped.tips.every((tip) => tip.visible));
+    const phase = baseline ? 'before' : 'after';
+    await page.screenshot({ path: resolve(output, `horn-${phase}-${width}-${angle}.png`) });
+    samples.push({ angle, actual, clipped });
+  }
+  return { width, phase: baseline ? 'before' : 'after', samples };
+}
 async function checkSeven(page) {
   await page.evaluate(() => window.fixture.loadSeven('bc'));
   await page.waitForFunction(() => window.fixture.status() === 'ready');
@@ -156,6 +228,12 @@ try {
         (await readFile('apps/web/src/electronics/workbench.css', 'utf8')) +
         '\n#app{--wb-library-width:0px}.workbench-stage{position:relative;height:700px;width:100%}',
     });
+    if (process.argv.includes('--horn-clip-only')) {
+      all.push(await checkHornClipping(page, width));
+      assert.deepEqual(errors, []);
+      await page.close();
+      continue;
+    }
     if (process.argv.includes('--seven-spotcheck')) {
       all.push({ width, samples: await checkSeven(page) });
       await page.close();
@@ -283,9 +361,14 @@ try {
     });
     await page.close();
   }
-  await writeFile(resolve(output, 'receipts.json'), JSON.stringify(all, null, 2));
+  const receiptName = process.argv.includes('--horn-clip-only')
+    ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
+    : 'receipts.json';
+  await writeFile(resolve(output, receiptName), JSON.stringify(all, null, 2));
   console.log(
-    'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
+    process.argv.includes('--horn-clip-only')
+      ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
+      : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
   );
 } finally {
   await browser.close();
