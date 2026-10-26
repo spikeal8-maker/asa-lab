@@ -39,4 +39,5 @@ export type {
   PublicDisplayConnection,
   PublicDisplayPoint,
   PublicDisplayComponentKind,
+  PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';

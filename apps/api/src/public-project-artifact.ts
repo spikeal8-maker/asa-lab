@@ -29,6 +29,7 @@ const COMPONENT_KEYS = [
   'rotation',
   'name',
   'pinIds',
+  'state',
 ] as const;
 function pick(source: Record<string, unknown>, keys: readonly string[]) {
   const result: Record<string, unknown> = {};
@@ -87,7 +88,18 @@ export function createPublicArtifactAdapters(
           viewerFamily: 'electronics',
           provenance,
           capabilities: { readOnly: true, interactive: true, download: false },
-          components: source.components.map((c) => pick(c, COMPONENT_KEYS)),
+          components: source.components.map((c) => {
+            const component = pick(c, COMPONENT_KEYS);
+            if (c.stateProperties && typeof c.stateProperties === 'object') {
+              const visual = pick(c.stateProperties as Record<string, unknown>, [
+                'mirrorX',
+                'mirrorY',
+                'pinLayout',
+              ]);
+              if (Object.keys(visual).length) component.visualProperties = visual;
+            }
+            return component;
+          }),
           connections: source.connections.map((w) =>
             pick(w, ['id', 'from', 'to', 'color', 'vertices']),
           ),

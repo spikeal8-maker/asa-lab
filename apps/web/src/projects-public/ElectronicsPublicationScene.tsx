@@ -1,10 +1,35 @@
 import { useMemo, useRef, useState } from 'react';
-import type { ElectronicsDisplayArtifact } from '@asa-lab/contracts';
+import type { ElectronicsDisplayArtifact, PublicDisplayComponent } from '@asa-lab/contracts';
 import type { SchematicComponent } from '../api';
 import { catalogEntry, renderedSize, terminalPosition } from '../electronics/component-catalog';
 import { ProductionComponentVisual } from '../electronics/NativeOpticalComponentVisual';
 import { componentTransform } from '../electronics/workbench-model';
 import { roundedWirePath, wirePoints } from '../electronics/workbench-geometry';
+
+/** Reconstruct only validated display fields; never accept an editor property bag. */
+export function publicDisplayComponentModel(source: PublicDisplayComponent): SchematicComponent {
+  const visual = source.visualProperties;
+  const properties = Object.freeze({
+    ...(visual?.mirrorX !== undefined ? { mirrorX: visual.mirrorX } : {}),
+    ...(visual?.mirrorY !== undefined ? { mirrorY: visual.mirrorY } : {}),
+    ...(visual?.pinLayout !== undefined ? { pinLayout: visual.pinLayout } : {}),
+  });
+  const component: SchematicComponent = {
+    id: source.id,
+    kind: source.kind,
+    value: source.value,
+    position: Object.freeze({ ...source.position }),
+    ...(source.componentTypeId !== undefined ? { componentTypeId: source.componentTypeId } : {}),
+    ...(source.variantId !== undefined ? { variantId: source.variantId } : {}),
+    ...(source.rotation !== undefined ? { rotation: source.rotation } : {}),
+    ...(source.name !== undefined ? { name: source.name } : {}),
+    ...(source.state !== undefined ? { state: source.state } : {}),
+    ...(source.pinIds ? { pinIds: [...source.pinIds] } : {}),
+    stateProperties: properties,
+  };
+  if (component.pinIds) Object.freeze(component.pinIds);
+  return Object.freeze(component);
+}
 
 /** A frozen presentation model; no editor, document state or runtime is mounted. */
 export function ElectronicsPublicationScene({
@@ -14,13 +39,7 @@ export function ElectronicsPublicationScene({
 }): JSX.Element {
   const scene = useMemo(() => {
     const components = artifact.components.map((source) => {
-      const { pinIds, ...display } = source;
-      const component: SchematicComponent = Object.freeze({
-        ...display,
-        position: Object.freeze({ ...source.position }),
-        ...(pinIds ? { pinIds: [...pinIds] } : {}),
-      });
-      if (component.pinIds) Object.freeze(component.pinIds);
+      const component = publicDisplayComponentModel(source);
       const entry = catalogEntry(component);
       if (!entry) throw new Error('Unsupported public component');
       return Object.freeze({

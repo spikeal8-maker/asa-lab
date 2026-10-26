@@ -44,7 +44,7 @@ function document(value = 330) {
     simulation: { running: false, maxIterations: 24 },
   };
 }
-async function fixture() {
+async function fixture(initialDocument: unknown = document()) {
   const teacher = await seedTeacher(admin, 'artifact-' + randomUUID().slice(0, 8));
   const principal = (
     await admin.query(
@@ -63,7 +63,7 @@ async function fixture() {
     title: 'Public circuit',
     idempotencyKey: randomUUID(),
     requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
-    initialDocument: document(),
+    initialDocument,
     initialPreview: null,
   });
   if (created.kind !== 'created') throw Error('fixture not created');
@@ -125,6 +125,63 @@ async function read(
   };
 }
 describe('public Electronics artifact real HTTP and restricted PostgreSQL', () => {
+  it('publishes native switch/mirror/RGB geometry configuration while excluding Arduino and private properties', async () => {
+    const doc = document();
+    const native = {
+      ...doc,
+      components: [
+        ...doc.components,
+        {
+          id: 's',
+          kind: 'switch',
+          position: { x: 350, y: 100 },
+          value: 0,
+          state: true,
+          stateProperties: {
+            mirrorX: true,
+            mirrorY: true,
+            code: 'PRIVATE SWITCH SOURCE',
+            url: 'https://private.invalid',
+          },
+        },
+        {
+          id: 'rgb',
+          kind: 'rgb-led',
+          position: { x: 450, y: 100 },
+          value: 2,
+          pinIds: ['red', 'common', 'blue', 'green'],
+          stateProperties: {
+            pinLayout: 'BRCG',
+            mirrorX: true,
+            code: 'PRIVATE RGB SOURCE',
+            token: 'secret',
+          },
+        },
+      ],
+      connections: [
+        ...doc.connections,
+        {
+          id: 'sw',
+          from: { componentId: 's', terminal: 'b' },
+          to: { componentId: 'rgb', terminal: 'red' },
+        },
+      ],
+    };
+    const f = await fixture(native);
+    const result = await read(f.publication);
+    expect(result.statusCode).toBe(200);
+    const artifact = result.json().artifact;
+    expect(artifact.schemaVersion).toBe(2);
+    expect(artifact.components.find((c: { id: string }) => c.id === 's')).toMatchObject({
+      state: true,
+      visualProperties: { mirrorX: true, mirrorY: true },
+    });
+    expect(artifact.components.find((c: { id: string }) => c.id === 'rgb')).toMatchObject({
+      visualProperties: { pinLayout: 'BRCG', mirrorX: true },
+    });
+    expect(result.body).not.toMatch(/PRIVATE|https:|token|stateProperties|tenant|principal/);
+  });
+
   it('serves exact immutable V1 to guests and Seats, hides raw source, leaves project unchanged, rejects stale/revoked', async () => {
     const f = await fixture();
     const before = await admin.query(

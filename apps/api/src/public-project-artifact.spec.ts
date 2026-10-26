@@ -40,6 +40,43 @@ function setup() {
   return { row, query, pool, service: new PublicArtifactService(registry()) };
 }
 describe('exact public artifact service', () => {
+  it('preserves switch state, both mirrors and all native RGB layouts without transporting private state', async () => {
+    for (const pinLayout of ['RCBG', 'RCGB', 'BRCG']) {
+      const { pool, service, row } = setup();
+      Object.assign(row.document_json.components[0]!, {
+        kind: 'switch',
+        state: true,
+        stateProperties: {
+          mirrorX: true,
+          mirrorY: false,
+          pinLayout,
+          code: 'PRIVATE',
+          url: 'https://private.invalid',
+          password: 'secret',
+        },
+      });
+      const artifact = await service.read(pool, publication, revision);
+      expect(artifact).toMatchObject({
+        schemaVersion: 2,
+        components: [
+          { state: true, visualProperties: { mirrorX: true, mirrorY: false, pinLayout } },
+        ],
+      });
+      expect(JSON.stringify(artifact)).not.toMatch(/PRIVATE|https:|password|stateProperties/);
+    }
+  });
+  it.each([{ mirrorX: 'true' }, { mirrorY: 1 }, { pinLayout: 'unsupported' }])(
+    'falls back honestly for malformed native visual configuration %j',
+    async (visual) => {
+      const { pool, service, row } = setup();
+      Object.assign(row.document_json.components[0]!, { stateProperties: visual });
+      expect(await service.read(pool, publication, revision)).toMatchObject({
+        schemaVersion: 1,
+        status: 'static-only',
+      });
+    },
+  );
+
   it('renders reserved-license Electronics through sanitized display without source or editor state', async () => {
     const { pool, service } = setup();
     const artifact = await service.read(pool, publication, revision);

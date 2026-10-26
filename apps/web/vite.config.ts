@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { privateSymbols } from '../../tools/web-private-symbols.mjs';
+import { renderedModuleEvidence } from '../../tools/web-rendered-module-evidence.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(root, '../..');
@@ -70,6 +71,15 @@ export default defineConfig(({ command }) => {
     root,
     plugins: [
       react(),
+      ...(process.env['ASA_CAPTURE_PUBLICATION_GRAPH'] === 'true'
+        ? [
+            renderedModuleEvidence({
+              revision: buildRevision,
+              repositoryRoot,
+              output: resolve(root, 'private-symbols'),
+            }),
+          ]
+        : []),
       privateSymbols({
         revision: buildRevision,
         repositoryRoot,
@@ -85,6 +95,14 @@ export default defineConfig(({ command }) => {
     ],
     resolve: {
       alias: [
+        {
+          find: /^@asa-lab\/contracts$/,
+          replacement: resolve(repositoryRoot, 'packages/contracts/src/index.ts'),
+        },
+        {
+          find: '@asa-lab/electronics/rendering',
+          replacement: resolve(repositoryRoot, 'contexts/electronics/rendering.ts'),
+        },
         {
           find: '@asa-lab/electronics/engine',
           replacement: resolve(repositoryRoot, 'contexts/electronics/engine.ts'),

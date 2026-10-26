@@ -12,6 +12,28 @@ function fixture() {
   };
 }
 describe('strict Electronics public display v2', () => {
+  it('accepts only explicit inert switch/mirror/RGB display configuration', () => {
+    const a = fixture();
+    Object.assign(a.components[0]!, {
+      state: true,
+      visualProperties: { mirrorX: true, mirrorY: true, pinLayout: 'BRCG' },
+    });
+    expect(validatePublicProjectDisplayArtifact(a).ok).toBe(true);
+    Object.assign(a.components[0]!, { visualProperties: { mirrorX: true, code: 'PRIVATE' } });
+    expect(validatePublicProjectDisplayArtifact(a).ok).toBe(false);
+  });
+  it.each([
+    { state: 'true' },
+    { visualProperties: { mirrorX: 1 } },
+    { visualProperties: { mirrorY: 'false' } },
+    { visualProperties: { pinLayout: 'https://private.invalid' } },
+    { visualProperties: { url: 'https://private.invalid' } },
+  ])('rejects unsafe visual configuration %j', (fields) => {
+    const a = fixture();
+    Object.assign(a.components[0]!, fields);
+    expect(validatePublicProjectDisplayArtifact(a).ok).toBe(false);
+  });
+
   it('rejects coercible rotations, sparse arrays, and broken endpoints', () => {
     const a = fixture();
     Object.assign(a.components[0]!, { rotation: '90' });

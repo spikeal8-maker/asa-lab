@@ -21,6 +21,12 @@ export interface PublicDisplayPoint {
   readonly x: number;
   readonly y: number;
 }
+/** Only inert native geometry configuration; never a runtime state property bag. */
+export interface PublicDisplayVisualProperties {
+  readonly mirrorX?: boolean;
+  readonly mirrorY?: boolean;
+  readonly pinLayout?: 'RCBG' | 'RCGB' | 'BRCG';
+}
 export interface PublicDisplayComponent {
   readonly id: string;
   readonly kind: PublicDisplayComponentKind;
@@ -31,6 +37,8 @@ export interface PublicDisplayComponent {
   readonly rotation?: 0 | 45 | 90 | 135 | 180 | 225 | 270 | 315;
   readonly name?: string;
   readonly pinIds?: readonly string[];
+  readonly state?: boolean;
+  readonly visualProperties?: PublicDisplayVisualProperties;
 }
 export interface PublicDisplayConnection {
   readonly id: string;
@@ -176,8 +184,20 @@ export function validatePublicProjectDisplayArtifact(
       const c = object(
         raw,
         ['id', 'kind', 'position', 'value'],
-        ['componentTypeId', 'variantId', 'rotation', 'name', 'pinIds'],
+        ['componentTypeId', 'variantId', 'rotation', 'name', 'pinIds', 'state', 'visualProperties'],
       );
+      if ('state' in c && typeof c.state !== 'boolean') throw Error();
+      if ('visualProperties' in c) {
+        const visual = object(c.visualProperties, [], ['mirrorX', 'mirrorY', 'pinLayout']);
+        for (const key of ['mirrorX', 'mirrorY'])
+          if (key in visual && typeof visual[key] !== 'boolean') throw Error();
+        if (
+          'pinLayout' in visual &&
+          (typeof visual.pinLayout !== 'string' ||
+            !['RCBG', 'RCGB', 'BRCG'].includes(visual.pinLayout))
+        )
+          throw Error();
+      }
       str(c.id);
       if (ids.has(c.id) || !kinds.has(String(c.kind))) throw Error();
       point(c.position);
