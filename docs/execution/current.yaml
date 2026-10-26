@@ -12150,6 +12150,7 @@ parallel_lanes:
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
       current_slice: TASK-ELECTRONICS-INCREMENT-EXPRESSION-001
+      parallel_slice: TASK-ELECTRONICS-SOCKET-MATRIX-001
       consolidated_source_verified: [1, 2, 3, 6, 7, 8, 10, 12, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
       consolidated_partial: [4, 5, 11, 13, 14, 15, 16, 17, 19, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 18, 38, 39]
@@ -12968,6 +12969,42 @@ parallel_lanes:
         workflow: Electronics R4-M1 Focused
         commands:
           - pnpm gate:electronics-m1
+          - pnpm bundle:check
+
+  - id: electronics-owner45-socket-matrix
+    parent_lane: electronics
+    worktree_id: electronics-owner45-socket-matrix
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SOCKET-MATRIX-001.md
+    task:
+      id: TASK-ELECTRONICS-SOCKET-MATRIX-001
+      issue: 774
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: low
+      semantic_change: 'no'
+      checkpoint: selected_parallel_supporting_matrix_cpu_wait
+      owner_acceptance: pending
+      owner_authorization: Explicit45programme throughbots; independentpoints4/5/42 testmatrix has no overlap773parser/capability/help/looptests. Preparetestsonly thenwaitCPUhandoff. Existing67Number compat covered; close8Boolean reverse legacyCOUNT andcomputedpinroundtrip gaps.
+      runner_coordination: Increment773 owns allheavyCPU. Socket774 may inspectandedit supportingtestpaths only; no unit/native/build untilcontrollerhandoff. No concurrenttimingtests. Productdefectrequirescause reportbeforeedits.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: bfb6037d855de6284a2696c80c13fe7fbafc3ec9
+      head_sha: null
+      main:
+        branch: main
+        sha: bfb6037d855de6284a2696c80c13fe7fbafc3ec9
+      observed_at: '2026-10-26T10:15:15Z'
+      observation_note: Fresh fetch main beforeedits; diagnosticworktree cleanat0a51 thenFFcurrentmain. Onlyexistingpininputsspec/valueinputsnative allowed, allproductionpathsreadonly. Supportingonly nofullgate repetition absentdefect.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
           - pnpm bundle:check
 
 integration:
