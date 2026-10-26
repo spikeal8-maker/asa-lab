@@ -6465,15 +6465,15 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-      issue: 713
+      id: TASK-PROJ-R8-03D-REPORT-UI-001
+      issue: 721
       branch: main
-      candidate_branch: codex/public-reports-20261024
+      candidate_branch: codex/public-project-reports-ui-20261026
       base_branch: main
-      pr: 717
-      pr_draft: false
+      pr: null
+      pr_draft: true
       status: in_progress
-      checkpoint: report_backend_exact_sha_accepted_ready_for_merge
+      checkpoint: B1_merged_B2_user_report_dialog_selected
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6511,7 +6511,13 @@ parallel_lanes:
         General40316339889 and PublicProjects40316339667. Separate independent
         Code and Security agents returned exact-SHA PASS. Report receipt:
         docs/product/projects/evidence/reports-b1-20261026-acceptance.md.
+        PR717 merged at7a6558cacd4fe7d4f50517a3e34c10287f698d30. Select B2
+        issue721 now: one compact accessible dialog and existing report API,
+        real server receipt and retries, guest/Seat denial, browser persistence
+        and responsive evidence. Do not write a second backend or implement B3
+        before accepted B2. Post-merge runs remain separately observed evidence.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
         - docs/product/projects/tasks/PROJ-R8-03.md
