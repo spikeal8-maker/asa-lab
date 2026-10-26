@@ -14,7 +14,7 @@ import {
   type ArduinoPinReporter,
 } from './arduino-pin-inputs';
 import * as ScratchBlocks from 'scratch-blocks';
-import { arduinoBlockSupport } from '@asa-lab/electronics';
+import { arduinoBlockSupport, arduinoModuloAdapterSource } from '@asa-lab/electronics';
 
 export type ArduinoBlockCategory =
   'output' | 'input' | 'comment' | 'control' | 'data' | 'variables';
@@ -1268,7 +1268,7 @@ function expression(
     case 'asa_math_divide':
       return `(${input('A')} / ${input('B')})`;
     case 'asa_math_modulo':
-      return `(${input('A')} % ${input('B')})`;
+      return `${workspaceIdentifier(block.workspace, 'asaBlockModulo')}(${input('A')}, ${input('B')})`;
     case 'asa_compare_lt':
       return `(${input('A')} < ${input('B')})`;
     case 'asa_compare_eq':
@@ -1662,6 +1662,8 @@ export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string 
   } = activeArduinoGraph(workspace);
   const blockTypes = new Set(allBlocks.map((block) => block.type));
   const declarations: string[] = [];
+  if (blockTypes.has('asa_math_modulo'))
+    declarations.push(arduinoModuloAdapterSource(workspaceIdentifier(workspace, 'asaBlockModulo')));
   const setupLines: string[] = [];
 
   const digitalPins = new Set<string>();

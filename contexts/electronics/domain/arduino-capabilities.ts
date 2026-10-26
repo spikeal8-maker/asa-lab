@@ -1,5 +1,6 @@
 import { analyseArduinoProgramSyntax } from './arduino-program-runtime.js';
 import { arduinoServoDeclarationNames } from './arduino-servo-runtime.js';
+import { admittedArduinoModuloAdapters } from './arduino-modulo-adapter.js';
 
 export type ArduinoSupportStatus = 'supported' | 'limited' | 'unsupported';
 
@@ -102,7 +103,7 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_math_divide: SUPPORTED(
     'Целочисленное деление усекается к нулю; деление на ноль останавливает расчёт с ошибкой.',
   ),
-  asa_math_modulo: SUPPORTED('Остаток от деления поддерживается.'),
+  asa_math_modulo: SUPPORTED('Целый % и дробный остаток с усечением к нулю; делитель не ноль.'),
   asa_compare_lt: SUPPORTED('Сравнение поддерживается.'),
   asa_compare_eq: SUPPORTED('Сравнение поддерживается.'),
   asa_compare_gt: SUPPORTED('Сравнение поддерживается.'),
@@ -341,7 +342,8 @@ function sourcePosition(
 export function analyseArduinoSourceSupport(
   source: string,
 ): readonly ArduinoSourceSupportDiagnostic[] {
-  const clean = maskCommentsAndStrings(source);
+  const admittedModulo = admittedArduinoModuloAdapters(maskCommentsAndStrings(source));
+  const clean = admittedModulo.source;
   const servoDeclarations = new Set(arduinoServoDeclarationNames(clean));
   const diagnostics: ArduinoSourceSupportDiagnostic[] = [];
   const dedupe = new Set<string>();
@@ -419,7 +421,7 @@ export function analyseArduinoSourceSupport(
     const insideMemberCall = memberCallRanges.some(
       (range) => start >= range.start && start < range.end,
     );
-    if (insideMemberCall || SUPPORTED_CALLS.has(lower) || CONTROL_CALLS.has(lower)) continue;
+    if (insideMemberCall || SUPPORTED_CALLS.has(lower) || CONTROL_CALLS.has(lower) || admittedModulo.names.includes(name)) continue;
     const knownMessage = UNSUPPORTED_CALL_MESSAGES.get(lower);
     add(
       knownMessage ? 'unsupported-call' : 'unknown-call',

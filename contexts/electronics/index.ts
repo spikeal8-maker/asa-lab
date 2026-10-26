@@ -18,6 +18,7 @@ export {
   type TerminalRef,
 } from './domain/document.js';
 export type { ElectronicsDocument as SchematicDocument } from './domain/document.js';
+export { arduinoModuloAdapterSource } from './domain/arduino-modulo-adapter.js';
 export { buildNetlist, terminalKey, type Netlist } from './domain/netlist.js';
 export {
   canonicalSimulationInput,
