@@ -267,9 +267,10 @@ class RealFailureRegressionTests(unittest.TestCase):
                         os.chown(staged / ".minio.sys", uid, gid)
                     return ""
                 raise AssertionError("Unexpected command")
-            with patch("tools.asa_test_refresh.docker", return_value="minio-id"), \
+            with patch("tools.asa_test_refresh.docker", return_value="minio-id") as compose_call, \
                  patch("tools.asa_test_refresh.run", side_effect=fake_run):
                 normalize_minio_stage(Path("/untouched"), staged)
+            compose_call.assert_called_once_with(Path("/untouched"), "ps", "-a", "-q", "minio")
             self.assertIn(("chown", "-R", f"{uid}:{gid}", str(staged)), calls)
             self.assertEqual(staged.stat().st_uid, uid)
             self.assertEqual((staged / ".minio.sys").stat().st_gid, gid)

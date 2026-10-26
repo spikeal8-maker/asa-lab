@@ -393,7 +393,9 @@ def normalize_minio_stage(root: Path, staged: Path) -> None:
     usable by an unchanged 1000:1000 MinIO runtime. Only the isolated staging
     volume is normalized; source archives and live volumes are not touched.
     """
-    cid = docker(root, "ps", "-q", "minio")
+    # MinIO is intentionally stopped during preserve-mode freeze. Inspect the
+    # existing Compose container including stopped ones; do not require running.
+    cid = docker(root, "ps", "-a", "-q", "minio")
     demand(bool(cid), "Cannot attest the existing MinIO runtime user")
     meta = json.loads(run("docker", "inspect", cid))[0]
     raw = meta["Config"]["User"]

@@ -305,3 +305,43 @@ sudo python3 tools/asa_test_refresh.py status --root /srv/asa-lab
 **Проверено:** полный автоматизированный source-update и restore на тестовом
 стенде. **Ещё требуется:** fault-injection на изолированном runtime,
 автоматические browser E2E сценарии и независимый review перед снятием Draft.
+
+## 11. Инцидент повторного обновления 26.10.2026 (режим preserve)
+
+Запрошено обновление **существующего** тестового стенда с `ef1e9d3e…`
+до зафиксированного SHA `452cec488fc0a566c2b6482931b386cb12bdcc07`:
+103 новых коммита, новая схема PostgreSQL 0260 вместо 0255. Нового
+архива Яндекс Диска после 25.10 не было, поэтому **режим preserve**,
+без повторного восстановления старых данных.
+
+Первая попытка через MCP 1Panel:
+
+- operation_id: `4e85fd5214f34cf082a3a6620dd963f3`,
+  receipt `f62cdca01c7c`;
+- Docker-образы API/Web/Scratch/Search/MinIO собраны и проверены по
+  точному SHA;
+- перед обновлением созданы PostgreSQL dump и резервный MinIO-том;
+- миграция проверочной PostgreSQL-копии завершилась PASS;
+- **BLOCKED** на нормализации MinIO stage:
+  `Cannot attest the existing MinIO runtime user`.
+- Причина: для безопасного снимка оператор остановил MinIO, а затем
+  запросил `docker compose ps -q minio`. Без `-a` команда не
+  возвращает остановленный контейнер, хотя его `Config.User=1000:1000`
+  сохраняется и пригоден для проверки.
+- **Исправление:** запрашивать `docker compose ps -a -q minio` с тем же
+  существующим Compose root; затем `docker inspect` для UID/GID. Это
+  работает и для работающего, и для остановленного MinIO.
+- **Тест:** регрессия проверяет именно аргументы `ps -a -q minio`,
+  дополнительно сохраняются остальные 25 safety/rollback тестов.
+- Автоматический rollback: `failed_rolled_back`, проверка вернула
+  6 healthy services, HTTPS 200, Git исходного SHA и данные
+  94 аккаунта / 31 класс / 1712 проектов / PostgreSQL 0255.
+- Пять новых Docker-образов уже собраны; для повторной попытки разрешён
+  `--reuse-images` после обязательной проверки exact SHA.
+
+**Процессное улучшение:** unit tests должны моделировать порядок
+`freeze writers → inspect stopped containers → stage data → migrate →
+switch`, а не тестировать каждую функцию только с работающим Docker.
+
+После повторной попытки заполнить exact-SHA, receipt, время,
+миграции, object SHA256, web/API health и пользовательскую приёмку.
