@@ -1,4 +1,5 @@
 import type { AiWebImage, AiWebSource, AiWebWeather } from '@asa-lab/contracts';
+import { createHash } from 'node:crypto';
 
 const MAX_BODY = 2 * 1024 * 1024;
 const USER_AGENT = 'ASA-Lab/1.0 (+https://github.com/spikeal8-maker/asa-lab)';
@@ -117,6 +118,21 @@ function cityLabel(item: Record<string, unknown>): string {
   );
 }
 const SAME_CITY_RADIUS_KM = 3;
+interface CityCandidate {
+  readonly city: City;
+  readonly cityRelation: boolean;
+  readonly bounds: readonly [number, number, number, number] | null;
+}
+
+function distanceKm(a: City, b: City): number {
+  const radians = Math.PI / 180;
+  const latitude = (b.lat - a.lat) * radians;
+  const longitude = (b.lon - a.lon) * radians;
+  const arc =
+    Math.sin(latitude / 2) ** 2 +
+    Math.cos(a.lat * radians) * Math.cos(b.lat * radians) * Math.sin(longitude / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(arc)));
+}
 
 function nearbySameCity(a: City, b: City): boolean {
   if (
@@ -124,13 +140,51 @@ function nearbySameCity(a: City, b: City): boolean {
     b.name.normalize('NFKC').toLocaleLowerCase('ru')
   )
     return false;
-  const radians = Math.PI / 180;
-  const latitude = (b.lat - a.lat) * radians;
-  const longitude = (b.lon - a.lon) * radians;
-  const arc =
-    Math.sin(latitude / 2) ** 2 +
-    Math.cos(a.lat * radians) * Math.cos(b.lat * radians) * Math.sin(longitude / 2) ** 2;
-  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(arc))) <= SAME_CITY_RADIUS_KM;
+  return distanceKm(a, b) <= SAME_CITY_RADIUS_KM;
+}
+
+function cityBounds(value: unknown): CityCandidate['bounds'] {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const [south = NaN, north = NaN, west = NaN, east = NaN] = value.map((part) =>
+    typeof part === 'number' || (typeof part === 'string' && part.trim()) ? Number(part) : NaN,
+  );
+  if (
+    !Number.isFinite(south) ||
+    !Number.isFinite(north) ||
+    !Number.isFinite(west) ||
+    !Number.isFinite(east) ||
+    south < -90 ||
+    north > 90 ||
+    west < -180 ||
+    east > 180 ||
+    south > north ||
+    west > east ||
+    east - west > 180 ||
+    distanceKm({ name: '', lat: south, lon: west }, { name: '', lat: north, lon: west }) > 150 ||
+    distanceKm({ name: '', lat: south, lon: west }, { name: '', lat: south, lon: east }) > 150 ||
+    distanceKm({ name: '', lat: north, lon: west }, { name: '', lat: north, lon: east }) > 150
+  )
+    return null;
+  return [south, north, west, east];
+}
+
+function relationContains(relation: CityCandidate, other: CityCandidate): boolean {
+  if (!relation.cityRelation || !relation.bounds) return false;
+  const [south, north, west, east] = relation.bounds;
+  return (
+    other.city.lat >= south &&
+    other.city.lat <= north &&
+    other.city.lon >= west &&
+    other.city.lon <= east
+  );
+}
+
+function sameCityCandidate(a: CityCandidate, b: CityCandidate): boolean {
+  return (
+    a.city.name.normalize('NFKC').toLocaleLowerCase('ru') ===
+      b.city.name.normalize('NFKC').toLocaleLowerCase('ru') &&
+    (nearbySameCity(a.city, b.city) || relationContains(a, b) || relationContains(b, a))
+  );
 }
 
 function dedupeNearbyCities(cities: readonly City[]): City[] {
@@ -142,7 +196,7 @@ function dedupeNearbyCities(cities: readonly City[]): City[] {
 
 export function parseCityCandidates(value: unknown): City[] {
   if (!Array.isArray(value)) throw new AiWebProviderError();
-  const results: { city: City; cityRelation: boolean }[] = [];
+  const results: CityCandidate[] = [];
   for (const raw of value.slice(0, 3)) {
     const item = record(raw),
       kind = item['addresstype'];
@@ -161,10 +215,14 @@ export function parseCityCandidates(value: unknown): City[] {
       continue;
     const candidate = { name, lat, lon };
     const cityRelation = item['osm_type'] === 'relation' && kind === 'city';
-    const duplicate = results.findIndex((result) => nearbySameCity(result.city, candidate));
-    if (duplicate < 0) results.push({ city: candidate, cityRelation });
-    else if (cityRelation && !results[duplicate]!.cityRelation)
-      results[duplicate] = { city: candidate, cityRelation };
+    const parsed: CityCandidate = {
+      city: candidate,
+      cityRelation,
+      bounds: cityRelation ? cityBounds(item['boundingbox']) : null,
+    };
+    const duplicate = results.findIndex((result) => sameCityCandidate(result, parsed));
+    if (duplicate < 0) results.push(parsed);
+    else if (cityRelation && !results[duplicate]!.cityRelation) results[duplicate] = parsed;
   }
   return results.map((result) => result.city);
 }
@@ -193,6 +251,10 @@ export function cityQuery(value: string): string | null {
   const [place, ...region] = city.split(',');
   const canonical = aliases[place!.trim().toLocaleLowerCase('ru')];
   return canonical ? [canonical, ...region.map((part) => part.trim())].join(', ') : city;
+}
+function geocodeCacheKey(city: string): string {
+  // v2 cannot reuse earlier cached point-only results, which lack relation bounds.
+  return 'v2:' + createHash('sha256').update(city.toLocaleLowerCase('ru')).digest('hex');
 }
 export function normalizeMetForecast(raw: unknown, city: City): AiWebWeather {
   const properties = record(record(raw)['properties']),
@@ -379,7 +441,8 @@ export class FreeInternetProvider {
     const city = cityQuery(cityInput);
     if (!city || !this.geocoderBase) return { choices: [] };
     const normalizedCity = city.toLocaleLowerCase('ru');
-    const geoReceipt = await this.cache.claim('geocode', normalizedCity);
+    const geoKey = geocodeCacheKey(city);
+    const geoReceipt = await this.cache.claim('geocode', geoKey);
     let cities: City[];
     if (geoReceipt.state === 'fresh')
       cities = Array.isArray(geoReceipt.body) ? dedupeNearbyCities(geoReceipt.body as City[]) : [];
@@ -398,7 +461,7 @@ export class FreeInternetProvider {
         cities = parseCityCandidates(await this.json(await this.response(url.href, signal)));
         await this.cache.save(
           'geocode',
-          normalizedCity,
+          geoKey,
           cities,
           new Date(Date.now() + (cities.length ? 7 * 86400 : 3600) * 1000).toISOString(),
           undefined,
@@ -407,7 +470,7 @@ export class FreeInternetProvider {
       } catch (error) {
         await this.cache.save(
           'geocode',
-          normalizedCity,
+          geoKey,
           null,
           new Date(Date.now() + 60000).toISOString(),
           undefined,
