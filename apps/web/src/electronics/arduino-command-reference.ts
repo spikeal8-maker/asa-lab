@@ -264,15 +264,15 @@ const REFERENCE_METADATA = {
     example: 'long width = pulseIn(7, HIGH, 1000);',
   },
   random: {
-    signature: 'random([minimum,] maximum)',
+    signature: 'random() / random([min,] max)',
     category: 'math',
-    limits: 'Генератор случайных чисел пока не исполняется.',
+    limits: 'AVR 1.8.6: повторяемая последовательность; max исключён.',
     example: 'long value = random(0, 100);',
   },
   randomSeed: {
     signature: 'randomSeed(seed)',
     category: 'math',
-    limits: 'Генератор случайных чисел пока не исполняется.',
+    limits: 'unsigned long; ноль не меняет последовательность.',
     example: 'randomSeed(42);',
   },
   'Serial.begin': {

@@ -1,3 +1,4 @@
+import { draw, seed, valid } from './arduino-random.js';
 import {
   ADC_OBSERVATION,
   unconnectedAdcReading,
@@ -159,6 +160,7 @@ export interface ArduinoRuntimeState {
   readonly nextEventSequence: number;
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
   readonly pendingEvaluation?: ArduinoPendingEvaluation;
+  readonly randomState?: number;
   readonly pulseWait?: ArduinoPulseWaitState | null;
   readonly ultrasonicAdapter?: ArduinoUltrasonicAdapterState | null;
   readonly serial?: ArduinoSerialState;
@@ -250,6 +252,7 @@ interface ArduinoEvaluationReplay {
 interface RuntimeState {
   readonly scopes: ArduinoScope[];
   evaluationReplay?: ArduinoEvaluationReplay | undefined;
+  randomState?: number | undefined;
   readonly validateOnly?: boolean;
   readonly inputs: ArduinoTerminalVoltages;
   readonly actions: ArduinoProgramAction[];
@@ -370,7 +373,8 @@ function incrementWaitText(instruction: CompiledInstruction | undefined): string
       : instruction?.kind === 'branch'
         ? instruction.condition
         : '';
-  return /(?:\+\+|--)/.test(text) && /\b(?:pulseIn|readUltrasonicCm)\s*\(/i.test(text)
+  return /(?:\+\+|--|\brandom(?:Seed)?\s*\()/i.test(text) &&
+    /\b(?:pulseIn|readUltrasonicCm)\s*\(/i.test(text)
     ? text
     : undefined;
 }
@@ -512,6 +516,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
         ['trigger-low-delay', 'trigger-high-delay', 'pulse'].includes(
           state.ultrasonicAdapter.phase,
         ))) &&
+    valid(state.randomState) &&
     (state.serial === undefined || isArduinoSerialState(state.serial)) &&
     (state.servo === undefined || isArduinoServoRuntimeState(state.servo)) &&
     state.eventQueue.every(
@@ -1269,6 +1274,8 @@ class ExpressionParser {
     if (this.state.scopes.some((scope) => scope.has(name)))
       throw new SyntaxError(`«${name}» — переменная, а не функция.`);
     const lower = name.toLowerCase();
+    if (lower === 'random')
+      return this.validateOnly ? zeroValue('long') : draw(this.state, argumentsList);
     if (lower === 'analogread') {
       if (this.validateOnly) return zeroValue();
       const terminal = analogTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
@@ -1452,6 +1459,7 @@ function evaluateSyntax(
 
 function validateCallArguments(name: string, count: number, expression = false): void {
   const valueCalls: Readonly<Record<string, readonly [number, number]>> = {
+    random: [0, 2],
     digitalRead: [1, 1],
     analogRead: [1, 1],
     millis: [0, 0],
@@ -1465,6 +1473,7 @@ function validateCallArguments(name: string, count: number, expression = false):
     max: [2, 2],
   };
   const commandCalls: Readonly<Record<string, readonly [number, number]>> = {
+    randomSeed: [1, 1],
     pinMode: [2, 2],
     digitalWrite: [2, 2],
     analogWrite: [2, 2],
@@ -1680,6 +1689,7 @@ function executeSimpleStatement(
   validateCallArguments(call[1]!, argumentsList.filter((arg) => arg.length > 0).length);
   if (state.scopes.some((scope) => scope.has(call[1]!)))
     throw new SyntaxError(`«${call[1]}» — переменная, а не функция.`);
+  if (name === 'randomseed') return seed(state, evaluateValue(argumentsList[0]!, state));
   if (
     ![
       'pinmode',
@@ -2973,6 +2983,7 @@ function advanceRuntime(
   );
   if (clocked && compatible && pulseWait && pulseInputSample && resumeAtMs > targetTimeMs)
     resumeAtMs = targetTimeMs;
+  let rng = compatible ? previous.randomState : undefined;
   let phase: ArduinoRuntimeState['phase'] = compatible ? previous.phase : 'setup';
   let programCounter = compatible ? previous.programCounter : 0;
   let loopIterationActive = compatible ? previous.loopIterationActive : false;
@@ -3049,6 +3060,7 @@ function advanceRuntime(
         break;
       }
     }
+    rng = initializationState.randomState;
     scopes.push(acquireScope(owned?.inactiveScopes, scopes.length));
   }
 
@@ -3207,6 +3219,7 @@ function advanceRuntime(
     instructionState.ultrasonicAdapter = ultrasonicAdapter;
     instructionState.serial = serial;
     instructionState.servo = servo;
+    instructionState.randomState = rng;
     instructionState.simulationTimeMs = resumeAtMs;
     instructionState.statementCount = clocked ? 0 : continuousStatementCount;
     instructionState.evaluationReplay = incrementWaitText(instruction)
@@ -3280,6 +3293,7 @@ function advanceRuntime(
     ultrasonicAdapter = instructionState.ultrasonicAdapter;
     serial = instructionState.serial;
     servo = instructionState.servo;
+    rng = instructionState.randomState;
     const consumed = instructionState.statementCount - statementCountBefore;
     advanceStatementCount += consumed;
     continuousStatementCount =
@@ -3371,6 +3385,7 @@ function advanceRuntime(
       nextEventSequence,
       eventQueue: owned ? [...eventQueue] : eventQueue,
       ...(pendingEvaluation ? { pendingEvaluation } : {}),
+      ...(rng !== undefined && { randomState: rng }),
       ...(pulseWait ? { pulseWait } : {}),
       ...(ultrasonicAdapter ? { ultrasonicAdapter } : {}),
       ...(serial ? { serial } : {}),

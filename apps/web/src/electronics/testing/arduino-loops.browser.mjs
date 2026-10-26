@@ -46,6 +46,11 @@ value=pulseIn(n++,HIGH,100)+pulseIn(n++,HIGH,100);
 value=readUltrasonicCm(n++,10);Serial.println(n);Serial.println(value);
 value=pulseIn(11,HIGH,100)+n++;Serial.println(n);Serial.println(value);}
 void loop(){delay(100);}`;
+const seededSource = `long value=0;void setup(){Serial.begin(9600);pinMode(13,OUTPUT);
+randomSeed(42);Serial.println(random());randomSeed(0);Serial.println(random());
+value=random(100)+pulseIn(2,HIGH,100);Serial.println(value);digitalWrite(13,value>0);
+randomSeed(random()+pulseIn(3,HIGH,100));Serial.println(random());}
+void loop(){delay(100);}`;
 const entry = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
@@ -55,10 +60,30 @@ import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-wo
 import {ElectronicsLiveSimulationWorkerController} from './src/electronics/live-simulation-worker-controller';
 import {advanceElectronicsToHorizon,resetElectronicsTimedState} from '@asa-lab/electronics/engine';
 import {advanceClockedArduinoRuntime} from '../../contexts/electronics/domain/arduino-program-runtime';
+import * as ScratchBlocks from 'scratch-blocks';
+import {registerArduinoBlocks,applyArduinoBlockDefaults,generateArduinoCode} from './src/electronics/arduino-blocks';
+import {arduinoBlockSupport} from '../../contexts/electronics/domain/arduino-capabilities';
 const initial=${JSON.stringify(postTestSource)};
 const legacy=${JSON.stringify(source)};
 const increment=${JSON.stringify(incrementSource)};
 const waiting=${JSON.stringify(waitingIncrementSource)};
+const seeded=${JSON.stringify(seededSource)};
+registerArduinoBlocks();
+const workspace=new ScratchBlocks.Workspace();
+ScratchBlocks.Events.disable();
+const setup=workspace.newBlock('asa_setup');
+const print=workspace.newBlock('asa_serial_print');
+setup.getInput('DO').connection.connect(print.previousConnection);
+const random=workspace.newBlock('asa_random');
+print.getInput('TEXT').connection.connect(random.outputConnection);
+const detached=workspace.newBlock('asa_random');
+workspace.newBlock('asa_loop').getInput('DO').connection.connect(workspace.newBlock('asa_wait').previousConnection);
+applyArduinoBlockDefaults(workspace);
+const generated=generateArduinoCode(workspace);
+const blockStatus=arduinoBlockSupport('asa_random').status;
+const blockColour=random.getColour();
+workspace.dispose();ScratchBlocks.Events.enable();
+window.generatedRandom={source:generated,blockStatus,blockColour};
 const doc=(source)=>({schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',pinIds:['d13','power-5v','power-3v3','power-gnd-1'],position:{x:0,y:0},value:5,stateProperties:{arduinoSource:source}}],connections:[],viewport:{x:0,y:0,zoom:1},simulation:{running:true,maxIterations:24}});
 const factory=()=>new Worker('/worker.js',{type:'module'});
 window.proof=async()=>{
@@ -66,7 +91,7 @@ window.proof=async()=>{
  try{
  const generation=client.beginGeneration('loop-proof');
  const proofs=[];
- for(const source of [legacy,initial,increment,waiting]){
+ for(const source of [legacy,initial,increment,waiting,seeded,generated]){
   const horizons=source===waiting?[50,500,1100000]:[500,1500,20000];
   const horizon=horizons.at(-1);
   let state=resetElectronicsTimedState();let advance;
@@ -86,6 +111,8 @@ window.proof=async()=>{
   proofs.push({advance,direct,budgetOne:{runtime,events,slices}});
  }
  proofs.push({invalid:await client.advance(generation,doc(increment.replace('total++','++1')),resetElectronicsTimedState(),20000)});
+ const multi=doc(seeded);multi.components.push({...multi.components[0],id:'other',stateProperties:{arduinoSource:seeded.replace('randomSeed(42)','randomSeed(1)')}});
+ window.multiRandom=await client.advance(generation,multi,resetElectronicsTimedState(),20000);
  return proofs;
  }finally{client.dispose();}
 };
@@ -141,6 +168,8 @@ try {
       .runtime;
     assert.deepEqual(invalidRuntime.outputVoltages, {});
     const proof = proofs[1];
+    const seededProof = proofs[4];
+    const generatedProof = proofs[5];
     for (const result of proofs) {
       assert.equal(result.advance.executionStatus, 'ready');
       assert.deepEqual(result.advance.diagnostics, []);
@@ -149,6 +178,35 @@ try {
       assert.deepEqual(result.budgetOne.runtime, board);
       assert.ok(result.budgetOne.slices > 1);
     }
+    const seededRuntime = JSON.parse(seededProof.advance.state.continuation.serializedState)
+      .boards[0].runtime;
+    const seededSerial = seededRuntime.serial.tx.map((entry) => entry.text);
+    assert.deepEqual(seededSerial.slice(0, 3), ['705894\n', '1126542223\n', '9\n']);
+    assert.equal(seededRuntime.outputVoltages.d13, 5);
+    const generated = await page.evaluate(() => window.generatedRandom);
+    assert.equal(generated.blockStatus, 'supported');
+    assert.equal(generated.blockColour, '#40bf4a');
+    assert.equal(generated.source.match(/random\(/g).length, 1);
+    assert.ok(generated.source.includes('random(1, 11)'));
+    const generatedRuntime = JSON.parse(generatedProof.advance.state.continuation.serializedState)
+      .boards[0].runtime;
+    assert.deepEqual(
+      generatedRuntime.serial.tx.map((entry) => entry.text),
+      ['8\n'],
+    );
+    assert.equal(generatedRuntime.randomState, 16807);
+    const multi = await page.evaluate(() => window.multiRandom);
+    assert.deepEqual(multi.diagnostics, []);
+    const multiBoards = JSON.parse(multi.state.continuation.serializedState).boards;
+    assert.deepEqual(
+      multiBoards.find((board) => board.componentId === 'uno').runtime,
+      seededRuntime,
+    );
+    assert.equal(
+      multiBoards.find((board) => board.componentId === 'other').runtime.serial.tx[0].text,
+      '16807\n',
+    );
+    assert.notEqual(multiBoards[0].runtime.randomState, multiBoards[1].runtime.randomState);
     assert.equal(proof.advance.executionStatus, 'ready');
     assert.deepEqual(proof.advance.diagnostics, []);
     assert.deepEqual(proof.advance.state, proof.direct.state);
@@ -285,6 +343,42 @@ try {
       waitingSerial,
     );
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await page.getByRole('textbox', { name: 'source' }).fill(seededSource);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(
+      () => window.receipt.committed === 20000 && window.receipt.serial[0]?.tx.length === 4,
+    );
+    const seededRun = await page.evaluate(() => window.receipt);
+    assert.equal(seededRun.failure, null);
+    assert.deepEqual(seededRun.serial[0].tx, seededRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const seededReset = await page.evaluate(() => window.receipt);
+    assert.deepEqual(seededReset.serial[0].tx, seededRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const seededStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), seededStopped);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(seededSource.replace('randomSeed(42)', 'randomSeed(1)'));
+    await page.waitForFunction(
+      () =>
+        window.receipt.committed === 30000 && window.receipt.serial[0]?.tx[0]?.text === '16807\n',
+    );
+    const seededEdited = await page.evaluate(() => window.receipt);
+    assert.equal(seededEdited.failure, null);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    await page.getByRole('textbox', { name: 'source' }).fill(generated.source);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(
+      () => window.receipt.committed === 20000 && window.receipt.serial[0]?.tx[0]?.text === '8\n',
+    );
+    const generatedRun = await page.evaluate(() => window.receipt);
+    assert.equal(generatedRun.failure, null);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
     assert.deepEqual(errors, []);
     assert.ok(workers >= 5);
     await page.screenshot({ path: resolve(output, 'loops-' + width + '.png') });
@@ -316,6 +410,14 @@ try {
       waitingVariables: waitingRuntime.variables,
       waitingSerial,
       waitingBudgetOneSlices: waitingProof.budgetOne.slices,
+      seededSerial,
+      seededRun,
+      seededReset,
+      seededStopped,
+      seededEdited,
+      generated,
+      generatedRun,
+      multiBoards,
     });
     await page.evaluate(() => window.fixture.dispose());
     await context.close();

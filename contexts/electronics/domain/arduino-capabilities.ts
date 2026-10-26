@@ -109,7 +109,7 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_logic_and: SUPPORTED('Логическое И поддерживается.'),
   asa_logic_or: SUPPORTED('Логическое ИЛИ поддерживается.'),
   asa_logic_not: SUPPORTED('Логическое НЕ поддерживается.'),
-  asa_random: UNSUPPORTED('Генератор случайных чисел не входит в детерминированный рантайм.'),
+  asa_random: SUPPORTED('Повторяемый AVR random; верхняя граница блока включена.'),
   asa_map: SUPPORTED('map() поддерживается.'),
   asa_constrain: SUPPORTED('constrain() поддерживается.'),
   asa_abs: SUPPORTED('abs() поддерживается.'),
@@ -165,8 +165,8 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   readUltrasonicCm: LIMITED(
     'Exact built-in adapter для ASA Lab: trigger/echo последовательность поверх pinMode(), digitalWrite(), delayMicroseconds() и pulseIn().',
   ),
-  random: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
-  randomSeed: UNSUPPORTED('Случайные числа не входят в детерминированный рантайм.'),
+  random: SUPPORTED('AVR 1.8.6: повторяемая последовательность; max исключён.'),
+  randomSeed: SUPPORTED('Начальное состояние random; ноль сохраняет последовательность.'),
   'Serial.begin': LIMITED('Задаёт скорость для виртуального монитора порта.'),
   'Serial.print': LIMITED('Выводит число или текст в монитор порта.'),
   'Serial.println': LIMITED('Выводит значение с переводом строки.'),
@@ -238,6 +238,8 @@ export function arduinoTextCommandSupport(command: string): ArduinoBlockSupport 
 }
 
 const SUPPORTED_CALLS = new Set([
+  'random',
+  'randomseed',
   'setup',
   'loop',
   'pinmode',
@@ -263,8 +265,6 @@ const SUPPORTED_CALLS = new Set([
 const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
 
 const UNSUPPORTED_CALL_MESSAGES = new Map<string, string>([
-  ['random', 'random() ещё не исполняется детерминированным рантаймом.'],
-  ['randomseed', 'randomSeed() ещё не исполняется детерминированным рантаймом.'],
   ['shiftin', 'shiftIn() ещё не исполняется.'],
   ['shiftout', 'shiftOut() ещё не исполняется.'],
   ['attachinterrupt', 'Прерывания ещё не моделируются.'],
