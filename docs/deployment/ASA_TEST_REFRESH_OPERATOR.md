@@ -447,5 +447,64 @@ Docker image build или принудительная отмена без пр�
   захватывает root mutation mutex; raw private build.log нельзя выдавать боту.
   Реализация такого MCP endpoint **не входит** в данный кодовый PR.
 
-Терминальный результат данной активной операции фиксируется отдельно после
-получения завершённого operation_id. Нельзя заявлять SUCCESS по статусу running.
+Операция `aed82e31ab874d85906e5103ec8b8efe` фактически завершилась
+`FAILED` (exit 78): превышен общий лимит Docker Build 5400 секунд.
+Последний доказанный BuildKit step — `#74 [api workspace 9/9] RUN`.
+Из-за отсутствия позднего build.log причины задержки внутри шага не доказаны.
+Действующая база и runtime не были переключены. Нельзя считать эту
+source-сборку успешным выпуском.
+
+Приоритетный штатный маршрут обновления — `asa_update_plan` →
+`asa_update_start` с опубликованным OCI-релизом. Исходный оператор
+остаётся дополнительным диагностируемым source-only инструментом.
+
+## 14. Проверяемые исходы source-оператора и консервативное восстановление
+
+Три допустимых терминальных состояния не являются синонимами:
+
+- `failed_pre_switch`: управление дошло до обработчика исключения **до**
+  остановки писателей и до любой попытки создания PostgreSQL staging DB,
+  изменения MinIO, runtime, живого `.env` или Git checkout. Receipt
+  содержит явные `rollback_required=false`,
+  `rollback_verified=false`, `runtime_change_attempted=false`,
+  `database_or_object_change_attempted=false`. Только полный набор этих
+  отрицательных признаков позволяет следующему source-плану продолжить.
+  Docker image builds и отдельный Git worktree не являются переключением
+  действующей установки, но они не дают оснований удалять артефакты.
+- `failed_rolled_back`: после фактического рестарта прежнего runtime
+  оператор перепроверил исходный Git SHA, SHA256 оригинального `.env`,
+  идентичность PostgreSQL, прежние counts/schema, прежний MinIO volume,
+  готовность всех Compose services и HTTP/HTTPS. Записывается
+  `rollback_verified=true`, `rollback_required=false`. Просто успешный
+  exit code команды `docker compose up` недостаточен.
+- `manual_recovery_required`: любая неопределённость, прерывание между
+  checkpoint и восстановлением, частичная остановка писателей, изменение
+  staged PostgreSQL/MinIO до switch, неудачный rollback или незавершённая
+  проверка работоспособности. Новые source-операции блокируются.
+
+**Legacy receipt** вида `phase=failed, rollback_required=false` не
+преобразуется автоматически в `failed_pre_switch`. Старые
+`failed_rolled_back` без аттестации `rollback_verified=true` тоже
+остаются блокирующими. Нельзя удалять/переписывать status.json, снимать
+flock или запускать вторую source-сборку, чтобы обойти блокировку.
+Сначала независимая диагностика сохранённого состояния, затем явное
+согласованное восстановление через штатный механизм.
+
+Offline-регрессии: `tools.test_asa_test_refresh.RecoveryReceiptSafetyTests`.
+Изолированный GitHub workflow:
+`.github/workflows/asa-test-refresh-operator.yml`.
+Тесты не запускают Docker, не требуют доступ к серверу и не меняют БД.
+
+### 14.1 Наблюдение по штатному OCI-обновлению 26 октября 2026 года
+
+План `0da309b97fd94881989d22155946635e` был ready без blockers
+для `34a5faf879fa4d443c04751e4dd7750ec6fa8f31` и схемы 0261.
+Штатная операция `30763ab9d5e84ce79b885dd717829964` завершилась
+`FAILED` на шаге `backup`: управляющий слой сообщает
+`manager_exit_code=2`, но вложенный итог имеет
+`manager_status=success / phase=complete`. Фактический повторный preflight
+показывает старый SHA `ef1e9d3e24a0f77fe3f98ec9d692d02b9b8a3704`,
+схему 0255 и старые volumes; следовательно обновление не принято.
+Это **отдельный сбой штатного менеджера**, не доказанный дефект
+source-кода из PR #772. Повторный update/source-build без root-cause
+запрещён.
