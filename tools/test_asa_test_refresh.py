@@ -467,5 +467,98 @@ class BoundedBuildObservabilityTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(log.stat().st_mode), 0o600)
 
 
+
+class RecoveryReceiptSafetyTests(unittest.TestCase):
+    def test_pre_switch_failure_requires_explicit_negative_mutation_proof(self):
+        from tools.asa_test_refresh import recovery_receipt_allows_next
+        safe = {"phase": "failed_pre_switch", "rollback_required": False,
+                "rollback_verified": False, "runtime_change_attempted": False,
+                "database_or_object_change_attempted": False}
+        self.assertTrue(recovery_receipt_allows_next(safe))
+        for field in ("rollback_required", "rollback_verified",
+                      "runtime_change_attempted", "database_or_object_change_attempted"):
+            with self.subTest(field=field):
+                modified = {**safe, field: True}
+                self.assertFalse(recovery_receipt_allows_next(modified))
+        for field in ("rollback_required", "rollback_verified",
+                      "runtime_change_attempted", "database_or_object_change_attempted"):
+            with self.subTest(missing=field):
+                modified = {k: v for k, v in safe.items() if k != field}
+                self.assertFalse(recovery_receipt_allows_next(modified))
+
+    def test_legacy_failed_with_false_rollback_required_must_stay_blocked(self):
+        from tools.asa_test_refresh import recovery_receipt_allows_next
+        self.assertFalse(recovery_receipt_allows_next(
+            {"phase": "failed", "rollback_required": False}))
+        self.assertFalse(recovery_receipt_allows_next(
+            {"phase": "failed_rolled_back"}))
+        self.assertFalse(recovery_receipt_allows_next(
+            {"phase": "failed_rolled_back", "rollback_verified": True}))
+        self.assertTrue(recovery_receipt_allows_next(
+            {"phase": "complete"}))
+        self.assertTrue(recovery_receipt_allows_next(
+            {"phase": "failed_rolled_back", "rollback_verified": True,
+             "rollback_required": False}))
+
+    def test_unknown_and_interrupted_receipts_require_recovery(self):
+        from tools.asa_test_refresh import recovery_receipt_allows_next
+        for phase in ("image_build", "switching", "candidate_database_promoted",
+                      "failed", "manual_recovery_required", "starting_new", ""):
+            with self.subTest(phase=phase):
+                self.assertFalse(recovery_receipt_allows_next(
+                    {"phase": phase, "rollback_required": False}))
+
+    def test_failure_disposition_is_fail_closed_on_any_attempted_mutation(self):
+        from tools.asa_test_refresh import failure_disposition
+        pre_switch = {"writer_stop_attempted": False,
+                      "isolated_data_attempted": False,
+                      "live_objects_attempted": False,
+                      "database_switch_attempted": False,
+                      "environment_attempted": False, "git_attempted": False}
+        self.assertEqual(failure_disposition(**pre_switch), "failed_pre_switch")
+        for field in pre_switch:
+            with self.subTest(field=field):
+                self.assertEqual(
+                    failure_disposition(**{**pre_switch, field: True}),
+                    "manual_recovery_required")
+
+    def test_runtime_recovery_attests_sha_env_db_minio_and_health(self):
+        from tools.asa_test_refresh import verify_rollback_state
+        old_sha = "a" * 40
+        old_env = "b" * 64
+        root = Path("/test/asa-lab")
+        original_minio = Path("/var/lib/docker/volumes/asa-lab-dev_blocks-object-data/_data")
+        counts = ["94", "31", "1712", "0255"]
+        with patch("tools.asa_test_refresh.git", return_value=old_sha), \\
+             patch("tools.asa_test_refresh.sha256", return_value=old_env), \\
+             patch("tools.asa_test_refresh.db_names", return_value={"asalab"}), \\
+             patch("tools.asa_test_refresh.database_counts", return_value=counts), \\
+             patch("tools.asa_test_refresh.minio_mount", return_value=original_minio), \\
+             patch("tools.asa_test_refresh.health_check") as health:
+            verify_rollback_state(root, old_sha, root / ".env", old_env,
+                                  counts, "asa_previous_123", original_minio,
+                                  "https://test.asa-lab.ru")
+            health.assert_called_once_with(root, root, None, old_sha,
+                                           "https://test.asa-lab.ru")
+
+    def test_runtime_recovery_rejects_data_mismatch_without_health_claim(self):
+        from tools.asa_test_refresh import verify_rollback_state
+        old_sha = "a" * 40
+        old_env = "b" * 64
+        root = Path("/test/asa-lab")
+        with patch("tools.asa_test_refresh.git", return_value=old_sha), \\
+             patch("tools.asa_test_refresh.sha256", return_value=old_env), \\
+             patch("tools.asa_test_refresh.db_names", return_value={"asalab"}), \\
+             patch("tools.asa_test_refresh.database_counts",
+                   return_value=["94", "31", "1711", "0255"]), \\
+             patch("tools.asa_test_refresh.health_check") as health:
+            with self.assertRaisesRegex(Blocked, "counts/schema mismatch"):
+                verify_rollback_state(root, old_sha, root / ".env", old_env,
+                                      ["94", "31", "1712", "0255"],
+                                      "asa_previous_123", Path("/minio"),
+                                      "https://test.asa-lab.ru")
+            health.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
