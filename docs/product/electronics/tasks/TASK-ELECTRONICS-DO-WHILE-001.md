@@ -1,6 +1,6 @@
 ---
 task_id: TASK-ELECTRONICS-DO-WHILE-001
-kind: feature
+kind: implementation
 risk: high
 semantic_change: yes
 roadmap_slice: null
