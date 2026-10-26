@@ -1163,7 +1163,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
+          useLocal ? problem.partialText : problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
           'stopped',
         ]);
       } else {
@@ -1342,7 +1342,7 @@ export class AiChatService {
     readonly stopped: boolean;
     readonly imageJob?: AiImageGenerationJob;
   }> {
-    const deadline = Date.now() + AI_GENERATION_TIMEOUT_MS;
+    let deadline = Date.now() + AI_GENERATION_TIMEOUT_MS;
     principalId = principalId.toLowerCase();
     threadId = threadId.toLowerCase();
     requestId = requestId.toLowerCase();
@@ -1419,6 +1419,7 @@ export class AiChatService {
     const useLocal =
       choice === OLLAMA_SELECTION ||
       (!policy?.customized && selectedModel === undefined && !runtime.enabled);
+    if (useLocal) deadline = Date.now() + 1800000;
     const local = useLocal ? await this.ollamaRuntime() : null;
     const model = choice ?? (useLocal ? OLLAMA_SELECTION : runtime.model);
     if (useLocal) {
@@ -1932,7 +1933,7 @@ export class AiChatService {
             principalId,
             threadId,
             requestId,
-            followup.text.slice(0, AI_MAX_ANSWER_CHARS),
+            followup.text,
             followup.stopped ? 'stopped' : 'complete',
           ]);
         } else {
@@ -1963,7 +1964,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          result.text.slice(0, AI_MAX_ANSWER_CHARS),
+          useLocal ? result.text : result.text.slice(0, AI_MAX_ANSWER_CHARS),
           result.stopped ? 'stopped' : 'complete',
         ]);
       } else {
@@ -2013,7 +2014,7 @@ export class AiChatService {
           principalId,
           threadId,
           requestId,
-          problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
+          useLocal ? problem.partialText : problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
           'stopped',
         ]);
       } else {

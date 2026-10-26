@@ -1,8 +1,3 @@
-import {
-  AI_MAX_ANSWER_CHARS,
-  AI_MAX_OUTPUT_TOKENS,
-  AI_GENERATION_TIMEOUT_MS,
-} from './ai-generation-limits.js';
 /** Server-only Ollama transport. Supports loopback, private LAN, and Docker host gateway.
  * Never accepts browser-supplied endpoints, follows redirects, or logs prompts/addresses.
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
@@ -246,7 +241,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
   if (args.signal.aborted) return { text: '', stopped: true };
-  const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(1800000);
   const signal = AbortSignal.any([args.signal, timeout]);
   let response: Response;
   try {
@@ -285,10 +280,10 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
         ],
         ...(args.tools?.length ? { tools: args.tools } : {}),
         stream: true,
-        // Donor IZO_ASA also disables thinking for short school-facing inference.
-        // Some reasoning models otherwise spend the token/time budget without visible text.
-        think: false,
-        options: { num_predict: AI_MAX_OUTPUT_TOKENS },
+        // Preserve merged #790's Qwen 120K/xhigh unbounded local generation.
+        think: args.model === 'qwen3.8:27b' ? 'xhigh' : false,
+        keep_alive: -1,
+        options: { num_ctx: 120000, num_predict: -1 },
       }),
     });
   } catch {
@@ -337,7 +332,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
       rawCalls.push(...packet.message.tool_calls);
     }
     if (typeof packet.message?.content === 'string') {
-      const delta = packet.message.content.slice(0, AI_MAX_ANSWER_CHARS - text.length);
+      const delta = packet.message.content;
       text += delta;
       if (delta) args.onDelta(delta);
     }
@@ -347,7 +342,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     }
   };
   try {
-    while (!done && !signal.aborted && text.length < AI_MAX_ANSWER_CHARS) {
+    while (!done && !signal.aborted) {
       const part = await reader.read();
       if (part.done) break;
       buffer += decoder.decode(part.value, { stream: true });
@@ -361,7 +356,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
         buffer = buffer.slice(boundary + 1);
         // Stop immediately even when many token frames were coalesced into
         // this same HTTP chunk; do not emit queued deltas after cancellation.
-        if (done || signal.aborted || text.length >= AI_MAX_ANSWER_CHARS) break;
+        if (done || signal.aborted) break;
         boundary = buffer.indexOf('\n');
       }
       if (!done && buffer.length > 16 * 1024)
@@ -385,7 +380,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
   }
   if (timeout.aborted && !args.signal.aborted)
     throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text, usage);
-  if (!done && !args.signal.aborted && text.length < AI_MAX_ANSWER_CHARS)
+  if (!done && !args.signal.aborted)
     throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text, usage);
   let toolCalls: readonly NativeToolCall[] | undefined;
   if (rawCalls.length && !args.signal.aborted) {
@@ -405,7 +400,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.', '', usage);
   return {
     text,
-    stopped: args.signal.aborted || lengthLimited || text.length >= AI_MAX_ANSWER_CHARS,
+    stopped: args.signal.aborted || lengthLimited,
     ...(usage ? { usage } : {}),
     ...(toolCalls ? { toolCalls } : {}),
   };

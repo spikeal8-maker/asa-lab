@@ -131,11 +131,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0258', // Immutable Public Projects publication pins.
         '0259', // Private immutable-revision report intake.
         '0260', // Exact immutable Electronics public display.
-        '0261', // Bounded complete AI answers and generation lease.
-        '0262', // Administrative generation policy and domain-filtered retrieval.
-        '0263', // Independent local image jobs, private outputs and durable GPU admission.
-        '0264', // Native image tools.
-        '0265', // Governed tool policy.
+        '0261', // Complete AI answers preserve existing course history.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -426,11 +422,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0258', // Immutable Public Projects publication pins.
           '0259', // Private immutable-revision report intake.
           '0260', // Exact immutable Electronics public display.
-          '0261', // Bounded complete AI answers and generation lease.
-          '0262', // Administrative generation policy and domain-filtered retrieval.
-          '0263', // Independent local image jobs, private outputs and durable GPU admission.
-          '0264', // Native image tools.
-          '0265', // Governed tool policy.
+          '0261', // Complete AI answers preserve existing course history.
         ]);
         expect(
           await applyIsolatedTestPlan(

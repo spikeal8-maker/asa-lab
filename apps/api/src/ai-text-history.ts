@@ -148,14 +148,17 @@ export class AiTextHistoryStore {
     // Keep the latest complete answer available for code follow-ups, with a fixed
     // total history budget. Trim oldest rows first instead of every answer at 3000.
     let remaining = 96000;
+    let preservedLatestAnswer = false;
     const context = result.rows.map((row) => ({ role: row.role, content: row.content }));
     for (let index = context.length - 1; index >= 0; index--) {
       const item = context[index]!;
-      item.content = item.content.slice(
-        0,
-        Math.min(item.role === 'user' ? 3000 : 65536, remaining),
-      );
-      remaining -= item.content.length;
+      if (item.role === 'assistant' && !preservedLatestAnswer) {
+        // Preserve complete long Qwen code from #790 in the next request.
+        preservedLatestAnswer = true;
+      } else {
+        item.content = item.content.slice(0, Math.min(item.role === 'user' ? 3000 : 65536, remaining));
+      }
+      remaining = Math.max(0, remaining - item.content.length);
     }
     return context
       .filter((item) => item.content.length > 0)
