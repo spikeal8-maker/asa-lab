@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from 'react';
 import {
   adminApi,
@@ -35,6 +36,7 @@ import { AdminDashboard, IpActivitySection, VerificationMethodsSection } from '.
 import { AdminUsersCatalog } from './AdminUsersCatalog';
 import { AdminUserHistoryPanel } from './AdminUserHistory';
 import { CrmUserCard, CrmContent } from './CrmUserCard';
+import { CrmUserDialog } from './CrmUserDialog';
 import {
   adminSectionLabel,
   scopeSupportsAdminSection,
@@ -1279,7 +1281,7 @@ function AccountsCrmSection({
       actorId={currentAccountId}
       version={version}
       onAccessDenied={onAccessDenied}
-      renderAccount={(user) => (
+      renderAccount={(user, extra) => (
         <AccountCatalogRow
           account={user.account!}
           lastActivityAt={user.lastActivityAt}
@@ -1288,6 +1290,7 @@ function AccountsCrmSection({
           canManage={canManage}
           onChanged={onChanged}
           onAccessDenied={onAccessDenied}
+          extra={extra}
         />
       )}
     />
@@ -1301,6 +1304,7 @@ function AccountCatalogRow({
   canManage,
   onChanged,
   onAccessDenied,
+  extra,
 }: {
   account: AdminAccount;
   lastActivityAt: string | null;
@@ -1309,6 +1313,7 @@ function AccountCatalogRow({
   canManage: boolean;
   onChanged: () => void;
   onAccessDenied: () => void;
+  extra?: ReactNode;
 }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -1321,8 +1326,8 @@ function AccountCatalogRow({
         type="button"
         className="admin-user-row"
         aria-expanded={expanded}
-        aria-controls={`admin-user-${account.accountId}`}
-        onClick={() => setExpanded(!expanded)}
+        aria-haspopup="dialog"
+        onClick={() => setExpanded(true)}
       >
         <span className="admin-user-identity">
           <strong>{account.displayName}</strong>
@@ -1363,7 +1368,7 @@ function AccountCatalogRow({
         </span>
       </button>
       {expanded ? (
-        <div id={`admin-user-${account.accountId}`}>
+        <CrmUserDialog title={account.displayName} onClose={() => setExpanded(false)}>
           <UserCrmPanel
             account={account}
             scope={scope}
@@ -1372,7 +1377,8 @@ function AccountCatalogRow({
             onChanged={onChanged}
             onAccessDenied={onAccessDenied}
           />
-        </div>
+          {extra}
+        </CrmUserDialog>
       ) : null}
     </article>
   );

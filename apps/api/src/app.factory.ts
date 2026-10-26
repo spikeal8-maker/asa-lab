@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { observeHttpTerminal, type HttpTerminalOutcome } from './http-observation.js';
@@ -307,7 +308,7 @@ export async function createApiApp(
     acquisition = new ProductAnalyticsService(
       acquisitionPool,
       new AnalyticsDeliveryQueue(acquisitionPool !== null, Date.now, (value) => {
-        process.stdout.write(
+        emitApplicationLog(
           `${JSON.stringify({ ...value, pipeline: 'acquisition-observations' })}\n`,
         );
       }),
@@ -426,7 +427,7 @@ export async function createApiApp(
       const addressResolution = clientAddressDiagnostics(request);
       if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client') {
         try {
-          process.stdout.write(
+          emitApplicationLog(
             `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), addressResolution, ...diagnosticContext(request) })}\n`,
           );
         } catch {
@@ -449,7 +450,7 @@ export async function createApiApp(
               (sessionDatabase.failures > 0 ||
                 sessionDatabase.poolAcquireMs >= 250 ||
                 sessionDatabase.queryRoundTripMs >= 250);
-            process.stdout.write(
+            emitApplicationLog(
               `${JSON.stringify({
                 time: new Date().toISOString(),
                 kind: outcome === 'response' ? 'http_response' : 'http_request_ended',

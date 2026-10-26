@@ -156,17 +156,22 @@ const upgradeArtifacts = [
   ],
   [
     '0255',
-    '0255_ai_complete_answers.sql',
-    '88902e1f957c99c1857e24d75a196af9b956966b15851f3bdae3ebba87e33c48',
+    '0255_admin_legacy_publication_visibility.sql',
+    '6839dd782fc3ced49f399f3ffd3e46481f40e3b65c177da40bda3f1fb0805cc5',
   ],
   [
     '0256',
-    '0256_ai_generation_policy.sql',
-    'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
+    '0256_ai_complete_answers.sql',
+    '88902e1f957c99c1857e24d75a196af9b956966b15851f3bdae3ebba87e33c48',
   ],
   [
     '0257',
-    '0257_ai_local_image_generation.sql',
+    '0257_ai_generation_policy.sql',
+    'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
+  ],
+  [
+    '0258',
+    '0258_ai_local_image_generation.sql',
     '659cad6dc281a882ef100d3137ab39fab00a0d18dad3eb05deceff56046fd145',
   ],
 ] as const;

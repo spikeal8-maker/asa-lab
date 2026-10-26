@@ -60,10 +60,15 @@ if (require.main === module) {
           .close()
           .then(() => {
             lifecycleEvent(`stopped_${signal}`);
-            process.exit(0);
+            void import('./application-log-store.js').then(async ({ applicationLogStore }) => {
+              await applicationLogStore()?.close();
+              process.exit(0);
+            });
           })
-          .catch((error: unknown) => {
+          .catch(async (error: unknown) => {
             lifecycleEvent(`shutdown_failed_${signal}`, error);
+            const { applicationLogStore } = await import('./application-log-store.js');
+            await applicationLogStore()?.close();
             process.exit(1);
           });
       };
@@ -72,9 +77,11 @@ if (require.main === module) {
       process.stdout.write(`ASA Lab API:  http://${host}:${port}\n`);
       process.stdout.write(`Teacher portal (built SPA, if present): http://${host}:${port}/\n`);
     })
-    .catch((error: unknown) => {
+    .catch(async (error: unknown) => {
       const message = String(error instanceof Error ? error.message : error);
       lifecycleEvent('startup_failed', error);
+      const { applicationLogStore } = await import('./application-log-store.js');
+      await applicationLogStore()?.close();
       process.exit(message.includes('APP_DATABASE_URL') ? 78 : 1);
     });
 }

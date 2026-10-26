@@ -40,6 +40,16 @@ class BackupMountTests(unittest.TestCase):
             config["services"]["web"] = copy.deepcopy(config["services"]["api"])
             with self.assertRaises(Blocked):
                 attest_backup_mounts(root, config)
+
+    def test_application_diagnostics_volume_is_explicit_and_preserved_independently(self):
+        with tempfile.TemporaryDirectory() as root:
+            config = self.config(root)
+            config['services']['api']['environment']['ASA_APPLICATION_LOG_STORE'] = '/var/lib/asa-application-logs'
+            config['services']['api']['volumes'].append({'type': 'volume', 'source': 'application-logs',
+                'target': '/var/lib/asa-application-logs'})
+            self.assertTrue(attest_backup_mounts(root, config))
+            config['services']['api']['environment']['ASA_APPLICATION_LOG_STORE'] = '/custom'
+            with self.assertRaises(Blocked): attest_backup_mounts(root, config)
             config = self.config(root)
             config["services"]["api"]["environment"]["ASA_LOG_STORE"] = "/custom"
             with self.assertRaises(Blocked):

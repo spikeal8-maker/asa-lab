@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type { LoggerService } from '@nestjs/common';
 import { safeServerError } from './server-diagnostics.js';
+import { emitApplicationLog } from './application-log-store.js';
 
 /** Nest's construction exception zone logs before rethrowing to our startup catch. */
 export class SafeNestLogger implements LoggerService {
@@ -18,7 +19,7 @@ export class SafeNestLogger implements LoggerService {
 
 export function lifecycleEvent(phase: string, error?: unknown): void {
   const safe = error === undefined ? undefined : safeServerError(error);
-  process.stderr.write(
+  emitApplicationLog(
     `${JSON.stringify({
       kind: 'api_lifecycle',
       level: error === undefined ? 'info' : 'error',
@@ -26,6 +27,7 @@ export function lifecycleEvent(phase: string, error?: unknown): void {
       phase,
       ...(safe ? { errorCode: safe.errorCode, errorClass: safe.errorClass } : {}),
     })}\n`,
+    'stderr',
   );
 }
 export async function boundedClose(

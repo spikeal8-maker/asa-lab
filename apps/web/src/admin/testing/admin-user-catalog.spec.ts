@@ -50,7 +50,13 @@ async function show(selected = scope, denied = vi.fn()) {
 }
 async function button(text: string) {
   await act(async () =>
-    [...host.querySelectorAll('button')].find((item) => item.textContent === text)!.click(),
+    [...host.querySelectorAll('button')]
+      .find(
+        (item) =>
+          item.textContent === text ||
+          (text === 'Полная карточка пользователя' && item.matches('.admin-user-row')),
+      )!
+      .click(),
   );
 }
 async function select(label: string, value: string) {
@@ -77,9 +83,9 @@ it('keeps server ordering, typed same-UUID Account and Seat entries, and account
   );
   expect(renderAccount).toHaveBeenCalledTimes(1);
   expect(host.textContent!.includes(seat.login)).toBe(false);
-  expect(host.querySelector('[data-actor-key^="student:"] button')?.textContent).toBe(
-    'Полная карточка пользователя',
-  );
+  expect(
+    host.querySelector('[data-actor-key^="student:"] button')?.getAttribute('aria-haspopup'),
+  ).toBe('dialog');
   expect(host.textContent).toContain('Выдано');
 });
 it('loads every server page with its opaque cursor, no first-50 client sort', async () => {
@@ -274,8 +280,8 @@ it('uses server matched aggregates, clears incompatible age bounds and exposes e
     ),
   ).toBe(false);
   expect(
-    [...host.querySelectorAll('button')].some(
-      (b) => b.textContent === 'Полная карточка пользователя',
+    [...host.querySelectorAll('button')].some((b) =>
+      b.matches('.admin-user-row[aria-haspopup="dialog"]'),
     ),
   ).toBe(true);
   await select('Возраст', 'unknown');

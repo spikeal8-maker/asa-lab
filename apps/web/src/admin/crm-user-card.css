@@ -7,6 +7,92 @@
   color: #183241;
   overflow-wrap: anywhere;
 }
+.crm-user-dialog {
+  width: min(1080px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid #cbd9e3;
+  border-radius: 16px;
+  color: #183241;
+  background: #fff;
+  box-shadow: 0 20px 80px #102c4452;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.crm-user-dialog::backdrop {
+  background: #102a4566;
+}
+.crm-user-dialog-heading {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #d6e3eb;
+  background: #fff;
+}
+.crm-user-dialog-heading div {
+  min-width: 0;
+}
+.crm-user-dialog-heading span {
+  color: #536a79;
+  font-size: 12px;
+}
+.crm-user-dialog-heading h2 {
+  margin: 3px 0 0;
+  font-size: 21px;
+  overflow-wrap: anywhere;
+}
+.crm-user-dialog-heading button {
+  flex: 0 0 auto;
+  width: auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #cbd9e3;
+  border-radius: 8px;
+  color: inherit;
+  background: #fff;
+  cursor: pointer;
+}
+.crm-user-dialog-content {
+  min-width: 0;
+  padding: 16px 20px;
+}
+.crm-user-dialog .admin-user-tabs {
+  flex-wrap: wrap;
+  overflow: visible;
+  margin: 0;
+}
+.crm-user-dialog .admin-crm-panel {
+  padding: 0;
+}
+.crm-user-dialog .admin-user-history-list {
+  max-height: none;
+  overflow: visible;
+}
+.crm-user-dialog :focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+@media (max-width: 600px) {
+  .crm-user-dialog {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    max-height: calc(100dvh - 12px);
+    border-radius: 10px;
+  }
+  .crm-user-dialog-heading,
+  .crm-user-dialog-content {
+    padding: 12px;
+  }
+  .crm-user-dialog-heading h2 {
+    font-size: 18px;
+  }
+}
 .crm-full-card * {
   box-sizing: border-box;
 }

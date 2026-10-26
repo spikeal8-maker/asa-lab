@@ -109,7 +109,7 @@ function MultiLineChart({
   const active = series.filter((item) => visible.has(item.id));
   const axis = chartCountAxis(Math.max(0, ...active.flatMap((item) => item.values)));
   const maximum = axis.maximum;
-  const width = 960;
+  const width = 600;
   const height = 220;
   const left = 42;
   const right = 16;
