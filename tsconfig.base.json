@@ -23,6 +23,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
+      "@asa-lab/electronics/rendering": ["contexts/electronics/rendering.ts"],
       "@asa-lab/contracts": ["packages/contracts/src/index.ts"],
       "@asa-lab/domain-kernel": ["packages/domain-kernel/src/index.ts"],
       "@asa-lab/eventing": ["packages/eventing/src/index.ts"],

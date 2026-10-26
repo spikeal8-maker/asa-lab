@@ -39,6 +39,7 @@ const expectedPending = [
   '0257', // Canonical draft timestamp projection repair.
   '0258', // Immutable Public Projects publication pins.
   '0259', // Private immutable-revision report intake.
+  '0260', // Exact immutable Electronics public display.
 ];
 
 interface Identity {

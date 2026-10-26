@@ -9,6 +9,7 @@ const browser = process.argv.includes('--browser');
 for (const path of browser
   ? [
       'e2e/public-projects.spec.ts',
+      'e2e/public-project-electronics-viewer.spec.ts',
       'e2e/public-project-copy.spec.ts',
       'e2e/public-project-admin-moderation.spec.ts',
       'e2e/gallery.spec.ts',
@@ -16,6 +17,9 @@ for (const path of browser
     ]
   : [
       'tests/portal/public-projects.pg.spec.ts',
+      'tests/portal/public-project-artifact.http.pg.spec.ts',
+      'contexts/projects/testing/public-project-display-artifact.spec.ts',
+      'apps/api/src/public-project-artifact.spec.ts',
       'tests/portal/public-project-copy.pg.spec.ts',
       'tests/portal/public-project-moderation.pg.spec.ts',
       'tests/portal/public-project-pinning.pg.spec.ts',
@@ -139,6 +143,7 @@ if (browser) {
     'playwright',
     'test',
     'e2e/public-projects.spec.ts',
+    'e2e/public-project-electronics-viewer.spec.ts',
     'e2e/public-project-copy.spec.ts',
     'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
@@ -170,6 +175,7 @@ if (browser) {
     'node',
     '--allowSyntheticDefaultImports',
     'e2e/public-projects.spec.ts',
+    'e2e/public-project-electronics-viewer.spec.ts',
     'e2e/public-project-copy.spec.ts',
     'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
@@ -183,6 +189,8 @@ if (browser) {
     'tests/portal/project-transactions.spec.ts',
     'tests/portal/project-publication-revisions.pg.spec.ts',
     'tests/portal/public-projects.pg.spec.ts',
+    'tests/portal/public-project-artifact.http.pg.spec.ts',
+    'apps/api/src/public-project-artifact.spec.ts',
     'tests/portal/public-project-copy.pg.spec.ts',
     'tests/portal/public-project-moderation.pg.spec.ts',
     'tests/portal/public-project-pinning.pg.spec.ts',

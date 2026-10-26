@@ -22,6 +22,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
+import { PublicArtifactService } from './public-project-artifact.js';
 import { publicationError, throwPublicationError } from './public-projects.errors.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -123,11 +124,14 @@ export interface OwnerPublicationStatus {
 
 @Controller('api/public-projects')
 export class PublicProjectsController {
+  private readonly artifactService: PublicArtifactService;
   constructor(
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.moduleRegistry) private readonly registry: ModuleRegistry,
-  ) {}
+  ) {
+    this.artifactService = new PublicArtifactService(registry);
+  }
 
   @Post(':publicationId/copy')
   @HttpCode(200)
@@ -219,6 +223,21 @@ export class PublicProjectsController {
     if (!row) throw publicationError('not_available', 'Публикация недоступна.', 404);
     const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, [row]);
     return { publication: publicProject(row, admitted.has(row.publication_id)) };
+  }
+
+  @Get(':publicationId/artifact')
+  @Header('Cache-Control', 'no-store')
+  async artifact(
+    @Param('publicationId') publicationId: string,
+    @Query('revisionId') revisionId: string | undefined,
+  ) {
+    requireUuid(publicationId);
+    if (typeof revisionId !== 'string')
+      throw publicationError('validation_error', 'Укажите опубликованную версию.', 400);
+    requireUuid(revisionId);
+    return {
+      artifact: await this.artifactService.read(requirePool(this.pool), publicationId, revisionId),
+    };
   }
 
   @Get(':publicationId/image')

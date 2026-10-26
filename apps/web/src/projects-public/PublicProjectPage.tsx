@@ -3,7 +3,7 @@ import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
 import { CopyPublicProject } from './CopyPublicProject';
-import { PublicationPreview } from './PublicationPreview';
+import { PublicationArtifact } from './PublicationArtifact';
 import { PublicProjectTitle } from './PublicProjectTitle';
 import { SharePublicationLink } from './SharePublicationLink';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
@@ -47,13 +47,20 @@ export function PublicProjectPage({
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
+  const controller = useRef<AbortController | null>(null);
   const time = useSchoolTime();
+  const unavailable = useCallback(() => {
+    setPublication(null);
+    setMissing(true);
+  }, []);
   const reload = useCallback(async () => {
+    controller.current?.abort();
+    controller.current = new AbortController();
     const current = ++request.current;
     setPublication(null);
     setMissing(false);
     setError(null);
-    const result = await publicProjectsApi.get(publicationId);
+    const result = await publicProjectsApi.get(publicationId, controller.current.signal);
     if (current !== request.current) return;
     if (!result.ok) {
       if ([400, 403, 404, 410].includes(result.status)) setMissing(true);
@@ -70,6 +77,7 @@ export function PublicProjectPage({
     void reload();
     return () => {
       request.current++;
+      controller.current?.abort();
     };
   }, [reload]);
   if (missing) return <PublicationUnavailable onBack={onBack} />;
@@ -122,12 +130,7 @@ export function PublicProjectPage({
             <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             <p className="public-project-detail-author">{publication.authorLabel}</p>
           </header>
-          <figure className="public-project-viewer" aria-label="Обложка проекта">
-            <figcaption>Обложка проекта</figcaption>
-            <PublicationPreview key={publication.revisionId} publication={publication} detail />
-          </figure>
-          <aside className="public-project-info" aria-label="Действия с проектом">
-            <h2>Работа с проектом</h2>
+          <div className="public-project-commandbar" aria-label="Действия с проектом">
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
               {publication.preview ? (
@@ -152,7 +155,14 @@ export function PublicProjectPage({
                 Обновить публикацию
               </button>
             </div>
-          </aside>
+          </div>
+          <section className="public-project-viewer" aria-label="Просмотр проекта">
+            <PublicationArtifact
+              key={publication.revisionId}
+              publication={publication}
+              onUnavailable={unavailable}
+            />
+          </section>
           <section className="public-project-about" aria-label="О проекте">
             {publication.description ? (
               <>

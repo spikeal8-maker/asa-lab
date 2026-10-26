@@ -26,6 +26,23 @@ const publication: PublicProject = {
 let root: Root;
 let container: HTMLDivElement;
 beforeEach(() => {
+  vi.spyOn(publicProjectsApi, 'artifact').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      artifact: {
+        schemaVersion: 1,
+        status: 'static-only',
+        viewerFamily: 'electronics',
+        reason: 'viewer-not-available',
+        provenance: {
+          publicationId: publication.publicationId,
+          revisionNumber: publication.revisionNo,
+        },
+        capabilities: { readOnly: true, interactive: false, download: false },
+      },
+    },
+  });
   (
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -53,14 +70,14 @@ it('reads title, honest cover, real actions, then description and publication fa
   const article = container.querySelector('article')!;
   expect([...article.children].map((element) => element.tagName)).toEqual([
     'HEADER',
-    'FIGURE',
-    'ASIDE',
+    'DIV',
+    'SECTION',
     'SECTION',
   ]);
   expect(article.querySelector('header')?.textContent).toContain('Автор');
   expect(container.querySelector('.public-project-title-toggle')).toBeNull();
-  expect(article.querySelector('figcaption')?.textContent).toBe('Обложка проекта');
-  expect(article.querySelector('figure button')).toBeNull();
+  expect(article.querySelector('.public-project-info')).toBeNull();
+  expect(article.querySelector('.public-project-viewer button')).toBeNull();
   expect(article.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('/cover.png');
   expect(article.querySelector<HTMLButtonElement>('.public-project-copy button')?.disabled).toBe(
     true,
@@ -129,6 +146,51 @@ it('keeps a compact refresh action after an image load failure', async () => {
     container.querySelector<HTMLButtonElement>('.public-project-refresh')!.click(),
   );
   expect(get).toHaveBeenCalledTimes(2);
+});
+
+it('tears down publication content when exact artifact access is revoked', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication },
+  });
+  vi.mocked(publicProjectsApi.artifact).mockResolvedValue({
+    ok: false,
+    status: 410,
+    error: { code: 'publication_unavailable', message: 'Недоступно' },
+  });
+  await render();
+  expect(container.querySelector('[data-testid="public-project-unavailable"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="public-electronics-scene"]')).toBeNull();
+  expect(container.querySelector('article')).toBeNull();
+});
+
+it('rejects an artifact from a different immutable revision', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication },
+  });
+  vi.mocked(publicProjectsApi.artifact).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      artifact: {
+        schemaVersion: 1,
+        status: 'static-only',
+        viewerFamily: 'electronics',
+        reason: 'viewer-not-available',
+        provenance: {
+          publicationId: publication.publicationId,
+          revisionNumber: publication.revisionNo + 1,
+        },
+        capabilities: { readOnly: true, interactive: false, download: false },
+      },
+    },
+  });
+  await render();
+  expect(container.querySelector('[data-testid="public-project-unavailable"]')).not.toBeNull();
+  expect(container.querySelector('article')).toBeNull();
 });
 
 it('reveals and collapses a long full heading through an accessible control', async () => {

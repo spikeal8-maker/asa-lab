@@ -1,4 +1,4 @@
-import { switchSelectedTerminal } from '@asa-lab/electronics';
+import { switchSelectedTerminal } from '@asa-lab/electronics/rendering';
 import type { ComponentKind, SchematicComponent, Terminal } from '../api';
 import {
   defaultProductionType,

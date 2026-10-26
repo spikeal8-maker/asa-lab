@@ -23,7 +23,7 @@ describe('0259 additive public-project reports on disposable PostgreSQL', () => 
       const target = new URL(source);
       target.pathname = '/' + name;
       pool = new pg.Pool({ connectionString: target.href, max: 6 });
-      const plan = planMigrations();
+      const plan = planMigrations().filter((migration) => Number(migration.version) <= 259);
       const prefix = plan.filter((migration) => Number(migration.version) <= 258);
       expect(prefix.at(-1)?.version).toBe('0258');
       expect(plan.at(-1)?.file).toBe('0259_project_publication_reports.sql');
