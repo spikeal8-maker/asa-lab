@@ -129,6 +129,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0256', // Read-only exact-subject dashboard and canonical classroom rating.
         '0257', // Canonical draft timestamp projection repair.
         '0258', // Immutable Public Projects publication pins.
+        '0259', // Private immutable-revision report intake.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -417,6 +418,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0256', // Read-only exact-subject dashboard and canonical classroom rating.
           '0257', // Canonical draft timestamp projection repair.
           '0258', // Immutable Public Projects publication pins.
+          '0259', // Private immutable-revision report intake.
         ]);
         expect(
           await applyIsolatedTestPlan(
