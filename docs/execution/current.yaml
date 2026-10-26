@@ -6491,6 +6491,10 @@ parallel_lanes:
         current retained-publication metadata visibility when composing pins.
         Continue #717, then #721 and #723 only across their accepted dependency
         boundaries. No force push, school/production database or deployment.
+        Owner subsequently confirmed DEC-PROJ-116: one personal-account like,
+        no self-likes, real admin publication counters and audited per-publication
+        reaction disabling with a reason. Implement as a separate R8-02 slice
+        after the accepted report chain; no legacy transfer or automatic bonuses.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
