@@ -126,6 +126,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0253', // Optional scoped campaign observations and factual catalog projections.
         '0254', // Free server internet evidence and bounded public weather cache.
         '0255', // Read-only administrative visibility of retained legacy publications.
+        '0256', // Read-only exact-subject dashboard and canonical classroom rating.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -411,6 +412,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0253', // Optional scoped campaign observations and factual catalog projections.
           '0254', // Free server internet evidence and bounded public weather cache.
           '0255', // Read-only administrative visibility of retained legacy publications.
+          '0256', // Read-only exact-subject dashboard and canonical classroom rating.
         ]);
         expect(
           await applyIsolatedTestPlan(

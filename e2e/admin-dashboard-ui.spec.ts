@@ -2,7 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { adminDashboardFixture } from '../apps/web/src/admin/testing/admin-dashboard.fixture';
-import { crmProfileFixture } from '../apps/web/src/admin/testing/crm-user.fixture';
+import {
+  crmProfileFixture,
+  crmDashboardFixture,
+} from '../apps/web/src/admin/testing/crm-user.fixture';
 import {
   catalogUserFixture,
   catalogPageFixture,
@@ -59,6 +62,7 @@ async function fixture(page: Page) {
     }
     if (path.startsWith('/api/crm/v1/users/')) {
       const kind = path.includes('/student/') ? 'student' : 'account';
+      if (path.endsWith('/dashboard')) return reply(crmDashboardFixture(kind));
       if (path.endsWith('/email') || path.endsWith('/email/cancel'))
         return reply({
           accountId: OTHER,
@@ -673,7 +677,27 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(
         dialog.getByRole('button', { name: 'Закрыть карточку пользователя', exact: true }),
       ).toBeVisible();
-      await expect(dialog.getByRole('textbox', { name: 'Имя', exact: true })).toBeVisible();
+      const dashboard = dialog.getByRole('region', { name: 'Обзор пользователя', exact: true });
+      await expect(dashboard).toBeVisible();
+      await expect(dashboard.getByRole('img')).toHaveCount(2);
+      await expect(dashboard.locator('circle[tabindex="0"]')).toHaveCount(2);
+      await dashboard.locator('circle[tabindex="0"]').first().focus();
+      await page.keyboard.press('End');
+      await expect(dashboard.locator('svg').first().locator('circle').last()).toHaveAttribute(
+        'tabindex',
+        '0',
+      );
+      expect(
+        await dashboard
+          .locator('.crm-person-dates')
+          .first()
+          .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+      ).toBeGreaterThanOrEqual(12);
+      await expect(dashboard).toContainText('Сохранение проекта');
+      if (width >= 1024) {
+        const charts = dashboard.locator('.crm-person-chart');
+        expect((await charts.nth(0).boundingBox())!.y).toBe((await charts.nth(1).boundingBox())!.y);
+      }
       expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
       await noPageOverflow(page);
       if (width === 1440 || width === 390)
@@ -681,6 +705,10 @@ for (const width of [1440, 1024, 390, 320]) {
           path: `${evidence}/crm-dialog-${row === account ? 'account' : 'student'}-${width}.png`,
           fullPage: true,
         });
+      await dialog
+        .getByRole(row === account ? 'tab' : 'button', { name: 'Профиль', exact: true })
+        .click();
+      await expect(dialog.getByRole('textbox', { name: 'Имя', exact: true })).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
       await expect(trigger).toBeFocused();
@@ -700,7 +728,7 @@ for (const width of [1440, 1024, 390, 320]) {
     const card = account.getByRole('region', { name: 'Полная карточка пользователя', exact: true });
     await expect(card.getByRole('textbox', { name: 'Имя', exact: true })).toHaveValue(/Полное имя/);
     await expect(card.getByText('36 лет', { exact: true })).toBeVisible();
-    await expect(account.getByRole('tab')).toHaveCount(7);
+    await expect(account.getByRole('tab')).toHaveCount(8);
     await expect(card.getByRole('navigation', { name: 'Разделы CRM' })).toHaveCount(0);
     await card
       .getByRole('textbox', { name: 'Имя', exact: true })
@@ -1146,6 +1174,7 @@ for (const width of [1440, 1024, 390, 320]) {
     ).toHaveCount(0);
     await student.locator('button.admin-user-row').click();
     await expect(student.locator('.crm-full-card')).toBeVisible();
+    await student.getByRole('button', { name: 'Профиль', exact: true }).click();
     await expect(student.getByRole('textbox', { name: 'Имя', exact: true })).toBeDisabled();
     await expect(
       student.getByRole('button', { name: 'Публикации и история', exact: true }),

@@ -137,6 +137,8 @@ jobs:
         run: pnpm exec vitest run tests/admin/admin-user-catalog.pg.spec.ts tests/admin/admin-user-history.pg.spec.ts tests/admin/crm-user-cards.pg.spec.ts tests/admin/crm-directory.pg.spec.ts tests/admin/crm-retained-detail.pg.spec.ts tests/admin/crm-responsibilities.pg.spec.ts tests/admin/crm-acquisition.pg.spec.ts
       - name: Retained publication visibility and moderation boundaries
         run: pnpm exec vitest run tests/portal/public-project-moderation.pg.spec.ts
+      - name: Authorized per-user dashboard and retained activity summaries
+        run: pnpm exec vitest run tests/admin/crm-user-dashboard.pg.spec.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -168,6 +170,8 @@ jobs:
         run: pnpm exec vitest run apps/web/src/admin/testing/admin-publications.spec.ts
       - name: User card dialog lifecycle
         run: pnpm exec vitest run apps/web/src/admin/testing/crm-user-dialog.spec.ts apps/web/src/admin/testing/admin-log-coverage.spec.ts
+      - name: Personal dashboard states and stale-response isolation
+        run: pnpm exec vitest run apps/web/src/admin/testing/crm-user-dashboard.spec.ts
       - run: pnpm exec nx run web:typecheck --skip-nx-cache
       - name: Install Chromium without an unbounded package mirror wait
         run: |

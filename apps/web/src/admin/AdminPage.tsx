@@ -37,6 +37,7 @@ import { AdminUsersCatalog } from './AdminUsersCatalog';
 import { AdminUserHistoryPanel } from './AdminUserHistory';
 import { CrmUserCard, CrmContent } from './CrmUserCard';
 import { CrmUserDialog } from './CrmUserDialog';
+import { CrmUserDashboard } from './CrmUserDashboard';
 import {
   adminSectionLabel,
   scopeSupportsAdminSection,
@@ -736,9 +737,7 @@ function UserCrmPanelBody({
   const [version, setVersion] = useState(0);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
-  const [activeTab, setActiveTab] = useState<AccountCrmTab>(
-    scope.kind === 'platform' ? 'profile' : 'overview',
-  );
+  const [activeTab, setActiveTab] = useState<AccountCrmTab>('overview');
   const [busy, setBusy] = useState<'access' | 'role' | 'max' | 'note' | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const live = useRef(true);
@@ -830,31 +829,35 @@ function UserCrmPanelBody({
   return (
     <div className="admin-crm-panel">
       {failure ? <p role="alert">{failure}</p> : null}
-      <dl className="admin-crm-facts">
-        <div>
-          <dt>Регистрация</dt>
-          <dd>{dateTime(detail.createdAt)}</dd>
-        </div>
-        <div>
-          <dt>Первый вход</dt>
-          <dd>{dateTime(detail.firstAuthenticatedAt)}</dd>
-        </div>
-        <div>
-          <dt>Почта</dt>
-          <dd>
-            {detail.email} · {statusLabel(detail.emailVerificationState)}
-          </dd>
-        </div>
-        <div>
-          <dt>MAX</dt>
-          <dd>
-            {detail.max.linked ? `Подключён · ${dateTime(detail.max.verifiedAt)}` : 'Не подключён'}
-          </dd>
-        </div>
-      </dl>
+      {activeTab !== 'overview' ? (
+        <dl className="admin-crm-facts">
+          <div>
+            <dt>Регистрация</dt>
+            <dd>{dateTime(detail.createdAt)}</dd>
+          </div>
+          <div>
+            <dt>Первый вход</dt>
+            <dd>{dateTime(detail.firstAuthenticatedAt)}</dd>
+          </div>
+          <div>
+            <dt>Почта</dt>
+            <dd>
+              {detail.email} · {statusLabel(detail.emailVerificationState)}
+            </dd>
+          </div>
+          <div>
+            <dt>MAX</dt>
+            <dd>
+              {detail.max.linked
+                ? `Подключён · ${dateTime(detail.max.verifiedAt)}`
+                : 'Не подключён'}
+            </dd>
+          </div>
+        </dl>
+      ) : null}
 
       <div className="admin-user-tabs" role="tablist" aria-label="Карточка пользователя">
-        {scope.kind !== 'platform' ? (
+        {
           <button
             type="button"
             role="tab"
@@ -865,7 +868,7 @@ function UserCrmPanelBody({
           >
             Обзор
           </button>
-        ) : null}
+        }
         {scope.kind === 'platform' ? (
           <button
             type="button"
@@ -935,7 +938,20 @@ function UserCrmPanelBody({
         </button>
       </div>
 
-      {activeTab === 'overview' || (activeTab === 'profile' && scope.kind === 'platform') ? (
+      {activeTab === 'overview' && scope.kind === 'platform' ? (
+        <section
+          role="tabpanel"
+          id={`admin-user-${account.accountId}-panel-overview`}
+          aria-labelledby={`admin-user-${account.accountId}-tab-overview`}
+        >
+          <CrmUserDashboard
+            subject={{ kind: 'account', targetId: account.accountId }}
+            onAccessDenied={revoke}
+          />
+        </section>
+      ) : null}
+      {(activeTab === 'overview' && scope.kind !== 'platform') ||
+      (activeTab === 'profile' && scope.kind === 'platform') ? (
         <section
           role="tabpanel"
           id={`admin-user-${account.accountId}-panel-${activeTab}`}
