@@ -225,6 +225,33 @@ def image_overrides(sha: str, schema: int) -> dict[str, str]:
             **{f"ASA_{name.upper()}_IMAGE": f"asa-lab-{name}:git-{short}" for name in SERVICES}}
 
 
+def source_services(root: Path, source: Path, overlay: Path, sha: str):
+    """Discover actual Compose source-builds and long-running services.
+
+    One-off migration may share the API image. Never assume that the application
+    will forever contain only API/Web/Scratch/MinIO; e.g. Search is a new service.
+    """
+    configuration = json.loads(docker(root, "config", "--format", "json",
+                                      source=source, overlay=overlay))
+    services = configuration["services"]
+    demand(all(name in services for name in HEALTH_SERVICES), "Core Compose service absent")
+    images = {}
+    long_running = []
+    for name, item in services.items():
+        if str(item.get("restart", "no")).lower() not in ("no", "none"):
+            long_running.append(name)
+        if "build" not in item:
+            continue
+        tag = item.get("image", "")
+        demand(tag.endswith(":git-" + sha[:12]),
+               f"Unpinned source-build image in Compose service {name}")
+        # Favor runtime services over one-off migration for the same image.
+        if tag not in images or name not in ("migration", "minio-init"):
+            images[tag] = name
+    demand(bool(images), "Compose contains no locally buildable image")
+    return sorted(set(images.values())), sorted(set(long_running)), images
+
+
 def checked_root(root: Path, expected_origin: str) -> dict[str, str]:
     root = root.resolve()
     demand(os.geteuid() == 0, "Deployment needs root privileges to preserve existing Docker volumes")
@@ -255,19 +282,22 @@ def checked_root(root: Path, expected_origin: str) -> dict[str, str]:
     return values
 
 
-def verify_images(sha: str) -> None:
-    for service in SERVICES:
-        tag = f"asa-lab-{service}:git-{sha[:12]}"
-        run("docker", "image", "inspect", tag)
+def verify_images(root: Path, source: Path, overlay: Path, sha: str) -> None:
+    build_targets, _, by_image = source_services(root, source, overlay, sha)
+    for image, service in by_image.items():
+        run("docker", "image", "inspect", image)
         if service != "minio":
-            revision = run("docker", "image", "inspect", tag, "--format",
+            revision = run("docker", "image", "inspect", image, "--format",
                            '{{index .Config.Labels "org.opencontainers.image.revision"}}')
             demand(revision == sha, f"Built {service} revision mismatch")
-    for tag, path in (("scratch", "/usr/share/nginx/html/index.html"),
-                      ("web", "/etc/caddy/Caddyfile")):
+    for name, path in (("scratch", "/usr/share/nginx/html/index.html"),
+                       ("web", "/etc/caddy/Caddyfile")):
+        image = f"asa-lab-{name}:git-{sha[:12]}"
+        demand(image in by_image, f"Required {name} source-build absent")
         mode = run("docker", "run", "--rm", "--network", "none", "--entrypoint",
-                   "stat", f"asa-lab-{tag}:git-{sha[:12]}", "-c", "%a", path)
-        demand(int(mode, 8) & 0o004 != 0, f"{tag} is unreadable to the container user")
+                   "stat", image, "-c", "%a", path)
+        demand(int(mode, 8) & 0o004 != 0, f"{name} is unreadable to the container user")
+    audit("verified_source_images", build_services=build_targets)
 
 
 def database_query(root: Path, sql: str) -> str:
@@ -353,18 +383,20 @@ def database_counts(root: Path, name: str) -> list[str]:
 
 def health_check(root: Path, source: Path, overlay: Path, sha: str,
                  origin: str) -> None:
-    for service in HEALTH_SERVICES:
+    _, runtime_services, built_images = source_services(root, source, overlay, sha)
+    for service in runtime_services:
         cid = docker(root, "ps", "-q", service, source=source, overlay=overlay)
         demand(bool(cid), f"New {service} container absent")
         for _ in range(75):
             state = json.loads(run("docker", "inspect", cid))[0]["State"]
             health = (state.get("Health") or {}).get("Status", state.get("Status"))
-            if health == "healthy":
+            if health in ("healthy", "running") and state.get("Running") is True:
                 break
             time.sleep(2)
         else:
             raise Blocked(f"New {service} failed health gate")
-        if service in ("api", "scratch", "web"):
+        image_ref = json.loads(run("docker", "inspect", cid))[0]["Config"]["Image"]
+        if image_ref in built_images and service != "minio":
             revision = run("docker", "inspect", cid, "--format",
                            '{{index .Config.Labels "org.opencontainers.image.revision"}}')
             demand(revision == sha, f"{service} runtime SHA drift")
@@ -476,10 +508,11 @@ def apply(args) -> None:
             env_replace(original_env, {**settings, **merged}, overlay)
             os.chown(overlay, original_env_stat.st_uid, original_env_stat.st_gid)
             checkpoint("image_build")
+            build_targets, _, _ = source_services(root, source, overlay, args.sha)
             if not args.reuse_images:
-                docker(root, "build", *SERVICES, source=source, overlay=overlay,
+                docker(root, "build", *build_targets, source=source, overlay=overlay,
                        timeout=5400, log=log)
-            verify_images(args.sha)
+            verify_images(root, source, overlay, args.sha)
             if snapshot:
                 checkpoint("isolated_restore")
                 create_stage_db(root, source, overlay, stage_db, snapshot / "database.dump", base, job)

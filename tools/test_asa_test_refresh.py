@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from tools.asa_test_refresh import (
     Blocked, SAFE_DB, env_read, env_replace, extract_snapshot, image_overrides,
-    merge_student_keys, sha256,
+    merge_student_keys, sha256, source_services,
 )
 
 
@@ -171,6 +171,47 @@ class SnapshotSafetyTests(unittest.TestCase):
             self.assertEqual(result.name, "snapshot")
             verify.assert_called_once()
 
+
+
+
+class ComposeEvolutionTests(unittest.TestCase):
+    def test_new_search_service_is_detected_for_build_and_health(self):
+        sha = "a" * 40
+        tag = ":git-" + sha[:12]
+        services = {
+            "postgres": {"image": "postgres:17.7", "restart": "always"},
+            "api": {"image": "asa-lab-api" + tag, "restart": "always", "build": {}},
+            "migration": {"image": "asa-lab-api" + tag, "restart": "no", "build": {}},
+            "scratch": {"image": "asa-lab-scratch" + tag, "restart": "unless-stopped", "build": {}},
+            "web": {"image": "asa-lab-web" + tag, "restart": "always", "build": {}},
+            "minio": {"image": "asa-lab-minio" + tag, "restart": "unless-stopped", "build": {}},
+            "minio-init": {"image": "asa-lab-minio" + tag, "restart": "no"},
+            "search": {"image": "asa-lab-search" + tag, "restart": "unless-stopped", "build": {}},
+        }
+        with patch("tools.asa_test_refresh.docker",
+                   return_value=json.dumps({"services": services})):
+            builds, runtime, refs = source_services(Path("/nonexistent"), Path("/absent"),
+                                                   Path("/absent/overlay"), sha)
+        self.assertIn("search", builds)
+        self.assertIn("search", runtime)
+        self.assertNotIn("migration", builds)
+        self.assertNotIn("minio-init", runtime)
+        self.assertEqual(len(refs), 5)
+
+    def test_unpinned_new_service_image_is_rejected(self):
+        sha = "b" * 40
+        services = {
+            "postgres": {"image": "postgres:17.7", "restart": "always"},
+            "api": {"image": "asa-lab-api:git-" + sha[:12], "restart": "always", "build": {}},
+            "scratch": {"image": "asa-lab-scratch:git-" + sha[:12], "restart": "always", "build": {}},
+            "web": {"image": "asa-lab-web:git-" + sha[:12], "restart": "always", "build": {}},
+            "minio": {"image": "asa-lab-minio:git-" + sha[:12], "restart": "always", "build": {}},
+            "search": {"image": "asa-lab-search:latest", "restart": "always", "build": {}},
+        }
+        with patch("tools.asa_test_refresh.docker",
+                   return_value=json.dumps({"services": services})):
+            with self.assertRaisesRegex(Blocked, "Unpinned"):
+                source_services(Path("/none"), Path("/none"), Path("/none"), sha)
 
 if __name__ == "__main__":
     unittest.main()
