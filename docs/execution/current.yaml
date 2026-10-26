@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: consolidated_item2_verified_current_main
+      checkpoint: consolidated45_programme_authorized_select_rootless_execution
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12148,10 +12148,10 @@ parallel_lanes:
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
-      programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
+      programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
       current_slice: TASK-ELECTRONICS-INACTIVE-BLOCKS-001
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: Servo765 committed visual repair integrated with new independent review; author and reviewer stopped. Display764 substantial model lag remains open, not realtime or full acceptance. Preserve all approved source and unused owner-deferred candidates; no unrelated changes or paused682 reuse.
+      execution_coordination: Select point3 rootless actualexecution verification using existing connectedgraph task. Readonly45reconciliation and commandlibrary inventory may run concurrently; only selected executor owns nativeCPU. Display764 substantialmodel-lag remainsopen. Preserve deferredcleanup and tooltip candidates; no paused682 reuse or foreignrepair.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12363,13 +12363,14 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: done
+      status: in_progress
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: consolidated_item2_current_main_source_ui_verified
+      checkpoint: consolidated_item3_rootless_execution_selected
       selected_followup: Owner explicitly selects consolidated item2. Existing implementation must be verified on current main after drag767; no speculative rewrite. Run existing focused connectedgraph tests and actual native fixture. Repair only a reproduced item2 defect; otherwise record current evidence and finish. No server foreign changes or refactoring.
       consolidated_item2_verified_sha: 826cf0be1f5ebba42ffdcd4453870568d22aa199
+      consolidated_item3_selected: Verify rootless multiplechains actual generated Cpp Worker SerialGPIO behavior and native rootdelete UndoRedo reopen. Existing source may already suffice; no productionrewrite without reproducedcause. Point2 accepted evidence preserved. No server database or foreignchanges.
       consolidated_item2_evidence: Fresh8of8connectedgraph testsPASS globals pinMode helpers naming ServoLCDallocation byteidentical whenorphansadded. Existingactualnativefixture1440and390and320 PASS settledorphandim reconnectnormal codeIDsUndoRedo reopen rootless andmouseTouchdrag preserved. No defect found or product edits needed. Main8f51446a onlyforeignadminmigrationtests noelectronics overlap; no unnecessary fullgate repeated. Installed owner and SaveCAS acceptance separate.
       owner_acceptance: pending
       source_integrated_sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
