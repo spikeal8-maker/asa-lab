@@ -560,5 +560,27 @@ class RecoveryReceiptSafetyTests(unittest.TestCase):
             health.assert_not_called()
 
 
+    def test_minio_rollback_copy_needs_checksum_equality_before_restart(self):
+        from tools.asa_test_refresh import verify_minio_rollback_copy
+        with tempfile.TemporaryDirectory() as temp:
+            previous = Path(temp) / "retained"
+            live = Path(temp) / "active"
+            previous.mkdir()
+            live.mkdir()
+            with patch("tools.asa_test_refresh.run", return_value="") as copier:
+                verify_minio_rollback_copy(previous, live)
+                self.assertIn("--checksum", copier.call_args.args)
+                self.assertIn("--dry-run", copier.call_args.args)
+                self.assertIn("--delete", copier.call_args.args)
+            with patch("tools.asa_test_refresh.run", return_value="altered-object") as copier:
+                with self.assertRaisesRegex(Blocked, "MinIO contents differ"):
+                    verify_minio_rollback_copy(previous, live)
+                self.assertEqual(copier.call_count, 1)
+            with patch("tools.asa_test_refresh.run") as copier:
+                with self.assertRaisesRegex(Blocked, "volume missing"):
+                    verify_minio_rollback_copy(Path(temp) / "missing", live)
+                copier.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
