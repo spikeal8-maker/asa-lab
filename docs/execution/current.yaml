@@ -6522,15 +6522,15 @@ parallel_lanes:
         deployment: not_run
         evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
     task:
-      id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
+      id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-electronics-viewer-20261026
+      candidate_branch: codex/public-scratch-viewer-20261026
       base_branch: main
-      pr: 785
-      pr_draft: false
-      status: done
-      checkpoint: electronics_viewer_merged_visual_verified_no_deployment
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: official_scratch_player_publication_integration_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
@@ -6549,17 +6549,25 @@ parallel_lanes:
         instead of an unavailable external human, but not fabricated GitHub
         approvals or protection bypass. Ordinary ready/merge follows actual
         required exact-SHA evidence. No force push, production deployment or
-        working database changes. Owner criticized the modest visual change and
-        demanded a visible functional result. Select one coherent vertical slice:
-        actual immutable Electronics schematic with pan/zoom/fit and a full-width
-        project workspace. Consolidate remaining03B/03C/03D plumbing and the first
-        inert module viewer inside this slice, retaining all authorization,
-        sanitizer, registry, bounds, structural and Code/Security/PG/browser gates.
-        Coordinate distinct backend/frontend/QA paths on one branch, one lead
-        author commit after all writers stop. No fake simulation/download action;
-        controlled simulation and other modules remain subsequent capabilities.
+        working database changes. Electronics viewer is accepted in PR785/Main
+        28055932 with exact focused/General success and actual visual evidence.
+        Owner now explicitly requests the official existing Scratch player for
+        publications. Activate one bounded Scratch publication/player/assets
+        integration under PROJ-SCRATCH-PUBLIC-VIEWER.md, preserving pinned upstream,
+        parent/iframe capability boundary and immutable published version authority.
+        Reuse native isPlayerOnly/run/stop/fullscreen, not a second VM/interpreter.
+        This selection activates the needed player/publication asset boundary
+        previously deferred in Scratch M2; it does not activate cross-tenant remix,
+        reactions or exports. Use scratch-www as UX reference for later likes and
+        downloads without copying its backend calls or bypassing DEC118.
+        One author, focused checks, independent Code/Security/structural review,
+        real pinned-player browser/screenshots and General before Main integration.
       context_hints:
-        - docs/product/projects/tasks/PROJ-ELECTRONICS-PUBLIC-VIEWER.md
+        - docs/product/projects/tasks/PROJ-SCRATCH-PUBLIC-VIEWER.md
+        - docs/product/projects/tasks/PROJ-R7-04C-BLOCKS.md
+        - docs/product/visual-programming/components/gallery-learning.yaml
+        - docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
+        - docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         - docs/product/projects/tasks/PROJ-R7-03A-ARTIFACT-ENVELOPE.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
