@@ -661,6 +661,7 @@ export function ScratchWorkspace({
     });
 
     const originalBlockOpacity = new Map<SVGElement, string>();
+    const draggedBlocks = new Set<string>();
     const updateBlockActivity = (): void => {
       const { active } = activeArduinoGraph(workspace);
       for (const block of workspace.getAllBlocks(false)) {
@@ -669,7 +670,8 @@ export function ScratchWorkspace({
         if (!originalBlockOpacity.has(svg)) originalBlockOpacity.set(svg, svg.style.opacity);
         const parent = block.getParent();
         const inactiveRoot = !active.has(block) && (!parent || active.has(parent));
-        svg.style.opacity = inactiveRoot ? '0.45' : originalBlockOpacity.get(svg)!;
+        svg.style.opacity =
+          inactiveRoot && !draggedBlocks.has(block.id) ? '0.45' : originalBlockOpacity.get(svg)!;
       }
     };
     const publish = (): void => {
@@ -679,6 +681,16 @@ export function ScratchWorkspace({
     };
     publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
+      if (event.type === ScratchBlocks.Events.BLOCK_DRAG) {
+        const drag = event as ScratchBlocks.Events.BlockDrag;
+        draggedBlocks.clear();
+        if (drag.isStart) {
+          for (const block of drag.blocks ?? []) draggedBlocks.add(block.id);
+          if (drag.blockId) draggedBlocks.add(drag.blockId);
+        }
+        updateBlockActivity();
+        return;
+      }
       if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
       updateBlockActivity();
       if (

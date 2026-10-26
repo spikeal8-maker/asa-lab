@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: servo_and_display_committed_visual_repair_main_display_lag_open
+      checkpoint: dragged_block_visibility_source_ui_integrated
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12772,12 +12772,17 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_drag_brightness_without_codegen_changes
+      checkpoint: source_ui_integrated_native_and_independent_review_pass
       owner_acceptance: pending
+      source_integrated_sha: 9e16ad3c24d399ee63a096eca20dc13654fee380
+      source_completed_at: '2026-10-26T08:49:50Z'
+      focused_evidence: Freshfocusedgateactualexit0 2055tests typesbuildPASS71freshNxtasks cacheSkipped. Fixedcaps221950of222000 and1998780of2000000. Unchanged697assetI/OtimeoutD isolated9tests205msPASS thenoneunchangedfullretryPASS without timeout worker or assetchanges.
+      independent_review: NEW independent PASS exact9e16ad3c native1440and390and320 mouse touch palette nested drag normalopacity postreleasedim reconnect rootless UndoRedo codegeneration IDs capabilityfills reopen andscreenshot. Cancel source reviewed not separately native tested. No generator serialization or physicschanges.
+      remaining_acceptance: General40294811867 in_progress at sourceintegration; no fullrepository release installed SaveCAS or owner acceptanceclaimed. No server deployment foreignchanges.
       owner_authorization: Owner explicitly selects first item from updated list. Keep dragged blocks normally visible; only settled inactive chains dim. Preserve rootless fallback and all code generation. No refactoring server foreign edits.
       deployment: prohibited_by_owner
       database_actions: none_live
