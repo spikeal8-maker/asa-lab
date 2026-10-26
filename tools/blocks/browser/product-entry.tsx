@@ -16,11 +16,13 @@ const user =
         id: '44444444-4444-4444-8444-444444444444',
         displayName: 'Scratch acceptance account B',
         email: 'scratch-acceptance-b@example.test',
+        identityKind: 'account' as const,
       }
     : {
         id: '33333333-3333-4333-8333-333333333333',
         displayName: 'Scratch acceptance account',
         email: 'scratch-acceptance@example.test',
+        identityKind: 'account' as const,
       };
 
 // Explicit synthetic Account/workspace belongs only to this HTTP browser fixture.
