@@ -40,6 +40,7 @@ const expectedPending = [
   '0258', // Immutable Public Projects publication pins.
   '0259', // Private immutable-revision report intake.
   '0260', // Exact immutable Electronics public display.
+  '0261', // Exact public Scratch player and version-scoped asset reads.
 ];
 
 interface Identity {

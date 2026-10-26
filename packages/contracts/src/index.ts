@@ -41,3 +41,4 @@ export type {
   PublicDisplayComponentKind,
   PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';
+export type { PublicScratchPlayerBootstrap } from './public-scratch-player';

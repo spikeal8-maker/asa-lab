@@ -56,6 +56,7 @@ import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { AdminPublicProjectsController } from './admin-public-projects.controller.js';
 import { PublicProjectReportsController } from './public-project-reports.controller.js';
+import { PublicScratchPlayerController } from './public-scratch-player.controller.js';
 import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
@@ -240,6 +241,7 @@ export class AppModule {
         GalleryController,
         ProjectPublicationController,
         PublicProjectsController,
+        PublicScratchPlayerController,
         PublicProjectReportsController,
         CollectionsController,
         ClassroomsController,

@@ -122,6 +122,9 @@
     const createStorage = () =>
       globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
         projectId: session.projectId,
+        ...(session.assetScope === 'publication'
+          ? { publicationRevisionId: session.versionId }
+          : {}),
         projectJson: bootstrap.projectJson,
         assets: bootstrap.assets,
         draftRevision: bootstrap.draftRevision,
@@ -152,7 +155,7 @@
       });
 
     const changed = () => {
-      if (disposed || !loaded) return;
+      if (disposed || !loaded || session.mode !== 'editor') return;
       projectGeneration += 1;
       shell.dataset.projectChanges = String(projectGeneration);
       recoveryController?.schedule(projectGeneration);
@@ -334,6 +337,7 @@
         state = new standalone.EditorState(
           {
             isPlayerOnly: session.mode === 'player',
+            ...(session.assetScope === 'publication' ? { isEmbedded: true } : {}),
             showTelemetryModal: false,
           },
           () => ({ storage }),
@@ -344,6 +348,7 @@
           projectId: session.projectId,
           canSave: session.mode === 'editor',
           canCreateNew: session.mode === 'editor',
+          ...(session.mode === 'player' ? { cloudHost: null, hasCloudPermission: false } : {}),
           showSaveNow: false,
           autoSaveIntervalSecs,
           logo: './asa-lab-scratch-wordmark.svg',
@@ -354,6 +359,7 @@
             upstreamProjectSaver = typeof projectSaver === 'function' ? projectSaver : null;
           },
           onUpdateProjectThumbnail(projectId, imageBlob) {
+            if (session.mode !== 'editor') return;
             const sourceRevision = storage.getConfirmedRevision();
             if (
               disposed ||

@@ -8,6 +8,85 @@ import { Buffer } from 'node:buffer';
 import { TextEncoder, TextDecoder } from 'node:util';
 import test from 'node:test';
 
+test('public player namespace derives one fixed read-only asset path and never an editor URL', async () => {
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const reference = runtimeReference(bytes);
+  const calls = [];
+  const api = loadHost('storage', {
+    crypto: webcrypto,
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return new globalThis.Response(bytes, { headers: { 'content-type': 'image/svg+xml' } });
+    },
+  }).AsaBlocksStorage;
+  const revision = '22222222-2222-4222-8222-222222222222';
+  const storage = api.createReadOnlyStorage(standaloneFixture(), {
+    projectId: PROJECT_ID,
+    publicationRevisionId: revision,
+    canSave: false,
+    projectJson: { targets: [], monitors: [], extensions: [] },
+    assets: [reference],
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => RUNTIME_TOKEN,
+  });
+  await storage.prepareProjectAssets();
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    `${API_ORIGIN}/api/blocks/runtime/publications/${PROJECT_ID}/revisions/${revision}/assets/${reference.assetId}.svg`,
+  );
+  assert.equal(calls[0].init.credentials, 'omit');
+  assert.equal(calls[0].init.headers.authorization, `Bearer ${RUNTIME_TOKEN}`);
+  assert.throws(() =>
+    storage.scratchStorage.webStore.create({
+      assetId: reference.assetId,
+      dataFormat: 'svg',
+      assetType: storage.scratchStorage.AssetType.ImageVector,
+    }),
+  );
+  storage.dispose();
+  assert.throws(() =>
+    api.createReadOnlyStorage(standaloneFixture(), {
+      publicationRevisionId: 'https://evil.test',
+      canSave: false,
+    }),
+  );
+  assert.throws(() =>
+    api.createReadOnlyStorage(standaloneFixture(), {
+      publicationRevisionId: revision,
+      canSave: true,
+    }),
+  );
+});
+
+test('public asset namespace is accepted only for a bound player, never editor', () => {
+  const f = protocolHarness();
+  const message = {
+    ...validInitMessage(),
+    mode: 'player',
+    versionId: '22222222-2222-4222-8222-222222222222',
+    assetScope: 'publication',
+  };
+  f.handlers.get('message')({ source: f.parent, origin: API_ORIGIN, data: message });
+  assert.equal(f.calls[0][0].assetScope, 'publication');
+  assert.equal(f.calls[0][0].projectId, PROJECT_ID);
+  f.protocol.dispose();
+  for (const change of [
+    { mode: 'editor' },
+    { assetScope: 'https://evil.test' },
+    { versionId: null },
+  ]) {
+    const denied = protocolHarness();
+    denied.handlers.get('message')({
+      source: denied.parent,
+      origin: API_ORIGIN,
+      data: { ...message, ...change },
+    });
+    assert.equal(denied.calls.length, 0);
+    denied.protocol.dispose();
+  }
+});
+
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const API_ORIGIN = 'https://asa.example';
 const RUNTIME_TOKEN = 'header.payload.signature';
@@ -427,7 +506,13 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     standalone,
     container: {},
     shell,
-    session: { mode, projectId: PROJECT_ID },
+    session: {
+      mode,
+      projectId: PROJECT_ID,
+      ...(options.publicPublication
+        ? { assetScope: 'publication', versionId: '22222222-2222-4222-8222-222222222222' }
+        : {}),
+    },
     bootstrap,
     ...(options.trackRecovery
       ? {
@@ -472,6 +557,23 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
 }
+
+test('public publication uses the pinned official embedded preset without save, cloud, dirty or recovery authority', async () => {
+  const f = await editorFixture(true, 'player', { publicPublication: true, trackRecovery: true });
+  assert.equal(f.params.isPlayerOnly, true);
+  assert.equal(f.params.isEmbedded, true);
+  assert.equal(f.props.canSave, false);
+  assert.equal(f.props.canCreateNew, false);
+  assert.equal(f.props.cloudHost, null);
+  assert.equal(f.props.hasCloudPermission, false);
+  f.props.onProjectLoaded();
+  f.machine.emit('PROJECT_CHANGED');
+  f.props.onUpdateProjectThumbnail(PROJECT_ID, null);
+  assert.deepEqual(f.dirtyGenerations, []);
+  assert.deepEqual(f.localCheckpoints, []);
+  await f.editor.dispose();
+  assert.equal(f.counts().quits, 1);
+});
 
 test('new project mount uses Scratch default project and preserves native editor events', async () => {
   const fixture = await editorFixture();
