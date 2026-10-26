@@ -386,12 +386,42 @@ def minio_mount(root: Path) -> Path:
     return path
 
 
+def normalize_minio_stage(root: Path, staged: Path) -> None:
+    """Make a verified, *inactive* candidate volume readable by the existing MinIO uid.
+
+    rsync -a preserves the archived 0700 root:root directories, which are not
+    usable by an unchanged 1000:1000 MinIO runtime. Only the isolated staging
+    volume is normalized; source archives and live volumes are not touched.
+    """
+    cid = docker(root, "ps", "-q", "minio")
+    demand(bool(cid), "Cannot attest the existing MinIO runtime user")
+    meta = json.loads(run("docker", "inspect", cid))[0]
+    raw = meta["Config"]["User"]
+    match = re.fullmatch(r"([0-9]+):([0-9]+)", raw or "")
+    demand(match is not None, "Expected numeric MinIO uid:gid")
+    uid, gid = int(match[1]), int(match[2])
+    demand(uid != 0 and gid != 0, "Refusing to stage MinIO as root")
+    demand(staged.is_dir() and staged.name == "_data"
+           and staged.parent.name.startswith("asa-refresh-"),
+           "Invalid MinIO staging volume target")
+    demand(not staged.is_symlink() and (staged / ".minio.sys").is_dir()
+           and not (staged / ".minio.sys").is_symlink(),
+           "Staged MinIO metadata missing or unsafe")
+    run("chown", "-R", f"{uid}:{gid}", str(staged), timeout=900)
+    for target in (staged, staged / ".minio.sys"):
+        metadata = target.stat()
+        demand(metadata.st_uid == uid and metadata.st_gid == gid,
+               "Staged MinIO ownership repair unsuccessful")
+    audit("minio_staging_owner_verified", runtime_uid=uid, runtime_gid=gid)
+
+
 def stage_objects(root: Path, snapshot: Path, ident: str) -> Path:
     volume = f"asa-refresh-{ident}-staged"
     run("docker", "volume", "create", volume)
     path = Path(run("docker", "volume", "inspect", volume, "--format", "{{.Mountpoint}}"))
     demand(path.name == "_data" and path.parent.name == volume, "Unexpected staged volume path")
     run("rsync", "-a", str(snapshot / "objects") + "/", str(path) + "/", timeout=600)
+    normalize_minio_stage(root, path)
     manifest = json.loads((snapshot / "manifest.json").read_text("utf-8"))
     paths = [name for name in manifest["files"] if name.startswith("objects/")]
     for full in paths:
@@ -452,6 +482,27 @@ def previous_data_volume(root: Path, ident: str, active: Path) -> Path:
     return path
 
 
+def introduced_runtime_services(root: Path, source: Path, overlay: Path,
+                                sha: str) -> list[str]:
+    _, candidate_services, _ = source_services(root, source, overlay, sha)
+    current_services = set(json.loads(docker(root, "config", "--format", "json"))["services"])
+    return sorted(name for name in candidate_services if name not in current_services)
+
+
+def reconcile_database_rollback(root: Path, old_db: str, stage_db: str) -> None:
+    """Recover from either database-rename boundary, even after an interrupted command."""
+    known = db_names(root)
+    if old_db not in known:
+        demand("asalab" in known, "Live database missing after failed database rename")
+        return
+    if "asalab" in known:
+        demand(stage_db not in known, "Ambiguous PostgreSQL candidates, manual reconciliation required")
+        database_query(root, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                       f"WHERE datname IN ('asalab','{old_db}') AND pid<>pg_backend_pid();\n")
+        database_query(root, f"ALTER DATABASE asalab RENAME TO {stage_db};\n")
+    database_query(root, f"ALTER DATABASE {old_db} RENAME TO asalab;\n")
+
+
 def require_test(root: Path, expected_origin: str) -> dict[str, str]:
     demand(expected_origin.startswith("https://"), "HTTPS test origin required")
     return checked_root(root, expected_origin)
@@ -486,6 +537,10 @@ def apply(args) -> None:
         log = job / "build.log"
         source_head = git(root, "rev-parse", "HEAD")
         for earlier in state_root.glob("*/status.json"):
+            if json.loads(earlier.read_text("utf-8")).get("phase") not in (
+                    "complete", "failed_rolled_back"):
+                raise Blocked("Unreconciled previous test refresh: inspect private receipt and backups")
+        for earlier in state_root.glob("*/status.json"):
             info = json.loads(earlier.read_text("utf-8"))
             if (info.get("phase") == "complete" and info.get("sha") == args.sha
                     and info.get("archive_sha256") == snapshot_digest and source_head == args.sha):
@@ -507,6 +562,7 @@ def apply(args) -> None:
         env_changed = False
         git_changed = False
         stopped = False
+        introduced_services: list[str] = []
         source = None
         overlay = job / "candidate.env"
         backup_dump = job / "previous.dump"
@@ -541,6 +597,7 @@ def apply(args) -> None:
             os.chown(overlay, original_env_stat.st_uid, original_env_stat.st_gid)
             checkpoint("image_build")
             build_targets, _, _ = source_services(root, source, overlay, args.sha)
+            introduced_services = introduced_runtime_services(root, source, overlay, args.sha)
             if not args.reuse_images:
                 docker(root, "build", *build_targets, source=source, overlay=overlay,
                        timeout=5400, log=log)
@@ -553,8 +610,8 @@ def apply(args) -> None:
             demand(sha256(original_env) == initial_env_digest,
                    "Private environment changed during staging; abort before cutover")
             checkpoint("freeze_and_full_backup")
+            stopped = True  # rollback even when Docker stopped only some writers
             docker(root, "stop", "web", "api", "scratch", "minio", timeout=180)
-            stopped = True
             with backup_dump.open("wb") as dump:
                 docker(root, "exec", "-T", "postgres", "sh", "-c",
                        'pg_dump --format=custom -U "$POSTGRES_USER" -d "$POSTGRES_DB"',
@@ -580,6 +637,7 @@ def apply(args) -> None:
                 demand(stage_volume.name == "_data" and stage_volume.parent.name == staged_name,
                        "Unexpected preserve-stage volume")
                 run("rsync", "-a", str(old_volume) + "/", str(stage_volume) + "/", timeout=900)
+                normalize_minio_stage(root, stage_volume)
             demand(stage_volume is not None and (stage_volume / ".minio.sys").is_dir(),
                    "Candidate MinIO missing")
             demand(old_db not in db_names(root) and stage_db in db_names(root),
@@ -591,8 +649,10 @@ def apply(args) -> None:
                          f"WHERE datname IN ('asalab','{stage_db}') AND pid<>pg_backend_pid();\n")
             database_query(root, f"ALTER DATABASE asalab RENAME TO {old_db};\n")
             db_phase = 1
+            checkpoint("previous_database_renamed", rollback_required=True)
             database_query(root, f"ALTER DATABASE {stage_db} RENAME TO asalab;\n")
             db_phase = 2
+            checkpoint("candidate_database_promoted", rollback_required=True)
             checkpoint("starting_new", rollback_complete=False)
             docker(root, "up", "-d", "--no-build", source=source, overlay=overlay, timeout=330,
                    log=job / "switch.log")
@@ -600,10 +660,10 @@ def apply(args) -> None:
             migrated = database_counts(root, "asalab")
             demand(migrated[-1] == f"{schema:04d}", "Restored database schema differs")
             checkpoint("persisting", candidate_counts=migrated)
+            env_changed = True  # trigger recovery even if atomic replace returned unexpectedly
             os.replace(overlay, original_env)
-            env_changed = True
-            git(root, "switch", "--detach", args.sha)
             git_changed = True
+            git(root, "switch", "--detach", args.sha)
             docker(root, "config", "--quiet")
             checkpoint("complete", candidate_counts=migrated,
                        user_browser_flow="NOT_RUN", previous_data_retained=True)
@@ -615,14 +675,12 @@ def apply(args) -> None:
             if stopped:
                 audit("automatic_rollback_started", job=ident)
                 try:
+                    candidate_overlay = overlay if overlay.exists() else original_env
+                    if introduced_services and source is not None:
+                        docker(root, "stop", *introduced_services,
+                               source=source, overlay=candidate_overlay, timeout=180)
                     docker(root, "stop", "web", "api", "scratch", "minio", timeout=180)
-                    if db_phase == 2:
-                        database_query(root, "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-                                       f"WHERE datname IN ('asalab','{old_db}') AND pid<>pg_backend_pid();\n")
-                        database_query(root, f"ALTER DATABASE asalab RENAME TO {stage_db};\n")
-                        database_query(root, f"ALTER DATABASE {old_db} RENAME TO asalab;\n")
-                    elif db_phase == 1:
-                        database_query(root, f"ALTER DATABASE {old_db} RENAME TO asalab;\n")
+                    reconcile_database_rollback(root, old_db, stage_db)
                     if objects_changed and old_volume:
                         run("rsync", "-a", "--delete", str(old_volume) + "/",
                             str(live_objects) + "/", timeout=900)
@@ -632,6 +690,12 @@ def apply(args) -> None:
                         git(root, "switch", "--detach", source_head)
                     docker(root, "up", "-d", "--no-build", timeout=330,
                            log=job / "rollback.log")
+                    if introduced_services and source is not None:
+                        # Stop/remove only Compose services introduced by this candidate.
+                        # Never remove Docker volumes; overlay can already be moved to .env.
+                        docker(root, "rm", "--stop", "--force", *introduced_services,
+                               source=source, overlay=candidate_overlay, timeout=180,
+                               log=job / "orphan-cleanup.log")
                     checkpoint("failed_rolled_back")
                     audit("automatic_rollback_passed", job=ident)
                 except Exception as rollback_error:

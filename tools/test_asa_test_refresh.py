@@ -4,6 +4,7 @@ All tests are local and never touch Docker, GitHub, credentials or live data.
 Run: python3 -m unittest tools.test_asa_test_refresh -v
 """
 import io
+import os
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ from unittest.mock import patch
 from tools.asa_test_refresh import (
     Blocked, SAFE_DB, env_read, env_replace, extract_snapshot, image_overrides,
     merge_student_keys, sha256, source_services, ensure_source_service_secrets,
+    normalize_minio_stage, introduced_runtime_services, reconcile_database_rollback,
 )
 
 
@@ -241,6 +243,91 @@ class ComposeEvolutionTests(unittest.TestCase):
                    return_value=json.dumps({"services": services})):
             with self.assertRaisesRegex(Blocked, "Unpinned"):
                 source_services(Path("/none"), Path("/none"), Path("/none"), sha)
+
+
+
+class RealFailureRegressionTests(unittest.TestCase):
+    def test_root_owned_minio_staging_corrected_before_switch(self):
+        """2026-10-26: rsync archive 0700 root:root caused unhealthy MinIO."""
+        with tempfile.TemporaryDirectory() as tmp:
+            staged = Path(tmp) / "asa-refresh-1234-staged" / "_data"
+            (staged / ".minio.sys").mkdir(parents=True)
+            staged.chmod(0o700)
+            (staged / ".minio.sys").chmod(0o700)
+            uid = os.getuid() if os.getuid() else 1000
+            gid = os.getgid() if os.getgid() else 1000
+            calls = []
+            def fake_run(*args, **kwargs):
+                calls.append(args)
+                if args[:2] == ("docker", "inspect"):
+                    return json.dumps([{"Config": {"User": f"{uid}:{gid}"}}])
+                if args[0] == "chown":
+                    if os.geteuid() == 0:
+                        os.chown(staged, uid, gid)
+                        os.chown(staged / ".minio.sys", uid, gid)
+                    return ""
+                raise AssertionError("Unexpected command")
+            with patch("tools.asa_test_refresh.docker", return_value="minio-id"), \
+                 patch("tools.asa_test_refresh.run", side_effect=fake_run):
+                normalize_minio_stage(Path("/untouched"), staged)
+            self.assertIn(("chown", "-R", f"{uid}:{gid}", str(staged)), calls)
+            self.assertEqual(staged.stat().st_uid, uid)
+            self.assertEqual((staged / ".minio.sys").stat().st_gid, gid)
+
+    def test_no_root_minio_uid_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            staged = Path(tmp) / "asa-refresh-1234-staged" / "_data"
+            (staged / ".minio.sys").mkdir(parents=True)
+            with patch("tools.asa_test_refresh.docker", return_value="cid"), \
+                 patch("tools.asa_test_refresh.run",
+                       return_value=json.dumps([{"Config": {"User": "0:0"}}])):
+                with self.assertRaisesRegex(Blocked, "Refusing"):
+                    normalize_minio_stage(Path("/noupdate"), staged)
+
+    def test_new_search_is_introduced_and_requires_rollback_cleanup(self):
+        sha = "d" * 40
+        suffix = ":git-" + sha[:12]
+        old = {"services": {
+            "api": {"image": "asa-lab-api" + suffix, "restart": "always", "build": {}},
+            "web": {"image": "asa-lab-web" + suffix, "restart": "always", "build": {}},
+            "scratch": {"image": "asa-lab-scratch" + suffix, "restart": "always", "build": {}},
+            "minio": {"image": "asa-lab-minio" + suffix, "restart": "unless-stopped", "build": {}},
+            "postgres": {"image": "postgres:17", "restart": "always"},
+        }}
+        candidate = {"services": {
+            **old["services"],
+            "search": {"image": "asa-lab-search" + suffix, "restart": "unless-stopped", "build": {}},
+        }}
+        def config(*a, **kw):
+            return json.dumps(candidate if kw.get("source") else old)
+        with patch("tools.asa_test_refresh.docker", side_effect=config):
+            self.assertEqual(introduced_runtime_services(
+                Path("/test"), Path("/source"), Path("/test/overlay"), sha), ["search"])
+
+    def test_db_partial_rename_rolls_back_even_without_phase_update(self):
+        with patch("tools.asa_test_refresh.db_names", return_value={"old_backup", "staging"}), \
+             patch("tools.asa_test_refresh.database_query") as query:
+            reconcile_database_rollback(Path("/test"), "old_backup", "staging")
+            self.assertEqual(query.call_count, 1)
+            self.assertIn("ALTER DATABASE old_backup RENAME TO asalab",
+                          query.call_args.args[1])
+
+    def test_db_promoted_rollback_retains_candidate_name(self):
+        with patch("tools.asa_test_refresh.db_names", return_value={"old_backup", "asalab"}), \
+             patch("tools.asa_test_refresh.database_query") as query:
+            reconcile_database_rollback(Path("/test"), "old_backup", "staging")
+            self.assertEqual(query.call_count, 3)
+            commands = [x.args[1] for x in query.call_args_list]
+            self.assertIn("ALTER DATABASE asalab RENAME TO staging", commands[1])
+            self.assertIn("ALTER DATABASE old_backup RENAME TO asalab", commands[2])
+
+    def test_ambiguous_db_swap_stops_instead_of_destroying(self):
+        with patch("tools.asa_test_refresh.db_names",
+                   return_value={"old_backup", "asalab", "staging"}), \
+             patch("tools.asa_test_refresh.database_query") as query:
+            with self.assertRaisesRegex(Blocked, "Ambiguous"):
+                reconcile_database_rollback(Path("/test"), "old_backup", "staging")
+            query.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
