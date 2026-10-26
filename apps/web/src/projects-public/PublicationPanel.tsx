@@ -108,13 +108,15 @@ export function PublicationPanel({
   const publicAccess = live && Boolean(publication.publicPath);
   const blocked = disabled || busy !== null || loading;
   const reason =
-    status?.reasonCode === 'preview_required'
-      ? 'Для публикации нужно актуальное изображение. Откройте проект в редакторе, дождитесь сохранения и проверьте состояние снова.'
-      : status?.reasonCode === 'learning_work_protected'
-        ? 'Оригинальную учебную работу нельзя публиковать.'
-        : status && !status.canPublish
-          ? 'Публикация этой работы ограничена настройками доступа.'
-          : null;
+    status?.reasonCode === 'module_not_publishable'
+      ? 'Публиковать можно только 3D, электронику и Scratch. Игровые проекты доступны в разделе «Игры».'
+      : status?.reasonCode === 'preview_required'
+        ? 'Для публикации нужно актуальное изображение. Откройте проект в редакторе, дождитесь сохранения и проверьте состояние снова.'
+        : status?.reasonCode === 'learning_work_protected'
+          ? 'Оригинальную учебную работу нельзя публиковать.'
+          : status && !status.canPublish
+            ? 'Публикация этой работы ограничена настройками доступа.'
+            : null;
 
   return (
     <section

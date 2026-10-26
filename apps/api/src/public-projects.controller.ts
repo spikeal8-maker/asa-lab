@@ -190,7 +190,7 @@ export class PublicProjectsController {
     if (query !== undefined && (typeof query !== 'string' || query.length > 120)) {
       throw publicationError('validation_error', 'Поисковый запрос слишком длинный.', 400);
     }
-    if (moduleKey !== undefined && !/^[a-z0-9-]{1,64}$/.test(moduleKey)) {
+    if (moduleKey !== undefined && !['three-d', 'electronics', 'blocks'].includes(moduleKey)) {
       throw publicationError('validation_error', 'Некорректный тип проекта.', 400);
     }
     const skip = boundedInteger(offset, 0, 0, 1000000);

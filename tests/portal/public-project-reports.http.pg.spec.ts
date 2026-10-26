@@ -73,7 +73,7 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
       runtime = new pg.Pool({ connectionString: runtimeTarget.href, max: 20 });
 
       const plan = planMigrations();
-      expect(plan.at(-1)?.file).toBe('0259_project_publication_reports.sql');
+      expect(plan.at(-1)?.file).toBe('0260_project_publication_module_admission.sql');
       const migrator = await admin.connect();
       try {
         expect(await applyIsolatedTestPlan(migrator, plan)).toBe(plan.length);
@@ -126,7 +126,9 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
             ? { body: JSON.stringify(options.payload) }
             : {}),
         });
-        const body: unknown = await response.json();
+        const body: unknown = response.headers.get('content-type')?.startsWith('image/')
+          ? {}
+          : await response.json();
         if (typeof body !== 'object' || body === null || Array.isArray(body)) {
           throw new Error('Expected genuine JSON object response');
         }
@@ -172,13 +174,16 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
       const quotaCookie = await login(quotaReporter);
       const repository = new PgProjectRepository(admin);
 
-      async function publish(index: number): Promise<PublicationFixture> {
+      async function publish(
+        index: number,
+        moduleKey = 'electronics',
+      ): Promise<PublicationFixture> {
         const project = await repository.createWithDraft({
           tenantId: author.tenantId,
           scope: 'personal',
           classroomId: null,
           actor: { userId: author.teacherId, principalId: authorId },
-          moduleKey: 'electronics',
+          moduleKey,
           title: 'HTTP report fixture ' + index,
           idempotencyKey: randomUUID(),
           requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
@@ -247,6 +252,142 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
             return result.rows;
           }),
         );
+      }
+
+      // Publisher admission is enforced by the real HTTP server and canonical SQL.
+      const authorCookie = await login(author);
+      const copyIdentity = randomUUID().replaceAll('-', '');
+      const registeredCopy = await request('/api/auth/register', {
+        payload: {
+          email: 'admission-' + copyIdentity + '@test.local',
+          username: 'admission_' + copyIdentity.slice(0, 20),
+          displayName: 'Copy reader',
+          password: 'Admission-' + copyIdentity,
+          birthDate: '1990-01-01',
+          country: 'RU',
+        },
+      });
+      expect(registeredCopy.status).toBe(201);
+      const copyCookie = registeredCopy.headers
+        .getSetCookie()
+        .find((value) => value.startsWith('asa_session='))!
+        .split(';')[0]!;
+      expect((await request('/api/public-projects?module=unknown', { method: 'GET' })).status).toBe(
+        400,
+      );
+      for (const module of ['three-d', 'electronics', 'blocks']) {
+        const admitted = await publish(100, module);
+        expect(
+          (
+            await request('/api/projects/' + admitted.projectId + '/publication', {
+              method: 'POST',
+              cookie: authorCookie,
+              payload: {},
+            })
+          ).status,
+        ).toBe(200);
+        expect(
+          (await request('/api/public-projects/' + admitted.publicationId, { method: 'GET' }))
+            .status,
+        ).toBe(200);
+        expect(
+          (
+            await request(
+              '/api/public-projects/' +
+                admitted.publicationId +
+                '/image?revision=' +
+                admitted.revisionId,
+              { method: 'GET' },
+            )
+          ).status,
+        ).toBe(200);
+      }
+      for (const module of ['chess', 'checkers']) {
+        expect(
+          (await request('/api/public-projects?module=' + module, { method: 'GET' })).status,
+        ).toBe(400);
+        const hidden = await publish(101);
+        await admin.query('UPDATE projects SET module_key=$1 WHERE id=$2', [
+          module,
+          hidden.projectId,
+        ]);
+        const beforeHidden = await projectCore(hidden.projectId);
+        expect(
+          (
+            await request('/api/projects/' + hidden.projectId + '/publication', {
+              method: 'GET',
+              cookie: authorCookie,
+            })
+          ).body,
+        ).toMatchObject({ canPublish: false, reasonCode: 'module_not_publishable' });
+        expect(
+          (
+            await request('/api/gallery/' + hidden.projectId, {
+              method: 'POST',
+              cookie: authorCookie,
+            })
+          ).status,
+        ).toBe(403);
+        expect(
+          (
+            await request('/api/gallery/' + hidden.projectId + '/image', {
+              method: 'GET',
+              cookie: authorCookie,
+            })
+          ).status,
+        ).toBe(404);
+        expect(
+          (
+            await request('/api/gallery/' + hidden.projectId + '/work', {
+              method: 'GET',
+              cookie: authorCookie,
+            })
+          ).status,
+        ).toBe(404);
+        expect(
+          (
+            await request('/api/gallery/' + hidden.projectId + '/copy', {
+              method: 'POST',
+              cookie: authorCookie,
+              payload: {},
+            })
+          ).status,
+        ).toBe(400);
+
+        expect(
+          (
+            await request('/api/projects/' + hidden.projectId + '/publication', {
+              method: 'POST',
+              cookie: authorCookie,
+              payload: { title: 'Denied', description: null, tags: [], license: 'reserved' },
+            })
+          ).status,
+        ).toBe(403);
+        expect(
+          (await request('/api/public-projects/' + hidden.publicationId, { method: 'GET' })).status,
+        ).toBe(404);
+        expect(
+          (
+            await request(
+              '/api/public-projects/' +
+                hidden.publicationId +
+                '/image?revision=' +
+                hidden.revisionId,
+              { method: 'GET' },
+            )
+          ).status,
+        ).toBe(404);
+        expect(
+          (
+            await request('/api/public-projects/' + hidden.publicationId + '/copy', {
+              method: 'POST',
+              cookie: copyCookie,
+              key: randomUUID(),
+              payload: { revisionId: hidden.revisionId },
+            })
+          ).status,
+        ).toBe(404);
+        expect(await projectCore(hidden.projectId)).toEqual(beforeHidden);
       }
 
       const original = await publish(0);

@@ -277,6 +277,9 @@ describe('Public Projects anonymous projection', () => {
   it.each([
     ['x'.repeat(121), undefined, undefined, undefined],
     [undefined, 'electronics;drop', undefined, undefined],
+    [undefined, 'chess', undefined, undefined],
+    [undefined, 'checkers', undefined, undefined],
+    [undefined, 'unknown', undefined, undefined],
     [undefined, undefined, '-1', undefined],
     [undefined, undefined, '0;SELECT', undefined],
     [undefined, undefined, undefined, '9999'],

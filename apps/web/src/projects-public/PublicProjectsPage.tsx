@@ -153,10 +153,6 @@ export function PublicProjectsPage({
                 {module.label}
               </option>
             ))}
-            {view.module &&
-            !PUBLIC_PROJECT_MODULES.some((module) => module.value === view.module) ? (
-              <option value={view.module}>{publicModuleName(view.module)}</option>
-            ) : null}
           </select>
           <span className="public-projects-order">Сначала новые</span>
         </div>

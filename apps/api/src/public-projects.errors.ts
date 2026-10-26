@@ -25,7 +25,7 @@ export function throwPublicationError(cause: unknown): never {
     case 'P5P01':
       throw publicationError(
         'publication_forbidden',
-        'Публикация этой работы запрещена действующими правилами доступа.',
+        'Публикация этой работы запрещена. Допустимы только личные проекты 3D, электроники и Scratch с разрешённым доступом.',
         403,
       );
     case 'P5P02':

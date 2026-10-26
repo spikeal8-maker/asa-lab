@@ -1153,3 +1153,14 @@ test('archiving a previously public source closes metadata and images through th
     await guest.context.close();
   }
 });
+
+test('public catalog offers only publisher modules', async ({ page }) => {
+  await page.goto('/#/public-projects');
+  const modules = page.locator('.public-projects-filters select');
+  await expect(modules).toBeVisible();
+  expect(
+    await modules
+      .locator('option')
+      .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value)),
+  ).toEqual(['', 'three-d', 'electronics', 'blocks']);
+});
