@@ -1,0 +1,154 @@
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { PublicProjectPage } from './PublicProjectPage';
+import { publicProjectsApi, type PublicProject } from './api';
+
+const publication: PublicProject = {
+  publicationId: 'public-id',
+  revisionId: 'revision-v1',
+  revisionNo: 2,
+  versionNo: 3,
+  title: 'Длинное название проекта',
+  summary: null,
+  description: 'Описание работы',
+  tags: ['схема'],
+  license: 'public-domain',
+  moduleKey: 'electronics',
+  authorLabel: 'Автор',
+  featured: true,
+  pinned: true,
+  publishedAt: '2026-10-21T10:00:00Z',
+  preview: { url: '/cover.png', width: 400, height: 240, contentType: 'image/png' },
+  capabilities: { viewer: 'static', canCopy: false, downloadFormats: [] },
+};
+let root: Root;
+let container: HTMLDivElement;
+beforeEach(() => {
+  (
+    globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true;
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+});
+afterEach(async () => {
+  await act(async () => root.unmount());
+  container.remove();
+  vi.restoreAllMocks();
+});
+async function render() {
+  await act(async () =>
+    root.render(createElement(PublicProjectPage, { publicationId: 'public-id', onBack: vi.fn() })),
+  );
+}
+it('reads title, honest cover, real actions, then description and publication facts', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication },
+  });
+  await render();
+  const article = container.querySelector('article')!;
+  expect([...article.children].map((element) => element.tagName)).toEqual([
+    'HEADER',
+    'FIGURE',
+    'ASIDE',
+    'SECTION',
+  ]);
+  expect(article.querySelector('header')?.textContent).toContain('Автор');
+  expect(container.querySelector('.public-project-title-toggle')).toBeNull();
+  expect(article.querySelector('figcaption')?.textContent).toBe('Обложка проекта');
+  expect(article.querySelector('figure button')).toBeNull();
+  expect(article.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('/cover.png');
+  expect(article.querySelector<HTMLButtonElement>('.public-project-copy button')?.disabled).toBe(
+    true,
+  );
+  expect(article.querySelector('dl')?.textContent).toContain('Версия проекта3');
+  expect(container.querySelector('[data-testid="public-project-pinned"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="public-project-featured"]')).not.toBeNull();
+  const share = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Поделиться',
+  )!;
+  await act(async () => share.click());
+  expect(container.querySelector<HTMLInputElement>('.publication-share input')?.value).toContain(
+    '/#/public-projects/public-id',
+  );
+});
+it('keeps metadata and actions usable without an image, description or tags', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, preview: null, description: null, tags: [] } },
+  });
+  await render();
+  expect(
+    container.querySelector('[data-testid="public-project-preview-unavailable"]'),
+  ).not.toBeNull();
+  expect(container.querySelector('a[target="_blank"]')).toBeNull();
+  expect(container.querySelector('[aria-label="Теги"]')).toBeNull();
+  expect(container.querySelector('dl')?.textContent).toContain('Лицензия');
+});
+it('shows loading, retries a failed request, and closes an unavailable publication', async () => {
+  let finish!: (result: Awaited<ReturnType<typeof publicProjectsApi.get>>) => void;
+  const get = vi.spyOn(publicProjectsApi, 'get').mockReturnValueOnce(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  await render();
+  expect(container.querySelector('[role="status"]')?.textContent).toContain('Загружаем');
+  await act(async () =>
+    finish({
+      ok: false,
+      status: 503,
+      error: { code: 'server_error', message: 'Сервис недоступен' },
+    }),
+  );
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Не удалось загрузить');
+  get.mockResolvedValueOnce({
+    ok: false,
+    status: 404,
+    error: { code: 'not_found', message: 'Публикация не найдена' },
+  });
+  await act(async () => container.querySelector<HTMLButtonElement>('button')!.click());
+  expect(container.querySelector('h1')?.textContent).toBe('Публикация недоступна');
+  expect(container.querySelector('article')).toBeNull();
+});
+it('keeps a compact refresh action after an image load failure', async () => {
+  const get = vi
+    .spyOn(publicProjectsApi, 'get')
+    .mockResolvedValue({ ok: true, status: 200, data: { publication } });
+  await render();
+  await act(async () => container.querySelector('img')!.dispatchEvent(new Event('error')));
+  expect(
+    container.querySelector('[data-testid="public-project-preview-unavailable"]')?.textContent,
+  ).toContain('Изображение не загрузилось');
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('.public-project-refresh')!.click(),
+  );
+  expect(get).toHaveBeenCalledTimes(2);
+});
+
+it('reveals and collapses a long full heading through an accessible control', async () => {
+  const title = 'Оченьдлинноеназвание'.repeat(9);
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, title } },
+  });
+  await render();
+  const heading = container.querySelector('h1')!;
+  const toggle = container.querySelector<HTMLButtonElement>('.public-project-title-toggle')!;
+  expect(heading.textContent).toBe(title);
+  expect(toggle.getAttribute('aria-controls')).toBe(heading.id);
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(toggle.textContent).toBe('Свернуть название');
+  expect(heading.textContent).toBe(title);
+  await act(async () => toggle.click());
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(toggle.textContent).toBe('Название целиком');
+});

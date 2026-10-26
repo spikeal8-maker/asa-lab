@@ -256,6 +256,21 @@ async function expectNoOverflow(page: Page): Promise<void> {
   expect(sizes.body).toBeLessThanOrEqual(sizes.viewport);
 }
 
+async function captureDetailViewport(page: Page, name: string): Promise<void> {
+  // Override smooth scrolling for this operation, then prove the captured origin.
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  const heading = await page.getByTestId('public-project-title').boundingBox();
+  const banner = await page.getByRole('banner').boundingBox();
+  expect(heading).not.toBeNull();
+  expect(banner).not.toBeNull();
+  expect(heading!.y).toBeGreaterThanOrEqual(banner!.y + banner!.height);
+  const back = await page.getByRole('link', { name: '← Проекты', exact: true }).boundingBox();
+  expect(back).not.toBeNull();
+  expect(back!.y).toBeGreaterThanOrEqual(banner!.y + banner!.height);
+  await page.screenshot({ path: `${EVIDENCE}/${name}.png` });
+}
+
 function assertPublicDto(value: unknown, privateValues: string[]): void {
   const serialized = JSON.stringify(value);
   for (const secret of privateValues) expect(serialized).not.toContain(secret);
@@ -406,6 +421,14 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
       path: `${EVIDENCE}/00-real-editor-publication-mobile.png`,
       fullPage: true,
     });
+    for (const width of [320, 390, 1440]) {
+      await guest.setViewportSize({ width, height: 900 });
+      await expectNoOverflow(guest);
+      await expect(
+        guest.getByRole('button', { name: 'Название целиком', exact: true }),
+      ).toHaveCount(0);
+      await captureDetailViewport(guest, `detail-normal-viewport-${width}`);
+    }
   } finally {
     await guestContext.close();
   }
@@ -657,14 +680,111 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await expect(guest.getByTestId('public-project-title')).toHaveText(longTitle);
       await expectPublicImage(guest);
       await expectNoOverflow(guest);
+      if (width === 320) {
+        const heading = guest.getByTestId('public-project-title');
+        const collapsed = await heading.boundingBox();
+        const lineHeight = await heading.evaluate((element) =>
+          parseFloat(getComputedStyle(element).lineHeight),
+        );
+        expect(collapsed!.height).toBeLessThanOrEqual(lineHeight * 3 + 1);
+        const headingId = await heading.getAttribute('id');
+        expect(headingId).toBeTruthy();
+        const toggle = guest.locator(`button[aria-controls="${headingId}"]`);
+        await expect(toggle).toHaveAccessibleName('Название целиком');
+        await toggle.focus();
+        await guest.keyboard.press('Enter');
+        await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        await expect(toggle).toHaveAccessibleName('Свернуть название');
+        expect((await heading.boundingBox())!.height).toBeGreaterThan(collapsed!.height);
+        await expectNoOverflow(guest);
+        await guest.keyboard.press('Enter');
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        await expect(toggle).toHaveAccessibleName('Название целиком');
+        expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(lineHeight * 3 + 1);
+      }
+      const geometry = await guest.getByTestId('public-project-detail').evaluate((article) => {
+        const rect = (selector: string) => {
+          const bounds = article.querySelector(selector)!.getBoundingClientRect();
+          return {
+            top: bounds.top,
+            bottom: bounds.bottom,
+            left: bounds.left,
+            right: bounds.right,
+            width: bounds.width,
+          };
+        };
+        return {
+          heading: rect('header'),
+          cover: rect('figure'),
+          actions: rect('aside'),
+          about: rect('[aria-label="О проекте"]'),
+          nestedScroll: [...article.querySelectorAll('*')].some((element) => {
+            const style = getComputedStyle(element);
+            return (
+              ['auto', 'scroll'].includes(style.overflowY) &&
+              element.scrollHeight > element.clientHeight
+            );
+          }),
+        };
+      });
+      expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.cover.top);
+      expect(geometry.nestedScroll).toBe(false);
+      if (width < 1024) {
+        expect(geometry.cover.bottom).toBeLessThanOrEqual(geometry.actions.top);
+        expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
+      } else {
+        expect(geometry.cover.right).toBeLessThanOrEqual(geometry.actions.left);
+        expect(geometry.cover.width).toBeGreaterThan(geometry.actions.width * 1.8);
+        expect(geometry.about.top).toBeGreaterThanOrEqual(geometry.cover.bottom);
+      }
       await guest.screenshot({ path: `${EVIDENCE}/detail-${width}.png`, fullPage: true });
+      if ([320, 390, 1440].includes(width)) {
+        await captureDetailViewport(guest, `detail-viewport-${width}`);
+      }
     }
+
+    // A failed real image request preserves the cover boundary and the real actions.
+    const coverUrl = await guest.getByTestId('public-project-preview').getAttribute('src');
+    expect(coverUrl).toBeTruthy();
+    const coverPattern = new URL(coverUrl!, guest.url()).href;
+    await guest.route(coverPattern, (route) => route.abort('failed'));
+    await guest.reload();
+    await expect(guest.getByTestId('public-project-preview-unavailable')).toContainText(
+      'Изображение не загрузилось',
+    );
+    await expectNoOverflow(guest);
+    await guest.screenshot({ path: `${EVIDENCE}/detail-image-error.png`, fullPage: true });
+    await guest.unroute(coverPattern);
+    await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+    await expectPublicImage(guest);
+
+    // Exercise the actual share fallback and keyboard focus without replacing API data.
+    const share = guest.getByRole('button', { name: 'Поделиться', exact: true });
+    await share.focus();
+    await expect(share).toBeFocused();
+    await guest.keyboard.press('Enter');
+    await expect(guest.getByRole('textbox', { name: 'Публичная ссылка на проект' })).toHaveValue(
+      new RegExp(`/#/public-projects/${firstId}$`),
+    );
+    const copy = guest.getByRole('button', { name: 'Создать свою копию', exact: true });
+    await expect(copy).toBeDisabled();
+    await guestContext.setOffline(true);
+    await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+    await expect(guest.getByTestId('public-project-error')).toBeVisible();
+    await expectNoOverflow(guest);
+    await guest.screenshot({ path: `${EVIDENCE}/detail-network-error.png`, fullPage: true });
+    await guestContext.setOffline(false);
+    await guest.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expectPublicImage(guest);
 
     // A held PostgreSQL read proves the loading state without inventing API data.
     const lock = await admin.connect();
     try {
       await lock.query('BEGIN');
       await lock.query('LOCK TABLE project_publication_state IN ACCESS EXCLUSIVE MODE');
+      await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+      await expect(guest.getByTestId('public-project-loading')).toBeVisible();
+      await guest.screenshot({ path: `${EVIDENCE}/detail-loading.png`, fullPage: true });
       await guest.goto('/#/explore');
       await expect(guest.getByTestId('public-projects-loading')).toBeVisible();
       await guest.screenshot({ path: `${EVIDENCE}/catalogue-loading.png`, fullPage: true });
