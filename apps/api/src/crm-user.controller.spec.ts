@@ -3,7 +3,53 @@ import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { FastifyRequest } from 'fastify';
 import { CrmUserController, crmIdentity, crmProfileInput } from './crm-user.controller';
+import { projectDatabaseEntry } from './database-diagnostics';
 const ID = '20000000-0000-4000-8000-000000000001';
+it('retains only the finite dashboard audit action without private audit metadata', () => {
+  const projected = projectDatabaseEntry({
+    id: 'a'.repeat(64),
+    time: '2026-10-26T12:00:00Z',
+    source: 'audit',
+    origin: 'administrative_audit_events',
+    module: 'portal',
+    level: 'info',
+    requestId: null,
+    revision: null,
+    truncated: false,
+    message: JSON.stringify({
+      action: 'crm.dashboard.read',
+      reason: 'PRIVATE',
+      metadata_json: { email: 'PRIVATE' },
+    }),
+  });
+  expect(projected.message).toContain('crm.dashboard.read');
+  expect(projected.message).not.toContain('PRIVATE');
+});
+it('loads the dashboard through the canonical actor and typed exact subject with an SQL timeout', async () => {
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.startsWith('SELECT crm_user_dashboard') ? [{ value: { activity: [] } }] : [],
+  }));
+  const controller = new CrmUserController(
+    { resolve: vi.fn(async () => ({ principalId: ID })) } as unknown as ActiveContextUseCase,
+    { connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+  );
+  const request = {
+    cookies: { asa_session: 'test' },
+    id: 'dashboard-request',
+  } as unknown as FastifyRequest;
+  await expect(controller.dashboard(request, 'student', ID, ID)).resolves.toEqual({ activity: [] });
+  expect(query).toHaveBeenCalledWith('SELECT crm_user_dashboard($1,$2,$3,$4,$5) AS value', [
+    ID,
+    'student',
+    ID,
+    ID,
+    'dashboard-request',
+  ]);
+  expect(query).toHaveBeenCalledWith("SET LOCAL statement_timeout = '8s'");
+  await expect(controller.dashboard(request, 'student', ID, [ID])).rejects.toMatchObject({
+    status: 400,
+  });
+});
 it('rejects duplicate query identity, untyped subjects and credentials hidden in profile mutation', () => {
   for (const args of [
     ['account', ID, [ID]],

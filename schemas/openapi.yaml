@@ -7459,6 +7459,80 @@ paths:
             minimum: 0
             maximum: 100000
             default: 0
+  /api/crm/v1/users/{kind}/{target}/dashboard:
+    parameters:
+      - { in: path, name: kind, required: true, schema: { type: string, enum: [account, student] } }
+      - { in: path, name: target, required: true, schema: { type: string, format: uuid } }
+      - { in: query, name: classroomId, schema: { type: string, format: uuid } }
+    get:
+      operationId: getCrmUserDashboard
+      summary: Read bounded authorized Account or exact-class StudentSeat dashboard
+      description: >-
+        Current server-side session and fresh CRM subject authorization required.
+        StudentSeat reads require the exact classroom scope; linked personal Account
+        history is never merged. Successful reads are audited. Activity has exactly
+        30 densely filled UTC days; latestActions contains at most five retained
+        actions. Project and publication totals cover retained history, including
+        withdrawn publications, rather than only currently public work. Token totals
+        are decimal strings or null when unknown; coverage describes incomplete
+        retained telemetry. Classroom rating uses its own configured period; a common
+        Account rating is not configured. Reading never awards bonuses.
+      responses:
+        '200':
+          description: Retained dashboard projection with explicit telemetry coverage
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  [
+                    generatedAt,
+                    period,
+                    lastSeenAt,
+                    lastActionAt,
+                    totals,
+                    activity,
+                    latestActions,
+                    rating,
+                    coverage,
+                  ]
+                properties:
+                  generatedAt: { type: string, format: date-time }
+                  period: { type: object, required: [days, timeZone, from, to] }
+                  lastSeenAt: { type: [string, 'null'], format: date-time }
+                  lastActionAt: { type: [string, 'null'], format: date-time }
+                  totals:
+                    {
+                      type: object,
+                      required:
+                        [
+                          projects,
+                          publications,
+                          events,
+                          aiRequests,
+                          aiErrors,
+                          inputTokens,
+                          outputTokens,
+                        ],
+                    }
+                  activity:
+                    type: array
+                    minItems: 30
+                    maxItems: 30
+                    items: { type: object, required: [date, events, aiRequests] }
+                  latestActions:
+                    type: array
+                    maxItems: 5
+                    items: { type: object, required: [occurredAt, eventType, module] }
+                  rating: { type: object, required: [kind, value, rank, label, periodDays] }
+                  coverage:
+                    {
+                      type: object,
+                      required: [activityFrom, limited, aiDetailedRequests, tokenRequests],
+                    }
+        '400': { description: Invalid typed identity or classroom scope }
+        '401': { description: Current session required }
+        '403': { description: Fresh CRM subject or exact Seat/class scope denied }
   /api/crm/v1/users/student/{target}/detail:
     parameters:
       - { in: path, name: target, required: true, schema: { type: string, format: uuid } }

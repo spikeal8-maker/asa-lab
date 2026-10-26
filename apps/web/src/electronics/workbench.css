@@ -14,6 +14,10 @@
 .workbench-shell.library-collapsed {
   --wb-library-width: 32px;
 }
+/* The rotating horn can extend beyond the owner's fixed SVG viewport. */
+svg[data-servo-angle-degrees] {
+  overflow: visible;
+}
 .workbench-loading {
   min-height: 100vh;
   display: grid;
@@ -3836,6 +3840,14 @@ html.arduino-drawer-resizing * {
   border-left: 4px solid #2c9d59;
   border-radius: 4px;
   background: #fff;
+}
+.arduino-command-library summary {
+  padding: 12px 4px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.arduino-command-library .arduino-command-reference-item {
+  margin-top: 6px;
 }
 .arduino-command-reference-item.support-limited {
   border-left-color: #d49b1d;

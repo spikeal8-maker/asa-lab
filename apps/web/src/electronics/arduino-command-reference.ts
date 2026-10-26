@@ -122,13 +122,13 @@ const REFERENCE_METADATA = {
   'Servo.attach': {
     signature: 'servo.attach(pin)',
     category: 'io',
-    limits: 'Нужен объявленный объект Servo. Подключает его к цифровому выводу, сигнал 50 Гц.',
+    limits: 'После подключения Servo.h и объявления servo: pin — цифровой вывод, сигнал 50 Гц.',
     example: 'servo.attach(9);',
   },
   'Servo.write': {
     signature: 'servo.write(angle)',
     category: 'io',
-    limits: 'Заданный угол 0–180° преобразуется в импульс 544–2400 мкс.',
+    limits: 'После attach(): angle — угол 0–180°, импульс 544–2400 мкс.',
     example: 'servo.write(90);',
   },
   'Servo.read': {
@@ -152,7 +152,7 @@ const REFERENCE_METADATA = {
   setup: {
     signature: 'void setup()',
     category: 'program',
-    limits: 'Выполняется при запуске ограниченного runtime.',
+    limits: 'Выполняется один раз при запуске симуляции.',
     example: 'void setup() {\n  pinMode(13, OUTPUT);\n}',
   },
   loop: {
@@ -164,19 +164,19 @@ const REFERENCE_METADATA = {
   pinMode: {
     signature: 'pinMode(pin, mode)',
     category: 'io',
-    limits: 'Цифровые выводы D0–D13; INPUT, INPUT_PULLUP или OUTPUT.',
+    limits: 'pin — D0–D13 или A0–A5; mode — INPUT, INPUT_PULLUP или OUTPUT.',
     example: 'pinMode(2, INPUT_PULLUP);',
   },
   digitalWrite: {
     signature: 'digitalWrite(pin, level)',
     category: 'io',
-    limits: 'D0–D13; уровень LOW или HIGH.',
+    limits: 'pin — D0–D13 или A0–A5; level — LOW или HIGH.',
     example: 'digitalWrite(13, HIGH);',
   },
   digitalRead: {
     signature: 'digitalRead(pin)',
     category: 'io',
-    limits: 'D0–D13; результат LOW или HIGH.',
+    limits: 'pin — D0–D13 или A0–A5; результат LOW или HIGH.',
     example: 'int pressed = digitalRead(2);',
   },
   analogRead: {
@@ -254,55 +254,55 @@ const REFERENCE_METADATA = {
   micros: {
     signature: 'micros()',
     category: 'time',
-    limits: 'Микросекундные часы ещё не исполняются.',
+    limits: 'Время симуляции в мкс; точность тактов AVR не моделируется.',
     example: 'unsigned long now = micros();',
   },
   pulseIn: {
     signature: 'pulseIn(pin, level[, timeout])',
     category: 'time',
-    limits: 'Измерение длительности импульса ещё не исполняется.',
-    example: 'long width = pulseIn(7, HIGH);',
+    limits: 'Длительность level на pin в мкс; 0 — таймаут timeout. Без точности тактов AVR.',
+    example: 'long width = pulseIn(7, HIGH, 1000);',
   },
   random: {
     signature: 'random([minimum,] maximum)',
     category: 'math',
-    limits: 'Seeded deterministic random ещё не реализован.',
+    limits: 'Генератор случайных чисел пока не исполняется.',
     example: 'long value = random(0, 100);',
   },
   randomSeed: {
     signature: 'randomSeed(seed)',
     category: 'math',
-    limits: 'Seeded deterministic random ещё не реализован.',
+    limits: 'Генератор случайных чисел пока не исполняется.',
     example: 'randomSeed(42);',
   },
   'Serial.begin': {
     signature: 'Serial.begin(baudRate)',
     category: 'serial',
-    limits: 'Монитор пока не связан с UART runtime.',
+    limits: 'baudRate сохраняется для монитора; побитовый обмен UART не моделируется.',
     example: 'Serial.begin(9600);',
   },
   'Serial.print': {
     signature: 'Serial.print(value)',
     category: 'serial',
-    limits: 'Вывод в монитор пока не исполняется.',
-    example: 'Serial.print(value);',
+    limits: 'value — число или строка в кавычках; история вывода ограничена.',
+    example: 'Serial.begin(9600);\nSerial.print(42);',
   },
   'Serial.println': {
     signature: 'Serial.println(value)',
     category: 'serial',
-    limits: 'Вывод в монитор пока не исполняется.',
-    example: 'Serial.println(value);',
+    limits: 'value — число или строка в кавычках; история вывода ограничена.',
+    example: 'Serial.begin(9600);\nSerial.println(42);',
   },
   'Serial.available': {
     signature: 'Serial.available()',
     category: 'serial',
-    limits: 'Очередь входа Serial пока не реализована.',
+    limits: 'Монитор передаёт байты в ограниченную очередь платы.',
     example: 'if (Serial.available()) { }',
   },
   'Serial.read': {
     signature: 'Serial.read()',
     category: 'serial',
-    limits: 'Очередь входа Serial пока не реализована.',
+    limits: 'Монитор передаёт байты в ограниченную очередь платы.',
     example: 'int incoming = Serial.read();',
   },
   HIGH: {
@@ -451,8 +451,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Выбрать одну из двух ветвей',
     signature: 'if (...) { ... } else { ... }',
     category: 'control',
-    limits:
-      'Поддерживается обычный if/else с фигурными скобками; цепочка else if пока не подтверждена.',
+    limits: 'Поддерживаются if, else if и else; выполняется подходящая ветвь.',
     example:
       'if (digitalRead(2) == HIGH) {\n  digitalWrite(13, HIGH);\n} else {\n  digitalWrite(13, LOW);\n}',
   },
@@ -462,7 +461,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     signature: 'for (начало; условие; шаг) { ... }',
     category: 'control',
     limits:
-      'Для безопасности тело выполняется один раз; это не полноценный цикл настоящего контроллера.',
+      'Повторяет тело, пока условие истинно; шаг меняет счётчик. Есть защитный лимит операций.',
     example: 'for (int i = 0; i < 3; i += 1) {\n  digitalWrite(13, HIGH);\n}',
   },
   while: {
@@ -470,7 +469,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Цикл пока условие истинно',
     signature: 'while (условие) { ... }',
     category: 'control',
-    limits: 'Условие проверяется, но тело выполняется не более одного раза за расчёт.',
+    limits: 'Повторяет тело, пока условие истинно; есть защитный лимит операций.',
     example: 'while (digitalRead(2) == HIGH) {\n  digitalWrite(13, HIGH);\n}',
   },
   switch: {
@@ -534,7 +533,7 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Арифметические действия',
     signature: '+  -  *  /  %',
     category: 'math',
-    limits: 'Деление и остаток от деления на ноль дают безопасный ноль, а не ошибку платы.',
+    limits: 'Деление на ноль и знаковое переполнение останавливают расчёт с ошибкой.',
     example: 'int average = (left + right) / 2;',
   },
 } as const satisfies Readonly<Record<ArduinoLanguageFeature, ArduinoLanguageReferenceMetadata>>;
@@ -564,8 +563,8 @@ export const ARDUINO_REFERENCE_ENTRIES: readonly ArduinoCommandReferenceEntry[] 
 
 export function arduinoSupportStatusLabel(status: ArduinoSupportStatus): string {
   if (status === 'supported') return 'Работает';
-  if (status === 'limited') return 'Ограничено';
-  return 'Пока не работает';
+  if (status === 'limited') return 'Особенности симуляции';
+  return 'Не исполняется';
 }
 
 export function filterArduinoCommandReference(
@@ -582,6 +581,7 @@ export function filterArduinoCommandReference(
       entry.signature,
       entry.summary,
       entry.limits,
+      entry.command.startsWith('Servo') ? 'библиотеки библиотека libraries серво сервопривод' : '',
       ARDUINO_COMMAND_CATEGORY_LABELS[entry.category],
       ARDUINO_COMMAND_CATEGORY_SEARCH_TERMS[entry.category],
     ]

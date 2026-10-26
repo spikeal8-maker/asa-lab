@@ -4,13 +4,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { CrmUserCard, CrmDocumentView } from '../CrmUserCard';
 import { crmApi, type CrmContentPage } from '../crm-user-api';
-import { crmProfileFixture, CRM_ID } from './crm-user.fixture';
+import { crmProfileFixture, crmDashboardFixture, CRM_ID } from './crm-user.fixture';
 let host: HTMLDivElement, root: Root;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
+  vi.spyOn(crmApi, 'dashboard').mockResolvedValue(ok(crmDashboardFixture()));
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -27,6 +28,9 @@ async function show(
 ) {
   await act(async () =>
     root.render(createElement(CrmUserCard, { kind, targetId, onAccessDenied, onChanged })),
+  );
+  await act(async () =>
+    [...host.querySelectorAll('button')].find((b) => b.textContent === 'Профиль')?.click(),
   );
 }
 async function button(text: string) {

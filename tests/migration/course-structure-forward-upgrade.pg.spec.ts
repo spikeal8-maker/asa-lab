@@ -126,9 +126,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0253', // Optional scoped campaign observations and factual catalog projections.
         '0254', // Free server internet evidence and bounded public weather cache.
         '0255', // Read-only administrative visibility of retained legacy publications.
-        '0256', // Bounded complete AI answers and generation lease.
-        '0257', // Administrative generation policy and domain-filtered retrieval.
-        '0258', // Independent local image jobs, private outputs and durable GPU admission.
+        '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+        '0257', // Bounded complete AI answers and generation lease.
+        '0258', // Administrative generation policy and domain-filtered retrieval.
+        '0259', // Independent local image jobs, private outputs and durable GPU admission.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -414,9 +415,10 @@ describe('Course Builder structure forward upgrade', () => {
           '0253', // Optional scoped campaign observations and factual catalog projections.
           '0254', // Free server internet evidence and bounded public weather cache.
           '0255', // Read-only administrative visibility of retained legacy publications.
-          '0256', // Bounded complete AI answers and generation lease.
-          '0257', // Administrative generation policy and domain-filtered retrieval.
-          '0258', // Independent local image jobs, private outputs and durable GPU admission.
+          '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+          '0257', // Bounded complete AI answers and generation lease.
+          '0258', // Administrative generation policy and domain-filtered retrieval.
+          '0259', // Independent local image jobs, private outputs and durable GPU admission.
         ]);
         expect(
           await applyIsolatedTestPlan(

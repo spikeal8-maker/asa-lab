@@ -3,7 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, it, expect, vi } from 'vitest';
 import { crmApi } from '../crm-user-api';
-import { crmProfileFixture } from './crm-user.fixture';
+import { crmProfileFixture, crmDashboardFixture } from './crm-user.fixture';
 import { AdminUsersCatalog } from '../AdminUsersCatalog';
 import {
   adminApi,
@@ -25,6 +25,11 @@ beforeEach(() => {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
+  vi.spyOn(crmApi, 'dashboard').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: crmDashboardFixture('student'),
+  });
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -362,6 +367,7 @@ it('replaces a ready Seat card when same-scope responsibilities change and ignor
   };
   await show(privileged);
   await button('Полная карточка пользователя');
+  await button('Профиль');
   expect((host.querySelector('.crm-full-form input') as HTMLInputElement).value).toBe(
     'Old privileged detail',
   );
@@ -378,6 +384,7 @@ it('replaces a ready Seat card when same-scope responsibilities change and ignor
   );
   expect(host.textContent).not.toContain('LATE OLD PRIVATE DATA');
   await button('Полная карточка пользователя');
+  await button('Профиль');
   expect((host.querySelector('.crm-full-form input') as HTMLInputElement).value).toBe(
     'Current scoped detail',
   );

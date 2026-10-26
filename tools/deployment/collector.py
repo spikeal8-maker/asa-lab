@@ -106,7 +106,50 @@ def linux_operator():
     return operator
 
 
+def native_application_logging(install):
+    """Attest the selected resolved Compose capability, never an environment hint."""
+    if not (install.root / 'compose.yaml').is_file(): return False
+    config = json.loads(install.compose('config', '--format', 'json', capture=True))
+    api = config.get('services', {}).get('api', {})
+    return (api.get('environment', {}).get('ASA_APPLICATION_LOG_STORE') == '/var/lib/asa-application-logs'
+            and 'application-logs' in config.get('volumes', {})
+            and any(m.get('type') == 'volume' and m.get('source') == 'application-logs'
+                    and m.get('target') == '/var/lib/asa-application-logs' and not m.get('read_only')
+                    for m in api.get('volumes', [])))
+
+
 def prepare(install):
+    try:
+        return _prepare_host(install)
+    except Blocked as exc:
+        operational = (exc.code in ('COLLECTOR_OPERATOR', 'COLLECTOR_RUNNER_PERMISSION')
+                       or exc.code == 'COLLECTOR_RUNNER' and any(
+                           marker in str(exc) for marker in ('outcome=tool-unavailable', 'outcome=permission-denied', 'outcome=manager-unavailable')))
+        if not operational or not native_application_logging(install): raise
+        # Configuration/identity/path failures are never an operational fallback.
+        # Recheck before writing a degradation receipt, and preserve registration.
+        safe_paths(install); validate_config(install)
+        configured = install.env.get('ASA_LOG_READER_GID')
+        require(configured is None or configured.isdecimal() and int(configured) > 0,
+                'COLLECTOR_READER_GROUP', 'Persisted diagnostic reader GID must be a positive integer.')
+        previous = read_json(install.state / 'collector-runner.json', {})
+        require(not previous or previous.get('root') == str(install.root) and previous.get('project') == install.project,
+                'COLLECTOR_RUNNER_IDENTITY', 'Runner registration belongs to another installation.')
+        for path in (install.state / 'diagnostics/store', install.state / 'diagnostics/private'):
+            path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        config_path = install.state / 'log-collector.json'
+        if not config_path.exists():
+            atomic_json(config_path, {'version': 1, 'project': install.project, 'retentionDays': 30,
+                                     'maxBytes': 1024**3, 'intervalSeconds': 20, 'fileSources': []})
+        result = {'state': 'degraded', 'code': exc.code, 'detail': str(exc)[:500],
+                  'readerGroupChanged': False, 'applicationCollection': 'embedded'}
+        atomic_json(install.state / 'collector-operation.json',
+                    {'at': dt.datetime.now(dt.timezone.utc).isoformat(), **result})
+        print('COLLECTOR degraded: optional host runner unavailable; application-owned collection remains enabled')
+        return result
+
+
+def _prepare_host(install):
     """Run only inside an authorized install/up/update, before the Compose switch."""
     safe_paths(install)
     records = install.identity(existing=False)
@@ -594,7 +637,11 @@ def main(argv=None):
     except (Blocked, OSError, ValueError, KeyError) as exc:
         result = {'state': 'degraded', 'code': getattr(exc, 'code', 'COLLECTOR_CONFIGURATION'), 'detail': str(exc)[:500]}
     print(json.dumps(result))
-    return 0 if result.get("state") != "degraded" else 2
+    # Source up wrappers use prepare as a pre-start guard. A verified native
+    # capability permits optional host degradation; status/reconcile still
+    # report their own degraded state with a nonzero diagnostic exit code.
+    native_prepare = args.action == 'prepare' and result.get('applicationCollection') == 'embedded'
+    return 0 if result.get("state") != "degraded" or native_prepare else 2
 
 
 if __name__ == "__main__":

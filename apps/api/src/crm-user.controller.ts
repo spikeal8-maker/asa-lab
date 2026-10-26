@@ -148,6 +148,23 @@ export class CrmUserController {
       request.id,
     ]);
   }
+  @Get('users/:kind/:target/dashboard')
+  async dashboard(
+    @Req() request: FastifyRequest,
+    @Param('kind') kind: string,
+    @Param('target') target: string,
+    @Query('classroomId') classroom: unknown,
+  ) {
+    const actor = await this.actor(request),
+      subject = crmIdentity(kind, target, classroom);
+    return this.query('SELECT crm_user_dashboard($1,$2,$3,$4,$5) AS value', [
+      actor,
+      subject.kind,
+      subject.target,
+      subject.classroom,
+      request.id,
+    ]);
+  }
   @Put('users/:kind/:target/profile')
   async update(
     @Req() request: FastifyRequest,

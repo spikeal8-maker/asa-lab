@@ -173,8 +173,10 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
         return
-    preparation = prepare_collector(install)
-    install = Installation(install.root, install.profile)
+    preparation = {'readerGroupChanged': False}
+    if same_release:
+        preparation = prepare_collector(install)
+        install = Installation(install.root, install.profile)
     if same_release and not preparation['readerGroupChanged']:
         print("NO_CHANGE the verified release is already running; no backup or restart")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
@@ -183,7 +185,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
     install = Installation(install.root, install.profile)
-    prepare_collector(install)
+    selected_preparation = prepare_collector(install)
+    preparation['readerGroupChanged'] = preparation['readerGroupChanged'] or selected_preparation['readerGroupChanged']
     install = Installation(install.root, install.profile)
     for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN"):
         if key in install.env:

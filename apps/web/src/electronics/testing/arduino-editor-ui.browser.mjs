@@ -17,7 +17,7 @@ const result = await build({
     import * as S from 'scratch-blocks'; import * as A from './src/electronics/arduino-blocks';
     import {ScratchWorkspace,ArduinoCodePanel} from './src/electronics/ArduinoCodePanel';
     const initial = JSON.stringify({variables:Array.from({length:12},(_,i)=>({id:'v'+i,name:'переменная '+i,type:S.SCALAR_VARIABLE_TYPE})),blocks:{blocks:[{type:'asa_loop',id:'loop'}]}});
-    window.fixture={S,A,mountPanel:()=>{const board={id:'uno',kind:'visual',componentTypeId:'arduino-uno',stateProperties:{arduinoCodeMode:'text',arduinoSource:['void setup(){}','void loop(){','  // iii WWW 123','}'].join(String.fromCharCode(10))}};const c={document:{components:[board]},selection:null,simulationRunning:false,arduinoSerialByBoard:{},updateArduinoProgram:()=>{},setNotice:()=>{},sendArduinoSerialRx:()=>{}};createRoot(document.getElementById('app')).render(<ArduinoCodePanel controller={c} open drawerWidth={700} onDrawerWidthChange={()=>{}} mobileHeightPercent={80} onMobileHeightChange={()=>{}} onClose={()=>{}}/>);},mount:(scale,width)=>{
+    window.fixture={S,A,workspace:initial,mountPanel:(mode='text')=>{const board={id:'uno',kind:'visual',componentTypeId:'arduino-uno',stateProperties:{arduinoCodeMode:mode,arduinoWorkspace:initial,arduinoSource:['void setup(){}','void loop(){','  // iii WWW 123','}'].join(String.fromCharCode(10))}};const c={document:{components:[board]},selection:null,simulationRunning:false,arduinoSerialByBoard:{},updateArduinoProgram:(id,properties)=>{window.saved=properties},setNotice:()=>{},sendArduinoSerialRx:()=>{}};createRoot(document.getElementById('app')).render(<ArduinoCodePanel controller={c} open drawerWidth={700} onDrawerWidthChange={()=>{}} mobileHeightPercent={80} onMobileHeightChange={()=>{}} onClose={()=>{}}/>);},mount:(scale,width)=>{
       const root=createRoot(document.getElementById('app'));
       function Demo(){const [category,setCategory]=React.useState('data');return <div className="arduino-block-editor" style={{height:600,'--arduino-flyout-width':width+'px'}}>
         <ScratchWorkspace initialWorkspace={initial} category={category} flyoutWidth={width} paletteScale={scale} onChange={(state,source)=>{window.latest={state,source}}}/>
@@ -60,14 +60,190 @@ const browser = await chromium.launch({ headless: true });
 const receipts = [];
 let activePage;
 try {
-  for (const [width, zoom, mobile] of [
-    [1920, 1, false],
-    [1920, 1.1, false],
-    [1440, 1, false],
-    [1920, 1.25, false],
-    [390, 1, true],
-    [320, 1, true],
-  ]) {
+  if (process.argv.includes('--commands-before')) {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    activePage = page;
+    await page.route('**/*', (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<div id="app"></div>' }),
+    );
+    await page.goto('https://asa-fixture.invalid/');
+    await page.addStyleTag({ content: css });
+    await page.addScriptTag({ content: result.outputFiles[0].text });
+    await page.evaluate(() => window.fixture.mountPanel());
+    await page.locator('.arduino-commands-button').click();
+    const reference = page.getByRole('complementary', { name: 'Справочник команд Arduino' });
+    assert.equal(await reference.locator('summary').filter({ hasText: 'Библиотеки' }).count(), 0);
+    await reference.getByRole('searchbox').fill('for');
+    await reference.getByRole('button', { name: 'Развернуть описание for' }).click();
+    assert.match(await reference.innerText(), /тело выполняется один раз/);
+    await page.screenshot({ path: resolve(output, 'commands-before.png') });
+    await writeFile(
+      resolve(output, 'commands-before.json'),
+      JSON.stringify({ libraries: false, help: await reference.innerText() }, null, 2),
+    );
+    console.log('PASS before: mounted panel lacks Libraries and claims one-pass for');
+    await page.close();
+  } else if (process.argv.includes('--commands')) {
+    for (const width of [1440, 1024, 390, 320]) {
+      const context = await browser.newContext({
+        viewport: { width, height: 900 },
+        hasTouch: width < 500,
+        isMobile: width < 500,
+      });
+      const page = await context.newPage();
+      activePage = page;
+      await page.route('**/*', (route) => {
+        const asset = assets.get(route.request().url());
+        return route.fulfill(
+          asset ?? {
+            contentType: 'text/html',
+            body: '<meta name="viewport" content="width=device-width,initial-scale=1"><div id="app"></div>',
+          },
+        );
+      });
+      await page.goto('https://asa-fixture.invalid/');
+      await page.addStyleTag({
+        content:
+          css +
+          '\n#app{position:relative;height:900px;--wb-code-height:80%;--arduino-code-panel-width:700px}',
+      });
+      await page.addScriptTag({ content: result.outputFiles[0].text });
+      await page.evaluate(() => window.fixture.mountPanel());
+      const editor = page.getByRole('textbox', { name: 'Код Arduino C++' });
+      const original = await editor.inputValue();
+      await page.locator('.arduino-commands-button').click();
+      const ref = page.getByRole('complementary', { name: 'Справочник команд Arduino' });
+      const libraries = ref.locator('summary').filter({ hasText: /^Библиотеки$/ });
+      await libraries.scrollIntoViewIfNeeded();
+      if (width < 500) await libraries.tap();
+      else {
+        await libraries.focus();
+        await page.keyboard.press('Enter');
+      }
+      assert.equal(await libraries.evaluate((e) => e.parentElement.open), true);
+      const servo = ref.locator('summary').filter({ hasText: /^Servo$/ });
+      if (width < 500) await servo.tap();
+      else {
+        await servo.focus();
+        await page.keyboard.press('Space');
+      }
+      assert.equal(await servo.evaluate((e) => e.parentElement.open), true);
+      assert.equal(await ref.locator('.arduino-command-library article').count(), 5);
+      const search = ref.getByRole('searchbox');
+      for (const alias of ['библиотеки', 'libraries', 'сервопривод', 'Servo']) {
+        await search.fill(alias);
+        assert.equal(await ref.locator('article').count(), 5, alias);
+      }
+      await search.fill('Servo.read');
+      assert.equal(await ref.locator('article').count(), 1);
+      await ref.getByRole('button', { name: 'Развернуть описание servo.read()' }).click();
+      assert.match(await ref.innerText(), /не измерение положения физического вала/);
+      await search.fill('библиотека');
+      await editor.press('Control+Home');
+      await ref.locator('.arduino-command-drag').filter({ hasText: '#include <Servo.h>' }).click();
+      assert.equal(await editor.inputValue(), '#include <Servo.h>\nServo servo;\n' + original);
+      // Click inserts at the tracked cursor inside setup, using the same path as ordinary commands.
+      const attachAt = (await editor.inputValue()).indexOf('}');
+      await editor.evaluate((e, at) => {
+        e.focus();
+        e.setSelectionRange(at - 1, at - 1);
+      }, attachAt);
+      await editor.press('ArrowRight');
+      await ref.locator('.arduino-command-drag').filter({ hasText: 'servo.attach(pin)' }).click();
+      assert.match(await editor.inputValue(), /void setup\(\)\{\nservo.attach\(9\);\n\}/);
+      let nativeDrag = null;
+      if (width === 1440) {
+        const row = ref.locator('.arduino-command-drag').filter({ hasText: 'servo.write(angle)' });
+        await row.scrollIntoViewIfNeeded();
+        const start = await row.boundingBox();
+        const target = await editor.evaluate((e) => {
+          const r = e.getBoundingClientRect(),
+            style = getComputedStyle(e);
+          const line = e.value.split('\n').findIndex((line) => line.includes('// iii'));
+          return {
+            x: r.x + 80,
+            y:
+              r.y +
+              parseFloat(style.paddingTop) +
+              line * parseFloat(style.lineHeight) -
+              e.scrollTop +
+              2,
+          };
+        });
+        await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(start.x + start.width / 2 + 12, start.y + start.height / 2, {
+          steps: 5,
+        });
+        await page.mouse.move(target.x, target.y, { steps: 25 });
+        await page.mouse.move(target.x + 1, target.y, { steps: 2 });
+        await page.locator('.arduino-snippet-drop-line').waitFor();
+        nativeDrag = await page.locator('.arduino-snippet-drop-line').innerText();
+        await page.mouse.up();
+        assert.match(await editor.inputValue(), /void loop\(\)\{\nservo.write\(90\);\n  \/\/ iii/);
+      }
+      assert.match(await editor.inputValue(), /\/\/ iii WWW 123/);
+      const saved = await page.evaluate(() => window.saved);
+      assert.equal(saved.arduinoSource, await editor.inputValue());
+      assert.equal(saved.arduinoWorkspace, await page.evaluate(() => window.fixture.workspace));
+      await search.fill('no-such-command');
+      assert.match(await ref.innerText(), /Ничего не найдено/);
+      await search.fill('random');
+      assert.match(await ref.innerText(), /Не исполняется/);
+      await search.fill('Servo');
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),
+        false,
+      );
+      await page.screenshot({ path: resolve(output, 'commands-' + width + '.png') });
+      receipts.push({ width, nativeDrag, saved });
+      // Mixed mode keeps the reference informative and disables every insertion gesture.
+      const mixed = await context.newPage();
+      activePage = mixed;
+      await mixed.route('**/*', (route) =>
+        route.fulfill(
+          assets.get(route.request().url()) ?? {
+            contentType: 'text/html',
+            body: '<div id="app"></div>',
+          },
+        ),
+      );
+      await mixed.goto('https://asa-fixture.invalid/');
+      await mixed.addStyleTag({
+        content:
+          css +
+          '\n#app{position:relative;height:900px;--wb-code-height:80%;--arduino-code-panel-width:700px}',
+      });
+      await mixed.addScriptTag({ content: result.outputFiles[0].text });
+      await mixed.evaluate(() => window.fixture.mountPanel('blocks-text'));
+      await mixed.locator('.arduino-commands-button').click();
+      await mixed.getByRole('searchbox', { name: 'Поиск команды Arduino' }).fill('Servo');
+      const readonly = mixed.getByRole('textbox', { name: 'Сгенерированный код Arduino' });
+      const before = await readonly.inputValue();
+      assert.equal(await readonly.getAttribute('readonly'), '');
+      const commands = mixed.locator('.arduino-command-library .arduino-command-drag');
+      assert.equal(await commands.count(), 5);
+      for (const button of await commands.all())
+        assert.equal(await button.getAttribute('draggable'), 'false');
+      await commands.first().click();
+      assert.equal(await readonly.inputValue(), before);
+      await context.close();
+    }
+    await writeFile(resolve(output, 'commands-receipts.json'), JSON.stringify(receipts, null, 2));
+    console.log(
+      'PASS Commands: keyboard/touch Libraries, search, cursor click, native mouse line drag, preserved text/workspace, read-only mixed at1440/1024/390/320',
+    );
+  }
+  for (const [width, zoom, mobile] of process.argv.some((arg) => arg.startsWith('--commands'))
+    ? []
+    : [
+        [1920, 1, false],
+        [1920, 1.1, false],
+        [1440, 1, false],
+        [1920, 1.25, false],
+        [390, 1, true],
+        [320, 1, true],
+      ]) {
     const context = await browser.newContext({
       viewport: {
         width: Math.floor(width / (mobile ? 1 : zoom)),
@@ -592,10 +768,12 @@ try {
     await panel.close();
     await context.close();
   }
-  await writeFile(resolve(output, 'receipts.json'), JSON.stringify(receipts, null, 2));
-  console.log(
-    `PASS ${receipts.length} real-component palette/menu checks across Full HD effective100/110/125 and1440/390/320 (CSS viewport/DPR emulation, not browser Ctrl zoom)`,
-  );
+  if (!process.argv.some((arg) => arg.startsWith('--commands'))) {
+    await writeFile(resolve(output, 'receipts.json'), JSON.stringify(receipts, null, 2));
+    console.log(
+      `PASS ${receipts.length} real-component palette/menu checks across Full HD effective100/110/125 and1440/390/320 (CSS viewport/DPR emulation, not browser Ctrl zoom)`,
+    );
+  }
 } catch (error) {
   await activePage?.screenshot({ path: resolve(output, 'failure.png') });
   await writeFile(

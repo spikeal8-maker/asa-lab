@@ -29,6 +29,58 @@ def fixture(root):
 
 
 class CollectorLifecycleTests(unittest.TestCase):
+    def native_config(self):
+        return {'services': {'api': {'environment': {'ASA_APPLICATION_LOG_STORE': '/var/lib/asa-application-logs'},
+            'volumes': [{'type': 'volume', 'source': 'application-logs', 'target': '/var/lib/asa-application-logs'}]}},
+            'volumes': {'application-logs': {}}}
+
+    def test_native_logging_keeps_fresh_install_possible_without_optional_windows_scheduler(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); install = fixture(root)
+            (root/'compose.yaml').write_text('native fixture')
+            with patch.object(install, 'identity', return_value={}), patch.object(install, 'compose', return_value=json.dumps(self.native_config())), \
+                    patch('deployment.collector.WINDOWS', True), patch('deployment.collector.ps_scheduler',
+                    side_effect=Blocked('COLLECTOR_RUNNER', 'outcome=tool-unavailable', 'optional tool')):
+                result = lifecycle.prepare(install)
+            self.assertEqual(result['state'], 'degraded')
+            self.assertFalse(result['readerGroupChanged'])
+            self.assertEqual(result['applicationCollection'], 'embedded')
+            self.assertTrue((root/'.asa/diagnostics/store').is_dir())
+            self.assertEqual(json.loads((root/'.asa/log-collector.json').read_text())['project'], install.project)
+
+    def test_native_logging_degrades_only_operational_absence_not_config_or_foreign_identity(self):
+        for failure in ('operator', 'config', 'foreign'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve(); install = fixture(root); install.state.mkdir()
+                (root/'compose.yaml').write_text('native fixture')
+                if failure == 'config': atomic_json(install.state/'log-collector.json', {'retentionDays': -1})
+                if failure == 'foreign': atomic_json(install.state/'collector-runner.json', {'root': '/foreign', 'project': 'foreign'})
+                with patch.object(install, 'identity', return_value={}), patch.object(install, 'compose', return_value=json.dumps(self.native_config())), \
+                        patch('deployment.collector.WINDOWS', False), patch('deployment.collector.linux_operator',
+                        side_effect=Blocked('COLLECTOR_OPERATOR', 'root has no nonroot operator', 'optional operator')):
+                    if failure == 'operator': self.assertEqual(lifecycle.prepare(install)['state'], 'degraded')
+                    else:
+                        with self.assertRaises(Blocked) as caught: lifecycle.prepare(install)
+                        self.assertEqual(caught.exception.code, 'COLLECTOR_CONFIG' if failure == 'config' else 'COLLECTOR_RUNNER_IDENTITY')
+
+    def test_legacy_compose_still_blocks_missing_host_operator(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); install = fixture(root)
+            (root/'compose.yaml').write_text('legacy fixture')
+            with patch.object(install, 'identity', return_value={}), patch.object(install, 'compose', return_value=json.dumps({'services': {'api': {}}})), \
+                    patch('deployment.collector.WINDOWS', False), patch('deployment.collector.linux_operator',
+                    side_effect=Blocked('COLLECTOR_OPERATOR', 'operator absent', 'operator required')):
+                with self.assertRaises(Blocked) as caught: lifecycle.prepare(install)
+            self.assertEqual(caught.exception.code, 'COLLECTOR_OPERATOR')
+
+    def test_prepare_cli_allows_only_attested_native_degradation_for_source_up(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); install = fixture(root)
+            degraded = {'state': 'degraded', 'applicationCollection': 'embedded', 'readerGroupChanged': False}
+            with patch('deployment.collector.Installation', return_value=install), patch('deployment.collector.prepare', return_value=degraded):
+                self.assertEqual(lifecycle.main(['prepare', '--root', str(root), '--profile', 'dev']), 0)
+            with patch('deployment.collector.Installation', return_value=install), patch('deployment.collector.status', return_value=degraded):
+                self.assertEqual(lifecycle.main(['status', '--root', str(root), '--profile', 'dev']), 2)
     def test_packaged_collector_imports_memory_module_and_digest_tracks_it(self):
         from deployment.ci_collector_fixture import copy_collector_fixture
         with tempfile.TemporaryDirectory() as directory:

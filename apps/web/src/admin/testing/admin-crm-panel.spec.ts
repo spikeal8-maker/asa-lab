@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { UserCrmPanel } from '../AdminPage';
 import { adminApi, type AdminAccountCrm, type AdminScope } from '../admin-api';
 import { crmApi } from '../crm-user-api';
-import { crmProfileFixture } from './crm-user.fixture';
+import { crmProfileFixture, crmDashboardFixture } from './crm-user.fixture';
 import { catalogUserFixture } from './admin-user-catalog.fixture';
 let host: HTMLDivElement, root: Root;
 const account = catalogUserFixture('account').account!;
@@ -35,6 +35,7 @@ beforeEach(() => {
   document.body.append(host);
   root = createRoot(host);
   vi.spyOn(crmApi, 'profile').mockResolvedValue(ok(crmProfileFixture()));
+  vi.spyOn(crmApi, 'dashboard').mockResolvedValue(ok(crmDashboardFixture()));
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -54,6 +55,9 @@ async function show(denied = vi.fn(), selected = account) {
         onAccessDenied: denied,
       }),
     ),
+  );
+  await act(async () =>
+    [...host.querySelectorAll('button')].find((b) => b.textContent === 'Профиль')?.click(),
   );
 }
 async function click(text: string) {
