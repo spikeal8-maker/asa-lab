@@ -743,9 +743,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           }),
         };
       });
-      expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.actions.top);
-      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.workspace.top);
-      expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.about.top);
+      expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.workspace.top);
+      expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.actions.top);
+      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
       expect(geometry.workspace.width).toBeGreaterThan(width * 0.8);
       await expect(guest.getByTestId('public-project-detail').locator('aside, figure')).toHaveCount(
         0,

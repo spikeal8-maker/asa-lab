@@ -6,7 +6,7 @@ import type { ElectronicsDisplayArtifact } from '../packages/contracts/src/publi
 import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 
-const EVIDENCE = 'e2e/artifacts/public-electronics-viewer';
+const EVIDENCE = 'e2e/artifacts/public-projects/electronics-viewer';
 const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440];
 const headers = (page: Page) => ({ origin: new URL(page.url()).origin });
 function publicScriptEvidence(page: Page, revision: string) {
@@ -14,6 +14,17 @@ function publicScriptEvidence(page: Page, revision: string) {
     readFileSync(`apps/web/private-symbols/web-rendered-modules-${revision}.json`, 'utf8'),
   );
   expect(index.revision).toBe(revision);
+  // Match the emitted boundary check by source-module identity. Rendering-only
+  // workbench geometry/model/icons are shared primitives, not editor entrypoints.
+  const forbiddenModules = [
+    /apps\/web\/src\/pages\/SchematicEditor\.tsx$/,
+    /apps\/web\/src\/electronics\/(?:use-electronics-workbench|use-workbench-project-state|workbench-autosave|workbench-runtime-controls|WorkbenchStage|WorkbenchSidebars|WorkbenchHeader|AlternateWorkbenchViews)(?:\.|\/)/,
+    /apps\/web\/src\/electronics\/(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
+    /apps\/web\/src\/electronics\/(?:arduino-blocks|arduino-block-ui|arduino-program-state|arduino-pin-inputs)(?:\.|\/)/,
+    /contexts\/electronics\/(?:engine|simulation|module)\.ts$/,
+    /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*(?:runtime|transient-model|audio-model))(?:\.|\/)/,
+    /apps\/web\/src\/modules\/(?:use-project|project-autosave|use-module-project)/,
+  ];
   const forbiddenFiles = new Set(
     Object.entries(index.assets)
       .filter(([, value]) => {
@@ -21,12 +32,7 @@ function publicScriptEvidence(page: Page, revision: string) {
         return chunk.modules.some(
           (module) =>
             module.renderedLength > 0 &&
-            (/apps\/web\/src\/electronics\/(?:use-electronics-workbench|use-workbench-project-state|workbench-autosave|Workbench|Arduino|.*worker.*|live-simulation|use-piezo-audio)/i.test(
-              module.id,
-            ) ||
-              /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*(?:runtime|transient|audio))/.test(
-                module.id,
-              )),
+            forbiddenModules.some((rule) => rule.test(module.id.replaceAll('\\', '/'))),
         );
       })
       .map(([file]) => file),
@@ -111,6 +117,14 @@ async function capture(page: Page, name: string) {
   await expect(page.getByTestId('public-electronics-component')).toHaveCount(3);
   await expect(page.getByTestId('public-electronics-wire')).toHaveCount(3);
   await page.screenshot({ path: `${EVIDENCE}/${name}.png` });
+  if (name === 'normal-1440' || name === 'normal-390') {
+    // The short-title normal fixture must expose the complete stage, including
+    // its zoom/fit toolbar and hint, without an initial page scroll.
+    const bounds = await page.getByTestId('public-electronics-viewer').boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(await page.evaluate(() => innerHeight));
+  }
 }
 async function place(page: Page, name: string, x: number, y: number) {
   await page.getByRole('textbox', { name: 'Поиск компонентов', exact: true }).fill(name);

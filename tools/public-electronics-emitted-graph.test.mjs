@@ -13,6 +13,56 @@ import { fileURLToPath } from 'node:url';
 const checker = fileURLToPath(new URL('./public-electronics-emitted-graph.mjs', import.meta.url));
 const entry = 'src/projects-public/ElectronicsPublicationScene.tsx';
 
+test('browser and graph guard classify exact executable entries while allowing pure renderer primitives', () => {
+  const rules = (url, name) => {
+    const source = readFileSync(url, 'utf8');
+    const array = source.match(new RegExp(`const ${name} = (\\[[\\s\\S]*?\\n\\s*\\]);`))?.[1];
+    assert.ok(array, `missing ${name} matcher fixture`);
+    // The guard is a literal list of regexes; parse literals without executing
+    // either source file or evaluating arbitrary test-source expressions.
+    return array
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('/'))
+      .map((line) => {
+        const literal = line.replace(/,$/, '');
+        const end = literal.lastIndexOf('/');
+        assert.ok(end > 0);
+        return new RegExp(literal.slice(1, end), literal.slice(end + 1));
+      });
+  };
+  const graphRules = rules(
+    new URL('./public-electronics-emitted-graph.mjs', import.meta.url),
+    'forbidden',
+  );
+  const browserRules = rules(
+    new URL('../e2e/public-project-electronics-viewer.spec.ts', import.meta.url),
+    'forbiddenModules',
+  );
+  assert.deepEqual(
+    Array.from(graphRules, (rule) => rule.toString()),
+    Array.from(browserRules, (rule) => rule.toString()),
+  );
+  for (const [id, forbidden] of [
+    ['apps/web/src/electronics/workbench-icons.tsx', false],
+    ['apps/web/src/electronics/workbench-model.ts', false],
+    ['apps/web/src/electronics/workbench-geometry.ts', false],
+    ['apps/web/src/pages/SchematicEditor.tsx', true],
+    ['apps/web/src/electronics/use-electronics-workbench.ts', true],
+    ['apps/web/src/electronics/workbench-autosave.ts', true],
+    ['apps/web/src/electronics/simulation.worker.ts', true],
+    ['apps/web/src/electronics/ArduinoSerialMonitor.tsx', true],
+    ['apps/web/src/electronics/use-piezo-audio.ts', true],
+    ['contexts/electronics/domain/solver.ts', true],
+    ['contexts/electronics/domain/models/capacitor-transient-model.ts', true],
+  ])
+    assert.equal(
+      browserRules.some((rule) => rule.test(id)),
+      forbidden,
+      id,
+    );
+});
+
 function fixture(mutate = () => {}) {
   const root = mkdtempSync(resolve(tmpdir(), 'asa-rendered-evidence-'));
   const write = (path, value) => {

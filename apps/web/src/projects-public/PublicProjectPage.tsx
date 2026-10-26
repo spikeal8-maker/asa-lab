@@ -130,6 +130,13 @@ export function PublicProjectPage({
             <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             <p className="public-project-detail-author">{publication.authorLabel}</p>
           </header>
+          <section className="public-project-viewer" aria-label="Просмотр проекта">
+            <PublicationArtifact
+              key={publication.revisionId}
+              publication={publication}
+              onUnavailable={unavailable}
+            />
+          </section>
           <div className="public-project-commandbar" aria-label="Действия с проектом">
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
@@ -156,13 +163,6 @@ export function PublicProjectPage({
               </button>
             </div>
           </div>
-          <section className="public-project-viewer" aria-label="Просмотр проекта">
-            <PublicationArtifact
-              key={publication.revisionId}
-              publication={publication}
-              onUnavailable={unavailable}
-            />
-          </section>
           <section className="public-project-about" aria-label="О проекте">
             {publication.description ? (
               <>

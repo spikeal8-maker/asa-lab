@@ -41,6 +41,7 @@ function insideDist(file) {
   return path;
 }
 const forbidden = [
+  /apps\/web\/src\/pages\/SchematicEditor\.tsx$/,
   /apps\/web\/src\/electronics\/(?:use-electronics-workbench|use-workbench-project-state|workbench-autosave|workbench-runtime-controls|WorkbenchStage|WorkbenchSidebars|WorkbenchHeader|AlternateWorkbenchViews)(?:\.|\/)/,
   /apps\/web\/src\/electronics\/(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
   /apps\/web\/src\/electronics\/(?:arduino-blocks|arduino-block-ui|arduino-program-state|arduino-pin-inputs)(?:\.|\/)/,

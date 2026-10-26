@@ -70,8 +70,8 @@ it('reads title, honest cover, real actions, then description and publication fa
   const article = container.querySelector('article')!;
   expect([...article.children].map((element) => element.tagName)).toEqual([
     'HEADER',
-    'DIV',
     'SECTION',
+    'DIV',
     'SECTION',
   ]);
   expect(article.querySelector('header')?.textContent).toContain('Автор');
