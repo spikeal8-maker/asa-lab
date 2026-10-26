@@ -6464,95 +6464,68 @@ parallel_lanes:
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
+    accepted_slices:
+      - task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+        issue: 702
+        pr: 704
+        accepted_candidate_sha: d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0
+        integrated_sha: 107bbc6b80ae40516b6dd97c0665432143988e07
+        independent_review: approved
+        exact_candidate_focused_run: 40309167638
+        exact_candidate_general_run: 40309167651
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+        issue: 713
+        pr: 717
+        accepted_candidate_sha: 68eae0f19b91099a36c89c81820bc06d5425cf16
+        integrated_sha: 7a6558cacd4fe7d4f50517a3e34c10287f698d30
+        independent_review: approved
+        exact_candidate_focused_run: 40316339667
+        exact_candidate_general_run: 40316339889
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-PROJ-PUBLIC-PAGE-LAYOUT-001
+        issue: 211
+        pr: 780
+        accepted_candidate_sha: 94a969c5f147b984af9eb0fd68f82e4985ce6efe
+        integrated_sha: fbc37240624d4923b31facf747d632bfe04cb6f3
+        independent_review: approved
+        exact_candidate_focused_run: 40326845223
+        exact_candidate_general_run: 40326845387
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
     task:
       id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
       issue: 211
       branch: main
       candidate_branch: codex/public-artifact-envelope-20261026
       base_branch: main
-      pr: null
-      pr_draft: true
+      pr: 781
+      pr_draft: false
       status: in_progress
-      checkpoint: owner_held_module_guard_select_core_public_artifact_envelope
+      checkpoint: artifact_envelope_exact_sha_accepted_ready_for_merge
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-26 owner explicitly requested completion of existing Public
-        Projects work #704, #717, #211, #721 and #723. Asked about the separately
-        required external GitHub security reviewer, owner answered:
-        "нет такого человека без него продолжай". This supersedes the external
-        human-reviewer prerequisite only: retain separate independent agent Code
-        and Security verdicts on the final source, exact-SHA focused PostgreSQL
-        and browser evidence, required General CI and all GitHub protections.
-        Do not invent a formal GitHub APPROVE or use author self-review as an
-        independent verdict. Ordinary Draft transition and merge of accepted
-        slices are authorized after these requirements actually pass.
-        Reuse the existing PRs and preserve published migration history; assign
-        unpublished pin/report migrations the next free actual versions. Keep
-        current retained-publication metadata visibility when composing pins.
-        Continue #717, then #721 and #723 only across their accepted dependency
-        boundaries. No force push, school/production database or deployment.
-        Owner subsequently confirmed DEC-PROJ-116: one personal-account like,
-        no self-likes, real admin publication counters and audited per-publication
-        reaction disabling with a reason. Implement as a separate R8-02 slice
-        after the accepted report chain; no legacy transfer or automatic bonuses.
-        Final pin candidate d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0 passed
-        General40309167651, PublicProjects40309167638 and Account40309167645.
-        Separate independent Code and Security agents both returned exact-SHA
-        PASS; these are not formal GitHub approvals. Acceptance receipt:
-        docs/product/projects/evidence/pins-20261026-acceptance.md.
-        PR704 is MERGED at 107bbc6b80ae40516b6dd97c0665432143988e07.
-        Its candidate has complete exact-SHA evidence; post-merge CI remains
-        separately pending. Select the existing B1 branch only: preserve its
-        implementation, advance the unpublished report migration after0258,
-        repair idempotency/comment/session error handling and refresh fixtures,
-        wire PG/API/HTTP into the focused gate. Do not implement B2 before B1
-        acceptance. No production action.
-        Final B1 candidate68eae0f19b91099a36c89c81820bc06d5425cf16 passed
-        General40316339889 and PublicProjects40316339667. Separate independent
-        Code and Security agents returned exact-SHA PASS. Report receipt:
-        docs/product/projects/evidence/reports-b1-20261026-acceptance.md.
-        PR717 merged at7a6558cacd4fe7d4f50517a3e34c10287f698d30. Select B2
-        issue721 now: one compact accessible dialog and existing report API,
-        real server receipt and retries, guest/Seat denial, browser persistence
-        and responsive evidence. Do not write a second backend or implement B3
-        before accepted B2. Post-merge runs remain separately observed evidence.
-        Latest owner clarification supersedes that sequence: DEC-PROJ-117.
-        Games stay in Games and are excluded from publisher. Start public-page
-        composition now, then artifact contract and actual Electronics/Scratch/3D
-        viewers/download/editor before social functions. Preserve B2 source
-        e1572fd57defa8618d2649ec883143cb5246b01d in DraftPR779 with independent
-        Code/Security PASS; CI may finish but no further complaint implementation
-        or integration is selected now. Do not mix B2 into the layout branch.
-        Further owner decision DEC-PROJ-118 requires independent class download
-        and publish settings with per-StudentSeat inherit/allow/deny overrides,
-        server authorization and audited changes. All active students may view
-        eligible public works and like independently of these flags; this
-        supersedes the earlier Account-only reaction audience. No implicit
-        publication or protected-data authorization bypass is selected.
-        Owner explicitly selected new-class defaults download=false,publish=false;
-        new Seat overrides inherit both. Read and like remain independent.
-        Layout candidate94a969c5f147b984af9eb0fd68f82e4985ce6efe has independent
-        Code/UI PASS and15 targeted unit PASS. Controller inspected normal-title
-        images320/390/1440 from49d2133, whose product code is unchanged at94a969c5.
-        Exact final focused/general CI remains required; no merge/deploy claim.
-        Final94a969c5 now passed PublicProjects40326845223 and complete
-        General40326845387. Final normal and stress screenshots are retained
-        in the exact-SHA focused artifact; Code/UI review PASS and controller
-        visual acceptance are recorded in
-        docs/product/projects/evidence/public-page-layout-20261026-acceptance.md.
-        Layout PR780 merged atfbc37240624d4923b31facf747d632bfe04cb6f3.
-        Select one next bounded prerequisite: server/client publisher module
-        admission limited to three-d,electronics,blocks per DEC117. Preserve game
-        data and Games routes, existing publication safety and admin metadata.
-        Follow with R7-03 public-artifact contract and actual module viewers;
-        do not resume social features before the owner's core priorities.
-        Latest owner concern explicitly pauses the module-admission detour.
-        Candidatef41afd4c19815fd90b0426fc95e50b208c2ed49f is parked on its
-        separate branch, not Main/deployed; its CI was cancelled and no PR is
-        selected. Do not alter Games, its data, APIs, routes or eligibility.
-        Select R7-03A now: pure module-neutral versioned artifact envelope,
-        bounds and read-only capability types/tests, no runtime/API/SQL yet.
-        Target subsequent viewers only Electronics,Blocks,3D per owner scope.
+        Owner authorized completion of the full Public Projects program #211,
+        including actual Electronics/Scratch/3D viewing, downloads, publication
+        editing and administration. Prioritize the core visible workflow before
+        complaints and likes per DEC117 and latest visual-feedback request.
+        DEC118: class download/publish defaults false, separate per-Seat
+        inherit/allow/deny overrides, audited server enforcement; active students
+        may view eligible public works and like independently of these flags.
+        DEC119: do not change Games. Parked module-guard f41afd4c and complaint
+        UI DraftPR779/e1572fd5 are not selected or integrated; preserve their code.
+        Owner explicitly permits separate independent agent Code/Security reviews
+        instead of an unavailable external human, but not fabricated GitHub
+        approvals or protection bypass. Ordinary ready/merge follows actual
+        required exact-SHA evidence. No force push, production deployment or
+        working database changes. Current envelope candidate cb367606 passed
+        General40336671236 and PublicProjects40336671237 with independent Code
+        and Security PASS. Receipt: docs/product/projects/evidence/artifact-envelope-20261026-acceptance.md.
       context_hints:
         - docs/product/projects/tasks/PROJ-R7-03A-ARTIFACT-ENVELOPE.md
         - docs/product/projects/tasks/PROJ-PUBLIC-MODULE-ADMISSION.md
