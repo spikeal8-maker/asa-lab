@@ -1,3 +1,4 @@
+import { AI_MAX_OUTPUT_TOKENS } from './ai-generation-limits.js';
 /** Server-owned text model catalog. The browser consumes this metadata, never an allowlist.
  * Official sources checked 2026-10-19:
  * https://developers.openai.com/api/docs/models/gpt-6-luna
@@ -162,7 +163,7 @@ export function buildAiTextRequest(
           model,
           instructions,
           input: context,
-          max_output_tokens: 1600,
+          max_output_tokens: AI_MAX_OUTPUT_TOKENS,
           store: false,
           stream,
           ...(descriptor.reasoning === 'none' || descriptor.reasoning === 'minimal'
@@ -179,7 +180,7 @@ export function buildAiTextRequest(
           ...(stream ? { stream_options: { include_usage: true } } : {}),
           model,
           messages: [{ role: 'system', content: instructions }, ...context],
-          max_tokens: 1600,
+          max_tokens: AI_MAX_OUTPUT_TOKENS,
           ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
           stream,
         },

@@ -139,11 +139,12 @@ export function AiWebEvidence({
         <section className="asa-ai-weather" aria-label={'Прогноз: ' + data.weather.location}>
           <div className="asa-ai-weather-heading">
             <div>
-              <span>Прогноз погоды</span>
+              <span>Погода · MET Norway</span>
               <h3>{data.weather.location}</h3>
             </div>
             {data.weather.temperatureC !== null ? (
-              <strong>
+              <strong aria-label={`Температура ${Math.round(data.weather.temperatureC)} °C`}>
+                <span aria-hidden="true">🌡️ </span>
                 {Math.round(data.weather.temperatureC)}°<span>C</span>
               </strong>
             ) : null}
@@ -160,7 +161,16 @@ export function AiWebEvidence({
                       minute: '2-digit',
                     })}
                   </time>
-                  <strong>{Math.round(hour.temperatureC)}°</strong>
+                  <strong aria-label={`Температура ${Math.round(hour.temperatureC)} °C`}>
+                    <span aria-hidden="true">🌡️ </span>
+                    {Math.round(hour.temperatureC)}°C
+                  </strong>
+                  {hour.humidityPercent !== null ? (
+                    <small>💧 {Math.round(hour.humidityPercent)}%</small>
+                  ) : null}
+                  {hour.windSpeedMs !== null ? (
+                    <small>💨 {hour.windSpeedMs.toFixed(1)} м/с</small>
+                  ) : null}
                 </li>
               ))}
             </ol>
@@ -192,7 +202,12 @@ export function AiWebEvidence({
         </section>
       ) : null}
       {data.images.length ? (
-        <div className="asa-ai-web-images" aria-label="Найденные изображения">
+        <div
+          className="asa-ai-web-images"
+          role="region"
+          tabIndex={0}
+          aria-label="Найденные изображения, прокрутка по горизонтали"
+        >
           {data.images.map((image) => (
             <a key={image.id} href={image.sourceUrl} target="_blank" rel="noreferrer noopener">
               <ImagePreview path={image.thumbnailUrl} title={image.title} seatId={seatId} />

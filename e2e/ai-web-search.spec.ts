@@ -261,7 +261,11 @@ async function noOverflow(page: Page) {
   }
 }
 async function send(page: Page, mode: string, message: string) {
+  const menu = page.locator('details.chat-tools-menu');
+  if ((await menu.getAttribute('open')) === null)
+    await page.locator('summary.chat-attach-button').click();
   await page.getByRole('combobox', { name: 'Режим интернет-поиска' }).selectOption(mode);
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill(message);
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Остановить генерацию' })).toHaveCount(0);
@@ -313,6 +317,20 @@ for (const width of [1440, 1024, 390, 320]) {
       await send(page, 'images', 'Найди картинки электронных схем');
       await page.locator('.asa-ai-web-images').scrollIntoViewIfNeeded();
       await expect(page.locator('.asa-ai-web-images img')).toHaveCount(2);
+      await expect(
+        page.getByRole('region', { name: 'Найденные изображения, прокрутка по горизонтали' }),
+      ).toBeVisible();
+      await expect(page.locator('.asa-ai-web-images a').first()).toHaveAttribute(
+        'href',
+        'https://example.org/project',
+      );
+      if (width <= 390) {
+        expect(
+          await page
+            .locator('.asa-ai-web-images')
+            .evaluate((node) => node.scrollWidth > node.clientWidth),
+        ).toBe(true);
+      }
       for (const image of await page.locator('.asa-ai-web-images img').all())
         expect(
           await image.evaluate((node) => (node as HTMLImageElement).naturalWidth),
@@ -360,6 +378,7 @@ for (const width of [1440, 1024, 390, 320]) {
         page.getByRole('region', { name: 'Прогноз: Казань, Республика Татарстан' }),
       ).toBeVisible();
       await expect(page.getByText('12°', { exact: false }).first()).toBeVisible();
+      await expect(page.getByLabel('Температура 12 °C')).toBeVisible();
       await noOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`web-weather-${width}.png`) });
       expect(fake.errors).toEqual([]);
@@ -411,7 +430,9 @@ test('missing provider configuration does not disable ordinary chat', async ({ p
   fake.unavailable();
   fake.setEvidence(null);
   await page.goto('/#/ai');
+  await page.locator('summary.chat-attach-button').click();
   await expect(page.getByRole('combobox', { name: 'Режим интернет-поиска' })).toBeDisabled();
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Объясни закон Ома');
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Результат', exact: true })).toBeVisible();
@@ -431,6 +452,7 @@ test('native forecast mode can be chosen without an installed search component',
     sources: [],
   });
   await page.goto('/#/ai');
+  await page.locator('summary.chat-attach-button').click();
   const mode = page.getByRole('combobox', { name: 'Режим интернет-поиска' });
   await expect(mode).toBeEnabled();
   await expect(mode).toHaveValue('off');

@@ -39,6 +39,11 @@ const expectedPending = [
   '0257', // Canonical draft timestamp projection repair.
   '0258', // Immutable Public Projects publication pins.
   '0259', // Private immutable-revision report intake.
+  '0260', // Bounded complete AI answers and generation lease.
+  '0261', // Administrative generation policy and domain-filtered retrieval.
+  '0262', // Independent local image jobs, private outputs and durable GPU admission.
+  '0263', // Native image tools.
+  '0264', // Governed tool policy.
 ];
 
 interface Identity {

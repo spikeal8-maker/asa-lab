@@ -115,6 +115,89 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
   };
 
   describe('0228 full owner history and immutable answer variants', () => {
+    it('stores and replays a complete long code file, preserves it in follow-up context, and extends only its owned admission', async () => {
+      const { admin, runtime } = database();
+      const f = await aiTextFixture(admin, runtime);
+      const code =
+        '<!doctype html>\n<script>\n' + 'const step = () => {};\n'.repeat(600) + '</script>';
+      f.upstream.mockImplementation(async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        return body.stream
+          ? new Response(
+              'event: response.output_text.delta\ndata: ' +
+                JSON.stringify({ delta: code }) +
+                '\n\nevent: response.completed\ndata: {"type":"response.completed"}\n\n',
+            )
+          : new Response(JSON.stringify({ status: 'completed', output_text: code }));
+      });
+      const request = randomUUID();
+      await f.service.send(
+        f.owner.principal_id,
+        f.thread.id,
+        'Сделай игру одним HTML-файлом',
+        request,
+      );
+      expect((await f.service.messages(f.owner.principal_id, f.thread.id)).at(-1)).toMatchObject({
+        content: code,
+        state: 'complete',
+      });
+      const calls = f.upstream.mock.calls.length;
+      expect(
+        (
+          await f.service.send(
+            f.owner.principal_id,
+            f.thread.id,
+            'Сделай игру одним HTML-файлом',
+            request,
+          )
+        ).replayed,
+      ).toBe(true);
+      expect(f.upstream).toHaveBeenCalledTimes(calls);
+      await f.service.send(f.owner.principal_id, f.thread.id, 'Поменяй цвет змейки', randomUUID());
+      const latest = JSON.parse(String(f.upstream.mock.calls.at(-1)?.[1]?.body));
+      expect(
+        latest.input.some(
+          (item: { role: string; content: string }) =>
+            item.role === 'assistant' && item.content === code,
+        ),
+      ).toBe(true);
+      const admitted = randomUUID();
+      await runtime.query('SELECT ai_text_begin_paid($1,$2,$3,$4,$5)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+        'Ещё вопрос',
+        await f.version(),
+      ]);
+      await expect(
+        runtime.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+          f.stranger.principal_id,
+          f.thread.id,
+          admitted,
+        ]),
+      ).rejects.toThrow('AI_THREAD_DENIED');
+      await runtime.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+      ]);
+      const seconds = Number(
+        (
+          await admin.query(
+            'SELECT EXTRACT(EPOCH FROM busy_until-clock_timestamp()) AS remaining FROM ai_assistant_threads WHERE id=$1',
+            [f.thread.id],
+          )
+        ).rows[0]!.remaining,
+      );
+      expect(seconds).toBeGreaterThan(320);
+      expect(seconds).toBeLessThanOrEqual(330);
+      await runtime.query('SELECT ai_chat_abort($1,$2,$3)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+      ]);
+    });
+
     it('searches all old messages and literal title text, beyond the latest history page, without crossing owners', async () => {
       const f = await fixture();
       await f.service.renameThread(f.owner.principal_id, f.thread.id, 'Схема проекта');

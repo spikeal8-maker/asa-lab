@@ -52,7 +52,8 @@ export interface AiWebSearchEvidence {
     | 'weather_unavailable'
     | 'location_required'
     | 'location_ambiguous'
-    | 'rate_limit';
+    | 'rate_limit'
+    | 'unsafe_query';
 }
 
 export interface AiWebSearchStatus {
@@ -64,12 +65,18 @@ export interface AiWebSearchStatus {
 }
 
 export interface AiWebSearchAdminConfig extends AiWebSearchStatus {
+  readonly allowedDomains: readonly string[];
+  readonly blockedDomains: readonly string[];
+  readonly searchInstructions: string;
   readonly weatherEnabled: boolean;
   readonly operationsPerHour: number;
   readonly configurationVersion: number;
 }
 
 export interface AiWebSearchAdminUpdate {
+  readonly allowedDomains?: readonly string[];
+  readonly blockedDomains?: readonly string[];
+  readonly searchInstructions?: string;
   readonly enabled: boolean;
   readonly weatherEnabled: boolean;
   readonly operationsPerHour: number;
