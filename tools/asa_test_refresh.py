@@ -654,6 +654,16 @@ def failure_disposition(*, writer_stop_attempted: bool, isolated_data_attempted:
     return "failed_pre_switch"
 
 
+def verify_minio_rollback_copy(previous_volume: Path, live_volume: Path) -> None:
+    """Compare contents while MinIO remains stopped, before restarting writers."""
+    demand(previous_volume.is_dir() and live_volume.is_dir(),
+           "Rollback MinIO source/destination volume missing")
+    changes = run("rsync", "-a", "--checksum", "--dry-run", "--delete",
+                  "--out-format=%n", str(previous_volume) + "/", str(live_volume) + "/",
+                  timeout=900)
+    demand(not changes.strip(), "Rollback MinIO contents differ from retained copy")
+
+
 def verify_rollback_state(root: Path, old_sha: str, original_env: Path,
                           original_env_digest: str, original_counts: list[str],
                           old_database: str, original_minio: Path, origin: str) -> None:
@@ -870,6 +880,7 @@ def apply(args) -> None:
                     if objects_changed and old_volume:
                         run("rsync", "-a", "--delete", str(old_volume) + "/",
                             str(live_objects) + "/", timeout=900)
+                        verify_minio_rollback_copy(old_volume, live_objects)
                     if env_changed:
                         shutil.copy2(env_backup, original_env)
                     if git_changed:
