@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { it, expect } from 'vitest';
+import { enqueueArduinoSerialRx } from '../domain/arduino-serial-runtime.js';
 import {
   advanceArduinoRuntime,
   analyseArduinoProgramSyntax,
+  arduinoRuntimeStateMatchesProgram,
   createOwnedClockedArduinoRuntime,
   advanceClockedArduinoRuntime,
   resetArduinoRuntime,
@@ -33,11 +35,11 @@ it('preserves the pre-repair complete old-valid output bytes', () => {
   );
 });
 
-function through(source: string, budget = 16384) {
+function through(source: string, budget = 16384, horizon = 20) {
   let state: ArduinoRuntimeState | undefined;
   const events = [];
   for (let slice = 0; slice < 10000; slice++) {
-    const result = advanceClockedArduinoRuntime(source, {}, 20, state, undefined, {
+    const result = advanceClockedArduinoRuntime(source, {}, horizon, state, undefined, {
       instructionBudget: budget,
     });
     expect(result.diagnostics).toEqual([]);
@@ -158,3 +160,168 @@ it.each(['++n++', '++n--', '--n++', '--n--'])(
     }
   },
 );
+
+it.each([
+  ['value=pulseIn(n++,HIGH,5);', 3, 0],
+  ['value=pulseIn(4,HIGH,5)+n++;', 3, 2],
+  ['pinMode(2,OUTPUT);digitalWrite(pulseIn(4,HIGH,5),n++);', 3, 0],
+  ['value=pulseIn(4,HIGH,5)+(true || n++);', 2, 1],
+  ['value=pulseIn(++n,HIGH,5);', 3, 0],
+  ['value=n++ + pulseIn(4,HIGH,5);', 3, 2],
+  ['value=n + pulseIn(n++,HIGH,5);', 3, 2],
+  ['pinMode(2,OUTPUT);digitalWrite(n++,pulseIn(4,HIGH,5));', 3, 0],
+  ['value=pulseIn(n++,HIGH,5)+pulseIn(n++,HIGH,7);', 4, 0],
+  ['value=max(n++,pulseIn(4,HIGH,5));', 4, 3],
+  ['value=min(n++,pulseIn(4,HIGH,5));', 3, 0],
+  ['value=abs(n++ +pulseIn(4,HIGH,5));', 4, 3],
+  ['while(n++<3 && pulseIn(4,HIGH,5)==0)value++;', 4, 1],
+  ['if(pulseIn(n++,HIGH,5)==0)value=n;', 3, 3],
+  ['value=pulseIn(n++,HIGH,5)+readUltrasonicCm(n++,4);', 4, 0],
+  ['value=readUltrasonicCm(n++,4);', 3, 0],
+  ['value=n++ + readUltrasonicCm(5,4);', 3, 2],
+  ['pinMode(2,OUTPUT);digitalWrite(n++,readUltrasonicCm(5,4));', 3, 0],
+])('evaluates waiting instruction occurrences once: %s', (body, n, value) => {
+  const source = sketch(body, 'int n=2;int value=0;');
+  const horizon = body.includes('Ultrasonic') ? 1100 : 20;
+  const expected = through(source, 16384, horizon);
+  expect(expected.state.variables).toMatchObject({ n, value });
+  expect(expected.state.pendingEvaluation).toBeUndefined();
+  for (const budget of [1, 2, 7]) expect(through(source, budget, horizon)).toEqual(expected);
+});
+it('exposes the increment during a wait, retains exact old result, and clears its journal', () => {
+  const source = sketch('value=n++ + pulseIn(4,HIGH,100);', 'int n=2;int value=-1;');
+  const pending = advanceClockedArduinoRuntime(source, {}, 0.01);
+  expect(pending.diagnostics).toEqual([]);
+  expect(pending.state.variables).toMatchObject({ n: 3, value: -1 });
+  expect(pending.state.pendingEvaluation?.entries.length).toBeGreaterThan(0);
+  expect(arduinoRuntimeStateMatchesProgram(source, pending.state)).toBe(true);
+  const resumed = advanceClockedArduinoRuntime(
+    source,
+    {},
+    1,
+    JSON.parse(JSON.stringify(pending.state)),
+  );
+  expect(resumed.diagnostics).toEqual([]);
+  expect(resumed.state.variables).toMatchObject({ n: 3, value: 2 });
+  expect(resumed.state.pendingEvaluation).toBeUndefined();
+  const broken = JSON.parse(JSON.stringify(pending.state));
+  delete broken.pendingEvaluation;
+  expect(arduinoRuntimeStateMatchesProgram(source, broken)).toBe(false);
+  const restarted = advanceClockedArduinoRuntime(source, {}, 1, broken);
+  expect(restarted.state.variables).toMatchObject({ n: 3, value: -1 });
+  expect(
+    advanceClockedArduinoRuntime(source, {}, 2, restarted.state).state.variables,
+  ).toMatchObject({ n: 3, value: 2 });
+  expect(resetArduinoRuntime(source).pendingEvaluation).toBeUndefined();
+  const edited = sketch('value=n++ + 40;', 'int n=2;int value=0;');
+  expect(advanceClockedArduinoRuntime(edited, {}, 1, pending.state).state.variables).toMatchObject({
+    n: 3,
+    value: 42,
+  });
+});
+it('latches preceding Serial consumption, ADC and micros values while later call waits', () => {
+  const source = sketch(
+    'Serial.begin(9600);delayMicroseconds(10);value=Serial.read()+analogRead(A0)+micros()+n++ +pulseIn(4,HIGH,100);',
+    'int n=2;int value=-1;',
+  );
+  const initial = advanceClockedArduinoRuntime(source, {}, 0.005);
+  const rx = { ...initial.state, serial: enqueueArduinoSerialRx(initial.state.serial!, 5, 'AB') };
+  let adc = 0;
+  const pending = advanceClockedArduinoRuntime(source, {}, 0.02, rx, (electrical) => {
+    adc++;
+    return { a0: electrical.simulationTimeMs < 0.03 ? 0.5 : 5 };
+  });
+  expect(pending.diagnostics).toEqual([]);
+  expect(pending.state.variables.n).toBe(3);
+  expect(pending.state.serial?.rx).toHaveLength(1);
+  const after = advanceClockedArduinoRuntime(
+    source,
+    {},
+    1,
+    JSON.parse(JSON.stringify(pending.state)),
+    () => ({ a0: 5 }),
+  );
+  expect(after.diagnostics).toEqual([]);
+  expect(after.state.variables).toMatchObject({ n: 3, value: 181 });
+  expect(after.state.serial?.rx).toHaveLength(1);
+  expect(adc).toBeGreaterThan(0);
+  for (const budget of [1, 2, 7]) {
+    let state = JSON.parse(JSON.stringify(pending.state));
+    let result;
+    for (let slice = 0; slice < 100; slice++) {
+      result = advanceClockedArduinoRuntime(source, {}, 1, state, () => ({ a0: 5 }), {
+        instructionBudget: budget,
+      });
+      if (result.executionStatus !== 'yielded') break;
+      state = JSON.parse(JSON.stringify(result.state));
+    }
+    expect(result?.diagnostics).toEqual([]);
+    expect(result?.state).toEqual(after.state);
+  }
+});
+it.each([
+  ['journal', 'programCounter', 999],
+  ['journal', 'phase', 'loop'],
+  ['journal', 'programFingerprint', 'wrong'],
+  ['value', 'value', Infinity],
+  ['value', 'type', 'text'],
+  ['value', 'type', 'float'],
+  ['entry', 'stream', -1],
+  ['entry', 'stream', 999],
+  ['entry', 'start', 1],
+  ['entry', 'end', 1],
+  ['journal', 'streams', [['foreign']]],
+  ['journal', 'parents', [-1]],
+  ['entry', 'start', -1],
+  ['entry', 'start', 1e9],
+  ['entry', 'end', -1],
+  ['entry', 'end', 1e9],
+  ['entry', 'next', 0],
+  ['entry', 'next', 1e9],
+  ['journal', 'entries', []],
+  ['journal', 'entries', new Array(16385).fill(null)],
+])('rejects malformed pending evaluation journal %# %s.%s', (scope, key, value) => {
+  const source = sketch('value=n++ +pulseIn(4,HIGH,100);', 'int n=2;int value=-1;');
+  const pending = advanceClockedArduinoRuntime(source, {}, 0.01).state;
+  const bad = JSON.parse(JSON.stringify(pending));
+  const target =
+    scope === 'journal'
+      ? bad.pendingEvaluation
+      : scope === 'entry'
+        ? bad.pendingEvaluation.entries[0]
+        : bad.pendingEvaluation.entries[0].value;
+  target[key] = value;
+  if (scope === 'value' && key === 'type' && value === 'float') target.value = 1e100;
+  expect(arduinoRuntimeStateMatchesProgram(source, bad)).toBe(false);
+});
+it('clears a journal on arithmetic fault after the pending call completes', () => {
+  const source = sketch('value=n++ +pulseIn(4,HIGH,5)+1/0;', 'int n=2;int value=0;');
+  const result = advanceClockedArduinoRuntime(source, {}, 20);
+  expect(result.executionStatus).toBe('fault');
+  expect(result.state.pendingEvaluation).toBeUndefined();
+});
+
+it('rejects a journal next link that skips a completed sibling side effect', () => {
+  const source = sketch(
+    'pinMode(2,OUTPUT);digitalWrite(n++,n++ +pulseIn(4,HIGH,100));',
+    'int n=2;int value=0;',
+  );
+  const pending = advanceClockedArduinoRuntime(source, {}, 0.01).state;
+  expect(pending.variables.n).toBe(4);
+  const bad = JSON.parse(JSON.stringify(pending));
+  bad.pendingEvaluation.entries[0].next = bad.pendingEvaluation.entries.length;
+  expect(arduinoRuntimeStateMatchesProgram(source, bad)).toBe(false);
+});
+
+it('rejects a completed ancestor forged over the unfinished wait frontier', () => {
+  const source = sketch('value=(n++ +pulseIn(4,HIGH,100));', 'int n=2;int value=0;');
+  const bad = JSON.parse(JSON.stringify(advanceClockedArduinoRuntime(source, {}, 0.01).state));
+  bad.pendingEvaluation.entries[0] = {
+    stream: 0,
+    start: 0,
+    end: bad.pendingEvaluation.streams[0].length,
+    next: bad.pendingEvaluation.entries.length,
+    value: { type: 'unsigned long', value: 0 },
+  };
+  expect(arduinoRuntimeStateMatchesProgram(source, bad)).toBe(false);
+});

@@ -42,6 +42,7 @@ import {
 } from './arduino-waveform-runtime.js';
 import {
   ArduinoArithmeticError,
+  ARDUINO_NUMERIC_TYPES,
   assignBinding,
   binaryValue,
   bindingFor,
@@ -157,6 +158,7 @@ export interface ArduinoRuntimeState {
   readonly loopIterations: number;
   readonly nextEventSequence: number;
   readonly eventQueue: readonly ArduinoRuntimeEvent[];
+  readonly pendingEvaluation?: ArduinoPendingEvaluation;
   readonly pulseWait?: ArduinoPulseWaitState | null;
   readonly ultrasonicAdapter?: ArduinoUltrasonicAdapterState | null;
   readonly serial?: ArduinoSerialState;
@@ -222,8 +224,32 @@ interface PreparedStatement {
   readonly arguments: readonly string[];
 }
 
+interface ArduinoEvaluationEntry {
+  readonly stream: number;
+  readonly start: number;
+  readonly end: number;
+  readonly next: number;
+  readonly value: ArduinoValue;
+}
+interface ArduinoPendingEvaluation {
+  readonly programFingerprint: string;
+  readonly phase: 'setup' | 'loop';
+  readonly programCounter: number;
+  readonly parents: readonly number[];
+  readonly streams: readonly (readonly string[])[];
+  readonly entries: readonly (ArduinoEvaluationEntry | null)[];
+}
+interface ArduinoEvaluationReplay {
+  cursor: number;
+  parents: number[];
+  stack: number[];
+  streams: (readonly string[])[];
+  entries: (ArduinoEvaluationEntry | null)[];
+}
+
 interface RuntimeState {
   readonly scopes: ArduinoScope[];
+  evaluationReplay?: ArduinoEvaluationReplay | undefined;
   readonly validateOnly?: boolean;
   readonly inputs: ArduinoTerminalVoltages;
   readonly actions: ArduinoProgramAction[];
@@ -337,6 +363,94 @@ function toneStateIsValid(tone: ArduinoToneState): boolean {
   );
 }
 
+function incrementWaitText(instruction: CompiledInstruction | undefined): string | undefined {
+  const text =
+    instruction?.kind === 'simple'
+      ? instruction.statement
+      : instruction?.kind === 'branch'
+        ? instruction.condition
+        : '';
+  return /(?:\+\+|--)/.test(text) && /\b(?:pulseIn|readUltrasonicCm)\s*\(/i.test(text)
+    ? text
+    : undefined;
+}
+
+function validEvaluationFrontier(pending: ArduinoPendingEvaluation): boolean {
+  if (!Array.isArray(pending.parents) || pending.parents.length !== pending.entries.length)
+    return false;
+  const stack: number[] = [];
+  const ends = pending.entries.map(() => pending.entries.length);
+  for (let index = 0; index < pending.parents.length; index++) {
+    const parent = pending.parents[index]!;
+    if (!Number.isSafeInteger(parent) || parent < -1 || parent >= index) return false;
+    while (stack.length && stack[stack.length - 1] !== parent) ends[stack.pop()!] = index;
+    if ((stack[stack.length - 1] ?? -1) !== parent) return false;
+    stack.push(index);
+  }
+  return (
+    pending.entries.some((entry) => entry === null) &&
+    pending.entries.every((entry, index) =>
+      entry === null
+        ? ends[index] === pending.entries.length &&
+          (pending.parents[index] === -1 || pending.entries[pending.parents[index]!] === null)
+        : entry.next === ends[index],
+    )
+  );
+}
+
+function pendingEvaluationIsValid(state: ArduinoRuntimeState): boolean {
+  const pending = state.pendingEvaluation;
+  if (pending === undefined) return true;
+  try {
+    return Boolean(
+      pending &&
+      (state.pulseWait || state.ultrasonicAdapter) &&
+      pending.programFingerprint === state.programFingerprint &&
+      pending.phase === state.phase &&
+      pending.programCounter === state.programCounter &&
+      Array.isArray(pending.streams) &&
+      pending.streams.length > 0 &&
+      pending.streams.reduce(
+        (count, stream) =>
+          count + (Array.isArray(stream) ? stream.length : MAX_ADVANCE_STATEMENTS + 1),
+        0,
+      ) <= MAX_ADVANCE_STATEMENTS &&
+      pending.streams.every(
+        (stream) =>
+          stream.length > 0 &&
+          stream.every((token: unknown) => typeof token === 'string' && token.length > 0),
+      ) &&
+      Array.isArray(pending.entries) &&
+      pending.entries.length > 0 &&
+      pending.entries.length <= MAX_ADVANCE_STATEMENTS &&
+      pending.entries.some((entry) => entry !== null) &&
+      validEvaluationFrontier(pending) &&
+      pending.entries.every(
+        (entry, index) =>
+          entry === null ||
+          (entry &&
+            Number.isSafeInteger(entry.stream) &&
+            entry.stream >= 0 &&
+            entry.stream < pending.streams.length &&
+            Number.isSafeInteger(entry.start) &&
+            entry.start >= 0 &&
+            Number.isSafeInteger(entry.end) &&
+            entry.end > entry.start &&
+            entry.end <= pending.streams[entry.stream]!.length &&
+            Number.isSafeInteger(entry.next) &&
+            entry.next > index &&
+            entry.next <= pending.entries.length &&
+            entry.value &&
+            ARDUINO_NUMERIC_TYPES.includes(entry.value.type) &&
+            Number.isFinite(entry.value.value) &&
+            convertValue(entry.value, entry.value.type).value === entry.value.value),
+      ),
+    );
+  } catch {
+    return false;
+  }
+}
+
 function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
   const pinModeEntries = Object.entries(state.pinModes ?? {});
   const outputVoltageEntries = Object.entries(state.outputVoltages ?? {});
@@ -346,6 +460,7 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
   const tones = Object.values(state.tones ?? {});
   return (
     state.version === ARDUINO_RUNTIME_STATE_VERSION &&
+    pendingEvaluationIsValid(state) &&
     (state.clockProfile === 'legacy-ms-v1' || state.clockProfile === 'instruction-us-v1') &&
     validScopes(state.scopes) &&
     Array.isArray(state.faults) &&
@@ -856,6 +971,7 @@ export function arduinoDigitalReading(inputs: ArduinoTerminalVoltages, terminal:
 
 class ExpressionParser {
   private index = 0;
+  private replayStream: number | undefined;
 
   constructor(
     private readonly tokens: readonly Token[],
@@ -874,6 +990,12 @@ class ExpressionParser {
         `Лишний элемент «${this.current()!.value}» в выражении. Проверьте точку с запятой.`,
       );
     return value;
+  }
+
+  validateUnarySpan(start: number, end: number, type: ArduinoNumericType): boolean {
+    this.index = start;
+    const value = this.parseUnary();
+    return this.index === end && value.type === type;
   }
 
   private current(): Token | undefined {
@@ -983,6 +1105,53 @@ class ExpressionParser {
   }
 
   private parseUnary(): ArduinoValue {
+    const replay = this.validateOnly ? undefined : this.state.evaluationReplay;
+    if (!replay) return this.readUnary();
+    if (this.replayStream === undefined) {
+      this.replayStream = replay.streams.findIndex(
+        (stream) =>
+          stream.length === this.tokens.length &&
+          stream.every((token, index) => token === this.tokens[index]!.value),
+      );
+      if (this.replayStream < 0) {
+        this.replayStream = replay.streams.length;
+        replay.streams.push(this.tokens.map((token) => token.value));
+      }
+    }
+    const stream = this.replayStream;
+    const key = replay.cursor++;
+    const parent = replay.stack[replay.stack.length - 1] ?? -1;
+    if (key < replay.parents.length && replay.parents[key] !== parent)
+      throw new SyntaxError('Некорректная граница продолжения выражения.');
+    replay.parents[key] = parent;
+    const cached = replay.entries[key];
+    if (cached) {
+      if (
+        cached.stream !== stream ||
+        cached.start !== this.index ||
+        cached.end > this.tokens.length
+      )
+        throw new SyntaxError('Некорректное продолжение выражения.');
+      this.index = cached.end;
+      replay.cursor = cached.next;
+      return cached.value;
+    }
+    if (key >= MAX_ADVANCE_STATEMENTS)
+      throw new SyntaxError('Превышен лимит продолжения выражения.');
+    // Reserve unfinished ancestors too, so JSON preserves occurrence identities.
+    replay.entries[key] = null;
+    const start = this.index;
+    replay.stack.push(key);
+    try {
+      const value = this.readUnary();
+      replay.entries[key] = { stream, start, end: this.index, next: replay.cursor, value };
+      return value;
+    } finally {
+      replay.stack.pop();
+    }
+  }
+
+  private readUnary(): ArduinoValue {
     if (['++', '--'].includes(this.current()?.value ?? '')) {
       const operator = this.take()!.value;
       const target = this.lvalue();
@@ -1241,8 +1410,10 @@ function evaluate(expression: string, state: RuntimeState): number {
 
 function evaluateValue(expression: string, state: RuntimeState): ArduinoValue {
   const prepared = state.expressions?.[expression];
-  if (prepared?.syntax) return evaluateSyntax(prepared.syntax, state);
-  const tokens = prepared?.tokens ?? tokenize(expression);
+  if (prepared?.syntax && !state.evaluationReplay) return evaluateSyntax(prepared.syntax, state);
+  const tokens = prepared?.syntax
+    ? tokenize(expression)
+    : (prepared?.tokens ?? tokenize(expression));
   state.prepareExpression?.(expression, tokens);
   return new ExpressionParser(tokens, state).parse();
 }
@@ -2431,6 +2602,56 @@ export function arduinoRuntimeStateMatchesProgram(
   const compilation = compileArduinoProgram(source);
   const instructions =
     state.phase === 'setup' ? compilation.setupInstructions : compilation.loopInstructions;
+  const replayText = incrementWaitText(instructions[state.programCounter]);
+  if (state.pendingEvaluation) {
+    if (!replayText) return false;
+    const expressions = Object.keys(compilation.expressions)
+      .filter((expression) => replayText.includes(expression))
+      .map((expression) => tokenize(expression).map((token) => token.value));
+    if (
+      state.pendingEvaluation.streams.some(
+        (stream) =>
+          !expressions.some((tokens) =>
+            tokens.some((_, start) =>
+              stream.every((token, index) => token === tokens[start + index]),
+            ),
+          ),
+      )
+    )
+      return false;
+    const validation: RuntimeState = {
+      scopes: state.scopes.map((scope) => new Map(Object.entries(scope))),
+      validateOnly: true,
+      inputs: {},
+      actions: [],
+      diagnostics: [],
+      pulseWait: null,
+      ultrasonicAdapter: null,
+      serial: null,
+      servo: initialArduinoServoRuntimeState(compilation.servoDeclarations),
+      simulationTimeMs: 0,
+      statementCount: 0,
+    };
+    try {
+      const streams = state.pendingEvaluation.streams.map((stream) => tokenize(stream.join(' ')));
+      if (
+        state.pendingEvaluation.entries.some(
+          (entry) =>
+            entry &&
+            !new ExpressionParser(streams[entry.stream]!, validation).validateUnarySpan(
+              entry.start,
+              entry.end,
+              entry.value.type,
+            ),
+        )
+      )
+        return false;
+    } catch {
+      return false;
+    }
+  }
+  if (replayText && (state.pulseWait || state.ultrasonicAdapter) && !state.pendingEvaluation)
+    return false;
   const servoDeclarations = compilation.servoDeclarations;
   const persistedServoNames = state.servo ? Object.keys(state.servo.objects).sort() : [];
   return (
@@ -2742,6 +2963,7 @@ function advanceRuntime(
   const loopActions: ArduinoProgramAction[] = [];
   const resetAtMs = previous && previous.virtualTimeMs <= targetTimeMs ? targetTimeMs : 0;
   let resumeAtMs = compatible ? previous.resumeAtMs : resetAtMs;
+  let pendingEvaluation = compatible ? previous.pendingEvaluation : undefined;
   let pulseWait = compatible ? (previous.pulseWait ?? null) : null;
   let ultrasonicAdapter = compatible ? (previous.ultrasonicAdapter ?? null) : null;
   let serial = compatible ? (previous.serial ?? null) : null;
@@ -2987,6 +3209,15 @@ function advanceRuntime(
     instructionState.servo = servo;
     instructionState.simulationTimeMs = resumeAtMs;
     instructionState.statementCount = clocked ? 0 : continuousStatementCount;
+    instructionState.evaluationReplay = incrementWaitText(instruction)
+      ? {
+          cursor: 0,
+          parents: pendingEvaluation ? [...pendingEvaluation.parents] : [],
+          stack: [],
+          streams: pendingEvaluation ? [...pendingEvaluation.streams] : [],
+          entries: pendingEvaluation ? [...pendingEvaluation.entries] : [],
+        }
+      : undefined;
     const statementCountBefore = instructionState.statementCount;
     let pulseBlocked = false;
     let ultrasonicAdapterBlocked = false;
@@ -3033,6 +3264,18 @@ function advanceRuntime(
         });
       }
     }
+    const replay = instructionState.evaluationReplay;
+    pendingEvaluation =
+      (pulseBlocked || ultrasonicAdapterBlocked) && replay
+        ? {
+            programFingerprint: fingerprint,
+            phase,
+            programCounter,
+            parents: replay.parents,
+            streams: replay.streams,
+            entries: replay.entries,
+          }
+        : undefined;
     pulseWait = instructionState.pulseWait;
     ultrasonicAdapter = instructionState.ultrasonicAdapter;
     serial = instructionState.serial;
@@ -3097,6 +3340,7 @@ function advanceRuntime(
     pinModes.clear();
     outputVoltages.clear();
     tones.clear();
+    pendingEvaluation = undefined;
     pulseWait = null;
     ultrasonicAdapter = null;
     serial = null;
@@ -3126,6 +3370,7 @@ function advanceRuntime(
       loopIterations,
       nextEventSequence,
       eventQueue: owned ? [...eventQueue] : eventQueue,
+      ...(pendingEvaluation ? { pendingEvaluation } : {}),
       ...(pulseWait ? { pulseWait } : {}),
       ...(ultrasonicAdapter ? { ultrasonicAdapter } : {}),
       ...(serial ? { serial } : {}),

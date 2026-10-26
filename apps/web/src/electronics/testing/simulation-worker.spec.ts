@@ -1034,3 +1034,54 @@ describe('increment expressions through the production Worker evaluator', () => 
     }
   });
 });
+
+it.each([
+  ['value=pulseIn(n++,HIGH,5);', 3, 0, 2000],
+  ['value=n++ +pulseIn(4,HIGH,5);', 3, 2, 2000],
+  ['digitalWrite(n++,pulseIn(4,HIGH,5));', 3, -1, 2000],
+  ['value=pulseIn(n++,HIGH,5)+pulseIn(n++,HIGH,7);', 4, 0, 2000],
+  ['value=readUltrasonicCm(n++,4);', 3, 0, 1100000],
+])(
+  'resumes increment-containing blocking calls through production Worker: %s',
+  async (body, n, value, horizon) => {
+    const source = `int n=2;long value=-1;void setup(){pinMode(2,OUTPUT);Serial.begin(9600);${body}Serial.println(n);Serial.println(value);}void loop(){delay(100);}`;
+    const document = {
+      ...arduinoCircuit,
+      components: [
+        { ...arduinoCircuit.components[0]!, stateProperties: { arduinoSource: source } },
+      ],
+    };
+    const request = {
+      ...preflightRequest('waiting-increment'),
+      kind: 'advance' as const,
+      document,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: horizon,
+    };
+    const response = await evaluateSimulationWorkerRequestBatched(request, () => true);
+    if (!response?.ok || response.kind !== 'advance') throw new Error('No waiting response');
+    expect(response.advance.executionStatus).toBe('ready');
+    expect(response.advance.diagnostics).toEqual([]);
+    expect(response.advance.serial[0]?.tx.map((entry) => entry.text)).toEqual([
+      `${n}\n`,
+      `${value}\n`,
+    ]);
+    let state = request.state;
+    let direct;
+    for (let slice = 0; slice < 10000; slice++) {
+      direct = advanceElectronicsToHorizon(document, {
+        state,
+        requestedHorizonMicroseconds: horizon,
+        maxEvents: 1,
+      });
+      if (direct.executionStatus !== 'yielded') break;
+      state = JSON.parse(JSON.stringify(direct.state));
+    }
+    expect(direct?.executionStatus).toBe('ready');
+    expect(response.advance.state).toStrictEqual(direct?.state);
+    const runtime = JSON.parse(response.advance.state.continuation!.serializedState).boards[0]
+      .runtime;
+    expect(runtime.variables).toMatchObject({ n, value });
+    expect(runtime.pendingEvaluation).toBeUndefined();
+  },
+);
