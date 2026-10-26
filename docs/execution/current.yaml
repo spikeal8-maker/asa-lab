@@ -13134,15 +13134,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_exact_main_ci_catalog_format_only_repair
+      checkpoint: source_verified_catalog_format_ci_repair_integrated
       owner_acceptance: pending
       accepted_candidate_sha: ab53de464b8d994e81d2afc36b7f58bd8fe2ebab
       independent_review_sha: ab53de464b8d994e81d2afc36b7f58bd8fe2ebab
-      ci_repair: Exact80cGeneral40333039519 GovernancePASS CodeFAILonlyPrettiercatalogjson. CategoryAournewcatalogformat. RepairONLYprettiercatalog, verifyparsedJSONidentical andtargetformatPASS; no productsemantics/buildcap/refactor/serverchanges.
+      ci_repair: Exact80cGeneral40333039519 GovernancePASS CodeFAILonlyPrettiercatalogjson. CategoryAournewcatalogformat. Formatonly55a940 independentlyAPPROVED, JSON44componentsbytecanonicalequal sha002a735c302204acce3ec1f3da5d4f63948c866d51234459098e57e4bf753262; targetedPrettierPASS. No productsemantics/buildcap/refactor/serverchanges.
       technical_evidence: Authorcanonicalgate2298tests71freshNxPASS no-cache andcaps222000/1999967. NEWindependentAPPROVE29focusedplusactualEditorWorker1440/390PASS; true2pin topologyclosedLED/openzero, mouse/touchactuation, keyboardwireUndoRedo fixtureSaveReload. OriginalSPDTpreserved, no protectedasset/servermutation. No installedSaveCAS/owneracceptanceclaim. OptionalPythonvalidatorpreexistingcatalogdefectsretainednotPASS.
       final_convergence: EightdisjointProjectscommits357to460 preserved; candidate30pathsidentical andindependentAPPROVEcarried66b. Finalfresh7taskwebbuildPASS allcaps222000/1999967 initial549383; no unrelatedrepair/fulltestduplication.
       rejected_candidate_sha: 57dc43f96a7910c010e636b43f4188c5e5661042
