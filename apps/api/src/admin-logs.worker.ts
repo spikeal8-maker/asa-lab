@@ -13,6 +13,9 @@ import {
 import { projectDatabaseEntry } from './database-diagnostics.js';
 
 export const LOG_STORE_FORMAT = 2;
+// A 30-day store can contain tens of thousands of small immutable segments.
+// Keep metadata bounded without rejecting a valid retained history at 16 MiB.
+export const MAX_LOG_CATALOG_BYTES = 64 * 1024 * 1024;
 const MAX_SEGMENT_BYTES = 4 * 1024 * 1024;
 const MAX_EXPORT_BYTES = 3584 * 1024 * 1024;
 
@@ -69,6 +72,7 @@ interface Segment {
 }
 
 export interface LogCatalog {
+  readonly applicationOwned?: boolean;
   readonly version: number;
   readonly collectedAt: string;
   readonly retentionDays: number;
@@ -88,7 +92,7 @@ export interface LogCatalog {
 export async function readLogCatalog(root: string): Promise<LogCatalog | null> {
   try {
     const path = join(root, 'catalog.json');
-    if ((await stat(path)).size > 16 * 1024 * 1024) throw new Error('LOG_CATALOG_INVALID');
+    if ((await stat(path)).size > MAX_LOG_CATALOG_BYTES) throw new Error('LOG_CATALOG_INVALID');
     const catalog = JSON.parse(await readFile(path, 'utf8')) as LogCatalog;
     if (
       catalog.version !== 1 ||
@@ -482,6 +486,13 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
             sourceStatusIncluded: false,
             exportedAt: new Date().toISOString(),
             normalized: true,
+            coverage: {
+              application: catalog.applicationOwned ? 'embedded' : 'host-collector',
+              host: catalog.applicationOwned ? 'not_included' : 'collector_snapshot',
+              complete: false,
+              statement:
+                'Only retained matching evidence; absence of events does not prove absence of errors',
+            },
           },
           null,
           2,

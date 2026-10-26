@@ -11,6 +11,7 @@ import {
   type CrmContentCategory,
 } from './crm-user-api';
 import './crm-user-card.css';
+import { CrmUserDialog } from './CrmUserDialog';
 const roleLabel: Record<string, string> = {
   creator: 'Автор',
   educator: 'Преподаватель',
@@ -39,19 +40,31 @@ type CrmCardProps = CrmSubject & {
   pane?: CrmPane;
   history?: ReactNode;
 };
-export function CrmUserCardLauncher(props: CrmCardProps) {
+export function CrmUserCardLauncher({
+  trigger,
+  title = 'Полная карточка пользователя',
+  children,
+  ...props
+}: CrmCardProps & { trigger?: ReactNode; title?: string; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="admin-user-history">
       <button
         type="button"
-        className="btn-secondary"
+        className={trigger ? 'admin-user-row' : 'btn-secondary'}
         aria-expanded={open}
-        onClick={() => setOpen(!open)}
+        aria-haspopup="dialog"
+        aria-label={trigger ? `Открыть карточку: ${title}` : undefined}
+        onClick={() => setOpen(true)}
       >
-        {open ? 'Закрыть карточку пользователя' : 'Полная карточка пользователя'}
+        {trigger ?? 'Полная карточка пользователя'}
       </button>
-      {open ? <CrmUserCard {...props} /> : null}
+      {open ? (
+        <CrmUserDialog title={title} onClose={() => setOpen(false)}>
+          <CrmUserCard {...props} />
+          {children}
+        </CrmUserDialog>
+      ) : null}
     </div>
   );
 }

@@ -187,8 +187,10 @@ services:
       ASA_TRUSTED_PROXY_CIDRS: ${ASA_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
       ASA_BLOCKS_PREVIEW: ${ASA_BLOCKS_PREVIEW:-0}
       ASA_LOG_STORE: /var/lib/asa-logs
+      ASA_APPLICATION_LOG_STORE: /var/lib/asa-application-logs
     volumes:
       - ./.asa/diagnostics/store:/var/lib/asa-logs:ro
+      - application-logs:/var/lib/asa-application-logs
     expose:
       - '4611'
     tmpfs:
@@ -318,5 +320,6 @@ networks:
     internal: true
 
 volumes:
+  application-logs:
   postgres-data:
   blocks-object-data:

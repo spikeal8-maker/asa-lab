@@ -558,6 +558,18 @@ for (const width of [1440, 1024, 390, 320]) {
     const learningCard = page.locator('.admin-chart-card').filter({ has: learning(page) });
     await expect(learningCard.locator('.admin-chart-time-label')).toHaveCount(12);
     await expect(learningCard.getByRole('button', { name: 'Scratch', exact: true })).toBeVisible();
+    const chips = await learningCard.locator('.admin-chart-legend button').evaluateAll((buttons) =>
+      buttons.map((button) => ({
+        top: button.getBoundingClientRect().top,
+        width: button.getBoundingClientRect().width,
+      })),
+    );
+    expect(chips.every((chip) => chip.width < 150)).toBe(true);
+    if (width >= 1024) {
+      expect(new Set(chips.map((chip) => Math.round(chip.top))).size).toBe(1);
+      const cards = page.locator('.admin-dashboard-grid > .admin-chart-card');
+      expect((await cards.nth(0).boundingBox())!.y).toBe((await cards.nth(1).boundingBox())!.y);
+    }
     await expect(learningCard.getByRole('button', { name: 'Шахматы', exact: true })).toHaveCount(0);
     const games = page
       .locator('.admin-chart-card')
@@ -599,6 +611,56 @@ for (const width of [1440, 1024, 390, 320]) {
     await last.focus();
     await expect(last).toBeInViewport();
     await noPageOverflow(page);
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`compact CRM directory and accessible account/student dialogs at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const f = await fixture(page);
+    f.directory();
+    await page.goto('/#/admin/users');
+    const account = page.locator(`[data-actor-key="account:${OTHER}"]`);
+    const student = page.locator(`[data-actor-key="student:${OTHER}"]`);
+    await expect(account.locator('button.admin-user-row')).toBeInViewport();
+    await expect(student.locator('button.admin-user-row')).toBeInViewport();
+    const insights = page.locator('.crm-directory-insights');
+    await expect(insights).not.toHaveAttribute('open');
+    await expect(
+      page.getByRole('region', { name: 'Аналитика выбранных записей', exact: true }),
+    ).toBeHidden();
+    expect(
+      await page.locator('.admin-user-list').evaluate((list) => getComputedStyle(list).maxHeight),
+    ).toBe('none');
+    await noPageOverflow(page);
+    if (width === 1440 || width === 390)
+      await page.screenshot({
+        path: `${evidence}/crm-compact-directory-${width}.png`,
+        fullPage: true,
+      });
+    for (const row of [account, student]) {
+      const trigger = row.locator('button.admin-user-row');
+      await trigger.click();
+      const dialog = row.getByRole('dialog');
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('heading', { level: 2 })).toContainText(/Яков|Анна/);
+      await expect(
+        dialog.getByRole('button', { name: 'Закрыть карточку пользователя', exact: true }),
+      ).toBeVisible();
+      await expect(dialog.getByRole('textbox', { name: 'Имя', exact: true })).toBeVisible();
+      expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      await noPageOverflow(page);
+      if (width === 1440 || width === 390)
+        await page.screenshot({
+          path: `${evidence}/crm-dialog-${row === account ? 'account' : 'student'}-${width}.png`,
+          fullPage: true,
+        });
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+    }
   });
 }
 
@@ -689,10 +751,11 @@ for (const width of [1440, 1024, 390, 320]) {
     await account.getByRole('tab', { name: 'Заметки', exact: true }).click();
     await expect(account.getByPlaceholder('Добавить внутренний комментарий')).toBeVisible();
     await noPageOverflow(page);
-    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
-    await student
-      .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
+    await account
+      .getByRole('button', { name: 'Закрыть карточку пользователя', exact: true })
       .click();
+    const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
+    await student.locator('button.admin-user-row').click();
     await expect(
       student
         .getByRole('region', { name: 'Полная карточка пользователя', exact: true })
@@ -880,9 +943,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(student.getByRole('button')).toHaveCount(1);
     await expect(student).toContainText('Выдано');
     await noPageOverflow(page);
-    await student
-      .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
-      .click();
+    await student.locator('button.admin-user-row').click();
     await student.getByRole('button', { name: 'Публикации и история', exact: true }).click();
     const history = student.getByRole('region', { name: 'Сохранённая история ученика' });
     await expect(history.getByText('Сохранённая версия', { exact: false })).toBeVisible();
@@ -903,6 +964,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await history.getByRole('button', { name: 'Показать ещё', exact: true }).click();
     await expect(history.getByRole('listitem')).toHaveCount(2);
     await expect(history.getByRole('button', { name: 'Показать ещё', exact: true })).toHaveCount(0);
+    await student
+      .getByRole('button', { name: 'Закрыть карточку пользователя', exact: true })
+      .click();
+    await page.getByText('Дополнительные фильтры', { exact: true }).click();
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/users-${width}.png`, fullPage: true });
@@ -925,6 +990,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
     if (width === 1440 || width === 390)
       await page.screenshot({ path: `${evidence}/account-history-${width}.png`, fullPage: true });
+    await account
+      .getByRole('button', { name: 'Закрыть карточку пользователя', exact: true })
+      .click();
     await page.getByRole('combobox', { name: 'Тип записи', exact: true }).selectOption('students');
     await expect(account).toHaveCount(0);
     await expect(student).toBeVisible();
@@ -980,6 +1048,7 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(csv).toContain('Строка 60');
     expect(csv.split('\r\n')).toHaveLength(62);
     expect(f.exportQueries().at(-1)?.get('classId')).toBe('40000000-0000-4000-8000-000000000001');
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
     const analytics = page.getByRole('region', {
       name: 'Аналитика выбранных записей',
       exact: true,
@@ -1018,8 +1087,8 @@ for (const width of [1440, 1024, 390, 320]) {
     await analytics.getByText('Наблюдения источников и кампаний', { exact: true }).click();
     await expect(analytics).toContainText('Хранение: 90 дней');
     await expect(
-      page.getByText('Метки браузера за 90 дней:', { exact: false }).first(),
-    ).toBeVisible();
+      page.locator('.admin-user-list').getByText('Метки браузера за 90 дней:', { exact: false }),
+    ).toHaveCount(0);
     await noPageOverflow(page);
     await page.screenshot({ path: `${evidence}/crm-directory-${width}.png`, fullPage: true });
     await page.getByText('Связь классов с организациями', { exact: true }).click();
@@ -1045,9 +1114,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       student.getByRole('button', { name: 'История проектов, публикаций и ИИ' }),
     ).toHaveCount(0);
-    await student
-      .getByRole('button', { name: 'Полная карточка пользователя', exact: true })
-      .click();
+    await student.locator('button.admin-user-row').click();
     await expect(student.locator('.crm-full-card')).toBeVisible();
     await expect(student.getByRole('textbox', { name: 'Имя', exact: true })).toBeDisabled();
     await expect(

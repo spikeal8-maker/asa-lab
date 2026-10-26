@@ -64,6 +64,37 @@ function AcquisitionObservation({ user }: { user: AdminCatalogUser }) {
     </p>
   );
 }
+function UserSummary({ user }: { user: AdminCatalogUser }) {
+  return (
+    <>
+      <span className="admin-user-identity">
+        <strong>{user.displayName}</strong>
+        <small>
+          {user.kind === 'student' ? `Ученик · ${user.classTitle ?? 'Класс не указан'}` : 'Аккаунт'}
+        </small>
+      </span>
+      <span>
+        <strong>{user.lastIpAddress ?? 'IP не зафиксирован'}</strong>
+        <small>{deviceDescription(user)}</small>
+      </span>
+      <span>
+        <strong>{date(user.lastActivityAt)}</strong>
+        <small>Событий за 30 дней: {user.recentActivityCount}</small>
+      </span>
+      <span>
+        <strong>{statusLabel[user.status] ?? user.status}</strong>
+        <small>
+          {user.classStatus
+            ? `Класс: ${statusLabel[user.classStatus] ?? user.classStatus}`
+            : 'Только просмотр'}
+        </small>
+      </span>
+      <span className="admin-user-chevron" aria-hidden="true">
+        ↗
+      </span>
+    </>
+  );
+}
 export function AdminUsersCatalog({
   scope,
   actorId,
@@ -75,7 +106,7 @@ export function AdminUsersCatalog({
   actorId?: string;
   version: number;
   onAccessDenied: () => void;
-  renderAccount: (user: AdminCatalogUser) => ReactNode;
+  renderAccount: (user: AdminCatalogUser, extra?: ReactNode) => ReactNode;
 }): JSX.Element {
   const [query, setQuery] = useState(''),
     [search, setSearch] = useState('');
@@ -285,25 +316,6 @@ export function AdminUsersCatalog({
           Найти
         </button>
         <label>
-          <span>Тип записи</span>
-          <select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
-            <option value="all">Все типы</option>
-            <option value="accounts">Аккаунты</option>
-            <option value="students">Ученические места</option>
-          </select>
-        </label>
-        <label>
-          <span>Состояние записи</span>
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value as typeof status)}
-          >
-            <option value="all">Все состояния</option>
-            <option value="active">Действующие записи</option>
-            <option value="inactive">Неактивные записи</option>
-          </select>
-        </label>
-        <label>
           <span>Сортировка</span>
           <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
             <option value="last_activity">Последняя активность</option>
@@ -312,19 +324,38 @@ export function AdminUsersCatalog({
             <option value="created">Дата создания</option>
           </select>
         </label>
-        <label>
-          <span>Направление</span>
-          <select
-            value={direction}
-            onChange={(event) => setDirection(event.target.value as typeof direction)}
-          >
-            <option value="desc">По убыванию</option>
-            <option value="asc">По возрастанию</option>
-          </select>
-        </label>
         <details className="crm-directory-advanced">
           <summary>Дополнительные фильтры</summary>
           <div className="crm-directory-fields">
+            <label>
+              <span>Тип записи</span>
+              <select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
+                <option value="all">Все типы</option>
+                <option value="accounts">Аккаунты</option>
+                <option value="students">Ученические места</option>
+              </select>
+            </label>
+            <label>
+              <span>Состояние записи</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as typeof status)}
+              >
+                <option value="all">Все состояния</option>
+                <option value="active">Действующие записи</option>
+                <option value="inactive">Неактивные записи</option>
+              </select>
+            </label>
+            <label>
+              <span>Направление</span>
+              <select
+                value={direction}
+                onChange={(event) => setDirection(event.target.value as typeof direction)}
+              >
+                <option value="desc">По убыванию</option>
+                <option value="asc">По возрастанию</option>
+              </select>
+            </label>
             <label>
               <span>Возможность или роль</span>
               <select
@@ -489,10 +520,6 @@ export function AdminUsersCatalog({
           Отменить выгрузку
         </button>
       ) : null}
-      <p className="admin-catalog-note">
-        CSV: до 10 000 записей, 16 МиБ; запрос до 8 секунд. Отмена прекращает ожидание и скачивание
-        файла.
-      </p>
       {exportError ? (
         <p role="alert">
           {exportError}{' '}
@@ -501,17 +528,6 @@ export function AdminUsersCatalog({
           </button>
         </p>
       ) : null}
-      {scope.kind === 'platform' ? (
-        <OrganizationClassBindings
-          key={actorId ?? scopeKind}
-          onAccessDenied={onAccessDenied}
-          onChanged={() => void load(null)}
-        />
-      ) : null}
-      <p className="admin-catalog-note">
-        Состояние записи не означает, что пользователь сейчас онлайн. Аккаунты и ученические места
-        учитываются отдельно.
-      </p>
       {state.kind === 'loading' ? (
         <div className="admin-crm-loading" aria-busy="true">
           Загружаем пользователей…
@@ -531,7 +547,6 @@ export function AdminUsersCatalog({
             Найдено записей: {state.page.matchedCount ?? 'подсчёт недоступен'}. Загружено:{' '}
             {state.page.items.length}.
           </p>
-          {state.page.analytics ? <CatalogAnalytics value={state.page.analytics} /> : null}
           {state.page.studentCoverage.state === 'unavailable' ? (
             <p className="admin-catalog-note" role="status">
               Ученические места для этой области недоступны: связь классов с организацией не
@@ -551,17 +566,21 @@ export function AdminUsersCatalog({
             {state.page.items.map((user) =>
               user.kind === 'account' && user.account ? (
                 <div key={user.actorKey} className="admin-catalog-account">
-                  {renderAccount(user)}
-                  <AcquisitionObservation user={user} />
-                  {scope.kind === 'organization' ? (
-                    <CrmResponsibilities
-                      key={responsibilityKey}
-                      scopeKind="organization"
-                      scopeId={scope.id}
-                      targetId={user.id}
-                      onDenied={onAccessDenied}
-                    />
-                  ) : null}
+                  {renderAccount(
+                    user,
+                    <>
+                      <AcquisitionObservation user={user} />
+                      {scope.kind === 'organization' ? (
+                        <CrmResponsibilities
+                          key={responsibilityKey}
+                          scopeKind="organization"
+                          scopeId={scope.id}
+                          targetId={user.id}
+                          onDenied={onAccessDenied}
+                        />
+                      ) : null}
+                    </>,
+                  )}
                 </div>
               ) : (
                 <article
@@ -570,41 +589,11 @@ export function AdminUsersCatalog({
                   role="listitem"
                   data-actor-key={user.actorKey}
                 >
-                  <div className="admin-user-row admin-user-row-readonly">
-                    <span className="admin-user-identity">
-                      <strong>{user.displayName}</strong>
-                      <small>
-                        {user.kind === 'student'
-                          ? 'Ученическое место'
-                          : `Аккаунт · ${user.login ?? 'Имя входа недоступно'}`}
-                      </small>
-                      <small>
-                        {user.classTitle ? `Класс: ${user.classTitle}` : 'Класс не применяется'}
-                      </small>
-                    </span>
-                    <span>
-                      <strong>{user.lastIpAddress ?? 'IP не зафиксирован'}</strong>
-                      <small>{deviceDescription(user)}</small>
-                    </span>
-                    <span>
-                      <strong>{date(user.lastActivityAt)}</strong>
-                      <small>Последняя связь: {date(user.lastSeenAt)}</small>
-                      <small>Событий за 30 дней: {user.recentActivityCount}</small>
-                    </span>
-                    <span>
-                      <strong>{statusLabel[user.status] ?? user.status}</strong>
-                      <small>
-                        {user.classStatus
-                          ? `Класс: ${statusLabel[user.classStatus] ?? user.classStatus}`
-                          : 'Только просмотр'}
-                      </small>
-                      {!user.principalId ? <small>Идентификатор входа ещё не создан</small> : null}
-                    </span>
-                  </div>
-                  <AcquisitionObservation user={user} />
                   {scope.kind === 'platform' || user.classId ? (
                     <CrmUserCardLauncher
                       key={responsibilityKey}
+                      title={user.displayName}
+                      trigger={<UserSummary user={user} />}
                       history={
                         scope.kind === 'platform' ? (
                           <AdminUserHistoryPanel
@@ -622,8 +611,14 @@ export function AdminUsersCatalog({
                       }
                       onAccessDenied={onAccessDenied}
                       onChanged={() => void load(null)}
-                    />
-                  ) : null}
+                    >
+                      <AcquisitionObservation user={user} />
+                    </CrmUserCardLauncher>
+                  ) : (
+                    <div className="admin-user-row admin-user-row-readonly">
+                      <UserSummary user={user} />
+                    </div>
+                  )}
                 </article>
               ),
             )}
@@ -649,7 +644,31 @@ export function AdminUsersCatalog({
               {state.more ? 'Загружаем…' : 'Показать ещё'}
             </button>
           ) : null}
+          {state.page.analytics ? (
+            <details className="crm-directory-insights">
+              <summary>Аналитика пользователей</summary>
+              <CatalogAnalytics value={state.page.analytics} />
+            </details>
+          ) : null}
         </>
+      ) : null}
+      <details className="crm-directory-help">
+        <summary>О данных и выгрузке</summary>
+        <p className="admin-catalog-note">
+          Аккаунты и ученические места учитываются отдельно. Состояние записи не означает, что
+          пользователь сейчас онлайн.
+        </p>
+        <p className="admin-catalog-note">
+          CSV: до 10 000 записей, 16 МиБ; запрос до 8 секунд. Отмена прекращает ожидание и
+          скачивание файла.
+        </p>
+      </details>
+      {scope.kind === 'platform' ? (
+        <OrganizationClassBindings
+          key={actorId ?? scopeKind}
+          onAccessDenied={onAccessDenied}
+          onChanged={() => void load(null)}
+        />
       ) : null}
     </section>
   );

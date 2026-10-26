@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { clientAddress } from './client-address.js';
@@ -189,7 +190,7 @@ export class ClientDiagnosticsController {
             ))
         ? 'warn'
         : 'error';
-    process.stdout.write(
+    emitApplicationLog(
       `${JSON.stringify({ ...value, time: new Date(time).toISOString(), kind: 'client_diagnostic', level, requestId: request.id, untrustedClientReport: true })}\n`,
     );
     if (eventKey) {

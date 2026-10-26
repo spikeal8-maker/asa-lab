@@ -73,6 +73,9 @@ COPY --from=workspace --chown=node:node /workspace/docker/certs/russian-trusted-
 COPY --from=workspace --chown=node:node --chmod=0555 /workspace/docker/api-entrypoint.sh ./docker/api-entrypoint.sh
 COPY --from=workspace --chown=node:node --chmod=0555 /workspace/docker/migrate-entrypoint.sh ./docker/migrate-entrypoint.sh
 
+RUN mkdir -p /var/lib/asa-application-logs && chown node:node /var/lib/asa-application-logs
+ENV ASA_APPLICATION_LOG_STORE=/var/lib/asa-application-logs
+
 USER node
 
 EXPOSE 4611

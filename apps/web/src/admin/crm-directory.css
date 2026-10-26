@@ -128,7 +128,7 @@
 .crm-analytics-chart-scroll svg {
   display: block;
   width: 100%;
-  min-width: 720px;
+  min-width: 560px;
   height: auto;
 }
 .crm-analytics-chart-scroll text {
@@ -158,6 +158,75 @@
 }
 .crm-acquisition-observation small {
   display: block;
+}
+.crm-analytics-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.crm-directory-insights,
+.crm-directory-help {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--admin-line, #d9e4ea);
+  border-radius: 10px;
+}
+.crm-directory-insights > summary,
+.crm-directory-help > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.admin-users-catalog .admin-catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+.admin-users-catalog .admin-catalog-search {
+  flex: 1 1 240px;
+}
+.admin-users-catalog .admin-catalog-filters > label:not(.admin-catalog-search) {
+  flex: 0 1 180px;
+}
+.admin-users-catalog .admin-catalog-filters > button {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+.admin-users-catalog .admin-catalog-filters input,
+.admin-users-catalog .admin-catalog-filters select {
+  min-height: 40px;
+}
+.admin-users-catalog .crm-directory-advanced {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 8px 12px;
+}
+.admin-users-catalog .admin-user-history {
+  margin: 0;
+  padding: 0;
+}
+.admin-users-catalog .admin-user-row {
+  min-height: 70px;
+  padding: 12px;
+}
+.admin-users-catalog .admin-catalog-account + *,
+.admin-users-catalog .admin-user-item + .admin-catalog-account,
+.admin-users-catalog .admin-catalog-account + .admin-catalog-account {
+  border-top: 1px solid var(--admin-line, #d9e4ea);
+}
+@media (min-width: 1000px) {
+  .admin-dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .crm-analytics-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-users-catalog .admin-catalog-search {
+    flex-basis: calc(100% - 84px);
+  }
 }
 @media (min-width: 900px) {
   .crm-directory-fields,
