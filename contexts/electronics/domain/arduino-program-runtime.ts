@@ -1641,6 +1641,18 @@ function controlledStatement(
     const block = balancedSlice(source, start, '{', '}');
     return block ? { ...block, offset: start + 1 } : null;
   }
+  if (/^do\b/.test(source.slice(start))) {
+    const body = controlledStatement(source, start + 2);
+    if (!body) return null;
+    const tail = skipWhitespace(source, body.end);
+    if (!/^while\b/.test(source.slice(tail))) return null;
+    const condition = balancedSlice(source, skipWhitespace(source, tail + 5), '(', ')');
+    if (!condition) return null;
+    const end = skipWhitespace(source, condition.end);
+    return source[end] === ';'
+      ? { content: source.slice(start, end + 1), offset: start, end: end + 1 }
+      : null;
+  }
   const control = /^(if|while|for)\b/.exec(source.slice(start));
   if (control) {
     const header = balancedSlice(
@@ -1749,6 +1761,49 @@ function compileStatements(
       }
       compileBlock(block.content, index + 1);
       index = block.end;
+      continue;
+    }
+    if (/^do\b/.test(remaining)) {
+      const body = controlledStatement(source, index + 2);
+      if (!body) {
+        error('После do ожидается команда или блок.', index, 2);
+        break;
+      }
+      const tail = skipWhitespace(source, body.end);
+      if (!/^while\b/.test(source.slice(tail))) {
+        error('После тела do ожидается while (условие);.', tail, 1);
+        break;
+      }
+      const opening = skipWhitespace(source, tail + 5);
+      const condition = balancedSlice(source, opening, '(', ')');
+      if (!condition) {
+        error('После while ожидается условие в круглых скобках.', tail, 5);
+        break;
+      }
+      const closing = skipWhitespace(source, condition.end);
+      if (source[closing] !== ';') {
+        error('После do…while ожидается точка с запятой.', closing, 1);
+        break;
+      }
+      const bodyIndex = instructions.length;
+      const bodyLoop: CompilingLoop = { scopeDepth, breaks: [], continues: [] };
+      compileBlock(body.content, body.offset, undefined, bodyLoop);
+      if (diagnostics.length > 0) break;
+      const branchIndex = instructions.length;
+      record(
+        {
+          kind: 'branch',
+          condition: condition.content,
+          falseTarget: branchIndex + 2,
+          line: lineAt(tail),
+        },
+        opening + 1,
+        condition.content.length,
+      );
+      instructions.push({ kind: 'jump', target: bodyIndex });
+      for (const jump of bodyLoop.breaks) jump.target = instructions.length;
+      for (const jump of bodyLoop.continues) jump.target = branchIndex;
+      index = closing + 1;
       continue;
     }
     const control = /^(if|while)\b/.exec(remaining);
@@ -1941,7 +1996,7 @@ function declareVariable(
   const scope = state.scopes[state.scopes.length - 1]!;
   if (scope.has(name)) throw new SyntaxError(`Повторное объявление «${name}» в одной области.`);
   if (
-    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|break|continue)$/.test(
+    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|do|break|continue)$/.test(
       name,
     )
   )

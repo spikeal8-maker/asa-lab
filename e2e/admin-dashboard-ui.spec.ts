@@ -808,6 +808,7 @@ for (const width of [1440, 1024, 390, 320]) {
       .click();
     const student = page.locator('[data-actor-key="student:20000000-0000-4000-8000-000000000002"]');
     await student.locator('button.admin-user-row').click();
+    await student.getByRole('button', { name: 'Профиль', exact: true }).click();
     await expect(
       student
         .getByRole('region', { name: 'Полная карточка пользователя', exact: true })
