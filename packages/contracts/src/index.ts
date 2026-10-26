@@ -1,6 +1,12 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
 export type {
+  AiPromptVariable,
+  AiGenerationModel,
+  AiGenerationPolicy,
+  AiGenerationPolicyUpdate,
+} from './ai-generation-policy.js';
+export type {
   AiWebSearchMode,
   AiWebSource,
   AiWebImage,

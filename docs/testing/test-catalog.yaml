@@ -1237,6 +1237,28 @@ tests:
     owner: ai-assistant
     artifacts: [test-report]
 
+  - id: TST-AI-GENERATION-POLICY-001
+    title: Canonical owner prompt context and cross-provider generation policy
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-generation-policy.spec.ts tests/admin/ai-generation-policy.embedded.spec.ts apps/web/src/admin/testing/ai-generation-policy.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-GENERATION-POLICY-E2E-001
+    title: Prompt settings and internet policy administration at four widths
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-generation-policy.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
   - id: TST-AI-WEB-PG-001
     title: Concurrent PostgreSQL retrieval intent and global geocoder admission
     suite: authorization

@@ -1,9 +1,11 @@
 import { AI_MAX_ANSWER_CHARS, AI_GENERATION_TIMEOUT_MS } from './ai-generation-limits.js';
 import type {
+  AiGenerationPolicyUpdate,
   AiWebSearchAdminUpdate,
   AiWebSearchEvidence,
   AiWebSearchMode,
 } from '@asa-lab/contracts';
+import { AiGenerationPolicyStore, AiPolicyError, type PolicyRow } from './ai-generation-policy.js';
 import { AiWebSearchService } from './ai-web-search.js';
 import {
   classifyProviderHttpFailure,
@@ -195,6 +197,7 @@ function iso(value: Date | string | null): string | null {
  * The existing IZO Chat is the source of the visual and interaction patterns.
  */
 export class AiChatService {
+  private readonly policy: AiGenerationPolicyStore;
   private readonly key: Buffer | null;
   private readonly fetchImpl: typeof fetch;
   private readonly history: AiTextHistoryStore;
@@ -216,6 +219,67 @@ export class AiChatService {
     this.attachments = options.attachments;
     this.usage = new AiUsageJournal(pool);
     this.web = new AiWebSearchService(pool, this.fetchImpl);
+    this.policy = new AiGenerationPolicyStore(pool);
+  }
+
+  generationPolicy(actor: string) {
+    return this.policy.admin(actor, this.key !== null);
+  }
+  saveGenerationPolicy(actor: string, input: AiGenerationPolicyUpdate) {
+    return this.policy.save(actor, input, this.key !== null);
+  }
+  private policyPayload(
+    text: string,
+    model?: AiChatModel,
+    source?: string,
+    uploads: readonly string[] = [],
+    mode?: AiWebSearchMode,
+    city?: string,
+  ) {
+    return {
+      text,
+      model: model ?? null,
+      source: source ?? null,
+      uploads,
+      webSearchMode: mode ?? null,
+      weatherCity: city ?? null,
+    };
+  }
+  private chosenPolicyModel(
+    policy: PolicyRow | null,
+    selected?: AiChatModel,
+  ): AiChatModel | undefined {
+    if (!policy?.customized) return selected;
+    const value = selected ?? policy.defaultModel;
+    if (!value || !policy.allowedModels.includes(value))
+      throw new AiServiceError(
+        'ai_model_not_allowed',
+        403,
+        'Эта модель не разрешена администратором. Выберите доступную модель.',
+      );
+    return value as AiChatModel;
+  }
+  private async policyRuntime(
+    runtime: RuntimeRow,
+    policy: PolicyRow | null,
+    selected?: AiChatModel,
+  ): Promise<RuntimeRow> {
+    if (!policy?.customized || selected === OLLAMA_SELECTION) return runtime;
+    try {
+      const row = (
+        await this.pool.query<RuntimeRow>('SELECT * FROM ai_generation_runtime($1)', [selected])
+      ).rows[0];
+      if (!row)
+        throw new AiServiceError(
+          'ai_model_not_allowed',
+          403,
+          'Выберите разрешённую и подключённую модель.',
+        );
+      return row;
+    } catch (problem) {
+      this.rethrowAdmissionError(problem);
+      throw problem;
+    }
   }
 
   webSearchStatus() {
@@ -657,6 +721,43 @@ export class AiChatService {
   }> {
     const [config, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
     const modelCatalog = getAiModelCatalog();
+    const policy = await this.policy.row();
+    if (policy?.customized) {
+      const available: AiChatModel[] = modelCatalog.models
+        .filter(
+          (m) =>
+            config.enabled &&
+            this.key !== null &&
+            policy.allowedModels.includes(m.id) &&
+            m.selectable &&
+            policy.providerReady?.[m.provider],
+        )
+        .map((m) => m.id);
+      if (
+        local.enabled &&
+        validOllamaModel(local.model) &&
+        policy.allowedModels.includes(OLLAMA_SELECTION)
+      )
+        available.push(OLLAMA_SELECTION);
+      const model = (
+        available.includes(policy.defaultModel as AiChatModel)
+          ? policy.defaultModel
+          : (available[0] ?? policy.defaultModel ?? config.model)
+      ) as AiChatModel;
+      const provider =
+        model === OLLAMA_SELECTION
+          ? 'ollama'
+          : (modelCatalog.models.find((m) => m.id === model)?.provider ?? config.provider);
+      return {
+        enabled: available.length > 0,
+        provider,
+        model,
+        availableModels: available,
+        modelCatalog,
+        productFeatures: AI_PRODUCT_FEATURES,
+        ollamaModel: local.enabled ? local.model : null,
+      };
+    }
     const externalReady =
       config.enabled &&
       isModelForProvider(config.provider, config.model) &&
@@ -786,38 +887,67 @@ export class AiChatService {
         'Сообщение должно содержать от 1 до 3000 символов.',
       );
     }
-    const runtime = await this.runtime();
+    const policy = await this.policy.row();
+    const payload = this.policyPayload(
+      prompt,
+      undefined,
+      undefined,
+      [],
+      webSearchMode,
+      weatherCity,
+    );
+    if (
+      policy?.customized &&
+      (await this.policy.replay(principalId, threadId, clientRequestId.toLowerCase(), payload))
+    )
+      return { messages: await this.messages(principalId, threadId), replayed: true };
+    const choice = this.chosenPolicyModel(policy);
+    const runtime = await this.policyRuntime(await this.runtime(), policy, choice);
     // Legacy JSON transport follows the active external provider exactly.
     // It falls back to independently configured local inference only when
     // the external provider was deliberately switched off.
-    const useLocal = !runtime.enabled;
+    const useLocal = choice === OLLAMA_SELECTION || (!policy?.customized && !runtime.enabled);
     const local = useLocal ? await this.ollamaRuntime() : null;
     if (useLocal) {
       if (!local?.enabled)
         throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     } else {
       this.requireSupportedModel(runtime);
+      if (!runtime.enabled)
+        throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
     const apiKey = useLocal ? '' : this.requireProviderKey(runtime);
     const requestId = clientRequestId.toLowerCase();
     let accepted: boolean;
     try {
       const admitted = await this.pool.query<{ admitted: boolean }>(
-        webSearchMode !== undefined
-          ? 'SELECT ai_web_text_begin($1,$2,$3,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::uuid[],$9::boolean) AS admitted'
-          : useLocal
-            ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
-            : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
-        [
-          principalId,
-          threadId,
-          requestId,
-          prompt,
-          useLocal ? local!.revision : runtime.configuration_version,
-          ...(webSearchMode !== undefined
-            ? [webSearchMode, weatherCity ?? null, [], useLocal]
-            : []),
-        ],
+        policy?.customized
+          ? 'SELECT ai_generation_begin($1,$2,$3,$4::jsonb,$5::varchar,$6::bigint,$7::bigint) AS admitted'
+          : webSearchMode !== undefined
+            ? 'SELECT ai_web_text_begin($1,$2,$3,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::uuid[],$9::boolean) AS admitted'
+            : useLocal
+              ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
+              : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        policy?.customized
+          ? [
+              principalId,
+              threadId,
+              requestId,
+              JSON.stringify(payload),
+              choice,
+              policy.revision,
+              useLocal ? local!.revision : runtime.configuration_version,
+            ]
+          : [
+              principalId,
+              threadId,
+              requestId,
+              prompt,
+              useLocal ? local!.revision : runtime.configuration_version,
+              ...(webSearchMode !== undefined
+                ? [webSearchMode, weatherCity ?? null, [], useLocal]
+                : []),
+            ],
       );
       accepted = admitted.rows[0]?.admitted === true;
     } catch (problem) {
@@ -879,17 +1009,20 @@ export class AiChatService {
         weatherCity,
       );
       const context = await this.history.generationContext(principalId, threadId, requestId);
+      const instructions = policy?.customized
+        ? await this.policy.instructions(principalId, threadId, requestId)
+        : ASSISTANT_INSTRUCTIONS;
       const reply = useLocal
         ? await streamOllamaText({
             baseUrl: local!.base_url,
             model: local!.model,
             context,
-            instructions: ASSISTANT_INSTRUCTIONS,
+            instructions,
             signal: new AbortController().signal,
             onDelta: () => undefined,
             fetchImpl: this.fetchImpl,
           })
-        : await this.generate(runtime, apiKey, context);
+        : await this.generate(runtime, apiKey, context, instructions);
       capturedUsage = reply.usage;
       await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
         principalId,
@@ -1128,6 +1261,22 @@ export class AiChatService {
         'Сообщение должно содержать от 1 до 3000 символов.',
       );
     }
+    const policy = await this.policy.row();
+    const payload = this.policyPayload(
+      prompt,
+      selectedModel,
+      sourceId,
+      attachmentIds,
+      webSearchMode,
+      weatherCity,
+    );
+    if (
+      policy?.customized &&
+      (await this.policy.replay(principalId, threadId, requestId, payload))
+    ) {
+      const messages = await this.requestMessages(principalId, threadId, requestId);
+      return { messages, replayed: true, stopped: messages.some((m) => m.state === 'stopped') };
+    }
     if (sourceId) {
       try {
         const receipt = await this.pool.query<{ replayed: boolean }>(
@@ -1143,12 +1292,13 @@ export class AiChatService {
         throw problem;
       }
     }
-    const runtime = await this.runtime();
+    const choice = this.chosenPolicyModel(policy, selectedModel);
+    const runtime = await this.policyRuntime(await this.runtime(), policy, choice);
     const useLocal =
-      selectedModel === OLLAMA_SELECTION || (selectedModel === undefined && !runtime.enabled);
-    // No additional SQL is performed for existing OpenAI/DeepSeek routes.
+      choice === OLLAMA_SELECTION ||
+      (!policy?.customized && selectedModel === undefined && !runtime.enabled);
     const local = useLocal ? await this.ollamaRuntime() : null;
-    const model = selectedModel ?? (useLocal ? OLLAMA_SELECTION : runtime.model);
+    const model = choice ?? (useLocal ? OLLAMA_SELECTION : runtime.model);
     if (useLocal) {
       if (!local?.enabled || !validOllamaModel(local.model)) {
         throw new AiServiceError('ai_disabled', 503, 'Локальная Ollama выключена администратором.');
@@ -1229,31 +1379,43 @@ export class AiChatService {
     let admitted: boolean;
     try {
       const result = await this.pool.query<{ admitted: boolean }>(
-        sourceId
-          ? useLocal
-            ? 'SELECT ai_text_regenerate_begin_local($1,$2,$3,$4,$5::bigint) AS admitted'
-            : 'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5::bigint) AS admitted'
-          : webSearchMode !== undefined
-            ? 'SELECT ai_web_text_begin($1,$2,$3,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::uuid[],$9::boolean) AS admitted'
-            : attachmentIds.length
-              ? useLocal
-                ? 'SELECT ai_attachment_begin_message_local($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
-                : 'SELECT ai_attachment_begin_message($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
-              : useLocal
-                ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
-                : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
-        [
-          principalId,
-          threadId,
-          requestId,
-          sourceId ?? prompt,
-          useLocal ? local!.revision : runtime.configuration_version,
-          ...(webSearchMode !== undefined && !sourceId
-            ? [webSearchMode, weatherCity ?? null, attachmentIds, useLocal]
-            : attachmentIds.length && !sourceId
-              ? [attachmentIds]
-              : []),
-        ],
+        policy?.customized
+          ? 'SELECT ai_generation_begin($1,$2,$3,$4::jsonb,$5::varchar,$6::bigint,$7::bigint) AS admitted'
+          : sourceId
+            ? useLocal
+              ? 'SELECT ai_text_regenerate_begin_local($1,$2,$3,$4,$5::bigint) AS admitted'
+              : 'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5::bigint) AS admitted'
+            : webSearchMode !== undefined
+              ? 'SELECT ai_web_text_begin($1,$2,$3,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::uuid[],$9::boolean) AS admitted'
+              : attachmentIds.length
+                ? useLocal
+                  ? 'SELECT ai_attachment_begin_message_local($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
+                  : 'SELECT ai_attachment_begin_message($1,$2,$3,$4::varchar,$5::bigint,$6::uuid[]) AS admitted'
+                : useLocal
+                  ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
+                  : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        policy?.customized
+          ? [
+              principalId,
+              threadId,
+              requestId,
+              JSON.stringify(payload),
+              model,
+              policy.revision,
+              useLocal ? local!.revision : runtime.configuration_version,
+            ]
+          : [
+              principalId,
+              threadId,
+              requestId,
+              sourceId ?? prompt,
+              useLocal ? local!.revision : runtime.configuration_version,
+              ...(webSearchMode !== undefined && !sourceId
+                ? [webSearchMode, weatherCity ?? null, attachmentIds, useLocal]
+                : attachmentIds.length && !sourceId
+                  ? [attachmentIds]
+                  : []),
+            ],
       );
       admitted = result.rows[0]?.admitted === true;
     } catch (problem) {
@@ -1363,7 +1525,9 @@ export class AiChatService {
             model: local!.model,
             context,
             ...(files?.images.length ? { images: files.images } : {}),
-            instructions: ASSISTANT_INSTRUCTIONS,
+            instructions: policy?.customized
+              ? await this.policy.instructions(principalId, threadId, requestId)
+              : ASSISTANT_INSTRUCTIONS,
             signal: combined,
             onDelta,
             fetchImpl: this.fetchImpl,
@@ -1374,7 +1538,9 @@ export class AiChatService {
             model: model as AiModel,
             apiKey,
             context,
-            instructions: ASSISTANT_INSTRUCTIONS,
+            instructions: policy?.customized
+              ? await this.policy.instructions(principalId, threadId, requestId)
+              : ASSISTANT_INSTRUCTIONS,
             signal: combined,
             onDelta,
           });
@@ -1492,6 +1658,14 @@ export class AiChatService {
 
   private rethrowAdmissionError(problem: unknown): void {
     const message = problem instanceof Error ? problem.message : '';
+    if (problem instanceof AiPolicyError)
+      throw new AiServiceError(problem.code, problem.status, problem.message);
+    if (message.includes('AI_MODEL_NOT_ALLOWED') || message.includes('AI_POLICY_WORKER_REQUIRED'))
+      throw new AiServiceError(
+        'ai_model_not_allowed',
+        403,
+        'Модель запрещена администратором или требуется обновление API.',
+      );
     if (message.includes('AI_STUDENT_DENIED')) {
       throw new AiServiceError(
         'ai_student_denied',
@@ -1651,12 +1825,13 @@ export class AiChatService {
     runtime: RuntimeRow,
     apiKey: string,
     context: readonly { role: 'user' | 'assistant'; content: string }[],
+    instructions = ASSISTANT_INSTRUCTIONS,
   ): Promise<ProviderStreamResult> {
     const request = buildAiTextRequest(
       runtime.provider,
       runtime.model,
       context,
-      ASSISTANT_INSTRUCTIONS,
+      instructions,
       false,
     );
     let response: Response;

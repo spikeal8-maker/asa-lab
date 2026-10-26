@@ -140,6 +140,7 @@ describe('fresh answer admission and persistence', () => {
       messages: [{ requestId: REQUEST }],
     });
     expect(f.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'SELECT ai_generation_policy_runtime() AS value',
       'SELECT ai_text_regeneration_replay($1,$2,$3,$4) AS replayed',
       'SELECT page.*, ai_web_search_evidence($1,$2,page.request_id,true) AS web_search FROM ai_text_request_messages($1,$2,$3) page',
     ]);
@@ -154,7 +155,10 @@ describe('fresh answer admission and persistence', () => {
       code: 'ai_request_id_reused',
       status: 409,
     });
-    expect(f.query).toHaveBeenCalledTimes(1);
+    expect(f.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'SELECT ai_generation_policy_runtime() AS value',
+      'SELECT ai_text_regeneration_replay($1,$2,$3,$4) AS replayed',
+    ]);
     expect(f.fetchImpl).toHaveBeenCalledTimes(1);
   });
 

@@ -539,7 +539,7 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('Сохранено · ornith:9b', { exact: false })).toBeVisible();
     expect(fake.ollamaWrites).toHaveLength(1);
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
-    await page.getByRole('tab', { name: /ComfyUI/ }).click();
+    await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
     await expect(page.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
     await expect(page.getByText('Граф генерации ещё не проверен')).toBeVisible();
     await page.getByRole('tab', { name: 'Подключения' }).click();

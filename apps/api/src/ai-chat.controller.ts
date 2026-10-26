@@ -1,4 +1,5 @@
 import type { AiWebSearchMode } from '@asa-lab/contracts';
+import { AiPolicyError } from './ai-generation-policy.js';
 import { AiWebSearchError, isWebSearchMode } from './ai-web-search.js';
 import {
   Body,
@@ -74,7 +75,11 @@ export class AiChatController {
     try {
       return await call();
     } catch (problem) {
-      if (problem instanceof AiServiceError || problem instanceof AiWebSearchError) {
+      if (
+        problem instanceof AiServiceError ||
+        problem instanceof AiWebSearchError ||
+        problem instanceof AiPolicyError
+      ) {
         return reject(problem.code, problem.message, problem.status);
       }
       throw problem;
