@@ -184,6 +184,11 @@ const upgradeArtifacts = [
     '0260_public_project_artifact_document.sql',
     'a7a2e2f208a356bbee227f3ca2e0ad95fcbcee36ed6ed51401caccb672e41dcf',
   ],
+  [
+    '0261',
+    '0261_ai_long_answers.sql',
+    'b675187ec818b7c26e2984ae76236ce5e6009571150320a5d11d0fa419b462b6',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
