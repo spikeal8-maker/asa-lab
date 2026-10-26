@@ -687,14 +687,19 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           parseFloat(getComputedStyle(element).lineHeight),
         );
         expect(collapsed!.height).toBeLessThanOrEqual(lineHeight * 3 + 1);
-        const toggle = guest.getByRole('button', { name: 'Название целиком', exact: true });
+        const headingId = await heading.getAttribute('id');
+        expect(headingId).toBeTruthy();
+        const toggle = guest.locator(`button[aria-controls="${headingId}"]`);
+        await expect(toggle).toHaveAccessibleName('Название целиком');
         await toggle.focus();
         await guest.keyboard.press('Enter');
         await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        await expect(toggle).toHaveAccessibleName('Свернуть название');
         expect((await heading.boundingBox())!.height).toBeGreaterThan(collapsed!.height);
         await expectNoOverflow(guest);
         await guest.keyboard.press('Enter');
         await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        await expect(toggle).toHaveAccessibleName('Название целиком');
         expect((await heading.boundingBox())!.height).toBeLessThanOrEqual(lineHeight * 3 + 1);
       }
       const geometry = await guest.getByTestId('public-project-detail').evaluate((article) => {
