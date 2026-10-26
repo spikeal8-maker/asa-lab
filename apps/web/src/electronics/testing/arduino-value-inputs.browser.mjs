@@ -14,7 +14,8 @@ const buildOptions = {
   stdin: {
     contents: `import * as S from 'scratch-blocks';
       import * as A from './src/electronics/arduino-blocks';
-      window.fixture = { S, A };`,
+      import { configureArduinoConnections } from './src/electronics/arduino-block-ui';
+      window.fixture = { S, A, configureArduinoConnections };`,
     resolveDir: resolve('apps/web'),
   },
   alias: { '@asa-lab/electronics': resolve('contexts/electronics/index.ts') },
@@ -144,12 +145,17 @@ try {
     JSON.stringify({ legacyRef, cases: legacy.cases, exactCodeEqual: true, ...legacy }, null, 2),
   );
   for (const width of [1440, 1024, 390, 320]) {
-    const page = await browser.newPage({ viewport: { width, height: 900 } });
+    const mobile = width === 390;
+    const page = await browser.newPage({
+      viewport: { width, height: 900 },
+      hasTouch: mobile,
+      isMobile: mobile,
+    });
     activePage = page;
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.setContent(
-      '<style>body{margin:0}#host{width:100vw;height:900px}</style><div id="host"></div>',
+      '<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}#host{width:100vw;height:900px}</style><div id="host"></div>',
     );
     await page.addScriptTag({ content: result.outputFiles[0].text });
     await page.evaluate(() => {
@@ -162,37 +168,64 @@ try {
         scratchTheme: S.ScratchBlocksTheme.CLASSIC,
         zoom: { startScale: 0.86 },
       });
+      window.fixture.configureArduinoConnections(window.fixture.workspace);
     });
-    for (const [type, socket] of [
-      ['asa_wait', 'TIME'],
-      ['asa_serial_print', 'TEXT'],
-      ['asa_digital_write', 'LEVEL'],
-      ['asa_var_change', 'VALUE'],
+    for (const [type, socket, reporterType] of [
+      ['asa_wait', 'TIME', 'asa_var_get'],
+      ['asa_serial_print', 'TEXT', 'asa_var_get'],
+      ['asa_digital_write', 'LEVEL', 'asa_var_get'],
+      ['asa_var_change', 'VALUE', 'asa_var_get'],
+      ...([1440, 390].includes(width)
+        ? [
+            ['asa_wait', 'TIME', 'asa_compare_eq'],
+            ['asa_tone', 'FREQUENCY', 'asa_compare_eq'],
+            ['asa_servo_write', 'ANGLE', 'asa_compare_eq'],
+            ['asa_7seg_print', 'VALUE', 'asa_compare_eq'],
+            ['asa_logic_and', 'A', 'asa_number'],
+            ['asa_while', 'CONDITION', 'asa_number'],
+          ]
+        : []),
     ]) {
-      for (const nested of [false, true]) {
+      for (const nested of reporterType === 'asa_var_get' ? [false, true] : [false]) {
         const points = await page.evaluate(
-          ({ type, socket, nested }) => {
+          ({ type, socket, nested, reporterType }) => {
             const { workspace: w, S, A } = window.fixture;
             w.clear();
             const loop = w.newBlock('asa_loop');
             const target = w.newBlock(type);
             const variable = w.getVariableMap().createVariable('sensor');
-            const value = w.newBlock('asa_var_get');
-            value.setFieldValue(variable.getId(), 'NAME');
+            const value = w.newBlock(reporterType);
+            if (reporterType === 'asa_var_get') value.setFieldValue(variable.getId(), 'NAME');
+            if (reporterType === 'asa_number') value.setFieldValue('2', 'VALUE');
             if (type === 'asa_var_change') target.setFieldValue(variable.getId(), 'NAME');
             let dragged = value;
             if (nested) {
               dragged = w.newBlock('asa_math_add');
               dragged.getInput('A').connection.connect(value.outputConnection);
             }
-            loop.getInput('DO').connection.connect(target.previousConnection);
+            if (target.previousConnection)
+              loop.getInput('DO').connection.connect(target.previousConnection);
             A.applyArduinoBlockDefaults(w);
             for (const block of w.getAllBlocks(false)) {
               block.initSvg();
               block.render();
             }
             loop.moveBy(12, 60);
+            if (target.outputConnection) target.moveBy(12, 140);
             dragged.moveBy(20, 300);
+            // Long labels can place Servo/display sockets outside a phone's
+            // viewport. Pan the genuine workspace, then keep the loose reporter
+            // visible so the touch gesture begins and ends on screen.
+            const inputPosition = target.getRelativeToSurfaceXY();
+            const inputOffset = target.getInput(socket).connection.getOffsetInBlock();
+            const inputPoint = w.getParentSvg().createSVGPoint();
+            inputPoint.x = inputPosition.x + inputOffset.x;
+            inputPoint.y = inputPosition.y + inputOffset.y;
+            const inputScreen = inputPoint.matrixTransform(w.getCanvas().getScreenCTM());
+            if (inputScreen.x > innerWidth - 80)
+              w.scroll(w.scrollX + innerWidth / 2 - inputScreen.x, w.scrollY);
+            const looseBox = dragged.getSvgRoot().getBoundingClientRect();
+            dragged.moveBy((20 - looseBox.left) / w.scale, 0);
             window.fixture.target = target;
             window.fixture.dragged = dragged;
             const root = dragged.getSvgRoot();
@@ -221,24 +254,62 @@ try {
             };
             const constants = w.getRenderer().getConstants();
             const shape = constants.shapeFor(target.getInput(socket).connection);
-            if (socket !== 'LEVEL' && shape !== constants.ROUNDED)
+            if (
+              target.getInput(socket).connection.getCheck()?.includes('Number') &&
+              shape !== constants.ROUNDED
+            )
               throw Error('Value socket must be rounded');
-            if (dragged.getOutputShape() !== S.OUTPUT_SHAPE_ROUND)
-              throw Error('Reporter must be rounded');
+            const expectedShape =
+              reporterType === 'asa_compare_eq' ? S.OUTPUT_SHAPE_HEXAGONAL : S.OUTPUT_SHAPE_ROUND;
+            if (dragged.getOutputShape() !== expectedShape) throw Error('Reporter shape changed');
             return { start, end };
           },
-          { type, socket, nested },
+          { type, socket, nested, reporterType },
         );
-        await page.mouse.move(points.start.x, points.start.y);
-        await page.mouse.down();
-        await page.mouse.move(points.start.x + 12, points.start.y + 12, { steps: 4 });
-        await page.mouse.move(points.end.x, points.end.y, { steps: 24 });
-        await page.mouse.up();
+        if (mobile) {
+          const touch = await page.context().newCDPSession(page);
+          await touch.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [{ ...points.start, id: 1 }],
+          });
+          for (let step = 1; step <= 24; step++) {
+            await touch.send('Input.dispatchTouchEvent', {
+              type: 'touchMove',
+              touchPoints: [
+                {
+                  x: points.start.x + ((points.end.x - points.start.x) * step) / 24,
+                  y: points.start.y + ((points.end.y - points.start.y) * step) / 24,
+                  id: 1,
+                },
+              ],
+            });
+          }
+          await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          await touch.detach();
+        } else {
+          await page.mouse.move(points.start.x, points.start.y);
+          await page.mouse.down();
+          await page.mouse.move(points.start.x + 12, points.start.y + 12, { steps: 4 });
+          await page.mouse.move(points.end.x, points.end.y, { steps: 24 });
+          await page.mouse.up();
+        }
         const receipt = await page.evaluate(
           ({ socket, type, nested }) => {
             const { workspace: w, target, dragged, S, A } = window.fixture;
             if (target.getInputTargetBlock(socket) !== dragged)
               throw Error(`Native drag failed: ${type}.${socket}, nested=${nested}`);
+            // A loose operator avoids a competing ancestor socket during the
+            // gesture. Mount the successfully connected operator afterwards so
+            // generated-source comparison also exercises the completed graph.
+            if (target.outputConnection) {
+              const wait = w.newBlock('asa_wait');
+              w.getAllBlocks(false)
+                .find((block) => block.type === 'asa_loop')
+                .getInput('DO')
+                .connection.connect(wait.previousConnection);
+              wait.getInput('TIME').connection.connect(target.outputConnection);
+              A.applyArduinoBlockDefaults(w);
+            }
             const code = A.generateArduinoCode(w);
             const saved = S.serialization.workspaces.save(w);
             const targetId = target.id,
@@ -264,7 +335,7 @@ try {
           { socket, type, nested },
         );
         assert.equal(receipt.pageOverflow, false);
-        receipts.push({ width, ...receipt });
+        receipts.push({ width, mobile, reporterType, ...receipt });
       }
     }
     await page.screenshot({ path: resolve(output, `expressions-${width}.png`) });
