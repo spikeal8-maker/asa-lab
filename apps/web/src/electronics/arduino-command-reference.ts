@@ -531,10 +531,11 @@ const LANGUAGE_REFERENCE_METADATA = {
   arithmetic: {
     command: 'arithmetic',
     title: 'Арифметические действия',
-    signature: '+  -  *  /  %',
+    signature: '+  -  *  /  %  ++  --',
     category: 'math',
-    limits: 'Деление на ноль и знаковое переполнение останавливают расчёт с ошибкой.',
-    example: 'int average = (left + right) / 2;',
+    limits:
+      '++n: новое, n++: прежнее. ++/--: скаляры кроме const/bool. Деление на ноль и знаковое переполнение — ошибка.',
+    example: 'int n = 1;\nint previous = n++;\nint current = ++n;',
   },
 } as const satisfies Readonly<Record<ArduinoLanguageFeature, ArduinoLanguageReferenceMetadata>>;
 

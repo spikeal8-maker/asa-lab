@@ -31,6 +31,21 @@ do {total++;if(total==2)continue;if(total==4)break;
 Serial.println(total);digitalWrite(13,total==1);delay(1);delayMicroseconds(3);
 } while(total<9);do {Serial.println(10);} while(false);}
 void loop(){delay(100);}`;
+const incrementSource = `int checks=0;int total=0;int pin=12;
+void setup(){pinMode(12,OUTPUT);pinMode(13,OUTPUT);Serial.begin(9600);
+while(++checks<3 && total<3){Serial.println(total++);digitalWrite(pin++,HIGH);delayMicroseconds(3);}
+Serial.println(checks);Serial.println(pin);int skipped=false && ++pin;
+Serial.println(pin--);Serial.println(++pin);delay(1);}
+void loop(){delay(100);}`;
+const waitingIncrementSource = `int n=2;long value=-1;
+void setup(){Serial.begin(9600);pinMode(13,OUTPUT);
+value=pulseIn(n++,HIGH,100);Serial.println(n);Serial.println(value);
+value=n++ +pulseIn(4,HIGH,100);Serial.println(value);
+pinMode(4,OUTPUT);digitalWrite(n++,pulseIn(6,HIGH,100));
+value=pulseIn(n++,HIGH,100)+pulseIn(n++,HIGH,100);
+value=readUltrasonicCm(n++,10);Serial.println(n);Serial.println(value);
+value=pulseIn(11,HIGH,100)+n++;Serial.println(n);Serial.println(value);}
+void loop(){delay(100);}`;
 const entry = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
@@ -42,6 +57,8 @@ import {advanceElectronicsToHorizon,resetElectronicsTimedState} from '@asa-lab/e
 import {advanceClockedArduinoRuntime} from '../../contexts/electronics/domain/arduino-program-runtime';
 const initial=${JSON.stringify(postTestSource)};
 const legacy=${JSON.stringify(source)};
+const increment=${JSON.stringify(incrementSource)};
+const waiting=${JSON.stringify(waitingIncrementSource)};
 const doc=(source)=>({schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',pinIds:['d13','power-5v','power-3v3','power-gnd-1'],position:{x:0,y:0},value:5,stateProperties:{arduinoSource:source}}],connections:[],viewport:{x:0,y:0,zoom:1},simulation:{running:true,maxIterations:24}});
 const factory=()=>new Worker('/worker.js',{type:'module'});
 window.proof=async()=>{
@@ -49,20 +66,26 @@ window.proof=async()=>{
  try{
  const generation=client.beginGeneration('loop-proof');
  const proofs=[];
- for(const source of [legacy,initial]){
+ for(const source of [legacy,initial,increment,waiting]){
+  const horizons=source===waiting?[50,500,1100000]:[500,1500,20000];
+  const horizon=horizons.at(-1);
   let state=resetElectronicsTimedState();let advance;
-  for(const horizon of [500,1500,20000]){
+  for(const horizon of horizons){
    advance=await client.advance(generation,doc(source),JSON.parse(JSON.stringify(state)),horizon);
    state=advance.state;
   }
-  const direct=advanceElectronicsToHorizon(doc(source),{state:resetElectronicsTimedState(),requestedHorizonMicroseconds:20000});
+  let direct;let directState=resetElectronicsTimedState();
+  do {direct=advanceElectronicsToHorizon(doc(source),{state:directState,requestedHorizonMicroseconds:horizon});
+    directState=JSON.parse(JSON.stringify(direct.state));
+  }while(direct.executionStatus==='yielded');
   let runtime;const events=[];let slices=0;
-  do {const step=advanceClockedArduinoRuntime(source,{},20,runtime,undefined,{instructionBudget:1});
+  do {const step=advanceClockedArduinoRuntime(source,{},horizon/1000,runtime,undefined,{instructionBudget:1});
    runtime=JSON.parse(JSON.stringify(step.state));events.push(...step.events);slices++;
    if(step.executionStatus!=='yielded')break;
   }while(slices<10000);
   proofs.push({advance,direct,budgetOne:{runtime,events,slices}});
  }
+ proofs.push({invalid:await client.advance(generation,doc(increment.replace('total++','++1')),resetElectronicsTimedState(),20000)});
  return proofs;
  }finally{client.dispose();}
 };
@@ -77,7 +100,7 @@ document.querySelector('#run').onclick=()=>{running=true;ready=false;failure=nul
 document.querySelector('#stop').onclick=()=>{controller.stop();running=false;render()};
 document.querySelector('#reset').onclick=()=>{ready=false;failure=null;committed=0;controller.restart(current());render()};
 input.oninput=()=>{if(running)controller.update(current(),30000);render()};
-window.fixture={dispose:()=>controller.dispose()};render();
+window.fixture={dispose:()=>controller.dispose(),advance:h=>controller.update(current(),h)};render();
 `,
   },
   bundle: true,
@@ -112,6 +135,11 @@ try {
     await page.goto('https://asa-loops.invalid/');
     await page.addScriptTag({ content: entry.outputFiles[0].text });
     const proofs = await page.evaluate(() => window.proof());
+    const incrementInvalid = proofs.pop().invalid;
+    assert.ok(incrementInvalid.diagnostics.some((entry) => entry.code === 'compile_error'));
+    const invalidRuntime = JSON.parse(incrementInvalid.state.continuation.serializedState).boards[0]
+      .runtime;
+    assert.deepEqual(invalidRuntime.outputVoltages, {});
     const proof = proofs[1];
     for (const result of proofs) {
       assert.equal(result.advance.executionStatus, 'ready');
@@ -176,6 +204,87 @@ try {
     const infiniteStopped = await page.evaluate(() => window.receipt);
     await page.waitForTimeout(50);
     assert.deepEqual(await page.evaluate(() => window.receipt), infiniteStopped);
+    const incrementProof = proofs[2];
+    const incrementRuntime = JSON.parse(incrementProof.advance.state.continuation.serializedState)
+      .boards[0].runtime;
+    assert.deepEqual(incrementRuntime.variables, { checks: 3, total: 2, pin: 14 });
+    const incrementSerial = ['0\n', '1\n', '3\n', '14\n', '14\n', '14\n'];
+    assert.deepEqual(
+      incrementRuntime.serial.tx.map((e) => e.text),
+      incrementSerial,
+    );
+    assert.equal(incrementRuntime.outputVoltages.d12, 5);
+    assert.equal(incrementRuntime.outputVoltages.d13, 5);
+    await page.getByRole('textbox', { name: 'source' }).fill(incrementSource);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const incrementRun = await page.evaluate(() => window.receipt);
+    assert.equal(incrementRun.failure, null);
+    assert.deepEqual(incrementRun.serial[0].tx, incrementRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const incrementReset = await page.evaluate(() => window.receipt);
+    assert.deepEqual(incrementReset.serial[0].tx, incrementRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const incrementStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), incrementStopped);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(incrementSource.replace('Serial.println(checks)', 'Serial.println(checks+40)'));
+    await page.waitForFunction(
+      () => window.receipt.committed === 30000 && window.receipt.serial[0]?.tx[2]?.text === '43\n',
+    );
+    const incrementEdited = await page.evaluate(() => window.receipt);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const waitingProof = proofs[3];
+    const waitingRuntime = JSON.parse(waitingProof.advance.state.continuation.serializedState)
+      .boards[0].runtime;
+    assert.deepEqual(waitingRuntime.variables, { n: 9, value: 8 });
+    const waitingSerial = ['3\n', '0\n', '3\n', '8\n', '0\n', '9\n', '8\n'];
+    assert.deepEqual(
+      waitingRuntime.serial.tx.map((entry) => entry.text),
+      waitingSerial,
+    );
+    assert.equal(waitingRuntime.pendingEvaluation, undefined);
+    await page.getByRole('textbox', { name: 'source' }).fill(waitingIncrementSource);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const waitingPending = await page.evaluate(() => window.receipt);
+    assert.deepEqual(
+      waitingPending.serial[0].tx.map((entry) => entry.text),
+      waitingSerial.slice(0, 3),
+    );
+    await page.evaluate(() => window.fixture.advance(1100000));
+    await page.waitForFunction(() => window.receipt.committed === 1100000);
+    const waitingCompleted = await page.evaluate(() => window.receipt);
+    assert.deepEqual(waitingCompleted.serial[0].tx, waitingRuntime.serial.tx);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    assert.deepEqual(
+      (await page.evaluate(() => window.receipt)).serial[0].tx,
+      waitingPending.serial[0].tx,
+    );
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const waitingStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), waitingStopped);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(waitingIncrementSource.replace('readUltrasonicCm(n++,10)', 'pulseIn(n++,HIGH,100)'));
+    await page.waitForFunction(
+      () => window.receipt.committed === 30000 && window.receipt.serial[0]?.tx.length === 7,
+    );
+    const waitingEdited = await page.evaluate(() => window.receipt);
+    assert.deepEqual(
+      waitingEdited.serial[0].tx.map((entry) => entry.text),
+      waitingSerial,
+    );
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
     assert.deepEqual(errors, []);
     assert.ok(workers >= 5);
     await page.screenshot({ path: resolve(output, 'loops-' + width + '.png') });
@@ -192,6 +301,21 @@ try {
       invalid,
       edited,
       infiniteStopped,
+      incrementRun,
+      incrementReset,
+      incrementStopped,
+      incrementEdited,
+      incrementInvalid,
+      incrementVariables: incrementRuntime.variables,
+      incrementSerial,
+      incrementBudgetOneSlices: incrementProof.budgetOne.slices,
+      waitingPending,
+      waitingCompleted,
+      waitingStopped,
+      waitingEdited,
+      waitingVariables: waitingRuntime.variables,
+      waitingSerial,
+      waitingBudgetOneSlices: waitingProof.budgetOne.slices,
     });
     await page.evaluate(() => window.fixture.dispose());
     await context.close();
