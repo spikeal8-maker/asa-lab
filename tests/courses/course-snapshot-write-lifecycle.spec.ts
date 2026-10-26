@@ -105,7 +105,7 @@ describe('Courses E1: learning submission and snapshot write lifecycle', () => {
     let observedSignal: AbortSignal | undefined;
     vi.spyOn(api, 'saveProjectSnapshot').mockImplementation(
       async (_id, _image, _revision, options) => {
-        observedSignal = options.signal;
+        observedSignal = options?.signal;
         return new Promise<never>(() => {});
       },
     );
