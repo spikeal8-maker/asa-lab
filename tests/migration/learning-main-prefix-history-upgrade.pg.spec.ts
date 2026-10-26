@@ -189,6 +189,31 @@ const upgradeArtifacts = [
     '0261_ai_long_answers.sql',
     'b675187ec818b7c26e2984ae76236ce5e6009571150320a5d11d0fa419b462b6',
   ],
+  [
+    '0262',
+    '0262_ai_generation_lease.sql',
+    'bd2935df626fa6edf2d81c834a1648d92730105361b0846738d8b6b02074d881',
+  ],
+  [
+    '0263',
+    '0263_ai_generation_policy.sql',
+    'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
+  ],
+  [
+    '0264',
+    '0264_ai_local_image_generation.sql',
+    '31a461e8943133697ff575ff0146f813f03ec2aac06e6118e979795c4e41f58b',
+  ],
+  [
+    '0265',
+    '0265_ai_native_image_tools.sql',
+    '1f12daf30bc9f49fa9e6049873c97e574872a6395068f2ab5308041a695b1459',
+  ],
+  [
+    '0266',
+    '0266_ai_tool_policy.sql',
+    '526f22047a29335f096660d4a833063899a57d0eb71e2f45ebf751c977215d35',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
