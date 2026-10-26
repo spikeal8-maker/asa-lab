@@ -6470,10 +6470,10 @@ parallel_lanes:
       branch: main
       candidate_branch: codex/public-project-page-layout-20261026
       base_branch: main
-      pr: null
+      pr: 780
       pr_draft: true
       status: in_progress
-      checkpoint: owner_prioritized_page_composition_viewers_download_over_social
+      checkpoint: layout_source_and_visual_review_pass_exact_CI_pending
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6529,6 +6529,12 @@ parallel_lanes:
         eligible public works and like independently of these flags; this
         supersedes the earlier Account-only reaction audience. No implicit
         publication or protected-data authorization bypass is selected.
+        Owner explicitly selected new-class defaults download=false,publish=false;
+        new Seat overrides inherit both. Read and like remain independent.
+        Layout candidate94a969c5f147b984af9eb0fd68f82e4985ce6efe has independent
+        Code/UI PASS and15 targeted unit PASS. Controller inspected normal-title
+        images320/390/1440 from49d2133, whose product code is unchanged at94a969c5.
+        Exact final focused/general CI remains required; no merge/deploy claim.
       context_hints:
         - docs/product/projects/tasks/PROJ-PUBLIC-PAGE-LAYOUT.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
