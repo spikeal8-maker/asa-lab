@@ -103,10 +103,55 @@ it.each([
 ])('rejects unsafe public source: %s', (url) => expect(publicWebUrl(url)).toBeNull());
 it('uses a closed raster CDN host list, never arbitrary originals', () => {
   expect(searchThumbnailUrl('https://tse1.mm.bing.net/th?id=a')).toBeTruthy();
+  expect(searchThumbnailUrl('https://ts4.mm.bing.net/th?id=OIP.example&pid=15.1')).toBeTruthy();
+  expect(searchThumbnailUrl('https://ts2.mm.bing.net/th?id=OIP.example&pid=15.1')).toBeTruthy();
   expect(searchThumbnailUrl('https://external-content.duckduckgo.com/iu/?u=image')).toBeTruthy();
   expect(searchThumbnailUrl('https://th.bing.com.evil.org/i.jpg')).toBeNull();
+  expect(searchThumbnailUrl('https://ts4.mm.bing.net.evil.org/th?id=a')).toBeNull();
+  expect(searchThumbnailUrl('https://sub.ts4.mm.bing.net/th?id=a')).toBeNull();
+  expect(searchThumbnailUrl('https://ts10.mm.bing.net/th?id=a')).toBeNull();
+  expect(searchThumbnailUrl('https://127.0.0.1/th?id=a')).toBeNull();
+  expect(searchThumbnailUrl('http://ts4.mm.bing.net/th?id=a')).toBeNull();
+  expect(searchThumbnailUrl('https://user:pass@ts4.mm.bing.net/th?id=a')).toBeNull();
+  expect(searchThumbnailUrl('https://ts4.mm.bing.net/preview.svg')).toBeNull();
   expect(searchThumbnailUrl('https://upload.wikimedia.org/file.svg')).toBeNull();
   expect(searchThumbnailUrl('https://publisher.example/image.jpg')).toBeNull();
+});
+it('keeps Bing ts thumbnails from raw Searx image results as gallery metadata', () => {
+  const results = parseSearxResults(
+    {
+      results: [
+        {
+          title: 'Сибирская кошка 1',
+          url: 'https://example.org/cats/one',
+          thumbnail_src: 'https://ts4.mm.bing.net/th?id=OIP.one&pid=15.1',
+          img_src: 'https://untrusted.example/raw-one.jpg',
+        },
+        {
+          title: 'Сибирская кошка 2',
+          url: 'https://example.org/cats/two',
+          thumbnail_src: 'https://ts2.mm.bing.net/th?id=OIP.two&pid=15.1',
+          img_src: 'https://untrusted.example/raw-two.jpg',
+        },
+      ],
+    },
+    true,
+  );
+  expect(results.images).toEqual([
+    {
+      id: 1,
+      title: 'Сибирская кошка 1',
+      sourceUrl: 'https://example.org/cats/one',
+      thumbnailUrl: 'https://ts4.mm.bing.net/th?id=OIP.one&pid=15.1',
+    },
+    {
+      id: 2,
+      title: 'Сибирская кошка 2',
+      sourceUrl: 'https://example.org/cats/two',
+      thumbnailUrl: 'https://ts2.mm.bing.net/th?id=OIP.two&pid=15.1',
+    },
+  ]);
+  expect(results.images.every((image) => searchThumbnailUrl(image.thumbnailUrl))).toBe(true);
 });
 it('bounds actual streamed bytes', async () =>
   await expect(boundedWebResponse(new Response('123456'), 5)).rejects.toThrow());

@@ -62,7 +62,7 @@ export function searchThumbnailUrl(value: unknown): string | null {
   const u = new URL(safe);
   if (u.pathname.toLowerCase().endsWith('.svg')) return null;
   return u.hostname === 'th.bing.com' ||
-    /^tse[1-4]\.mm\.bing\.net$/.test(u.hostname) ||
+    /^ts(?:e)?[1-4]\.mm\.bing\.net$/.test(u.hostname) ||
     u.hostname === 'external-content.duckduckgo.com' ||
     u.hostname === 'upload.wikimedia.org'
     ? u.href
