@@ -2,7 +2,7 @@
   "schema": "asa-lab.electronics-component-coverage.v1",
   "generatedFrom": {
     "catalogPath": "apps/web/public/assets/electronics/component-database/catalog.json",
-    "catalogSha256": "b1a12387698eca8a66a95c620638a6b169ab49d0b721eb4b1dfd48279a700455",
+    "catalogSha256": "d90a3155d4e4f409f239b48ebd6f0b54d3e09e4d4ef7d2566fec5ad67c31ef20",
     "modelIdentityPath": "contexts/electronics/domain/model-identity.ts",
     "modelIdentitySha256": "6ee33dab7ef5eb24de30279021079596df9bdb786464fc575310a13c59684e81",
     "modelRegistryPath": "contexts/electronics/domain/model-registry.ts",

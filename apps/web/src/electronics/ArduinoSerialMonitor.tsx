@@ -39,11 +39,12 @@ export function ArduinoSerialMonitor({
     () => (serial?.tx ?? []).filter((entry) => entry.sequence > clearedThrough),
     [clearedThrough, serial?.tx],
   );
-  const status = !running ? 'Остановлен' : serial?.begun ? 'Подключён' : 'Ожидает Serial.begin';
+  const connected = running && serial?.begun;
+  const status = !running ? 'Остановлен' : connected ? 'Подключён' : 'Ожидает Serial.begin';
 
   function send(event: FormEvent): void {
     event.preventDefault();
-    if (!running || !input) return;
+    if (!connected || !input) return;
     onSend(boardId, input);
     setInput('');
   }
@@ -85,9 +86,7 @@ export function ArduinoSerialMonitor({
       >
         <span className="arduino-serial-icon" aria-hidden="true" />
         Монитор последовательного интерфейса
-        <span className={`arduino-serial-status${running && serial?.begun ? ' running' : ''}`}>
-          {status}
-        </span>
+        <span className={`arduino-serial-status${connected ? ' running' : ''}`}>{status}</span>
         <Chevron />
       </button>
       <div className="arduino-serial-body" aria-hidden={!open}>
@@ -111,7 +110,7 @@ export function ArduinoSerialMonitor({
             aria-label="Скорость последовательного порта"
             value={serial?.baudRate === undefined ? '—' : `${serial.baudRate} бод`}
           />
-          <button type="submit" disabled={!running || !input}>
+          <button type="submit" disabled={!connected || !input}>
             Отпр.
           </button>
           <button type="button" onClick={clear}>

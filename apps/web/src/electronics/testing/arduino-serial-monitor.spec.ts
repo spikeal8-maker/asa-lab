@@ -142,3 +142,38 @@ it.each([1, 2])(
     expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('512\n'.repeat(count));
   },
 );
+
+it.each([
+  { name: 'missing projection', running: true, serial: undefined },
+  { name: 'waiting for begin', running: true, serial: projection('a', [], false) },
+  { name: 'stopped initialized port', running: false, serial: projection('a', []) },
+])('retains unsent input while $name and sends once after connection', (patch) => {
+  const props = renderMonitor(patch);
+  const input = host!.querySelector(
+    'input[aria-label="Сообщение в последовательный порт"]',
+  ) as HTMLInputElement;
+  const send = host!.querySelector('button[type="submit"]') as HTMLButtonElement;
+  const form = host!.querySelector('form')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  act(() => {
+    setter.call(input, 'A');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(send.disabled).toBe(true);
+  expect(input.disabled).toBe(!patch.running);
+  // A forced submit also covers Enter/programmatic submission bypassing the disabled button.
+  act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(props.onSend).not.toHaveBeenCalled();
+  expect(input.value).toBe('A');
+  expect(host!.querySelector('.arduino-serial-output')!.textContent).toBe('');
+
+  renderMonitor({ running: true, serial: projection('a', []), onSend: props.onSend });
+  expect(input.value).toBe('A');
+  expect(send.disabled).toBe(false);
+  act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(props.onSend).toHaveBeenCalledExactlyOnceWith('a', 'A');
+  expect(input.value).toBe('');
+  expect(send.disabled).toBe(true);
+  act(() => form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+  expect(props.onSend).toHaveBeenCalledTimes(1);
+});
