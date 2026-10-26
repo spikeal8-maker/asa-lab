@@ -9,6 +9,7 @@ import {
   type ToolPolicy,
 } from './ai-tool-policy.js';
 import { addNativeUsage, nativeTools } from './ai-native-tools.js';
+import { readyWeatherAnswer } from './ai-native-weather.js';
 import { AI_MAX_ANSWER_CHARS, AI_GENERATION_TIMEOUT_MS } from './ai-generation-limits.js';
 import type {
   AiGenerationPolicyUpdate,
@@ -1825,6 +1826,34 @@ export class AiChatService {
           combined,
           mode === 'weather' ? query : undefined,
         );
+        const weatherAnswer =
+          mode === 'weather' && webEvidence?.status === 'ready' && webEvidence.weather
+            ? readyWeatherAnswer(webEvidence.weather)
+            : null;
+        if (weatherAnswer && !combined.aborted) {
+          onDelta(weatherAnswer);
+          await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
+            principalId,
+            threadId,
+            requestId,
+            weatherAnswer.slice(0, AI_MAX_ANSWER_CHARS),
+            'complete',
+          ]);
+          await this.usage.finish(
+            principalId,
+            requestId,
+            'succeeded',
+            null,
+            capturedUsage,
+            usageAttempt,
+          );
+          usageFinished = true;
+          return {
+            messages: await this.requestMessages(principalId, threadId, requestId),
+            replayed: false,
+            stopped: false,
+          };
+        }
         const searchInstructions = (
           webEvidence as (AiWebSearchEvidence & { searchInstructions?: string }) | null
         )?.searchInstructions;

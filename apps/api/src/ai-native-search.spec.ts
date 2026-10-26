@@ -14,6 +14,7 @@ function fixture(
   tool: 'web_search' | 'image_search' | 'weather' = 'web_search',
   toolQuery = 'Казань новости',
   disabledTools: readonly ('web_search' | 'image_search' | 'weather')[] = [],
+  weatherVariant: 'complete' | 'partial' | 'ambiguous' = 'complete',
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -67,14 +68,44 @@ function fixture(
     if (sql.includes('ai_web_cache_claim')) {
       const body =
         params[0] === 'geocode'
-          ? [{ name: 'Казань, Татарстан, Россия', lat: 55.7961, lon: 49.1064 }]
+          ? weatherVariant === 'ambiguous'
+            ? [
+                { name: 'Казань, Татарстан, Россия', lat: 55.7961, lon: 49.1064 },
+                { name: 'Казань, другое место', lat: 56, lon: 50 },
+              ]
+            : [{ name: 'Казань, Татарстан, Россия', lat: 55.7961, lon: 49.1064 }]
           : {
               properties: {
-                meta: { updated_at: '2026-10-25T12:00:00Z', units: { air_temperature: 'celsius' } },
+                meta: {
+                  updated_at: '2026-10-25T12:00:00Z',
+                  units: {
+                    air_temperature: 'celsius',
+                    ...(weatherVariant === 'complete'
+                      ? {
+                          relative_humidity: '%',
+                          air_pressure_at_sea_level: 'hPa',
+                          wind_speed: 'm/s',
+                        }
+                      : {}),
+                  },
+                },
                 timeseries: [
                   {
                     time: '2026-10-25T13:00:00Z',
-                    data: { instant: { details: { air_temperature: 4 } } },
+                    data: {
+                      instant: {
+                        details: {
+                          air_temperature: 4,
+                          ...(weatherVariant === 'complete'
+                            ? {
+                                relative_humidity: 80,
+                                air_pressure_at_sea_level: 1034.1,
+                                wind_speed: 3.2,
+                              }
+                            : {}),
+                        },
+                      },
+                    },
                   },
                 ],
               },
@@ -152,20 +183,21 @@ function fixture(
     throw new Error('Unexpected network request: ' + address);
   });
   const service = new AiChatService({ query } as unknown as pg.Pool, { fetchImpl });
+  const deltas: string[] = [];
   const send = () =>
     service.sendStream(
       OWNER,
       THREAD,
       'Найди факты',
       REQUEST,
-      () => undefined,
+      (chunk) => deltas.push(chunk),
       new AbortController().signal,
       undefined,
       undefined,
       [],
       mode,
     );
-  return { service, send, calls, requests, fetchImpl };
+  return { service, send, calls, requests, fetchImpl, deltas };
 }
 
 describe('native local internet tools', () => {
@@ -250,9 +282,45 @@ describe('native local internet tools', () => {
     const claim = f.calls.find((item) => item.sql.includes('ai_web_search_claim'))!;
     expect(claim.params).toEqual([OWNER, THREAD, REQUEST, 'weather', 'Казань', 1]);
     expect(f.calls.filter((item) => item.sql.includes('ai_web_cache_claim'))).toHaveLength(2);
-    expect(f.requests).toHaveLength(2);
+    expect(f.requests).toHaveLength(1);
     const finish = f.calls.find((item) => item.sql.includes('ai_web_search_finish'))!;
     expect(String(finish.params[3])).toContain('2026-10-25T13:00:00.000Z');
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
+    const saved = f.calls.find((item) => item.sql.includes('ai_chat_finish'))!;
+    expect(saved.params[3]).toContain('🌡 Казань, Татарстан, Россия');
+    expect(saved.params[3]).toContain('температура 4 °C');
+    expect(saved.params[3]).toContain('влажность 80 %');
+    expect(saved.params[3]).toContain('ветер 3,2 м/с');
+    expect(saved.params[3]).toContain('давление 1034,1 гПа');
+    expect(saved.params[3]).not.toContain('мм рт');
+    expect(saved.params[3]).toContain('2026-10-25 13:00:00 UTC');
+    expect(saved.params[3]).toContain('2026-10-25 12:00:00 UTC');
+    expect(saved.params[3]).toContain('[MET Norway](https://api.met.no/');
+    expect(f.deltas).toEqual([saved.params[3]]);
+    const usage = f.calls.find((item) => item.sql.includes('ai_usage_finish'))!;
+    expect(usage.params).toContain(10);
+    expect(usage.params).toContain(2);
+    const networkCalls = f.fetchImpl.mock.calls.length;
+    expect((await f.send()).replayed).toBe(true);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(networkCalls);
+  });
+
+  it('omits absent weather measures instead of inventing zeros', async () => {
+    const f = fixture('auto', 'weather', 'Казань', [], 'partial');
+    await f.send();
+    const saved = f.calls.find((item) => item.sql.includes('ai_chat_finish'))!;
+    expect(saved.params[3]).toContain('температура 4 °C');
+    expect(saved.params[3]).not.toMatch(/влажность|ветер|давление| 0 /u);
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
+  });
+
+  it('keeps the clarification model round for an ambiguous weather location', async () => {
+    const f = fixture('auto', 'weather', 'Казань', [], 'ambiguous');
+    await f.send();
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(2);
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Ответ по источнику',
+    );
   });
 
   it('rejects explicit sexual image discovery even with upstream safesearch', () => {
