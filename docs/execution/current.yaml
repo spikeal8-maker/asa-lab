@@ -12206,23 +12206,27 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: owner_wrapup_verified_main_and_unverified_candidates_archived
+      checkpoint: remaining20_requirements_renumbered_product_execution_still_paused
       owner_pause: Ownerexplicitlyasksfinishcurrentworknowduetokenbudget andpublishallwork. Stopnewprogrammeexecutionafterthisarchive; resumeonlyonnewownerrequest.
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
+        - docs/product/electronics/OWNER_REMAINING_PLAN_20.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-CONTROL-023.md
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
-      programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
+      programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Currentownerpauseisnotrevokedbydocumentationrenumbering.
       current_slice: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: OwnerexplicitlyrequestsSTOPnewworkandpublishallcurrentworktomainbecausebudgetending. Verifiedproductalreadyintegrated,25SOURCEverified. Unverified751c323and7895811preservedbranchesandmainDOCSpatchesonly, NOTactiveproductcode oracceptance. Resumeonlyonownerinstruction/freshsnapshot. AllauthorsSTOP; no server/foreignchanges.
+      active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
+      active_numbering: remaining20_new1to20_maps_old45_in_plan_table
+      numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
+      execution_coordination: Remaining20isactivecatalogueperowner, numbers1to20nowdefault. Historical45sourcearraysretainOLDnumbersnotnew20statuses. Currentmutationdocumentationrenumberingonly,751and789WIPpreservedNOTREADY. Productexecutionremainspauseduntilownerresume; no source/server/foreignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
