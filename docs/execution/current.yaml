@@ -12186,7 +12186,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: sustained25_complete_select_live_servo_pot_chain
+      checkpoint: preserved784_verified_foreign_blocker_resolved_by_its_owner
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12201,7 +12201,7 @@ parallel_lanes:
       consolidated_pending: [9, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: 25integrated13cNEWindependent10sMODEL39checkpointsPASS;24SOURCEverified. Next784test-onlylivepotADCcomputedServoPWMrenderevidence, productunchanged no duplicatefullgate/build. Field544fixalreadyancestor f5c9inmain andzeroactualdirtywriters; onlyacceptanceblocked548 remains, doNOTreimplement. Servo11remainspartialmultiservo/longloop. No compiler/refactor/server/foreignwork. Prior783authorsSTOP.
+      execution_coordination: Ownerresumeswholeprogramme includingindependentworkwhenmainblocked. ForeignauthorfixedPR781stateinefbwithoutourfieldedits; freshrecoverSAFE. Preserved784d122sourceproofnowaccepted12potADCServoPWMhorncases. Nextsmall11multiphysicalservo10squalificationpendingselection, no repeatsangle/pot/clip.24SOURCEverified; no refactor/server/foreignrepair.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13256,12 +13256,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_test_only_live_pot_adc_servo_chain
+      checkpoint: independently_verified_live_pot_servo_chain_integrated
       owner_acceptance: pending
+      accepted_candidate_sha: d122fde5e5dd9954dd349f80116d2f2c60a71f84
+      independent_review_sha: d122fde5e5dd9954dd349f80116d2f2c60a71f84
+      technical_evidence: NEWindependentnative12casesPASS text/realBlockly3liveknobpositions1440/390, physicalADCwiperWithin1Count computedintegeranglePWMmodelhorn5VKCLfinitequality andstrictprojectSession/generation/inputDigest/committedframecorrelation. Productunchanged, no fullgatebuildoldmatrixrepeat. Whole11remainspartialmultiservo/longrun. Candidatewaspreservedbyownerrequeste8dc; foreignauthorindependentlyreconciled781inefb, recoverySAFE_TO_START, no foreignfieldeditedhere.
       owner_authorization: Explicitwhole45programmecontinue; nextsmallmissingServo11livepotentiometerADCcomputedanglephysicalPWMandvisiblehorn proof. Priorfixedangle/pulse/clipmatricescarried, no repeats/refactor/server.
       coordinated_write_paths:
         - apps/web/src/electronics/testing/servo-runtime.browser.mjs
