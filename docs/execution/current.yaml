@@ -13110,31 +13110,34 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: implementation
-      risk: low
-      semantic_change: 'no'
-      checkpoint: owner_rejected_rocker_select_existing_spdt_outer_leg_derivation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_actual_runtime_switch_two_terminal_implementation
       owner_acceptance: pending
       rejected_candidate_sha: 57dc43f96a7910c010e636b43f4188c5e5661042
-      owner_correction: Ownerexplicitlyrejectsnewrockerimage. UseexistingownerSPDTbody andremoveoneOUTERleg notcentre. ChooseRIGHTouterremove retainLEFTplusCOMMON, original3pinfilesunchanged. ThisexplicitlyauthorizesderivedSVG; no repeatedpermissionquestionforverifiedexactrecipe.
-      corrected_asset_scope: MarkoldrockerREADME/pinmaprejectedhistorical, newdocs/candidates/spst-from-spdt derivedleft/right SVG+parenthash/pinmap/removalproof/preview only. BodyviewBoxslider andretainedlegsunchanged. Separatetrue2terminalSPSTmodelimplementationnext; neverfakebyhidingthirdmodelterminal.
-      owner_authorization: Latestdirectownerinstruction supersedesearlierindependentcandidate; deriveexistingconfirmed3pinSPDT byremovingoneouterleg andkeepcentre/body. Originals preserved; explicitderivationpermission accepted, requiredexactrecipeverification beforecomponentenable. No furthernewart.
-      runner_coordination: Random775ownsheavyCPU. Assetauthorlightpreflight/design only; browserrender andtests waitcontrollerhandoff. No model/catalog/sourcewrites.
+      owner_correction: LatestownerexplicitlyrequestsfinishnormalSPST. PreserveACTUALexistingruntimeJSX switchbody andremoveRIGHTouterleg notcentre; retainLEFTplusCOMMON andoriginal3pinSPDT.
+      corrected_asset_scope: ControlflowverifiedrealvisualisProductionComponentVisual tinkercad-spdt-three-pin notownerSVGfallback. Derivepinarrays[-10,0]only, unchangedbodyactuatorpositionsscale. Reject57rockerand0d7SVGcandidate asproductimage. No protectedassetmutation.
+      owner_authorization: Explicitownerrecipeandcontinueinstruction authorizeactualruntimevisualderivationandtrue2terminalmodel; no repeatedassetpermissionneeded. Finalindependentgeometrytopologyreviewrequired.
+      implementation_scope: SeparateSPSTcatalogidentitymodeltopology solverstampingandcurrent runtimeJSX reuse inputactuationserializationhelp andfocusednative/regressionproof. Controlleronlycurrentyaml, productexecutoronecleanbranch. No unrelatedrefactor/server/deferredcleanup.
+      runner_coordination: SingleexecutorheavygatesandnativeCPUslot thenindependentreviewer. ExistingauthorsSTOP; read-onlyinventoriescomplete.
       deployment: prohibited_by_owner
       database_actions: none_live
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9c81bc643cafc34f8cc52f11572f49f43bc4f159
+      convergence_baseline_sha: 0cbb91a04e0ab29b528b5fd293603838aa644b82
       head_sha: null
       main:
         branch: main
-        sha: 9c81bc643cafc34f8cc52f11572f49f43bc4f159
+        sha: 0cbb91a04e0ab29b528b5fd293603838aa644b82
       observed_at: '2026-10-26T11:35:51Z'
-      observation_note: Fresh fetch main beforeedits. Ownerrejected57rocker andexplicitlyauthorizedexistingSPDTderivation. Sourceparentleft2e0f6d29/right8622c1ef manifestconfirmed. Removeonlyright11.54 retainleft6.46 common9.00 inbothstates; strictretainedgeometry/sourcehashproof beforefurthercomponentwork.
+      observation_note: Fresh fetch main beforeedits. HEAD0cbbclean, Generalinprogress currentSHA, unrelatedProjectsdocs6linesonly. RealJSXrenderchain independentlyconfirmed bytwoinventories; exactownerinstruction authorizesrightouterlegremoval andtrueSPST. Priorartcandidatesnotintegrated.
+
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Electronics R4-M1 Focused
         commands:
-          - pnpm gate:governance
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
 
   - id: electronics-owner45-runtime-responsibility
     parent_lane: electronics
@@ -13210,9 +13213,9 @@ blocking:
     lane: electronics-owner45-spst-asset
     task_id: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
     blocks: [component_enable, owner_acceptance, release_claim]
-    allows: [candidate_asset_creation, candidate_render_review]
-    reason: Ownerrejectednewrocker, explicitlyauthorizedoneouterlegremovalfromexistingSPDT. Enableawaitsverifiedexactderivedassetidentity andtrue2terminalmodel, no morehumanpermissionneededforexactrecipe. OriginalSPDTmustremain3pin.
-    evidence: Directuserreply saysremoveoneSIDEleg notcentre andkeeprest. Existingmanifestleft2e0f6d29/right8622c1ef areconfirmedparents; proposedderivedretainsleft6.46/common9.00 removesright11.54. Independentrecipeverificationpending; rejectedrocker4b1d50 mustnotbeenabled.
+    allows: [candidate_asset_creation, candidate_render_review, bounded_spst_implementation, focused_regression, native_fixture_proof]
+    reason: OwnerauthorizedactualruntimeJSXderivationandtrueSPST. Enableawaitsindependentgeometryandtwo-terminalmodelproof; no additionalhumanimageapprovalrequired. OriginalSPDTmustremain3pin.
+    evidence: Twoindependentread-onlyinventoriesverify Stage1036 wrapper49 ProductionComponentVisual2154 realJSXpins[-10,0,10]. Retain[-10,0] inbothnormalandselection, unchangedbody28x10 scale1.27. Ownernowexplicitlyasksfinishswitch. Rejected57rockerand0d7SVGcandidatepreservednotenabled.
 
   - id: ELECTRONICS-752-CLASSROOM-BASELINE
     kind: acceptance_blocker

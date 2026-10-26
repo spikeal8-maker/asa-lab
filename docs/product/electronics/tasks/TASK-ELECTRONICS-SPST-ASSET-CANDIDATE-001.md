@@ -1,62 +1,51 @@
 ---
 task_id: TASK-ELECTRONICS-SPST-ASSET-CANDIDATE-001
 kind: implementation
-risk: low
-semantic_change: no
+risk: high
+semantic_change: yes
 roadmap_slice: null
 prerequisites: []
 acceptance_boundary: slice
 review: independent
 ---
 
-# Two-terminal switch derived from the existing owner SPDT
+# Existing switch converted into a distinct two-terminal SPST
 
-## Superseding owner correction
+Owner explicitly requested completion of consolidated point38. Preserve the
+existing visible SPDT body, slider, scale and left/common pins; remove only the
+RIGHT outer pin for a new SPST variant. Original SPDT remains unchanged.
 
-Owner rejected the independently drawn rocker: use the existing owner switch,
-remove ONE OUTER leg, keep the centre leg and the rest of the appearance.
-This is explicit authorization to derive a new two-terminal asset from the
-confirmed owner SVG. Keep original three-terminal SPDT files untouched. Choose
-right outer removal: retain left6.46 and common9.00, remove right11.54.
-Derive BOTH existing left/right state SVGs by removing only the right leg and
-adjusting nonvisual identity/pin-count metadata. No new drawing or geometry.
+Read-only control-flow verification proves the actual visible source is
+ProductionComponentVisual JSX tinkercad-spdt-three-pin, NOT the catalog owner
+SVG fallback. Keep its 28x10 model body and transform, derive pin arrays
+[-10,0] from [-10,0,10] in normal and selection rendering. Existing physical
+footprint7.112x3.81mm and retained centres1.016/3.556,y3.81 stay unchanged.
+No new artwork or protected asset edits. The rejected rocker57dc43f9 and
+unintegrated owner-SVG derivation0d7ab958 are not the requested product image.
 
-Original rocker files remain historical rejected candidate: mark README and
-external pinmap status rejected, do not enable or present it as pending approval.
-New derived files belong in candidates/spst-from-spdt/ with parent SHA hashes,
-exact removal recipe, two-terminal map and reproducible original/derived preview.
-Verify all retained drawing nodes, body/viewBox/slider positions and two pins
-unchanged, protected source hashes identical. User's recipe is authorization;
-do not repeat an approval question for an exact verified derivation. Actual
-SPST electrical model still needs a separately selected implementation: two
-external terminals, closed left/open right, not a hidden third simulated pin.
+One cohesive implementation slice: separate switch-spst identity, exactly two
+external electrical terminals left/common, left closed/right open, palette,
+actuator mouse/touch, wiring, undo/redo and JSON save/reopen. Never hide a third
+modeled terminal. Preserve old SPDT identities, both throws, generic legacy
+switches and old document migrations. Both solver stamping and reported currents
+must honor the new topology; open contact must not conduct. Provenance metadata
+must honestly distinguish owner-authorized derivation of current runtime JSX
+from byte-exact original SVG. Narrow necessary contract updates allowed; do not
+weaken existing original-owner checks, invent owner-supplied provenance, or
+modify protected files. No independent replacement art.
 
-The original brief below records why the rejected candidate was prepared; it
-does not override this owner correction or authorize further independent art.
+Executor owns product implementation and focused gate/self-review; separate
+reviewer validates final exact SHA. Controller owns current.yaml only. Source
+proof includes all unchanged body/slider/retained-pin geometry in both states,
+selected outline, original SPDT unchanged, true two-pin electrical topology,
+closed/open resistive and LED circuits, KCL/finite results, removed-terminal
+rejection, old projects and deterministic results. Native actual production UI
+at1440/390 verifies palette, positions, mouse/touch toggles, contacts, wiring,
+undo/redo and serialize/reload; distinguish fixture roundtrip from server Save.
 
-Consolidated38 prerequisite only. Existing owner manifests prove three-terminal
-SPDT and momentary tactile buttons, not a confirmed latched two-terminal SPST.
-AGENTS permits new independent SVG, but component without confirmed owner SVG
-remains disabled/missing. Prepare a concrete original candidate for owner's
-design confirmation; do not enable, register or claim completed SPST component.
-
-Allowed new files only under docs/product/electronics/candidates/spst/:
-independently authored switch.svg, pin-map.json and short provenance/preview
-instructions. Simple generic physical two-terminal latched rocker/toggle, no
-brand, copied paths, tracing, imitation or edits of protected owner graphics.
-Two electrical terminals with stable identifiers/centres, stable body geometry,
-distinct on/off lever states, transparent canvas, readable at normal scale.
-Declare original ASA candidate provenance, not owner_supplied/exact_owner_svg.
-No scripts/events/foreignObject/external resources, no unsafe SVG content.
-
-Produce local PNG side-by-side OFF/ON preview from trusted authored vector and
-inspect bothstates/terminalpositions. PNG may remain ignored reproducible review
-artifact; preserve it until owner decision. SVG/pinmap must be committed for
-review. No application/catalog/model/source/dependency/protected-asset changes.
-No approval request before concrete preview; root asks owner after independent
-review. Confirmed asset remains an explicit acceptance prerequisite.
-
-No full physics gate for nonproduction candidate. XML/provenance/pin-count and
-safe-content checks, actualrender and independent source/image review. Only light
-preflight/design while775 ownsCPU; renderer/tests wait explicit controller slot.
-No server/Docker/DB/listeningport or other people's changes. One candidate thenSTOP.
+Use pnpm gate:electronics-m1 and bundle:check with NX_SKIP_NX_CACHE=true,
+report freshly executed tasks. Fixed caps222000/2000000 cannot be raised.
+No unrelated refactoring, deferred cleanup, server/Docker/DB or listening port.
+If a cap fails, report exact measured cause and choose minimal in-slice sharing,
+not unrelated extraction. Preserve foreign modifications. One verified slice
+then STOP; controller handles integration and programme continuation.
