@@ -32,6 +32,8 @@ const AI_MUTATION_ROUTES = new Set([
   'PUT /api/ai/classrooms/:classroomId/access',
   'PUT /api/admin/v1/ai',
   'PUT /api/admin/v1/ai/web-search',
+  'PUT /api/admin/v1/ai/generation-policy',
+  'PUT /api/admin/v1/ai/tool-policy',
   'POST /api/admin/v1/ai/test',
   'POST /api/ai/attachments',
   'PUT /api/ai/attachments/:uploadId/bytes',

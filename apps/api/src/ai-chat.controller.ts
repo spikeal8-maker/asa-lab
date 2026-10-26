@@ -1,4 +1,6 @@
 import type { AiWebSearchMode } from '@asa-lab/contracts';
+import { AiPolicyError } from './ai-generation-policy.js';
+import { AiToolPolicyError } from './ai-tool-policy.js';
 import { AiWebSearchError, isWebSearchMode } from './ai-web-search.js';
 import {
   Body,
@@ -24,6 +26,7 @@ import {
   AiServiceError,
   type AiCursor,
   type AiChatModel,
+  type AiNativeImageOptions,
 } from './ai-chat.service.js';
 import { AiAccessService, aiRequestActor, aiSeatSelector } from './ai-access.service.js';
 import type { SeatContextUseCase } from './seat-context.js';
@@ -37,6 +40,19 @@ function reject(code: string, message: string, status: number): never {
 
 @Controller('api/ai')
 export class AiChatController {
+  private nativeImage(raw: unknown): AiNativeImageOptions | undefined {
+    if (raw === undefined) return undefined;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      return reject('ai_input_invalid', 'Неверные настройки изображения.', 400);
+    const value = raw as Record<string, unknown>;
+    if (
+      Object.keys(value).sort().join(',') !== 'mode,size' ||
+      !['off', 'auto'].includes(value['mode'] as string) ||
+      ![512, 768, 1024].includes(value['size'] as number)
+    )
+      return reject('ai_input_invalid', 'Неверные настройки изображения.', 400);
+    return value as unknown as AiNativeImageOptions;
+  }
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.aiChatService) private readonly ai: AiChatService,
@@ -74,7 +90,12 @@ export class AiChatController {
     try {
       return await call();
     } catch (problem) {
-      if (problem instanceof AiServiceError || problem instanceof AiWebSearchError) {
+      if (
+        problem instanceof AiServiceError ||
+        problem instanceof AiWebSearchError ||
+        problem instanceof AiPolicyError ||
+        problem instanceof AiToolPolicyError
+      ) {
         return reject(problem.code, problem.message, problem.status);
       }
       throw problem;
@@ -426,6 +447,7 @@ export class AiChatController {
       this.attachmentIds(body['attachmentIds']),
       this.internetMode(body),
       this.weatherCity(body),
+      this.nativeImage(body['nativeImage']),
     );
   }
 
@@ -440,6 +462,7 @@ export class AiChatController {
     attachmentIds: readonly string[] = [],
     webSearchMode?: AiWebSearchMode,
     weatherCity?: string,
+    nativeImage?: AiNativeImageOptions,
   ): Promise<void> {
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -466,7 +489,7 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
-        ...((webSearchMode !== undefined || weatherCity !== undefined
+        ...((nativeImage !== undefined || webSearchMode !== undefined || weatherCity !== undefined
           ? ([attachmentIds, webSearchMode, weatherCity] as const)
           : attachmentIds.length
             ? ([attachmentIds] as const)
@@ -475,6 +498,7 @@ export class AiChatController {
           webSearchMode?: AiWebSearchMode,
           weatherCity?: string,
         ]),
+        ...(nativeImage === undefined ? [] : [nativeImage]),
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {

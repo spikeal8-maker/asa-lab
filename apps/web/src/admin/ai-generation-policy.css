@@ -1,0 +1,253 @@
+.asa-ai-policy :is(p, label, small, code, button, h2, h3) {
+  overflow-wrap: anywhere;
+}
+.asa-ai-policy-heading {
+  display: grid;
+  gap: 7px;
+}
+.asa-ai-policy-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.asa-ai-policy-heading p,
+.asa-ai-policy-variables > p {
+  margin: 0;
+  color: #52697b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.asa-ai-policy .asa-ai-policy-guide-jump {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #12699c;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.asa-ai-policy-prompt-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(235px, 290px);
+  gap: 20px;
+  align-items: stretch;
+}
+.asa-ai-policy-editor {
+  display: grid;
+  grid-template-rows: auto minmax(440px, 1fr) auto;
+  min-width: 0;
+  gap: 9px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.asa-ai-policy-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #b9c9d6;
+  border-radius: 8px;
+  padding: 12px;
+  color: #16344b;
+  background: #fff;
+  font: inherit;
+  font-weight: 400;
+  font-size: 13px;
+  line-height: 1.65;
+  resize: vertical;
+}
+.asa-ai-policy-editor textarea {
+  min-height: 440px;
+}
+.asa-ai-policy-editor small {
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #607586;
+}
+.asa-ai-policy-variables {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.asa-ai-policy-variables h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.asa-ai-policy-variable {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e1e8ee;
+}
+.asa-ai-policy-variable > button {
+  flex: 1;
+  min-width: 0;
+}
+.asa-ai-variable-help {
+  position: relative;
+  flex: none;
+}
+.asa-ai-variable-info {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #b9c9d6;
+  border-radius: 50%;
+  color: #365165;
+  background: #fff;
+  font-size: 14px;
+  cursor: help;
+}
+.asa-ai-variable-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  width: min(320px, calc(100vw - 64px));
+  padding: 13px;
+  border: 1px solid #b9c9d6;
+  border-radius: 10px;
+  background: #fff;
+  color: #16344b;
+  box-shadow: 0 6px 22px #0002;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.asa-ai-variable-help:is(:hover, :focus-within) .asa-ai-variable-tooltip {
+  display: grid;
+  gap: 7px;
+}
+@media (max-width: 680px) {
+  .asa-ai-variable-tooltip {
+    position: fixed;
+    left: 24px;
+    right: 24px;
+    top: auto;
+    bottom: 24px;
+    width: auto;
+    max-height: min(50vh, 360px);
+    overflow-y: auto;
+  }
+}
+.asa-ai-policy-variable > button {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 9px 11px;
+  background: #f4f8fb;
+  color: #16344b;
+  border: 1px solid #d7e2eb;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.asa-ai-policy-variable code {
+  color: #0877b3;
+  font-size: 11px;
+  white-space: normal;
+}
+.asa-ai-policy-variable small {
+  color: #607586;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.asa-ai-policy :is(textarea, button, input, select):focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+.asa-ai-policy-default {
+  max-width: 580px;
+}
+.asa-ai-policy-save-note {
+  margin: 0;
+  color: #607586;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.asa-ai-policy-models {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.asa-ai-policy-models fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid #dce5ec;
+  border-radius: 9px;
+  padding: 10px 14px 14px;
+}
+.asa-ai-policy-models legend {
+  padding: 0 5px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.asa-ai-policy-models fieldset > p {
+  margin: 0 0 8px;
+  color: #607586;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.asa-ai-policy-model {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.asa-ai-policy-model > input {
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+}
+.asa-ai-policy-model > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.asa-ai-policy-model strong {
+  font-size: 13px;
+}
+.asa-ai-policy-model small {
+  color: #607586;
+  font-size: 11px;
+}
+.asa-ai-policy .asa-cloud-error p {
+  margin: 0 0 8px;
+}
+@media (max-width: 900px) {
+  .asa-ai-policy-prompt-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-ai-policy-variables {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .asa-ai-policy-variables > :is(h3, p) {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 540px) {
+  .asa-ai-policy-models,
+  .asa-ai-policy-variables {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-ai-policy-editor textarea {
+    min-height: 350px;
+  }
+  .asa-ai-policy-editor {
+    grid-template-rows: auto minmax(350px, 1fr) auto;
+  }
+  .asa-ai-policy.asa-cloud-connection {
+    padding: 16px 13px;
+  }
+  .asa-ai-policy .asa-cloud-apply {
+    min-width: 0;
+    width: 100%;
+  }
+}

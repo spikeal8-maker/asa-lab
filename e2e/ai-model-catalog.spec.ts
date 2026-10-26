@@ -539,9 +539,11 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('Сохранено · ornith:9b', { exact: false })).toBeVisible();
     expect(fake.ollamaWrites).toHaveLength(1);
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
-    await page.getByRole('tab', { name: /ComfyUI/ }).click();
-    await expect(page.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
-    await expect(page.getByText('Граф генерации ещё не проверен')).toBeVisible();
+    await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
+    const technicalState = page.locator('details.asa-ai-comfy');
+    await technicalState.getByText('Техническое состояние ComfyUI', { exact: true }).click();
+    await expect(technicalState.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
+    await expect(technicalState.getByText('Граф генерации ещё не проверен')).toBeVisible();
     await page.getByRole('tab', { name: 'Подключения' }).click();
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');

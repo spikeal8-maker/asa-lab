@@ -35,7 +35,7 @@ const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
     expect(body).toMatchObject({
       model: 'gpt-6-luna',
       reasoning: { effort: 'none' },
-      max_output_tokens: 1600,
+      max_output_tokens: 8192,
       store: false,
     });
     return new Response(
@@ -43,7 +43,7 @@ const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
     );
   }
   expect(url).toBe('https://api.deepseek.com/chat/completions');
-  expect(body).toMatchObject({ thinking: { type: 'disabled' }, max_tokens: 1600 });
+  expect(body).toMatchObject({ thinking: { type: 'disabled' }, max_tokens: 8192 });
   return new Response(
     'data: {"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
   );

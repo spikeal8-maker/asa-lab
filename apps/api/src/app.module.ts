@@ -1,3 +1,9 @@
+import { AiImageService } from './ai-image.service.js';
+import {
+  AI_IMAGE_SERVICE,
+  AiImageController,
+  AiImageAdminController,
+} from './ai-image.controller.js';
 import { CrmResponsibilitiesController } from './crm-responsibilities.controller.js';
 import { EmailService } from './email.service.js';
 import { EmailController } from './email.controller.js';
@@ -59,6 +65,7 @@ import { PublicProjectReportsController } from './public-project-reports.control
 import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
+import { AiToolPolicyController } from './ai-tool-policy.controller.js';
 import { AiChatService } from './ai-chat.service.js';
 import { AiAccessController } from './ai-access.controller.js';
 import { AiAccessService } from './ai-access.service.js';
@@ -166,7 +173,11 @@ export class AppModule {
       emailService,
     ]);
     const aiAttachmentService = new AiAttachmentService(pool);
-    const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService });
+    const aiImageService = new AiImageService(requirePool());
+    const aiChatService = new AiChatService(requirePool(), {
+      attachments: aiAttachmentService,
+      images: aiImageService,
+    });
     const aiAccessService = new AiAccessService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
@@ -221,7 +232,10 @@ export class AppModule {
         AiChatController,
         AiAccessController,
         AiAttachmentController,
+        AiImageController,
+        AiImageAdminController,
         AiAdminController,
+        AiToolPolicyController,
         AdminLogsController,
         ClientDiagnosticsController,
         AccountC1Controller,
@@ -273,6 +287,7 @@ export class AppModule {
         { provide: TOKENS.accountVerification, useValue: accountVerification },
         { provide: TOKENS.emailService, useValue: emailService },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
+        { provide: AI_IMAGE_SERVICE, useValue: aiImageService },
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },
         { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },

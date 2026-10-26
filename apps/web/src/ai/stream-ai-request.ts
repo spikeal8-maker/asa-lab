@@ -1,12 +1,13 @@
 import { fetchWithSessionRefresh } from '../session-fetch';
-import type { AiWebSearchMode } from '@asa-lab/contracts';
+import type { AiWebSearchMode, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
 
-// Also accept older servers' last-80-message completions: even JSON escaping
-// 80 persisted 8192-character messages fits within this bounded character cap.
-const MAX_EVENT_CHARACTERS = 4 * 1024 * 1024;
+// The legacy completion returns up to 80 persisted messages. Reserve the
+// worst-case JSON escaping of the bounded 65536-character answer per message.
+const MAX_EVENT_CHARACTERS = 32 * 1024 * 1024;
 
 /** Native ASA Lab SSE transport. Each POST has a stable client request ID. */
 export interface AiStreamResponse<T> {
+  readonly imageJob?: AiImageGenerationJob;
   readonly messages: readonly T[];
   readonly replayed: boolean;
   readonly stopped: boolean;
@@ -32,6 +33,7 @@ export async function streamAiRequest<T>(
   scopeHeaders: Record<string, string> = {},
   attachmentIds: readonly string[] = [],
   webSearch?: { readonly mode: AiWebSearchMode; readonly weatherCity?: string },
+  nativeImage?: { readonly mode: 'off' | 'auto'; readonly size: AiImageSize },
 ): Promise<AiStreamResponse<T>> {
   return streamCommand(
     threadId,
@@ -39,6 +41,7 @@ export async function streamAiRequest<T>(
     {
       message: text,
       requestId,
+      ...(nativeImage ? { nativeImage } : {}),
       ...(model ? { model } : {}),
       ...(attachmentIds.length ? { attachmentIds } : {}),
       ...(webSearch

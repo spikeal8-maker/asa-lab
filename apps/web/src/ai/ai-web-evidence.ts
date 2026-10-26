@@ -130,9 +130,27 @@ export function readWebEvidence(value: unknown): AiWebSearchEvidence | null {
                     {
                       time: hour.time,
                       temperatureC: hour.temperatureC,
-                      humidityPercent: null,
-                      pressureHpa: null,
-                      windSpeedMs: null,
+                      humidityPercent:
+                        typeof hour.humidityPercent === 'number' &&
+                        Number.isFinite(hour.humidityPercent) &&
+                        hour.humidityPercent >= 0 &&
+                        hour.humidityPercent <= 100
+                          ? hour.humidityPercent
+                          : null,
+                      pressureHpa:
+                        typeof hour.pressureHpa === 'number' &&
+                        Number.isFinite(hour.pressureHpa) &&
+                        hour.pressureHpa >= 800 &&
+                        hour.pressureHpa <= 1200
+                          ? hour.pressureHpa
+                          : null,
+                      windSpeedMs:
+                        typeof hour.windSpeedMs === 'number' &&
+                        Number.isFinite(hour.windSpeedMs) &&
+                        hour.windSpeedMs >= 0 &&
+                        hour.windSpeedMs <= 150
+                          ? hour.windSpeedMs
+                          : null,
                     },
                   ]
                 : [],
