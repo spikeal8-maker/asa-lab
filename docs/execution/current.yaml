@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: servo_horn_clip_integrated_select_do_while
+      checkpoint: do_while_integrated_select_increment_expression_defect
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12149,13 +12149,13 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
-      current_slice: TASK-ELECTRONICS-DO-WHILE-001
+      current_slice: TASK-ELECTRONICS-INCREMENT-EXPRESSION-001
       consolidated_source_verified: [1, 2, 3, 6, 7, 8, 10, 12, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37]
       consolidated_partial: [4, 5, 11, 13, 14, 15, 16, 17, 19, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 18, 38, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38confirmedownerSVG missing;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: Sourcehelp8/20/21 andServo12clip integrated afterindependentactualactionsproof. Select do-while portion17 usingexisting compilerinstructions; separate author andreviewer, serializedheavyCPU. Switch/random remainseparate. Display764lag anddeferredtooltipcleanup remainopen; no foreignrepair orpaused682reuse.
+      execution_coordination: Do-while portion17 integrated afterindependentreview anddisjointCRM convergence. Reviewdiscovered preexistingprefix++ parsedasunarypluses; select isolated16/17expressionfix beforeseededrandom. Separate newauthor/reviewer soleheavyCPU. Switch/random anddisplaylag remainopen, no foreignrepair/deferredcleanup/paused682reuse.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12903,12 +12903,18 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: feature
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_post_test_loop_existing_instruction_compiler
+      checkpoint: source_worker_integrated_independent_review_pass
       owner_acceptance: pending
+      source_integrated_sha: 6fabd5ab2ee511499e48a64479d4d89b18124249
+      reviewed_product_sha: d0fe56e200c6da87a1eddf6959a02ea635b5cc44
+      fresh_focused_integration_sha: 1b6d52f06bf21cfe5cd4883b6a3ef4b77e61e628
+      completed_at: '2026-10-26T10:09:11Z'
+      evidence: Fresh2153tests71uncachedNx typesbuildPASS caps221950of222000and1999898of2000000. Original450372B oldcompiled/fullstate/events oraclebyteequal546oldcontinuations resumeequal. Independent142tests32adversarial24oldbyteexactcases plusactualWorker1440/390PASS. Final6fab5DOpathsbyteidenticald0; independentAPPROVEexactmerge verifiesonlyforeignCRM SQL/PGtest outsidefocusedclosure changedafterfresh1b6dgates. No force/historyrewrite no gratuitousgatechasing. Stateversion/protocol/clocks/physics unchanged.
+      separate_review_defect: Issue773 prefix++ expression silentlyactsasdoubleunaryplus reproducedidentically80cf/2d84/d0, notcausedbydo compiler. Selectednextdedicatedrepair;17switch and16fullCplusplus notclosed. Installed SaveCAS owner overallCI release acceptance notclaimed.
       owner_authorization: Explicitcomplete45programme via boundedbots actualactions. Missingdo-while is smallerthan switch andseededrandom; addonlyposttestloop, preserve oldprogramfingerprints/state instructions/clock andallphysics. Existingunsupportedcasesremainfailclosed.
       deployment: prohibited_by_owner
       database_actions: none_live
@@ -12921,6 +12927,42 @@ parallel_lanes:
         sha: ef7b7b1e64ee40ed5151fc4eac381decb13de9a8
       observed_at: '2026-10-26T09:44:50Z'
       observation_note: Fresh fetch main before edits. PriorCSSauthor andindependentreviewerSTOP. Currentcapheadroom editor50B Arduino85B, newfeaturehelp mustfit fixedcaps withoutunrelatedcleanup. Goldenoldcompiledstreams andactualWorker proofrequired; nopaused682 experimentalreuse.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+
+  - id: electronics-owner45-increment-expression
+    parent_lane: electronics
+    worktree_id: electronics-owner45-increment-expression
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-INCREMENT-EXPRESSION-001.md
+    task:
+      id: TASK-ELECTRONICS-INCREMENT-EXPRESSION-001
+      issue: 773
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_correct_prefix_postfix_expression_semantics
+      owner_acceptance: pending
+      owner_authorization: Complete45programme actualquality; independentreview confirmedpreexistingwhile(++checks<3) giveschecks0instead3. Repair scopedtypedprefix/postfix++/-- not parsedasunarysigns. Preserveordinaryspacedunarysigns oldvalidprogramstreams/state/clock andallphysics. No randomswitchorgenericparserrefactor.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6fabd5ab2ee511499e48a64479d4d89b18124249
+      head_sha: null
+      main:
+        branch: main
+        sha: 6fabd5ab2ee511499e48a64479d4d89b18124249
+      observed_at: '2026-10-26T10:09:11Z'
+      observation_note: Fresh fetch main before edits. PriorDOauthor/reviewerSTOP. HelperassignBinding(validateOnlytrue) stillwrites so suppressedevaluation mustnotinvoke it. Rootdraftseededrandomcard is planningonly notselected. Fixedcaps222000/2000000 no refactororforeignchanges.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
