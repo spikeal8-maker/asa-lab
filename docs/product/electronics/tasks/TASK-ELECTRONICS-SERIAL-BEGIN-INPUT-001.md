@@ -41,7 +41,7 @@ after one published coherent candidate; controller continues programme.
 
 ## Post-integration test-only lint repair
 
-Exact CI found unused rest args in the fixture Worker constructor. Remove only
-that unused binding; preserve constructor body and forwarding behavior. Target
+Exact CI found an unused args parameter in the fixture builder.onLoad callback.
+Remove only that binding; preserve plugin body and pinned baseline behavior. Target
 ESLint and formatting plus independent one-line source review, no native/full
 gate/build repetition. Use separate clean diagnostic worktree while784 owns UI.

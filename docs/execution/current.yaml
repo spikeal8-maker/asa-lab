@@ -13182,13 +13182,13 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'yes'
-      checkpoint: selected_test_only_unused_worker_args_ci_repair
+      checkpoint: serial_source_verified_unused_fixture_arg_ci_repair_integrated
       owner_acceptance: pending
-      ci_repair: Exactb6bGeneral40339602120 Codeweb-lintFAILonlyarduino-analog-serial.browser.mjs35argsunused. CategoryAourfixture; removeunusedconstructorrestargsONLY, targetESLint/format andsourceequivalence no build/fullgate. Serialbehaviorproofunaffected, separate784authorownsUItree; repairusesCLEANdiagnostictreebranchpreserving0d7.
+      ci_repair: Exactb6bGeneral40339602120 Codeweb-lintFAILonlyarduino-analog-serial.browser.mjs35argsunused. CategoryAourfixture; Actualunusedbindingwasbuilder.onLoadcallbackparamnotconstructor. Formatonly15a2independentAPPROVEone-lineparamremovalbodyunchanged,targetESLint/PrettierPASSno build/fullgate. Serialbehaviorproofunaffected, separate784authorownsUItree; repairusesCLEANdiagnostictreebranchpreserving0d7.
       accepted_candidate_sha: e68605f8e4bbc5475fb4b8fbcb7b4e8dc5f0ffd5
       independent_review_sha: e68605f8e4bbc5475fb4b8fbcb7b4e8dc5f0ffd5
       technical_evidence: NEWindependentAPPROVE10monitorunits andrealWorkerControllerMonitor1440/390PASS; waitinginputretained, Enter65once/button66,StopRunReset, noecho. Author2301tests71freshNxPASSallcaps222000/1999944. Accepted28coreproofcarriedunchanged coversFIFOemptyUTF8overflowboardsJSON; consolidated19SOURCEverified only. Generatedcatalograwhashcorrectsformat777, parseddataunchanged. Historicalnativebeforemodepreserved. No installedSaveCAS/ownerreleaseclaim.
