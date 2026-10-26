@@ -68,8 +68,8 @@ def run(*argv: str, cwd: Path | None = None, stdin=None, stdout=None,
         return ""
     p = subprocess.run(argv, capture_output=True, text=True, **kw)
     if p.returncode:
-        # Never log arguments: URL-like values can embed secrets.
-        raise Blocked(f"Command failed ({p.returncode}): {argv[0]}; output: {p.stderr[-500:]}")
+        # Neither argv nor captured stderr is safe to forward: they may contain secrets.
+        raise Blocked(f"Command failed ({p.returncode}) in {argv[0]}")
     return p.stdout.strip()
 
 

@@ -157,7 +157,7 @@ class SnapshotSafetyTests(unittest.TestCase):
             parent = Path(tmp)
             archive = parent / "good.tar"
             self.write_tar(archive, "snapshot/file")
-            with self.assertRaisesRegex(Blocked, "checksum"):
+            with self.assertRaisesRegex(Blocked, "SHA256 mismatch"):
                 extract_snapshot(archive, None, parent / "out", "f" * 64)
             self.assertFalse((parent / "out").exists())
 
