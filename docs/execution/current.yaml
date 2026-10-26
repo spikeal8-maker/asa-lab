@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: seven_segment_bounded_repair_integrated_lag_open_select_servo
+      checkpoint: servo_and_display_committed_visual_repair_main_display_lag_open
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12150,7 +12150,7 @@ parallel_lanes:
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Resolve all23 remarks and listed stabilization concerns with separate source/technical/installed/user proof. Keep P0 prioritized; classify unavailable evidence, skip occupied/dependent work with reasons and select the next independent slice. Do not convert partial results into closure.
       current_slice: TASK-ELECTRONICS-SERVO-REPAIR-001
-      execution_coordination: Servo765 owns isolated CPU probes and one later focused gate; completed display764 UI763 and analog762 processes stopped. Display764 substantial model lag remains open, not realtime or full acceptance. Preserve all approved source and unused owner-deferred candidates; no unrelated changes or paused682 reuse.
+      execution_coordination: Servo765 committed visual repair integrated with new independent review; author and reviewer stopped. Display764 substantial model lag remains open, not realtime or full acceptance. Preserve all approved source and unused owner-deferred candidates; no unrelated changes or paused682 reuse.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12693,6 +12693,7 @@ parallel_lanes:
       bounded_source_review: NEW independent APPROVE exactc5e3;18fresh tests including12byteexact BEFORE results state thermal and diagnostics, actualWorker100msready20.032s below unchanged30sdeadline, real1440/390all8segments qualityPASS, Stop0.3ms Resetready. Mainnativebundlebyteidentical989b8cf7d8a0512ccab1ea7e504464d263e7e75117bf9510bf4ec48d187c13fd toauthorcontroller3frameproof. No scheduler cadence thermal quantum tolerance or asset changes.
       focused_evidence: Freshgateactualexit0 core1060 plusWeb9932053tests,70freshNxtasks literalSkipCachetrue types/buildPASS. Fixedbundles221984of222000 and1998565of2000000. Initialunchanged697assetI/Oaudit timeoutD isolated87ms andoneunchangedfullrerunPASS, noforeignedits. General40233916533 in_progress at sourceintegration notfullreleasePASS.
       remaining_performance: Actualproductioncontroller firstall8paint344ms butcanonicalH51000 onlyafter9927.7mswall; substantialmodel-lag persists. Full764 technical realtime installed and owner acceptance MUSTremainopen; boundedrequest-localalgebrareuse is improvement not a complete speedsolution.
+      committed_visual_followup: Shared Servo765 source0a51bef411e877d0a836824717808e13797e604a integrated main with independent APPROVE. Actual mounted hook Stage had correct branch brightness but invisible segments; committed native subscription now paints b/c and all8plusdot at1440and390 without parent editor reconciliation. Does not close remaining performance or installed acceptance.
       scope_overlap_check: Analog762 is committed and independentUI763 owns onlyCodePanel blockdefinitions blocktheme CSS. Display task must not touch these four paths; no actual dirty core overlap allowed. Recheck concrete cause paths before production writes.
       local_runner_coordination: UI763 owns heavy local gate until completion. Display author may inspect and prepare tests, but actual CPU timing Worker probes and full gates wait root signal to avoid concurrent-load misdiagnosis. Preserve all original timeouts and accuracy.
       deployment: prohibited_by_owner
@@ -12728,8 +12729,13 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_powered_servo_causal_before_all_angles
+      checkpoint: committed_visual_repair_integrated_source_ui_verified
       confirmed_visual_cause: Actual mounted hook Stage Worker proves correct committed Servo angles but neutral horn and correct rawseven branch brightness but all segments invisible at1440and390. Existing native wrapper subscribes onlyLEDandUno. Selected cohesive repair subscribes onlythese two reported component types and reads committed results; preserve LEDproposed asset barrier and all physics. Seven764 performance acceptance remains open.
+      source_integrated_sha: 0a51bef411e877d0a836824717808e13797e604a
+      source_completed_at: '2026-10-26T08:15:41Z'
+      focused_evidence: Exact source fresh gate actualexit0 1060core plus995web2055tests typesbuildPASS71freshNxtasks literalSkipCachetrue. Fixedcaps221950of222000 and1998565of2000000. First unchanged697assetreadtimeout classifiedD isolated9tests210msPASS thenoneunchangedfullretryPASS; no timeout asset worker or physics edits.
+      independent_review: NEW independent APPROVE exact0a51bef4 no actionable findings. Seven targeted tests plus realWorker mountedhook productionStage native replay1440and390 PASS11direct10hook7rawpulsecontrols2displaycases eachwidth zeroerrors four screenshots inspected visiblehorn andallsegments. StopRunReset sourceedits powercontrols proposed-versus-committed isolation verified.
+      remaining_acceptance: Source UI verified; installed SaveCAS owner and release not claimed. Existing minor ownSVGhorn-tip clipping at135degrees outside wrapper repair; display764 substantialmodel-lag open. Exact source General main40291008155 pending and branch40290809041 in_progress at metadata observation, no overallCIpass claimed.
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
