@@ -32,6 +32,13 @@ Preserve current accepted pulse/supply contract, finite angles, powered-off/inva
 signal behavior and deterministic saved continuations; don't change physics to
 force a visual result. Protect other GPIO/tone/analog/loops/legacy projects.
 
+Actual mounted hook/Stage proof confirms the same native subscription gap also
+leaves raw seven-segment displays invisible despite correct committed branch
+brightness at1440/390. The cohesive visual-consumer repair covers only Servo and
+raw seven-segment types, with committed result regressions for both. Preserve the
+existing LED proposed/prepared asset barrier. Seven-segment performance acceptance
+remains open independently of this visual repair.
+
 Fresh focused/golden/native Worker→model→actual visible arm proof, types/build/
 fixedcaps222000/2000000 and gateelectronics-m1 NX_SKIP_NX_CACHE=true; NEW independent
 exact finalSHA review. Source/UI proof separate installed/SaveCAS/owner/release.
