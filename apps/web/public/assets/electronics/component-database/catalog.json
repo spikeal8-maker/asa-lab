@@ -17190,22 +17190,12 @@
       "subcategoryId": "switches",
       "catalogOrder": 6.1,
       "appearsInBasic": true,
-      "searchAliases": [
-        "switch-spst",
-        "SPST",
-        "выключатель",
-        "два контакта"
-      ],
+      "searchAliases": ["switch-spst", "SPST", "выключатель", "два контакта"],
       "displayNameEn": "SPST slide switch",
       "provenance": "owner_authorized_runtime_geometry",
       "physicalWidthMm": 7.112,
       "physicalHeightMm": 3.81,
-      "viewBox": [
-        0,
-        0,
-        7.112,
-        3.81
-      ],
+      "viewBox": [0, 0, 7.112, 3.81],
       "pins": [
         {
           "id": "throw-left",
@@ -17225,28 +17215,17 @@
       "footprint": {
         "kind": "inline",
         "pinOffsetsMm": [
-          [
-            0,
-            0
-          ],
-          [
-            2.54,
-            0
-          ]
+          [0, 0],
+          [2.54, 0]
         ]
       },
-      "states": [
-        "left",
-        "right"
-      ],
+      "states": ["left", "right"],
       "stateAssets": [],
       "animations": [
         {
           "driver": "simulation_state",
           "decorativeLoop": false,
-          "channels": [
-            "contact"
-          ]
+          "channels": ["contact"]
         }
       ],
       "stateContract": {
