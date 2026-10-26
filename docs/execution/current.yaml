@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: dragged_block_visibility_source_ui_integrated
+      checkpoint: consolidated_item2_verified_current_main
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12363,12 +12363,14 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_consolidated_item2_current_main_verification
+      checkpoint: consolidated_item2_current_main_source_ui_verified
       selected_followup: Owner explicitly selects consolidated item2. Existing implementation must be verified on current main after drag767; no speculative rewrite. Run existing focused connectedgraph tests and actual native fixture. Repair only a reproduced item2 defect; otherwise record current evidence and finish. No server foreign changes or refactoring.
+      consolidated_item2_verified_sha: 826cf0be1f5ebba42ffdcd4453870568d22aa199
+      consolidated_item2_evidence: Fresh8of8connectedgraph testsPASS globals pinMode helpers naming ServoLCDallocation byteidentical whenorphansadded. Existingactualnativefixture1440and390and320 PASS settledorphandim reconnectnormal codeIDsUndoRedo reopen rootless andmouseTouchdrag preserved. No defect found or product edits needed. Main8f51446a onlyforeignadminmigrationtests noelectronics overlap; no unnecessary fullgate repeated. Installed owner and SaveCAS acceptance separate.
       owner_acceptance: pending
       source_integrated_sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
       independent_source_ui_review: APPROVE_exact_integrated_sha
