@@ -11,6 +11,7 @@ import process from 'node:process';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const alias = {
+  '@asa-lab/electronics/rendering': resolve('contexts/electronics/rendering.ts'),
   '@asa-lab/electronics/simulation': resolve('contexts/electronics/simulation.ts'),
   '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
   '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
