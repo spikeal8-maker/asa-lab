@@ -1,3 +1,4 @@
+import { SPST_COMPONENT_TYPE } from './component-catalog';
 import {
   memo,
   useEffect,
@@ -551,7 +552,7 @@ export function WorkbenchStage({
     for (const component of document.components) {
       if (component.kind === 'wire') continue;
       const entry = catalogEntry(component);
-      if (!entry?.asset) continue;
+      if (!entry?.asset || entry.key === SPST_COMPONENT_TYPE) continue;
       const size = renderedSize(entry, 0);
       entries.set(
         `${entry.key}|${entry.asset}|${entry.assetFit ?? 'meet'}|${size.width}|${size.height}`,
@@ -606,6 +607,13 @@ export function WorkbenchStage({
     entry: NonNullable<ReturnType<typeof catalogEntry>>,
     size: { readonly width: number; readonly height: number },
   ): boolean {
+    // SPST is a derived runtime shape, never the three-pin reference alpha mask.
+    if (entry.key === SPST_COMPONENT_TYPE)
+      return Boolean(
+        part
+          .querySelector('.workbench-tinkercad-switch')
+          ?.contains(window.document.elementFromPoint(clientX, clientY)),
+      );
     const matrix = part.getScreenCTM();
     const canvas = part.ownerSVGElement;
     if (!matrix || !canvas) return false;

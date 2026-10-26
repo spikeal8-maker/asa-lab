@@ -199,6 +199,14 @@ const HC_SR04_MODEL: ElectricalModelDescriptor = {
   requiredTerminals: ['vcc', 'trigger', 'echo', 'gnd'],
 };
 
+const SPST_MODEL: ElectricalModelDescriptor = {
+  id: 'spst-switch',
+  kind: 'switch',
+  support: 'supported',
+  topology: 'two-terminal',
+  requiredTerminals: ['throw-left', 'common'],
+};
+
 const SERVO_MOTOR_MODEL: ElectricalModelDescriptor = {
   id: 'servo-motor-signal',
   kind: 'visual',
@@ -298,7 +306,9 @@ export function electricalModelFor(component: SchematicComponent): ElectricalMod
                             ? FUNCTION_GENERATOR_MODEL
                             : component.componentTypeId === 'oscilloscope'
                               ? OSCILLOSCOPE_MODEL
-                              : MODELS[component.kind];
+                              : component.componentTypeId === 'switch-spst'
+                                ? SPST_MODEL
+                                : MODELS[component.kind];
   return {
     ...base,
     id: installed ? (identity.electricalModelId as ElectricalModelId) : 'unsupported',
@@ -317,6 +327,7 @@ export function unsupportedElectricalComponents(
 
 function productionRequiredTerminals(component: SchematicComponent): readonly Terminal[] {
   if (!component.componentTypeId) return [];
+  if (component.componentTypeId === 'switch-spst') return SPST_MODEL.requiredTerminals;
   if (component.componentTypeId === 'soil-moisture-sensor') return SOIL_MODEL.requiredTerminals;
   if (component.componentTypeId === 'temperature-sensor') return TMP36_MODEL.requiredTerminals;
   if (component.componentTypeId === 'pir-sensor') return PIR_MODEL.requiredTerminals;
@@ -369,5 +380,9 @@ export function validateElectricalTerminalContract(
   const required = productionRequiredTerminals(component);
   const available = new Set(component.pinIds ?? []);
   const missing = required.filter((terminal) => !available.has(terminal));
-  return { valid: missing.length === 0, missing };
+  return {
+    valid:
+      missing.length === 0 && (component.componentTypeId !== 'switch-spst' || available.size === 2),
+    missing,
+  };
 }

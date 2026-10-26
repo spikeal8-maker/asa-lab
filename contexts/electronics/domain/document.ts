@@ -41,7 +41,7 @@ export interface SchematicComponent {
   readonly value: number;
   readonly rotation?: Rotation;
   readonly name?: string;
-  /** Button: pressed when true. SPDT: right throw when true, left throw otherwise. */
+  /** Button: pressed when true. SPDT: right throw when true. SPST: right/open when true, left/closed otherwise. */
   readonly state?: boolean;
   /** Potentiometer wiper position from terminal a (0) to terminal b (1). */
   readonly wiperPosition?: number;

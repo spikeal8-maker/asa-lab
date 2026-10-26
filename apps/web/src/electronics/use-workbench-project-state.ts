@@ -1,3 +1,4 @@
+import { switchSelectedTerminal } from '@asa-lab/electronics';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useReportProjectSaveEvidence } from '../modules/project-save-evidence';
 import {
@@ -92,7 +93,10 @@ function migratedTerminal(
     resistor: { a: 'lead-1', b: 'lead-2' },
     led: { a: 'anode', b: 'cathode' },
     button: { a: 'SW-A1', b: 'SW-B1' },
-    switch: { a: 'common', b: component.state ? 'throw-right' : 'throw-left' },
+    switch: {
+      a: 'common',
+      b: switchSelectedTerminal(component),
+    },
     potentiometer: { a: 'terminal-1', b: 'terminal-2', wiper: 'wiper' },
     diode: { a: 'anode', b: 'cathode' },
     lamp: { a: 'L1', b: 'L2' },

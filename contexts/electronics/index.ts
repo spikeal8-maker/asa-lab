@@ -185,6 +185,7 @@ export {
   buttonContactPairs,
   spdtConnections,
   spdtSelectedTerminal,
+  switchSelectedTerminal,
   spdtStateForThrow,
   spdtThrowFromState,
   SPDT_TERMINALS,

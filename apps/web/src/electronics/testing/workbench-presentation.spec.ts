@@ -144,7 +144,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('height * 0.88');
     expect(productionVisualSource).toContain('tinkercad-four-pin-6x6');
     expect(productionVisualSource).not.toContain('tinkercad-three-pin-rotary');
-    expect(productionVisualSource).toContain('tinkercad-spdt-three-pin');
+    // Actual SPDT/SPST contract values and geometry are asserted on rendered SVG in spst-switch.spec.ts.
     expect(stageSource).toContain('selectionOffset={1.6 / c.viewport.zoom}');
     expect(productionVisualSource).toContain('<feMorphology');
     expect(productionVisualSource).toContain('operator="dilate"');

@@ -12,6 +12,7 @@ export type ElectricalModelId =
   | 'seven-segment'
   | 'momentary-button'
   | 'spdt-switch'
+  | 'spst-switch'
   | 'potentiometer'
   | 'capacitor'
   | 'photoresistor'
@@ -58,6 +59,7 @@ const KNOWN_MODEL_IDS: ReadonlySet<string> = new Set<ElectricalModelId>([
   'seven-segment',
   'momentary-button',
   'spdt-switch',
+  'spst-switch',
   'potentiometer',
   'capacitor',
   'photoresistor',
@@ -95,6 +97,7 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'seven-segment-display': identity('seven-segment', 'single-digit-seven-segment-10pin', 2),
   'button-tactile-6mm': identity('momentary-button', 'tactile-button-6mm'),
   'switch-spdt': identity('spdt-switch', 'slide-switch-spdt'),
+  'switch-spst': identity('spst-switch', 'slide-switch-spst'),
   potentiometer: identity('potentiometer', 'generic-potentiometer'),
   'electrolytic-capacitor': identity('capacitor', 'generic-electrolytic-capacitor'),
   photoresistor: identity('photoresistor', 'generic-photoresistor', 2),
