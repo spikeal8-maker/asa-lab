@@ -25,6 +25,24 @@ const opts = {
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' },
 };
 const before = process.argv.includes('--before');
+const serialBeginBefore = process.argv.includes('--serial-begin-before');
+const serialBeginOnly = serialBeginBefore || process.argv.includes('--serial-begin-only');
+if (serialBeginBefore)
+  opts.plugins = [
+    {
+      name: 'serial-begin-baseline',
+      setup(builder) {
+        builder.onLoad({ filter: /ArduinoSerialMonitor\.tsx$/ }, (args) => ({
+          contents: execFileSync(
+            'git',
+            ['show', 'abfeff96:apps/web/src/electronics/ArduinoSerialMonitor.tsx'],
+            { encoding: 'utf8' },
+          ),
+          loader: 'tsx',
+        }));
+      },
+    },
+  ];
 if (before)
   opts.plugins = [
     {
@@ -70,11 +88,11 @@ if(name==='allpins')doc={...doc,components:[{...uno,stateProperties:{arduinoSour
 if(name==='two')doc={...doc,components:[...doc.components,{...uno,id:'second',stateProperties:{arduinoSource:'void setup(){Serial.begin(9600);Serial.println(222);}void loop(){delay(100);}'}}]};
 return parseElectronicsEngineDocument(doc).document;}
 let render;let serial=[],running=true,open=true,boardId='uno';let current=circuit();
-window.probe={responses:[],errors:[],horizon:-1};
+window.probe={responses:[],errors:[],sends:[],horizon:-1};
 const client=new ElectronicsSimulationWorkerClient(()=>{const w=new Worker(URL.createObjectURL(new Blob([workerCode],{type:'text/javascript'})));w.addEventListener('message',e=>window.probe.responses.push(e.data));return w;});
 const controller=new ElectronicsLiveSimulationWorkerController(client);
 const callbacks={onResult:r=>{window.probe.result=r},onCommittedHorizon:t=>{window.probe.horizon=t},onSerialProjection:s=>{serial=s;render?.()},onFailure:e=>window.probe.errors.push(e)};
-function Demo(){const [,refresh]=React.useState(0);render=()=>refresh(n=>n+1);return <ArduinoSerialMonitor boardId={boardId} open={open} running={running} serial={serial.find(s=>s.componentId===boardId)} onOpenChange={v=>{open=v;render()}} onSend={(id,text)=>controller.sendSerialRx(id,text,9000)}/>;}
+function Demo(){const [,refresh]=React.useState(0);render=()=>refresh(n=>n+1);return <ArduinoSerialMonitor boardId={boardId} open={open} running={running} serial={serial.find(s=>s.componentId===boardId)} onOpenChange={v=>{open=v;render()}} onSend={(id,text)=>{window.probe.sends.push({id,text});controller.sendSerialRx(id,text,9000)}}/>;}
 createRoot(document.getElementById('app')).render(<Demo/>);
 window.fixture={scenario:name=>{current=scenario(name);running=true;window.probe.horizon=-1;controller.start('native',current,callbacks)},board:id=>{boardId=id;render()},edit:(id,value)=>{current={...current,components:current.components.map(c=>c.id===id?{...c,...value}:c)};controller.update(current,9000)},start:(floating=false,source)=>{current=circuit(floating,source);running=true;window.probe.horizon=-1;controller.start('native',current,callbacks);render?.()},advance:t=>controller.update(current,t),stop:()=>{controller.stop();running=false;render()},run:()=>{running=true;window.probe.horizon=-1;controller.start('native',current,callbacks);render()},reset:()=>{window.probe.horizon=-1;controller.restart(current)},switchSource:()=>{current=circuit(false,'int changed=0;void setup(){Serial.begin(9600);}void loop(){Serial.println(analogRead(A0));delay(1);}');window.probe.horizon=-1;controller.update(current,9000)},parity:()=>{const parsed=parseElectronicsEngineDocument(current);if(!parsed.ok)throw Error(parsed.message);let state=resetElectronicsTimedState(),r;do{r=advanceElectronicsToHorizon(parsed.document,{state,requestedHorizonMicroseconds:9000,maxEvents:7});state=r.state}while(r.executionStatus==='yielded');const last=window.probe.responses.filter(r=>r.ok&&r.kind==='advance'&&r.advance.committedHorizonMicroseconds===9000).at(-1);const a=JSON.stringify(last.advance.state),b=JSON.stringify(r.state);let i=0;while(i<a.length&&a[i]===b[i])i++;window.probe.parity={index:i,a:a.slice(i-60,i+180),b:b.slice(i-60,i+180)};return a===b},dispose:()=>controller.dispose()};
 `,
@@ -104,6 +122,80 @@ try {
       await page.waitForFunction(() => window.probe.horizon === 9000);
     };
     const text = () => page.locator('.arduino-serial-output').innerText();
+    // Real Worker rejects RX before begin; UI must retain the unsent message.
+    phase = 'serial-begin-input';
+    const message = page.getByLabel('Сообщение в последовательный порт');
+    const send = page.getByRole('button', { name: 'Отпр.' });
+    await page.evaluate(() => window.fixture.start(false, 'void setup(){}void loop(){delay(1);}'));
+    await wait();
+    assert.match(await page.locator('.arduino-serial-status').innerText(), /Ожидает Serial.begin/);
+    await message.fill('A');
+    const sendCount = await page.evaluate(() => window.probe.sends.length);
+    if (serialBeginBefore) {
+      assert.equal(await send.isEnabled(), true);
+      await send.click();
+      assert.equal(await message.inputValue(), '');
+      await page.evaluate(() => window.fixture.advance(18000));
+      await page.waitForFunction(() => window.probe.horizon === 18000);
+      assert.equal(await text(), '');
+      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 1);
+      await page.screenshot({ path: resolve(output, 'before-serial-begin-' + width + '.png') });
+      receipts.push({ width, expectedBeforeInputLoss: true, ignoredRx: 'A', tx: '' });
+    } else {
+      assert.equal(await send.isDisabled(), true);
+      await message.press('Enter');
+      assert.equal(await message.inputValue(), 'A');
+      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount);
+      await page.evaluate(() =>
+        window.fixture.start(
+          false,
+          'void setup(){Serial.begin(9600);}void loop(){if(Serial.available()){Serial.println(Serial.read());}delay(1);}',
+        ),
+      );
+      await wait();
+      assert.equal(await message.inputValue(), 'A');
+      assert.equal(await send.isEnabled(), true);
+      assert.equal(await text(), '');
+      await message.press('Enter');
+      await page.evaluate(() => window.fixture.advance(18000));
+      await page.waitForFunction(() => window.probe.horizon === 18000);
+      assert.equal((await text()).trim(), '65');
+      assert.equal(await message.inputValue(), '');
+      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 1);
+      await message.fill('B');
+      await page.evaluate(() => window.fixture.stop());
+      assert.equal(await message.inputValue(), 'B');
+      assert.equal(await send.isDisabled(), true);
+      await page.evaluate(() => window.fixture.run());
+      await wait();
+      assert.equal(await message.inputValue(), 'B');
+      assert.equal(await text(), '');
+      await page.evaluate(() => window.fixture.reset());
+      await wait();
+      assert.equal(await message.inputValue(), 'B');
+      assert.equal(await text(), '');
+      await send.click();
+      await page.evaluate(() => window.fixture.advance(18000));
+      await page.waitForFunction(() => window.probe.horizon === 18000);
+      assert.equal((await text()).trim(), '66');
+      assert.equal(await page.evaluate(() => window.probe.sends.length), sendCount + 2);
+      assert.deepEqual(await page.evaluate(() => window.probe.errors), []);
+      assert.deepEqual(errors, []);
+      await page.screenshot({ path: resolve(output, 'serial-begin-' + width + '.png') });
+      receipts.push({
+        width,
+        beginGuard: true,
+        inputPreserved: true,
+        enterRx: 65,
+        buttonRx: 66,
+        stopRunReset: true,
+      });
+    }
+    if (serialBeginOnly) {
+      await page.evaluate(() => window.fixture.dispose());
+      await page.close();
+      continue;
+    }
     await page.evaluate(() => window.fixture.start());
     await wait();
     assert.equal((await text()).trim().split(/\s+/).length, 9);
@@ -239,7 +331,17 @@ try {
     await page.evaluate(() => window.fixture.dispose());
     await page.close();
   }
-  await writeFile(resolve(output, 'receipt.json'), JSON.stringify(receipts, null, 2));
+  await writeFile(
+    resolve(
+      output,
+      serialBeginBefore
+        ? 'serial-begin-before.json'
+        : serialBeginOnly
+          ? 'serial-begin.json'
+          : 'receipt.json',
+    ),
+    JSON.stringify(receipts, null, 2),
+  );
   if (before) throw new Error('Expected baseline monitor failure was not reproduced.');
   console.log(JSON.stringify(receipts));
 } catch (error) {
