@@ -188,6 +188,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
   it('lists retained legacy metadata without reopening unsupported public reads or mutations', async () => {
     const source = await publication();
     const platform = await identity('legacy-catalog', 'verified');
+    const current = await publication();
     const legacyRevision = randomUUID();
     await admin.query(
       `INSERT INTO project_publication_revisions
@@ -216,7 +217,28 @@ describe('publication moderation with real runtime privileges and sessions', () 
       moderationSupported: false,
       editorialEligible: false,
       featured: false,
+      pinned: false,
+      pinVersion: 0,
     });
+    expect(
+      page.items.find(
+        (item: { publicationId: string }) => item.publicationId === current.publicationId,
+      ),
+    ).toMatchObject({
+      schemaVersion: 2,
+      moderationSupported: true,
+      editorialEligible: true,
+      pinned: false,
+      pinVersion: 0,
+    });
+    await expect(
+      runtime.query('SELECT admin_publication_pin_set($1,$2,true,$3,0,$4,0,0)', [
+        platform.principalId,
+        source.publicationId,
+        randomUUID(),
+        legacyRevision,
+      ]),
+    ).rejects.toMatchObject({ code: 'P5P04' });
     expect(
       (
         await runtime.query('SELECT * FROM admin_publication_image($1,$2)', [

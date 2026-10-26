@@ -169,6 +169,11 @@ const upgradeArtifacts = [
     '0257_crm_dashboard_projection_fix.sql',
     'e7f6aca9b4c84a2fa01edb6d780374a09e5da112010ac7ed7f0eef6cd61e637e',
   ],
+  [
+    '0258',
+    '0258_project_publication_pins.sql',
+    '5dc9b4051ed78f80ec35963f006b630cc01ea52f5e4b9a6eacdcf499db5bb1fe',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

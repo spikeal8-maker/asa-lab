@@ -58,6 +58,14 @@ describe('administrative publication transport', () => {
             expectedModerationVersion: 0,
             expectedRevisionId: ID,
           }),
+        () =>
+          controller.pin(request(), ID, {
+            pinned: true,
+            expectedVersion: 0,
+            expectedModerationVersion: 0,
+            expectedRevisionId: ID,
+            expectedLifecycleVersion: 0,
+          }),
       ])
         await expect(call()).rejects.toMatchObject({ status });
       expect(query).not.toHaveBeenCalled();
@@ -79,6 +87,14 @@ describe('administrative publication transport', () => {
           expectedVersion: 0,
           expectedModerationVersion: 0,
           expectedRevisionId: ID,
+        }),
+      () =>
+        controller.pin(req, ID, {
+          pinned: true,
+          expectedVersion: 0,
+          expectedModerationVersion: 0,
+          expectedRevisionId: ID,
+          expectedLifecycleVersion: 0,
         }),
     ])
       await expect(call()).rejects.toMatchObject({ status: 403 });
@@ -251,5 +267,48 @@ describe('administrative publication transport', () => {
     } catch (error) {
       expect(String(error)).not.toContain('private SQL detail');
     }
+  });
+
+  it.each([
+    {},
+    { pinned: true, expectedVersion: 0, expectedRevisionId: ID },
+    { pinned: 'true', expectedVersion: 0, expectedModerationVersion: 0, expectedRevisionId: ID },
+    { pinned: true, expectedVersion: -1, expectedModerationVersion: 0, expectedRevisionId: ID },
+    { pinned: true, expectedVersion: 0, expectedModerationVersion: -1, expectedRevisionId: ID },
+    { pinned: true, expectedVersion: 0, expectedModerationVersion: 0, expectedRevisionId: 'bad' },
+    {
+      pinned: true,
+      expectedVersion: 0,
+      expectedModerationVersion: 0,
+      expectedRevisionId: ID,
+      expectedLifecycleVersion: '0',
+    },
+    {
+      pinned: true,
+      expectedVersion: 0,
+      expectedModerationVersion: 0,
+      expectedRevisionId: ID,
+      expectedLifecycleVersion: 0,
+      ownerId: ID,
+    },
+  ])('rejects malformed pinned actions %j', async (body) => {
+    const { controller, query } = fixture();
+    await expect(controller.pin(request(), ID, body)).rejects.toMatchObject({ status: 400 });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('binds pinned writes to verified actor, immutable revision and independent CAS', async () => {
+    const { controller, query } = fixture();
+    await controller.pin(request(), ID, {
+      pinned: true,
+      expectedVersion: 2,
+      expectedRevisionId: ID,
+      expectedModerationVersion: 3,
+      expectedLifecycleVersion: 4,
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      'SELECT public.admin_publication_pin_set($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+      [ID, ID, true, 'request-1', 2, ID, 3, 4],
+    );
   });
 });

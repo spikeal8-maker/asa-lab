@@ -37,6 +37,7 @@ const expectedPending = [
   '0255', // Read-only administrative visibility of retained legacy publications.
   '0256', // Read-only exact-subject dashboard and canonical classroom rating.
   '0257', // Canonical draft timestamp projection repair.
+  '0258', // Immutable Public Projects publication pins.
 ];
 
 interface Identity {
