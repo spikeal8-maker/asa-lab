@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "provenance": "owner_authorized_derivative",
+  "authorization": "Explicit owner correction: preserve existing switch appearance, remove one outer leg and keep centre; right outer leg selected in task card",
+  "productionEnabled": false,
+  "viewBox": [0, 0, 18, 10],
+  "dimensionsMm": [18, 10],
+  "contactType": "SPST",
+  "actuation": "latched",
+  "terminalCount": 2,
+  "terminals": [
+    { "id": "left", "centerMm": [6.46, 9], "role": "contact", "retainedParentTerminal": "throw-left" },
+    { "id": "common", "centerMm": [9, 9], "role": "contact", "retainedParentTerminal": "common" }
+  ],
+  "removedParentTerminal": { "id": "throw-right", "centerMm": [11.54, 9], "simulated": false },
+  "states": {
+    "left": { "asset": "left.svg", "connections": [["left", "common"]], "contact": "closed" },
+    "right": { "asset": "right.svg", "connections": [], "contact": "open" }
+  },
+  "parents": {
+    "left": { "path": "apps/web/public/assets/electronics/owner-supplied/switch-left.svg", "sha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720" },
+    "right": { "path": "apps/web/public/assets/electronics/owner-supplied/switch-right.svg", "sha256": "8622c1ef205518170b1a615ade4287b60489d718e409ecf5184312167ad41b25" }
+  },
+  "implementationBoundary": "Asset stage only; a separately selected true two-terminal electrical model is required; never create a hidden third simulated terminal"
+}

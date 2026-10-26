@@ -1,3 +1,15 @@
+# REJECTED — historical rocker candidate
+
+The owner rejected this independent rocker and requested the existing switch
+appearance with one outer leg removed. This SVG and its preserved preview remain
+historical audit artifacts only. It is not pending approval and must not be
+enabled. See `../spst-from-spdt/` for the owner-authorized replacement.
+
+The original brief below is historical and its pending-confirmation wording is
+superseded by this rejection. No further independent artwork is authorized.
+
+---
+
 # Original SPST artwork candidate
 
 This unbranded two-terminal latched panel rocker is original ASA Lab candidate

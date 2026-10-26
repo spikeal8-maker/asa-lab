@@ -5,22 +5,61 @@
   "author": "ASA Lab / Codex",
   "source": "Original geometric SVG authored for this candidate; no external or protected artwork used",
   "license": "CC0-1.0",
-  "ownerConfirmation": "pending",
+  "ownerConfirmation": "rejected",
   "productionEnabled": false,
-  "viewBox": [0, 0, 96, 104],
-  "dimensions": { "units": "drawing-units", "physicalSizeVerified": false },
+  "viewBox": [
+    0,
+    0,
+    96,
+    104
+  ],
+  "dimensions": {
+    "units": "drawing-units",
+    "physicalSizeVerified": false
+  },
   "contactType": "SPST",
   "actuation": "latched",
   "terminalCount": 2,
   "terminals": [
-    { "id": "A", "svgElementId": "terminal-a", "center": [30, 86], "polarity": "none" },
-    { "id": "B", "svgElementId": "terminal-b", "center": [66, 86], "polarity": "none" }
+    {
+      "id": "A",
+      "svgElementId": "terminal-a",
+      "center": [
+        30,
+        86
+      ],
+      "polarity": "none"
+    },
+    {
+      "id": "B",
+      "svgElementId": "terminal-b",
+      "center": [
+        66,
+        86
+      ],
+      "polarity": "none"
+    }
   ],
   "states": {
-    "off": { "svgGroupId": "state-off", "connections": [] },
-    "on": { "svgGroupId": "state-on", "connections": [["A", "B"]] }
+    "off": {
+      "svgGroupId": "state-off",
+      "connections": []
+    },
+    "on": {
+      "svgGroupId": "state-on",
+      "connections": [
+        [
+          "A",
+          "B"
+        ]
+      ]
+    }
   },
   "defaultState": "off",
-  "invariants": ["terminal identifiers and centres are identical in both states", "fixed-body geometry is shared by both states"],
-  "acceptanceBlocker": "Owner must explicitly confirm this concrete SVG before component enable, owner acceptance or release claims; no solver/catalog integration is supplied"
+  "invariants": [
+    "terminal identifiers and centres are identical in both states",
+    "fixed-body geometry is shared by both states"
+  ],
+  "acceptanceBlocker": "Owner rejected this independently drawn rocker; historical audit only. Superseded by spst-from-spdt authorized derivative.",
+  "status": "rejected_historical"
 }
