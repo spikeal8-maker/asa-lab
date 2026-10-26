@@ -168,5 +168,5 @@ databases, Docker image cache, Git worktrees и Yandex incoming.
 Связанные документы:
 [Portable operations](PORTABLE_OPERATIONS.md),
 [Portable Standard](../architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md),
-[Test source-update operator](ASA_TEST_REFRESH_OPERATOR.md),
+[Test source-update operator](https://github.com/spikeal8-maker/asa-lab/blob/ops/asa-test-deployment-operator-20261026/docs/deployment/ASA_TEST_REFRESH_OPERATOR.md),
 [PR #772](https://github.com/spikeal8-maker/asa-lab/pull/772).
