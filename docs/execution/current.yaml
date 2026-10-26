@@ -6509,16 +6509,28 @@ parallel_lanes:
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
+      - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
+        issue: 211
+        pr: 785
+        accepted_candidate_sha: 9f18bcc1d340c4606a0618c5fedddc5ed992ffa7
+        integrated_sha: 28055932d15e38eed4076249547fe09a227d42ca
+        independent_review: approved
+        exact_candidate_focused_run: 40361199752
+        exact_candidate_general_run: 40361199670
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
     task:
       id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
       issue: 211
       branch: main
       candidate_branch: codex/public-electronics-viewer-20261026
       base_branch: main
-      pr: null
-      pr_draft: true
-      status: in_progress
-      checkpoint: visible_electronics_schematic_full_width_workspace_selected
+      pr: 785
+      pr_draft: false
+      status: done
+      checkpoint: electronics_viewer_merged_visual_verified_no_deployment
       kind: implementation
       risk: high
       semantic_change: 'yes'
