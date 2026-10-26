@@ -49,3 +49,10 @@ No unrelated refactoring, deferred cleanup, server/Docker/DB or listening port.
 If a cap fails, report exact measured cause and choose minimal in-slice sharing,
 not unrelated extraction. Preserve foreign modifications. One verified slice
 then STOP; controller handles integration and programme continuation.
+
+## Bounded post-integration CI formatting repair
+
+Exact main CI stopped on Prettier catalog.json. Author may format ONLY that
+file, prove parsed JSON equality and focused format check, publish one repair
+commit then STOP. No product semantics, build, gate rerun, refactoring or
+validator baseline repair. Independent reviewer checks exact JSON equality.
