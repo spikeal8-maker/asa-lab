@@ -189,28 +189,34 @@ it('does not select the first ambiguous city or fetch a forecast', async () => {
   );
   expect(String(fetchImpl.mock.calls[0]![0])).toContain('nominatim.openstreetmap.org/search?');
 });
-it('treats nearby node and city relation for Novosibirsk as one place and chooses the city relation', async () => {
+it('uses a containing city relation for the real 7 km Novosibirsk duplicate', async () => {
   const candidates = [
     {
       name: 'Новосибирск',
       addresstype: 'city',
       osm_type: 'node',
-      lat: '55.0290',
-      lon: '82.9210',
+      lat: '55.0288307',
+      lon: '82.9226887',
       address: { city: 'Новосибирск', state: 'Новосибирская область', country: 'Россия' },
     },
     {
       name: 'Новосибирск',
       addresstype: 'city',
       osm_type: 'relation',
-      lat: '55.0300',
-      lon: '82.9200',
+      lat: '54.9678145',
+      lon: '82.9515989',
+      boundingbox: ['54.8', '55.2', '82.7', '83.2'],
       address: { city: 'Новосибирск', state: 'Новосибирская область', country: 'Россия' },
     },
   ];
   expect(parseCityCandidates(candidates)).toEqual([
-    { name: 'Новосибирск, Новосибирская область, Россия', lat: 55.03, lon: 82.92 },
+    {
+      name: 'Новосибирск, Новосибирская область, Россия',
+      lat: 54.9678145,
+      lon: 82.9515989,
+    },
   ]);
+  expect(parseCityCandidates([...candidates].reverse())).toEqual(parseCityCandidates(candidates));
   const c = cache();
   const fetchImpl = vi.fn<typeof fetch>(
     async (url) =>
@@ -222,7 +228,71 @@ it('treats nearby node and city relation for Novosibirsk as one place and choose
   );
   expect(result.choices).toBeUndefined();
   expect(result.weather?.location).toBe('Новосибирск, Новосибирская область, Россия');
-  expect(String(fetchImpl.mock.calls[1]?.[0])).toContain('lat=55.0300&lon=82.9200');
+  expect(String(fetchImpl.mock.calls[1]?.[0])).toContain('lat=54.9678&lon=82.9516');
+  const geocodeKey = vi.mocked(c.claim).mock.calls[0]?.[1];
+  expect(geocodeKey).toMatch(/^v2:[a-f0-9]{64}$/);
+  expect(geocodeKey).not.toBe('новосибирск');
+  expect(c.save).toHaveBeenCalledWith(
+    'geocode',
+    geocodeKey,
+    parseCityCandidates(candidates),
+    expect.any(String),
+    undefined,
+    undefined,
+  );
+});
+it('does not merge distant homonyms outside city bounds or from oversized/malformed bounds', () => {
+  const first = {
+    addresstype: 'city',
+    osm_type: 'node',
+    lat: '55.0288307',
+    lon: '82.9226887',
+    address: { city: 'Новосибирск', state: 'Новосибирская область', country: 'Россия' },
+  };
+  const relation = {
+    addresstype: 'city',
+    osm_type: 'relation',
+    lat: '54.9678145',
+    lon: '82.9515989',
+    address: first.address,
+  };
+  for (const boundingbox of [
+    ['54.8', '55.0', '82.7', '83.2'],
+    ['-80', '80', '-170', '170'],
+    ['54.8', 'not-a-coordinate', '82.7', '83.2'],
+    ['54.8', '', '82.7', '83.2'],
+  ])
+    expect(parseCityCandidates([first, { ...relation, boundingbox }])).toHaveLength(2);
+});
+it('rejects a nearly worldwide longitude span before shortest-arc distance and keeps a real ambiguity', async () => {
+  const candidates = [
+    {
+      addresstype: 'city',
+      osm_type: 'node',
+      lat: '0',
+      lon: '0',
+      address: { city: 'Мир', country: 'Россия' },
+    },
+    {
+      addresstype: 'city',
+      osm_type: 'relation',
+      lat: '0',
+      lon: '179.9',
+      boundingbox: ['-0.1', '0.1', '-179.9', '179.9'],
+      address: { city: 'Мир', country: 'Россия' },
+    },
+  ];
+  expect(parseCityCandidates(candidates)).toHaveLength(2);
+  const c = cache();
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(candidates)));
+  const result = await new FreeInternetProvider(fetchImpl, c).weather(
+    'Мир',
+    new AbortController().signal,
+  );
+  expect(result.choices).toHaveLength(2);
+  expect(result.weather).toBeUndefined();
+  expect(fetchImpl).toHaveBeenCalledOnce();
+  expect(c.claim).toHaveBeenCalledTimes(1);
 });
 it('keeps distant same-name places and distinct regions separate', async () => {
   const candidates = [
@@ -251,7 +321,7 @@ it('keeps distant same-name places and distinct regions separate', async () => {
   expect(result.weather).toBeUndefined();
   expect(fetchImpl).not.toHaveBeenCalled();
 });
-it('collapses nearby duplicate cities from an earlier geocode cache before claiming weather', async () => {
+it('collapses nearby duplicate cities from a v2 geocode cache before claiming weather', async () => {
   const c = cache();
   vi.mocked(c.claim)
     .mockResolvedValueOnce({
@@ -270,6 +340,18 @@ it('collapses nearby duplicate cities from an earlier geocode cache before claim
   expect(result.weather?.location).toBe('Новосибирск, Новосибирская область, Россия');
   expect(result.choices).toBeUndefined();
   expect(fetchImpl).not.toHaveBeenCalled();
+});
+it('uses bounded distinct v2 geocode keys even for 100-character city names', async () => {
+  const c = cache();
+  vi.mocked(c.claim).mockResolvedValue({ state: 'fresh', body: [] });
+  const provider = new FreeInternetProvider(vi.fn<typeof fetch>(), c);
+  await provider.weather('А'.repeat(99) + 'Б', new AbortController().signal);
+  await provider.weather('А'.repeat(99) + 'В', new AbortController().signal);
+  const keys = vi.mocked(c.claim).mock.calls.map(([, key]) => key);
+  expect(keys).toHaveLength(2);
+  expect(keys[0]).toMatch(/^v2:[a-f0-9]{64}$/);
+  expect(keys[0]).not.toBe(keys[1]);
+  expect(keys.every((key) => key.length <= 100)).toBe(true);
 });
 it('rejects non-city geocoder results and malformed coordinates', () => {
   expect(
