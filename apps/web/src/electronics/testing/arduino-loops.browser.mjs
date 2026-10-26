@@ -26,6 +26,11 @@ const source = `int total=0;void setup(){pinMode(13,OUTPUT);Serial.begin(9600);
 for(int i=0;i<3;i++){if(i==1)continue;for(int j=0;j<3;j++){
 if(j==2)break;Serial.println(i*10+j);digitalWrite(13,j);delay(1);total++;}}
 Serial.println(total);}void loop(){delay(100);}`;
+const postTestSource = `int total=0;void setup(){pinMode(13,OUTPUT);Serial.begin(9600);
+do {total++;if(total==2)continue;if(total==4)break;
+Serial.println(total);digitalWrite(13,total==1);delay(1);delayMicroseconds(3);
+} while(total<9);do {Serial.println(10);} while(false);}
+void loop(){delay(100);}`;
 const entry = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
@@ -34,16 +39,31 @@ const entry = await build({
 import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
 import {ElectronicsLiveSimulationWorkerController} from './src/electronics/live-simulation-worker-controller';
 import {advanceElectronicsToHorizon,resetElectronicsTimedState} from '@asa-lab/electronics/engine';
-const initial=${JSON.stringify(source)};
+import {advanceClockedArduinoRuntime} from '../../contexts/electronics/domain/arduino-program-runtime';
+const initial=${JSON.stringify(postTestSource)};
+const legacy=${JSON.stringify(source)};
 const doc=(source)=>({schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',pinIds:['d13','power-5v','power-3v3','power-gnd-1'],position:{x:0,y:0},value:5,stateProperties:{arduinoSource:source}}],connections:[],viewport:{x:0,y:0,zoom:1},simulation:{running:true,maxIterations:24}});
 const factory=()=>new Worker('/worker.js',{type:'module'});
 window.proof=async()=>{
  const client=new ElectronicsSimulationWorkerClient(factory);
  try{
  const generation=client.beginGeneration('loop-proof');
- const advance=await client.advance(generation,doc(initial),resetElectronicsTimedState(),20000);
- const direct=advanceElectronicsToHorizon(doc(initial),{state:resetElectronicsTimedState(),requestedHorizonMicroseconds:20000});
- return {advance,direct};
+ const proofs=[];
+ for(const source of [legacy,initial]){
+  let state=resetElectronicsTimedState();let advance;
+  for(const horizon of [500,1500,20000]){
+   advance=await client.advance(generation,doc(source),JSON.parse(JSON.stringify(state)),horizon);
+   state=advance.state;
+  }
+  const direct=advanceElectronicsToHorizon(doc(source),{state:resetElectronicsTimedState(),requestedHorizonMicroseconds:20000});
+  let runtime;const events=[];let slices=0;
+  do {const step=advanceClockedArduinoRuntime(source,{},20,runtime,undefined,{instructionBudget:1});
+   runtime=JSON.parse(JSON.stringify(step.state));events.push(...step.events);slices++;
+   if(step.executionStatus!=='yielded')break;
+  }while(slices<10000);
+  proofs.push({advance,direct,budgetOne:{runtime,events,slices}});
+ }
+ return proofs;
  }finally{client.dispose();}
 };
 const client=new ElectronicsSimulationWorkerClient(factory);
@@ -91,7 +111,16 @@ try {
     });
     await page.goto('https://asa-loops.invalid/');
     await page.addScriptTag({ content: entry.outputFiles[0].text });
-    const proof = await page.evaluate(() => window.proof());
+    const proofs = await page.evaluate(() => window.proof());
+    const proof = proofs[1];
+    for (const result of proofs) {
+      assert.equal(result.advance.executionStatus, 'ready');
+      assert.deepEqual(result.advance.diagnostics, []);
+      assert.deepEqual(result.advance.state, result.direct.state);
+      const board = JSON.parse(result.advance.state.continuation.serializedState).boards[0].runtime;
+      assert.deepEqual(result.budgetOne.runtime, board);
+      assert.ok(result.budgetOne.slices > 1);
+    }
     assert.equal(proof.advance.executionStatus, 'ready');
     assert.deepEqual(proof.advance.diagnostics, []);
     assert.deepEqual(proof.advance.state, proof.direct.state);
@@ -99,14 +128,17 @@ try {
     assert.equal(runtime.variables.total, 4);
     assert.deepEqual(
       runtime.serial.tx.map((e) => e.text),
-      ['0\n', '1\n', '20\n', '21\n', '4\n'],
+      ['1\n', '3\n', '10\n'],
     );
+    assert.equal(runtime.outputVoltages.d13, 0);
     await page.getByRole('button', { name: 'Run', exact: true }).click();
     await page.waitForFunction(() => window.receipt.committed === 20000);
     assert.equal((await page.evaluate(() => window.receipt)).failure, null);
+    assert.deepEqual((await page.evaluate(() => window.receipt)).serial[0].tx, runtime.serial.tx);
     await page.getByRole('button', { name: 'Reset', exact: true }).click();
     await page.waitForFunction(() => window.receipt.committed === 20000);
     const afterReset = await page.evaluate(() => window.receipt);
+    assert.deepEqual(afterReset.serial[0].tx, runtime.serial.tx);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     const stopped = await page.evaluate(() => window.receipt);
     await page.waitForTimeout(50);
@@ -115,15 +147,35 @@ try {
     await page.waitForFunction(() => window.receipt.committed === 20000);
     await page
       .getByRole('textbox', { name: 'source' })
-      .fill('void setup(){for(;;){unknown();}}void loop(){}');
+      .fill('void setup(){do {unknown();}while(false);}void loop(){}');
     await page.waitForFunction(() => window.receipt.failure !== null);
     const invalid = await page.evaluate(() => window.receipt);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
-    await page.getByRole('textbox', { name: 'source' }).fill(source);
+    await page.getByRole('textbox', { name: 'source' }).fill(postTestSource);
     await page.getByRole('button', { name: 'Run', exact: true }).click();
     await page.waitForFunction(
       () => window.receipt.committed === 20000 && window.receipt.failure === null,
     );
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(postTestSource.replace('Serial.println(10)', 'Serial.println(42)'));
+    await page.waitForFunction(
+      () =>
+        window.receipt.committed === 30000 && window.receipt.serial[0]?.tx.at(-1)?.text === '42\n',
+    );
+    const edited = await page.evaluate(() => window.receipt);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill('void setup(){do {continue;}while(true);}void loop(){}');
+    await page.waitForFunction(
+      () => window.receipt.committed === 30000 && window.receipt.serial.length === 0,
+    );
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const infiniteStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), infiniteStopped);
     assert.deepEqual(errors, []);
     assert.ok(workers >= 5);
     await page.screenshot({ path: resolve(output, 'loops-' + width + '.png') });
@@ -132,9 +184,14 @@ try {
       workers,
       realWorkerMatchesDirect: true,
       goldenTotal: runtime.variables.total,
+      postTestSerial: runtime.serial.tx,
+      budgetOneSlices: proof.budgetOne.slices,
+      workerJsonHorizons: [500, 1500, 20000],
       afterReset,
       stopped,
       invalid,
+      edited,
+      infiniteStopped,
     });
     await page.evaluate(() => window.fixture.dispose());
     await context.close();

@@ -485,8 +485,8 @@ const LANGUAGE_REFERENCE_METADATA = {
     title: 'Цикл с проверкой в конце',
     signature: 'do { ... } while (...);',
     category: 'control',
-    limits: 'Конструкция пока не исполняется электрическим runtime.',
-    example: 'do {\n  counter += 1;\n} while (counter < 3);',
+    limits: 'Тело выполняется хотя бы раз. Есть лимит операций.',
+    example: 'int n=0;\ndo {n++;} while(n<3);',
   },
   comparison: {
     command: 'comparison',

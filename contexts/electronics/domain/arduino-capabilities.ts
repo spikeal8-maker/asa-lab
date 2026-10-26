@@ -217,7 +217,7 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   for: LIMITED('Заголовок и тело for исполняются по условию в пределах защитного лимита операций.'),
   while: LIMITED('Условие while повторяется в пределах защитного лимита операций.'),
   switch: UNSUPPORTED('switch/case ещё не входит в подтверждённое подмножество.'),
-  'do-while': UNSUPPORTED('do…while ещё не входит в подтверждённое подмножество.'),
+  'do-while': LIMITED('Тело выполняется до проверки условия; действует защитный лимит операций.'),
   comparison: SUPPORTED('Поддерживаются <, <=, > и >=.'),
   equality: SUPPORTED('Поддерживаются == и !=.'),
   'logical-and': SUPPORTED('Логическое И &&: правая часть не вычисляется при ложной левой.'),
@@ -430,7 +430,7 @@ export function analyseArduinoSourceSupport(
     );
   }
 
-  for (const match of clean.matchAll(/\b(?:switch|do|goto)\b/gi)) {
+  for (const match of clean.matchAll(/\b(?:switch|goto)\b/gi)) {
     add(
       'unsupported-syntax',
       'unsupported',
