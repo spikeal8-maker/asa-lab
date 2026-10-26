@@ -6473,29 +6473,24 @@ parallel_lanes:
       pr: 704
       pr_draft: true
       status: in_progress
-      checkpoint: renumber_unpublished_pins_after_published_0246
+      checkpoint: owner_resumed_independent_agent_reviews_and_refreshed_checks
       owner_acceptance: pending
       owner_authorization: >-
-        On 2026-10-25 owner requested publication of all finished Public Projects
-        work to main, allowing ordinary Draft transition and merge ONLY after
-        all mandatory exact-SHA focused/General CI, independent Code/Security
-        reviews and other branch/security controls actually pass. No waiver or
-        force push. Existing #704 currently has 0242_project_publication_pins.sql
-        but main already published foreign 0242-0246 migrations, so only the
-        unpublished pins migration may receive the next free number (expected
-        0247, subject to actual frontier). Preserve its exact SQL bytes and
-        checksum; extend strict own/required migration-history contracts while
-        retaining published checksum identity and rejecting corrupt histories.
-        Public Projects only: do not modify Identity, Auth, MAX, AI, Courses,
-        Scratch, Electronics, Analytics, other product tests or workflows.
-        Preserve existing B1 reports Draft #717 at
-        c420833c0b1aa5e2cf98a2d4bd46e233c19eca48, still unmerged, with
-        provisional migration 0240; prepare B1 as dependent successor only
-        once #704 integrates (expected 0248 if frontier remains unchanged).
-        Current pinning Security approval is missing and cannot be
-        self-issued; keep SECURITY_ACCEPTANCE_PENDING and no merge until
-        genuine independent reviewer and required green checks.
-        No school database, working production instance or deployment work.
+        On 2026-10-26 owner explicitly requested completion of existing Public
+        Projects work #704, #717, #211, #721 and #723. Asked about the separately
+        required external GitHub security reviewer, owner answered:
+        "нет такого человека без него продолжай". This supersedes the external
+        human-reviewer prerequisite only: retain separate independent agent Code
+        and Security verdicts on the final source, exact-SHA focused PostgreSQL
+        and browser evidence, required General CI and all GitHub protections.
+        Do not invent a formal GitHub APPROVE or use author self-review as an
+        independent verdict. Ordinary Draft transition and merge of accepted
+        slices are authorized after these requirements actually pass.
+        Reuse the existing PRs and preserve published migration history; assign
+        unpublished pin/report migrations the next free actual versions. Keep
+        current retained-publication metadata visibility when composing pins.
+        Continue #717, then #721 and #723 only across their accepted dependency
+        boundaries. No force push, school/production database or deployment.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -13044,16 +13039,16 @@ blocking:
       - independent_source_review
       - documentation_update
     reason: >-
-      Public Projects pinning PR #704 passed focused CI on 7035c3873913db897bc9cb8fe70ba8d337434f59 but lacks
-      independent Security verdict and required General CI. Main has published
-      unrelated 0242-0246 migrations; 0242 pin version now conflicts and must be
-      renumbered to the next free version before refreshed exact-SHA CI.
-      Bounded repair/verification is allowed, NOT merge/release/acceptance.
-      A new exact-SHA independent Security verdict and owner-authorized Draft
-      transition/merge are still required. Existing security handoff
-      is https://github.com/spikeal8-maker/asa-lab/pull/704#issuecomment-6384172813.
-      Do not repeat the same review request or waive security. An external review
-      or owner decision is required before pinning integration.
+      Owner decision on 2026-10-26 permits continuation without an external human
+      GitHub reviewer, as recorded in the projects task authorization. This does
+      not waive independent agent Code/Security review, refreshed exact-SHA
+      focused PostgreSQL/browser and General CI or branch protections. Current
+      published migration frontier has moved beyond the historical handoff;
+      unpublished pins must follow the actual frontier and preserve migration
+      0255 retained-publication visibility. Keep integration blocked until the
+      composed candidate has the required evidence; no formal GitHub approval
+      may be fabricated. Historical external-review handoff remains evidence,
+      not the current human-reviewer prerequisite.
     evidence: https://github.com/spikeal8-maker/asa-lab/pull/704
   - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
     kind: acceptance_blocker

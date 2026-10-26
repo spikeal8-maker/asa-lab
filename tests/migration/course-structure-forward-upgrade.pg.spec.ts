@@ -127,6 +127,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0254', // Free server internet evidence and bounded public weather cache.
         '0255', // Read-only administrative visibility of retained legacy publications.
         '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+        '0257', // Canonical draft timestamp projection repair.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -413,6 +414,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0254', // Free server internet evidence and bounded public weather cache.
           '0255', // Read-only administrative visibility of retained legacy publications.
           '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+          '0257', // Canonical draft timestamp projection repair.
         ]);
         expect(
           await applyIsolatedTestPlan(

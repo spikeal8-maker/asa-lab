@@ -73,6 +73,35 @@ it('returns dense UTC empty data and unknown tokens/rating without preparing ide
     code: '42501',
   });
 });
+it('uses the retained draft save time and falls back to project creation before the first save', async () => {
+  const owner = await aiIdentity(admin),
+    target = await aiIdentity(admin);
+  await admin.query(
+    "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'platform_admin','verified','test','admin')",
+    [owner.account_id],
+  );
+  const project = (
+    await admin.query(
+      "INSERT INTO projects(tenant_id,owner_principal_id,title,module_key,project_scope,status,created_at) VALUES($1,$2,'Saved dashboard project','electronics','personal','active',now()-interval '3 days') RETURNING id,created_at",
+      [target.tenant_id, target.principal_id],
+    )
+  ).rows[0];
+  const initial = await dashboard(owner.principal_id, 'account', target.account_id);
+  expect(new Date(initial.lastActionAt).toISOString()).toBe(project.created_at.toISOString());
+  const saved = (
+    await admin.query(
+      "INSERT INTO project_drafts(project_id,tenant_id,document_json,revision,updated_by_principal_id,updated_at) VALUES($1,$2,'{}',2,$3,now()-interval '1 day') RETURNING updated_at",
+      [project.id, target.tenant_id, target.principal_id],
+    )
+  ).rows[0];
+  const result = await dashboard(owner.principal_id, 'account', target.account_id);
+  expect(result.totals.projects).toBe(1);
+  expect(new Date(result.lastActionAt).toISOString()).toBe(saved.updated_at.toISOString());
+  expect(result.latestActions[0].eventType).toBe('project.updated');
+  expect(new Date(result.latestActions[0].occurredAt).toISOString()).toBe(
+    saved.updated_at.toISOString(),
+  );
+});
 it('isolates exact Seat facts from linked Accounts and other classes, and reuses the canonical classroom rating', async () => {
   const school = await aiClassFixture(admin, runtime),
     other = await aiClassFixture(admin, runtime),
