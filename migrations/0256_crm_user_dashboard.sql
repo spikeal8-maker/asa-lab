@@ -74,11 +74,11 @@ BEGIN
    UNION ALL SELECT max(last_seen_at) FROM public.classroom_student_sessions
     WHERE p_kind='student' AND seat_id=p_target AND last_seen_at<=v_at
  ), event_days AS (
-   SELECT occurred_at::date day,count(*) n FROM events GROUP BY occurred_at::date
+   SELECT occurred_at::date AS day,count(*) n FROM events GROUP BY occurred_at::date
  ), ai_days AS (
-   SELECT admitted_at::date day,count(*) n FROM ai GROUP BY admitted_at::date
+   SELECT admitted_at::date AS day,count(*) n FROM ai GROUP BY admitted_at::date
  ), days AS (
-   SELECT v_from::date+n day FROM generate_series(0,29) n
+   SELECT v_from::date+n AS day FROM generate_series(0,29) n
  )
  SELECT jsonb_build_object(
    'generatedAt',v_at,'period',jsonb_build_object('days',30,'timeZone','UTC','from',v_from,'to',v_at),
