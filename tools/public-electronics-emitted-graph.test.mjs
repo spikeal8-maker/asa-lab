@@ -1,13 +1,14 @@
 import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import { URL } from 'node:url';
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderedModuleEvidence } from './web-rendered-module-evidence.mjs';
 
 const checker = fileURLToPath(new URL('./public-electronics-emitted-graph.mjs', import.meta.url));
 const entry = 'src/projects-public/ElectronicsPublicationScene.tsx';
@@ -87,15 +88,43 @@ function fixture(mutate = () => {}) {
     };
     const dynamicOwners = new Map();
     mutate({ bundle, manifest, root, revision, write, dynamicOwners });
-    renderedModuleEvidence({
-      revision,
-      repositoryRoot: root,
-      output: resolve(root, 'apps/web/private-symbols'),
-    }).generateBundle.handler.call(
-      { getModuleInfo: (id) => ({ dynamicallyImportedIds: dynamicOwners.get(id) ?? [] }) },
-      {},
-      bundle,
+    // Synthetic output fixtures exercise the checker CLI. Production evidence is
+    // independently captured by the typed build-only plugin in vite.config.ts.
+    const moduleChunks = new Map(
+      Object.values(bundle).flatMap((chunk) =>
+        Object.keys(chunk.modules).map((id) => [id, chunk.fileName]),
+      ),
     );
+    const name = (id) => relative(root, id).replaceAll('\\', '/');
+    const assets = Object.fromEntries(
+      Object.values(bundle).map((chunk) => [
+        `/${chunk.fileName}`,
+        {
+          sha256: createHash('sha256').update(chunk.code).digest('hex'),
+          bytes: Buffer.byteLength(chunk.code),
+          imports: chunk.imports,
+          dynamicImports: chunk.dynamicImports,
+          dynamicImportOwners: Object.keys(chunk.modules).flatMap((importer) =>
+            (dynamicOwners.get(importer) ?? []).map((target) => ({
+              importer: name(importer),
+              targetModule: name(target),
+              targetFile: moduleChunks.get(target) ?? null,
+            })),
+          ),
+          modules: Object.entries(chunk.modules)
+            .filter(([, module]) => module.renderedLength > 0)
+            .map(([id, module]) => ({ id: name(id), renderedLength: module.renderedLength })),
+          zeroLengthModules: Object.entries(chunk.modules)
+            .filter(([, module]) => module.renderedLength === 0)
+            .map(([id]) => name(id)),
+        },
+      ]),
+    );
+    write(`apps/web/private-symbols/web-rendered-modules-${revision}.json`, {
+      format: 'asa-web-rendered-modules-v1',
+      revision,
+      assets,
+    });
     for (const chunk of Object.values(bundle)) write(`apps/web/dist/${chunk.fileName}`, chunk.code);
     write('apps/web/dist/build-metadata.json', { revision, builtAt: 'fixture' });
     write('apps/web/dist/.vite/manifest.json', manifest);
@@ -135,6 +164,7 @@ for (const name of [
   'viewer lazy solver',
   'unknown lazy worker',
   'unrelated router lazy worker',
+  'App analytics lazy worker',
 ]) {
   test(name, () => {
     const sample = fixture(({ bundle, manifest, root, dynamicOwners }) => {
@@ -172,6 +202,30 @@ for (const name of [
             bundle.shared.modules[app] = { renderedLength: 40 };
             bundle.runtime.modules[route] = { renderedLength: 21 };
             dynamicOwners.set(app, [route]);
+          } else if (name === 'App analytics lazy worker') {
+            // Analytics is auto-imported for public StudentSeat sessions. Its
+            // downstream lazy runtime must remain inside the checked closure.
+            const app = resolve(root, 'apps/web/src/App.tsx');
+            const analytics = resolve(root, 'apps/web/src/analytics-runtime.ts');
+            bundle.shared.modules[app] = { renderedLength: 40 };
+            bundle.shared.dynamicImports.push('assets/analytics-abcdefgh.js');
+            manifest['_shared.js'].dynamicImports = ['_analytics.js'];
+            bundle.scene.dynamicImports = [];
+            delete manifest[entry].dynamicImports;
+            bundle.analytics = {
+              type: 'chunk',
+              fileName: 'assets/analytics-abcdefgh.js',
+              code: 'export const analytics=1;',
+              imports: [],
+              dynamicImports: [bundle.runtime.fileName],
+              modules: { [analytics]: { renderedLength: 25 } },
+            };
+            manifest['_analytics.js'] = {
+              file: bundle.analytics.fileName,
+              dynamicImports: ['_runtime.js'],
+            };
+            dynamicOwners.set(app, [analytics]);
+            dynamicOwners.set(analytics, [targetId]);
           } else if (name !== 'unknown lazy worker')
             dynamicOwners.set(
               resolve(root, 'apps/web/src/projects-public/ElectronicsPublicationScene.tsx'),
@@ -216,8 +270,22 @@ for (const name of [
             'viewer lazy worker': /forbidden executable/,
             'viewer lazy solver': /forbidden executable/,
             'unknown lazy worker': /forbidden executable/,
+            'App analytics lazy worker': /forbidden executable/,
           }[name],
         );
+        if (name === 'App analytics lazy worker') {
+          assert.equal(result.receipt.excludedOptionalEdges.length, 0);
+          assert.equal(result.receipt.checkedPublicLazyEdges.length, 2);
+          assert.ok(
+            result.receipt.checkedPublicLazyEdges.some((edge) =>
+              edge.owners.some(
+                (owner) =>
+                  owner.importer === 'apps/web/src/App.tsx' &&
+                  owner.targetModule === 'apps/web/src/analytics-runtime.ts',
+              ),
+            ),
+          );
+        }
       }
     } finally {
       rmSync(sample.root, { recursive: true, force: true });

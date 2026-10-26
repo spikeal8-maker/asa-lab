@@ -143,7 +143,7 @@ try {
           owners.every(
             (owner) =>
               owner.importer === 'apps/web/src/App.tsx' &&
-              /^apps\/web\/src\/(?:pages\/[A-Za-z]+Page\.tsx|ai\/AiChatWorkspace\.tsx|modules\/ModuleEditorHost\.tsx|admin\/AdminPage\.tsx|analytics-runtime\.ts)$/.test(
+              /^apps\/web\/src\/(?:pages\/[A-Za-z]+Page\.tsx|ai\/AiChatWorkspace\.tsx|modules\/ModuleEditorHost\.tsx|admin\/AdminPage\.tsx)$/.test(
                 owner.targetModule,
               ),
           );
