@@ -12201,7 +12201,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: serial19_complete_select_20led25_sustained_qualification
+      checkpoint: sustained20led25_source_verified_next_servo_chain
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12211,12 +12211,12 @@ parallel_lanes:
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
       current_slice: TASK-ELECTRONICS-20LED-SUSTAINED-001
-      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 18, 19, 20, 21, 23, 24, 28, 29, 31, 33, 35, 37, 38]
-      consolidated_partial: [11, 13, 14, 15, 16, 17, 22, 25, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
+      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
+      consolidated_partial: [11, 13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: Serial19sourceb029integratedindependentAPPROVE;23SOURCEverified. Next783test-onlymissing10sMODEL20LEDcontinuation usingacceptedbd72624patternproof, no productbytechanges orfullgateduplication. ExistingWorkerlimitsunchanged; ifslowreportperformanceblockerSTOP notsolverrepair. New39annotationentityneedsnonzerohostbridge with0editorheadroom, notselectedbudgetchase. Prior782authorsSTOP.
+      execution_coordination: Sustained25source277abebaNEWindependentPASS10sMODEL39checkpoints20LED, productunchanged;24SOURCEverified. Serial19b029integrated. Nextsimplest11gaplivepotentiometerADCcomputedServoPWMvisiblehorn chain identifiedread-only; separatelyselectbeforewrites. No broadrefactor/compiler/server/foreignwork. Prior783authorsSTOP.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13227,13 +13227,16 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_test_only_long_model_time_proof
+      checkpoint: independently_verified_sustained20led_source_integrated
       gate_evidence_boundary: Productunchanged canonicalgateb029carried2301tests71freshNx; newqualificationrunsnative--sustained-only andtargetrouting/format, notclaimednewfullgateexecution.
       owner_acceptance: pending
+      accepted_candidate_sha: 277abeba23df6439b0ac6c4bb3447037c0aa72a5
+      independent_review_sha: 277abeba23df6439b0ac6c4bb3447037c0aa72a5
+      technical_evidence: NEWindependentactualWorker10sMODEL39checkpoint20LED1kOhmcomplementsPASS; fullpinsOUTPUT5or0 currentsOhmbrightnessKCLfinitequality each, JSONeveryadvance and1srepeatexact,Reset/pendingStopPASS. Reviewerrequestwall4815.8msmax538.3ms. Productbyteunchanged, fixed30sdeadline/thermalsteps preserved, oldmodeunchanged. Acceptedbd72624patternproofcarried;25SOURCEverifiedbounded10snotindefinitehardwareinstalledorrealtime. No fullgatebuildduplicates.
       owner_authorization: Ownerexplicitlycontinuesentire45programme andlatestcontinue. Nextsimplestmissing25longrunproof usesaccepted20LEDfixture; test-only, no refactoring/server/foreignwork.
       coordinated_write_paths:
         - apps/web/src/electronics/testing/uno-digital-pins.browser.mjs

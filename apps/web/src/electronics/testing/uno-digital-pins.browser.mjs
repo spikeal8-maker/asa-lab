@@ -6,7 +6,9 @@ import console from 'node:console';
 import { URL } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import process from 'node:process';
 import { resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 const require = createRequire(import.meta.url);
@@ -24,6 +26,192 @@ const worker = await build({
   platform: 'browser',
   alias,
 });
+if (process.argv.includes('--sustained-only')) {
+  await sustainedOnly();
+  process.exit(0);
+}
+
+async function sustainedOnly() {
+  const output = resolve('test-results/uno-digital-pins-sustained');
+  await mkdir(output, { recursive: true });
+  const receipt = {
+    sourceBaseline: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    fixtureSha256: createHash('sha256')
+      .update(await readFile(new URL(import.meta.url)))
+      .digest('hex'),
+    boundary:
+      'TEST ONLY production Worker + canonical 20x1kOhm/LED fixture; model time, no realtime/hardware/installed/SaveCAS claim',
+    requestTimeoutMs: 30000,
+    checkpoints: [],
+    status: 'NOT_COMPLETED',
+  };
+  const entry = await build({
+    stdin: {
+      resolveDir: resolve('apps/web'),
+      loader: 'ts',
+      contents: `
+import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
+import {ElectronicsLiveSimulationWorkerController} from './src/electronics/live-simulation-worker-controller';
+import {resetElectronicsTimedState} from '@asa-lab/electronics/engine';
+import {unoDigitalDocument,unoDigitalSource,unoDigitalTerminals as terminals} from '../../contexts/electronics/testing/uno-digital-pins.fixture';
+const even=terminals.map((_,i)=>i).filter(i=>i%2===0);
+const writes=terminals.map((_,i)=>'digitalWrite('+(i<14?i:'A'+(i-14))+',phase=='+i%2+');').join('');
+const source='int phase=0;'+unoDigitalSource(even).replace('void loop(){delay(100);}','void loop(){delay(250);phase=1-phase;'+writes+'}');
+const documentFixture=unoDigitalDocument(source);
+window.probe={requests:0,responses:0,errors:[],source};
+const factory=()=>{const w=new Worker('/worker.js',{type:'module'});w.addEventListener('message',()=>window.probe.responses++);return w;};
+const client=new ElectronicsSimulationWorkerClient(factory);
+const generation=client.beginGeneration('twenty-sustained');
+let state=resetElectronicsTimedState(),previousInput;
+window.advance=async horizon=>{previousInput=JSON.parse(JSON.stringify(state));window.probe.requests++;
+ const start=performance.now();const advance=await client.advance(generation,documentFixture,previousInput,horizon);
+ state=JSON.parse(JSON.stringify(advance.state));return {advance,wallMs:performance.now()-start};};
+window.repeat=async horizon=>{window.probe.requests++;return client.advance(generation,documentFixture,JSON.parse(JSON.stringify(previousInput)),horizon)};
+window.closeLong=()=>client.dispose();
+const controller=new ElectronicsLiveSimulationWorkerController(new ElectronicsSimulationWorkerClient(factory));
+let running=false,committed=-1,ready=false,result=null,failure=null;
+const render=()=>{window.lifecycle={running,committed,ready,result,failure};document.querySelector('output').textContent=JSON.stringify({running,committed,ready,failure})};
+const callbacks={onInitialReady:()=>{ready=true;controller.update(documentFixture,100000);render()},onResult:r=>{result=r;render()},onCommittedHorizon:h=>{committed=h;render()},onFailure:f=>{failure=String(f);render()}};
+document.querySelector('#run').onclick=()=>{running=true;committed=-1;ready=false;failure=null;controller.start('sustained-lifecycle',documentFixture,callbacks);render()};
+document.querySelector('#reset').onclick=()=>{committed=-1;ready=false;failure=null;controller.restart(documentFixture);render()};
+document.querySelector('#stop').onclick=()=>{controller.stop();running=false;render()};
+window.pendingStop=()=>{controller.update(documentFixture,10000000);controller.stop();running=false;render()};
+window.dispose=()=>{client.dispose();controller.dispose()};render();
+`,
+    },
+    bundle: true,
+    write: false,
+    format: 'iife',
+    platform: 'browser',
+    alias,
+  });
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  let lastAdvance;
+  const hash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  function check(advance, horizon) {
+    assert.equal(advance.executionStatus, 'ready');
+    assert.equal(advance.committedHorizonMicroseconds, horizon);
+    assert.deepEqual(advance.diagnostics, []);
+    const result = advance.result;
+    assert.equal(result.solved, true);
+    assert.equal(result.status, 'solved');
+    assert.equal(result.quality.finite, true);
+    assert.equal(result.quality.passed, true);
+    assert.ok(result.numericalResidual <= result.numericalTolerance);
+    assert.ok(result.quality.maxKclResidualAmp <= result.quality.kclToleranceAmp);
+    assert.ok(
+      result.quality.maxSourceVoltageResidualVolt <= result.quality.sourceVoltageToleranceVolt,
+    );
+    for (const node of result.nodes) assert.ok(Number.isFinite(node.voltage));
+    const runtime = JSON.parse(advance.state.continuation.serializedState).boards[0].runtime;
+    assert.deepEqual(runtime.faults, []);
+    const phase = Math.floor((horizon - 1000) / 250000) % 2;
+    assert.equal(runtime.variables.phase, phase);
+    const currents = [];
+    for (let i = 0; i < 20; i++) {
+      const terminal = i < 14 ? 'd' + i : 'a' + (i - 14),
+        high = i % 2 === phase;
+      assert.equal(runtime.pinModes[terminal], 'OUTPUT');
+      assert.equal(runtime.outputVoltages[terminal], high ? 5 : 0);
+      const led = result.components.find((c) => c.componentId === 'led' + i);
+      const resistor = result.components.find((c) => c.componentId === 'r' + i);
+      const current = Math.abs(led.current);
+      assert.ok(Number.isFinite(current));
+      assert.ok(Math.abs(Math.abs(resistor.voltageDrop / 1000) - current) < 1e-7);
+      assert.ok(high ? current > 0.001 && current < 0.005 : current < 1e-8);
+      assert.ok(high ? led.brightness > 0 : led.brightness === 0);
+      currents.push(current);
+    }
+    assert.ok(currents.reduce((a, b) => a + b, 0) < 0.1);
+    return { phase, currents, quality: result.quality };
+  }
+  try {
+    await context.route('**/*', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === '/worker.js')
+        return route.fulfill({ contentType: 'text/javascript', body: worker.outputFiles[0].text });
+      if (path === '/')
+        return route.fulfill({
+          contentType: 'text/html',
+          body: '<button id="run">Run</button><button id="stop">Stop</button><button id="reset">Reset</button><output></output>',
+        });
+      return route.abort();
+    });
+    await page.goto('https://asa-sustained.invalid/');
+    await page.addScriptTag({ content: entry.outputFiles[0].text });
+    const checkpoints = [
+      100000,
+      1000000,
+      ...Array.from({ length: 36 }, (_, i) => 1125000 + i * 250000),
+      10000000,
+    ];
+    for (const horizon of checkpoints) {
+      const { advance, wallMs } = await page.evaluate((h) => window.advance(h), horizon);
+      const observation = check(advance, horizon);
+      receipt.checkpoints.push({
+        horizon,
+        wallMs,
+        ...observation,
+        stateSha256: hash(advance.state),
+        resultSha256: hash(advance.result),
+      });
+      lastAdvance = advance;
+      if (horizon === 1000000) {
+        const repeated = await page.evaluate((h) => window.repeat(h), horizon);
+        assert.deepEqual(repeated, advance);
+        receipt.repeatedOneSecond = true;
+      }
+      await writeFile(resolve(output, 'progress.json'), JSON.stringify(receipt, null, 2));
+      console.log(
+        '20LED model=' +
+          horizon +
+          'us requestWall=' +
+          wallMs.toFixed(1) +
+          'ms phase=' +
+          observation.phase,
+      );
+    }
+    await page.evaluate(() => window.closeLong());
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.lifecycle.committed === 100000);
+    const first = await page.evaluate(() => window.lifecycle);
+    assert.equal(first.failure, null);
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.lifecycle.committed === 100000);
+    const reset = await page.evaluate(() => window.lifecycle);
+    assert.equal(reset.failure, null);
+    assert.deepEqual(reset.result, first.result);
+    await page.evaluate(() => window.pendingStop());
+    const stopped = await page.evaluate(() => window.lifecycle);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.lifecycle), stopped);
+    assert.equal(stopped.running, false);
+    receipt.lifecycle = { resetResultSha256: hash(reset.result), pendingStopStable: true };
+    receipt.finalAdvance = lastAdvance;
+    receipt.probe = await page.evaluate(() => window.probe);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(receipt.probe.errors, []);
+    receipt.status = 'PASS';
+  } catch (error) {
+    receipt.status = 'BLOCKED';
+    receipt.failure = String(error);
+    receipt.lastCompletedModelMicroseconds = receipt.checkpoints.at(-1)?.horizon ?? 0;
+    receipt.finalAdvance = lastAdvance;
+    throw error;
+  } finally {
+    receipt.pageErrors = errors;
+    await writeFile(resolve(output, '20led-sustained-783.json'), JSON.stringify(receipt, null, 2));
+    await page.evaluate(() => window.dispose()).catch(() => {});
+    await browser.close();
+  }
+  console.log(
+    'PASS 20LED 10s MODEL / 250ms complementary patterns / JSON / quality / Reset / pending Stop; no realtime claim',
+  );
+}
 const entry = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
