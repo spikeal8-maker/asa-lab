@@ -437,7 +437,7 @@ class BoundedBuildObservabilityTests(unittest.TestCase):
             with patch("tools.asa_test_refresh.docker", side_effect=fake_docker):
                 build_source_images(root, source, root / "candidate.env",
                                     ["api", "scratch"], logdir, phase)
-            self.assertEqual([x[0] for x in actions],
+            self.assertEqual([x[0][1:] for x in actions],
                              [("build", "api"), ("build", "scratch")])
             self.assertTrue(all(k["source_build"] is True for _, k in actions))
             self.assertTrue(all(1 <= k["timeout"] <= 1200 for _, k in actions))
