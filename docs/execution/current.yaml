@@ -6523,6 +6523,12 @@ parallel_lanes:
         e1572fd57defa8618d2649ec883143cb5246b01d in DraftPR779 with independent
         Code/Security PASS; CI may finish but no further complaint implementation
         or integration is selected now. Do not mix B2 into the layout branch.
+        Further owner decision DEC-PROJ-118 requires independent class download
+        and publish settings with per-StudentSeat inherit/allow/deny overrides,
+        server authorization and audited changes. All active students may view
+        eligible public works and like independently of these flags; this
+        supersedes the earlier Account-only reaction audience. No implicit
+        publication or protected-data authorization bypass is selected.
       context_hints:
         - docs/product/projects/tasks/PROJ-PUBLIC-PAGE-LAYOUT.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
