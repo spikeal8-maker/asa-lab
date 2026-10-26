@@ -6471,9 +6471,9 @@ parallel_lanes:
       candidate_branch: codex/public-project-page-layout-20261026
       base_branch: main
       pr: 780
-      pr_draft: true
+      pr_draft: false
       status: in_progress
-      checkpoint: layout_source_and_visual_review_pass_exact_CI_pending
+      checkpoint: layout_exact_sha_accepted_ready_for_ordinary_merge
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6535,6 +6535,11 @@ parallel_lanes:
         Code/UI PASS and15 targeted unit PASS. Controller inspected normal-title
         images320/390/1440 from49d2133, whose product code is unchanged at94a969c5.
         Exact final focused/general CI remains required; no merge/deploy claim.
+        Final94a969c5 now passed PublicProjects40326845223 and complete
+        General40326845387. Final normal and stress screenshots are retained
+        in the exact-SHA focused artifact; Code/UI review PASS and controller
+        visual acceptance are recorded in
+        docs/product/projects/evidence/public-page-layout-20261026-acceptance.md.
       context_hints:
         - docs/product/projects/tasks/PROJ-PUBLIC-PAGE-LAYOUT.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
