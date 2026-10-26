@@ -57,11 +57,30 @@ interface CapturedSnapshot {
 const sources = new Map<string, RegisteredSnapshotSource>();
 const lastSent = new Map<string, CapturedSnapshot>();
 const pending = new Map<string, Promise<boolean>>();
+const deniedWrites = new Set<string>();
+const activeDeliveries = new Map<string, AbortController>();
+
+/**
+ * Mirror the authenticated Learning Work context's edit permission.
+ * This only avoids forbidden background PUTs; server RLS remains authoritative.
+ * Reopening a correction with edit permission re-enables normal snapshots.
+ */
+export function setProjectSnapshotWriteAllowed(projectId: string, allowed: boolean): void {
+  if (allowed) {
+    deniedWrites.delete(projectId);
+    return;
+  }
+  deniedWrites.add(projectId);
+  activeDeliveries.get(projectId)?.abort();
+}
 if (typeof window !== 'undefined')
   onSessionLoggedOut(() => {
+    for (const controller of activeDeliveries.values()) controller.abort();
     sources.clear();
     lastSent.clear();
     pending.clear();
+    deniedWrites.clear();
+    activeDeliveries.clear();
   });
 
 async function awaitCanvas(
@@ -159,10 +178,11 @@ export async function captureProjectSnapshot(projectId: string): Promise<Capture
  */
 async function sendSnapshot(projectId: string, options: { unloading?: boolean }): Promise<boolean> {
   const registered = sources.get(projectId);
-  if (!registered) return false;
+  if (!registered || deniedWrites.has(projectId)) return false;
   const captured = await captureProjectSnapshot(projectId);
   if (
     !captured ||
+    deniedWrites.has(projectId) ||
     sources.get(projectId) !== registered ||
     registered.revision() !== captured.sourceRevision
   )
@@ -175,6 +195,7 @@ async function sendSnapshot(projectId: string, options: { unloading?: boolean })
     return false;
   if (options.unloading === true && captured.image.length > KEEPALIVE_LIMIT_BYTES) return false;
   const controller = new AbortController();
+  activeDeliveries.set(projectId, controller);
   const timeout = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
   const result = await abortable(
     () =>
@@ -185,7 +206,10 @@ async function sendSnapshot(projectId: string, options: { unloading?: boolean })
     controller.signal,
   )
     .catch(() => null)
-    .finally(() => clearTimeout(timeout));
+    .finally(() => {
+      clearTimeout(timeout);
+      if (activeDeliveries.get(projectId) === controller) activeDeliveries.delete(projectId);
+    });
   // Only a server-confirmed image is deduplicated. A timeout, an offline
   // browser or a revision conflict must leave the same bytes eligible for the
   // next scheduled attempt.
@@ -201,6 +225,7 @@ export function sendProjectSnapshot(
   projectId: string,
   options: { unloading?: boolean } = {},
 ): Promise<boolean> {
+  if (deniedWrites.has(projectId)) return Promise.resolve(false);
   const existing = pending.get(projectId);
   if (existing) return existing;
   const attempt = sendSnapshot(projectId, options).finally(() => {
