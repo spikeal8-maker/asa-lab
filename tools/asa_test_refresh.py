@@ -624,6 +624,51 @@ def reconcile_database_rollback(root: Path, old_db: str, stage_db: str) -> None:
     database_query(root, f"ALTER DATABASE {old_db} RENAME TO asalab;\n")
 
 
+def recovery_receipt_allows_next(info: dict[str, object]) -> bool:
+    """Only explicit and verified terminal receipts permit another source update.
+
+    Legacy 'failed' cannot be repaired by trusting rollback_required=False:
+    the flag was also emitted before Docker build failures.
+    """
+    phase = info.get("phase")
+    if phase == "complete":
+        return True
+    if phase == "failed_pre_switch":
+        return (info.get("rollback_required") is False
+                and info.get("rollback_verified") is False
+                and info.get("runtime_change_attempted") is False
+                and info.get("database_or_object_change_attempted") is False)
+    if phase == "failed_rolled_back":
+        return (info.get("rollback_verified") is True
+                and info.get("rollback_required") is False)
+    return False
+
+
+def failure_disposition(*, writer_stop_attempted: bool, isolated_data_attempted: bool,
+                        live_objects_attempted: bool, database_switch_attempted: bool,
+                        environment_attempted: bool, git_attempted: bool) -> str:
+    """Unknown or partially changed state always requires manual recovery."""
+    if any((writer_stop_attempted, isolated_data_attempted, live_objects_attempted,
+            database_switch_attempted, environment_attempted, git_attempted)):
+        return "manual_recovery_required"
+    return "failed_pre_switch"
+
+
+def verify_rollback_state(root: Path, old_sha: str, original_env: Path,
+                          original_env_digest: str, original_counts: list[str],
+                          old_database: str, original_minio: Path, origin: str) -> None:
+    """Attest the recovered live runtime, not merely Docker Compose exit code."""
+    demand(git(root, "rev-parse", "HEAD") == old_sha, "Rollback Git SHA drift")
+    demand(sha256(original_env) == original_env_digest, "Rollback environment SHA256 drift")
+    names = db_names(root)
+    demand("asalab" in names and old_database not in names,
+           "Rollback PostgreSQL database identity mismatch")
+    demand(database_counts(root, "asalab") == original_counts,
+           "Rollback PostgreSQL data counts/schema mismatch")
+    demand(minio_mount(root) == original_minio, "Rollback MinIO volume identity mismatch")
+    health_check(root, root, None, old_sha, origin)
+
+
 def require_test(root: Path, expected_origin: str) -> dict[str, str]:
     demand(expected_origin.startswith("https://"), "HTTPS test origin required")
     return checked_root(root, expected_origin)
@@ -658,8 +703,8 @@ def apply(args) -> None:
         log = job / "build.log"
         source_head = git(root, "rev-parse", "HEAD")
         for earlier in state_root.glob("*/status.json"):
-            if json.loads(earlier.read_text("utf-8")).get("phase") not in (
-                    "complete", "failed_rolled_back"):
+            info = json.loads(earlier.read_text("utf-8"))
+            if not isinstance(info, dict) or not recovery_receipt_allows_next(info):
                 raise Blocked("Unreconciled previous test refresh: inspect private receipt and backups")
         for earlier in state_root.glob("*/status.json"):
             info = json.loads(earlier.read_text("utf-8"))
@@ -683,6 +728,8 @@ def apply(args) -> None:
         env_changed = False
         git_changed = False
         stopped = False
+        isolated_data_attempted = False
+        initial_counts: list[str] | None = None
         introduced_services: list[str] = []
         source = None
         overlay = job / "candidate.env"
@@ -727,11 +774,15 @@ def apply(args) -> None:
             image_proof(root, source, overlay, args.sha, create=not args.reuse_images)
             if snapshot:
                 checkpoint("isolated_restore")
+                # A restore-mode staging database is still a PostgreSQL mutation.
+                # Do not call this failed_pre_switch if staging was attempted.
+                isolated_data_attempted = True
                 create_stage_db(root, source, overlay, stage_db, snapshot / "database.dump", base, job)
                 stage_volume = stage_objects(root, snapshot, ident)
                 audit("candidate_counts", accounts_classes_projects_schema=database_counts(root, stage_db))
             demand(sha256(original_env) == initial_env_digest,
                    "Private environment changed during staging; abort before cutover")
+            initial_counts = database_counts(root, "asalab")
             checkpoint("freeze_and_full_backup")
             stopped = True  # rollback even when Docker stopped only some writers
             docker(root, "stop", "web", "api", "scratch", "minio", timeout=180)
@@ -794,7 +845,19 @@ def apply(args) -> None:
                   accounts_classes_projects_schema=migrated,
                   rollback_database=old_db, backup=str(backup_dump))
         except Exception:
-            checkpoint("failed", rollback_required=(objects_changed or db_phase > 0))
+            disposition = failure_disposition(
+                writer_stop_attempted=stopped,
+                isolated_data_attempted=isolated_data_attempted,
+                live_objects_attempted=objects_changed,
+                database_switch_attempted=db_phase > 0,
+                environment_attempted=env_changed,
+                git_attempted=git_changed)
+            checkpoint(disposition,
+                       rollback_required=disposition != "failed_pre_switch",
+                       rollback_verified=False,
+                       runtime_change_attempted=bool(stopped or objects_changed or env_changed or git_changed),
+                       database_or_object_change_attempted=bool(
+                           isolated_data_attempted or objects_changed or db_phase > 0))
             if stopped:
                 audit("automatic_rollback_started", job=ident)
                 try:
@@ -819,10 +882,18 @@ def apply(args) -> None:
                         docker(root, "rm", "--stop", "--force", *introduced_services,
                                source=source, overlay=candidate_overlay, timeout=180,
                                log=job / "orphan-cleanup.log")
-                    checkpoint("failed_rolled_back")
+                    demand(initial_counts is not None, "Missing baseline for rollback attestation")
+                    verify_rollback_state(root, source_head, original_env, initial_env_digest,
+                                          initial_counts, old_db, live_objects, args.origin)
+                    checkpoint("failed_rolled_back", rollback_required=False,
+                               rollback_verified=True,
+                               runtime_change_attempted=True,
+                               database_or_object_change_attempted=bool(
+                                   isolated_data_attempted or objects_changed or db_phase > 0))
                     audit("automatic_rollback_passed", job=ident)
                 except Exception as rollback_error:
-                    checkpoint("manual_recovery_required")
+                    checkpoint("manual_recovery_required", rollback_required=True,
+                               rollback_verified=False)
                     audit("automatic_rollback_FAILED", job=ident,
                           exception_type=type(rollback_error).__name__)
             raise
