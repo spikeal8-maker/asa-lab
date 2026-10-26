@@ -132,7 +132,7 @@ BEGIN
  SELECT * INTO j FROM public.ai_image_jobs WHERE owner_principal_id=p_owner AND request_id=p_request AND lease_id=p_lease AND lease_until>clock_timestamp() FOR UPDATE;
  IF NOT FOUND THEN RETURN false;END IF;
  IF p_state NOT IN('unknown','running','storing','complete','failed','cancelled') THEN RAISE EXCEPTION 'AI_IMAGE_STATE_INVALID';END IF;
- IF j.state IN('complete','failed','cancelled') AND NOT j.cleanup_required THEN RETURN false;END IF;
+ IF j.state IN('complete','failed','cancelled') AND (NOT j.cleanup_required OR p_state NOT IN('complete','failed','cancelled')) THEN RETURN false;END IF;
  IF p_state='storing' THEN
   IF j.put_started THEN UPDATE public.ai_image_jobs SET lease_id=NULL,lease_until=clock_timestamp()+interval '3 seconds' WHERE owner_principal_id=p_owner AND request_id=p_request;RETURN false;END IF;
   IF j.cancel_requested OR j.deleted_at IS NOT NULL OR p_sha IS NULL OR p_bytes IS NULL OR p_sha!~'^[a-f0-9]{64}$' OR p_bytes NOT BETWEEN 1 AND 8388608 THEN RETURN false;END IF;
@@ -153,7 +153,13 @@ BEGIN
 END;$$;
 CREATE FUNCTION public.ai_image_forget_thread() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
- UPDATE public.ai_image_jobs SET deleted_at=clock_timestamp(),prompt=NULL,cancel_requested=true,cleanup_required=sha256 IS NOT NULL,state=CASE WHEN state IN('admitted','complete','failed') THEN 'cancelled' ELSE state END WHERE owner_principal_id=OLD.owner_principal_id AND thread_id=OLD.id;RETURN OLD;
+ -- Storing is entered only after the GPU result was observed. Object cleanup,
+ -- including a late uncertain PUT, must not retain an already finished GPU slot.
+ UPDATE public.ai_image_jobs SET deleted_at=clock_timestamp(),prompt=NULL,cancel_requested=true,cleanup_required=sha256 IS NOT NULL,state=CASE WHEN state IN('admitted','storing','complete','failed') THEN 'cancelled' ELSE state END WHERE owner_principal_id=OLD.owner_principal_id AND thread_id=OLD.id;
+ UPDATE public.ai_usage_journal u SET status='cancelled',finished_at=clock_timestamp(),duration_ms=CASE WHEN u.started_at IS NULL THEN NULL ELSE greatest(0,floor(extract(epoch FROM(clock_timestamp()-u.started_at))*1000)::bigint) END
+ WHERE u.owner_principal_id=OLD.owner_principal_id AND u.thread_id=OLD.id AND u.status IN('admitted','running')
+ AND EXISTS(SELECT 1 FROM public.ai_image_jobs j WHERE j.owner_principal_id=u.owner_principal_id AND j.request_id=u.request_id AND j.state='cancelled' AND j.deleted_at IS NOT NULL);
+ RETURN OLD;
 END;$$;
 CREATE TRIGGER ai_image_forget_thread BEFORE DELETE ON public.ai_assistant_threads FOR EACH ROW EXECUTE FUNCTION public.ai_image_forget_thread();
 CREATE FUNCTION public.ai_image_history(p_owner uuid,p_thread uuid,p_request uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
@@ -164,7 +170,12 @@ END;$$;
 CREATE FUNCTION public.ai_image_cleanup_done(p_owner uuid,p_request uuid,p_lease uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
  -- An uncertain PUT can still arrive late: keep its tombstone eligible for cleanup.
- UPDATE public.ai_image_jobs SET cleanup_required=put_uncertain,lease_id=NULL,lease_until=clock_timestamp()+interval '5 minutes' WHERE owner_principal_id=p_owner AND request_id=p_request AND lease_id=p_lease;
+ -- Also close historical deleted/storing rows without releasing unknown GPU work.
+ UPDATE public.ai_image_jobs SET state=CASE WHEN deleted_at IS NOT NULL AND state='storing' THEN 'cancelled' ELSE state END,cleanup_required=put_uncertain,lease_id=NULL,lease_until=clock_timestamp()+interval '5 minutes' WHERE owner_principal_id=p_owner AND request_id=p_request AND lease_id=p_lease;
+ IF NOT FOUND THEN RETURN;END IF;
+ UPDATE public.ai_usage_journal u SET status='cancelled',finished_at=clock_timestamp(),duration_ms=CASE WHEN u.started_at IS NULL THEN NULL ELSE greatest(0,floor(extract(epoch FROM(clock_timestamp()-u.started_at))*1000)::bigint) END
+ WHERE u.owner_principal_id=p_owner AND u.request_id=p_request AND u.status IN('admitted','running')
+ AND EXISTS(SELECT 1 FROM public.ai_image_jobs j WHERE j.owner_principal_id=u.owner_principal_id AND j.request_id=u.request_id AND j.state='cancelled' AND j.deleted_at IS NOT NULL);
 END;$$;
 REVOKE ALL ON FUNCTION public.ai_image_forget_thread() FROM PUBLIC,asalab_app;
 REVOKE ALL ON FUNCTION public.ai_image_config(uuid),public.ai_image_config_set(uuid,jsonb),public.ai_image_status(uuid),public.ai_image_get(uuid,uuid,uuid),public.ai_image_begin(uuid,uuid,uuid,varchar,integer,uuid,bigint,boolean,varchar),public.ai_image_dispatch(uuid,uuid),public.ai_image_cancel(uuid,uuid,uuid),public.ai_image_claim(uuid),public.ai_image_transition(uuid,uuid,uuid,varchar,varchar,integer,varchar),public.ai_image_history(uuid,uuid,uuid),public.ai_image_cleanup_done(uuid,uuid,uuid) FROM PUBLIC;

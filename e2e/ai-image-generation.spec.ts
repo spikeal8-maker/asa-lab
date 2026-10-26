@@ -400,3 +400,88 @@ test('a confirmed rejected first image POST permits an explicit corrected reques
   expect(attempted[1]!.requestId).not.toBe(attempted[0]!.requestId);
   expect(fixture.imagePosts).toHaveLength(1);
 });
+test('two saved image cards retain native previews and downloads after history reload', async ({
+  page,
+}) => {
+  const fixture = await imageFixture(page);
+  const requests = ['20000000-0000-4000-8000-000000000011', '20000000-0000-4000-8000-000000000012'];
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aMfoAAAAASUVORK5CYII=',
+    'base64',
+  );
+  await page.route('**/api/ai/threads/*/messages', (route) =>
+    route.fulfill({
+      json: {
+        items: requests.map((requestId, index) => ({
+          id: 'saved-' + index,
+          role: 'assistant',
+          content: 'Изображение создано.',
+          createdAt: '2026-10-26T00:00:01Z',
+          requestId,
+          generationKind: 'image',
+          generatedImages: [
+            {
+              requestId,
+              width: 512,
+              height: 512,
+              mimeType: 'image/png',
+              sizeBytes: png.length,
+              downloadUrl: 'https://untrusted.invalid/image',
+            },
+          ],
+        })),
+      },
+    }),
+  );
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let active = 0,
+    maximum = 0,
+    reads = 0,
+    busyResponses = 0;
+  await page.route('**/api/ai/threads/*/image-generations/*/image', async (route) => {
+    reads += 1;
+    if (active) {
+      busyResponses += 1;
+      return route.fulfill({
+        status: 429,
+        json: { error: { code: 'ai_image_busy', message: 'busy' } },
+      });
+    }
+    active += 1;
+    maximum = Math.max(maximum, active);
+    try {
+      if (reads === 1) await held;
+      await route.fulfill({ contentType: 'image/png', body: png });
+    } finally {
+      active -= 1;
+    }
+  });
+  try {
+    await page.goto('/#/ai');
+    await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
+    await expect.poll(() => reads).toBe(1);
+    release();
+    await expect(page.getByRole('link', { name: 'Скачать PNG' })).toHaveCount(2);
+    await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(2);
+    expect(maximum).toBe(1);
+    expect(busyResponses).toBe(0);
+    await page.reload();
+    await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Скачать PNG' })).toHaveCount(2);
+    for (let index = 0; index < 2; index += 1) {
+      const download = page.waitForEvent('download');
+      await page.getByRole('link', { name: 'Скачать PNG' }).nth(index).click();
+      expect((await download).suggestedFilename()).toBe('asa-image-' + requests[index] + '.png');
+    }
+    expect(reads).toBe(4);
+    expect(busyResponses).toBe(0);
+    expect(maximum).toBe(1);
+    expect(fixture.imagePosts).toHaveLength(0);
+    expect(fixture.errors).toEqual([]);
+  } finally {
+    release();
+  }
+});

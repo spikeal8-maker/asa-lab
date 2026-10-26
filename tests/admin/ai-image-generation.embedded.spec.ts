@@ -360,3 +360,179 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
     }),
   ).rejects.toMatchObject({ code: 'ai_image_unavailable', status: 503 });
 });
+it('deleting an uncertain storing job releases only the finished GPU slot while retaining late-write cleanup and immutable quota', async () => {
+  const s = service();
+  await expireImageLeases();
+  transport.recover.mockResolvedValueOnce({ state: 'failed' });
+  await s.sweep();
+  const fresh = await identity();
+  const t = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh])).rows[0]!
+    .id;
+  const requestId = randomUUID();
+  await s.create(fresh, t, {
+    requestId,
+    prompt: 'GPU finished before unknown object write',
+    size: 512,
+  });
+  transport.recover.mockResolvedValueOnce({
+    state: 'complete',
+    png: Buffer.from('sanitized fixed provider output'),
+  });
+  blobs.putImmutable.mockRejectedValueOnce(new AiAttachmentStorageError('unknown'));
+  await s.sweep();
+  const before = (
+    await db.query<{ state: string; lease_id: string; sha256: string; size_bytes: number }>(
+      'SELECT state,lease_id,sha256,size_bytes FROM ai_image_jobs WHERE request_id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
+  expect(before.state).toBe('storing');
+  await pool.query('SELECT ai_chat_delete($1,$2)', [fresh, t]);
+  const deleted = (
+    await db.query<{
+      state: string;
+      cleanup_required: boolean;
+      put_uncertain: boolean;
+      sha256: string;
+      prompt: null;
+    }>(
+      'SELECT state,cleanup_required,put_uncertain,sha256,prompt FROM ai_image_jobs WHERE request_id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
+  expect(deleted).toMatchObject({
+    state: 'cancelled',
+    cleanup_required: true,
+    put_uncertain: true,
+    sha256: before.sha256,
+    prompt: null,
+  });
+  const finished = (
+    await db.query<{ status: string; finished_at: string }>(
+      'SELECT status,finished_at FROM ai_usage_journal WHERE request_id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
+  expect(finished.status).toBe('cancelled');
+  expect(finished.finished_at).not.toBeNull();
+  expect(
+    (
+      await pool.query<{ changed: boolean }>(
+        "SELECT ai_image_transition($1,$2,$3,'running') AS changed",
+        [fresh, requestId, before.lease_id],
+      )
+    ).rows[0]?.changed,
+  ).toBe(false);
+  await pool.query("SELECT ai_image_transition($1,$2,$3,'complete')", [
+    fresh,
+    requestId,
+    before.lease_id,
+  ]);
+  const nextThread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh]))
+    .rows[0]!.id;
+  const nextId = randomUUID();
+  expect(
+    (
+      await s.create(fresh, nextThread, {
+        requestId: nextId,
+        prompt: 'A second local image',
+        size: 512,
+      })
+    ).state,
+  ).toBe('submitting');
+  let lateObjectPresent = true;
+  blobs.remove.mockImplementationOnce(async () => {
+    lateObjectPresent = false;
+    return true;
+  });
+  await db.query('UPDATE ai_image_jobs SET lease_until=NULL WHERE request_id=$1', [requestId]);
+  await s.sweep();
+  expect(lateObjectPresent).toBe(false);
+  lateObjectPresent = true;
+  blobs.remove.mockImplementationOnce(async () => {
+    lateObjectPresent = false;
+    return true;
+  });
+  await db.query('UPDATE ai_image_jobs SET lease_until=NULL WHERE request_id=$1', [requestId]);
+  await s.sweep();
+  expect(lateObjectPresent).toBe(false);
+  expect(
+    (
+      await db.query(
+        'SELECT state,cleanup_required,put_uncertain FROM ai_image_jobs WHERE request_id=$1',
+        [requestId],
+      )
+    ).rows[0],
+  ).toMatchObject({ state: 'cancelled', cleanup_required: true, put_uncertain: true });
+  expect(
+    (
+      await db.query('SELECT status,finished_at FROM ai_usage_journal WHERE request_id=$1', [
+        requestId,
+      ])
+    ).rows[0],
+  ).toEqual(finished);
+  expect(
+    (
+      await db.query('SELECT * FROM ai_assistant_request_quota WHERE owner_principal_id=$1', [
+        fresh,
+      ])
+    ).rows,
+  ).toHaveLength(2);
+  expect(
+    (await db.query('SELECT * FROM ai_assistant_messages WHERE thread_id=$1', [t])).rows,
+  ).toHaveLength(0);
+  // Unknown GPU work has no finished output descriptor and must retain its permit after deletion.
+  await db.query('UPDATE ai_image_jobs SET lease_until=NULL WHERE request_id=$1', [nextId]);
+  transport.recover.mockResolvedValueOnce({ state: 'missing' });
+  await s.sweep();
+  await s.cancel(fresh, nextThread, nextId);
+  await pool.query('SELECT ai_chat_delete($1,$2)', [fresh, nextThread]);
+  expect(
+    (
+      await db.query<{ state: string }>('SELECT state FROM ai_image_jobs WHERE request_id=$1', [
+        nextId,
+      ])
+    ).rows[0]?.state,
+  ).toBe('unknown');
+  const thirdThread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh]))
+    .rows[0]!.id;
+  await expect(
+    s.create(fresh, thirdThread, {
+      requestId: randomUUID(),
+      prompt: 'Must wait for known terminal GPU result',
+      size: 512,
+    }),
+  ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 429 });
+});
+it('cleanup_done defensively closes historical deleted storing rows without erasing their uncertain PUT tombstone', async () => {
+  const j = (
+    await db.query<{ owner_principal_id: string; request_id: string }>(
+      'SELECT owner_principal_id,request_id FROM ai_image_jobs WHERE deleted_at IS NOT NULL AND put_uncertain AND cleanup_required ORDER BY created_at DESC LIMIT 1',
+    )
+  ).rows[0]!;
+  // Reproduce the persisted state left by the previous deletion implementation.
+  await db.query("UPDATE ai_image_jobs SET state='storing',lease_until=NULL WHERE request_id=$1", [
+    j.request_id,
+  ]);
+  await db.query(
+    "UPDATE ai_usage_journal SET status='running',finished_at=NULL WHERE request_id=$1",
+    [j.request_id],
+  );
+  await service().sweep();
+  expect(
+    (
+      await db.query(
+        'SELECT state,cleanup_required,put_uncertain FROM ai_image_jobs WHERE request_id=$1',
+        [j.request_id],
+      )
+    ).rows[0],
+  ).toMatchObject({ state: 'cancelled', cleanup_required: true, put_uncertain: true });
+  expect(
+    (
+      await db.query<{ status: string }>(
+        'SELECT status FROM ai_usage_journal WHERE request_id=$1',
+        [j.request_id],
+      )
+    ).rows[0]?.status,
+  ).toBe('cancelled');
+});

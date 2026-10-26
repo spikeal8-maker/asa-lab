@@ -1,17 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AiGeneratedImage as ImageReceipt } from '@asa-lab/contracts';
-import { fetchWithSessionRefresh } from '../session-fetch';
-import { aiScopeHeaders } from './ai-scope-api';
-
-export function generatedImagePath(threadId: string, requestId: string): string {
-  return (
-    '/api/ai/threads/' +
-    encodeURIComponent(threadId) +
-    '/image-generations/' +
-    encodeURIComponent(requestId) +
-    '/image'
-  );
-}
+import { readGeneratedImage } from './read-generated-image';
+export { generatedImagePath } from './read-generated-image';
 
 export function AiGeneratedImage({
   image,
@@ -24,40 +14,48 @@ export function AiGeneratedImage({
 }) {
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
+  const card = useRef<HTMLElement>(null);
   useEffect(() => {
     const controller = new AbortController();
     let objectUrl = '';
     setUrl('');
     setError('');
-    void (async () => {
+    let started = false;
+    const load = async () => {
+      if (started || controller.signal.aborted) return;
+      started = true;
       try {
         // Derive the closed route; a receipt never supplies a browser fetch URL.
-        const response = await fetchWithSessionRefresh(
-          generatedImagePath(threadId, image.requestId),
-          {
-            headers: aiScopeHeaders(seatId),
-            signal: controller.signal,
-            cache: 'no-store',
-          },
-        );
-        if (!response.ok) throw new Error('unavailable');
-        const blob = await response.blob();
+        const blob = await readGeneratedImage(image, threadId, seatId, controller.signal);
         if (controller.signal.aborted) return;
-        if (blob.type !== 'image/png' || blob.size !== image.sizeBytes)
-          throw new Error('invalid image');
         objectUrl = URL.createObjectURL(blob);
         setUrl(objectUrl);
       } catch {
         if (!controller.signal.aborted) setError('Изображение недоступно. Обновите переписку.');
       }
-    })();
+    };
+    const observer =
+      typeof IntersectionObserver === 'undefined'
+        ? null
+        : new IntersectionObserver(
+            (entries) => {
+              if (entries.some((entry) => entry.isIntersecting)) {
+                observer?.disconnect();
+                void load();
+              }
+            },
+            { rootMargin: '160px' },
+          );
+    if (observer && card.current) observer.observe(card.current);
+    else void load();
     return () => {
+      observer?.disconnect();
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [image.requestId, image.sizeBytes, seatId, threadId]);
   return (
-    <figure className="ai-generated-image">
+    <figure ref={card} className="ai-generated-image">
       {url ? (
         <>
           <img src={url} alt="Созданное изображение" />

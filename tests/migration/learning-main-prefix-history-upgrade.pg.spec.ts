@@ -177,7 +177,7 @@ const upgradeArtifacts = [
   [
     '0259',
     '0259_ai_local_image_generation.sql',
-    '659cad6dc281a882ef100d3137ab39fab00a0d18dad3eb05deceff56046fd145',
+    '31a461e8943133697ff575ff0146f813f03ec2aac06e6118e979795c4e41f58b',
   ],
 ] as const;
 

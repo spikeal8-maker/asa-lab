@@ -1287,7 +1287,7 @@ tests:
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec vitest run apps/api/src/ai-image-comfyui.spec.ts tests/admin/ai-image-generation.embedded.spec.ts apps/web/src/ai/ai-image-generation.spec.ts apps/web/src/admin/testing/ai-images.spec.ts
+    command: pnpm exec vitest run apps/api/src/ai-image-comfyui.spec.ts tests/admin/ai-image-generation.embedded.spec.ts apps/web/src/ai/ai-image-generation.spec.ts apps/web/src/ai/ai-generated-image.spec.ts apps/web/src/admin/testing/ai-images.spec.ts
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [test-report]
