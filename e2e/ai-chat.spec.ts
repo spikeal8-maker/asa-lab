@@ -391,9 +391,11 @@ test('AI downloads code and complete answers as real local files', async ({ page
   await page.goto('/#/ai');
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Сделай игру змейка');
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();
-  await expect(page.getByRole('button', { name: 'Копировать', exact: true })).toHaveText(
-    'Копировать',
-  );
+  await expect(
+    page
+      .locator('.chat-turn-assistant .chat-message-actions')
+      .getByRole('button', { name: 'Копировать', exact: true }),
+  ).toHaveText('Копировать');
   await expect(page.getByRole('button', { name: 'Новый вариант ответа', exact: true })).toHaveText(
     'Попробовать снова',
   );
@@ -1572,7 +1574,10 @@ test('AI confines long code and tables to message scrollers and copies the origi
   ).toBe(true);
   await copyCode.click();
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(source);
-  await page.getByRole('button', { name: 'Копировать', exact: true }).click();
+  await page
+    .locator('.chat-turn-assistant .chat-message-actions')
+    .getByRole('button', { name: 'Копировать', exact: true })
+    .click();
   // The native Windows clipboard exposes CRLF; compare the same text across hosts.
   await expect
     .poll(async () =>

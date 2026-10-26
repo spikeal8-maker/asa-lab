@@ -266,7 +266,13 @@ test('AI prompt conflict retains text and prevents a stale save', async ({ page 
   );
   await expect(page.getByRole('button', { name: 'Сохранить промпт' })).toBeDisabled();
   await expect(page.getByText('private server detail')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Загрузить актуальные настройки' })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Системный промпт' })
+      .getByRole('alert')
+      .filter({ hasText: 'Настройки изменились. Загрузите актуальную версию перед сохранением.' })
+      .getByRole('button', { name: 'Загрузить актуальные настройки' }),
+  ).toBeVisible();
 });
 
 test('AI section tabs support arrow, Home and End keyboard navigation', async ({ page }) => {

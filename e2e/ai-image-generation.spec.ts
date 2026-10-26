@@ -297,9 +297,7 @@ test('image intent is a removable token in the same input and preserves the draf
   expect(fixture.imagePosts).toHaveLength(0);
 });
 
-test('image Auto routes an explicit chat request to one GPU job without a text-model request', async ({
-  page,
-}) => {
+test('explicit image mode routes one GPU job without a text-model request', async ({ page }) => {
   const fixture = await imageFixture(page);
   const textPosts: string[] = [];
   page.on('request', (request) => {
@@ -310,8 +308,13 @@ test('image Auto routes an explicit chat request to one GPU job without a text-m
       textPosts.push(request.url());
   });
   await page.goto('/#/ai');
+  await page.getByLabel('Инструменты чата').click();
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Нарисуй кота на белом фоне');
-  await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+  await page
+    .getByRole('region', { name: 'Создать изображение' })
+    .getByRole('button', { name: 'Создать изображение', exact: true })
+    .click();
   await expect.poll(() => fixture.imagePosts.length).toBe(1);
   expect(fixture.imagePosts[0]?.prompt).toBe('Нарисуй кота на белом фоне');
   expect(textPosts).toEqual([]);
@@ -322,6 +325,41 @@ test('image Auto routes an explicit chat request to one GPU job without a text-m
   });
   expect(fixture.imagePosts).toHaveLength(1);
   expect(textPosts).toEqual([]);
+});
+
+test('image Auto sends a native image-tool allowance from plain chat without opening tools', async ({
+  page,
+}) => {
+  const fixture = await imageFixture(page);
+  const requests: Record<string, unknown>[] = [];
+  await page.route('**/api/ai/status', (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        provider: 'ollama',
+        model: 'ollama-local',
+        availableModels: ['ollama-local'],
+        nativeImageTools: ['ollama-local'],
+      },
+    }),
+  );
+  await page.route('**/api/ai/threads/*/messages/stream', (route) => {
+    requests.push(route.request().postDataJSON() as Record<string, unknown>);
+    return route.fulfill({
+      contentType: 'text/event-stream; charset=utf-8',
+      body: 'event: done\ndata: {"messages":[],"replayed":false,"stopped":false}\n\n',
+    });
+  });
+  await page.goto('/#/ai');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Нарисуй кота на белом фоне');
+  await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
+  await expect.poll(() => requests.length).toBe(1);
+  expect(requests[0]).toMatchObject({
+    message: 'Нарисуй кота на белом фоне',
+    model: 'ollama-local',
+    nativeImage: { mode: 'auto', size: 512 },
+  });
+  expect(fixture.imagePosts).toHaveLength(0);
 });
 
 for (const width of [1440, 1024, 390, 320]) {
@@ -342,7 +380,7 @@ for (const width of [1440, 1024, 390, 320]) {
       await noOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`image-mode-${width}-${theme}.png`) });
       await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-      await expect(page.getByText('Задание принято. Ожидаем GPU…')).toBeVisible();
+      await expect(page.getByText('Задание принято…')).toBeVisible();
       expect(fixture.imagePosts).toHaveLength(1);
       fixture.complete();
       await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
@@ -350,7 +388,7 @@ for (const width of [1440, 1024, 390, 320]) {
       });
       await expect(page.getByRole('button', { name: 'Новый вариант ответа' })).toHaveCount(0);
       const download = page.waitForEvent('download');
-      await page.getByRole('link', { name: 'Скачать PNG' }).click();
+      await page.getByRole('link', { name: /^Скачать изображение ·/u }).click();
       expect((await download).suggestedFilename()).toMatch(/^asa-image-.*\.png$/);
       await mode.getByRole('button', { name: 'Убрать изображение из запроса' }).click();
       await noOverflow(page);
@@ -391,7 +429,7 @@ test('unknown image POST resumes with GET only after reload', async ({ page }) =
   if (await page.getByRole('button', { name: 'Открыть историю' }).isVisible())
     await page.getByRole('button', { name: 'Открыть историю' }).click();
   await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
-  await expect(page.getByText('Задание принято. Ожидаем GPU…')).toBeVisible();
+  await expect(page.getByText('Задание принято…')).toBeVisible();
   expect(fixture.imagePosts).toHaveLength(1);
   expect(fixture.imageReads.length).toBeGreaterThan(0);
 });
@@ -413,7 +451,7 @@ test('a cancelled image job is never labelled complete', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   const mode = page.getByRole('region', { name: 'Создать изображение' });
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(page.getByText('Задание принято. Ожидаем GPU…')).toBeVisible();
+  await expect(page.getByText('Задание принято…')).toBeVisible();
   await mode.getByRole('button', { name: 'Отменить задание', exact: true }).click();
   await expect(page.getByText('Задание отменено.')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
@@ -446,7 +484,7 @@ test('a confirmed rejected first image POST permits an explicit corrected reques
   ).toBeEnabled();
   expect(fixture.imagePosts).toHaveLength(0);
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(page.getByText('Задание принято. Ожидаем GPU…')).toBeVisible();
+  await expect(page.getByText('Задание принято…')).toBeVisible();
   expect(attempted).toHaveLength(2);
   expect(attempted[1]!.requestId).not.toBe(attempted[0]!.requestId);
   expect(fixture.imagePosts).toHaveLength(1);
@@ -515,16 +553,19 @@ test('two saved image cards retain native previews and downloads after history r
     await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
     await expect.poll(() => reads).toBe(1);
     release();
-    await expect(page.getByRole('link', { name: 'Скачать PNG' })).toHaveCount(2);
+    await expect(page.getByRole('link', { name: /^Скачать изображение ·/u })).toHaveCount(2);
     await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(2);
     expect(maximum).toBe(1);
     expect(busyResponses).toBe(0);
     await page.reload();
     await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
-    await expect(page.getByRole('link', { name: 'Скачать PNG' })).toHaveCount(2);
+    await expect(page.getByRole('link', { name: /^Скачать изображение ·/u })).toHaveCount(2);
     for (let index = 0; index < 2; index += 1) {
       const download = page.waitForEvent('download');
-      await page.getByRole('link', { name: 'Скачать PNG' }).nth(index).click();
+      await page
+        .getByRole('link', { name: /^Скачать изображение ·/u })
+        .nth(index)
+        .click();
       expect((await download).suggestedFilename()).toBe('asa-image-' + requests[index] + '.png');
     }
     expect(reads).toBe(4);

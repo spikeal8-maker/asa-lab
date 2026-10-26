@@ -174,7 +174,10 @@ export class AppModule {
     ]);
     const aiAttachmentService = new AiAttachmentService(pool);
     const aiImageService = new AiImageService(requirePool());
-    const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService, images: aiImageService });
+    const aiChatService = new AiChatService(requirePool(), {
+      attachments: aiAttachmentService,
+      images: aiImageService,
+    });
     const aiAccessService = new AiAccessService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
