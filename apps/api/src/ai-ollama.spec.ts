@@ -33,7 +33,11 @@ describe('Ollama private network boundary', () => {
     expect(code.length).toBeGreaterThan(8192);
     expect(result).toEqual({ text: code, stopped: reason === 'length' });
     expect(deltas.join('')).toBe(code);
-    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body)).options.num_predict).toBe(8192);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      think: false,
+      keep_alive: -1,
+      options: { num_ctx: 120000, num_predict: -1 },
+    });
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
   it.each([

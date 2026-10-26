@@ -1080,10 +1080,11 @@ export class AiChatService {
     let usageFinished = false;
     let capturedUsage: AiProviderUsage | undefined;
     try {
-      await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+      await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3,$4::boolean)', [
         principalId,
         threadId,
         requestId,
+        useLocal,
       ]);
       usageAttempt = await this.usage.begin(
         principalId,
@@ -1631,10 +1632,11 @@ export class AiChatService {
           requestId,
           JSON.stringify(nativePayload),
         ]);
-      await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3)', [
+      await this.pool.query('SELECT ai_chat_generation_lease($1,$2,$3,$4::boolean)', [
         principalId,
         threadId,
         requestId,
+        useLocal,
       ]);
       usageAttempt = await this.usage.begin(
         principalId,

@@ -192,7 +192,7 @@ const upgradeArtifacts = [
   [
     '0262',
     '0262_ai_generation_lease.sql',
-    'bd2935df626fa6edf2d81c834a1648d92730105361b0846738d8b6b02074d881',
+    '3a1513d7a748a8d30458fb705e5887c9fd6159d5dd4465f62384a575fd5fae69',
   ],
   [
     '0263',

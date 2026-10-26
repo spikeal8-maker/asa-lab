@@ -156,7 +156,10 @@ export class AiTextHistoryStore {
         // Preserve complete long Qwen code from #790 in the next request.
         preservedLatestAnswer = true;
       } else {
-        item.content = item.content.slice(0, Math.min(item.role === 'user' ? 3000 : 65536, remaining));
+        item.content = item.content.slice(
+          0,
+          Math.min(item.role === 'user' ? 3000 : 65536, remaining),
+        );
       }
       remaining = Math.max(0, remaining - item.content.length);
     }

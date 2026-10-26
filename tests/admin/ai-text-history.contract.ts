@@ -191,6 +191,22 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
       );
       expect(seconds).toBeGreaterThan(320);
       expect(seconds).toBeLessThanOrEqual(330);
+      // An explicitly local Ollama request can use the longer #790 Qwen lease.
+      await runtime.query('SELECT ai_chat_generation_lease($1,$2,$3,true)', [
+        f.owner.principal_id,
+        f.thread.id,
+        admitted,
+      ]);
+      const localSeconds = Number(
+        (
+          await admin.query(
+            'SELECT EXTRACT(EPOCH FROM busy_until-clock_timestamp()) AS remaining FROM ai_assistant_threads WHERE id=$1',
+            [f.thread.id],
+          )
+        ).rows[0]!.remaining,
+      );
+      expect(localSeconds).toBeGreaterThan(1820);
+      expect(localSeconds).toBeLessThanOrEqual(1830);
       await runtime.query('SELECT ai_chat_abort($1,$2,$3)', [
         f.owner.principal_id,
         f.thread.id,
