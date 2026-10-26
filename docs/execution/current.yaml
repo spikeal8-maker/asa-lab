@@ -6498,16 +6498,30 @@ parallel_lanes:
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
+      - task_id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
+        issue: 211
+        pr: 781
+        accepted_candidate_sha: cb367606632018b85e8864efd4cf066ae81e9cfc
+        integrated_sha: ceb28cca228fb03f9b0c44a1b1509e7aea32a38c
+        independent_review: approved
+        exact_candidate_focused_run: 40336671237
+        exact_candidate_general_run: 40336671236
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
     task:
-      id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
+      id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-artifact-envelope-20261026
+      candidate_branch: codex/public-electronics-viewer-20261026
       base_branch: main
-      pr: 781
-      pr_draft: false
+      pr: null
+      pr_draft: true
       status: in_progress
-      checkpoint: artifact_envelope_exact_sha_accepted_ready_for_merge
+      checkpoint: visible_electronics_schematic_full_width_workspace_selected
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorized completion of the full Public Projects program #211,
@@ -6523,25 +6537,23 @@ parallel_lanes:
         instead of an unavailable external human, but not fabricated GitHub
         approvals or protection bypass. Ordinary ready/merge follows actual
         required exact-SHA evidence. No force push, production deployment or
-        working database changes. Current envelope candidate cb367606 passed
-        General40336671236 and PublicProjects40336671237 with independent Code
-        and Security PASS. Receipt: docs/product/projects/evidence/artifact-envelope-20261026-acceptance.md.
+        working database changes. Owner criticized the modest visual change and
+        demanded a visible functional result. Select one coherent vertical slice:
+        actual immutable Electronics schematic with pan/zoom/fit and a full-width
+        project workspace. Consolidate remaining03B/03C/03D plumbing and the first
+        inert module viewer inside this slice, retaining all authorization,
+        sanitizer, registry, bounds, structural and Code/Security/PG/browser gates.
+        Coordinate distinct backend/frontend/QA paths on one branch, one lead
+        author commit after all writers stop. No fake simulation/download action;
+        controlled simulation and other modules remain subsequent capabilities.
       context_hints:
+        - docs/product/projects/tasks/PROJ-ELECTRONICS-PUBLIC-VIEWER.md
         - docs/product/projects/tasks/PROJ-R7-03A-ARTIFACT-ENVELOPE.md
-        - docs/product/projects/tasks/PROJ-PUBLIC-MODULE-ADMISSION.md
-        - docs/product/projects/tasks/PROJ-PUBLIC-PAGE-LAYOUT.md
-        - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
-        - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
-        - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
-        - docs/product/projects/tasks/PROJ-R8-03.md
-        - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
-        - docs/product/projects/tasks/PROJ-R8-03B-EDITORIAL-FEATURED.md
-        - docs/product/projects/tasks/PROJ-R8-03A-ADMIN-MODERATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
-        - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
-        - docs/product/projects/tasks/PROJ-PUBLICATION-CI-DEPENDENCIES.md
+        - docs/product/projects/IMPLEMENTATION_MICRO_ITERATIONS.md
+        - docs/product/ASA_PROJECTS_IMPLEMENTATION_SPEC.md
     integration_dependencies:
       - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
         status: in_progress
