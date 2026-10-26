@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CrmUserCardLauncher } from '../CrmUserCard';
 import { crmApi } from '../crm-user-api';
-import { crmProfileFixture, CRM_ID } from './crm-user.fixture';
+import { crmProfileFixture, crmDashboardFixture, CRM_ID } from './crm-user.fixture';
 
 let host: HTMLDivElement, root: Root;
 const modal = vi.fn();
@@ -29,6 +29,11 @@ afterEach(async () => {
 
 for (const kind of ['account', 'student'] as const) {
   it(`opens a full ${kind} card in one modal and returns focus on close or Escape`, async () => {
+    vi.spyOn(crmApi, 'dashboard').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: crmDashboardFixture(kind),
+    });
     const profile = vi.spyOn(crmApi, 'profile').mockResolvedValue({
       ok: true,
       status: 200,

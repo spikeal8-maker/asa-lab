@@ -124,7 +124,8 @@
             "administration.session.revoke",
             "administration.smtp.test",
             "administration.smtp.update",
-            "administration.verification_policy.update"
+            "administration.verification_policy.update",
+            "crm.dashboard.read"
           ]
         },
         "reason_code": {

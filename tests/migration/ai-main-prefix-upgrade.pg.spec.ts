@@ -35,6 +35,7 @@ const expectedPending = [
   '0253', // Optional scoped campaign observations and factual catalog projections.
   '0254', // Free server internet evidence and bounded public weather cache.
   '0255', // Read-only administrative visibility of retained legacy publications.
+  '0256', // Read-only exact-subject dashboard and canonical classroom rating.
 ];
 
 interface Identity {

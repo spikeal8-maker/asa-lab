@@ -12,6 +12,7 @@ import {
 } from './crm-user-api';
 import './crm-user-card.css';
 import { CrmUserDialog } from './CrmUserDialog';
+import { CrmUserDashboard } from './CrmUserDashboard';
 const roleLabel: Record<string, string> = {
   creator: 'Автор',
   educator: 'Преподаватель',
@@ -33,7 +34,8 @@ const stateLabel: Record<string, string> = {
   owner: 'Владелец класса',
   co_teacher: 'Совместное преподавание',
 };
-type CrmPane = 'profile' | 'access' | 'history' | 'notes' | 'activity' | CrmContentCategory;
+type CrmPane =
+  'overview' | 'profile' | 'access' | 'history' | 'notes' | 'activity' | CrmContentCategory;
 type CrmCardProps = CrmSubject & {
   onAccessDenied: () => void;
   onChanged?: () => void;
@@ -214,7 +216,7 @@ function CrmCardBody(subject: CrmCardProps) {
     [failure, setFailure] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [reload, setReload] = useState(0);
-  const [selectedTab, setTab] = useState<CrmPane>('profile');
+  const [selectedTab, setTab] = useState<CrmPane>('overview');
   const tab = subject.pane ?? selectedTab;
   const [name, setName] = useState(''),
     [birth, setBirth] = useState(''),
@@ -348,6 +350,7 @@ function CrmCardBody(subject: CrmCardProps) {
             <nav className="crm-full-nav" aria-label="Разделы CRM">
               {(
                 [
+                  ['overview', 'Обзор'],
                   ['profile', 'Профиль'],
                   ['projects', 'Проекты'],
                   ...(subject.history || subject.kind === 'student'
@@ -369,6 +372,9 @@ function CrmCardBody(subject: CrmCardProps) {
                 </button>
               ))}
             </nav>
+          ) : null}
+          {tab === 'overview' ? (
+            <CrmUserDashboard subject={subject} onAccessDenied={revoke} />
           ) : null}
           {tab === 'profile' ? (
             <>
@@ -667,9 +673,9 @@ function CrmCardBody(subject: CrmCardProps) {
               <h4>Все действия</h4>
               <CrmContent subject={subject} category="events" onAccessDenied={revoke} />
             </>
-          ) : (
+          ) : tab === 'projects' || tab === 'messages' ? (
             <CrmContent key={tab} subject={subject} category={tab} onAccessDenied={revoke} />
-          )}
+          ) : null}
         </>
       ) : null}
     </section>

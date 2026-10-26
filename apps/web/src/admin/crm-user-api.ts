@@ -4,6 +4,36 @@ export interface CrmSubject {
   targetId: string;
   classroomId?: string | undefined;
 }
+export interface CrmDashboard {
+  generatedAt: string;
+  period: { days: number; timeZone: 'UTC'; from: string; to: string };
+  lastSeenAt: string | null;
+  lastActionAt: string | null;
+  totals: {
+    projects: number;
+    publications: number;
+    aiRequests: number;
+    aiErrors: number;
+    events: number;
+    inputTokens: string | null;
+    outputTokens: string | null;
+  };
+  activity: Array<{ date: string; events: number; aiRequests: number }>;
+  latestActions: Array<{ occurredAt: string; eventType: string; module: string | null }>;
+  rating: {
+    kind: 'classroom' | 'not_configured';
+    value: number | null;
+    label: string;
+    rank: number | null;
+    periodDays: number | null;
+  };
+  coverage: {
+    activityFrom: string | null;
+    limited: true;
+    aiDetailedRequests: number;
+    tokenRequests: number;
+  };
+}
 export interface CrmProfile {
   kind: 'account' | 'student';
   id: string;
@@ -96,6 +126,8 @@ export interface CrmSeatDetailPage {
   version?: string;
 }
 export const crmApi = {
+  dashboard: (subject: CrmSubject) =>
+    call<CrmDashboard>(`${crmSubjectPath(subject)}/dashboard?${query(subject)}`),
   seatDetail: (
     subject: CrmSubject,
     category: 'notes' | 'projects' | 'publications' | 'ai',
