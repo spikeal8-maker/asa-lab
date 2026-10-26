@@ -59,45 +59,51 @@ export class PublicProjectReportsController {
       );
     }
 
-    const actor = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
-    if (!actor) {
-      throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
-    }
-    if (!UUID.test(publicationId)) {
-      throw publicationError('validation_error', 'Некорректная публикация.', 400);
-    }
-
-    const key = checkIdempotencyKey(rawKey);
-    if (!key.ok || key.key.startsWith('learning:')) {
-      throw publicationError('invalid_idempotency_key', 'Укажите допустимый Idempotency-Key.', 400);
-    }
-
-    const checked = checkBodyShape(rawBody, ['revisionId', 'reason', 'comment']);
-    if (!checked.ok) {
-      throw publicationError('validation_error', 'Некорректная жалоба.', 400);
-    }
-
-    const revisionId = checked.body['revisionId'];
-    const reason = checked.body['reason'];
-    const comment = checked.body['comment'];
-    // Match PostgreSQL char_length: count Unicode code points, not UTF-16 units.
-    const commentLength = typeof comment === 'string' ? Array.from(comment.trim()).length : 0;
-    if (
-      typeof revisionId !== 'string' ||
-      !UUID.test(revisionId) ||
-      typeof reason !== 'string' ||
-      !REASONS.has(reason) ||
-      (comment !== undefined && typeof comment !== 'string') ||
-      (typeof comment === 'string' && (comment.includes('\0') || commentLength > 500))
-    ) {
-      throw publicationError('validation_error', 'Проверьте категорию и комментарий.', 400);
-    }
-
-    if (!this.pool) {
-      throw publicationError('database_unavailable', 'База данных недоступна.', 503);
-    }
-
     try {
+      const actor = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+      if (!actor) {
+        throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
+      }
+      if (!UUID.test(publicationId)) {
+        throw publicationError('validation_error', 'Некорректная публикация.', 400);
+      }
+
+      const key = checkIdempotencyKey(rawKey);
+      if (!key.ok || key.key.startsWith('learning:')) {
+        throw publicationError(
+          'invalid_idempotency_key',
+          'Укажите допустимый Idempotency-Key.',
+          400,
+        );
+      }
+
+      const checked = checkBodyShape(rawBody, ['revisionId', 'reason', 'comment']);
+      if (!checked.ok) {
+        throw publicationError('validation_error', 'Некорректная жалоба.', 400);
+      }
+
+      const revisionId = checked.body['revisionId'];
+      const reason = checked.body['reason'];
+      const comment = checked.body['comment'];
+      // Match SQL btrim (ASCII spaces only) and char_length (Unicode code points).
+      // Tabs, newlines and Unicode whitespace remain meaningful in both boundaries.
+      const commentLength =
+        typeof comment === 'string' ? Array.from(comment.replace(/^ +| +$/g, '')).length : 0;
+      if (
+        typeof revisionId !== 'string' ||
+        !UUID.test(revisionId) ||
+        typeof reason !== 'string' ||
+        !REASONS.has(reason) ||
+        (comment !== undefined && typeof comment !== 'string') ||
+        (typeof comment === 'string' && (comment.includes('\0') || commentLength > 500))
+      ) {
+        throw publicationError('validation_error', 'Проверьте категорию и комментарий.', 400);
+      }
+
+      if (!this.pool) {
+        throw publicationError('database_unavailable', 'База данных недоступна.', 503);
+      }
+
       const result = await this.pool.query<{ result: PublicationReportReceipt }>(
         'SELECT public.project_publication_report_create($1,$2,$3,$4,$5,$6) AS result',
         [actor.principalId, publicationId, revisionId, reason, comment ?? '', key.key],

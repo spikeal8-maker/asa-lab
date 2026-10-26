@@ -73,7 +73,7 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
       runtime = new pg.Pool({ connectionString: runtimeTarget.href, max: 20 });
 
       const plan = planMigrations();
-      expect(plan.at(-1)?.file).toBe('0240_project_publication_reports.sql');
+      expect(plan.at(-1)?.file).toBe('0259_project_publication_reports.sql');
       const migrator = await admin.connect();
       try {
         expect(await applyIsolatedTestPlan(migrator, plan)).toBe(plan.length);
@@ -93,6 +93,12 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
         rolbypassrls: false,
       });
 
+      // Existing Account policy is optional and provider-aware. B1 inherits the
+      // global guard without imposing an SMTP/email-only requirement.
+      expect(
+        (await admin.query('SELECT enabled FROM account_verification_policy WHERE singleton_key'))
+          .rows[0].enabled,
+      ).toBe(false);
       app = await buildTestApp(runtime);
       await app.listen(0, '127.0.0.1');
       const baseUrl = await app.getUrl();
@@ -187,7 +193,10 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
           projectId,
           sourceRevision: 1,
           image: {
-            bytes: new Uint8Array(64).fill(23),
+            bytes: Buffer.from(
+              'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGNQCu34TwlmGDVg1IBRA4aLAQDLpv4Q+i0QiwAAAABJRU5ErkJggg==',
+              'base64',
+            ),
             contentType: 'image/png',
             width: 16,
             height: 16,
@@ -269,11 +278,8 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
       const duplicate = await report(original, reporterCookie, idempotencyKey, 'spam', secret);
       expect(assertReceipt(duplicate, true)).toBe(reportId);
       expect(
-        assertReceipt(
-          await report(original, reporterCookie, 'second-' + randomUUID(), 'spam', secret),
-          true,
-        ),
-      ).toBe(reportId);
+        (await report(original, reporterCookie, 'second-' + randomUUID(), 'spam', secret)).status,
+      ).toBe(409);
       const changed = await report(original, reporterCookie, idempotencyKey, 'copyright', secret);
       expect(changed.status).toBe(409);
       expect(changed.body).toMatchObject({ error: { code: 'report_conflict' } });
@@ -403,6 +409,32 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
       ).toBe(true);
       expect((await report(unlisted, reporterCookie, 'unlisted-' + randomUUID())).status).toBe(404);
 
+      const privatePublication = await publish(20);
+      await admin.query("SELECT project_visibility_set($1,$2,'private')", [
+        authorId,
+        privatePublication.projectId,
+      ]);
+      expect(
+        (await report(privatePublication, reporterCookie, 'private-' + randomUUID())).status,
+      ).toBe(404);
+      const protectedPublication = await publish(21);
+      await admin.query(
+        `INSERT INTO learning_legacy_project_origins(project_id,project_tenant_id,school_tenant_id,source_work_id,claimed_at) VALUES ($1,$2,$2,$3,now())`,
+        [protectedPublication.projectId, author.tenantId, randomUUID()],
+      );
+      expect(
+        (await report(protectedPublication, reporterCookie, 'learning-' + randomUUID())).status,
+      ).toBe(404);
+      await admin.query(
+        "UPDATE accounts SET status='suspended' WHERE id=(SELECT account_id FROM principals WHERE id=$1)",
+        [reporterId],
+      );
+      expect((await report(original, reporterCookie, 'blocked-' + randomUUID())).status).toBe(401);
+      await admin.query(
+        "UPDATE accounts SET status='active' WHERE id=(SELECT account_id FROM principals WHERE id=$1)",
+        [reporterId],
+      );
+
       const allReasons = [
         'spam',
         'abuse',
@@ -411,7 +443,7 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
         'copyright',
         'other',
       ] as const;
-      for (let index = 0; index < 10; index++) {
+      for (let index = 0; index < 9; index++) {
         const publication = await publish(6 + index);
         const response = await report(
           publication,
@@ -422,7 +454,14 @@ describe('Public Projects B1 real HTTP report intake with disposable PostgreSQL 
         );
         assertReceipt(response, false);
       }
-      const overQuota = await publish(16);
+      const quotaRacePublications = await Promise.all([publish(16), publish(17)]);
+      const quotaRace = await Promise.all(
+        quotaRacePublications.map((publication, index) =>
+          report(publication, quotaCookie, 'quota-race-' + index + '-' + randomUUID()),
+        ),
+      );
+      expect(quotaRace.map((response) => response.status).sort()).toEqual([200, 429]);
+      const overQuota = await publish(18);
       const limited = await report(overQuota, quotaCookie, 'quota-11-' + randomUUID());
       expect(limited.status).toBe(429);
       expect(limited.body).toMatchObject({ error: { code: 'report_rate_limited' } });

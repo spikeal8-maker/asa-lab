@@ -1,6 +1,5 @@
 -- R8-03D / #713: incoming public-project reports are private signals, not moderation actions.
--- 0240 is a provisional reserved successor to pending 0239. Do NOT merge until
--- the competing #704/#705 migration-0239 reservations are reconciled.
+-- Forward successor to published 0258; earlier migration bytes remain unchanged.
 -- Project Core, published revisions and existing moderation state are untouched.
 CREATE TABLE public.project_publication_reports (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -58,6 +57,7 @@ BEGIN
        )
        OR char_length(v_clean_comment) > 500
        OR p_request_key IS NULL
+       OR p_request_key LIKE 'learning:%'
        OR p_request_key !~ '^[A-Za-z0-9._:-]{1,128}$' THEN
         RAISE EXCEPTION 'invalid publication report' USING ERRCODE = '22023';
     END IF;
@@ -111,19 +111,14 @@ BEGIN
                                   'status', 'received', 'duplicate', true);
     END IF;
 
-    -- A user can have at most one report about one exact public revision.
-    -- Repeats with equivalent contents are safe retries, never extra cases.
-    SELECT * INTO v_existing
-      FROM public.project_publication_reports report
+    -- A distinct key is a distinct request. Never acknowledge an unbound alias:
+    -- it could later be reused for another publication with contradictory results.
+    PERFORM 1 FROM public.project_publication_reports report
      WHERE report.reporter_principal_id = p_actor
        AND report.publication_id = p_publication
        AND report.revision_id = p_revision;
     IF FOUND THEN
-        IF v_existing.reason <> p_reason OR v_existing.comment <> v_clean_comment THEN
-            RAISE EXCEPTION 'report already received' USING ERRCODE = 'P5R09';
-        END IF;
-        RETURN jsonb_build_object('reportId', v_existing.id,
-                                  'status', 'received', 'duplicate', true);
+        RAISE EXCEPTION 'report already received' USING ERRCODE = 'P5R09';
     END IF;
 
     SELECT count(*)::integer INTO v_count

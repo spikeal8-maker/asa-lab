@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
+import { AccountVerificationGuard } from './account-verification.guard.js';
 import { PublicProjectReportsController } from './public-project-reports.controller.js';
 import { SESSION_COOKIE } from './tokens.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
@@ -39,6 +40,38 @@ function fixture(signedIn = true, database = true) {
 }
 
 describe('public project report intake transport', () => {
+  it('inherits the existing optional Account verification policy for the report route', async () => {
+    const requireAccount = vi.fn(async () => {});
+    const isEnabled = vi.fn(async () => false);
+    const resolve = vi.fn(async () => ({ accountId: PRINCIPAL }));
+    const guard = new AccountVerificationGuard(
+      { getAllAndOverride: () => false } as never,
+      { resolve } as never,
+      { isEnabled, requireAccount } as never,
+      {} as never,
+    );
+    const context = {
+      getType: () => 'http',
+      getHandler: () => PublicProjectReportsController.prototype.report,
+      getClass: () => PublicProjectReportsController,
+      switchToHttp: () => ({
+        getRequest: () => ({
+          method: 'POST',
+          routeOptions: { url: '/api/public-projects/:publicationId/reports' },
+          cookies: { [SESSION_COOKIE]: 'session' },
+        }),
+      }),
+    } as never;
+    expect(await guard.canActivate(context)).toBe(true);
+    expect(requireAccount).not.toHaveBeenCalled();
+    isEnabled.mockResolvedValue(true);
+    expect(await guard.canActivate(context)).toBe(true);
+    expect(requireAccount).toHaveBeenCalledWith(PRINCIPAL);
+    const blocked = new Error('existing verification policy requires confirmation');
+    requireAccount.mockRejectedValueOnce(blocked);
+    await expect(guard.canActivate(context)).rejects.toBe(blocked);
+  });
+
   it('stores a report under the authenticated Account with bound SQL parameters', async () => {
     const { controller, query, resolve } = fixture();
     const result = await controller.report(
@@ -83,6 +116,33 @@ describe('public project report intake transport', () => {
       'SELECT public.project_publication_report_create($1,$2,$3,$4,$5,$6) AS result',
       [PRINCIPAL, PUBLICATION, REVISION, 'spam', comment, KEY],
     );
+  });
+
+  it.each(['\t', '\n', '\u00a0', '\u2003', '\ufeff'])(
+    'counts meaningful whitespace %j consistently with SQL',
+    async (whitespace) => {
+      const { controller, query } = fixture();
+      await expect(
+        controller.report(request(), PUBLICATION, KEY, {
+          ...valid,
+          comment: whitespace + 'x'.repeat(500),
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+      await controller.report(request(), PUBLICATION, KEY, {
+        ...valid,
+        comment: ' ' + whitespace + 'x'.repeat(499) + ' ',
+      });
+      expect(query).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('maps a session lookup database outage to safe 503', async () => {
+    const { controller, resolve, query } = fixture();
+    resolve.mockRejectedValueOnce({ code: '08006', message: 'secret session SQL' });
+    await expect(controller.report(request(), PUBLICATION, KEY, valid)).rejects.toMatchObject({
+      status: 503,
+    });
+    expect(query).not.toHaveBeenCalled();
   });
 
   it('treats SQL-shaped text as a bound comment, never executable SQL', async () => {

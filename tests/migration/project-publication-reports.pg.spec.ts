@@ -6,7 +6,7 @@ import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 import { seedTeacher } from '../portal/helpers';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 
-describe('0240 additive public-project reports on disposable PostgreSQL', () => {
+describe('0259 additive public-project reports on disposable PostgreSQL', () => {
   it('preserves prior migration history, enforces privileges and records exact reports', async () => {
     const source = process.env['TEST_DATABASE_URL'];
     if (!source || !new URL(source).pathname.endsWith('_test')) {
@@ -24,9 +24,9 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
       target.pathname = '/' + name;
       pool = new pg.Pool({ connectionString: target.href, max: 6 });
       const plan = planMigrations();
-      const prefix = plan.filter((migration) => Number(migration.version) <= 238);
-      expect(prefix.at(-1)?.version).toBe('0238');
-      expect(plan.at(-1)?.file).toBe('0240_project_publication_reports.sql');
+      const prefix = plan.filter((migration) => Number(migration.version) <= 258);
+      expect(prefix.at(-1)?.version).toBe('0258');
+      expect(plan.at(-1)?.file).toBe('0259_project_publication_reports.sql');
       const admin = await pool.connect();
       try {
         await applyIsolatedTestPlan(admin, prefix);
@@ -36,7 +36,7 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
         expect(await applyIsolatedTestPlan(admin, plan)).toBe(1);
         expect(await applyIsolatedTestPlan(admin, plan)).toBe(0);
         const history = await admin.query(
-          "SELECT version,name,checksum FROM schema_migrations WHERE version<>'0240' ORDER BY version",
+          "SELECT version,name,checksum FROM schema_migrations WHERE version<>'0259' ORDER BY version",
         );
         expect(history.rows).toEqual(beforeHistory);
       } finally {
@@ -78,7 +78,10 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
           projectId: createdProject.project.id,
           sourceRevision: 1,
           image: {
-            bytes: new Uint8Array(64).fill(17),
+            bytes: Buffer.from(
+              'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR4nGNQCu34TwlmGDVg1IBRA4aLAQDLpv4Q+i0QiwAAAABJRU5ErkJggg==',
+              'base64',
+            ),
             contentType: 'image/png',
             width: 16,
             height: 16,
@@ -131,6 +134,7 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
         for (const sql of [
           'SELECT * FROM project_publication_reports',
           'DELETE FROM project_publication_reports',
+          "UPDATE project_publication_reports SET status='resolved'",
           "INSERT INTO project_publication_reports(publication_id,revision_id,reporter_principal_id,reason,request_key) VALUES (gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),'spam','direct')",
         ]) {
           await expect(app.query(sql)).rejects.toMatchObject({ code: '42501' });
@@ -181,9 +185,9 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
       expect(
         (await report(principal, publication, 'spam', 'first-report')).rows[0].receipt,
       ).toMatchObject({ reportId: stored[0].id as string, duplicate: true });
-      expect(
-        (await report(principal, publication, 'spam', 'another-key')).rows[0].receipt.duplicate,
-      ).toBe(true);
+      await expect(report(principal, publication, 'spam', 'another-key')).rejects.toMatchObject({
+        code: 'P5R09',
+      });
       expect(
         (await report(otherPrincipal, publication, 'spam', 'other-author')).rows[0].receipt
           .duplicate,
@@ -247,12 +251,19 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
       });
 
       // A new report is still allowed for the tenth distinct publication, not the eleventh.
-      for (let index = 2; index <= 9; index++) {
+      for (let index = 2; index <= 8; index++) {
         const next = await makePublication(index);
         expect(
           (await report(principal, next, 'spam', 'quota-' + index)).rows[0].receipt.duplicate,
         ).toBe(false);
       }
+      const lastSlots = await Promise.all([makePublication(9), makePublication(19)]);
+      const quotaRace = await Promise.allSettled(
+        lastSlots.map((pub, index) => report(principal, pub, 'spam', 'quota-race-' + index)),
+      );
+      expect(quotaRace.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      const rejected = quotaRace.find((result) => result.status === 'rejected');
+      expect(rejected).toMatchObject({ status: 'rejected', reason: { code: 'P5R29' } });
       const overQuota = await makePublication(10);
       await expect(report(principal, overQuota, 'spam', 'quota-11')).rejects.toMatchObject({
         code: 'P5R29',
@@ -291,6 +302,61 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
         code: 'P5P04',
       });
 
+      const privatePublication = await makePublication(20);
+      await pool.query("SELECT project_visibility_set($1,$2,'private')", [
+        principal,
+        privatePublication.projectId,
+      ]);
+      await expect(
+        report(otherPrincipal, privatePublication, 'spam', 'private'),
+      ).rejects.toMatchObject({ code: 'P5P04' });
+      const protectedPublication = await makePublication(21);
+      await pool.query(
+        `INSERT INTO learning_legacy_project_origins(project_id,project_tenant_id,school_tenant_id,source_work_id,claimed_at) VALUES ($1,$2,$2,$3,now())`,
+        [protectedPublication.projectId, teacher.tenantId, randomUUID()],
+      );
+      await expect(
+        report(otherPrincipal, protectedPublication, 'spam', 'learning'),
+      ).rejects.toMatchObject({ code: 'P5P04' });
+      const revised = await makePublication(22);
+      const oldRevision = (
+        await pool.query(
+          'SELECT to_jsonb(r) AS data FROM project_publication_revisions r WHERE id=$1',
+          [revised.revisionId],
+        )
+      ).rows;
+      await pool.query('SELECT project_publication_publish($1,$2,$3::jsonb)', [
+        principal,
+        revised.projectId,
+        JSON.stringify({ title: 'New immutable title' }),
+      ]);
+      await expect(
+        report(otherPrincipal, revised, 'spam', 'old-actual-revision'),
+      ).rejects.toMatchObject({ code: 'P5R09' });
+      expect(
+        (
+          await pool.query(
+            'SELECT to_jsonb(r) AS data FROM project_publication_revisions r WHERE id=$1',
+            [revised.revisionId],
+          )
+        ).rows,
+      ).toEqual(oldRevision);
+      await pool.query(
+        "UPDATE accounts SET status='suspended' WHERE id=(SELECT account_id FROM principals WHERE id=$1)",
+        [otherPrincipal],
+      );
+      await expect(report(otherPrincipal, revised, 'spam', 'blocked-stale')).rejects.toMatchObject({
+        code: 'P5R09',
+      });
+      // SQL independently rejects a disabled principal even if transport resolution is bypassed.
+      await expect(report(otherPrincipal, second, 'spam', 'blocked')).rejects.toMatchObject({
+        code: '42501',
+      });
+      await pool.query(
+        "UPDATE accounts SET status='active' WHERE id=(SELECT account_id FROM principals WHERE id=$1)",
+        [otherPrincipal],
+      );
+
       const malicious = await makePublication(13);
       const sqlText = "'); DROP TABLE public.project_publication_reports; --";
       expect(
@@ -304,6 +370,27 @@ describe('0240 additive public-project reports on disposable PostgreSQL', () => 
         ).rows[0].comment,
       ).toBe(sqlText);
 
+      // SQL uses the same ASCII-space normalization as transport; tabs and Unicode
+      // whitespace remain meaningful, including at the 500-code-point boundary.
+      for (const [index, whitespace] of ['\t', '\n', '\u00a0', '\u2003', '\ufeff'].entries()) {
+        const boundary = await makePublication(30 + index);
+        await expect(
+          report(
+            otherPrincipal,
+            boundary,
+            'spam',
+            'boundary-over-' + index,
+            whitespace + 'x'.repeat(500),
+          ),
+        ).rejects.toMatchObject({ code: '22023' });
+        const text = whitespace + 'x'.repeat(499);
+        await report(otherPrincipal, boundary, 'spam', 'boundary-' + index, ' ' + text + ' ');
+        const storedComment = await pool.query(
+          'SELECT comment FROM project_publication_reports WHERE request_key=$1',
+          ['boundary-' + index],
+        );
+        expect(storedComment.rows[0].comment).toBe(text);
+      }
       const unicode = await makePublication(14);
       expect(
         (await report(otherPrincipal, unicode, 'spam', 'unicode-500', '🚀'.repeat(500))).rows[0]
