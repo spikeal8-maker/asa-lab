@@ -8,6 +8,18 @@ import { chromium } from '@playwright/test';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
 const assets = new Map();
+const worker = await build({
+  entryPoints: ['apps/web/src/electronics/simulation.worker.ts'],
+  bundle: true,
+  write: false,
+  format: 'esm',
+  platform: 'browser',
+  alias: {
+    '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
+    '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
+    '@asa-lab/electronics/simulation': resolve('contexts/electronics/simulation.ts'),
+  },
+});
 const result = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
@@ -16,6 +28,42 @@ const result = await build({
       import * as S from 'scratch-blocks'; import * as A from './src/electronics/arduino-blocks';
       import {activeArduinoGraph} from './src/electronics/arduino-pin-inputs';
       import {ScratchWorkspace} from './src/electronics/ArduinoCodePanel';
+      import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
+      import {resetElectronicsTimedState} from '@asa-lab/electronics/engine';
+      window.rootlessProof=async()=>{
+        const w=new S.Workspace(); S.Events.disable();
+        const v={id:'rootless-count',name:'count',type:S.SCALAR_VARIABLE_TYPE};
+        const wait={type:'asa_wait',fields:{TIME:'1',UNIT:'MILLISECONDS'}};
+        const print={type:'asa_serial_print',fields:{ENDING:'LINE'},inputs:{TEXT:{block:{type:'asa_var_get',fields:{NAME:{id:v.id}}}}},next:{block:wait}};
+        const change={type:'asa_var_change',fields:{NAME:{id:v.id},VALUE:'1'},next:{block:print}};
+        try {
+          S.serialization.workspaces.load(A.migrateLegacyArduinoWorkspaceState({variables:[v],blocks:{blocks:[
+            {type:'asa_repeat',id:'first-free-chain',fields:{COUNT:'2'},inputs:{DO:{block:change}}},
+            {type:'asa_builtin_led',id:'second-free-chain',fields:{LEVEL:'LOW'},next:{block:{type:'asa_serial_print',fields:{TEXT:'tail',ENDING:'LINE'},next:{block:wait}}}}
+          ]}}),w);
+          A.applyArduinoBlockDefaults(w);
+          const high=w.newBlock('asa_builtin_led');A.applyArduinoBlockDefaults(w);
+          const repeat=w.getBlockById('first-free-chain');
+          const changeBlock=repeat.getInputTargetBlock('DO');changeBlock.unplug(false);
+          repeat.getInput('DO').connection.connect(high.previousConnection);
+          high.nextConnection.connect(changeBlock.previousConnection);
+          const source=A.generateArduinoCode(w);
+          const saved=S.serialization.workspaces.save(w), ids=w.getAllBlocks(false).map(b=>b.id).sort();
+          w.clear();S.serialization.workspaces.load(saved,w);
+          const reopened=A.generateArduinoCode(w);
+          const reopenedIds=w.getAllBlocks(false).map(b=>b.id).sort();
+          const document={schemaVersion:4,components:[{id:'uno',kind:'visual',componentTypeId:'arduino-uno',pinIds:['d13','power-5v','power-3v3','power-gnd-1'],position:{x:0,y:0},value:5,stateProperties:{arduinoSource:source}}],connections:[],viewport:{x:0,y:0,zoom:1},simulation:{running:true,maxIterations:24}};
+          const client=new ElectronicsSimulationWorkerClient(()=>new Worker('/worker.js',{type:'module'}));
+          try {
+            const generation=client.beginGeneration('rootless-proof'); let state=resetElectronicsTimedState(); const steps=[];
+            for(const horizon of [1500,2500,4500,5500]){
+              const advance=await client.advance(generation,document,state,horizon);state=advance.state;
+              steps.push({horizon,status:advance.executionStatus,diagnostics:advance.diagnostics,runtime:JSON.parse(state.continuation.serializedState).boards[0].runtime});
+            }
+            return {source,reopened,ids,reopenedIds,steps};
+          }finally{client.dispose();}
+        }finally{w.dispose();S.Events.enable();}
+      };
       const legacy = {variables:[{id:'pupil-variable',name:'pupilCount',type:S.SCALAR_VARIABLE_TYPE}],blocks:{blocks:[
         {type:'asa_setup',id:'setup',x:330,y:20},
         {type:'asa_loop',id:'loop',x:330,y:130,inputs:{DO:{block:{
@@ -45,7 +93,10 @@ const result = await build({
   format: 'iife',
   platform: 'browser',
   jsx: 'automatic',
-  alias: { '@asa-lab/electronics': resolve('contexts/electronics/index.ts') },
+  alias: {
+    '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
+    '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
+  },
   define: { 'process.env.NODE_ENV': '"production"', 'import.meta.env': '{}' },
   plugins: [
     {
@@ -79,14 +130,18 @@ try {
     activePage = page;
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    const html =
+      '<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}#app{height:720px}</style><div id="app"></div>';
     await page.route('**/*', async (route) => {
+      if (route.request().isNavigationRequest())
+        return route.fulfill({ contentType: 'text/html', body: html });
+      if (route.request().url().endsWith('/worker.js'))
+        return route.fulfill({ contentType: 'text/javascript', body: worker.outputFiles[0].text });
       const asset = assets.get(route.request().url());
       if (asset) await route.fulfill(asset);
       else await route.abort();
     });
-    await page.setContent(
-      '<meta name="viewport" content="width=device-width,initial-scale=1"><base href="https://asa-fixture.invalid/"><style>body{margin:0}#app{height:720px}</style><div id="app"></div>',
-    );
+    await page.goto('https://asa-fixture.invalid/');
     await page.addStyleTag({
       content: await readFile('apps/web/src/electronics/workbench.css', 'utf8'),
     });
@@ -352,6 +407,29 @@ try {
     const rootlessDrag = await drag('repeat', 25, 25, true);
     assert.equal(rootlessDrag.opacity, '');
     assert.equal(await page.evaluate(() => window.latest.source), rootlessSource);
+    if (width === 1440) {
+      const proof = await page.evaluate(() => window.rootlessProof());
+      assert.equal(proof.reopened, proof.source);
+      assert.deepEqual(proof.reopenedIds, proof.ids);
+      assert.ok(proof.source.includes('void loop()'));
+      assert.deepEqual(
+        proof.steps.map((s) => s.runtime.outputVoltages.d13),
+        [5, 0, 5, 0],
+      );
+      assert.deepEqual(
+        proof.steps.map((s) => s.runtime.variables.count),
+        [2, 2, 4, 4],
+      );
+      assert.ok(proof.steps.every((s) => s.status === 'ready' && s.diagnostics.length === 0));
+      assert.deepEqual(
+        proof.steps[3].runtime.serial.tx.map((e) => e.text),
+        ['1\n', '2\n', 'tail\n', '3\n', '4\n', 'tail\n'],
+      );
+      await writeFile(resolve(output, 'rootless-worker.json'), JSON.stringify(proof, null, 2));
+      console.log(
+        'PASS real Chromium Worker rootless freechains: Serial1,2,tail,3,4,tail; D13=5,0,5,0 at1500/2500/4500/5500us; count2,2,4,4; reopen exact',
+      );
+    }
     assert.deepEqual(errors, []);
     receipts.push({
       width,
