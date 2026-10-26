@@ -32,6 +32,7 @@ function fixture(state: 'resolved' | 'invalid_session' | 'unavailable_owner' = '
     archiveThread: vi.fn(async () => ({ id: THREAD, archivedAt: CURSOR })),
     requestMessages: vi.fn(async () => []),
     sendStream: vi.fn(async () => ({ messages: [], replayed: false, stopped: false })),
+    send: vi.fn(async () => ({ messages: [], replayed: false })),
   };
   const controller = new AiChatController(
     accounts as unknown as ActiveContextUseCase,
@@ -181,5 +182,48 @@ describe('complete-text routes share the canonical AI owner boundary', () => {
     });
     expect(f.reply.hijack).not.toHaveBeenCalled();
     expect(f.ai.sendStream).not.toHaveBeenCalled();
+  });
+});
+
+describe('explicit internet options preserve service argument positions', () => {
+  it('retains four legacy JSON arguments and forwards explicit weather options', async () => {
+    const f = fixture();
+    await f.controller.send(f.request(), THREAD, { message: 'weather', requestId: REQUEST });
+    expect(f.ai.send).toHaveBeenLastCalledWith(OWNER, THREAD, 'weather', REQUEST);
+    await f.controller.send(f.request(), THREAD, {
+      message: 'weather',
+      requestId: REQUEST,
+      webSearchMode: 'weather',
+      weatherCity: 'Moscow',
+    });
+    expect(f.ai.send).toHaveBeenLastCalledWith(
+      OWNER,
+      THREAD,
+      'weather',
+      REQUEST,
+      'weather',
+      'Moscow',
+    );
+  });
+  it('forwards the empty attachment slot before explicit stream options', async () => {
+    const f = fixture();
+    await f.controller.sendStream(f.request(), f.reply as unknown as FastifyReply, THREAD, {
+      message: 'search',
+      requestId: REQUEST,
+      webSearchMode: 'web',
+    });
+    expect(f.ai.sendStream).toHaveBeenCalledWith(
+      OWNER,
+      THREAD,
+      'search',
+      REQUEST,
+      expect.any(Function),
+      expect.any(AbortSignal),
+      undefined,
+      undefined,
+      [],
+      'web',
+      undefined,
+    );
   });
 });

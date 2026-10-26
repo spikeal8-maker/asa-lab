@@ -1,5 +1,15 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
+export type {
+  AiWebSearchMode,
+  AiWebSource,
+  AiWebImage,
+  AiWebWeather,
+  AiWebSearchEvidence,
+  AiWebSearchStatus,
+  AiWebSearchAdminConfig,
+  AiWebSearchAdminUpdate,
+} from './ai-web-search.js';
 
 export interface PackageInfo {
   readonly name: string;

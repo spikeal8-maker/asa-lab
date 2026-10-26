@@ -124,6 +124,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0251', // Scoped organization and exact-class responsibilities.
         '0252', // Additive Ollama Cloud credentials preserve course data.
         '0253', // Optional scoped campaign observations and factual catalog projections.
+        '0254', // Free server internet evidence and bounded public weather cache.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -407,6 +408,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0251', // Scoped organization and exact-class responsibilities.
           '0252', // Additive Ollama Cloud credentials preserve course data.
           '0253', // Optional scoped campaign observations and factual catalog projections.
+          '0254', // Free server internet evidence and bounded public weather cache.
         ]);
         expect(
           await applyIsolatedTestPlan(

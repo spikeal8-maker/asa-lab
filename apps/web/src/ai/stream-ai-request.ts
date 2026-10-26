@@ -1,4 +1,5 @@
 import { fetchWithSessionRefresh } from '../session-fetch';
+import type { AiWebSearchMode } from '@asa-lab/contracts';
 
 // Also accept older servers' last-80-message completions: even JSON escaping
 // 80 persisted 8192-character messages fits within this bounded character cap.
@@ -30,6 +31,7 @@ export async function streamAiRequest<T>(
   model?: string,
   scopeHeaders: Record<string, string> = {},
   attachmentIds: readonly string[] = [],
+  webSearch?: { readonly mode: AiWebSearchMode; readonly weatherCity?: string },
 ): Promise<AiStreamResponse<T>> {
   return streamCommand(
     threadId,
@@ -39,6 +41,12 @@ export async function streamAiRequest<T>(
       requestId,
       ...(model ? { model } : {}),
       ...(attachmentIds.length ? { attachmentIds } : {}),
+      ...(webSearch
+        ? {
+            webSearchMode: webSearch.mode,
+            ...(webSearch.weatherCity ? { weatherCity: webSearch.weatherCity } : {}),
+          }
+        : {}),
     },
     onDelta,
     signal,

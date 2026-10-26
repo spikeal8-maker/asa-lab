@@ -33,6 +33,7 @@ const expectedPending = [
   '0251', // Scoped organization and exact-class responsibilities.
   '0252', // Additive Ollama Cloud credentials preserve installed history.
   '0253', // Optional scoped campaign observations and factual catalog projections.
+  '0254', // Free server internet evidence and bounded public weather cache.
 ];
 
 interface Identity {

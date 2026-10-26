@@ -67,6 +67,8 @@ function harness(
 describe('central account verification API guard', () => {
   it.each([
     ['GET', '/api/ai/scopes'],
+    ['GET', '/api/ai/web-search/status'],
+    ['GET', '/api/ai/threads/:threadId/web-search/:requestId/images/:imageId'],
     ['GET', '/api/ai/status'],
     ['GET', '/api/ai/threads'],
     ['POST', '/api/ai/threads'],

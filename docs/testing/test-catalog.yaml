@@ -1225,3 +1225,36 @@ tests:
     timeout_seconds: 300
     owner: admin-auth
     artifacts: [vitest-report, isolated-postgresql-email-proof-report]
+
+  - id: TST-AI-WEB-CORE-001
+    title: Free retrieval provider bounds and immutable owner replay
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-web-search-provider.spec.ts tests/admin/ai-web-search.embedded.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-WEB-PG-001
+    title: Concurrent PostgreSQL retrieval intent and global geocoder admission
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-web-search.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-WEB-E2E-001
+    title: Source cards image previews forecast and internet settings
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-web-search.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]

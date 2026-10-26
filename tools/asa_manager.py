@@ -100,6 +100,7 @@ def first_environment(root, profile):
               "ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID": "initial-v1",
               "ASA_SETTINGS_ENCRYPTION_KEY": secrets.token_hex(32),
               "ASA_BLOCKS_RUNTIME_SIGNING_KEY": secrets.token_hex(32),
+              "ASA_SEARCH_SECRET": secrets.token_hex(32),
               "ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000", "ASA_OBJECT_STORAGE_REGION": "us-east-1",
               "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks", "ASA_OBJECT_STORAGE_ACCESS_KEY": secrets.token_hex(16),
               "ASA_OBJECT_STORAGE_SECRET_KEY": secrets.token_hex(32), "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE": "true",
@@ -202,6 +203,14 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         backup = export_backup(install)
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
+    if "search" in release["images"]:
+        # Authorized mutation only, after the old private.env has been backed up.
+        # Existing keys are never rotated, including during a routine update.
+        from deployment.search_secret import ensure_secret
+        ensure_secret(install.root / ".env")
+        from deployment.contracts import read_env
+        install.env.update(read_env(install.root / ".env"))
+        install.process_env["ASA_SEARCH_SECRET"] = install.env["ASA_SEARCH_SECRET"]
     # The receipt captures the actual running version, not the checkout revision.
     operation = {"phase": "switch", "previous": before, "selected": release, "backup": str(backup) if backup else None,
                  "diagnosticReaderGroupChanged": preparation['readerGroupChanged']}

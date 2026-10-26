@@ -19,7 +19,7 @@ import asa_manager
 
 
 def release():
-    return {"format": "asa-deployment-v1", "repository": "spikeal8-maker/asa-lab",
+    return {"format": "asa-deployment-v2", "repository": "spikeal8-maker/asa-lab",
             "revision": "a" * 40, "schema": 159, "platform": "linux/amd64", "publicationRunId": 12,
             "images": {name: f"{REGISTRY}/{name}@sha256:" + "b" * 64 for name in SERVICES}}
 

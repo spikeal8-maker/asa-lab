@@ -1,0 +1,266 @@
+.asa-ai-layout .asa-ai-web-evidence {
+  margin: 16px 0;
+  color: var(--ai-muted, #66717f);
+  font-size: 12px;
+  min-width: 0;
+}
+.asa-ai-web-evidence :is(a, button):focus-visible {
+  outline: 2px solid #2383bd;
+  outline-offset: 3px;
+}
+.asa-ai-web-notice {
+  padding: 10px 12px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  border-radius: 12px;
+  line-height: 1.5;
+}
+.asa-ai-web-locations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.asa-ai-web-locations button {
+  border: 1px solid #dce2e7;
+  border-radius: 16px;
+  padding: 7px 12px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.asa-ai-web-images {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.asa-ai-web-images a {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+.asa-ai-web-images img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  background: #e9eef2;
+}
+.asa-ai-web-image-preview {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  aspect-ratio: 4/3;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+.asa-ai-web-image-preview > span {
+  text-align: center;
+  font-size: 11px;
+}
+.asa-ai-web-images :is(span, small) {
+  display: block;
+  margin: 7px 9px;
+  overflow-wrap: anywhere;
+}
+.asa-ai-web-images span {
+  color: var(--ai-text, #20252b);
+  font-weight: 600;
+  line-height: 1.4;
+}
+.asa-ai-web-images small {
+  font-size: 10px;
+}
+.asa-ai-web-sources {
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: 12px;
+  margin: 12px 0;
+}
+.asa-ai-web-sources summary {
+  cursor: pointer;
+  padding: 11px 13px;
+  font-weight: 600;
+  color: var(--ai-text, #20252b);
+}
+.asa-ai-web-sources summary > span {
+  font-size: 11px;
+  margin-left: 5px;
+  color: #77838c;
+}
+.asa-ai-web-sources ol {
+  list-style: none;
+  padding: 0 13px;
+  margin: 0;
+}
+.asa-ai-web-sources li {
+  padding: 10px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+.asa-ai-web-sources li a {
+  display: grid;
+  grid-template-columns: 23px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 7px;
+  color: inherit;
+  text-decoration: none;
+}
+.asa-ai-web-sources :is(small, strong) {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.asa-ai-web-sources strong {
+  color: var(--ai-text, #20252b);
+  line-height: 1.45;
+  font-size: 13px;
+}
+.asa-ai-web-sources li p {
+  margin: 6px 0 0 30px;
+  line-height: 1.5;
+}
+.asa-ai-source-number {
+  display: grid;
+  place-items: center;
+  border: 1px solid #c6d3dc;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 10px;
+}
+.asa-ai-web-attribution {
+  margin: 8px 0;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.asa-ai-weather {
+  padding: 15px;
+  border-radius: 16px;
+  color: var(--ai-text, #20252b);
+  background: color-mix(in srgb, #9ac8f1 20%, transparent);
+  border: 1px solid color-mix(in srgb, #9ac8f1 38%, transparent);
+}
+.asa-ai-weather-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.asa-ai-weather-heading h3 {
+  margin: 3px 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+.asa-ai-weather-heading > strong {
+  font-size: 40px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.asa-ai-weather-heading > strong span {
+  font-size: 17px;
+}
+.asa-ai-weather-hours {
+  display: flex;
+  overflow-x: auto;
+  gap: 18px;
+  list-style: none;
+  padding: 12px 0;
+  margin: 8px 0;
+}
+.asa-ai-weather-hours li {
+  flex: 0 0 92px;
+}
+.asa-ai-weather-hours :is(time, strong) {
+  display: block;
+}
+.asa-ai-weather-hours strong {
+  margin-top: 5px;
+  font-size: 17px;
+}
+.asa-ai-weather > a {
+  color: inherit;
+  font-size: 11px;
+}
+.asa-ai-weather-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.asa-ai-weather-attribution a {
+  color: inherit;
+}
+.asa-ai-weather-data-time {
+  font-size: 10px;
+  line-height: 1.6;
+}
+.asa-ai-layout .chat-main:has(.asa-ai-web-evidence) .chat-scroll {
+  margin-top: 54px;
+}
+.asa-ai-layout .chat-main:has(.asa-ai-web-evidence) .chat-column {
+  padding-top: 8px;
+}
+.asa-ai-rich-text a.asa-ai-citation {
+  font-size: 10px;
+  display: inline-block;
+  text-decoration: none;
+  border-radius: 10px;
+  background: color-mix(in srgb, #659fc6 20%, transparent);
+  padding: 0 6px;
+  margin: 0 2px;
+  vertical-align: super;
+  line-height: 1.6;
+}
+.asa-ai-layout .asa-ai-internet-control {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+  color: var(--ai-muted, #66717f);
+  font-size: 11px;
+}
+.asa-ai-layout .asa-ai-internet-control select {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 3px;
+  max-width: 125px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.asa-ai-layout .asa-ai-internet-control select:focus-visible {
+  outline: 2px solid #2383bd;
+}
+.asa-ai-layout .asa-ai-internet-hint {
+  margin: 6px 5px 0;
+  color: #75818c;
+  font-size: 10px;
+}
+.asa-ai-layout .chat-composer.compact:has(.asa-ai-internet-control) {
+  grid-template-rows: minmax(44px, auto) auto;
+  grid-template-areas: 'tools input trailing' 'search search search';
+}
+.asa-ai-layout .chat-composer.compact .asa-ai-internet-control {
+  grid-area: search;
+  justify-self: start;
+  padding-left: 4px;
+}
+@media (max-width: 600px) {
+  .asa-ai-layout .chat-composer.compact:has(.asa-ai-internet-control) {
+    grid-template-rows: minmax(32px, auto) auto;
+    grid-template-areas: 'input' 'controls';
+  }
+  .asa-ai-layout .chat-composer-controls:has(.asa-ai-internet-control) {
+    flex-wrap: wrap;
+  }
+  .asa-ai-layout .chat-composer-controls .asa-ai-internet-control {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .asa-ai-web-images {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
