@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
+import process from 'node:process';
 import { chromium } from '@playwright/test';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
@@ -180,7 +181,7 @@ try {
         await page.locator('.arduino-snippet-drop-line').waitFor();
         nativeDrag = await page.locator('.arduino-snippet-drop-line').innerText();
         await page.mouse.up();
-        assert.match(await editor.inputValue(), /void loop\(\)\{\nservo.write\(90\);\n  \/\/ iii/);
+        assert.match(await editor.inputValue(), /void loop\(\)\{\nservo.write\(90\);\n {2}\/\/ iii/);
       }
       assert.match(await editor.inputValue(), /\/\/ iii WWW 123/);
       const saved = await page.evaluate(() => window.saved);
