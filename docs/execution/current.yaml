@@ -6465,15 +6465,15 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-      issue: 702
+      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
       branch: main
-      candidate_branch: codex/projects-pin-20261023
+      candidate_branch: codex/public-reports-20261024
       base_branch: main
-      pr: 704
-      pr_draft: false
+      pr: 717
+      pr_draft: true
       status: in_progress
-      checkpoint: exact_sha_accepted_ready_for_ordinary_merge
+      checkpoint: pins_merged_resume_existing_B1_with_focused_repairs
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6500,6 +6500,13 @@ parallel_lanes:
         Separate independent Code and Security agents both returned exact-SHA
         PASS; these are not formal GitHub approvals. Acceptance receipt:
         docs/product/projects/evidence/pins-20261026-acceptance.md.
+        PR704 is MERGED at 107bbc6b80ae40516b6dd97c0665432143988e07.
+        Its candidate has complete exact-SHA evidence; post-merge CI remains
+        separately pending. Select the existing B1 branch only: preserve its
+        implementation, advance the unpublished report migration after0258,
+        repair idempotency/comment/session error handling and refresh fixtures,
+        wire PG/API/HTTP into the focused gate. Do not implement B2 before B1
+        acceptance. No production action.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -13093,13 +13100,12 @@ blocking:
       - focused_verification
       - independent_source_review
     reason: >-
-      Incoming report PR #717 at 18a79c0db6469bc7b9ecf45b7b53b433de556fed
-      is a preserved backend-only Draft with local API34/34 and PG16 1/1 evidence.
-      Its provisional migration 0240 conflicts with published Courses 0240.
-      Main also published MAX 0241; pending #704 pins must first become 0242,
-      and only a subsequent report migration can use the then-free successor
-      (anticipated 0243). No B1 merge or migration renumbering until #704
-      integration and independent B1 acceptance.
+      PR704 merged at107bbc6b with complete candidate CI and independent reviews.
+      Existing backend-only PR717 c420833c may now be repaired against this
+      accepted source. Unpublished report0240 conflicts with published history;
+      assign the actual free successor after0258 and preserve old migrations.
+      Integration remains blocked until refreshed focused PG/API/HTTP and
+      required General evidence plus independent Code/Security acceptance.
     evidence: https://github.com/spikeal8-maker/asa-lab/pull/717
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
