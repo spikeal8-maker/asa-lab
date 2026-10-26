@@ -6471,9 +6471,9 @@ parallel_lanes:
       candidate_branch: codex/projects-pin-20261023
       base_branch: main
       pr: 704
-      pr_draft: true
+      pr_draft: false
       status: in_progress
-      checkpoint: owner_resumed_independent_agent_reviews_and_refreshed_checks
+      checkpoint: exact_sha_accepted_ready_for_ordinary_merge
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6495,6 +6495,11 @@ parallel_lanes:
         no self-likes, real admin publication counters and audited per-publication
         reaction disabling with a reason. Implement as a separate R8-02 slice
         after the accepted report chain; no legacy transfer or automatic bonuses.
+        Final pin candidate d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0 passed
+        General40309167651, PublicProjects40309167638 and Account40309167645.
+        Separate independent Code and Security agents both returned exact-SHA
+        PASS; these are not formal GitHub approvals. Acceptance receipt:
+        docs/product/projects/evidence/pins-20261026-acceptance.md.
       context_hints:
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
@@ -13072,33 +13077,6 @@ blocking:
     reason: Unpublished prototype3e706b5e passed independent functional/native review but actual224410/222000 bytes FAIL. Owner explicitly retained222000 and requested separate cleanup first on2026-10-25. Preserve prototype and require actual measured headroom before feature publication.
     unblock_requires: A fully reviewed L03 candidate that actually passes the existing budget, or an accepted bounded prerequisite establishing enough measured room. Any different cap requires a separate explicit owner decision after concrete evidence; no automatic waiver.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
-  - id: PROJECTS-704-SECURITY-ACCEPTANCE
-    kind: acceptance_blocker
-    lane: projects
-    task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-    blocks:
-      - technical_acceptance
-      - integration
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_repair
-      - regression_authoring
-      - focused_verification
-      - independent_source_review
-      - documentation_update
-    reason: >-
-      Owner decision on 2026-10-26 permits continuation without an external human
-      GitHub reviewer, as recorded in the projects task authorization. This does
-      not waive independent agent Code/Security review, refreshed exact-SHA
-      focused PostgreSQL/browser and General CI or branch protections. Current
-      published migration frontier has moved beyond the historical handoff;
-      unpublished pins must follow the actual frontier and preserve migration
-      0255 retained-publication visibility. Keep integration blocked until the
-      composed candidate has the required evidence; no formal GitHub approval
-      may be fabricated. Historical external-review handoff remains evidence,
-      not the current human-reviewer prerequisite.
-    evidence: https://github.com/spikeal8-maker/asa-lab/pull/704
   - id: PROJECTS-717-REPORT-INTAKE-DEPENDENCY
     kind: acceptance_blocker
     lane: projects
