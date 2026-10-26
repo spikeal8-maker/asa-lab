@@ -51,6 +51,11 @@ randomSeed(42);Serial.println(random());randomSeed(0);Serial.println(random());
 value=random(100)+pulseIn(2,HIGH,100);Serial.println(value);digitalWrite(13,value>0);
 randomSeed(random()+pulseIn(3,HIGH,100));Serial.println(random());}
 void loop(){delay(100);}`;
+const conditionalSource = `int n=0;long value=-1;void setup(){Serial.begin(9600);pinMode(13,OUTPUT);
+value=(++n?random(100)+pulseIn(2,HIGH,100):++n);Serial.println(n);Serial.println(value);
+digitalWrite(13,value==7?HIGH:LOW);Serial.println(false?99:true?42:0);
+value=Serial.read()==-1?pulseIn(3,HIGH,100000):99;Serial.println(value);Serial.println(Serial.available());}
+void loop(){delay(100);}`;
 const entry = await build({
   stdin: {
     resolveDir: resolve('apps/web'),
@@ -68,6 +73,7 @@ const legacy=${JSON.stringify(source)};
 const increment=${JSON.stringify(incrementSource)};
 const waiting=${JSON.stringify(waitingIncrementSource)};
 const seeded=${JSON.stringify(seededSource)};
+const conditional=${JSON.stringify(conditionalSource)};
 registerArduinoBlocks();
 const workspace=new ScratchBlocks.Workspace();
 ScratchBlocks.Events.disable();
@@ -91,8 +97,8 @@ window.proof=async()=>{
  try{
  const generation=client.beginGeneration('loop-proof');
  const proofs=[];
- for(const source of [legacy,initial,increment,waiting,seeded,generated]){
-  const horizons=source===waiting?[50,500,1100000]:[500,1500,20000];
+ for(const source of [legacy,initial,increment,waiting,seeded,generated,conditional]){
+  const horizons=source===waiting?[50,500,1100000]:source===conditional?[50,500,150000]:[500,1500,20000];
   const horizon=horizons.at(-1);
   let state=resetElectronicsTimedState();let advance;
   for(const horizon of horizons){
@@ -127,7 +133,7 @@ document.querySelector('#run').onclick=()=>{running=true;ready=false;failure=nul
 document.querySelector('#stop').onclick=()=>{controller.stop();running=false;render()};
 document.querySelector('#reset').onclick=()=>{ready=false;failure=null;committed=0;controller.restart(current());render()};
 input.oninput=()=>{if(running)controller.update(current(),30000);render()};
-window.fixture={dispose:()=>controller.dispose(),advance:h=>controller.update(current(),h)};render();
+window.fixture={dispose:()=>controller.dispose(),advance:h=>controller.update(current(),h),send:text=>controller.sendSerialRx('uno',text,20000)};render();
 `,
   },
   bundle: true,
@@ -170,6 +176,7 @@ try {
     const proof = proofs[1];
     const seededProof = proofs[4];
     const generatedProof = proofs[5];
+    const conditionalProof = proofs[6];
     for (const result of proofs) {
       assert.equal(result.advance.executionStatus, 'ready');
       assert.deepEqual(result.advance.diagnostics, []);
@@ -195,6 +202,16 @@ try {
       ['8\n'],
     );
     assert.equal(generatedRuntime.randomState, 16807);
+    const conditionalRuntime = JSON.parse(
+      conditionalProof.advance.state.continuation.serializedState,
+    ).boards[0].runtime;
+    assert.deepEqual(conditionalRuntime.variables, { n: 1, value: 0 });
+    assert.equal(conditionalRuntime.randomState, 16807);
+    assert.equal(conditionalRuntime.outputVoltages.d13, 5);
+    assert.deepEqual(
+      conditionalRuntime.serial.tx.map((e) => e.text),
+      ['1\n', '7\n', '42\n', '0\n', '0\n'],
+    );
     const multi = await page.evaluate(() => window.multiRandom);
     assert.deepEqual(multi.diagnostics, []);
     const multiBoards = JSON.parse(multi.state.continuation.serializedState).boards;
@@ -380,6 +397,42 @@ try {
     assert.equal(generatedRun.failure, null);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     assert.deepEqual(errors, []);
+    await page.getByRole('textbox', { name: 'source' }).fill(conditionalSource);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const conditionalPending = await page.evaluate(() => window.receipt);
+    assert.deepEqual(
+      conditionalPending.serial[0].tx.map((e) => e.text),
+      ['1\n', '7\n', '42\n'],
+    );
+    await page.evaluate(() => {
+      window.fixture.send('A');
+      window.fixture.advance(150000);
+    });
+    await page.waitForFunction(() => window.receipt.committed === 150000);
+    const conditionalCompleted = await page.evaluate(() => window.receipt);
+    assert.deepEqual(
+      conditionalCompleted.serial[0].tx.map((e) => e.text),
+      ['1\n', '7\n', '42\n', '0\n', '1\n'],
+    );
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    const conditionalReset = await page.evaluate(() => window.receipt);
+    assert.deepEqual(conditionalReset.serial[0].tx, conditionalPending.serial[0].tx);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
+    const conditionalStopped = await page.evaluate(() => window.receipt);
+    await page.waitForTimeout(50);
+    assert.deepEqual(await page.evaluate(() => window.receipt), conditionalStopped);
+    await page.getByRole('button', { name: 'Run', exact: true }).click();
+    await page.waitForFunction(() => window.receipt.committed === 20000);
+    await page
+      .getByRole('textbox', { name: 'source' })
+      .fill(conditionalSource.replace('Serial.read()==-1', 'false'));
+    await page.waitForFunction(
+      () => window.receipt.committed === 30000 && window.receipt.serial[0]?.tx[3]?.text === '99\n',
+    );
+    const conditionalEdited = await page.evaluate(() => window.receipt);
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
     assert.ok(workers >= 5);
     await page.screenshot({ path: resolve(output, 'loops-' + width + '.png') });
     receipts.push({
@@ -416,6 +469,12 @@ try {
       seededStopped,
       seededEdited,
       generated,
+      conditionalPending,
+      conditionalCompleted,
+      conditionalReset,
+      conditionalStopped,
+      conditionalEdited,
+      conditionalBudgetOneSlices: conditionalProof.budgetOne.slices,
       generatedRun,
       multiBoards,
     });
