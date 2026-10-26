@@ -16,6 +16,7 @@ from pathlib import Path
 import pwd
 import re
 import shutil
+import secrets
 import signal
 import subprocess
 import sys
@@ -250,6 +251,36 @@ def source_services(root: Path, source: Path, overlay: Path, sha: str):
             images[tag] = name
     demand(bool(images), "Compose contains no locally buildable image")
     return sorted(set(images.values())), sorted(set(long_running)), images
+
+
+def ensure_source_service_secrets(root: Path, source: Path, overlay: Path, sha: str) -> None:
+    """Provision Search's private key only in the staged environment.
+
+    The key is installation-scoped, durable across failed attempts and never
+    printed. Do not modify the live .env until after the successful cutover.
+    """
+    configuration = json.loads(docker(root, "config", "--format", "json",
+                                      source=source, overlay=overlay))
+    if "search" not in configuration["services"]:
+        return
+    values = env_read(overlay)
+    current = values.get("ASA_SEARCH_SECRET")
+    if current:
+        demand(re.fullmatch(r"[a-fA-F0-9]{64}", current) is not None,
+               "Existing ASA_SEARCH_SECRET is invalid; refusing to replace it")
+        return
+    keyfile = root / ".asa" / "test-refresh" / "search-secret"
+    if keyfile.exists():
+        demand(keyfile.is_file() and not keyfile.is_symlink(), "Invalid Search key path")
+        key = keyfile.read_text("utf-8").strip()
+    else:
+        key = secrets.token_hex(32)
+        atomic_text(keyfile, key + "\n", 0o600)
+    demand(re.fullmatch(r"[a-f0-9]{64}", key) is not None, "Invalid private Search key")
+    with overlay.open("a", encoding="utf-8") as stream:
+        stream.write(f"\nASA_SEARCH_SECRET='{key}'\n")
+    os.chmod(overlay, 0o600)
+    audit("search_secret_staged", existing_installation_key=keyfile.exists())
 
 
 def checked_root(root: Path, expected_origin: str) -> dict[str, str]:
@@ -506,6 +537,7 @@ def apply(args) -> None:
                 merged = {}
             settings = image_overrides(args.sha, schema)
             env_replace(original_env, {**settings, **merged}, overlay)
+            ensure_source_service_secrets(root, source, overlay, args.sha)
             os.chown(overlay, original_env_stat.st_uid, original_env_stat.st_gid)
             checkpoint("image_build")
             build_targets, _, _ = source_services(root, source, overlay, args.sha)

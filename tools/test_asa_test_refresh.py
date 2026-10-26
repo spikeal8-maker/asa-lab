@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from tools.asa_test_refresh import (
     Blocked, SAFE_DB, env_read, env_replace, extract_snapshot, image_overrides,
-    merge_student_keys, sha256, source_services,
+    merge_student_keys, sha256, source_services, ensure_source_service_secrets,
 )
 
 
@@ -197,6 +197,35 @@ class ComposeEvolutionTests(unittest.TestCase):
         self.assertNotIn("migration", builds)
         self.assertNotIn("minio-init", runtime)
         self.assertEqual(len(refs), 5)
+
+    def test_search_secret_is_private_and_stable_across_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".asa" / "test-refresh").mkdir(parents=True)
+            overlay = root / "candidate.env"
+            overlay.write_text("FOO='bar'\n")
+            config = json.dumps({"services": {"search": {"image": "tag"}}})
+            with patch("tools.asa_test_refresh.docker", return_value=config):
+                ensure_source_service_secrets(root, root, overlay, "a" * 40)
+                first = env_read(overlay)["ASA_SEARCH_SECRET"]
+                ensure_source_service_secrets(root, root, overlay, "a" * 40)
+            self.assertRegex(first, r"^[a-f0-9]{64}$")
+            self.assertEqual(overlay.read_text().count("ASA_SEARCH_SECRET="), 1)
+            keyfile = root / ".asa" / "test-refresh" / "search-secret"
+            self.assertEqual(keyfile.read_text().strip(), first)
+            self.assertEqual(stat.S_IMODE(keyfile.stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(overlay.stat().st_mode), 0o600)
+
+    def test_invalid_existing_search_secret_blocks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".asa" / "test-refresh").mkdir(parents=True)
+            overlay = root / "candidate.env"
+            overlay.write_text("ASA_SEARCH_SECRET='bad'\n")
+            with patch("tools.asa_test_refresh.docker",
+                       return_value=json.dumps({"services": {"search": {}}})):
+                with self.assertRaisesRegex(Blocked, "invalid"):
+                    ensure_source_service_secrets(root, root, overlay, "a" * 40)
 
     def test_unpinned_new_service_image_is_rejected(self):
         sha = "b" * 40

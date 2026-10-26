@@ -186,6 +186,7 @@ HTTP 200, backup и receipt присутствуют. Сквозной вход,
 | Внутренняя .minio.sys менялась | фоновая housekeeping MinIO | хэшировать объекты snapshot до promote |
 | Повторные тяжёлые сборки | Scratch/npm/web в Docker | BuildKit cache и проверенный --reuse-images |
 | Новый сервис Search не был собран | оператор использовал жёсткий список только из четырёх сервисов | динамическая инвентаризация buildable-сервисов из Docker Compose + проверка image SHA и health каждого запущенного сервиса |
+| Новый Search не смог бы запуститься без ASA_SEARCH_SECRET | в старой .env отсутствовал отдельный 64-символьный ключ | ключ генерируется один раз в закрытом серверном файле, включается лишь в кандидат, не показывается в логах и не меняется на повторных попытках |
 | CI cancelled/failed на moving main | старые SHA и независимые проблемы | пин SHA, тестовый source-mode, отдельная release acceptance |
 | MCP timeout / lost response | long-running operation не обязана прерваться | idempotency key, operation_id, статус вместо второго запуска |
 
