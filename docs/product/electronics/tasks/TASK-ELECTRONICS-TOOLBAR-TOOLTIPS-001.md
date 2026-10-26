@@ -9,6 +9,26 @@ acceptance_boundary: slice
 review: independent
 ---
 
+## Current bounded implementation after measured graph headroom
+
+Accepted public viewer280 changed the actual chunk graph. Fresh seven-task Web
+build on final composition591a passes ALL caps: Editor163363/222000, Arduino
+1999997/2000000. This is real production measurement, not a proxy or cap change.
+The old budget prerequisite is satisfied by measured58637bytes of editor room.
+
+Build a FRESH minimal implementation against current Header/callbacks/CSS. Do
+NOT cherry-pick/copy the old3e706 prototype/header or cleanup25c690a7; preserve
+both untouched. Old baseline/prototype sections below are immutable history,
+not current byte counts or permission to resume cleanup. Fixed caps unchanged.
+First native BEFORE, then actual hover/focus portal help, keyboardEscape,
+disabled inert controls, touch tap/swipe/cancel, dynamic Run/Stop and viewport
+clipping/one-row125percent. Preserve callback identities/counts and save/runtime.
+Scope Header/CSS/newsmallTooltip and max2targettests plus necessary component
+routing only. No CodePanel/runtime/model/persistence/solver or oldfunctionmoves.
+One final focused gate/build/caps after targeted checks. No budget microbuild
+chase; report if any cap fails. Independent exact-SHA review required. Candidate
+may publish once budget passes; old prototype remains unintegrated.
+
 # OWNER23 L03 — instant toolbar hover/focus help
 
 Original remark15, P2; Issue751 under703/452. Owner authorizes the full first-file

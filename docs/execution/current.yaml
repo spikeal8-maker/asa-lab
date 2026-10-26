@@ -12206,22 +12206,27 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: numeric_conditional16_complete_select_display13_parity
+      checkpoint: remaining20_requirements_renumbered_product_execution_still_paused
+      owner_pause: Ownerexplicitlyasksfinishcurrentworknowduetokenbudget andpublishallwork. Stopnewprogrammeexecutionafterthisarchive; resumeonlyonnewownerrequest.
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
+        - docs/product/electronics/OWNER_REMAINING_PLAN_20.md
         - docs/product/electronics/tasks/TASK-ELECTRONICS-CONTROL-023.md
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
-      programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
-      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-PARITY-001
+      programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Currentownerpauseisnotrevokedbydocumentationrenumbering.
+      current_slice: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [9, 39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: Numericconditional787integratedc2fcNEWindependentAPPROVE plus2345tests71freshNx/allcapsPASS,16stillpartial25SOURCEverified. Next788test-onlyactualBlockly/textdigitsDPalloffCA-CCnativeparity usingexplicit1ksegmentloads, original330ownerfixture/goldensunchanged. Countersbuttons13andlag14remainseparate. No fullgatebuildrepeat/refactor/server/foreignwork. Prior787authorsSTOP. Continueindependentbranchesifmainforeignblockedperowner.
+      active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
+      active_numbering: remaining20_new1to20_maps_old45_in_plan_table
+      numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
+      execution_coordination: Remaining20isactivecatalogueperowner, numbers1to20nowdefault. Historical45sourcearraysretainOLDnumbersnotnew20statuses. Currentmutationdocumentationrenumberingonly,751and789WIPpreservedNOTREADY. Productexecutionremainspauseduntilownerresume; no source/server/foreignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12261,11 +12266,15 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: prototype_functional_pass_owner_retains_cap_cleanup_prerequisite
+      checkpoint: owner_wrapup_wip_archived_not_ready
+      preserved_wip_sha: c32354392cf90515ffd5ffcfb38c8fb06d52a621
+      wrapup_evidence: BEFORE4widthsDPR1.25PASS, fresh4fileimplementationUNTESTED; AFTERunitlinttypesbuildbudgetreviewNOT_RUN. NativeAFTERexplicitthrow, sourceNOTREADY. ArchivedpatchandBEFOREreceipts/photosdocs/candidates/wrapup-20261026, noactivation.
       owner_acceptance: pending
-      execution_role: unpublished_prototype_executor_then_independent_review
-      publication: blocked_pending_actual_budget_safe_candidate
+      execution_role: bounded_fresh_executor_then_independent_review
+      publication: owner_requested_WIP_archive_only_NOT_READY
       owner_budget_decision: Owner explicitly retained222000 bytes and requested a separate cleanup prerequisite on2026-10-25. No cap increase authorized.
+      budget_unblock_evidence: Acceptedforeign280publicviewerentrychangesandfinal591afresh7taskWebbuildPASS allcaps Editor163363of222000 Arduino1999997of2000000.58637Editorheadroom measured, no capchangeorcleanup. Meetsactualboundedprerequisitebudgetunblock; freshfeaturemustpasssamecaps.
+      preserved_candidates: Neverintegrateold3e706prototypeor25c690cleanup; freshHeaderimplementationonly.
       prototype_result: Unpublished3e706b5e03b40415d1b4d67aef4557e393bae818 passed independent functional/native review; actual224410/222000 bytes FAIL. Not technical or installed acceptance.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
@@ -12284,13 +12293,13 @@ parallel_lanes:
           - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-25T13:24:09Z'
+      observed_at: '2026-10-26T17:32:54.373266+00:00'
       main:
         branch: main
-        sha: 8112a5a64b8ce808c6e73c77b48344f9721103a2
-      convergence_baseline_sha: 8112a5a64b8ce808c6e73c77b48344f9721103a2
+        sha: da57a41b3e047c0e5cfea311ccb5c9945cf300ec
+      convergence_baseline_sha: da57a41b3e047c0e5cfea311ccb5c9945cf300ec
       head_sha: null
-      observation_note: Fresh fetch main is required before bounded integration. Native BEFORE not yet run; no source, technical, installed or user acceptance claimed by selection alone. No second writer on active E11/SPDT or pin-editor code.
+      observation_note: Fresh fetch main beforeedits da57. Actualnewgraphfreshbuild163363/222000 andallcapsPASS satisfiesroomprerequisite, no proxy/capraise. OldprototypehistorypreservedNOTreused. CapturecurrentnativeBEFORE thenfreshminimalhelp; separate789diagnosticwriter source-onlyuntilCPUhandoff.
 
   - id: electronics-owner23-potentiometer-hygiene
     parent_lane: electronics
@@ -13410,12 +13419,17 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_test_only_native_blocks_text_common_mode_parity
+      checkpoint: independently_verified_native_display_parity_integrated
       owner_acceptance: pending
+      accepted_candidate_sha: 4b58fd88f5e54d0d96be136341a3ebc70e50d2a7
+      final_composition_candidate_sha: 591a7715472f832a04d3b3214e6504d5cd3880d8
+      convergence_evidence: Acceptedforeignmain280addsrenderingentry/lock. Onlynativealiasfollowuprequired; final96nativeformatlintPASS andONEfresh7taskwebbuildallcapsPASS. Editor163363of222000headroom58637, Arduino1999997of2000000headroom3. No foreign/productcodeedited; old330/default/goldenspreserved.
+      independent_review_sha: 4b58fd88f5e54d0d96be136341a3ebc70e50d2a7
+      technical_evidence: NEWindependentUNMODIFIED96casesPASS 12patternsCA-CCtext/genuine25Blocklyblocks1440/390. EightOUTPUTlatches/polarity/physicalrails andatleast10completedloops preventalloffinitialfloatingfalsepositive;8currentsbrightnessDOM qualityfiniteKCLsource andactiveproject/digest/framecorrelated. MaxI3.045186639mA maxKCL8.5e-11 sourceresidual0. Onlynew1kfixtureoption, original330/default/goldens/productunchanged. Formatlint114routing/selectedPASS; no fullgatebuildrepeat. Whole13counterbuttonsand14lagremainopen.
       owner_authorization: Explicitwhole45continueincludingindependentworkifmainunavailable. Nextsmall13missingBlockly-textCA-CCnativeparity, notnewphysics/performancefix. Preserveoriginalowner330/no-delay andgoldens, no foreignchanges/refactor/server.
       coordinated_write_paths:
         - apps/web/src/electronics/testing/servo-runtime.browser.mjs
@@ -13437,6 +13451,54 @@ parallel_lanes:
         workflow: Electronics R4-M1 Focused
         commands:
           - pnpm gate:electronics-m1
+
+  - id: electronics-owner45-block-modulo
+    parent_lane: electronics
+    worktree_id: electronics-owner45-block-modulo
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-MODULO-001.md
+      - docs/product/electronics/evidence/block-modulo-789.json
+    task:
+      id: TASK-ELECTRONICS-BLOCK-MODULO-001
+      issue: 789
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: owner_wrapup_wip_archived_not_ready
+      preserved_wip_sha: 58112cb5dada2917e91056617d1e1eecd5bfd203
+      wrapup_evidence: BEFOREactualWorkspacefloat-percentFAULT andold227179Bintegeroraclepreserved. New7pathadapterimplementationUNTESTED, AFTERnativeformatlintbuildcapsAVRNOT_RUN. Archivedpatch/fullcompressedoracleandbeforecpp/workspace docs/candidates/wrapup-20261026 only, noactivation.
+      owner_acceptance: pending
+      owner_authorization: Whole45continueincludingindependentworkwhileintegrationblocked. Confirmedfloatvariable-percentgeneratorbug; boundedportabletype-preservingcandidatefirst, notpermissioncapraise/refactor. Ifcapfails preserveSTOPsliceandcontinueotherindependents.
+      coordinated_write_paths:
+        - apps/web/src/electronics/arduino-blocks.ts
+        - contexts/electronics/domain/arduino-program-runtime.ts
+        - contexts/electronics/domain/arduino-capabilities.ts
+        - contexts/electronics/testing/**
+        - apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts
+        - apps/web/src/electronics/testing/arduino-loops.browser.mjs
+      candidate_boundary: Arduinoheadroom3B. BEFORErealWorkspacefailure, minimalexactknownportableadapter witholdintegeruint32preservation/floatingremainder thenONEbuildmeasure; ifFAILpreservewithoutbroadgate/cleanup/chase. AVRcompilerproofrequirednotclaimedifNOT_RUN. No allvarsint/interpreterfloatingpercent.
+      runner_coordination: Diagnosticcleanworktreeonly;751authorUIseparatepaths. CPUhandoffexplicit first751nativeBEFORE, then789BEFORE, then751ownsfinalheavygate. No parallelheavycommands. Rootcurrentyamlonly.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: da57a41b3e047c0e5cfea311ccb5c9945cf300ec
+      head_sha: null
+      main:
+        branch: main
+        sha: da57a41b3e047c0e5cfea311ccb5c9945cf300ec
+      observed_at: '2026-10-26T17:32:54.375948+00:00'
+      observation_note: Fresh fetch main beforeedits da57. Realnewgraph7taskbuildallcapsPASS Editor163363 Arduino1999997, exactmainCIqueued no globalPASS. Actualgeneratorfloatvariable pluspercent invalid; stricttextCPPpercentalreadycorrect. Candidatefirst with3Bheadroom, no cleanup/refactor/capraise, preserveifblocked andprogrammecontinues.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
 
   - id: electronics-owner45-runtime-responsibility
     parent_lane: electronics
@@ -13524,24 +13586,6 @@ blocking:
     reason: Main ce2773e0 General40205135744 already fails independent Classroom navigation tests after accepted CRM adds a tenth tab. Cleanup source ece6b5fd passes focused/native/budgets and independent source review; no unrelated product repair is allowed inside752.
     unblock_requires: Separately reviewed753 strict test-only baseline plus exact final composition General PASS and unchanged cleanup source proof. No test weakening, foreign product edits or timeout changes.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-BASELINE-001.md
-  - id: ELECTRONICS-751-EDITOR-BUDGET
-    kind: acceptance_blocker
-    lane: electronics-owner23-tooltips
-    task_id: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
-    blocks:
-      - source_publication
-      - technical_acceptance
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_unpublished_prototype
-      - native_before_after
-      - focused_regression
-      - budget_measurement
-      - read_only_hygiene_diagnosis
-    reason: Unpublished prototype3e706b5e passed independent functional/native review but actual224410/222000 bytes FAIL. Owner explicitly retained222000 and requested separate cleanup first on2026-10-25. Preserve prototype and require actual measured headroom before feature publication.
-    unblock_requires: A fully reviewed L03 candidate that actually passes the existing budget, or an accepted bounded prerequisite establishing enough measured room. Any different cap requires a separate explicit owner decision after concrete evidence; no automatic waiver.
-    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001.md
   - id: ELECTRONICS-544-RESUME-ACCEPTANCE
     kind: acceptance_blocker
     lane: electronics-field-grab
