@@ -12140,7 +12140,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: consolidated45_programme_authorized_select_rootless_execution
+      checkpoint: consolidated_item3_verified_select_command_help_libraries
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12149,9 +12149,9 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Owner explicitly authorizes implementing consolidated45 programme through bounded executors and independent reviewers, combining cohesive requirements and proving actual actions. Preserve original23 mapping, prioritize confirmed P0 data loss, record source technical installed owner proof separately. Continue after each accepted slice; no refactoring foreign changes or unauthorized server operations.
-      current_slice: TASK-ELECTRONICS-INACTIVE-BLOCKS-001
+      current_slice: TASK-ELECTRONICS-COMMAND-LIBRARIES-001
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
-      execution_coordination: Select point3 rootless actualexecution verification using existing connectedgraph task. Readonly45reconciliation and commandlibrary inventory may run concurrently; only selected executor owns nativeCPU. Display764 substantialmodel-lag remainsopen. Preserve deferredcleanup and tooltip candidates; no paused682 reuse or foreignrepair.
+      execution_coordination: Point3 actualWorker rootless proof integrated after independentreview. Select cohesive points8and20and21 commandhelp truth and bottomServo library using existing insertion. Only executor owns heavyCPU; separate independentreview afterfreeze. Display764lag and deferredtooltipcleanup remainopen; no foreignrepair or paused682 reuse.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12363,14 +12363,16 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: consolidated_item3_rootless_execution_selected
+      checkpoint: consolidated_items2and3_source_ui_worker_verified
       selected_followup: Owner explicitly selects consolidated item2. Existing implementation must be verified on current main after drag767; no speculative rewrite. Run existing focused connectedgraph tests and actual native fixture. Repair only a reproduced item2 defect; otherwise record current evidence and finish. No server foreign changes or refactoring.
       consolidated_item2_verified_sha: 826cf0be1f5ebba42ffdcd4453870568d22aa199
       consolidated_item3_selected: Verify rootless multiplechains actual generated Cpp Worker SerialGPIO behavior and native rootdelete UndoRedo reopen. Existing source may already suffice; no productionrewrite without reproducedcause. Point2 accepted evidence preserved. No server database or foreignchanges.
+      consolidated_item3_source_sha: 9fa2b18e3cf584fe812d99af0a5162c82bfb79e9
+      consolidated_item3_evidence: NEW independent PASS exact9fa2 actualBlockly rootless2chains generatedCpp passedunchanged to realChromiumWorker. Serial1,2,tail,3,4,tail D13volts5,0,5,0 count2,2,4,4 at1500/2500/4500/5500us readyzerodiagnostics. Native1440/390/320 mouseTouch roots UndoRedo reopen sourceIDs exact. Eighttests lint sevenfreshNxtypechecktasksPASS. Productunchanged nofullgate repetition; sourceintegratedmain. Installed SaveCAS owner acceptance separate.
       consolidated_item2_evidence: Fresh8of8connectedgraph testsPASS globals pinMode helpers naming ServoLCDallocation byteidentical whenorphansadded. Existingactualnativefixture1440and390and320 PASS settledorphandim reconnectnormal codeIDsUndoRedo reopen rootless andmouseTouchdrag preserved. No defect found or product edits needed. Main8f51446a onlyforeignadminmigrationtests noelectronics overlap; no unnecessary fullgate repeated. Installed owner and SaveCAS acceptance separate.
       owner_acceptance: pending
       source_integrated_sha: ea7110869f1f23319ad874d0c4a3f0e770a597ab
@@ -12800,6 +12802,42 @@ parallel_lanes:
         sha: 408f433e4ce3091fb47ea4c96f6382f87fa52865
       observation_note: Fresh fetch main before edits. Owner selects only drag visibility repair; no code generation or server changes.
       observed_at: '2026-10-26T08:30:00Z'
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+          - pnpm bundle:check
+
+  - id: electronics-owner45-command-libraries
+    parent_lane: electronics
+    worktree_id: electronics-owner45-command-libraries
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-COMMAND-LIBRARIES-001.md
+    task:
+      id: TASK-ELECTRONICS-COMMAND-LIBRARIES-001
+      issue: 768
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: selected_help_truth_and_bottom_servo_library
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly authorizes all45 through bounded bots and independentreview; combine cohesive8/20/21. Actualsource inventory proves stale forwhile Serial micros pulseIn and divisionhelp; Servoentries exist butno librarydisclosure. No runtimefeatureexpansion or unsupportedcompatibilityclaim.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 9fa2b18e3cf584fe812d99af0a5162c82bfb79e9
+      head_sha: null
+      main:
+        branch: main
+        sha: 9fa2b18e3cf584fe812d99af0a5162c82bfb79e9
+      observed_at: '2026-10-26T09:14:04Z'
+      observation_note: Fresh fetch main before edits. ExistingArduino budget1998780of2000000; reuse existing rows andconcisehelp no capraise refactoring or ownerdeferredcleanup. Actualtextpanel actions and executableexamples required.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
