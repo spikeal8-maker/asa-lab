@@ -12,6 +12,7 @@ import tarfile
 import time
 import urllib.request
 import getpass
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from asa_manager import first_environment
@@ -69,6 +70,28 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
                     "SEARCH_JSON", "Russian search request did not return the documented JSON response.")
             print("SEARCH_COMPONENT_SMOKE PASS: pinned runtime, closed free engines, ru-RU JSON and safe-search")
             print("SEARCH_UPSTREAM_RESULT_COUNT " + str(len(search_probe["results"])) + "; availability is not a quality/SLA acceptance")
+        # Prove actual API-owned evidence before any OS runner is started.
+        marker = str(uuid.uuid4())
+        request_script = "fetch('http://127.0.0.1:4611/api/auth/local-preview/config',{headers:{'x-asa-client-attempt-id':process.argv[1]}}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+        install.compose('exec', '-T', 'api', 'node', '-e', request_script, marker)
+        native_script = """(async()=>{
+          const {queryLogs}=require('/app/dist/admin-logs.worker.js');
+          const filter={scope:'application',from:new Date(Date.now()-300000).toISOString(),to:new Date(Date.now()+60000).toISOString(),source:'api',module:'',level:'',search:process.argv[1],before:null};
+          for(let i=0;i<50;i++){
+            const page=await queryLogs(process.env.ASA_APPLICATION_LOG_STORE,filter,100);
+            const row=page.items.find(x=>x.message.includes(process.argv[1]));
+            if(row){process.stdout.write(row.id);return;}
+            await new Promise(resolve=>setTimeout(resolve,100));
+          }
+          throw new Error('native evidence missing');
+        })().catch(()=>process.exit(1))"""
+        native_id = install.compose('exec', '-T', 'api', 'node', '-e', native_script, marker, capture=True)
+        require(len(native_id) == 64, 'NATIVE_LOG_SMOKE', 'API-owned diagnostic evidence missing without host collection.')
+        install.compose('up', '-d', '--no-deps', '--force-recreate', '--no-build', 'api')
+        install.wait_ready(release['revision'], release['schema'])
+        reopened_id = install.compose('exec', '-T', 'api', 'node', '-e', native_script, marker, capture=True)
+        require(reopened_id == native_id, 'NATIVE_LOG_SMOKE', 'API diagnostic evidence did not survive container restart.')
+        print('NATIVE_LOG_SMOKE PASS: API request persisted and hash-verified before OS runner start; same evidence survives API recreation')
         # Test actual systemd registration, process identity and non-1000 host
         # reader group before the later intentional restored-test DB override.
         run(collector_cli + ['reconcile', '--root', str(root), '--profile', 'dev'])

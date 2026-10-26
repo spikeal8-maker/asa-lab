@@ -387,6 +387,32 @@ class IdentityTests(unittest.TestCase):
 
 
 class UpdateBoundaryTests(unittest.TestCase):
+    def test_changed_release_prepares_optional_host_only_after_native_source_selection(self):
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as root:
+            install = MagicMock(root=Path(root), state=Path(root), settings={}, profile='dev')
+            install.readiness.return_value = {'revision': release()['revision'], 'schema': release()['schema']}
+            install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
+            order = []
+            def prepare(selected):
+                self.assertEqual(order, ['native-source'])
+                order.append('prepare')
+                return {'state': 'degraded', 'readerGroupChanged': False, 'applicationCollection': 'embedded'}
+            with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), \
+                    patch.object(asa_manager, 'discover_release', return_value=release()), \
+                    patch.object(asa_manager, 'prepare_collector', side_effect=prepare), \
+                    patch.object(asa_manager, 'assert_ci'), patch.object(asa_manager, 'fetch_images'), \
+                    patch.object(asa_manager, 'selected_source', side_effect=lambda *args, **kwargs: order.append('native-source')), \
+                    patch.object(asa_manager, 'Installation', return_value=install), \
+                    patch.object(asa_manager, 'apply_release_environment'), patch.object(asa_manager, 'validate_resolved_images'), \
+                    patch.object(asa_manager, 'check_resources', side_effect=Blocked('TEST_STOP', 'stop before data actions', 'test')), \
+                    self.assertRaises(Blocked) as caught:
+                asa_manager.update(install)
+            self.assertEqual(caught.exception.code, 'TEST_STOP')
+            self.assertEqual(order, ['native-source', 'prepare'])
+
     def test_acknowledge_recovers_only_known_switch_phases_and_recorded_runtime(self):
         from unittest.mock import MagicMock
         for phase in ('switch', 'verify_entry', 'backup'):

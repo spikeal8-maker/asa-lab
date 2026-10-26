@@ -112,7 +112,7 @@ function MultiLineChart({
   const width = 600;
   const height = 220;
   const left = 42;
-  const right = 16;
+  const right = 24;
   const top = 18;
   const bottom = 34;
   const plotWidth = width - left - right;
@@ -204,7 +204,7 @@ function MultiLineChart({
                 key={`${index}:${labels[index]}`}
                 x={x}
                 y={height - 8}
-                textAnchor={index === 0 ? 'start' : index === labels.length - 1 ? 'end' : 'middle'}
+                textAnchor="middle"
                 className="admin-chart-axis admin-chart-time-label"
               >
                 {labels[index]}

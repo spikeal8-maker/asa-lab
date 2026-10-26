@@ -557,6 +557,30 @@ for (const width of [1440, 1024, 390, 320]) {
     await noPageOverflow(page);
     const learningCard = page.locator('.admin-chart-card').filter({ has: learning(page) });
     await expect(learningCard.locator('.admin-chart-time-label')).toHaveCount(12);
+    const timeAxes = await page.locator('.admin-chart-canvas svg').evaluateAll((charts) =>
+      charts.map((chart) => {
+        const bounds = chart.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          labels: [...chart.querySelectorAll('.admin-chart-time-label')].map((label) => {
+            const box = label.getBoundingClientRect();
+            return { left: box.left, right: box.right, text: label.textContent };
+          }),
+        };
+      }),
+    );
+    for (const axis of timeAxes) {
+      // Compare the whole logical plot, including labels reached by local scrolling.
+      for (const [index, label] of axis.labels.entries()) {
+        expect(label.left, label.text ?? '').toBeGreaterThanOrEqual(axis.left);
+        expect(label.right, label.text ?? '').toBeLessThanOrEqual(axis.right);
+        if (index > 0)
+          expect(label.left, `${axis.labels[index - 1]!.text} / ${label.text}`).toBeGreaterThan(
+            axis.labels[index - 1]!.right,
+          );
+      }
+    }
     await expect(learningCard.getByRole('button', { name: 'Scratch', exact: true })).toBeVisible();
     const chips = await learningCard.locator('.admin-chart-legend button').evaluateAll((buttons) =>
       buttons.map((button) => ({
@@ -1000,6 +1024,8 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(page.getByRole('status')).toContainText(
       'связь классов с организацией не подтверждена',
     );
+    // A different administrative scope mounts a fresh, compact directory.
+    await page.getByText('Дополнительные фильтры', { exact: true }).click();
     await expect(page.getByRole('combobox', { name: 'Тип записи', exact: true })).toHaveValue(
       'all',
     );
@@ -1070,6 +1096,8 @@ for (const width of [1440, 1024, 390, 320]) {
     await page
       .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
       .selectOption('90');
+    // A new server-filtered page starts with optional analytics collapsed.
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
     await expect(events.locator('circle')).toHaveCount(90);
     await expect(records.locator('circle')).toHaveCount(90);
     await events.locator('circle').nth(10).focus();
@@ -1079,10 +1107,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await page
       .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
       .selectOption('7');
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
     await expect(events.locator('circle')).toHaveCount(7);
     await page
       .getByRole('combobox', { name: 'Период событий и ИИ', exact: true })
       .selectOption('30');
+    await page.getByText('Аналитика пользователей', { exact: true }).click();
     await expect(events.locator('circle')).toHaveCount(30);
     await analytics.getByText('Наблюдения источников и кампаний', { exact: true }).click();
     await expect(analytics).toContainText('Хранение: 90 дней');
@@ -1155,6 +1185,7 @@ test('catalog CSV cancellation blocks a late download', async ({ page }) => {
   });
   await expect.poll(() => typeof finish).toBe('function');
   await finish();
+  await page.getByText('О данных и выгрузке', { exact: true }).click();
   await expect(page.getByText('CSV: до 10 000 записей', { exact: false })).toBeVisible();
   expect(downloads).toBe(0);
 });
