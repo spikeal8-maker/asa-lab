@@ -169,7 +169,12 @@ jobs:
       - name: User card dialog lifecycle
         run: pnpm exec vitest run apps/web/src/admin/testing/crm-user-dialog.spec.ts apps/web/src/admin/testing/admin-log-coverage.spec.ts
       - run: pnpm exec nx run web:typecheck --skip-nx-cache
-      - run: pnpm exec playwright install --with-deps chromium
+      - name: Install Chromium without an unbounded package mirror wait
+        run: |
+          # Hosted runners already contain browser libraries. If the OS mirror
+          # stalls, actual Chromium launches below still prove dependencies work.
+          timeout --kill-after=15s 180s pnpm exec playwright install-deps chromium || echo "::warning::OS dependency setup did not finish; browser launch checks remain mandatory."
+          pnpm exec playwright install chromium
       - name: Build the exact web application
         run: pnpm exec nx run web:build --skip-nx-cache
       - name: Sign-in, confirmation, outage fallback and responsive administration
