@@ -276,6 +276,7 @@ function clockedComponent(component: SchematicComponent): boolean {
         'resistor',
         'momentary-button',
         'spdt-switch',
+        'spst-switch',
         'potentiometer',
         'photoresistor',
         'analog-temperature-sensor',

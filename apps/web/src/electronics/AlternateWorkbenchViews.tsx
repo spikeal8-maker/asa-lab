@@ -69,7 +69,16 @@ function SchematicSymbol({ component }: { component: SchematicComponent }): JSX.
         <circle cx="-38" cy="35" r="6" />
         <circle cx="38" cy="35" r="6" />
         <line x1="45" y1="35" x2="105" y2="35" />
-        <line x1="-32" y1="31" x2="31" y2={component.state ? '35' : '10'} />
+        <line
+          x1="-32"
+          y1="31"
+          x2="31"
+          y2={
+            (component.componentTypeId === 'switch-spst' ? !component.state : component.state)
+              ? '35'
+              : '10'
+          }
+        />
         {component.kind === 'button' ? <line x1="0" y1="-8" x2="0" y2="12" /> : null}
         {commonLabel}
       </>

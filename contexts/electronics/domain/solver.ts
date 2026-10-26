@@ -19,7 +19,7 @@ import {
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
-import { spdtSelectedTerminal } from './switch-topology.js';
+import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
@@ -1390,7 +1390,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   if (component.kind === 'button') return terminal === 'a' ? 'SW-A1' : 'SW-B1';
   if (component.kind === 'switch') {
     if (terminal === 'a') return 'common';
-    return spdtSelectedTerminal(component.state);
+    return switchSelectedTerminal(component);
   }
   if (component.kind === 'potentiometer') {
     if (terminal === 'wiper') return 'wiper';
@@ -3441,7 +3441,7 @@ function solveCircuitStep(
         stampConductance(a, b, companion.conductanceSiemens);
         stampOffset(a, b, companion.historyCurrentAmp);
       } else if (component.kind === 'switch') {
-        if (component.componentTypeId || component.state === true) {
+        if (switchContactClosed(component)) {
           stampConductance(a, b, 1 / CLOSED_RESISTANCE);
         }
       } else if (component.kind === 'button') {
@@ -4107,11 +4107,7 @@ function solveCircuitStep(
       else if (motorStep) current = motorStep.observation.currentAmp;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
-        current = component.componentTypeId
-          ? voltageDrop / CLOSED_RESISTANCE
-          : component.state === true
-            ? voltageDrop / CLOSED_RESISTANCE
-            : 0;
+        current = switchContactClosed(component) ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'button')
         current = component.state === true ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'potentiometer') {

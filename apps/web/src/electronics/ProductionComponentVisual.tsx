@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
 import type { CatalogEntry, ComponentVisualState } from './component-catalog';
-import { visualAsset } from './component-catalog';
+import { visualAsset, SPST_COMPONENT_TYPE } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
 import {
   subscribeSharedQuietAssetRecovery,
@@ -1934,11 +1934,9 @@ export function ProductionComponentVisual({
   // Canonical selection contract: docs/product/electronics/README.md, section 7.
   // The rendered asset and its alpha-silhouette outline MUST share one transform;
   // per-component rectangle/capsule bounds are intentionally forbidden.
-  const usesMeasuredTinkercadGeometry = [
-    'resistor-axial',
-    'button-tactile-6mm',
-    'switch-spdt',
-  ].includes(entry.key);
+  const twoPinSwitch = entry.key === SPST_COMPONENT_TYPE;
+  const usesMeasuredTinkercadGeometry =
+    entry.kind === 'switch' || ['resistor-axial', 'button-tactile-6mm'].includes(entry.key);
   return (
     <svg
       className={`workbench-production-visual${
@@ -2151,49 +2149,36 @@ export function ProductionComponentVisual({
           <circle cx="0" cy="0" r="6.99" fill="#333333" />
           <path d={TINKERCAD_BUTTON_RIM} fill="#f4f4f4" opacity="0.2" />
         </g>
-      ) : entry.key === 'switch-spdt' ? (
+      ) : entry.kind === 'switch' ? (
         <g
           className="workbench-tinkercad-switch"
-          data-visual-contract="tinkercad-spdt-three-pin"
+          data-visual-contract={`tinkercad-sp${twoPinSwitch ? 'st-two' : 'dt-three'}-pin`}
           transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          {[-10, 0, 10].map((x) => (
+          {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
             <line
-              key={`pin-${x}`}
+              key={x}
               x1={x}
-              y1="0"
               x2={x}
               y2="-5"
-              stroke="#8c8c8c"
+              stroke={selected ? '#3b8ed7' : '#8c8c8c'}
               strokeWidth="2"
               strokeLinecap="round"
             />
           ))}
           {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              {[-10, 0, 10].map((x) => (
-                <line
-                  key={`selected-${x}`}
-                  x1={x}
-                  y1="0"
-                  x2={x}
-                  y2="-5"
-                  stroke="#3b8ed7"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              ))}
-              <rect
-                x="-14"
-                y="-15"
-                width="28"
-                height="10"
-                rx="1"
-                fill="#3b8ed7"
-                stroke="#3b8ed7"
-                strokeWidth="3.5"
-              />
-            </g>
+            <rect
+              className="workbench-tinkercad-selection"
+              pointerEvents="none"
+              x="-14"
+              y="-15"
+              width="28"
+              height="10"
+              rx="1"
+              fill="#3b8ed7"
+              stroke="#3b8ed7"
+              strokeWidth="3.5"
+            />
           ) : null}
           <g
             data-testid="spdt-actuator"

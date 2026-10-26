@@ -17179,6 +17179,97 @@
       "previousInventoryClassification": "exact_owner_svg"
     },
     {
+      "componentId": "switch-spst",
+      "familyId": "spst-switch",
+      "familyLabelRu": "Выключатель SPST",
+      "familyLabelEn": "SPST slide switch",
+      "variantId": "switch-spst",
+      "variantLabelRu": "SPST · 2 контакта",
+      "variantLabelEn": "SPST · 2 contacts",
+      "category": "input",
+      "subcategoryId": "switches",
+      "catalogOrder": 6.1,
+      "appearsInBasic": true,
+      "searchAliases": [
+        "switch-spst",
+        "SPST",
+        "выключатель",
+        "два контакта"
+      ],
+      "displayNameEn": "SPST slide switch",
+      "provenance": "owner_authorized_runtime_geometry",
+      "physicalWidthMm": 7.112,
+      "physicalHeightMm": 3.81,
+      "viewBox": [
+        0,
+        0,
+        7.112,
+        3.81
+      ],
+      "pins": [
+        {
+          "id": "throw-left",
+          "xMm": 1.016,
+          "yMm": 3.81,
+          "electricalRole": "throw",
+          "toleranceMm": 0
+        },
+        {
+          "id": "common",
+          "xMm": 3.556,
+          "yMm": 3.81,
+          "electricalRole": "common",
+          "toleranceMm": 0
+        }
+      ],
+      "footprint": {
+        "kind": "inline",
+        "pinOffsetsMm": [
+          [
+            0,
+            0
+          ],
+          [
+            2.54,
+            0
+          ]
+        ]
+      },
+      "states": [
+        "left",
+        "right"
+      ],
+      "stateAssets": [],
+      "animations": [
+        {
+          "driver": "simulation_state",
+          "decorativeLoop": false,
+          "channels": [
+            "contact"
+          ]
+        }
+      ],
+      "stateContract": {
+        "type": "spst",
+        "parent": "switch-spdt",
+        "removedPin": "throw-right",
+        "authorizationIssue": 777
+      },
+      "simulationSupport": "existing_model",
+      "blockReason": null,
+      "catalogTier": "core",
+      "isDefaultVariant": true,
+      "displayName": "Ползунковый выключатель SPST",
+      "sourceOwnerArchive": "canonical-components-svg",
+      "sourceOwnerPath": "Копмоненты SVG/Переключатель/slide_switch_spdt_3pin_left.svg",
+      "sourceSha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720",
+      "runtimePath": "/assets/electronics/component-database/components/switch/left.svg",
+      "runtimeSha256": "2e0f6d29e1b8150de5f8cdabcc83af20ff0b69a68f4de444c69b22c11a07d720",
+      "status": "enabled",
+      "runtimeGeometrySource": "apps/web/src/electronics/ProductionComponentVisual.tsx#tinkercad-spst-two-pin",
+      "referenceAssetOnly": true
+    },
+    {
       "componentId": "battery-3v",
       "familyId": "battery",
       "familyLabelRu": "Батарея 3 В",

@@ -1434,7 +1434,9 @@ export function WorkbenchSidebars({
                       aria-pressed={spdtThrowFromState(c.selectedComponent.state) === 'left'}
                       onClick={() => c.setSelectedState(false)}
                     >
-                      Левый вывод
+                      {c.selectedComponent.componentTypeId === 'switch-spst'
+                        ? 'Замкнуто'
+                        : 'Левый вывод'}
                     </button>
                     <button
                       type="button"
@@ -1442,15 +1444,17 @@ export function WorkbenchSidebars({
                       aria-pressed={spdtThrowFromState(c.selectedComponent.state) === 'right'}
                       onClick={() => c.setSelectedState(true)}
                     >
-                      Правый вывод
+                      {c.selectedComponent.componentTypeId === 'switch-spst'
+                        ? 'Разомкнуто'
+                        : 'Правый вывод'}
                     </button>
                   </div>
                   <p className="workbench-contact-summary" data-testid="spdt-contact-summary">
-                    Общий контакт соединён с{' '}
-                    {spdtThrowFromState(c.selectedComponent.state) === 'right'
-                      ? 'правым выводом'
-                      : 'левым выводом'}
-                    .
+                    {c.selectedComponent.componentTypeId === 'switch-spst'
+                      ? c.selectedComponent.state
+                        ? 'Контакты разомкнуты.'
+                        : 'Общий и левый контакты замкнуты.'
+                      : `Общий контакт соединён с ${c.selectedComponent.state ? 'правым' : 'левым'} выводом.`}
                   </p>
                 </fieldset>
               ) : null}
