@@ -57,7 +57,10 @@ def run(*argv: str, cwd: Path | None = None, stdin=None, stdout=None,
         timeout: int = 120, log: Path | None = None) -> str:
     kw = {"cwd": cwd, "stdin": stdin, "timeout": timeout, "check": False}
     if log:
-        with log.open("ab") as out:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "ab") as out:
+            os.chmod(log, 0o600)
             p = subprocess.run(argv, stdout=out, stderr=subprocess.STDOUT, **kw)
         if p.returncode:
             raise Blocked(f"Command failed ({p.returncode}); see private build log: {log.name}")
@@ -362,6 +365,37 @@ def image_file_hash(image: str, image_path: str) -> str:
     demand(re.fullmatch(r"[a-f0-9]{64}", digest) is not None,
            "Image file did not produce a SHA256 checksum")
     return digest
+
+
+def build_source_images(root: Path, source: Path, overlay: Path,
+                        targets: list[str], job: Path, checkpoint,
+                        *, service_timeout: int = 1200,
+                        total_timeout: int = 3600) -> None:
+    """Bound builds individually; journal progress without exposing private logs.
+
+    A stalled Scratch/npm/registry fetch must not consume the entire MCP root
+    worker timeout, leaving no capacity for failure reporting or recovery.
+    """
+    demand(60 <= service_timeout <= 2400, "Unsafe per-service build timeout")
+    demand(600 <= total_timeout <= 5400, "Unsafe aggregate build timeout")
+    deadline = time.monotonic() + total_timeout
+    completed: list[str] = []
+    for service in targets:
+        remaining = int(deadline - time.monotonic())
+        demand(remaining >= 60, "Aggregate source-build deadline exceeded")
+        timeout = min(service_timeout, remaining)
+        checkpoint("image_build", active_service=service,
+                   completed_services=list(completed),
+                   build_timeout_seconds=timeout)
+        started = time.monotonic()
+        docker(root, "build", service, source=source, overlay=overlay,
+               source_build=True, timeout=timeout, log=job / f"build-{service}.log")
+        elapsed = int(time.monotonic() - started)
+        completed.append(service)
+        audit("image_build_completed", service=service,
+              duration_seconds=elapsed, completed_services=len(completed),
+              remaining_seconds=max(0, int(deadline - time.monotonic())))
+    checkpoint("image_build_complete", completed_services=completed)
 
 
 def verify_images(root: Path, source: Path, overlay: Path, sha: str) -> None:
@@ -687,8 +721,8 @@ def apply(args) -> None:
             introduced_services = introduced_runtime_services(root, source, overlay, args.sha)
             attest_build_contexts(root, source, overlay, build_targets)
             if not args.reuse_images:
-                docker(root, "build", *build_targets, source=source, overlay=overlay,
-                       source_build=True, timeout=5400, log=log)
+                build_source_images(root, source, overlay, build_targets, job, checkpoint,
+                                    service_timeout=args.build_service_timeout)
             verify_images(root, source, overlay, args.sha)
             image_proof(root, source, overlay, args.sha, create=not args.reuse_images)
             if snapshot:
@@ -856,6 +890,8 @@ def main() -> None:
     parser.add_argument("--confirm-replace-data", action="store_true")
     parser.add_argument("--reuse-images", action="store_true",
                         help="Use cached exact-SHA images only; verification is still mandatory")
+    parser.add_argument("--build-service-timeout", type=int, default=1200,
+                        help="Bound individual Docker image build to 60..2400 seconds")
     args = parser.parse_args()
     try:
         if args.action == "status":

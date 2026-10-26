@@ -412,3 +412,40 @@ Git worktree target SHA, проверить provenance, изолированны
 предварительную копию PostgreSQL/MinIO, staged schema 0260,
 после switch — runtime SHA, шесть healthy, HTTP/HTTPS и неизменность
 user objects/record counts. Дополнить этот раздел фактическим receipt.
+
+
+## 13. Длительная Docker-сборка и блокировка диагностического MCP
+
+Переход с ef1e9d3e на зафиксированный source SHA
+452cec488fc0a566c2b6482931b386cb12bdcc07 запущен в режиме preserve
+с полной пересборкой из Git worktree. MCP operation_id:
+aed82e31ab874d85906e5103ec8b8efe; старт 26.10.2026 18:32:55 UTC.
+
+После 25+ минут исполнитель продолжал возвращать running, без промежуточных
+логов. CPU сервера при отдельных замерах около 0%, но это **не доказывает**
+зависания; фактический Docker build stage не был доступен. Отдельная
+**read-only** команда через asa_admin_execute для ps/status.json и безопасного
+перечня стадий build.log заблокирована:
+BUSY — Another server worker owns this installation.
+
+Пока root worker владеет installation mutex, повторный deploy, backup, restore,
+Docker image build или принудительная отмена без проверки стадии запрещены.
+Существующий сайт оставался healthy и работал на предыдущем SHA.
+
+### Исправление самого оператора для следующих запусков
+
+- Вместо одной неразличимой сборки — отдельная pinned-сборка каждого Compose
+  service с отдельным закрытым логом build-SERVICE.log (mode 0600),
+  текущим именем сервиса и прогрессом в status.json.
+- Сервисный build timeout по умолчанию 1200 сек, max 2400 сек, общий
+  build budget — 3600 сек. Если внешняя зависимость недоступна, операция
+  должна завершиться **до** остановки писателей и изменения базы.
+- Повторное использование образов только после совпадения image-ID proof,
+  source SHA, build context и SHA256 содержимого SQL/статических артефактов.
+- На стороне 1Panel MCP требуется отдельный read-only
+  operation_progress/log-tail endpoint с sanitized cursor, который **не**
+  захватывает root mutation mutex; raw private build.log нельзя выдавать боту.
+  Реализация такого MCP endpoint **не входит** в данный кодовый PR.
+
+Терминальный результат данной активной операции фиксируется отдельно после
+получения завершённого operation_id. Нельзя заявлять SUCCESS по статусу running.

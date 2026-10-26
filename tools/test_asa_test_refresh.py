@@ -6,6 +6,7 @@ Run: python3 -m unittest tools.test_asa_test_refresh -v
 import io
 import os
 import json
+import sys
 from pathlib import Path
 import stat
 import tarfile
@@ -18,6 +19,7 @@ from tools.asa_test_refresh import (
     merge_student_keys, sha256, source_services, ensure_source_service_secrets,
     normalize_minio_stage, introduced_runtime_services, reconcile_database_rollback,
     compose, attest_build_contexts, image_proof, verify_images, assert_staged_schema,
+    build_source_images, run,
 )
 
 
@@ -413,6 +415,56 @@ class ExactSourceBuildProvenanceTests(unittest.TestCase):
             with self.assertRaisesRegex(Blocked, "Isolated database schema mismatch"):
                 assert_staged_schema(source, ["94", "31", "1712", "0255"])
             self.assertEqual(assert_staged_schema(source, ["94", "31", "1712", "0260"]), 260)
+
+
+
+
+class BoundedBuildObservabilityTests(unittest.TestCase):
+    def test_one_pinned_service_per_build_and_safe_checkpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "source"
+            source.mkdir()
+            logdir = root / "job"
+            logdir.mkdir()
+            events = []
+            actions = []
+            def fake_docker(*args, **kwargs):
+                actions.append((args, kwargs))
+                return ""
+            def phase(name, **kwargs):
+                events.append((name, kwargs))
+            with patch("tools.asa_test_refresh.docker", side_effect=fake_docker):
+                build_source_images(root, source, root / "candidate.env",
+                                    ["api", "scratch"], logdir, phase)
+            self.assertEqual([x[0] for x in actions],
+                             [("build", "api"), ("build", "scratch")])
+            self.assertTrue(all(k["source_build"] is True for _, k in actions))
+            self.assertTrue(all(1 <= k["timeout"] <= 1200 for _, k in actions))
+            self.assertEqual(actions[0][1]["log"].name, "build-api.log")
+            self.assertEqual(actions[1][1]["log"].name, "build-scratch.log")
+            self.assertEqual([p for p, _ in events],
+                             ["image_build", "image_build", "image_build_complete"])
+            self.assertEqual(events[-1][1]["completed_services"], ["api", "scratch"])
+            self.assertEqual(events[1][1]["active_service"], "scratch")
+
+    def test_unbounded_build_timeout_is_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            with patch("tools.asa_test_refresh.docker") as docker_call:
+                with self.assertRaisesRegex(Blocked, "per-service build timeout"):
+                    build_source_images(path, path, path, ["api"], path,
+                                        lambda *a, **kw: None, service_timeout=5000)
+                docker_call.assert_not_called()
+
+    def test_build_output_log_is_private_and_not_echoed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "private.log"
+            result = run(sys.executable, "-c", "print('SYNTHETIC_DO_NOT_DISCLOSE')",
+                         timeout=15, log=log)
+            self.assertEqual(result, "")
+            self.assertIn("SYNTHETIC_DO_NOT_DISCLOSE", log.read_text())
+            self.assertEqual(stat.S_IMODE(log.stat().st_mode), 0o600)
 
 
 if __name__ == "__main__":
