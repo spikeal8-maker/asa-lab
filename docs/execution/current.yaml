@@ -6465,15 +6465,15 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-PUBLIC-MODULE-ADMISSION-001
+      id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-project-module-admission-20261026
+      candidate_branch: codex/public-artifact-envelope-20261026
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: page_merged_select_games_exclusion_before_public_artifacts
+      checkpoint: owner_held_module_guard_select_core_public_artifact_envelope
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-26 owner explicitly requested completion of existing Public
@@ -6546,7 +6546,15 @@ parallel_lanes:
         data and Games routes, existing publication safety and admin metadata.
         Follow with R7-03 public-artifact contract and actual module viewers;
         do not resume social features before the owner's core priorities.
+        Latest owner concern explicitly pauses the module-admission detour.
+        Candidatef41afd4c19815fd90b0426fc95e50b208c2ed49f is parked on its
+        separate branch, not Main/deployed; its CI was cancelled and no PR is
+        selected. Do not alter Games, its data, APIs, routes or eligibility.
+        Select R7-03A now: pure module-neutral versioned artifact envelope,
+        bounds and read-only capability types/tests, no runtime/API/SQL yet.
+        Target subsequent viewers only Electronics,Blocks,3D per owner scope.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R7-03A-ARTIFACT-ENVELOPE.md
         - docs/product/projects/tasks/PROJ-PUBLIC-MODULE-ADMISSION.md
         - docs/product/projects/tasks/PROJ-PUBLIC-PAGE-LAYOUT.md
         - docs/product/projects/tasks/PROJ-R8-03D-REPORT-UI.md
