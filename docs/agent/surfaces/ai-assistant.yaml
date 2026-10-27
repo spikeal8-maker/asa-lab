@@ -1,6 +1,20 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-USAGE-OVERVIEW
+    routes: ['#/admin/ai', /api/admin/v1/ai/usage-overview]
+    implementation:
+      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-usage-journal.ts, packages/contracts/src/ai-usage-overview.ts, migrations/0268_ai_usage_overview.sql, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/AdminAiUsageOverview.tsx, apps/web/src/admin/ai-admin-navigation.ts, apps/web/src/admin/ai-usage-overview-model.ts, apps/web/src/admin/ai-usage-overview.css, apps/web/src/admin/ai-ollama.css]
+    invariants: [AI-USAGE-001, AI-OWNER-001, AI-REPLAY-001]
+    tests: [TST-AI-USAGE-OVERVIEW-CORE-001, TST-AI-USAGE-OVERVIEW-PG-001, TST-AI-USAGE-OVERVIEW-E2E-001]
+    controls:
+      - id: CTRL-AI-USAGE-OVERVIEW
+        label: Read one administrator-authorized UTC journal snapshot with exact known token sums and honest empty or unknown states
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-usage-journal.ts, migrations/0268_ai_usage_overview.sql, apps/web/src/admin/AdminAiUsageOverview.tsx]
+        invariants: [AI-USAGE-001, AI-OWNER-001, AI-REPLAY-001]
+        tests: [TST-AI-USAGE-OVERVIEW-CORE-001, TST-AI-USAGE-OVERVIEW-PG-001, TST-AI-USAGE-OVERVIEW-E2E-001]
+
   - id: SURF-AI-LOCAL-IMAGES
     routes: [/api/ai/image-generation/status, /api/admin/v1/ai/images, '/api/ai/threads/:threadId/image-generations', '/api/ai/threads/:threadId/image-generations/:requestId', '/api/ai/threads/:threadId/image-generations/:requestId/cancel', '/api/ai/threads/:threadId/image-generations/:requestId/image']
     implementation:
