@@ -58,15 +58,18 @@ def _check_private(path):
         require(info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) & 0o077 == 0,
                 "LEGACY_BACKUP_PERMISSIONS", "Recovery directory must be owned by the operator with mode 0700.")
         return
+    # Read through the Windows PowerShell/.NET Framework API directly. A parent
+    # pwsh can pass an incompatible PSModulePath to Windows PowerShell, so ACL
+    # attestation must not depend on autoloading the Get-Acl cmdlet module.
     # Translate trustees to SIDs to avoid language-dependent icacls output.
     literal = str(path).replace("'", "''")
     script = (
         "$ErrorActionPreference='Stop'; "
-        f"$recoveryAcl=Get-Acl -LiteralPath '{literal}'; "
+        f"$recoveryAcl=[System.IO.Directory]::GetAccessControl('{literal}'); "
         "$recoverySid=[System.Security.Principal.SecurityIdentifier]; "
         "$recoveryOwner=$recoveryAcl.GetOwner($recoverySid).Value; "
         "$recoveryUser=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; "
-        "$recoveryAllow=@($recoveryAcl.Access | Where-Object {$_.AccessControlType -eq 'Allow'} | "
+        "$recoveryAllow=@($recoveryAcl.GetAccessRules($true,$true,$recoverySid) | Where-Object {$_.AccessControlType -eq 'Allow'} | "
         "ForEach-Object {$_.IdentityReference.Translate($recoverySid).Value}); "
         "@{owner=$recoveryOwner;user=$recoveryUser;allow=$recoveryAllow}|ConvertTo-Json -Compress"
     )

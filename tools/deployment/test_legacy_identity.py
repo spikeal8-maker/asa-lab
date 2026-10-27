@@ -72,6 +72,18 @@ class ReviewPolicyTests(unittest.TestCase):
     def test_observed_api_watcher_and_vite_shape_is_accepted(self):
         self.assertIs(validate_review_configuration(self.root, self.base, self.full), self.full)
 
+    def test_d2_compose_omits_false_and_bind_shorthand_defaults(self):
+        for name in ("api", "web"):
+            service = self.full["services"][name]
+            service.pop("read_only")
+            for mount in service["volumes"]:
+                if (name, mount.get("target")) in SOURCE_BINDS:
+                    mount["bind"].pop("create_host_path")
+        validate_review_configuration(self.root, self.base, self.full)
+        self.full["services"]["api"]["volumes"][-1]["bind"]["propagation"] = "rshared"
+        with self.assertRaises(Blocked):
+            validate_review_configuration(self.root, self.base, self.full)
+
     def test_unknown_environment_process_security_and_health_override_are_rejected(self):
         changes = [lambda service: service.update(command=["sh", "-c", "foreign"]),
                    lambda service: service.update(entrypoint=["node", "foreign.js"]),

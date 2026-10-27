@@ -103,7 +103,7 @@ class Fixture:
     def docker(self, args, **kwargs):
         args = [str(value) for value in args]
         if args[0] == "powershell":
-            assert "Get-Acl" in args[-1] and "Set-Acl" not in args[-1]
+            assert "::GetAccessControl" in args[-1] and "::SetAccessControl" not in args[-1]
             # Simulated host boundary, separate from simulated Docker writes.
             # Native ACL acceptance/rejection is exercised below on Windows.
             return json.dumps({"owner": "S-1-5-21-100", "user": "S-1-5-21-100",
@@ -435,8 +435,8 @@ class SandboxOwnershipTests(unittest.TestCase):
                         with self.assertRaises(Blocked) as failure:
                             recovery._check_private(path)
                         self.assertEqual(failure.exception.code, "LEGACY_BACKUP_PERMISSIONS")
-                self.assertIn("Get-Acl", command.call_args.args[0][-1])
-                self.assertNotIn("Set-Acl", command.call_args.args[0][-1])
+                self.assertIn("::GetAccessControl", command.call_args.args[0][-1])
+                self.assertNotIn("::SetAccessControl", command.call_args.args[0][-1])
 
 
 @unittest.skipUnless(os.name == "nt", "Real Windows directory ACLs are required")
@@ -456,7 +456,7 @@ class NativeWindowsPermissionsTests(unittest.TestCase):
                 "$identity=New-Object System.Security.Principal.SecurityIdentifier($sid); "
                 "$rule=New-Object System.Security.AccessControl.FileSystemAccessRule($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); "
                 "$acl.AddAccessRule($rule) }; "
-                f"Set-Acl -LiteralPath '{literal}' -AclObject $acl"
+                f"[System.IO.Directory]::SetAccessControl('{literal}',$acl)"
             )
             provisioned = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", setup],
                                          capture_output=True, text=True)
@@ -464,11 +464,11 @@ class NativeWindowsPermissionsTests(unittest.TestCase):
             recovery._check_private(path)
             broaden = (
                 "$ErrorActionPreference='Stop'; "
-                f"$acl=Get-Acl -LiteralPath '{literal}'; "
+                f"$acl=[System.IO.Directory]::GetAccessControl('{literal}'); "
                 "$identity=New-Object System.Security.Principal.SecurityIdentifier('S-1-1-0'); "
                 "$rule=New-Object System.Security.AccessControl.FileSystemAccessRule($identity,'ReadAndExecute','Allow'); "
                 "$acl.AddAccessRule($rule); "
-                f"Set-Acl -LiteralPath '{literal}' -AclObject $acl"
+                f"[System.IO.Directory]::SetAccessControl('{literal}',$acl)"
             )
             provisioned = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", broaden],
                                          capture_output=True, text=True)

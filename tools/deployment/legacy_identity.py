@@ -227,17 +227,22 @@ def validate_review_services(root, base, services, project):
             "VITE_ASA_BUILD_REVISION": revision,
             "VITE_ASA_BLOCKS_RUNTIME_ORIGIN": entry,
         })}
-        # Compose canonicalizes bind shorthand and may sort mounts.  The paths,
-        # modes and known create_host_path default are compared independently.
+        # Compose versions omit false read_only and the create_host_path=true
+        # default of the observed bind shorthand differently. All referenced
+        # paths already exist and are separately attested; no path is created.
+        # Unknown bind options, paths and modes remain part of exact comparison.
         expected["volumes"] = [*expected.get("volumes", []), *[
             {"type": "bind", "source": str(Path(root) / relative), "target": target,
              "read_only": True, "bind": {"create_host_path": True}}
             for (service, target), relative in SOURCE_BINDS.items() if service == name]]
         actual_copy = deepcopy(actual)
         for value in (expected, actual_copy):
+            value.setdefault("read_only", False)
             for mount in value.get("volumes", []):
                 if mount.get("type") == "bind":
                     mount["source"] = normalized_path(mount["source"])
+                    if (name, mount.get("target")) in SOURCE_BINDS:
+                        mount.setdefault("bind", {}).setdefault("create_host_path", True)
             value["volumes"] = sorted(value.get("volumes", []), key=lambda mount: mount["target"])
         require(expected == actual_copy, "LEGACY_OVERLAY", f"Unsupported {name} review override.",
                 "Inspect the actual overlay and running configuration; a different layout requires a separately reviewed adapter.")
