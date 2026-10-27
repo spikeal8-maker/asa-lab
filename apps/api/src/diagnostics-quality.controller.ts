@@ -1,3 +1,4 @@
+import { emitApplicationLog } from './application-log-store.js';
 import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { exact, invalid, object, qualitySemantic, uuid } from './analytics-envelope.js';
@@ -34,7 +35,7 @@ export class DiagnosticsQualityController {
     const snapshot = qualitySemantic(value);
     if (!this.budget.consume(clientAddress(request)).allowed)
       throw new HttpException({ error: { code: 'too_many_requests' } }, 429);
-    process.stdout.write(
+    emitApplicationLog(
       `${JSON.stringify({
         ...snapshot,
         eventId,

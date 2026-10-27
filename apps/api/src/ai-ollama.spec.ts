@@ -9,6 +9,37 @@ import {
 } from './ai-ollama';
 
 describe('Ollama private network boundary', () => {
+  it.each(['stop', 'length'])('preserves long code and honors done_reason=%s', async (reason) => {
+    const part = 'const step = () => {};\n'.repeat(150);
+    const code = part.repeat(4);
+    const payload =
+      Array.from({ length: 4 }, () =>
+        JSON.stringify({ message: { content: part }, done: false }),
+      ).join('\n') +
+      '\n' +
+      JSON.stringify({ done: true, done_reason: reason }) +
+      '\n';
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(payload));
+    const deltas: string[] = [];
+    const result = await streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'test:7b',
+      context: [],
+      instructions: '',
+      signal: new AbortController().signal,
+      onDelta: (text) => deltas.push(text),
+      fetchImpl,
+    });
+    expect(code.length).toBeGreaterThan(8192);
+    expect(result).toEqual({ text: code, stopped: reason === 'length' });
+    expect(deltas.join('')).toBe(code);
+    expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
+      think: false,
+      keep_alive: -1,
+      options: { num_ctx: 120000, num_predict: -1 },
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
   it.each([
     'http://127.0.0.1:11434',
     'http://192.168.1.22:11434',

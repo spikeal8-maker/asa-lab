@@ -2530,3 +2530,92 @@ describe('Ready cadence preserves the production canonical engine', () => {
     },
   );
 });
+
+it('tags only accepted board stream resets through source A→B→A and retains comment-only streams', async () => {
+  const executor = new FakeExecutor();
+  const onSerialProjection = vi.fn();
+  const controller = new ElectronicsLiveSimulationWorkerController(executor);
+  const first = serialCircuit.components.find((c) => c.id === 'uno')!;
+  let doc = {
+    ...serialCircuit,
+    components: [...serialCircuit.components, { ...first, id: 'second' }],
+  };
+  controller.start('tag', doc, { onResult: vi.fn(), onSerialProjection, onFailure: vi.fn() });
+  await completeCanonicalStart(executor, 1);
+  let lastTag = '';
+  let secondTag = '';
+
+  for (const [index, source, reset] of [
+    [0, 'void setup(){Serial.begin(9600);}void loop(){Serial.println(1);delay(100);}', true],
+    [1, 'void setup(){Serial.begin(9600);}void loop(){Serial.println(2);delay(100);}', true],
+    [2, 'void setup(){Serial.begin(9600);}void loop(){Serial.println(1);delay(100);}', true],
+    [
+      3,
+      'void setup(){Serial.begin(9600);}void loop(){Serial.println(1);delay(100);}//comment',
+      false,
+    ],
+  ] as const) {
+    doc = {
+      ...doc,
+      components: doc.components.map((c) =>
+        c.id === 'uno'
+          ? { ...c, stateProperties: { ...c.stateProperties, arduinoSource: source } }
+          : c,
+      ),
+    };
+    controller.update(doc, 100 + index * 100);
+
+    const request = executor.advances.at(-1)!;
+    const accepted = timedAdvance(
+      'ready',
+      request.requestedHorizonMicroseconds,
+      request.requestedHorizonMicroseconds,
+    );
+    const snapshot = {
+      boards: [
+        {
+          componentId: 'uno',
+          runtime: { programFingerprint: index === 1 ? 'program-B' : 'program-A' },
+        },
+        { componentId: 'second', runtime: { programFingerprint: 'program-C' } },
+      ],
+    };
+    request.deferred.resolve({
+      ...accepted,
+      state: {
+        ...accepted.state,
+        continuation: {
+          version: 1,
+          clockContractVersion: 1,
+          engineContractVersion: 1,
+          clockProfileId: 'dc-inputs-v1',
+          documentDigest: 'test',
+          modelSetDigest: 'test',
+          committedHorizonMicroseconds: request.requestedHorizonMicroseconds,
+          serializedState: JSON.stringify(snapshot),
+        },
+      },
+      serial: ['uno', 'second'].map((componentId) => ({
+        componentId,
+        begun: true,
+        baudRate: 9600,
+        tx: [{ sequence: 0, atMicroseconds: 4, text: '1\n' }],
+        rxPendingBytes: 0,
+      })),
+    });
+    await flush();
+    const projection = onSerialProjection.mock.calls.at(
+      -1,
+    )![0] as (import('@asa-lab/electronics/engine').ElectronicsArduinoSerialProjection & {
+      streamGeneration: string;
+    })[];
+    const tag = projection.find((p) => p.componentId === 'uno')!.streamGeneration;
+    if (index > 0) {
+      expect(tag === lastTag).toBe(!reset);
+      expect(projection.find((p) => p.componentId === 'second')!.streamGeneration).toBe(secondTag);
+    }
+    lastTag = tag;
+    secondTag = projection.find((p) => p.componentId === 'second')!.streamGeneration;
+  }
+  controller.dispose();
+});

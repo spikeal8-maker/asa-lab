@@ -1,3 +1,6 @@
+import type { AiWebSearchAdminUpdate, AiGenerationPolicyUpdate } from '@asa-lab/contracts';
+import { AiPolicyError } from './ai-generation-policy.js';
+import { AiWebSearchError } from './ai-web-search.js';
 import {
   Body,
   Controller,
@@ -66,8 +69,10 @@ export class AiAdminController {
     } catch (problem) {
       if (
         problem instanceof AiServiceError ||
+        problem instanceof AiWebSearchError ||
         problem instanceof OllamaError ||
-        problem instanceof ComfyUiError
+        problem instanceof ComfyUiError ||
+        problem instanceof AiPolicyError
       ) {
         return reject(problem.code, problem.message, problem.status);
       }
@@ -76,6 +81,34 @@ export class AiAdminController {
       }
       throw problem;
     }
+  }
+
+  @Get('web-search')
+  async webSearchConfig(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.webSearchAdmin(actor));
+  }
+
+  @Get('generation-policy')
+  async generationPolicy(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.generationPolicy(actor));
+  }
+
+  @Put('generation-policy')
+  async saveGenerationPolicy(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.saveGenerationPolicy(actor, raw as AiGenerationPolicyUpdate));
+  }
+
+  @Put('web-search')
+  async saveWebSearch(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      return reject('ai_web_config_invalid', 'Нужны настройки поиска.', 400);
+    return this.safe(() => this.ai.saveWebSearch(actor, raw as AiWebSearchAdminUpdate, request.id));
   }
 
   @Get()

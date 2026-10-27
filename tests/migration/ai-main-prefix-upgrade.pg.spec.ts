@@ -26,6 +26,27 @@ const expectedPending = [
   '0244', // Current-only private per-owner usage journal.
   '0245', // Typed admin catalog and bounded server keyset continuation.
   '0246', // Read-only retained per-user history.
+  '0247', // Full typed CRM cards and exact teacher educational reads.
+  '0248', // Encrypted SMTP and one-use verified Account email proof.
+  '0249', // Filtered CRM aggregates/export and explicit organization class binding.
+  '0250', // Exact Seat retained detail and immutable educational notes.
+  '0251', // Scoped organization and exact-class responsibilities.
+  '0252', // Additive Ollama Cloud credentials preserve installed history.
+  '0253', // Optional scoped campaign observations and factual catalog projections.
+  '0254', // Free server internet evidence and bounded public weather cache.
+  '0255', // Read-only administrative visibility of retained legacy publications.
+  '0256', // Read-only exact-subject dashboard and canonical classroom rating.
+  '0257', // Canonical draft timestamp projection repair.
+  '0258', // Immutable Public Projects publication pins.
+  '0259', // Private immutable-revision report intake.
+  '0260', // Exact immutable Electronics public display.
+  '0261', // Complete AI answers preserve installed data and SQL signatures.
+  '0262', // Local owner-bound 30-minute generation lease.
+  '0263', // Governed generation policy and retrieval.
+  '0264', // Private image generation and GPU admission.
+  '0265', // Native tool provenance.
+  '0266', // Administrative tool-policy controls.
+  '0267', // Additive frozen Courses completion repair, no data rewrite.
 ];
 
 interface Identity {
@@ -739,6 +760,12 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           ).rows,
         ).toEqual([{ archived_at: null, next_message_ordinal: ordinal }]);
       }
+      // Slot timestamps belong to the transaction that created each provider, not
+      // whichever migration happens to be last in the complete upgrade plan.
+      const providerCatalogAppliedAt = ledgerAfter.find(
+        (row) => row.version === '0227',
+      )!.applied_at;
+      const cloudProviderAppliedAt = ledgerAfter.find((row) => row.version === '0252')!.applied_at;
       const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       expect(configAfter).toEqual({
@@ -747,7 +774,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         enabled: false,
         migrated_from_model: 'deepseek-chat',
         configuration_version: configBefore.configuration_version + 1,
-        updated_at: expect.any(String),
+        updated_at: providerCatalogAppliedAt,
       });
       expect(
         (
@@ -764,13 +791,22 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           updated_at: configAfter.updated_at,
         },
         {
+          provider: 'ollama-cloud',
+          model: 'gemma4:31b',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: cloudProviderAppliedAt,
+        },
+        {
           provider: 'openai',
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,
           api_key_auth_tag: null,
           key_fingerprint: null,
-          updated_at: expect.any(String),
+          updated_at: providerCatalogAppliedAt,
         },
       ]);
 

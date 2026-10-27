@@ -4,6 +4,12 @@
  */
 import { isIP } from 'node:net';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
+import {
+  parseNativeToolCalls,
+  type NativeToolCall,
+  type NativeToolDefinition,
+  type NativeToolResult,
+} from './ai-native-tools.js';
 
 export const OLLAMA_SELECTION = 'ollama-local' as const;
 export interface OllamaSettings {
@@ -222,15 +228,20 @@ export interface OllamaStreamArgs {
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
   readonly fetchImpl?: typeof fetch;
+  readonly tools?: readonly NativeToolDefinition[];
+  readonly toolResults?: readonly NativeToolResult[];
 }
-export async function streamOllamaText(
-  args: OllamaStreamArgs,
-): Promise<{ text: string; stopped: boolean; usage?: AiProviderUsage }> {
+export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
+  text: string;
+  stopped: boolean;
+  usage?: AiProviderUsage;
+  toolCalls?: readonly NativeToolCall[];
+}> {
   const origin = ollamaBaseUrl(args.baseUrl);
   if (!validOllamaModel(args.model))
     throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
   if (args.signal.aborted) return { text: '', stopped: true };
-  const timeout = AbortSignal.timeout(110000);
+  const timeout = AbortSignal.timeout(1800000);
   const signal = AbortSignal.any([args.signal, timeout]);
   let response: Response;
   try {
@@ -249,12 +260,30 @@ export async function streamOllamaText(
               ? { images: args.images }
               : {}),
           })),
+          ...(args.toolResults?.length
+            ? [
+                {
+                  role: 'assistant',
+                  content: '',
+                  tool_calls: args.toolResults.map((result) => ({
+                    type: 'function',
+                    function: { name: result.call.name, arguments: result.call.arguments },
+                  })),
+                },
+                ...args.toolResults.map((result) => ({
+                  role: 'tool',
+                  tool_name: result.call.name,
+                  content: result.content,
+                })),
+              ]
+            : []),
         ],
+        ...(args.tools?.length ? { tools: args.tools } : {}),
         stream: true,
-        // Donor IZO_ASA also disables thinking for short school-facing inference.
-        // Some reasoning models otherwise spend the token/time budget without visible text.
-        think: false,
-        options: { num_predict: 1600 },
+        // Preserve merged #790's Qwen 120K/xhigh unbounded local generation.
+        think: args.model === 'qwen3.8:27b' ? 'xhigh' : false,
+        keep_alive: -1,
+        options: { num_ctx: 120000, num_predict: -1 },
       }),
     });
   } catch {
@@ -268,7 +297,9 @@ export async function streamOllamaText(
   let buffer = '';
   let text = '';
   let done = false;
+  let lengthLimited = false;
   let usage: AiProviderUsage | undefined;
+  const rawCalls: unknown[] = [];
   const frame = (line: string): void => {
     if (!line.trim()) return;
     let data: unknown;
@@ -279,19 +310,39 @@ export async function streamOllamaText(
     }
     if (!data || typeof data !== 'object')
       throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
-    const packet = data as { message?: { content?: unknown }; done?: unknown; error?: unknown };
+    const packet = data as {
+      message?: { content?: unknown; tool_calls?: unknown };
+      done?: unknown;
+      done_reason?: unknown;
+      error?: unknown;
+    };
     usage = mergeProviderUsage(usage, providerUsage('ollama', packet));
     if (packet.error)
       throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
+    if (packet.message?.tool_calls !== undefined) {
+      if (
+        !Array.isArray(packet.message.tool_calls) ||
+        rawCalls.length + packet.message.tool_calls.length > 1
+      )
+        throw new OllamaError(
+          'ai_tool_call_invalid',
+          503,
+          'Модель вернула неподдерживаемый вызов инструмента.',
+        );
+      rawCalls.push(...packet.message.tool_calls);
+    }
     if (typeof packet.message?.content === 'string') {
-      const delta = packet.message.content.slice(0, 8192 - text.length);
+      const delta = packet.message.content;
       text += delta;
       if (delta) args.onDelta(delta);
     }
-    if (packet.done === true) done = true;
+    if (packet.done === true) {
+      done = true;
+      lengthLimited = packet.done_reason === 'length';
+    }
   };
   try {
-    while (!done && !signal.aborted && text.length < 8192) {
+    while (!done && !signal.aborted) {
       const part = await reader.read();
       if (part.done) break;
       buffer += decoder.decode(part.value, { stream: true });
@@ -305,7 +356,7 @@ export async function streamOllamaText(
         buffer = buffer.slice(boundary + 1);
         // Stop immediately even when many token frames were coalesced into
         // this same HTTP chunk; do not emit queued deltas after cancellation.
-        if (done || signal.aborted || text.length >= 8192) break;
+        if (done || signal.aborted) break;
         boundary = buffer.indexOf('\n');
       }
       if (!done && buffer.length > 16 * 1024)
@@ -329,9 +380,28 @@ export async function streamOllamaText(
   }
   if (timeout.aborted && !args.signal.aborted)
     throw new OllamaError('ai_ollama_timeout', 504, 'Ollama не ответила вовремя.', text, usage);
-  if (!done && !args.signal.aborted && text.length < 8192)
+  if (!done && !args.signal.aborted)
     throw new OllamaError('ai_ollama_interrupted', 503, 'Ollama прервала ответ.', text, usage);
-  if (!text.trim() && !args.signal.aborted)
+  let toolCalls: readonly NativeToolCall[] | undefined;
+  if (rawCalls.length && !args.signal.aborted) {
+    if (!done || lengthLimited)
+      throw new OllamaError('ai_tool_call_invalid', 503, 'Вызов инструмента не завершён.');
+    try {
+      toolCalls = parseNativeToolCalls(rawCalls, args.tools ?? []);
+    } catch {
+      throw new OllamaError(
+        'ai_tool_call_invalid',
+        503,
+        'Модель вернула неподдерживаемые аргументы инструмента.',
+      );
+    }
+  }
+  if (!text.trim() && !toolCalls?.length && !args.signal.aborted)
     throw new OllamaError('ai_ollama_empty', 503, 'Модель Ollama не вернула текст.', '', usage);
-  return { text, stopped: args.signal.aborted || text.length >= 8192, ...(usage ? { usage } : {}) };
+  return {
+    text,
+    stopped: args.signal.aborted || lengthLimited,
+    ...(usage ? { usage } : {}),
+    ...(toolCalls ? { toolCalls } : {}),
+  };
 }

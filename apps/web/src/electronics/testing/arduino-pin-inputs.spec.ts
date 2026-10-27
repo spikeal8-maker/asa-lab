@@ -87,6 +87,160 @@ function run(extra: readonly SchematicComponent[] = [], connections: unknown[] =
 }
 
 describe('Arduino replaceable pin menus', () => {
+  it('roundtrips numeric expressions in all eight Boolean sockets and rejects text', () => {
+    const expected = [
+      'asa_if.CONDITION',
+      'asa_if_else.CONDITION',
+      'asa_while.CONDITION',
+      'asa_logic_and.A',
+      'asa_logic_and.B',
+      'asa_logic_or.A',
+      'asa_logic_or.B',
+      'asa_logic_not.VALUE',
+    ];
+    const actual: string[] = [];
+    for (const category of ['output', 'input', 'control', 'data', 'variables'] as const) {
+      for (const item of toolboxForCategory(category, [{ id: 'v', name: 'x' }]).contents) {
+        if (typeof item !== 'object' || item.kind !== 'block') continue;
+        const block = w.newBlock((item as S.utils.toolbox.BlockInfo).type!);
+        for (const input of block.inputList) {
+          if (input.connection?.getCheck()?.includes('Boolean'))
+            actual.push(`${block.type}.${input.name}`);
+        }
+      }
+    }
+    expect(actual.sort()).toEqual([...expected].sort());
+    w.clear();
+    for (const socket of expected) {
+      const [type, name] = socket.split('.') as [string, string];
+      const block = w.newBlock(type);
+      const root = w.newBlock('asa_loop');
+      if (block.previousConnection)
+        root.getInput('DO')!.connection!.connect(block.previousConnection);
+      else {
+        const wait = w.newBlock('asa_wait');
+        root.getInput('DO')!.connection!.connect(wait.previousConnection!);
+        connect(wait, 'TIME', block);
+      }
+      applyArduinoBlockDefaults(w);
+      const text = w.newBlock('asa_text');
+      expect(
+        w.connectionChecker.doTypeChecks(block.getInput(name)!.connection!, text.outputConnection!),
+      ).toBe(false);
+      text.dispose();
+      const sum = w.newBlock('asa_math_add');
+      connect(sum, 'A', number('2'));
+      connect(sum, 'B', variable('conditionValue'));
+      connect(block, name, sum);
+      const parentId = block.id,
+        expressionId = sum.id;
+      const childIds = sum
+        .getChildren(false)
+        .map((child) => child.id)
+        .sort();
+      const code = generateArduinoCode(w);
+      const saved = JSON.parse(JSON.stringify(S.serialization.workspaces.save(w)));
+      w.clear();
+      S.serialization.workspaces.load(migrateLegacyArduinoWorkspaceState(saved), w);
+      applyArduinoBlockDefaults(w);
+      const reopened = w.getBlockById(parentId)!.getInputTargetBlock(name)!;
+      expect(reopened.id, socket).toBe(expressionId);
+      expect(
+        reopened
+          .getChildren(false)
+          .map((child) => child.id)
+          .sort(),
+      ).toEqual(childIds);
+      expect(reopened.getOutputShape()).toBe(S.OUTPUT_SHAPE_ROUND);
+      expect(generateArduinoCode(w)).toBe(code);
+      w.clear();
+    }
+  });
+
+  it('migrates legacy NeoPixel COUNT without changing IDs or an existing expression', () => {
+    const legacy = {
+      blocks: {
+        blocks: [
+          {
+            type: 'asa_neopixel_setup',
+            id: 'legacy-pixels',
+            fields: { PIN: '6', COUNT: '17' },
+          },
+        ],
+      },
+    };
+    const migrated = migrateLegacyArduinoWorkspaceState(structuredClone(legacy));
+    expect(migrateLegacyArduinoWorkspaceState(structuredClone(migrated))).toEqual(migrated);
+    S.serialization.workspaces.load(migrated, w);
+    applyArduinoBlockDefaults(w);
+    const block = w.getBlockById('legacy-pixels')!;
+    expect(block.getInputTargetBlock('COUNT')!.isShadow()).toBe(true);
+    expect(block.getInputTargetBlock('COUNT')!.getFieldValue('VALUE')).toBe(17);
+    expect(block.getInputTargetBlock('PIN')!.getFieldValue('VALUE')).toBe('6');
+    const expression = variable('pixelCount');
+    connect(block, 'COUNT', expression);
+    const expressionId = expression.id;
+    const saved = JSON.parse(JSON.stringify(S.serialization.workspaces.save(w)));
+    saved.blocks.blocks[0].fields = { COUNT: '99' };
+    const code = generateArduinoCode(w);
+    w.clear();
+    S.serialization.workspaces.load(migrateLegacyArduinoWorkspaceState(saved), w);
+    applyArduinoBlockDefaults(w);
+    expect(w.getBlockById('legacy-pixels')!.getInputTargetBlock('COUNT')!.id).toBe(expressionId);
+    expect(generateArduinoCode(w)).toBe(code);
+    w.getBlockById(expressionId)!.dispose();
+    expect(
+      w.getBlockById('legacy-pixels')!.getInputTargetBlock('COUNT')!.getFieldValue('VALUE'),
+    ).toBe(17);
+  });
+
+  it.each(Object.entries(ARDUINO_PIN_INPUTS))(
+    '%s roundtrips every pin replacement with IDs and its selected dropdown shadow',
+    (type, inputs) => {
+      for (const [name, reporter] of Object.entries(inputs)) {
+        for (const variant of ['number', 'variable', 'math', 'Boolean']) {
+          const block = w.newBlock(type);
+          const root = w.newBlock('asa_loop');
+          if (block.previousConnection)
+            root.getInput('DO')!.connection!.connect(block.previousConnection);
+          else {
+            const assignment = w.newBlock('asa_var_set');
+            assignment.setFieldValue(w.getVariableMap().createVariable('reading').getId(), 'NAME');
+            root.getInput('DO')!.connection!.connect(assignment.previousConnection!);
+            connect(assignment, 'VALUE', block);
+          }
+          applyArduinoBlockDefaults(w);
+          const selected =
+            reporter === 'asa_analog_pin' ? 'A3' : reporter === 'asa_pwm_pin' ? '11' : 'A5';
+          block.getInputTargetBlock(name)!.setFieldValue(selected, 'VALUE');
+          const replacement =
+            variant === 'number'
+              ? number('13')
+              : variant === 'variable'
+                ? variable('computedPin')
+                : w.newBlock(variant === 'math' ? 'asa_math_add' : 'asa_compare_eq');
+          connect(block, name, replacement);
+          applyArduinoBlockDefaults(w);
+          const parentId = block.id,
+            replacementId = replacement.id;
+          const code = generateArduinoCode(w);
+          const saved = JSON.parse(JSON.stringify(S.serialization.workspaces.save(w)));
+          w.clear();
+          S.serialization.workspaces.load(migrateLegacyArduinoWorkspaceState(saved), w);
+          applyArduinoBlockDefaults(w);
+          expect(w.getBlockById(parentId)!.getInputTargetBlock(name)!.id).toBe(replacementId);
+          expect(generateArduinoCode(w)).toBe(code);
+          w.getBlockById(replacementId)!.dispose();
+          const restored = w.getBlockById(parentId)!.getInputTargetBlock(name)!;
+          expect(restored.isShadow()).toBe(true);
+          expect(restored.type).toBe(reporter);
+          expect(restored.getFieldValue('VALUE')).toBe(selected);
+          w.clear();
+        }
+      }
+    },
+  );
+
   it('restores the previously selected analog pin after removing a replacement expression', () => {
     const block = w.newBlock('asa_digital_write');
     applyArduinoBlockDefaults(w);
@@ -458,6 +612,7 @@ describe('Arduino replaceable pin menus', () => {
     pixels.nextConnection!.connect(color.previousConnection!);
     const display = w.newBlock('asa_7seg_print');
     color.nextConnection!.connect(display.previousConnection!);
+    connect(display, 'VALUE', variable('display_1'));
     applyArduinoBlockDefaults(w);
     const source = generateArduinoCode(w);
     expect(source).toContain('LiquidCrystal *lcd_1 = nullptr;');

@@ -1,5 +1,15 @@
+import { AiImageService } from './ai-image.service.js';
+import {
+  AI_IMAGE_SERVICE,
+  AiImageController,
+  AiImageAdminController,
+} from './ai-image.controller.js';
+import { CrmResponsibilitiesController } from './crm-responsibilities.controller.js';
+import { EmailService } from './email.service.js';
+import { EmailController } from './email.controller.js';
 import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
 import { PresentationPreferencesController } from './presentation-preferences.controller.js';
+import { CrmUserController } from './crm-user.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import type pg from 'pg';
@@ -51,9 +61,11 @@ import {
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { AdminPublicProjectsController } from './admin-public-projects.controller.js';
+import { PublicProjectReportsController } from './public-project-reports.controller.js';
 import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
+import { AiToolPolicyController } from './ai-tool-policy.controller.js';
 import { AiChatService } from './ai-chat.service.js';
 import { AiAccessController } from './ai-access.controller.js';
 import { AiAccessService } from './ai-access.service.js';
@@ -126,6 +138,7 @@ export class AppModule {
     pool: pg.Pool | null,
     options: {
       productAnalytics?: ProductAnalyticsService;
+      acquisitionAnalytics?: ProductAnalyticsService;
       runtimeMetrics?: RuntimeMetrics;
       authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
     } = {},
@@ -153,12 +166,18 @@ export class AppModule {
     };
     const maxAuthService = new MaxAuthService(requirePool(), authProviderOptions);
     const telegramAuthService = new TelegramAuthService(requirePool(), authProviderOptions);
+    const emailService = new EmailService(requirePool());
     const accountVerification = new AccountVerificationService(requirePool(), [
       maxAuthService,
       telegramAuthService,
+      emailService,
     ]);
     const aiAttachmentService = new AiAttachmentService(pool);
-    const aiChatService = new AiChatService(requirePool(), { attachments: aiAttachmentService });
+    const aiImageService = new AiImageService(requirePool());
+    const aiChatService = new AiChatService(requirePool(), {
+      attachments: aiAttachmentService,
+      images: aiImageService,
+    });
     const aiAccessService = new AiAccessService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
@@ -201,6 +220,9 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        CrmUserController,
+        CrmResponsibilitiesController,
+        EmailController,
         ProductAnalyticsV2Controller,
         DiagnosticsQualityController,
         HealthController,
@@ -210,7 +232,10 @@ export class AppModule {
         AiChatController,
         AiAccessController,
         AiAttachmentController,
+        AiImageController,
+        AiImageAdminController,
         AiAdminController,
+        AiToolPolicyController,
         AdminLogsController,
         ClientDiagnosticsController,
         AccountC1Controller,
@@ -229,6 +254,7 @@ export class AppModule {
         GalleryController,
         ProjectPublicationController,
         PublicProjectsController,
+        PublicProjectReportsController,
         CollectionsController,
         ClassroomsController,
         ClassroomJoinController,
@@ -259,10 +285,16 @@ export class AppModule {
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },
         { provide: TOKENS.telegramAuthService, useValue: telegramAuthService },
         { provide: TOKENS.accountVerification, useValue: accountVerification },
+        { provide: TOKENS.emailService, useValue: emailService },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
+        { provide: AI_IMAGE_SERVICE, useValue: aiImageService },
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },
         { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
+        {
+          provide: TOKENS.acquisitionAnalytics,
+          useValue: options.acquisitionAnalytics ?? new ProductAnalyticsService(null),
+        },
         {
           provide: TOKENS.refreshSessionService,
           useFactory: () => new RefreshSessionService(requirePool()),

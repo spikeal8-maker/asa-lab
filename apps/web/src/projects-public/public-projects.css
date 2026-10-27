@@ -238,10 +238,28 @@
   text-decoration: none;
   font-size: 14px;
 }
+/* Detail order is also the reading and keyboard order on narrow screens. */
 .public-project-layout {
   display: grid;
   gap: 24px;
   align-items: start;
+}
+.public-project-heading {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.public-project-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.public-project-detail-author {
+  margin: 0;
+  color: var(--asa-slate-700);
+  font-size: 15px;
+  overflow-wrap: anywhere;
 }
 .public-project-viewer {
   min-width: 0;
@@ -250,38 +268,37 @@
 .publication-preview.is-detail {
   border: 1px solid var(--asa-slate-200);
   border-radius: 12px;
-  background: white;
+  background: var(--asa-slate-100);
+  overflow: hidden;
 }
 .public-project-viewer figcaption {
-  margin: 10px 0;
+  margin: 0 0 10px;
   color: var(--asa-slate-700);
   font-size: 13px;
-  line-height: 1.5;
 }
 .public-project-info {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  gap: 16px;
   min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 12px;
+  background: white;
 }
-.public-project-info h1 {
-  font-size: clamp(24px, 2.2vw, 30px);
-}
-.public-project-detail-author {
+.public-project-detail h2 {
   margin: 0;
-  font-size: 15px;
-  overflow-wrap: anywhere;
+  font-size: 16px;
+  line-height: 1.4;
 }
-.public-project-version {
-  margin: 0;
-  color: var(--asa-slate-700);
-  font-size: 13px;
-  line-height: 1.6;
+.public-project-about {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
 }
 .public-project-description {
   margin: 0;
-  line-height: 1.65;
-  font-size: 14px;
+  line-height: 1.7;
+  font-size: 15px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -302,26 +319,57 @@
   overflow-wrap: anywhere;
 }
 .public-project-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  display: grid;
   gap: 10px;
   min-width: 0;
 }
-.public-project-license {
-  display: grid;
-  gap: 5px;
-  margin: 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--asa-slate-200);
-  color: var(--asa-slate-700);
-  font-size: 13px;
-  line-height: 1.5;
+.public-project-info :is(button, a) {
+  max-width: 100%;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
-.public-project-license strong {
-  color: var(--asa-slate-900);
-  font-weight: 600;
+.public-project-info .publication-share {
+  justify-items: stretch;
+}
+.public-project-refresh {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  padding: 8px 0;
+  color: var(--asa-slate-700);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.public-project-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  margin: 4px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--asa-slate-200);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.public-project-facts > div {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.public-project-facts dt {
+  color: var(--asa-slate-700);
+}
+.public-project-facts dd {
+  margin: 4px 0 0;
+}
+.public-project-info .public-project-copy {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.public-project-info .public-project-copy p {
+  font-size: 13px;
 }
 .publication-share {
   display: grid;
@@ -502,7 +550,13 @@
 }
 @media (min-width: 1024px) {
   .public-project-layout {
-    grid-template-columns: minmax(0, 1.8fr) minmax(250px, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .public-project-heading {
+    grid-column: 1 / -1;
+  }
+  .public-project-about {
+    grid-column: 1;
   }
 }
 @media (min-width: 1280px) {
@@ -613,4 +667,186 @@
   font-weight: 700;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.public-project-pinned {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.public-project-title-group {
+  min-width: 0;
+}
+.public-project-title-group h1.is-collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.public-project-title-toggle {
+  display: inline-block;
+  border: 0;
+  padding: 6px 0;
+  background: transparent;
+  color: var(--asa-slate-700);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.portal-shell.public-projects-guest > .public-project-detail {
+  width: calc(100% - 32px);
+  max-width: 1680px;
+}
+.public-project-commandbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 10px 20px;
+  padding-block: 12px;
+  border-block: 1px solid var(--asa-slate-200);
+}
+.public-project-commandbar .public-project-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.public-project-copy-policy {
+  order: 1;
+  max-width: 420px;
+  font-size: 12px;
+}
+.public-project-copy-policy summary {
+  cursor: pointer;
+  padding-block: 12px;
+}
+.public-project-commandbar .public-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.public-project-commandbar .publication-share {
+  width: auto;
+  max-width: 100%;
+}
+.public-project-commandbar :is(button, a) {
+  max-width: 100%;
+}
+.public-project-viewer {
+  width: 100%;
+}
+.public-project-detail .public-project-layout {
+  gap: 16px;
+}
+.public-project-detail .public-project-heading {
+  gap: 6px;
+}
+.public-electronics-viewer {
+  overflow: hidden;
+  border: 1px solid #cddbd8;
+  border-radius: 14px;
+  background: #f6faf8;
+}
+.public-electronics-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  background: white;
+  border-bottom: 1px solid #dce7e2;
+}
+.public-electronics-tools > span {
+  flex: 1 1 160px;
+  color: #426456;
+  font-size: 13px;
+}
+.public-electronics-tools button {
+  min-width: 44px;
+  padding: 8px 12px;
+  border: 1px solid #ceddd6;
+  border-radius: 8px;
+  background: white;
+  color: #234e3d;
+  cursor: pointer;
+}
+.public-electronics-tools output {
+  width: 54px;
+  text-align: center;
+  font-size: 12px;
+}
+.public-electronics-scene {
+  display: block;
+  width: 100%;
+  height: clamp(300px, calc(100svh - 360px), 620px);
+  touch-action: pan-y;
+  cursor: grab;
+  background: radial-gradient(#dce8e1 1px, transparent 1px) 0 0 / 20px 20px;
+}
+.public-electronics-scene:active {
+  cursor: grabbing;
+}
+.public-electronics-scene:focus-visible {
+  outline: 3px solid var(--asa-cyan-600);
+  outline-offset: -4px;
+}
+.public-electronics-hint {
+  margin: 0;
+  padding: 9px 12px;
+  color: #526d60;
+  background: white;
+  font-size: 12px;
+}
+.public-artifact-state {
+  display: grid;
+  place-items: center;
+  min-height: 360px;
+  background: #f6faf8;
+  border-radius: 14px;
+}
+@media (max-width: 600px) {
+  .public-project-detail {
+    padding-top: 10px;
+  }
+  .public-project-detail .public-project-back {
+    margin-bottom: 4px;
+  }
+  .public-project-detail .public-project-layout {
+    gap: 12px;
+  }
+  .public-electronics-tools {
+    position: relative;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    padding: 8px 10px;
+  }
+  .public-electronics-tools > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .public-electronics-tools output {
+    flex: 0 0 46px;
+  }
+  .public-electronics-scene {
+    height: clamp(280px, calc(100svh - 280px), 540px);
+  }
+  .public-project-commandbar {
+    padding-block: 10px;
+  }
 }

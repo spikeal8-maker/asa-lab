@@ -369,7 +369,7 @@ describe('durable usage surrounds each accepted generation', () => {
     const stopped = fixture(
       async () =>
         new Response(
-          '{"status":"completed","output_text":' + JSON.stringify('x'.repeat(8192)) + '}',
+          '{"status":"completed","output_text":' + JSON.stringify('x'.repeat(65537)) + '}',
         ),
     );
     await stopped.service.send(OWNER, THREAD, 'question', REQUEST);

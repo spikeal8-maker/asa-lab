@@ -30,6 +30,29 @@ const send = (onDelta = vi.fn()) =>
 afterEach(() => vi.resetAllMocks());
 
 describe('native AI SSE transport', () => {
+  it('sends the explicit internet mode only for the new operation, without endpoint or credentials', async () => {
+    respond([frame('done', { messages: [], replayed: false, stopped: false })]);
+    await streamAiRequest(
+      'thread',
+      'Погода в Казани',
+      'request',
+      vi.fn(),
+      new AbortController().signal,
+      'ollama-local',
+      { 'x-asa-ai-seat': 'seat' },
+      [],
+      { mode: 'weather', weatherCity: 'Казань' },
+    );
+    expect(JSON.parse(String(vi.mocked(fetchWithSessionRefresh).mock.calls[0]?.[1]?.body))).toEqual(
+      {
+        message: 'Погода в Казани',
+        requestId: 'request',
+        model: 'ollama-local',
+        webSearchMode: 'weather',
+        weatherCity: 'Казань',
+      },
+    );
+  });
   it('carries only the selected upload IDs for this exact request and Seat', async () => {
     const result = { messages: [], replayed: false, stopped: false };
     respond([frame('done', result)]);
@@ -98,7 +121,7 @@ describe('native AI SSE transport', () => {
 
   for (const complete of [false, true]) {
     it(`rejects an oversized single event, complete=${complete}`, async () => {
-      const payload = frame('delta', { text: 'x'.repeat(4 * 1024 * 1024) });
+      const payload = frame('delta', { text: 'x'.repeat(32 * 1024 * 1024) });
       respond(complete ? [payload] : [payload.slice(0, 100_000), payload.slice(100_000, -2)]);
       const onDelta = vi.fn();
       await expect(send(onDelta)).rejects.toMatchObject({ code: 'ai_stream_invalid' });

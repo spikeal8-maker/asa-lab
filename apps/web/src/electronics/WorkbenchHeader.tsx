@@ -33,6 +33,7 @@ const WIRE_COLOR_NAMES: Readonly<Record<string, string>> = {
   '#e7a400': 'Жёлтый',
   '#8d45c7': 'Фиолетовый',
 };
+const MIRROR_KEY_HINT = 'Отразить (M)';
 
 function ToolButton({
   label,
@@ -367,6 +368,7 @@ export function WorkbenchHeader({
             </ToolButton>
             <ToolButton
               label="Отразить"
+              title={MIRROR_KEY_HINT}
               onClick={() => c.mirrorSelected('horizontal')}
               disabled={!hasComponentSelection}
             >
@@ -387,6 +389,7 @@ export function WorkbenchHeader({
                 </ToolButton>
                 <ToolButton
                   label="Отразить"
+                  title={MIRROR_KEY_HINT}
                   onClick={() => c.mirrorSelected('horizontal')}
                   disabled={!hasComponentSelection}
                 >
@@ -437,6 +440,21 @@ export function WorkbenchHeader({
           >
             <CodeIcon /> Код
           </button>
+          <button
+            type="button"
+            className={`workbench-pill simulate${c.simulationStatus === 'running' ? ' running' : ''}`}
+            onClick={() => void c.toggleSimulation()}
+            disabled={c.busy}
+            data-simulation-status={c.simulationStatus}
+            aria-pressed={c.simulationRunning}
+            aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
+            title={`${
+              c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
+            } (Ctrl/⌘+Enter)`}
+          >
+            {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
+            {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
+          </button>
           <ToolButton
             className="workbench-pill save"
             label="Сохранить проект"
@@ -448,21 +466,6 @@ export function WorkbenchHeader({
           >
             <SaveIcon /> Сохранить
           </ToolButton>
-          <button
-            type="button"
-            className={`workbench-pill simulate${c.simulationStatus === 'running' ? ' running' : ''}`}
-            onClick={() => void c.toggleSimulation()}
-            disabled={c.busy}
-            data-simulation-status={c.simulationStatus}
-            aria-pressed={c.simulationRunning}
-            aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
-            title={
-              c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
-            }
-          >
-            {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
-            {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
-          </button>
           <button
             type="button"
             className="workbench-pill"

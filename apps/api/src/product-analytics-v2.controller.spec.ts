@@ -25,9 +25,13 @@ function fixture(account: ActiveContext | null, seat: SeatContext | null) {
         run: (a: ActiveContext | null, s: SeatContext | null) => Promise<unknown>,
       ) => run(account, seat),
     ),
+    persistAcquisition: vi.fn(async () => ({ accepted: true, state: 'persisted', eventId: id })),
     persistOperation: vi.fn(async () => ({ accepted: true, state: 'persisted', eventId: id })),
   };
-  const controller = new ProductAnalyticsV2Controller(writer as unknown as ProductAnalyticsService);
+  const controller = new ProductAnalyticsV2Controller(
+    writer as unknown as ProductAnalyticsService,
+    writer as unknown as ProductAnalyticsService,
+  );
   const request = {
     cookies: { asa_session: 'account', asa_student_session: 'seat' },
     headers: {},
@@ -76,4 +80,56 @@ describe('protected v2 telemetry authority', () => {
       response: { error: { code: 'telemetry_conflict' } },
     });
   });
+});
+
+it('keeps acquisition optional and binds it to the exact authenticated Seat/class', async () => {
+  const claim = {
+    schemaVersion: 1,
+    eventId: id,
+    actorExpectation: body.actorExpectation,
+    source: 'school',
+    medium: null,
+    campaign: null,
+  };
+  const f = fixture(null, seat);
+  await expect(f.controller.acquisition(f.request, claim)).resolves.toMatchObject({
+    state: 'persisted',
+  });
+  expect(f.writer.persistOperation).not.toHaveBeenCalled();
+  expect(f.writer.persistAcquisition).toHaveBeenCalledWith(
+    id,
+    { kind: 'student', context: seat },
+    { source: 'school', medium: null, campaign: null },
+    expect.any(String),
+  );
+  for (const denied of [
+    fixture(null, null),
+    fixture({ accountId: id, workspaceId: id } as ActiveContext, seat),
+    fixture(null, { ...seat, classroomId: '20000000-0000-4000-8000-000000000001' }),
+  ]) {
+    await expect(denied.controller.acquisition(denied.request, claim)).rejects.toBeDefined();
+    expect(denied.writer.persistAcquisition).not.toHaveBeenCalled();
+  }
+});
+
+it('uses independent optional admission without consuming canonical delivery capacity', async () => {
+  const canonical = fixture(null, seat);
+  const optional = fixture(null, seat);
+  const controller = new ProductAnalyticsV2Controller(
+    canonical.writer as unknown as ProductAnalyticsService,
+    optional.writer as unknown as ProductAnalyticsService,
+  );
+  await controller.acquisition(canonical.request, {
+    schemaVersion: 1,
+    eventId: id,
+    actorExpectation: body.actorExpectation,
+    source: 'school',
+    medium: null,
+    campaign: null,
+  });
+  expect(canonical.writer.authenticatedRequest).not.toHaveBeenCalled();
+  expect(optional.writer.authenticatedRequest).toHaveBeenCalledOnce();
+  await controller.events(canonical.request, body);
+  expect(canonical.writer.persistOperation).toHaveBeenCalledOnce();
+  expect(optional.writer.persistOperation).not.toHaveBeenCalled();
 });

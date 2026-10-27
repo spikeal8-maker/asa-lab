@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import process from 'node:process';
+import console from 'node:console';
+import { URL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import pg from 'pg';
@@ -9,6 +12,7 @@ const browser = process.argv.includes('--browser');
 for (const path of browser
   ? [
       'e2e/public-projects.spec.ts',
+      'e2e/public-project-electronics-viewer.spec.ts',
       'e2e/public-project-copy.spec.ts',
       'e2e/public-project-admin-moderation.spec.ts',
       'e2e/gallery.spec.ts',
@@ -16,11 +20,19 @@ for (const path of browser
     ]
   : [
       'tests/portal/public-projects.pg.spec.ts',
+      'tests/portal/public-project-artifact.http.pg.spec.ts',
+      'contexts/projects/testing/public-project-display-artifact.spec.ts',
+      'apps/api/src/public-project-artifact.spec.ts',
       'tests/portal/public-project-copy.pg.spec.ts',
       'tests/portal/public-project-moderation.pg.spec.ts',
+      'tests/portal/public-project-pinning.pg.spec.ts',
       'tests/migration/project-publication-moderation.pg.spec.ts',
       'tests/migration/project-publication-editorial.pg.spec.ts',
+      'tests/migration/project-publication-pins.pg.spec.ts',
       'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
+      'apps/api/src/public-project-reports.controller.spec.ts',
+      'tests/migration/project-publication-reports.pg.spec.ts',
+      'tests/portal/public-project-reports.http.pg.spec.ts',
       'apps/api/src/public-projects.spec.ts',
       'apps/api/src/public-project-copy.spec.ts',
       'apps/api/src/admin-public-projects.controller.spec.ts',
@@ -93,6 +105,7 @@ const env = {
   VITE_ASA_BUILD_REVISION: expectedRevision,
   NX_SKIP_NX_CACHE: 'true',
   NX_DAEMON: 'false',
+  ASA_CAPTURE_PUBLICATION_GRAPH: 'true',
 };
 function verifyBuiltRevision() {
   const path = 'apps/web/dist/build-metadata.json';
@@ -106,6 +119,14 @@ function verifyBuiltRevision() {
     process.exit(78);
   }
   console.log(`Built publication candidate: ${metadata.revision}`);
+  verifyEmittedViewerGraph();
+}
+function verifyEmittedViewerGraph() {
+  const result = spawnSync(process.execPath, ['tools/public-electronics-emitted-graph.mjs'], {
+    stdio: 'inherit',
+    env,
+  });
+  if (result.error || result.status !== 0) process.exit(result.status ?? 78);
 }
 function run(args) {
   console.log(`\n> pnpm ${args.join(' ')}`);
@@ -118,6 +139,9 @@ function run(args) {
     console.error(result.error.message);
     process.exit(78);
   }
+  // Playwright clears its output directory on startup. Re-create the exact-build
+  // receipt after browser execution, including on a failing browser run.
+  if (args.includes('playwright')) verifyEmittedViewerGraph();
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
@@ -134,6 +158,7 @@ if (browser) {
     'playwright',
     'test',
     'e2e/public-projects.spec.ts',
+    'e2e/public-project-electronics-viewer.spec.ts',
     'e2e/public-project-copy.spec.ts',
     'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
@@ -143,6 +168,7 @@ if (browser) {
     '--output=reports/playwright/projects-publication',
   ]);
 } else {
+  run(['exec', 'node', '--test', 'tools/public-electronics-emitted-graph.test.mjs']);
   run(['db:migrate:check']);
   // Nx follows ^build dependencies. API injection tests import the built API;
   // the browser then serves exactly these built files, not a Vite dev server.
@@ -165,6 +191,7 @@ if (browser) {
     'node',
     '--allowSyntheticDefaultImports',
     'e2e/public-projects.spec.ts',
+    'e2e/public-project-electronics-viewer.spec.ts',
     'e2e/public-project-copy.spec.ts',
     'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
@@ -178,10 +205,17 @@ if (browser) {
     'tests/portal/project-transactions.spec.ts',
     'tests/portal/project-publication-revisions.pg.spec.ts',
     'tests/portal/public-projects.pg.spec.ts',
+    'tests/portal/public-project-artifact.http.pg.spec.ts',
+    'apps/api/src/public-project-artifact.spec.ts',
     'tests/portal/public-project-copy.pg.spec.ts',
     'tests/portal/public-project-moderation.pg.spec.ts',
+    'tests/portal/public-project-pinning.pg.spec.ts',
     'tests/migration/project-publication-moderation.pg.spec.ts',
     'tests/migration/project-publication-editorial.pg.spec.ts',
+    'tests/migration/project-publication-pins.pg.spec.ts',
+    'apps/api/src/public-project-reports.controller.spec.ts',
+    'tests/migration/project-publication-reports.pg.spec.ts',
+    'tests/portal/public-project-reports.http.pg.spec.ts',
     'apps/api/src/public-projects.spec.ts',
     'apps/api/src/public-project-copy.spec.ts',
     'apps/api/src/admin-public-projects.controller.spec.ts',
@@ -191,7 +225,7 @@ if (browser) {
     '--maxWorkers=2',
   ]);
   run(['test:creator-portal']);
-  // Verify supported populated database upgrades from 0225 through 0238.
+  // Verify supported populated database upgrades from 0225 through 0247.
   run([
     'exec',
     'vitest',

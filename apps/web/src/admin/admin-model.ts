@@ -1,5 +1,10 @@
 import type { AdminAuditEvent, AdminPermission, AdminScope } from './admin-api';
 
+/** Server-issued responsibilities are part of retained administrative view identity. */
+export function adminScopeResponsibilityKey(scope: AdminScope): string {
+  return JSON.stringify([scope.kind, scope.id, scope.role, [...new Set(scope.permissions)].sort()]);
+}
+
 export interface AdminArea {
   readonly permission: AdminPermission;
   readonly title: string;

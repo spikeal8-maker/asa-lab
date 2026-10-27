@@ -2,13 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
+import { AdminAiWebSearch } from './AdminAiWebSearch';
+import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import type { AiAdminConfig, AiProvider } from './ai-model-config';
 import { call } from './admin-api';
 import './ai-ollama.css';
 import './ai-admin.css';
 
 type ProviderChoice = AiProvider | 'ollama';
-type AiSection = 'connections' | 'comfyui';
+type AiSection = 'connections' | 'comfyui' | 'prompt' | 'settings' | 'internet';
+
+const SECTIONS: readonly { id: AiSection; label: string }[] = [
+  { id: 'connections', label: 'Подключения' },
+  { id: 'comfyui', label: 'Изображения' },
+  { id: 'prompt', label: 'Системный промпт' },
+  { id: 'settings', label: 'Настройки' },
+  { id: 'internet', label: 'Интернет-поиск' },
+];
 
 interface LocalState {
   enabled: boolean;
@@ -17,6 +27,7 @@ interface LocalState {
 
 const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string }> = [
   { id: 'ollama', label: 'Ollama', hint: 'Локально · без ключа' },
+  { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
 ];
@@ -62,28 +73,38 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
   return (
     <div className="asa-ai-admin-workspace">
       <nav className="asa-ai-admin-tabs" role="tablist" aria-label="Разделы ИИ">
-        <button
-          id="ai-tab-connections"
-          type="button"
-          role="tab"
-          aria-selected={section === 'connections'}
-          aria-controls="ai-panel-connections"
-          className={section === 'connections' ? 'active' : ''}
-          onClick={() => setSection('connections')}
-        >
-          Подключения
-        </button>
-        <button
-          id="ai-tab-comfyui"
-          type="button"
-          role="tab"
-          aria-selected={section === 'comfyui'}
-          aria-controls="ai-panel-comfyui"
-          className={section === 'comfyui' ? 'active' : ''}
-          onClick={() => setSection('comfyui')}
-        >
-          ComfyUI · изображения
-        </button>
+        {SECTIONS.map((item, index) => (
+          <button
+            key={item.id}
+            id={'ai-tab-' + item.id}
+            type="button"
+            role="tab"
+            tabIndex={section === item.id ? 0 : -1}
+            aria-selected={section === item.id}
+            aria-controls={'ai-panel-' + item.id}
+            className={section === item.id ? 'active' : ''}
+            onClick={() => setSection(item.id)}
+            onKeyDown={(event) => {
+              const next =
+                event.key === 'ArrowRight'
+                  ? (index + 1) % SECTIONS.length
+                  : event.key === 'ArrowLeft'
+                    ? (index + SECTIONS.length - 1) % SECTIONS.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? SECTIONS.length - 1
+                        : null;
+              if (next === null) return;
+              event.preventDefault();
+              const id = SECTIONS[next]!.id;
+              setSection(id);
+              document.getElementById('ai-tab-' + id)?.focus();
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
       </nav>
       {section === 'connections' ? (
         <section
@@ -137,6 +158,14 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
             />
           )}
         </section>
+      ) : section === 'prompt' || section === 'settings' ? (
+        <div id={'ai-panel-' + section} role="tabpanel" aria-labelledby={'ai-tab-' + section}>
+          <AdminAiGenerationPolicy section={section} onAccessDenied={onAccessDenied} />
+        </div>
+      ) : section === 'internet' ? (
+        <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">
+          <AdminAiWebSearch onAccessDenied={onAccessDenied} />
+        </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">
           <AdminComfyUiPage onAccessDenied={onAccessDenied} />

@@ -45,6 +45,8 @@ const INDEPENDENT_ROUTES = new Set([
 const AI_SEAT_FIRST_ROUTES = new Set([
   'GET /api/ai/scopes',
   'GET /api/ai/status',
+  'GET /api/ai/web-search/status',
+  'GET /api/ai/threads/:threadId/web-search/:requestId/images/:imageId',
   'GET /api/ai/threads',
   'POST /api/ai/threads',
   'PATCH /api/ai/threads/:threadId',

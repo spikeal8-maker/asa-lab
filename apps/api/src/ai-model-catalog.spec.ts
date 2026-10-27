@@ -45,6 +45,7 @@ describe('server-owned catalog and provider request policy', () => {
     expect(catalog.providers.map((provider) => provider.defaultModel)).toEqual([
       'gpt-6-luna',
       'deepseek-flash',
+      'gemma4:31b',
     ]);
     expect(catalog.models.find((model) => model.id === 'deepseek-flash')?.inputModalities).toEqual([
       'text',
@@ -125,7 +126,7 @@ describe('server-owned catalog and provider request policy', () => {
           model,
           input: context,
           instructions: 'Инструкции',
-          max_output_tokens: 1600,
+          max_output_tokens: 8192,
           store: false,
         });
         expect(plain.body['reasoning']).toEqual(reasoning);
@@ -135,7 +136,7 @@ describe('server-owned catalog and provider request policy', () => {
         expect(plain.body).toMatchObject({
           model,
           thinking: { type: 'disabled' },
-          max_tokens: 1600,
+          max_tokens: 8192,
         });
         expect(plain.body['messages']).toEqual([
           { role: 'system', content: 'Инструкции' },

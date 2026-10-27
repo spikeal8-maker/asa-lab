@@ -38,8 +38,8 @@ large_sources:
     rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change. The prepared/ready/joint-commit acknowledgement, rollback and lifecycle cleanup boundary is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md; retaining that atomic boundary does not discharge the existing decomposition debt.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
-    reviewed_bytes: 106392
-    rationale: Parsing, typed scopes, prepared instructions, resumable execution and peripheral dispatch remain one programme-state boundary. The earlier review in evidence/release-baseline-hygiene.md is preserved and the retained runtime responsibility/growth is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md. Future extraction must preserve source/state validation, instruction timing, diagnostics and ordered events; the active legacy bridge and its retirement condition remain unchanged.
+    reviewed_bytes: 127658
+    rationale: Parsing, typed scopes, prepared instructions, resumable execution and peripheral dispatch remain one programme-state boundary. The accepted do-loop, increment/wait replay journal and private seeded-PRNG growth are reviewed in evidence/runtime-responsibility-20261026.md; the journal remains coupled to source/PC/typed-state validation and ordered effects, while the new helper owns only seed/recurrence arithmetic. Retain decomposition debt; future compiler or journal extraction requires exact old-state/event, JSON-resume, diagnostics, clock and budget parity. Earlier release-baseline and classroom-retained-source-responsibility-641 evidence is preserved; this bounded review does not reset unrelated hygiene checkpoints or change the active legacy bridge retirement condition.
   - path: apps/web/src/electronics/ArduinoCodePanel.tsx
     class: decomposition-candidate
     reviewed_bytes: 63884

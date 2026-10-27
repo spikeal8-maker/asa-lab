@@ -4,7 +4,11 @@ export const PIN_ANCHOR_TOLERANCE_MM = 0.25 as const;
 
 // Contact topology belongs to the shared browser/server domain. Re-export it
 // here for the visual contract tests instead of maintaining a second mapping.
-export { buttonContactPairs, spdtConnections, type SpdtThrow } from '@asa-lab/electronics';
+export {
+  buttonContactPairs,
+  spdtConnections,
+  type SpdtThrow,
+} from '@asa-lab/electronics/rendering';
 
 export type OrdinaryLedColour = 'blue' | 'green' | 'orange' | 'red' | 'white' | 'yellow';
 export type OrdinaryLedFault = 'none' | 'reverse' | 'overcurrent' | 'burned';
@@ -156,7 +160,7 @@ export function ordinaryLedState(
 
 export function ordinaryLedAsset(state: OrdinaryLedState): string {
   if (state.fault === 'reverse')
-    return '/assets/electronics/component-database/components/led/special/led_red_reverse_polarity.svg';
+    return `/assets/electronics/component-database/components/led/${state.colour}/led_${state.colour}_i000.svg`;
   if (state.fault === 'overcurrent')
     return '/assets/electronics/component-database/components/led/special/led_orange_overcurrent.svg';
   if (state.fault === 'burned')

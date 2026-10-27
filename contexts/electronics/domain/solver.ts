@@ -19,7 +19,7 @@ import {
 } from './arduino-program-runtime.js';
 import { analyseArduinoSourceSupport } from './arduino-capabilities.js';
 import { photoresistorResistanceOhm } from './photoresistor-model.js';
-import { spdtSelectedTerminal } from './switch-topology.js';
+import { switchSelectedTerminal, switchContactClosed } from './switch-topology.js';
 import { buildNetlist, terminalKey } from './netlist.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
@@ -28,8 +28,17 @@ import {
   unsupportedElectricalComponents,
   validateElectricalTerminalContract,
 } from './model-registry.js';
-import { ledBrightnessPercent, type LedJunctionProfile } from './led-model.js';
-import type { DcStampContext, IterativeDcStampContext } from './models/device-model.js';
+import {
+  ledBrightnessPercent,
+  sevenSegmentProfileHasOriginalDefinition,
+  type LedJunctionProfile,
+} from './led-model.js';
+import { resolveElectricalModelIdentity } from './model-identity.js';
+import {
+  captureDeviceModelDefinition,
+  type DcStampContext,
+  type IterativeDcStampContext,
+} from './models/device-model.js';
 import {
   createTmp36DcDevice,
   TMP36_DEVICE_MODEL,
@@ -466,12 +475,26 @@ interface ArduinoElectricalTemplate {
   }[];
   readonly nodes: readonly NodeResult[];
   readonly sourceCurrents: readonly number[];
+  readonly rawSevenSegmentDiagnostics?: readonly Diagnostic[];
 }
+
+const sevenSegmentReference: SchematicComponent = {
+  id: 'seven-segment-definition',
+  kind: 'seven-segment',
+  value: 0,
+  position: { x: 0, y: 0 },
+  componentTypeId: 'seven-segment-display',
+};
+const sevenSegmentDefinitionIsOriginal = captureDeviceModelDefinition([
+  resolveElectricalModelIdentity(sevenSegmentReference),
+  electricalModelFor(sevenSegmentReference).requiredTerminals,
+]);
 
 /** Pure electrical work only. Owned by one advance, never persisted or shared. */
 export function createArduinoOperatingPointReuse() {
   let previousDocument: ElectronicsDocument | undefined;
   let eligible = false;
+  let hasSevenSegment = false;
   const slots: { readonly key: readonly unknown[]; point?: ArduinoAlgebraicPoint }[] = [];
   return (
     document: ElectronicsDocument,
@@ -484,25 +507,36 @@ export function createArduinoOperatingPointReuse() {
     if (previousDocument !== document) {
       previousDocument = document;
       slots.length = 0;
+      hasSevenSegment = document.components.some((component) => component.kind === 'seven-segment');
       eligible = document.components.every((component) => {
         const model = electricalModelFor(component);
         return (
           model.support === 'supported' &&
           model.version === 1 &&
-          model.profileVersion === 1 &&
-          ((model.id === 'arduino-uno' &&
-            model.profileId === 'arduino-uno-r3' &&
-            isArduinoUno(component)) ||
-            (model.id === 'resistor' &&
-              model.profileId === 'axial-resistor' &&
-              component.kind === 'resistor') ||
-            (model.id === 'ordinary-led' &&
-              model.profileId === 'generic-red-led' &&
-              component.kind === 'led'))
+          ((model.profileVersion === 1 &&
+            ((model.id === 'arduino-uno' &&
+              model.profileId === 'arduino-uno-r3' &&
+              isArduinoUno(component)) ||
+              (model.id === 'resistor' &&
+                model.profileId === 'axial-resistor' &&
+                component.kind === 'resistor') ||
+              (model.id === 'ordinary-led' &&
+                model.profileId === 'generic-red-led' &&
+                component.kind === 'led'))) ||
+            (model.id === 'seven-segment' &&
+              model.profileId === 'single-digit-seven-segment-10pin' &&
+              model.profileVersion === 2 &&
+              component.componentTypeId === 'seven-segment-display' &&
+              component.kind === 'seven-segment'))
         );
       });
     }
-    if (!eligible || [...snapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)) {
+    if (
+      !eligible ||
+      (hasSevenSegment &&
+        (!sevenSegmentProfileHasOriginalDefinition() || !sevenSegmentDefinitionIsOriginal())) ||
+      [...snapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)
+    ) {
       slots.length = 0;
       return undefined;
     }
@@ -1061,7 +1095,9 @@ function resultFromArduinoElectricalTemplate(
     current: roundCurrent(totalSourceCurrent),
     components,
     nodes: template.nodes,
-    diagnostics: [circuitOkDiagnostic(totalSourceCurrent)].map(withDiagnosticAnchors),
+    diagnostics: template.rawSevenSegmentDiagnostics
+      ? structuredClone(template.rawSevenSegmentDiagnostics)
+      : [circuitOkDiagnostic(totalSourceCurrent)].map(withDiagnosticAnchors),
     iterations: point.iterations,
     numericalResidual,
     numericalTolerance,
@@ -1354,7 +1390,7 @@ function logicalTerminal(component: SchematicComponent, terminal: LogicalTermina
   if (component.kind === 'button') return terminal === 'a' ? 'SW-A1' : 'SW-B1';
   if (component.kind === 'switch') {
     if (terminal === 'a') return 'common';
-    return spdtSelectedTerminal(component.state);
+    return switchSelectedTerminal(component);
   }
   if (component.kind === 'potentiometer') {
     if (terminal === 'wiper') return 'wiper';
@@ -3405,7 +3441,7 @@ function solveCircuitStep(
         stampConductance(a, b, companion.conductanceSiemens);
         stampOffset(a, b, companion.historyCurrentAmp);
       } else if (component.kind === 'switch') {
-        if (component.componentTypeId || component.state === true) {
+        if (switchContactClosed(component)) {
           stampConductance(a, b, 1 / CLOSED_RESISTANCE);
         }
       } else if (component.kind === 'button') {
@@ -4071,11 +4107,7 @@ function solveCircuitStep(
       else if (motorStep) current = motorStep.observation.currentAmp;
       else if (capacitorObservation) current = capacitorObservation.currentAmp;
       else if (component.kind === 'switch')
-        current = component.componentTypeId
-          ? voltageDrop / CLOSED_RESISTANCE
-          : component.state === true
-            ? voltageDrop / CLOSED_RESISTANCE
-            : 0;
+        current = switchContactClosed(component) ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'button')
         current = component.state === true ? voltageDrop / CLOSED_RESISTANCE : 0;
       else if (component.kind === 'potentiometer') {
@@ -4958,7 +4990,30 @@ function solveCircuitStep(
     !reusedPoint &&
     finalMatrix &&
     finalRhs &&
-    diagnostics.every((diagnostic) => diagnostic.code === 'circuit_ok')
+    diagnostics.every(
+      (diagnostic) =>
+        diagnostic.code === 'circuit_ok' ||
+        (diagnostic.code === 'led_near_limit' &&
+          diagnostic.severity === 'warning' &&
+          sevenSegmentProfileHasOriginalDefinition() &&
+          sevenSegmentDefinitionIsOriginal() &&
+          !diagnostic.wireIds?.length &&
+          !diagnostic.netIds?.length &&
+          !!diagnostic.componentIds?.length &&
+          diagnostic.componentIds.every((id) =>
+            document.components.some(
+              (component) =>
+                component.id === id &&
+                component.kind === 'seven-segment' &&
+                component.componentTypeId === 'seven-segment-display',
+            ),
+          ) &&
+          (!diagnostic.anchors ||
+            diagnostic.anchors.every(
+              (anchor) =>
+                anchor.kind === 'component' && diagnostic.componentIds!.includes(anchor.id),
+            ))),
+    )
   ) {
     pointSlot.point = {
       solution,
@@ -5000,6 +5055,13 @@ function solveCircuitStep(
                 ),
               ),
               sourceCurrents: Object.freeze(arduinoBranches.map(currentDeliveredByArduinoBranch)),
+              ...(diagnostics.some((diagnostic) => diagnostic.code === 'led_near_limit')
+                ? {
+                    rawSevenSegmentDiagnostics: structuredClone(
+                      diagnostics.map(withDiagnosticAnchors),
+                    ),
+                  }
+                : {}),
             }),
           }
         : {}),

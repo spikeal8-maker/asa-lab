@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { CrmProjectReader } from './CrmUserCard';
 import {
   adminApi,
   type AdminHistoryCategory,
@@ -208,6 +209,14 @@ export function AdminUserHistoryPanel({
                 <small>Проект: {item.projectId}</small>
               </>
             )}
+            {scope.kind === 'platform' && item.projectId && item.type !== 'ai' ? (
+              <CrmProjectReader
+                subject={{ kind, targetId }}
+                projectId={item.projectId}
+                versionId={item.type === 'version' ? item.id : undefined}
+                onAccessDenied={onAccessDenied}
+              />
+            ) : null}
             {item.status ? (
               <span>
                 {item.type === 'publication' ? 'Текущее состояние публикации: ' : 'Состояние: '}

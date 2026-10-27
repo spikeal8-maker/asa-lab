@@ -1,7 +1,7 @@
 name: ASA Portable Release
 run-name: Release ${{ github.event.workflow_run.head_sha || github.sha }}
 
-"on":
+'on':
   workflow_run:
     workflows: ['ASA Lab Governance and Code Gates']
     branches: [main]
@@ -63,10 +63,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - {service: api, file: Dockerfile.api, target: runtime}
-          - {service: web, file: Dockerfile.web, target: runtime}
-          - {service: scratch, file: infra/scratch-editor/Dockerfile, target: ''}
-          - {service: minio, file: infra/minio/Dockerfile, target: ''}
+          - { service: api, file: Dockerfile.api, target: runtime }
+          - { service: web, file: Dockerfile.web, target: runtime }
+          - { service: scratch, file: infra/scratch-editor/Dockerfile, target: '' }
+          - { service: minio, file: infra/minio/Dockerfile, target: '' }
+          - { service: search, file: infra/search/Dockerfile, target: '' }
     steps:
       - uses: actions/checkout@v4
         with:

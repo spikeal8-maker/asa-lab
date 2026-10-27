@@ -12,6 +12,7 @@ import { TaskImageReferenceWindow } from './TaskImageReferenceWindow';
 import type { TaskImageSelection } from './TaskBlocks';
 import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
+import { setProjectSnapshotWriteAllowed } from '../modules/project-snapshot';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
 import {
   assignmentBriefResultText,
@@ -254,6 +255,16 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
     };
   }, [load]);
 
+  // The server's exact Learning Work edit permission controls background PUTs too.
+  // Submitted, completed and not-yet-resumed work is read-only: don't let an
+  // editor's snapshot timer attempt a forbidden mutation after a hand-in.
+  useEffect(() => {
+    if (context.state === 'ready')
+      setProjectSnapshotWriteAllowed(projectId, context.allowedActions.edit);
+    else if (context.state === 'denied') setProjectSnapshotWriteAllowed(projectId, false);
+    else if (context.state === 'not_learning') setProjectSnapshotWriteAllowed(projectId, true);
+  }, [context, projectId]);
+
   if (context.state === 'not_learning') return null;
   if (context.state !== 'ready' || !assignment) {
     const message =
@@ -420,6 +431,9 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
       : await api.submitSeatAssignment(assignment.id, true, revision, submissionRequest.current.id);
     setBusy(false);
     if (result.ok) {
+      // The immutable submission is already committed before the context reload.
+      // Stop and cancel snapshot PUTs synchronously with successful hand-in.
+      setProjectSnapshotWriteAllowed(projectId, false);
       setContext(await load());
       setLegacyResumed(false);
       submissionRequest.current = null;

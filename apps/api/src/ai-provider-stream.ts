@@ -1,3 +1,4 @@
+import { AI_MAX_ANSWER_CHARS, AI_GENERATION_TIMEOUT_MS } from './ai-generation-limits.js';
 /** Bounded upstream SSE decoder for OpenAI Responses and DeepSeek Chat Completions.
  * No provider credentials, request URLs, or response bodies are logged. */
 import {
@@ -6,7 +7,7 @@ import {
 } from './ai-provider-errors.js';
 import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
-export type StreamProvider = 'openai' | 'deepseek';
+export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud';
 
 export class ProviderStreamError extends Error {
   constructor(
@@ -38,7 +39,7 @@ export interface ProviderStreamResult {
   readonly usage?: AiProviderUsage;
 }
 
-const MAX_RESULT_CHARS = 8192;
+const MAX_RESULT_CHARS = AI_MAX_ANSWER_CHARS;
 const MAX_EVENT_BUFFER = 128 * 1024;
 
 function completionState(
@@ -47,8 +48,8 @@ function completionState(
   partialText = '',
 ): 'complete' | 'stopped' {
   if (provider === 'openai' && terminal === 'completed') return 'complete';
-  if (provider === 'deepseek' && terminal === 'stop') return 'complete';
-  if (provider === 'deepseek' && terminal === 'length') return 'stopped';
+  if (provider !== 'openai' && terminal === 'stop') return 'complete';
+  if (provider !== 'openai' && terminal === 'length') return 'stopped';
   throw new ProviderStreamError(
     provider === 'openai' && terminal === 'failed' ? 'ai_provider_error' : 'ai_response_incomplete',
     503,
@@ -68,8 +69,17 @@ export function parseProviderText(
   let text = '';
   let terminal: unknown;
   if (provider === 'openai') {
-    const response = payload as { status?: unknown; output_text?: unknown; output?: unknown };
-    terminal = response.status;
+    const response = payload as {
+      status?: unknown;
+      output_text?: unknown;
+      output?: unknown;
+      incomplete_details?: { reason?: unknown };
+    };
+    terminal =
+      response.status === 'incomplete' &&
+      response.incomplete_details?.reason === 'max_output_tokens'
+        ? 'length'
+        : response.status;
     if (typeof response.output_text === 'string') text = response.output_text;
     else if (Array.isArray(response.output)) {
       text = response.output
@@ -96,7 +106,10 @@ export function parseProviderText(
   const usage = providerUsage(provider, payload);
   let state: 'complete' | 'stopped';
   try {
-    state = completionState(provider, terminal, bounded);
+    state =
+      provider === 'openai' && terminal === 'length'
+        ? 'stopped'
+        : completionState(provider, terminal, bounded);
   } catch (error) {
     if (error instanceof ProviderStreamError)
       throw new ProviderStreamError(
@@ -119,7 +132,7 @@ export function parseProviderText(
   }
   return {
     text: bounded,
-    stopped: state === 'stopped' || text.length >= MAX_RESULT_CHARS,
+    stopped: state === 'stopped' || text.length > MAX_RESULT_CHARS,
     ...(usage ? { usage } : {}),
   };
 }
@@ -158,12 +171,13 @@ export async function streamProviderText({
     throw new ProviderStreamError('ai_model_invalid', 400, 'Выберите поддерживаемую модель.');
   }
   const request = buildAiTextRequest(provider, model, context, instructions, true);
-  const timeout = AbortSignal.timeout(65000);
+  const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
   const combined = AbortSignal.any([signal, timeout]);
   let response: Response;
   try {
     response = await fetchImpl(request.url, {
       method: 'POST',
+      ...(provider === 'ollama-cloud' ? { redirect: 'error' as const } : {}),
       headers: {
         authorization: 'Bearer ' + apiKey,
         'content-type': 'application/json',
@@ -212,7 +226,7 @@ export async function streamProviderText({
       .join('\n');
     if (!data) return;
     if (data === '[DONE]') {
-      if (provider === 'deepseek') {
+      if (provider !== 'openai') {
         if (providerState === null) completionState(provider, null);
         finished = true;
       }
@@ -245,9 +259,17 @@ export async function streamProviderText({
       provider === 'openai' &&
       (event === 'response.incomplete' || packetType === 'response.incomplete')
     ) {
+      if (
+        (payload as { response?: { incomplete_details?: { reason?: unknown } } })?.response
+          ?.incomplete_details?.reason === 'max_output_tokens'
+      ) {
+        providerState = 'stopped';
+        finished = true;
+        return;
+      }
       completionState(provider, 'incomplete');
     }
-    if (provider === 'deepseek' && payload && typeof payload === 'object') {
+    if (provider !== 'openai' && payload && typeof payload === 'object') {
       const reason = (payload as { choices?: Array<{ finish_reason?: string | null }> })
         .choices?.[0]?.finish_reason;
       if (reason !== null && reason !== undefined) {

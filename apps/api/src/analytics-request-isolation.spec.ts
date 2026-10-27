@@ -39,7 +39,7 @@ function fixture(query: (sql: string, values?: unknown[]) => Promise<{ rows: obj
     queue,
     service,
     v1: new ProductAnalyticsController(service),
-    v2: new ProductAnalyticsV2Controller(service),
+    v2: new ProductAnalyticsV2Controller(service, new ProductAnalyticsService(null)),
   };
 }
 

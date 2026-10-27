@@ -109,3 +109,8 @@
     flex: 1 1 145px;
   }
 }
+
+.admin-publication-pinned {
+  color: var(--text-primary, #28415c);
+  font-weight: 700;
+}

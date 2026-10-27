@@ -9359,10 +9359,11 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(0);
   await expect(led).not.toHaveAttribute('data-diagnostics', /reverse_polarity/);
-  await expect(led.locator('image:not([filter])').first()).toHaveAttribute(
-    'href',
-    /special\/led_red_reverse_polarity\.svg$/,
-  );
+  const reverseAsset = led.locator('image:not([filter])').first();
+  await expect(reverseAsset).toHaveAttribute('href', /\/led\/red\/led_red_i000\.svg$/);
+  await expect
+    .poll(() => reverseAsset.evaluate((image) => getComputedStyle(image).filter))
+    .toBe('none');
   await expect(led.locator('.workbench-production-visual')).toHaveClass(/is-reverse/);
   await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
   await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveCount(0);

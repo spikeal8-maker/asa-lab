@@ -11,11 +11,13 @@ components:
     sources:
     - contexts/electronics/domain/arduino-program-runtime.ts
     - contexts/electronics/domain/arduino-values.ts
+    - contexts/electronics/domain/arduino-random.ts
     - contexts/electronics/domain/arduino-model.ts
     tests:
     - contexts/electronics/testing/arduino-correctness.spec.ts
     - contexts/electronics/testing/arduino-runtime-state.spec.ts
     - contexts/electronics/testing/arduino-values.spec.ts
+    - contexts/electronics/testing/arduino-random.spec.ts
     - contexts/electronics/testing/arduino-servo-runtime.spec.ts
     dependencies:
     - electronics.clock.canonical

@@ -138,13 +138,18 @@ test('parent startup uses the full-screen ASA loader instead of a footer status 
 test('startup and guarded updates build every local image before no-build replacement', () => {
   for (const file of ['tools/asa-lab.ps1', 'tools/docker-update.ps1']) {
     const source = read(file);
-    assert.match(source, /foreach \(\$service in @\('minio', 'scratch', 'api', 'web'\)\)/);
-    assert.ok(source.indexOf("'minio', 'scratch', 'api', 'web'") < source.indexOf("'--no-build'"));
+    assert.match(
+      source,
+      /foreach \(\$service in @\('minio', 'search', 'scratch', 'api', 'web'\)\)/,
+    );
+    assert.ok(
+      source.indexOf("'minio', 'search', 'scratch', 'api', 'web'") < source.indexOf("'--no-build'"),
+    );
   }
   for (const file of ['tools/asa-lab.sh', 'tools/docker-update.sh']) {
     const source = read(file);
-    assert.match(source, /for service in minio scratch api web; do/);
-    assert.ok(source.indexOf('minio scratch api web') < source.indexOf('--no-build'));
+    assert.match(source, /for service in minio search scratch api web; do/);
+    assert.ok(source.indexOf('minio search scratch api web') < source.indexOf('--no-build'));
     assert.doesNotMatch(source, /up.*--build/);
   }
   assert.match(read('tools/asa-lab.sh'), /if \[ -e \.git \]/);

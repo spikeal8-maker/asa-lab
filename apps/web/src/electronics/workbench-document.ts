@@ -415,7 +415,9 @@ export function updateSelectionState(
               ...item.stateProperties,
               ...(item.kind === 'button'
                 ? { contactState: state ? 'pressed' : 'released' }
-                : { selectedThrow: state ? 'right' : 'left' }),
+                : item.componentTypeId === 'switch-spst'
+                  ? { contactState: state ? 'open' : 'closed' }
+                  : { selectedThrow: state ? 'right' : 'left' }),
             },
           }
         : item,

@@ -5,7 +5,8 @@ export interface ArduinoSerialMonitorProps {
   readonly open: boolean;
   readonly running: boolean;
   readonly boardId: string;
-  readonly serial?: ElectronicsArduinoSerialProjection;
+  readonly serial?:
+    (ElectronicsArduinoSerialProjection & { readonly streamGeneration?: string }) | undefined;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSend: (boardId: string, text: string) => void;
 }
@@ -28,19 +29,22 @@ export function ArduinoSerialMonitor({
 }: ArduinoSerialMonitorProps): JSX.Element {
   const [input, setInput] = useState('');
   const [clearedThroughByBoard, setClearedThroughByBoard] = useState<
-    Readonly<Record<string, number>>
+    Readonly<Record<string, { readonly sequence: number; readonly generation?: string }>>
   >({});
   const outputRef = useRef<HTMLDivElement>(null);
-  const clearedThrough = clearedThroughByBoard[boardId] ?? -1;
+  const mark = clearedThroughByBoard[boardId];
+  const clearedThrough =
+    mark?.generation === serial?.streamGeneration ? (mark?.sequence ?? -1) : -1;
   const visibleTx = useMemo(
     () => (serial?.tx ?? []).filter((entry) => entry.sequence > clearedThrough),
     [clearedThrough, serial?.tx],
   );
-  const status = !running ? 'Остановлен' : serial?.begun ? 'Подключён' : 'Ожидает Serial.begin';
+  const connected = running && serial?.begun;
+  const status = !running ? 'Остановлен' : connected ? 'Подключён' : 'Ожидает Serial.begin';
 
   function send(event: FormEvent): void {
     event.preventDefault();
-    if (!running || !input) return;
+    if (!connected || !input) return;
     onSend(boardId, input);
     setInput('');
   }
@@ -48,8 +52,24 @@ export function ArduinoSerialMonitor({
   function clear(): void {
     const lastSequence = serial?.tx.at(-1)?.sequence;
     if (lastSequence === undefined) return;
-    setClearedThroughByBoard((current) => ({ ...current, [boardId]: lastSequence }));
+    setClearedThroughByBoard((current) => ({
+      ...current,
+      [boardId]: {
+        sequence: lastSequence,
+        ...(serial?.streamGeneration === undefined ? {} : { generation: serial.streamGeneration }),
+      },
+    }));
   }
+
+  useEffect(() => {
+    if (serial?.begun) return;
+    setClearedThroughByBoard((current) => {
+      if (!(boardId in current)) return current;
+      const next = { ...current };
+      delete next[boardId];
+      return next;
+    });
+  }, [boardId, serial?.begun]);
 
   useEffect(() => {
     const output = outputRef.current;
@@ -66,9 +86,7 @@ export function ArduinoSerialMonitor({
       >
         <span className="arduino-serial-icon" aria-hidden="true" />
         Монитор последовательного интерфейса
-        <span className={`arduino-serial-status${running && serial?.begun ? ' running' : ''}`}>
-          {status}
-        </span>
+        <span className={`arduino-serial-status${connected ? ' running' : ''}`}>{status}</span>
         <Chevron />
       </button>
       <div className="arduino-serial-body" aria-hidden={!open}>
@@ -92,7 +110,7 @@ export function ArduinoSerialMonitor({
             aria-label="Скорость последовательного порта"
             value={serial?.baudRate === undefined ? '—' : `${serial.baudRate} бод`}
           />
-          <button type="submit" disabled={!running || !input}>
+          <button type="submit" disabled={!connected || !input}>
             Отпр.
           </button>
           <button type="button" onClick={clear}>

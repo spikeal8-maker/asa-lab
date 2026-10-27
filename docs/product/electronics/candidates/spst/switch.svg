@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="104" viewBox="0 0 96 104" role="img" aria-labelledby="title desc">
+  <title id="title">ASA original two-terminal latched rocker candidate — OFF</title>
+  <desc id="desc">Unbranded SPST concept. Two fixed terminals A and B below a panel rocker. Candidate artwork awaiting owner confirmation, not a production component.</desc>
+  <defs>
+    <linearGradient id="metal" x2="1" y2="0">
+      <stop stop-color="#959fa8"/>
+      <stop offset=".45" stop-color="#e0e5e9"/>
+      <stop offset="1" stop-color="#87939d"/>
+    </linearGradient>
+    <linearGradient id="case" x2="0" y2="1">
+      <stop stop-color="#444d57"/>
+      <stop offset="1" stop-color="#202831"/>
+    </linearGradient>
+    <g id="fixed-body">
+      <!-- Exactly two electrical terminals. Contact centres: A=(30,86), B=(66,86). -->
+      <g fill="url(#metal)" stroke="#586570" stroke-width="1.5">
+        <rect id="terminal-a" x="24" y="66" width="12" height="28" rx="2"/>
+        <rect id="terminal-b" x="60" y="66" width="12" height="28" rx="2"/>
+      </g>
+      <g fill="none" stroke="#64727e" stroke-width="1.5">
+        <circle cx="30" cy="86" r="2.5"/>
+        <circle cx="66" cy="86" r="2.5"/>
+      </g>
+      <rect x="14" y="12" width="68" height="60" rx="10" fill="url(#case)" stroke="#111820" stroke-width="2"/>
+      <rect x="20" y="18" width="56" height="48" rx="7" fill="#10161c" stroke="#66727d"/>
+      <path d="M20 27v-2a7 7 0 0 1 7-7h42" fill="none" stroke="#82909c" stroke-width="1.5"/>
+      <g fill="#263541" font-family="sans-serif" font-size="9" font-weight="bold" text-anchor="middle">
+        <text x="30" y="102">A</text>
+        <text x="66" y="102">B</text>
+      </g>
+    </g>
+    <g id="state-off">
+      <use href="#fixed-body"/>
+      <!-- The lower edge is raised in OFF; the upper edge is depressed. -->
+      <path d="M24 26Q48 20 72 26L72 56Q48 67 24 56Z" fill="#525f6c" stroke="#111820" stroke-width="1.5"/>
+      <path d="M24 48Q48 58 72 48L72 56Q48 67 24 56Z" fill="#778693"/>
+      <path d="M26 28Q48 23 70 28" fill="none" stroke="#8595a3"/>
+      <path d="M48 29v8" fill="none" stroke="#b2bac2" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="48" cy="49" r="5" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+    </g>
+    <g id="state-on">
+      <use href="#fixed-body"/>
+      <!-- The upper edge is raised in ON; the lower edge is depressed. -->
+      <path d="M24 25Q48 14 72 25L72 55Q48 61 24 55Z" fill="#525f6c" stroke="#111820" stroke-width="1.5"/>
+      <path d="M24 25Q48 14 72 25L72 33Q48 23 24 33Z" fill="#778693"/>
+      <path d="M26 25Q48 16 70 25" fill="none" stroke="#a6b3be"/>
+      <path d="M48 29v8" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="48" cy="49" r="5" fill="none" stroke="#b2bac2" stroke-width="2.5"/>
+    </g>
+  </defs>
+  <use id="display-state" href="#state-off"/>
+</svg>

@@ -5,10 +5,13 @@
   "dependencies": {
     "@asa-lab/checkers": "workspace:*",
     "@asa-lab/chess": "workspace:*",
+    "@asa-lab/contracts": "workspace:*",
     "@asa-lab/electronics": "workspace:*",
     "@asa-lab/module-sdk": "workspace:*",
     "@asa-lab/three-d": "workspace:*",
+    "docx": "9.14.0",
     "katex": "0.16.47",
+    "pdfmake": "0.3.13",
     "qrcode-generator": "^2.0.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -16,10 +19,13 @@
     "rehype-katex": "7.0.1",
     "remark-gfm": "4.0.1",
     "remark-math": "6.0.0",
+    "remark-parse": "11.0.0",
     "scratch-blocks": "2.1.19",
-    "three": "0.185.1"
+    "three": "0.185.1",
+    "unified": "11.0.5"
   },
   "devDependencies": {
+    "@types/pdfmake": "0.3.3",
     "@types/three": "0.185.4"
   }
 }

@@ -280,10 +280,18 @@ export function AdminAuthProviderCard({
               onChange={(event) => setMiniAppUrl(event.target.value)}
             />
             <p className="admin-field-note" id={`${provider}-receiver-help`}>
-              Адрес этой установки, доступный боту из интернета по HTTPS. Он используется для приёма
-              подтверждений. Открытый в админке HTTP-адрес не заменяет публичный HTTPS-адрес. Для
-              другой установки используйте отдельного бота.
+              Адрес сайта, доступный боту через интернет.
             </p>
+          </div>
+          <p className="admin-field-note">
+            {unknown
+              ? 'Обновите состояние подключения.'
+              : config.enforcementEligible
+                ? 'Канал готов для подтверждения аккаунтов.'
+                : 'После сохранения подтвердите подключение в боте.'}
+          </p>
+          <details className="confirmation-connection-details">
+            <summary>Подробности подключения</summary>
             <p className="admin-field-note" style={{ overflowWrap: 'anywhere' }}>
               Webhook: <code>{callback ?? 'укажите корректный HTTPS-адрес'}</code>
             </p>
@@ -292,48 +300,43 @@ export function AdminAuthProviderCard({
                 Сохранённый webhook: <code>{config.webhookUrl}</code>
               </p>
             ) : null}
-          </div>
-          <dl className="auth-admin-provider-facts">
-            <div>
-              <dt>Последняя проверка</dt>
-              <dd>{unknown ? 'Статус недоступен' : checkedAt(config.healthCheckedAt)}</dd>
-            </div>
-            <div>
-              <dt>Токен бота</dt>
-              <dd>{diagnosticLabel(diagnostic?.token, unknown)}</dd>
-            </div>
-            <div>
-              <dt>Подписка бота</dt>
-              <dd>{diagnosticLabel(diagnostic?.subscription, unknown)}</dd>
-            </div>
-            <div>
-              <dt>Публичный адрес</dt>
-              <dd>{diagnosticLabel(diagnostic?.ingress, unknown)}</dd>
-            </div>
-            <div>
-              <dt>Подтверждение человеком</dt>
-              <dd>
-                {unknown
-                  ? 'Статус недоступен'
-                  : nativeConfirmed
-                    ? `Проверено — ${checkedAt(native?.verifiedAt)}`
-                    : 'Ещё не проверено'}
-              </dd>
-            </div>
-          </dl>
-          <p className="admin-field-note">
-            {unknown
-              ? 'Статус подключения неизвестен. Обновите состояние перед включением обязательного подтверждения.'
-              : nativeConfirmed
-                ? config.enforcementEligible === true
-                  ? 'Канал проверен и может участвовать в обязательном подтверждении.'
-                  : 'Подтверждение выполнено. Сейчас канал недоступен для обязательного подтверждения.'
-                : 'Сохранённая подписка не подтверждает весь путь. Нажмите «Подтвердить в боте», одобрите запрос и вернитесь сюда. До успешной проверки канал не участвует в обязательном подтверждении.'}
-          </p>
+            <dl className="auth-admin-provider-facts">
+              <div>
+                <dt>Последняя проверка</dt>
+                <dd>{unknown ? 'Статус недоступен' : checkedAt(config.healthCheckedAt)}</dd>
+              </div>
+              <div>
+                <dt>Токен бота</dt>
+                <dd>{diagnosticLabel(diagnostic?.token, unknown)}</dd>
+              </div>
+              <div>
+                <dt>Подписка бота</dt>
+                <dd>{diagnosticLabel(diagnostic?.subscription, unknown)}</dd>
+              </div>
+              <div>
+                <dt>Публичный адрес</dt>
+                <dd>{diagnosticLabel(diagnostic?.ingress, unknown)}</dd>
+              </div>
+              <div>
+                <dt>Подтверждение человеком</dt>
+                <dd>
+                  {unknown
+                    ? 'Статус недоступен'
+                    : nativeConfirmed
+                      ? `Проверено — ${checkedAt(native?.verifiedAt)}`
+                      : 'Ещё не проверено'}
+                </dd>
+              </div>
+            </dl>
+            <p className="admin-field-note">
+              Для получения подтверждений нужен публичный HTTPS-адрес этой установки. Для другой
+              установки используйте отдельного бота. Проверка подключения проверяет сервер; кнопка
+              «Подтвердить в боте» проверяет весь путь сообщения.
+            </p>
+          </details>
           {!config.encryptionReady ? (
             <p className="auth-settings-notice is-error" role="alert">
-              Сервер не готов сохранять токены. Администратору сервера нужно подготовить
-              ASA_SETTINGS_ENCRYPTION_KEY, сохранив прежний ключ при обновлении. Канал можно
+              Защита токенов недоступна. Восстановите ключ настроек установки. Канал можно
               выключить.
             </p>
           ) : null}

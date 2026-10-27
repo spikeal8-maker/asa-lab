@@ -102,7 +102,7 @@ describe('Arduino programming room contract', () => {
     expect(css).toContain('.arduino-block-editor .blocklyFlyoutBackground');
     expect(css).toContain('font-weight: 500 !important');
     expect(css).toContain('.arduino-block-editor .blocklyLabelField > .blocklyText');
-    expect(css).toContain('text-shadow: 0 1px 1px');
+    expect(css).not.toContain('text-shadow: 0 1px 1px rgba(48, 51, 39, 0.42)');
     expect(css).toContain('grid-template-columns: minmax(500px, 2fr) minmax(330px, 1fr)');
   });
 

@@ -1,3 +1,4 @@
+import { EmailConfirmationPage, takeEmailProof } from './pages/EmailConfirmationPage';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
@@ -7,6 +8,8 @@ import './styles.css';
 import './accessibility.css';
 import './pages/PublicEntryHeroV2.css';
 
+const emailConfirmation = window.location.pathname === '/confirm-email';
+const emailProof = emailConfirmation ? takeEmailProof() : '';
 const container = document.getElementById('root');
 installClientDiagnostics();
 if (!container) {
@@ -19,7 +22,7 @@ if (!container) {
 createRoot(container).render(
   <React.StrictMode>
     <AppErrorBoundary>
-      <App />
+      {emailConfirmation ? <EmailConfirmationPage token={emailProof} /> : <App />}
     </AppErrorBoundary>
   </React.StrictMode>,
 );

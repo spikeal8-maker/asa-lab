@@ -63,12 +63,42 @@ export function literalArduinoServoPin(block: ScratchBlocks.Block): string | nul
   return Number.isInteger(number) && number >= 0 && number <= 19 ? String(number) : null;
 }
 
+/** Code and presentation share the same connected Arduino program. Keep the
+ * workspace's existing first-root order, including when old saves have duplicates. */
+export function activeArduinoGraph(workspace: ScratchBlocks.Workspace) {
+  const blocks = workspace.getAllBlocks(false);
+  const setup = blocks.find((block) => block.type === 'asa_setup');
+  const loop = blocks.find((block) => block.type === 'asa_loop');
+  const fallback =
+    setup || loop
+      ? []
+      : blocks.filter(
+          (block) => !block.getParent() && block.previousConnection && !block.outputConnection,
+        );
+  const active = new Set<ScratchBlocks.Block>();
+  const pending =
+    setup || loop ? [setup, loop].filter((block) => block !== undefined) : [...fallback];
+  while (pending.length > 0) {
+    const block = pending.pop()!;
+    if (active.has(block)) continue;
+    active.add(block);
+    for (const input of block.inputList) {
+      const child = input.connection?.targetBlock();
+      if (child) pending.push(child);
+    }
+    const next = block.getNextBlock();
+    if (next) pending.push(next);
+  }
+  return { setup, loop, fallback, blocks: blocks.filter((block) => active.has(block)), active };
+}
+
 export function fixedArduinoServoPins(workspace: ScratchBlocks.Workspace): string[] {
   return [
     ...new Set(
-      workspace
-        .getAllBlocks(false)
-        .filter((block) => block.type === 'asa_servo_write' || block.type === 'asa_servo_read')
+      activeArduinoGraph(workspace)
+        .blocks.filter(
+          (block) => block.type === 'asa_servo_write' || block.type === 'asa_servo_read',
+        )
         .map(literalArduinoServoPin)
         .filter((pin): pin is string => pin !== null),
     ),

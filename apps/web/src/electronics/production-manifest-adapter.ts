@@ -52,7 +52,7 @@ export interface OwnerCatalogComponent {
   readonly sourceSha256: string | null;
   readonly runtimePath: string | null;
   readonly runtimeSha256: string | null;
-  readonly provenance: 'exact_owner_svg' | 'owner_supplied' | 'missing_owner_source';
+  readonly provenance: 'exact_owner_svg' | 'owner_supplied' | 'missing_owner_source' | 'owner_authorized_runtime_geometry';
   readonly status: 'enabled' | 'disabled_missing_svg' | 'disabled_missing_model';
   readonly physicalWidthMm: number | null;
   readonly physicalHeightMm: number | null;
@@ -186,6 +186,7 @@ const SIMULATED_TYPES = new Set([
   'led-5mm',
   'button-tactile-6mm',
   'switch-spdt',
+  'switch-spst',
   'potentiometer',
   'electrolytic-capacitor',
   'photoresistor',
@@ -280,7 +281,7 @@ function componentKind(componentId: string): Exclude<ComponentKind, 'wire'> {
   if (componentId === 'rgb-led') return 'rgb-led';
   if (componentId === 'seven-segment-display') return 'seven-segment';
   if (componentId === 'button-tactile-6mm') return 'button';
-  if (componentId === 'switch-spdt') return 'switch';
+  if (componentId === 'switch-spdt' || componentId === 'switch-spst') return 'switch';
   if (componentId === 'potentiometer') return 'potentiometer';
   if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId === 'piezo-passive-buzzer' || componentId === 'piezo-disc') return 'piezo';
@@ -311,7 +312,7 @@ function preview(componentId: string, kind: Exclude<ComponentKind, 'wire'>): Pre
   if (componentId === 'photoresistor') return 'photoresistor';
   if (componentId === 'rgb-led') return 'rgb-led';
   if (componentId === 'seven-segment-display') return 'seven-segment';
-  if (componentId === 'switch-spdt') return 'slide-switch';
+  if (componentId === 'switch-spdt' || componentId === 'switch-spst') return 'slide-switch';
   return kind;
 }
 
@@ -365,8 +366,8 @@ function defaults(componentId: string): {
     };
   if (componentId === 'button-tactile-6mm')
     return { value: 0, unit: '', state: false, properties: { contactState: 'released' } };
-  if (componentId === 'switch-spdt')
-    return { value: 0, unit: '', state: false, properties: { selectedThrow: 'left' } };
+  if (componentId === 'switch-spdt' || componentId === 'switch-spst')
+    return { value: 0, unit: '', state: false, properties: componentId === 'switch-spst' ? { contactState: 'closed' } : { selectedThrow: 'left' } };
   if (componentId === 'potentiometer')
     return {
       value: 1_000,
@@ -617,7 +618,9 @@ function assertFailClosed(item: OwnerCatalogComponent): void {
   }
   const runtimePrefix = '/assets/electronics/component-database/components/';
   if (
-    !['exact_owner_svg', 'owner_supplied'].includes(item.provenance) ||
+    !(item.provenance === 'owner_authorized_runtime_geometry'
+      ? item.componentId === 'switch-spst' && JSON.stringify(item.stateContract) === JSON.stringify({ type: 'spst', parent: 'switch-spdt', removedPin: 'throw-right', authorizationIssue: 777 })
+      : ['exact_owner_svg', 'owner_supplied'].includes(item.provenance)) ||
     !item.sourceOwnerPath ||
     !item.runtimePath?.startsWith(runtimePrefix) ||
     !item.runtimePath.endsWith('.svg') ||
@@ -700,7 +703,7 @@ function toCatalogItem(item: OwnerCatalogComponent): ProductionCatalogItem {
     description:
       COMPONENT_DESCRIPTIONS[familyId] ??
       COMPONENT_DESCRIPTIONS[item.familyId] ??
-      (item.status === 'enabled'
+      (item.componentId === 'switch-spst' ? item.displayName : item.status === 'enabled'
         ? 'Компонент из подтверждённого комплекта владельца.'
         : (item.blockReason ?? 'Недоступно.')),
     keywords: [

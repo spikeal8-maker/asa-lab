@@ -261,28 +261,40 @@ async function openAdmin(page: Page) {
   await expect(page.locator('.portal-global-error')).toHaveCount(0);
 }
 
-async function selectProvider(page: Page, provider: 'ollama' | 'deepseek' | 'openai') {
-  const title = provider === 'ollama' ? 'Ollama' : provider === 'deepseek' ? 'DeepSeek' : 'OpenAI';
+async function selectProvider(
+  page: Page,
+  provider: 'ollama' | 'ollama-cloud' | 'deepseek' | 'openai',
+) {
+  const title =
+    provider === 'ollama-cloud'
+      ? 'Ollama Cloud'
+      : provider === 'ollama'
+        ? 'Ollama'
+        : provider === 'deepseek'
+          ? 'DeepSeek'
+          : 'OpenAI';
   const card = page
     .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
-    .getByRole('button', { name: new RegExp('^' + title) });
+    .getByRole('button')
+    .filter({ has: page.getByText(title, { exact: true }) });
   await card.click();
   await expect(card).toHaveAttribute('aria-pressed', 'true');
   return card;
 }
 
-test('Three supported connections show exact key status and no secret or redundant test button', async ({
+test('Four supported connections show exact key status and no secret or redundant test button', async ({
   page,
 }) => {
   // D2-R2 Chrome cold-start can spend >30s in its very first navigation.
   test.setTimeout(90_000);
   const fake = await adminFixture(page);
   await openAdmin(page);
-  for (const name of ['Ollama', 'DeepSeek', 'OpenAI']) {
+  for (const name of ['Ollama', 'Ollama Cloud', 'DeepSeek', 'OpenAI']) {
     await expect(
       page
         .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
-        .getByRole('button', { name: new RegExp('^' + name) }),
+        .getByRole('button')
+        .filter({ has: page.getByText(name, { exact: true }) }),
     ).toBeVisible();
   }
   await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toContainText(
@@ -322,7 +334,16 @@ test('Separate OpenAI and DeepSeek keys stay server-side and delete only selecte
   await page.getByLabel('Модель', { exact: true }).selectOption('deepseek-v4-pro');
   await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
   await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
-  expect(fake.current().providerConfigurations.every((x) => x.apiKeyConfigured)).toBe(true);
+  expect(
+    fake
+      .current()
+      .providerConfigurations.filter((x) => x.provider !== 'ollama-cloud')
+      .every((x) => x.apiKeyConfigured),
+  ).toBe(true);
+  expect(
+    fake.current().providerConfigurations.find((x) => x.provider === 'ollama-cloud')
+      ?.apiKeyConfigured,
+  ).toBe(false);
   await selectProvider(page, 'openai');
   await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gpt-6-luna');
   await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
@@ -365,6 +386,48 @@ test('Cloud save-and-verify uses exactly one consented paid request and refreshe
   await expect(action).toBeDisabled();
   expect(fake.pageErrors).toEqual([]);
 });
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fake = await adminFixture(page);
+    await openAdmin(page);
+    await selectProvider(page, 'ollama-cloud');
+    await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
+    ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
+    await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gemma4:31b');
+    await page.getByLabel('Новый API-ключ').fill('test-ollama-cloud-key-only');
+    await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
+    await page.getByLabel('Выключено', { exact: true }).check();
+    await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
+    expect(fake.paidTests).toHaveLength(0);
+    await page.getByLabel('Разрешаю один платный запрос для проверки').check();
+    await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+    await expect(page.getByText(/Подключено · Ollama Cloud/)).toBeVisible();
+    expect(fake.writes).toHaveLength(1);
+    expect(fake.writes[0]).toMatchObject({
+      provider: 'ollama-cloud',
+      model: 'gemma4:31b',
+      apiKey: 'test-ollama-cloud-key-only',
+    });
+    expect(fake.paidTests).toHaveLength(1);
+    await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
+    expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.getByRole('region', { name: 'Настройки Ollama Cloud' }).scrollIntoViewIfNeeded();
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}.png`) });
+    expect(fake.pageErrors).toEqual([]);
+  });
+}
 
 test('Stale cloud save cannot start a paid request or claim success', async ({ page }) => {
   const configured = aiAdminFixture({
@@ -476,9 +539,11 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('Сохранено · ornith:9b', { exact: false })).toBeVisible();
     expect(fake.ollamaWrites).toHaveLength(1);
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
-    await page.getByRole('tab', { name: /ComfyUI/ }).click();
-    await expect(page.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
-    await expect(page.getByText('Граф генерации ещё не проверен')).toBeVisible();
+    await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
+    const technicalState = page.locator('details.asa-ai-comfy');
+    await technicalState.getByText('Техническое состояние ComfyUI', { exact: true }).click();
+    await expect(technicalState.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
+    await expect(technicalState.getByText('Граф генерации ещё не проверен')).toBeVisible();
     await page.getByRole('tab', { name: 'Подключения' }).click();
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');

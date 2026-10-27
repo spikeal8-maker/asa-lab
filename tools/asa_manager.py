@@ -21,6 +21,7 @@ from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
 from deployment.contracts import proxy_provenance_diagnostic
 from deployment.resources import check_resources
+from deployment.search_secret import InvalidSearchSecret
 
 
 def clean_checkout(install):
@@ -100,6 +101,7 @@ def first_environment(root, profile):
               "ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID": "initial-v1",
               "ASA_SETTINGS_ENCRYPTION_KEY": secrets.token_hex(32),
               "ASA_BLOCKS_RUNTIME_SIGNING_KEY": secrets.token_hex(32),
+              "ASA_SEARCH_SECRET": secrets.token_hex(32),
               "ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000", "ASA_OBJECT_STORAGE_REGION": "us-east-1",
               "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks", "ASA_OBJECT_STORAGE_ACCESS_KEY": secrets.token_hex(16),
               "ASA_OBJECT_STORAGE_SECRET_KEY": secrets.token_hex(32), "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE": "true",
@@ -172,8 +174,10 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
         return
-    preparation = prepare_collector(install)
-    install = Installation(install.root, install.profile)
+    preparation = {'readerGroupChanged': False}
+    if same_release:
+        preparation = prepare_collector(install)
+        install = Installation(install.root, install.profile)
     if same_release and not preparation['readerGroupChanged']:
         print("NO_CHANGE the verified release is already running; no backup or restart")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
@@ -182,7 +186,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
     install = Installation(install.root, install.profile)
-    prepare_collector(install)
+    selected_preparation = prepare_collector(install)
+    preparation['readerGroupChanged'] = preparation['readerGroupChanged'] or selected_preparation['readerGroupChanged']
     install = Installation(install.root, install.profile)
     for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN"):
         if key in install.env:
@@ -202,6 +207,14 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         backup = export_backup(install)
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
+    if "search" in release["images"]:
+        # Authorized mutation only, after the old private.env has been backed up.
+        # Existing keys are never rotated, including during a routine update.
+        from deployment.search_secret import ensure_secret
+        ensure_secret(install.root / ".env")
+        from deployment.contracts import read_env
+        install.env.update(read_env(install.root / ".env"))
+        install.process_env["ASA_SEARCH_SECRET"] = install.env["ASA_SEARCH_SECRET"]
     # The receipt captures the actual running version, not the checkout revision.
     operation = {"phase": "switch", "previous": before, "selected": release, "backup": str(backup) if backup else None,
                  "diagnosticReaderGroupChanged": preparation['readerGroupChanged']}
@@ -285,7 +298,8 @@ def main(argv=None):
                     marker.rename(install.state / ("acknowledged-" + dt.datetime.now().strftime("%Y%m%d%H%M%S") + ".json"))
         return 0
     except (Blocked, OSError, ValueError, KeyError) as exc:
-        code = exc.code if isinstance(exc, Blocked) else "IO_OR_CONFIGURATION"
+        code = (exc.code if isinstance(exc, Blocked) else
+                "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
         print(f"BLOCKED {code}: {exc}\nSAFE_ACTION: {action}", file=sys.stderr)
         return 2

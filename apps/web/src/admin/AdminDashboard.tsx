@@ -1,3 +1,4 @@
+import { AdminEmailSettings } from './AdminEmailSettings';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   adminApi,
@@ -108,10 +109,10 @@ function MultiLineChart({
   const active = series.filter((item) => visible.has(item.id));
   const axis = chartCountAxis(Math.max(0, ...active.flatMap((item) => item.values)));
   const maximum = axis.maximum;
-  const width = 960;
+  const width = 600;
   const height = 220;
   const left = 42;
-  const right = 16;
+  const right = 24;
   const top = 18;
   const bottom = 34;
   const plotWidth = width - left - right;
@@ -203,7 +204,7 @@ function MultiLineChart({
                 key={`${index}:${labels[index]}`}
                 x={x}
                 y={height - 8}
-                textAnchor={index === 0 ? 'start' : index === labels.length - 1 ? 'end' : 'middle'}
+                textAnchor="middle"
                 className="admin-chart-axis admin-chart-time-label"
               >
                 {labels[index]}
@@ -572,6 +573,7 @@ export function VerificationMethodsSection({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [refreshKey, setRefreshKey] = useState(0);
+  const [method, setMethod] = useState<'max' | 'telegram' | 'email'>('max');
   return (
     <section
       className="admin-integrations auth-confirmation-settings"
@@ -593,22 +595,55 @@ export function VerificationMethodsSection({
       {scope.kind === 'platform' ? (
         <>
           <VerificationPolicyControl refreshKey={refreshKey} onAccessDenied={onAccessDenied} />
-          <div className="auth-admin-providers">
-            <AdminAuthProviderCard
-              provider="max"
-              refreshKey={refreshKey}
-              onAccessDenied={onAccessDenied}
-            />
-            <AdminAuthProviderCard
-              provider="telegram"
-              refreshKey={refreshKey}
-              onAccessDenied={onAccessDenied}
-            />
+          <div className="confirmation-tabs" role="tablist" aria-label="Способ подтверждения">
+            {(['max', 'telegram', 'email'] as const).map((id, index) => (
+              <button
+                key={id}
+                id={`confirmation-tab-${id}`}
+                type="button"
+                role="tab"
+                aria-selected={method === id}
+                aria-controls={`confirmation-panel-${id}`}
+                tabIndex={method === id ? 0 : -1}
+                onClick={() => setMethod(id)}
+                onKeyDown={(e) => {
+                  const ids = ['max', 'telegram', 'email'] as const;
+                  let next: number;
+                  if (e.key === 'ArrowRight') next = (index + 1) % 3;
+                  else if (e.key === 'ArrowLeft') next = (index + 2) % 3;
+                  else if (e.key === 'Home') next = 0;
+                  else if (e.key === 'End') next = 2;
+                  else return;
+                  e.preventDefault();
+                  setMethod(ids[next]!);
+                  document.getElementById(`confirmation-tab-${ids[next]}`)?.focus();
+                }}
+              >
+                {id === 'email' ? 'Почта' : id === 'max' ? 'MAX' : 'Telegram'}
+              </button>
+            ))}
           </div>
-          <p className="auth-email-status">
-            Подтверждение по электронной почте пока недоступно. Пользователям показываются только
-            работающие способы.
-          </p>
+          {(['max', 'telegram', 'email'] as const).map((id) => (
+            <div
+              key={id}
+              id={`confirmation-panel-${id}`}
+              className="confirmation-panel"
+              role="tabpanel"
+              aria-labelledby={`confirmation-tab-${id}`}
+              hidden={method !== id}
+              tabIndex={0}
+            >
+              {id === 'email' ? (
+                <AdminEmailSettings refreshKey={refreshKey} onAccessDenied={onAccessDenied} />
+              ) : (
+                <AdminAuthProviderCard
+                  provider={id}
+                  refreshKey={refreshKey}
+                  onAccessDenied={onAccessDenied}
+                />
+              )}
+            </div>
+          ))}
         </>
       ) : (
         <p role="status">Подключение способов входа доступно администратору платформы.</p>

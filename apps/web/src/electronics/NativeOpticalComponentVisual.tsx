@@ -30,23 +30,26 @@ export function NativeOpticalProvider({
 /** Only the native visual subscribes: the Stage and its editor do not reconcile for a frame. */
 export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisual>) {
   const port = useContext(Context);
-  const opticalPort =
-    props.simulationRunning && (props.entry.key === 'led-5mm' || props.entry.key === 'arduino-uno')
-      ? port
-      : null;
+  const componentId = props.component.id;
+  const nativeKind = ['led-5mm', 'arduino-uno', 'servo-motor', 'seven-segment-display'].indexOf(
+    props.entry.key,
+  );
+  const opticalPort = props.simulationRunning && nativeKind >= 0 ? port : null;
   const snapshot = useSyncExternalStore(
     opticalPort?.subscribe ?? idleSubscribe,
     opticalPort?.getSnapshot ?? idleSnapshot,
     idleSnapshot,
   );
   useLayoutEffect(() => {
-    if (opticalPort) return opticalPort.rendered(props.component.id, snapshot);
+    if (opticalPort) return opticalPort.rendered(componentId, snapshot);
     return undefined;
-  }, [opticalPort, props.component.id, snapshot]);
+  }, [opticalPort, componentId, snapshot]);
   if (!opticalPort) return <OwnerVisual {...props} />;
-  const observation = snapshot.observation;
-  const result = opticalPort.resultMap(observation).get(props.component.id);
-  const optical = observation?.frame.brightness.get(props.component.id);
+  // Servo and raw display follow committed physics without waiting for an editor render.
+  // Proposed optical frames still belong to the LED/native-asset commit barrier.
+  const observation = nativeKind > 1 ? snapshot.committed : snapshot.observation;
+  const result = opticalPort.resultMap(observation).get(componentId);
+  const optical = observation?.frame.brightness.get(componentId);
   let visualState = props.visualState;
   if (props.component.kind === 'led') {
     visualState =
@@ -62,7 +65,7 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
               ? 'lit'
               : 'off';
   }
-  const asset = snapshot.preparation?.assets.get(props.component.id);
+  const asset = snapshot.preparation?.assets.get(componentId);
   return (
     <OwnerVisual
       {...props}
@@ -70,12 +73,12 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
       visualState={visualState}
       simulationTimeMs={(observation?.frame.atMicroseconds ?? 0) / 1000}
       effectiveBrightness={optical ?? result?.brightness ?? 0}
-      effectiveArduinoLActive={observation?.frame.arduinoLStates.get(props.component.id)}
+      effectiveArduinoLActive={observation?.frame.arduinoLStates.get(componentId)}
       preparedLedAsset={
         asset && snapshot.preparation ? { token: snapshot.preparation.token, asset } : undefined
       }
-      committedLedAsset={observation?.ledAssets.get(props.component.id)}
-      rollbackLedAsset={snapshot.rollback?.get(props.component.id)}
+      committedLedAsset={observation?.ledAssets.get(componentId)}
+      rollbackLedAsset={snapshot.rollback?.get(componentId)}
     />
   );
 }

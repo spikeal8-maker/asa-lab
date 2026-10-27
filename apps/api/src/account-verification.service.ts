@@ -122,17 +122,19 @@ export class AccountVerificationService {
 
   async getProviders(): Promise<AuthProviderAvailability[]> {
     const providers = await Promise.all(this.providers.map((provider) => provider.availability()));
-    return [
-      ...providers,
-      {
-        id: 'email',
-        available: false,
-        reason: 'not_configured',
-        checkedAt: null,
-        enforcementEligible: false,
-        enforcementReason: 'not_configured',
-      },
-    ];
+    return providers.some((provider) => provider.id === 'email')
+      ? providers
+      : [
+          ...providers,
+          {
+            id: 'email',
+            available: false,
+            reason: 'not_configured',
+            checkedAt: null,
+            enforcementEligible: false,
+            enforcementReason: 'not_configured',
+          },
+        ];
   }
 
   async isEnabled(): Promise<boolean> {

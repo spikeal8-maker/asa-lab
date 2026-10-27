@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   advanceArduinoRuntime,
+  advanceClockedArduinoRuntime,
   analyseArduinoProgramSyntax,
+  arduinoRuntimeStateMatchesProgram,
+  createOwnedClockedArduinoRuntime,
+  type ArduinoRuntimeState,
 } from '../domain/arduino-program-runtime.js';
+import { enqueueArduinoSerialRx } from '../domain/arduino-serial-runtime.js';
 import {
   arduinoOutputBranchesFromSnapshot,
   arduinoProgrammedToneOutputsFromSnapshot,
@@ -10,6 +15,174 @@ import {
 } from '../domain/arduino-model.js';
 import { parseElectronicsDocument, type SchematicComponent } from '../domain/document.js';
 import { solveCircuit } from '../domain/solver.js';
+
+describe('numeric conditional value expressions', () => {
+  const sketch = (body: string, globals = 'long value=0;int n=0;') =>
+    `${globals}void setup(){${body}}void loop(){delay(100);}`;
+  function through(source: string, budget = 16384) {
+    let state: ArduinoRuntimeState | undefined;
+    const events = [];
+    for (let i = 0; i < 10000; i++) {
+      const a = advanceClockedArduinoRuntime(source, {}, 20, state, undefined, {
+        instructionBudget: budget,
+      });
+      expect(a.diagnostics).toEqual([]);
+      expect(arduinoRuntimeStateMatchesProgram(source, a.state)).toBe(true);
+      events.push(...a.events);
+      if (a.executionStatus !== 'yielded') return { state: a.state, events };
+      state = JSON.parse(JSON.stringify(a.state));
+    }
+    throw Error('conditional did not finish');
+  }
+  it.each([
+    ['value=true?2:3;', 2],
+    ['value=false?2:3;', 3],
+    ['value=false?1:true?2:3;', 2],
+    ['value=true?false?1:2:3;', 2],
+    ['value=false||true?7:8;', 7],
+    ['value=1+(false?2:3)*4;', 13],
+    ['value=true?-1:1U;', 65535],
+    ['value=false?-1L:4294967295UL;', -1],
+    ['value=(true?-1L:1UL)>0;', 1],
+    ['value=((true?3:2.0)/2)==1.5;', 1],
+    ['value=((true?3.0:2.0)/2)==1.5;', 1],
+    ['value=true?-1:1L;', -1],
+    ['byte a=255;byte b=3;value=true?a:b;', 255],
+    ['bool a=true;bool b=false;value=false?a:b;', 0],
+    ['value=false?1/0:7;', 7],
+    ['value=true?7:1/0;', 7],
+    ['value=true?++n:n++;value+=n;', 2],
+    ['value=false?++n:n++;value+=n;', 1],
+    ['value=true?7:pulseIn(2,HIGH,100);', 7],
+    ['value=false?readUltrasonicCm(2,3):7;', 7],
+    ['value=map(true?5:9,0,10,0,100);', 50],
+    ['value=min(true?++n:99,3);', 2],
+    ['value=max(2,false?99:++n);', 2],
+    ['while(n<3?true:false){n++;}value=n;', 3],
+  ])('executes %s with typed selection and JSON budgets', (body, value) => {
+    const source = sketch(body);
+    expect(analyseArduinoProgramSyntax(source)).toEqual([]);
+    const expected = through(source);
+    expect(expected.state.variables.value).toBe(value);
+    expect(advanceArduinoRuntime(source).state.variables.value).toBe(value);
+    for (const budget of [1, 2, 7]) expect(through(source, budget)).toEqual(expected);
+  });
+  it('uses common floating type and leaves unselected RNG/RX unchanged', () => {
+    const source = sketch('Serial.begin(9600);Serial.println(true?2:1.5);value=true?7:random();');
+    const a = through(source).state;
+    expect(a.serial!.tx.map((e) => e.text)).toEqual(['2\n']);
+    expect(a.randomState).toBeUndefined();
+    expect(a.pulseWait).toBeUndefined();
+    const before = advanceClockedArduinoRuntime(
+      sketch('Serial.begin(9600);delay(1);value=true?7:Serial.read();'),
+      {},
+      0.1,
+    ).state;
+    const withRx = { ...before, serial: enqueueArduinoSerialRx(before.serial!, 100, 'AB') };
+    const resumed = advanceClockedArduinoRuntime(
+      sketch('Serial.begin(9600);delay(1);value=true?7:Serial.read();'),
+      {},
+      20,
+      withRx,
+    ).state;
+    expect(resumed.serial!.rx!.map((e) => e.byte)).toEqual([65, 66]);
+  });
+  it('admits pure conditional AST to owned execution with byte-identical public results', () => {
+    const source = sketch('do {value+=n%2?2:3;n++;}while(n<4);');
+    const owned = createOwnedClockedArduinoRuntime(source);
+    expect(owned).not.toBeNull();
+    let a;
+    do {
+      a = owned!.advance(20, 1);
+    } while (a.executionStatus === 'yielded');
+    expect(JSON.parse(JSON.stringify(a.state))).toEqual(through(source, 1).state);
+    owned!.dispose();
+  });
+  it.each([
+    'value=true?:2;',
+    'value=true?1;',
+    'value=true?1:;',
+    'value=true?missing:2;',
+    'value=false?random(1,2,3):2;',
+    'value=true?1:randomSeed(42);',
+    'value=true?1:"text";',
+    'value=true?(1,2):3;',
+    'value=true?(n=1):2;',
+    '(true?n:value)=1;',
+    '++(true?n:value);',
+    'value=false?++1:2;',
+  ])('rejects invalid/unavailable conditional forms before GPIO: %s', (body) => {
+    const source = sketch('pinMode(13,OUTPUT);digitalWrite(13,HIGH);' + body);
+    expect(analyseArduinoProgramSyntax(source).length).toBeGreaterThan(0);
+    const a = advanceClockedArduinoRuntime(source, {}, 20);
+    expect(a.executionStatus).toBe('fault');
+    expect(a.state.outputVoltages).toEqual({});
+    expect(a.events).toEqual([]);
+  });
+  it.each(['n++', 'n', 'analogRead(A0)', 'Serial.read()'])(
+    'keeps %s condition and branch across changed-input blocking JSON replay',
+    (condition) => {
+      const source = sketch(
+        `Serial.begin(9600);delay(1);value=(${condition})?pulseIn(2,HIGH,100):99;`,
+        'long value=0;int n=1;',
+      );
+      let state = advanceClockedArduinoRuntime(source, { a0: 5 }, 0.1).state;
+      state = { ...state, serial: enqueueArduinoSerialRx(state.serial!, 100, 'AB') };
+      const waiting = advanceClockedArduinoRuntime(source, { a0: 5 }, 1.05, state).state;
+      expect(waiting.pendingEvaluation).toBeDefined();
+      expect(waiting.pulseWait).toBeDefined();
+      expect(arduinoRuntimeStateMatchesProgram(source, waiting)).toBe(true);
+      const changed = JSON.parse(JSON.stringify(waiting));
+      // A changed runtime binding/input/RX frontier must not select the other arm.
+      changed.scopes[0].n.value = 0;
+      changed.variables.n = 0;
+      const done = advanceClockedArduinoRuntime(source, { a0: 0 }, 20, changed).state;
+      expect(done.variables.value).toBe(0);
+      if (condition === 'Serial.read()') expect(done.serial!.rx!.map((e) => e.byte)).toEqual([66]);
+      if (condition === 'n++') expect(done.variables.n).toBe(0);
+      expect(done.pendingEvaluation).toBeUndefined();
+      for (const patch of [
+        { streams: [['false', '?', '1', ':', '2']] },
+        { entries: waiting.pendingEvaluation!.entries.map((e) => (e ? { ...e, end: 999 } : e)) },
+      ])
+        expect(
+          arduinoRuntimeStateMatchesProgram(source, {
+            ...waiting,
+            pendingEvaluation: { ...waiting.pendingEvaluation!, ...patch },
+          }),
+        ).toBe(false);
+    },
+  );
+  it('retains a false condition while its selected arm waits and the binding becomes true', () => {
+    const source = sketch('value=n?99:pulseIn(2,HIGH,100);');
+    const waiting = advanceClockedArduinoRuntime(source, {}, 0.05).state;
+    expect(waiting.pendingEvaluation).toBeDefined();
+    const changed = JSON.parse(JSON.stringify(waiting));
+    changed.scopes[0].n.value = 1;
+    changed.variables.n = 1;
+    const done = advanceClockedArduinoRuntime(source, {}, 20, changed);
+    expect(done.diagnostics).toEqual([]);
+    expect(done.state.variables).toMatchObject({ n: 1, value: 0 });
+  });
+  it('replays a parenthesized condition/RNG prefix and nested selected waits once', () => {
+    const source = sketch(
+      'value=(++n?random(100)+pulseIn(2,HIGH,100):99)+(true?pulseIn(3,HIGH,100):++n);',
+    );
+    const first = advanceClockedArduinoRuntime(source, {}, 0.05).state;
+    expect(first.variables.n).toBe(1);
+    expect(first.randomState).toBe(16807);
+    const done = advanceClockedArduinoRuntime(
+      source,
+      {},
+      20,
+      JSON.parse(JSON.stringify(first)),
+    ).state;
+    expect(done.variables.n).toBe(1);
+    expect(done.variables.value).toBe(7);
+    expect(done.randomState).toBe(16807);
+    for (const budget of [1, 2, 7]) expect(through(source, budget)).toEqual(through(source));
+  });
+});
 
 function board(source: string): SchematicComponent {
   return {

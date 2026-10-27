@@ -1,4 +1,8 @@
 import { call, type ApiResult } from '../api-call';
+import {
+  validatePublicProjectDisplayArtifact,
+  type PublicProjectDisplayArtifact,
+} from '@asa-lab/contracts';
 
 export interface PublicProject {
   readonly publicationId: string;
@@ -13,6 +17,7 @@ export interface PublicProject {
   readonly moduleKey: string;
   readonly authorLabel: string;
   readonly featured: boolean;
+  readonly pinned: boolean;
   readonly publishedAt: string;
   readonly preview: {
     readonly url: string;
@@ -63,16 +68,35 @@ export interface PublicProjectCopy {
 
 /** Public reads use only the immutable publication namespace. */
 export const publicProjectsApi = {
+  artifact: async (
+    publicationId: string,
+    revisionId: string,
+    signal: AbortSignal,
+  ): Promise<ApiResult<{ artifact: PublicProjectDisplayArtifact }>> => {
+    const result = await call<{ artifact: unknown }>(
+      `/api/public-projects/${encodeURIComponent(publicationId)}/artifact?revisionId=${encodeURIComponent(revisionId)}`,
+      { cache: 'no-store', signal },
+    );
+    if (!result.ok) return result;
+    const validated = validatePublicProjectDisplayArtifact(result.data?.artifact);
+    if (!validated.ok)
+      return {
+        ok: false,
+        status: 502,
+        error: { code: 'invalid_public_artifact', message: 'Некорректный формат схемы' },
+      };
+    return { ok: true, status: result.status, data: { artifact: validated.artifact } };
+  },
   list: (input: { search?: string; module?: string; offset?: number } = {}) => {
     const query = new URLSearchParams({ offset: String(input.offset ?? 0), limit: '24' });
     if (input.search) query.set('q', input.search);
     if (input.module) query.set('module', input.module);
     return call<PublicProjectList>(`/api/public-projects?${query}`, { cache: 'no-store' });
   },
-  get: (publicationId: string) =>
+  get: (publicationId: string, signal?: AbortSignal) =>
     call<{ publication: PublicProject }>(
       `/api/public-projects/${encodeURIComponent(publicationId)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', ...(signal ? { signal } : {}) },
     ),
   copy: (publicationId: string, revisionId: string, idempotencyKey: string, signal: AbortSignal) =>
     call<PublicProjectCopy>(`/api/public-projects/${encodeURIComponent(publicationId)}/copy`, {

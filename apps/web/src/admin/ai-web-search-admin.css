@@ -1,0 +1,77 @@
+.asa-ai-web-admin {
+  margin-top: 12px;
+}
+.asa-ai-web-admin-weather p {
+  margin: 0;
+  color: #607586;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.asa-ai-web-admin :is(a, p, label) {
+  overflow-wrap: anywhere;
+}
+.asa-ai-web-admin-weather {
+  border-top: 1px solid #dce5ec;
+  padding-top: 12px;
+}
+.asa-ai-web-admin-weather summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 13px;
+}
+.asa-ai-web-admin-weather {
+  display: grid;
+  gap: 12px;
+}
+.asa-ai-web-admin-weather > h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.asa-ai-web-admin-weather > a {
+  font-size: 12px;
+}
+.asa-ai-web-admin-description {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #52697b;
+}
+.asa-ai-web-admin-limit {
+  max-width: 340px;
+}
+.asa-ai-web-admin-limit small {
+  color: #607586;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.asa-ai-web-admin-domains {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.asa-ai-web-admin textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #b9c9d6;
+  border-radius: 8px;
+  color: #16344b;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  resize: vertical;
+}
+.asa-ai-web-admin .asa-cloud-field small {
+  color: #607586;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+@media (max-width: 600px) {
+  .asa-ai-web-admin-domains {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

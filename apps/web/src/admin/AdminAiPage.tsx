@@ -25,7 +25,11 @@ function errorMessage(status: number, code: string): string {
 }
 
 function providerName(provider: AiProvider): string {
-  return provider === 'deepseek' ? 'DeepSeek' : 'OpenAI';
+  return provider === 'ollama-cloud'
+    ? 'Ollama Cloud'
+    : provider === 'deepseek'
+      ? 'DeepSeek'
+      : 'OpenAI';
 }
 
 export function AiAdminPage({
@@ -131,9 +135,11 @@ export function AiAdminPage({
     !busy,
   );
   const keyLink =
-    providerChoice === 'deepseek'
-      ? 'https://platform.deepseek.com/api_keys'
-      : 'https://platform.openai.com/api-keys';
+    providerChoice === 'ollama-cloud'
+      ? 'https://ollama.com/settings/keys'
+      : providerChoice === 'deepseek'
+        ? 'https://platform.deepseek.com/api_keys'
+        : 'https://platform.openai.com/api-keys';
 
   async function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -245,7 +251,10 @@ export function AiAdminPage({
           ) : null}
         </div>
       ) : null}
-      {config ? (
+      {config && options.length === 0 ? (
+        <p role="alert">Для этого подключения требуется обновление API и схемы ASA Lab.</p>
+      ) : null}
+      {config && options.length > 0 ? (
         <form onSubmit={(event) => void apply(event)} className="asa-cloud-form">
           <div className="asa-cloud-top">
             <div>
@@ -332,7 +341,9 @@ export function AiAdminPage({
                 : 'Ключ можно получить в кабинете провайдера'}{' '}
               ·{' '}
               <a href={keyLink} target="_blank" rel="noopener noreferrer">
-                {providerChoice === 'deepseek' ? 'DeepSeek' : 'OpenAI'}
+                {providerChoice === 'ollama-cloud'
+                  ? 'Войти в Ollama и получить ключ'
+                  : providerName(providerChoice)}
               </a>
             </span>
           </div>

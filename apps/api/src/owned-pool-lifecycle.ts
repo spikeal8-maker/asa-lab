@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import type { LoggerService } from '@nestjs/common';
 import { safeServerError } from './server-diagnostics.js';
+import { emitApplicationLog } from './application-log-store.js';
 
 /** Nest's construction exception zone logs before rethrowing to our startup catch. */
 export class SafeNestLogger implements LoggerService {
@@ -18,7 +19,7 @@ export class SafeNestLogger implements LoggerService {
 
 export function lifecycleEvent(phase: string, error?: unknown): void {
   const safe = error === undefined ? undefined : safeServerError(error);
-  process.stderr.write(
+  emitApplicationLog(
     `${JSON.stringify({
       kind: 'api_lifecycle',
       level: error === undefined ? 'info' : 'error',
@@ -26,6 +27,7 @@ export function lifecycleEvent(phase: string, error?: unknown): void {
       phase,
       ...(safe ? { errorCode: safe.errorCode, errorClass: safe.errorClass } : {}),
     })}\n`,
+    'stderr',
   );
 }
 export async function boundedClose(
@@ -58,7 +60,7 @@ function poolErrorCode(error: unknown, fallback: string): string {
 export class OwnedPools {
   private readonly pools = new Map<pg.Pool, { role: string; listener?: (error: Error) => void }>();
   private closing: Promise<void> | undefined;
-  track(pool: pg.Pool | null, role: 'main' | 'analytics'): void {
+  track(pool: pg.Pool | null, role: 'main' | 'analytics' | 'acquisition'): void {
     if (!pool || this.pools.has(pool)) return;
     const record: { role: string; listener?: (error: Error) => void } = { role };
     if (typeof pool.on === 'function') {

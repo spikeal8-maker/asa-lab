@@ -3,7 +3,8 @@ import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
 import { CopyPublicProject } from './CopyPublicProject';
-import { PublicationPreview } from './PublicationPreview';
+import { PublicationArtifact } from './PublicationArtifact';
+import { PublicProjectTitle } from './PublicProjectTitle';
 import { SharePublicationLink } from './SharePublicationLink';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
 import './public-projects.css';
@@ -46,13 +47,20 @@ export function PublicProjectPage({
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
+  const controller = useRef<AbortController | null>(null);
   const time = useSchoolTime();
+  const unavailable = useCallback(() => {
+    setPublication(null);
+    setMissing(true);
+  }, []);
   const reload = useCallback(async () => {
+    controller.current?.abort();
+    controller.current = new AbortController();
     const current = ++request.current;
     setPublication(null);
     setMissing(false);
     setError(null);
-    const result = await publicProjectsApi.get(publicationId);
+    const result = await publicProjectsApi.get(publicationId, controller.current.signal);
     if (current !== request.current) return;
     if (!result.ok) {
       if ([400, 403, 404, 410].includes(result.status)) setMissing(true);
@@ -69,6 +77,7 @@ export function PublicProjectPage({
     void reload();
     return () => {
       request.current++;
+      controller.current?.abort();
     };
   }, [reload]);
   if (missing) return <PublicationUnavailable onBack={onBack} />;
@@ -102,46 +111,38 @@ export function PublicProjectPage({
         </p>
       ) : (
         <article className="public-project-layout" data-testid="public-project-detail">
-          <figure className="public-project-viewer">
-            <PublicationPreview key={publication.revisionId} publication={publication} detail />
-            <figcaption>Статический просмотр опубликованной версии</figcaption>
-            <button type="button" className="btn-secondary" onClick={() => void reload()}>
-              Обновить страницу проекта
-            </button>
-          </figure>
-          <div className="public-project-info">
-            <span className="publication-module" data-module={publication.moduleKey}>
-              {publicModuleName(publication.moduleKey)}
-            </span>
-            {publication.featured ? (
-              <span className="public-project-featured" data-testid="public-project-featured">
-                ★ Выбор редакции
+          <header className="public-project-heading">
+            <div className="public-project-badges">
+              <span className="publication-module" data-module={publication.moduleKey}>
+                {publicModuleName(publication.moduleKey)}
               </span>
-            ) : null}
-            <h1 data-testid="public-project-title">{publication.title}</h1>
+              {publication.pinned ? (
+                <span className="public-project-pinned" data-testid="public-project-pinned">
+                  Закреплено
+                </span>
+              ) : null}
+              {publication.featured ? (
+                <span className="public-project-featured" data-testid="public-project-featured">
+                  ★ Выбор редакции
+                </span>
+              ) : null}
+            </div>
+            <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             <p className="public-project-detail-author">{publication.authorLabel}</p>
-            <p className="public-project-version">
-              Версия проекта {publication.versionNo} · Публикация {publication.revisionNo}
-              <br />
-              <time dateTime={publication.publishedAt}>{time.date(publication.publishedAt)}</time>
-            </p>
-            {publication.description ? (
-              <p className="public-project-description" data-testid="public-project-description">
-                {publication.description}
-              </p>
-            ) : null}
-            {publication.tags.length ? (
-              <ul className="public-project-tags" aria-label="Теги">
-                {publication.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            ) : null}
+          </header>
+          <section className="public-project-viewer" aria-label="Просмотр проекта">
+            <PublicationArtifact
+              key={publication.revisionId}
+              publication={publication}
+              onUnavailable={unavailable}
+            />
+          </section>
+          <div className="public-project-commandbar" aria-label="Действия с проектом">
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
               {publication.preview ? (
                 <a
-                  className="btn-primary"
+                  className="btn-secondary"
                   href={publication.preview.url}
                   target="_blank"
                   rel="noreferrer"
@@ -153,12 +154,52 @@ export function PublicProjectPage({
                 key={publication.publicationId}
                 publicationId={publication.publicationId}
               />
+              <button
+                type="button"
+                className="public-project-refresh"
+                onClick={() => void reload()}
+              >
+                Обновить публикацию
+              </button>
             </div>
-            <p className="public-project-license">
-              <strong>Лицензия</strong>
-              <span>{licence}</span>
-            </p>
           </div>
+          <section className="public-project-about" aria-label="О проекте">
+            {publication.description ? (
+              <>
+                <h2>О проекте</h2>
+                <p className="public-project-description" data-testid="public-project-description">
+                  {publication.description}
+                </p>
+              </>
+            ) : null}
+            {publication.tags.length ? (
+              <ul className="public-project-tags" aria-label="Теги">
+                {publication.tags.map((tag) => (
+                  <li key={tag}>{tag}</li>
+                ))}
+              </ul>
+            ) : null}
+            <dl className="public-project-facts">
+              <div>
+                <dt>Лицензия</dt>
+                <dd>{licence}</dd>
+              </div>
+              <div>
+                <dt>Опубликовано</dt>
+                <dd>
+                  <time dateTime={publication.publishedAt}>
+                    {time.date(publication.publishedAt)}
+                  </time>
+                </dd>
+              </div>
+              <div>
+                <dt>Версия проекта</dt>
+                <dd>
+                  {publication.versionNo} · Публикация {publication.revisionNo}
+                </dd>
+              </div>
+            </dl>
+          </section>
         </article>
       )}
     </main>
