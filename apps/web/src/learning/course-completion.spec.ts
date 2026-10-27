@@ -223,9 +223,9 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       total: 1,
       completed: 1,
       excused: 0,
-      unavailable: 0,
+      unavailable: 1,
     });
-    expect(lessonComplete(notAssigned)).toBe(true);
+    expect(lessonComplete(notAssigned)).toBe(false);
   });
 
   it('leaves a pinned practice without participation unresolved, not excused', () => {

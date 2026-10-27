@@ -307,10 +307,16 @@ export class LearningCanonicalProjectionService {
             runKey,
             canonicalProjectionFromEvidence(evidence, runKey, asOf, audience),
           );
+          const active =
+            evidence.participation.status === 'assigned' ||
+            evidence.participation.status === 'active';
           participationByRun.set(runKey, {
             classroomAssignmentId: evidence.classroomAssignmentId,
-            applicable: evidence.participation.applicable === true,
-            excused: evidence.participation.excused === true,
+            applicable: active && evidence.participation.applicable === true,
+            excused:
+              active &&
+              evidence.participation.applicable === true &&
+              evidence.participation.excused === true,
           });
         }
       }

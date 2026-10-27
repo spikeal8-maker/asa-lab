@@ -186,6 +186,8 @@ interface CourseActivityOccurrenceRow {
   work_updated_at: Date | string | null;
   shared_assignment: boolean;
   not_started_visible: boolean;
+  /** Exact viewer / Seat / Course Activity scope, independent from Project bytes. */
+  academic_result_visible?: boolean | null;
   modern_provenance?: {
     modernCourseRun?: boolean;
     activityRunId?: string | null;
@@ -275,8 +277,9 @@ function courseActivityOccurrenceMap(
             : 'required';
     const canonicalRun = courseProjectionsByRun.get(runKey);
     const exactRunCanonicalState =
-      participation !== null &&
-      canonicalRun?.state.provenance.classroomAssignmentId === row.classroom_assignment_id &&
+      participation?.applicable === true &&
+      canonicalRun?.state.provenance.seatId === row.seat_id &&
+      canonicalRun.state.provenance.classroomAssignmentId === row.classroom_assignment_id &&
       canonicalRun.state.provenance.activityRunId === row.activity_run_id
         ? canonicalRun.surface
         : null;
@@ -295,13 +298,25 @@ function courseActivityOccurrenceMap(
       exact === null;
     const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
     const exactNotStarted =
-      row.project_id === null && !originPresent && row.not_started_visible === true;
+      participation?.applicable === true &&
+      row.project_id === null &&
+      !originPresent &&
+      row.not_started_visible === true;
     let occurrenceCanonicalState: CanonicalLearningSurfaceState | null = null;
     if (participation === null && courseProjectionsByRun.has(runKey)) {
       // A conflicting run cannot borrow a sibling's handout result.
       occurrenceCanonicalState = null;
     } else if (exact) {
       occurrenceCanonicalState = exact.canonicalState;
+    } else if (
+      row.academic_result_visible === true &&
+      !originPresent &&
+      exactRunCanonicalState?.selectedResult !== null &&
+      exactRunCanonicalState !== null
+    ) {
+      // A selected academic result needs its own viewer proof, not a readable
+      // Project origin. Keep projectId, drafts and revision gated separately.
+      occurrenceCanonicalState = exactRunCanonicalState;
     } else if (
       modernScope &&
       !originPresent &&
@@ -310,8 +325,7 @@ function courseActivityOccurrenceMap(
         exactRunCanonicalState.selectedResult !== null ||
         row.project_id === null)
     ) {
-      // Run-keyed academic results are distinct from project bytes, but an
-      // unverified legacy project cannot expose its in-progress workflow.
+      // The existing modern unique-Run path retains its workflow state.
       occurrenceCanonicalState = exactRunCanonicalState;
     } else if (exactNotStarted) {
       occurrenceCanonicalState = {
@@ -1409,6 +1423,12 @@ export class ClassroomJoinController {
       this.requirePool().query(
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
+                learning_course_academic_result_visible(
+                  principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id
+                ) AS academic_result_visible,
+                learning_course_academic_result_visible(
+                  $2, occurrence.seat_id, occurrence.activity_run_id
+                ) AS academic_result_visible,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL

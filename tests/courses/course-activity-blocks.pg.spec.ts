@@ -1646,6 +1646,22 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     );
     expect(deniedModern.rows[0].proof.modernCourseRun).toBe(false);
 
+    const seatPrincipal = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])
+    ).rows[0].principal_id as string;
+    const academicVisible = async (actor: string, runId: string, viewerSeat = seat) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT learning_course_academic_result_visible($1,$2,$3) AS allowed',
+            [actor, viewerSeat, runId],
+          ),
+        )
+      ).rows[0].allowed as boolean;
+    expect(await academicVisible(seatPrincipal, first.id)).toBe(true);
+    expect(await academicVisible(principalId, first.id)).toBe(true);
+    expect(await academicVisible(outsiderPrincipalId, first.id)).toBe(false);
+
     const inspect = async (
       total: number,
       completed: number,
@@ -1736,6 +1752,49 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(all.map((item) => item.canonicalState?.selectedResult?.completionValue))
       .toEqual([true, true]);
 
+    // Revocation of the Account's learner link must revoke academic result
+    // visibility, even though no Project exists for either selected result.
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, first.learner_identity_id],
+    );
+    expect(await academicVisible(principalId, first.id)).toBe(false);
+    expect(await academicVisible(seatPrincipal, first.id)).toBe(true);
+    const revokedRead = await inTenant(author, async (client) => {
+      const controller = new ClassroomJoinController(
+        client as unknown as pg.Pool,
+        { resolve: async () => ({ accountId, principalId }) } as unknown as ActiveContextUseCase,
+      );
+      const request = {
+        cookies: { asa_session: 'isolated-pg-fixture' },
+      } as unknown as FastifyRequest;
+      return controller.accountCourseRuns(request);
+    });
+    const revokedPractices = revokedRead.items
+      .flatMap((run) => run.sections)
+      .flatMap((section) => section.lessons)
+      .flatMap((lesson) => lesson.activityOccurrences);
+    expect(
+      revokedPractices.every((item) => item.canonicalState?.selectedResult == null),
+    ).toBe(true);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, first.learner_identity_id],
+    );
+    expect(await academicVisible(principalId, first.id)).toBe(true);
+
+    const excused = await inTenant(author, (client) =>
+      client.query('SELECT * FROM activity_participation_excuse($1,$2,$3)', [
+        principalId,
+        joined.rows[0].participation_id,
+        'P1 regression: excused 3D',
+      ]),
+    );
+    expect(excused.rows[0].result_code).toBe('ok');
+    await inspect(1, 1, 0, true);
+
     // A withdrawn participation retains history but is no longer completion evidence.
     const withdrawn = await inTenant(author, (client) =>
       client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
@@ -1744,6 +1803,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       ]),
     );
     expect(withdrawn.rows[0].result_code).toBe('ok');
+    expect(await academicVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
     await inspect(1, 1, 1, false);
 
     // A different classroom Seat or Account cannot read this frozen course.

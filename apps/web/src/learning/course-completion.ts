@@ -39,7 +39,12 @@ export function lessonPracticeProgress(lesson: SeatCourseRunLesson): PracticePro
     seenBlockIds.add(occurrence.blockId);
     const state = occurrence.canonicalState;
     const requirement = occurrence.requirement;
-    if (requirement === 'not_assigned') continue;
+    if (requirement === 'not_assigned') {
+      // A published block without an active participation remains unresolved.
+      // SQL 0267 never treats this missing obligation as excused.
+      result.unavailable += 1;
+      continue;
+    }
     if (
       requirement === 'excused' ||
       (requirement === undefined && state?.flags.includes('excused'))
@@ -87,9 +92,8 @@ export function lessonComplete(lesson: SeatCourseRunLesson): boolean {
     // but also do not silently mark the whole lesson complete.
     return practices.unavailable === 0 && practices.total === practices.completed;
   }
-  return lesson.canonicalState
-    ? lesson.canonicalState.selectedResult?.completionValue === true
-    : lesson.submittedAt !== null; // Existing explicit noncanonical legacy lesson compatibility.
+  // Historical submission timestamps are not selected academic results.
+  return lesson.canonicalState?.selectedResult?.completionValue === true;
 }
 
 export function courseCompletion(lessons: SeatCourseRunLesson[]) {

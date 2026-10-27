@@ -1049,6 +1049,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     for (const row of occurrenceRows) {
       Object.assign(row, {
         modern_provenance: { modernCourseRun: false, projectReadable: false },
+        academic_result_visible: true,
         project_id: null,
         not_started_visible: false,
       });
@@ -1063,7 +1064,10 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       expect(practices?.map((practice) => practice.projectId)).toEqual([null, null]);
     }
     for (const [index, row] of occurrenceRows.entries()) {
-      Object.assign(row, { modern_provenance: originalProvenance[index] });
+      Object.assign(row, {
+        modern_provenance: originalProvenance[index],
+        academic_result_visible: false,
+      });
     }
 
     // Another learner's accepted 3D cannot credit this seat even if a
@@ -1122,6 +1126,25 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       const completed = states?.map((state) => state?.selectedResult?.completionValue);
       expect(completed).toEqual([true, true]);
     }
+
+    // Withdrawn participation retains published history in PostgreSQL, but
+    // cannot complete the pinned practice in SQL 0267 or on the client.
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'withdrawn', excused: false },
+    });
+    Object.assign(occurrenceRows[1], { not_started_visible: false });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        requirement: 'not_assigned',
+        canonicalState: null,
+      });
+    }
+    Object.assign(evidenceRows[1], {
+      participation: { applicable: true, status: 'active', excused: false },
+    });
 
     Object.assign(occurrenceRows[0], { shared_assignment: false });
     Object.assign(occurrenceRows[1], {
