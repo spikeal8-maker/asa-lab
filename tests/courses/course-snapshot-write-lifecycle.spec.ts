@@ -45,8 +45,9 @@ describe('Courses E1: learning submission and snapshot write lifecycle', () => {
     let revision = 1;
     const projectId = 'courses-snapshot-hand-in';
     startSource(projectId, () => revision);
-    const writer = vi.spyOn(api, 'saveProjectSnapshot').mockImplementation(
-      async (id, _image, sourceRevision) => ({
+    const writer = vi
+      .spyOn(api, 'saveProjectSnapshot')
+      .mockImplementation(async (id, _image, sourceRevision) => ({
         ok: true,
         status: 200,
         data: {
@@ -59,8 +60,7 @@ describe('Courses E1: learning submission and snapshot write lifecycle', () => {
             capturedAt: '2026-10-27T00:00:00.000Z',
           },
         },
-      }),
-    );
+      }));
 
     expect(await sendProjectSnapshot(projectId)).toBe(true);
     expect(writer).toHaveBeenCalledTimes(1);
