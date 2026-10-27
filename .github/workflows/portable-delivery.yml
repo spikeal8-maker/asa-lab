@@ -110,7 +110,6 @@ jobs:
       actions: read
     env:
       GH_TOKEN: ${{ github.token }}
-      ASAI_LEGACY_EVIDENCE: ${{ runner.temp }}/asai-legacy-transition-evidence.json
     steps:
       - uses: actions/checkout@v4
         with:
@@ -123,6 +122,8 @@ jobs:
         with:
           driver: docker
       - name: Verify real legacy backup, restored upgrade and exact official release
+        env:
+          ASAI_LEGACY_EVIDENCE: ${{ runner.temp }}/asai-legacy-transition-evidence.json
         run: python tools/deployment/ci_legacy_transition.py
       - name: Preserve safe legacy transition evidence
         if: always()
