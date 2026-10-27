@@ -391,7 +391,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: text_key_model_and_private_attachment_foundation_integrated_in_main
+      checkpoint: asai_01_selected_ready_for_implementation
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -404,8 +404,31 @@ parallel_lanes:
         follow evidence; no force-push or destructive history/data action.
       context_hints:
         - docs/product/ASA_AI_ASSISTANT_SPEC.md
+        - docs/product/ai/README.md
+        - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-01
+          issue: 799
+          scope: existing AI administration overview, real usage aggregates and first daily request chart
+          status: ready
+          selected_at: '2026-10-27'
+          task_card: docs/product/ai/FIRST_TASK_ASAI-01.md
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: not_run
+          preparation_basis: docs/product/ASA_AI_ASSISTANT_SPEC.md
+          selection: >-
+            The owner requested preparation of the published AI specification for implementation
+            on 2026-10-27. ASAI-01 is the next bounded product slice under programme 373.
+            This record selects the first task but does not claim implementation, CI acceptance,
+            demonstration or owner acceptance. On an explicit start, run current preflight,
+            retain existing usage and identity contracts, and deliver a visible working overview.
+            No server update, working-database change, paid provider call, model download/delete
+            or host-network mutation is authorized by this preparation record.
         - id: AI-TEXT-UI-001
           source_pr: 623
           scope: existing chat screen, styles and AI browser regressions
@@ -1386,7 +1409,9 @@ parallel_lanes:
             The historical60000ms timeout and JIT hypothesis remain unproved; successful diagnostic execution is not
             a root-cause fix. Observer still has no separate query deadline/cancellation.'
           historical_root_cause: unproven; successful observation does not establish a fix
-      dependency_sequence:
+      programme_definition: docs/product/ai/PROGRAM_DEFINITION.json
+      dependency_sequence: [ASAI-01]
+      historical_foundation_dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
         - provider_catalog_and_compatible_encrypted_configuration
@@ -1451,7 +1476,13 @@ parallel_lanes:
             - 655
       deployment: not_run
       live_provider_verification: not_run
-      latest_owner_instruction:
+      latest_owner_instruction: >-
+        2026-10-27: prepare AI specification v1.1 for implementation, fix its documentation
+        gate and prepare the first bounded visible result. ASAI-01 / Issue 799 is selected
+        and ready, but product implementation has not started. An explicit start follows
+        fresh preflight and canonical state verification; no deployment, working-data
+        change, paid inference or model installation is authorized by this preparation.
+      historical_latest_owner_instruction:
         '2026-10-20: continue after chat interruption; owner explicitly expects accepted implementation
         in main.'
       combined_candidate:
