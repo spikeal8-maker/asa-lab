@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
-import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { SeatCourseRunLesson } from '../../apps/web/src/api';
 import { ClassroomJoinController } from '../../apps/api/src/classroom-join.controller';
 import {
@@ -1720,15 +1720,16 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       ).rows[0] as { version: number };
       expect(credential.version).toBeGreaterThan(0);
       const token = randomUUID();
+      const tokenHash = createHash('sha256').update(token).digest('hex');
       await admin.query(
         `INSERT INTO classroom_student_sessions
            (seat_id,token_hash,credential_version,expires_at)
          VALUES($1,$2,$3,now()+interval '1 hour')`,
-        [testSeat, hashSessionToken(token), credential.version],
+        [testSeat, tokenHash, credential.version],
       );
       const verified = await inTenant(author, (client) =>
         client.query('SELECT seat_id FROM classroom_student_session_context($1)', [
-          hashSessionToken(token),
+          tokenHash,
         ]),
       );
       expect(verified.rows.map((row) => row.seat_id)).toEqual([testSeat]);
@@ -1800,7 +1801,9 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
           expect(
             practices.map((item) => item.canonicalState?.selectedResult?.completionValue ?? null),
           ).toEqual(
-            accountPractices.map((item) => item.canonicalState?.selectedResult?.completionValue ?? null),
+            accountPractices.map(
+              (item) => item.canonicalState?.selectedResult?.completionValue ?? null,
+            ),
           );
         }
       }
