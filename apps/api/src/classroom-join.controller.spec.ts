@@ -1096,10 +1096,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ]) {
       const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
       const states = practices?.map((item) => item.canonicalState);
-      expect(states?.map((state) => state?.selectedResult?.completionValue)).toEqual([
-        true,
-        true,
-      ]);
+      const completed = states?.map((state) => state?.selectedResult?.completionValue);
+      expect(completed).toEqual([true, true]);
     }
 
     Object.assign(occurrenceRows[0], { shared_assignment: false });
