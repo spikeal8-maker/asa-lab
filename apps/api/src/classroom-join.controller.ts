@@ -302,9 +302,15 @@ function courseActivityOccurrenceMap(
       occurrenceCanonicalState = null;
     } else if (exact) {
       occurrenceCanonicalState = exact.canonicalState;
-    } else if (modernScope && exactRunCanonicalState !== null) {
-      // Only the academic state comes from the exact authorized run. Project
-      // bytes still require the existing independent origin/readability proof.
+    } else if (
+      modernScope &&
+      exactRunCanonicalState !== null &&
+      (!workOriginAmbiguous ||
+        exactRunCanonicalState.selectedResult !== null ||
+        row.project_id === null)
+    ) {
+      // Run-keyed academic results are distinct from project bytes, but an
+      // unverified legacy project cannot expose its in-progress workflow.
       occurrenceCanonicalState = exactRunCanonicalState;
     } else if (exactNotStarted) {
       occurrenceCanonicalState = {

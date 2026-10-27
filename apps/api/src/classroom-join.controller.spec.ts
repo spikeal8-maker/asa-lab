@@ -1045,6 +1045,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
 
     // Another learner's accepted 3D cannot credit this seat even if a
     // compromised upstream list accidentally includes that evidence row.
+    const foreignAttemptId = '66000000-0000-4000-8000-000000000093';
     evidenceRows.push({
       ...evidenceBase,
       seatId: '50000000-0000-4000-8000-000000000099',
@@ -1052,11 +1053,11 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       activityRunId: activityRunB,
       participation: { applicable: true, status: 'active', excused: false },
       legacyWork: null,
-      attempt: attempt('66000000-0000-4000-8000-000000000093', 'closed', 'accepted'),
+      attempt: attempt(foreignAttemptId, 'closed', 'accepted'),
       selectedAttemptExists: true,
       resultSelectionSource: 'canonical',
-      selectedAttemptId: '66000000-0000-4000-8000-000000000093',
-      selectedRevision: sharedAcceptedResult('66000000-0000-4000-8000-000000000093', '93'),
+      selectedAttemptId: foreignAttemptId,
+      selectedRevision: sharedAcceptedResult(foreignAttemptId, '93'),
     });
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),

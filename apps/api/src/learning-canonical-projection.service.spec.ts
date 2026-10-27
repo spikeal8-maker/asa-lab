@@ -291,14 +291,10 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       expect(snapshot.projections.size).toBe(1);
       expect(snapshot.participationByRun.size).toBe(2);
       expect(snapshot.courseProjectionsByRun.size).toBe(2);
-      expect(
-        snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runA))
-          ?.surface.activityRunId,
-      ).toBe(runA);
-      expect(
-        snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runB))
-          ?.surface.activityRunId,
-      ).toBe(runB);
+      const runAKey = canonicalCourseParticipationKey(base.seatId, runA);
+      const runBKey = canonicalCourseParticipationKey(base.seatId, runB);
+      expect(snapshot.courseProjectionsByRun.get(runAKey)?.surface.activityRunId).toBe(runA);
+      expect(snapshot.courseProjectionsByRun.get(runBKey)?.surface.activityRunId).toBe(runB);
       expect(
         snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runA)),
       ).toEqual({
@@ -377,18 +373,19 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     );
     expect(snapshot.projections.size).toBe(2);
     expect(snapshot.courseProjectionsByRun.size).toBe(3);
-    expect(
-      snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runA))
-        ?.surface.selectedResult?.completionValue,
-    ).toBe(true);
-    expect(
-      snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runB))
-        ?.surface,
-    ).toMatchObject({ activityRunId: runB, workflowState: 'submitted', selectedResult: null });
-    expect(
-      snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(foreignSeat, runB))
-        ?.surface.selectedResult?.completionValue,
-    ).toBe(true);
+    const acceptedKey = canonicalCourseParticipationKey(base.seatId, runA);
+    const awaitingKey = canonicalCourseParticipationKey(base.seatId, runB);
+    const foreignKey = canonicalCourseParticipationKey(foreignSeat, runB);
+    const acceptedState = snapshot.courseProjectionsByRun.get(acceptedKey)?.surface;
+    const awaitingState = snapshot.courseProjectionsByRun.get(awaitingKey)?.surface;
+    const foreignState = snapshot.courseProjectionsByRun.get(foreignKey)?.surface;
+    expect(acceptedState?.selectedResult?.completionValue).toBe(true);
+    expect(awaitingState).toMatchObject({
+      activityRunId: runB,
+      workflowState: 'submitted',
+      selectedResult: null,
+    });
+    expect(foreignState?.selectedResult?.completionValue).toBe(true);
   });
 
   it('fails closed when one seat and ActivityRun have duplicate canonical evidence', async () => {
@@ -398,13 +395,13 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       kind: 'course_project',
       activityRunId: runId,
       participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
     };
-    const snapshot = await new LearningCanonicalProjectionService(poolWith(evidence, evidence), {})
-      .forSeatCourseRuns(base.seatId, '2026-10-27T10:00:00.000Z');
-    expect(snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runId)))
-      .toBeNull();
-    expect(snapshot.participationByRun.has(canonicalCourseParticipationKey(base.seatId, runId)))
-      .toBe(false);
+    const service = new LearningCanonicalProjectionService(poolWith(evidence, evidence), {});
+    const snapshot = await service.forSeatCourseRuns(base.seatId, '2026-10-27T10:00:00.000Z');
+    const runKey = canonicalCourseParticipationKey(base.seatId, runId);
+    expect(snapshot.courseProjectionsByRun.get(runKey)).toBeNull();
+    expect(snapshot.participationByRun.has(runKey)).toBe(false);
   });
 
   it('has an explicit reversible legacy cutover that bypasses canonical reads', async () => {
