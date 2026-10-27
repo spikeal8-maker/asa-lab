@@ -1043,6 +1043,29 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       expect(practices?.map((item) => item.projectId)).toEqual([null, null]);
     }
 
+    // On a legacy shared handout SQL cannot prove a unique modern Project.
+    // The exact published academic result must survive that independent denial.
+    const originalProvenance = occurrenceRows.map((row) => row.modern_provenance);
+    for (const row of occurrenceRows) {
+      Object.assign(row, {
+        modern_provenance: { modernCourseRun: false, projectReadable: false },
+        project_id: null,
+        not_started_visible: false,
+      });
+    }
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[1]?.canonicalState?.selectedResult).toBeNull();
+      expect(practices?.map((practice) => practice.projectId)).toEqual([null, null]);
+    }
+    for (const [index, row] of occurrenceRows.entries()) {
+      Object.assign(row, { modern_provenance: originalProvenance[index] });
+    }
+
     // Another learner's accepted 3D cannot credit this seat even if a
     // compromised upstream list accidentally includes that evidence row.
     const foreignAttemptId = '66000000-0000-4000-8000-000000000093';

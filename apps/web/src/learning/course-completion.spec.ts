@@ -42,6 +42,13 @@ describe('minimal course completion mirrors required lessons, not login or curre
       complete: true,
     });
   });
+  it('requires a published result for historical standalone submissions without canonical evidence', () => {
+    const historical = lesson('assignment');
+    historical.canonicalState = null;
+    historical.submittedAt = '2026-09-10T09:00:00Z';
+    expect(lessonComplete(historical)).toBe(false);
+    expect(courseCompletion([historical]).complete).toBe(false);
+  });
   it('preserves a selected accepted result while a new attempt is awaiting review', () => {
     expect(courseCompletion([lesson('assignment', true)]).complete).toBe(true);
   });
@@ -219,6 +226,21 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       unavailable: 0,
     });
     expect(lessonComplete(notAssigned)).toBe(true);
+  });
+
+  it('leaves a pinned practice without participation unresolved, not excused', () => {
+    const mixed = mixedLesson(true, [
+      accepted,
+      { ...unstarted, requirement: 'not_assigned', canonicalMissing: true },
+    ]);
+    expect(lessonPracticeProgress(mixed)).toMatchObject({
+      total: 1,
+      completed: 1,
+      excused: 0,
+      unavailable: 1,
+    });
+    expect(lessonComplete(mixed)).toBe(false);
+    expect(courseCompletion([mixed]).complete).toBe(false);
   });
 
   it('does not complete a lesson when applicability has no exact provenance', () => {
