@@ -260,6 +260,10 @@ async function verifyNativeZoom(sourcePage: Page) {
       if (selector)
         await zoom.page.locator(selector).evaluate((element) => {
           element.scrollIntoView({ block: 'center' });
+          const header = document.querySelector('.portal-header')?.getBoundingClientRect();
+          const minimumTop = Math.max(0, header?.bottom ?? 0) + 8;
+          const top = element.getBoundingClientRect().top;
+          if (top < minimumTop) window.scrollBy({ top: top - minimumTop, behavior: 'instant' });
         });
       else await zoom.page.evaluate(() => window.scrollTo(0, 0));
       await zoom.page.evaluate(async () => {
