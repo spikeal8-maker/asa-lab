@@ -122,6 +122,11 @@ parallel_lanes:
         - docs/deployment/PORTABLE_OPERATIONS.md
         - docs/agent/contracts/deployment.yaml
       normative_refs:
+        - document: PORTABLE-DEPLOYMENT-STANDARD
+          revision: '1.1'
+        - document: PORTABLE-DEPLOYMENT-CONTRACT
+          revision: '1.0'
+      coordination_refs:
         - https://github.com/spikeal8-maker/asa-lab/issues/809
         - https://github.com/spikeal8-maker/asa-lab/issues/809#issuecomment-6455177685
       publication: draft_pr_then_exact_sha_checks_and_independent_review
