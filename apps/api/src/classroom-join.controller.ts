@@ -304,6 +304,7 @@ function courseActivityOccurrenceMap(
       occurrenceCanonicalState = exact.canonicalState;
     } else if (
       modernScope &&
+      !originPresent &&
       exactRunCanonicalState !== null &&
       (!workOriginAmbiguous ||
         exactRunCanonicalState.selectedResult !== null ||

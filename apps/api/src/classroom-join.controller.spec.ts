@@ -1095,7 +1095,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       await controller.courseRuns(seatRequest()),
     ]) {
       const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
-      expect(practices?.map((item) => item.canonicalState?.selectedResult?.completionValue)).toEqual([
+      const states = practices?.map((item) => item.canonicalState);
+      expect(states?.map((state) => state?.selectedResult?.completionValue)).toEqual([
         true,
         true,
       ]);
