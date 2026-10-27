@@ -239,6 +239,7 @@ async function verifyNativeZoom(sourcePage: Page) {
         outerHeight,
         ratio: devicePixelRatio,
         visualScale: visualViewport?.scale,
+        visualHeight: visualViewport?.height,
         cssZoom: getComputedStyle(document.documentElement).zoom,
         scrollWidth: document.documentElement.scrollWidth,
         scrollY,
@@ -282,12 +283,17 @@ async function verifyNativeZoom(sourcePage: Page) {
       } finally {
         await capture.detach();
       }
+      writeFileSync(test.info().outputPath(`${name}.png`), png);
       expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       const pixels = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
       expect(pixels.width).toBe(1440);
       expect(pixels.width).toBe(Math.round(after.width * after.ratio));
       const viewport = await geometry();
-      expect(pixels.height).toBe(Math.round(viewport.height * viewport.ratio));
+      // innerHeight is integer CSS pixels; an odd physical viewport can differ
+      // by less than one CSS pixel after conversion at native 200% zoom.
+      expect(Math.abs(pixels.height - viewport.height * viewport.ratio)).toBeLessThan(
+        viewport.ratio,
+      );
       const target = selector
         ? await zoom.page.locator(selector).evaluate((element) => {
             const rect = element.getBoundingClientRect();
@@ -307,7 +313,6 @@ async function verifyNativeZoom(sourcePage: Page) {
         expect(target.y).toBeGreaterThanOrEqual(Math.max(0, target.headerBottom));
         expect(target.y + target.height).toBeLessThanOrEqual(viewport.height + 1);
       }
-      writeFileSync(test.info().outputPath(`${name}.png`), png);
       screenshots.push({ name, pixels, viewport, target });
     }
     for (const colorScheme of ['light', 'dark'] as const) {
