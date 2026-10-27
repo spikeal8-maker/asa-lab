@@ -391,7 +391,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asai_01_selected_ready_for_implementation
+      checkpoint: asai_01_integrated_d2r2_update_blocked
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -411,24 +411,116 @@ parallel_lanes:
         - id: ASAI-01
           issue: 799
           scope: existing AI administration overview, real usage aggregates and first daily request chart
-          status: ready
+          status: in_progress
           selected_at: '2026-10-27'
           task_card: docs/product/ai/FIRST_TASK_ASAI-01.md
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R20, R31]
           acceptance_checks: [C17, C20, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
-          demo_status: not_run
+          demo_status: BLOCKED_DEMO
+          source_pr: 800
+          candidate_sha: 987769b6d5799de0fc2a03cfea8e2bab7d6c8592
+          integrated_sha: bd80426472edc25f3a184a29eb1a28216600c4cd
+          main_integration: merged
+          integrated_at: '2026-10-27T18:19:45Z'
+          independent_review: approved_code_and_visual_on_candidate
+          review_anchor: https://github.com/spikeal8-maker/asa-lab/pull/800#pullrequestreview-5671924999
+          exact_head_focused_run: 40544688735
+          exact_head_general_run: 40544689120
+          exact_main_focused_run: 40558947792
+          exact_main_general_run: 40558947804
+          integration_checks_status: passed
+          exact_main_general_jobs: 4_passed
+          exact_main_focused_jobs: 5_passed_1_pr_only_comparison_skipped
+          exact_main_account_run: 40558947980
+          exact_main_public_projects_run: 40558948004
+          release_revision: bd80426472edc25f3a184a29eb1a28216600c4cd
+          release_workflow_run: 40563198844
+          release_status: published_and_registry_verified
+          release_schema: 268
+          release_deployment_digest: sha256:23f7ef66db27606ad31e1206ce0ab89660a8af60208d154a30b240445759a91a
+          release_manifest_sha256: 88f115db5916a8d9c6216cc7cd282b98697d2da8c1de50bdd3841f2c5526a2a7
+          release_image_digests:
+            api: sha256:c97c909c31019b92f5135433b27522dca20df6396bd3266e6b44c4927bdb2ea7
+            web: sha256:8614c1695ad4f0202e232c64fdad541e46fba92127b07a767b44150e8d19a0eb
+            scratch: sha256:e8f01d750c16a0b40817d84ed2501cf7634c627ac5db46e0dc6e1ffcb2ba3aee
+            minio: sha256:69bcf6ffa1348fbbd1dbc4c39e7b818ff2a32adc9a327e45ed2043d5e9f8dfb9
+            search: sha256:d31eb29e3e106e6dee813e350c99853f19dba71c06432f46a9735e22c0c6e047
+          owner_integration_authorization: >-
+            On 2026-10-27 the owner explicitly authorized marking only PR800 ready and ordinary
+            expected-HEAD merge after checks, followed by the supported guarded update of the existing
+            D2R2 installation. Preserve WIP, data, keys and other projects; do not bypass updater guards,
+            change host/network settings, create another permanent stack or assign owner acceptance.
+            No Linux test-server update, paid model calls, UI redesign, issue806 or issue807 work.
+          deployment:
+            target: D2-R2
+            status: blocked_identity_files
+            issue: 809
+            entry_origin: http://127.0.0.1:4610
+            project: asa-lab-dev
+            canonical_root: 'C:\Users\spike\.codex\worktrees\ai-layout-quality\ASA-lab'
+            observed_at: '2026-10-27T18:58:14Z'
+            observed_api_sha: 2d6394a299418b8ada6a77b0a17748b946cf4ace
+            observed_web_sha: null
+            observed_web_version_status: not_verified_html_instead_of_build_metadata
+            observed_schema: 261
+            expected_schema_of_running_api: 261
+            source_head: cdb28684116a8990d948d73605437e795b8b7bfa
+            source_branch: codex/ai-generation-policy
+            compose_files: [compose.yaml, compose.dev.yaml, .asa/local-review/compose.review.yaml]
+            doctor_exit_code: 2
+            doctor_blocker: IDENTITY_FILES
+            full_database_object_backup: not_run
+            update: not_run
+            installed_demo: not_run
+            browser_access: originating_connected_browser_context_required
+            preservation:
+              status: verified
+              private_root: 'C:\Users\spike\ASA-Lab-private-backups\asai-01-integration-20261027T180950Z'
+              tracked_wip_files: 8
+              untracked_wip_files: 2
+              source_copies: 138
+              manifest_files: 173
+              bundle_bytes: 235282974
+              bundle_sha256: 8ba6e7eed26a9600ab743061895268264f55a8635d15c9e37d041227e7187560
+              manifest_sha256: 5c9adcedd8f6c2de721d1fa367470c9f192919c9f1dbc2cae61cd0811a1c33d0
+              independent_bundle_fetch_fsck: passed
+              private_configuration_copy: verified
+              originals_index_runtime_unchanged: true
+              is_live_database_object_backup: false
+              final_readonly_verification_at: '2026-10-27T18:58:14Z'
+              changed_source_copies: 0
+              git_status_and_container_ids_unchanged: true
+            observation: >-
+              Installed manager doctor rejects the actual third review overlay. API/Web read host
+              source bind mounts, so stash or checkout would change live runtime before full backup.
+              Current backup code also rejects these mounts; BACKUP_MOUNTS is code-derived, not a
+              separately executed backup failure. No supported adoption/transition was found; issue809
+              requires a separately selected deployment repair. HTTP root and API version return200;
+              build-metadata.json returns HTML, so Web revision is not claimed. No service, database,
+              branch or host configuration was changed. Private preservation is not full live backup.
+          observations:
+            - issue: 808
+              classification: independent_C_provisional
+              sha: cd8cb028ef067cc0b353a1ef48504e71d62115b4
+              workflow_run: 40546216288
+              attempt: 2
+              status: needs_root_cause
+              summary: >-
+                Pre-merge main General failed only the CRM acquisition PostgreSQL test at line154
+                with timeout5000ms. Governance, Code and Access A passed. This is distinct from the
+                earlier Git-fixture cleanup in issue308; no foreign repair or rerun in ASAI-01.
           preparation_basis: docs/product/ASA_AI_ASSISTANT_SPEC.md
           selection: >-
-            The owner requested preparation of the published AI specification for implementation
-            on 2026-10-27. ASAI-01 is the next bounded product slice under programme 373.
-            This record selects the first task but does not claim implementation, CI acceptance,
-            demonstration or owner acceptance. On an explicit start, run current preflight,
-            retain existing usage and identity contracts, and deliver a visible working overview.
-            No server update, working-database change, paid provider call, model download/delete
-            or host-network mutation is authorized by this preparation record.
+            Continue only the selected ASAI-01 delivery. The compact overview is implemented and
+            PR800 is merged; the independent candidate review is anchored with its original source.
+            Exact integrated-version CI/release and actual D2R2 installation/demo are separate states.
+            C28, issue799 closure and owner acceptance remain pending. The confirmed deployment guard
+            blocks that action only; registering issues808/809 does not select their implementation
+            or any subsequent AI slice. Fetch main and exact-SHA evidence before continuing.
         - id: AI-TEXT-UI-001
           source_pr: 623
           scope: existing chat screen, styles and AI browser regressions
@@ -2115,19 +2207,22 @@ parallel_lanes:
           were controlled fixtures; no live paid key verification or deployment is claimed.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 5a401356c0882cd369f5eff215afaca79015a625
+      convergence_baseline_sha: cd8cb028ef067cc0b353a1ef48504e71d62115b4
       head_sha: null
-      observed_at: '2026-10-21T06:48:09Z'
+      observed_at: '2026-10-27T18:58:14Z'
       main:
         branch: main
-        sha: 0a7e4725c1afcc105aa1ff98288c5c3affa9c270
-      observation_note:
-        'Dated acceptance receipt: final 1648 exact tree2d406b passed seven required workflows/nineteen
-        jobs and new independent source plus AI/General/dependency actual reviews. Ordinary owner-authorized PR655
-        merge and preserved superseded AI branches verified. This AI-only metadata update records that tested source;
-        it does not modify product code or retest it under another SHA. Programme remains in_progress, owner acceptance
-        pending. No deployment, working database action or live paid-provider verification. Fresh fetch main and exact-SHA
-        CI before further writes and integration.'
+        sha: bd80426472edc25f3a184a29eb1a28216600c4cd
+      observation_note: >-
+        Dated ASAI-01 integration receipt. Owner-authorized normal PR800 merge preserved the reviewed
+        compact candidate987; its independent code/visual review is anchored in the PR. Exact merge General,
+        applicable AI, Account and Public Projects checks passed. Release40563198844 published bd804, and
+        its manifest/schema/five immutable image digests were verified against the public registry.
+        This metadata records that tested product revision. D2R2 WIP/configuration preservation is verified
+        without changing originals or runtime. Installed manager doctor confirmed IDENTITY_FILES for the legacy overlay;
+        full live backup/update/demo are not run, issue809 records the deployment prerequisite. Historical
+        accepted AI slices remain unchanged. Owner acceptance pending; fetch main and exact-SHA CI/release
+        before further writes or installation. No next slice is selected by this receipt.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
@@ -13612,6 +13707,37 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ASAI-01-D2R2-LEGACY-ADOPTION-809
+    kind: deployment_blocker
+    lane: ai-assistant
+    task_id: TASK-AI-ASSISTANT-PROGRAMME-001
+    blocks:
+      - d2r2_full_backup
+      - d2r2_update
+      - asai_01_installed_demo
+    allows:
+      - documentation_update
+      - readonly_environment_diagnostics
+      - private_wip_preservation
+      - exact_sha_ci
+      - release_publication
+    reason: >-
+      Installed manager doctor on D2R2 exits2 IDENTITY_FILES because asa-lab-dev uses an unsupported
+      .asa/local-review/compose.review.yaml overlay. API/Web source bind mounts make checkout or stash
+      a live-runtime mutation before full backup; current backup mount guards also reject this shape.
+      WIP/configuration copies are verified, but originals and runtime remain unchanged. No supported
+      legacy adoption/transition was found; do not bypass guards, change the canonical root or use a second stack.
+    unblock_requires: >-
+      Separately selected and tested deployment adoption/transition for the same root/project/data volumes
+      must support the actual identity and mount shape without bypass. Confirm preserved inactive WIP and
+      private configuration plus an exact released target with required green CI and immutable image digests.
+      These prerequisites permit starting the supported backup/update sequence; its ordinary full-backup,
+      version and data guards still apply before any service mutation.
+    delivery_completion_requires: >-
+      Verified full database/object/configuration backup, supported update, separately verified API/Web/schema
+      versions and real D2R2 administrator/browser evidence. These are results of the allowed sequence, not
+      prerequisites for starting its backup step. Owner acceptance remains a separate pending decision.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/809
   - id: ELECTRONICS-752-CLASSROOM-BASELINE
     kind: acceptance_blocker
     lane: electronics-owner23-potentiometer-hygiene
