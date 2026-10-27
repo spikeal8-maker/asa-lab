@@ -5,7 +5,10 @@ import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { SeatCourseRunLesson } from '../../apps/web/src/api';
 import { ClassroomJoinController } from '../../apps/api/src/classroom-join.controller';
-import { courseCompletion, lessonPracticeProgress } from '../../apps/web/src/learning/course-completion';
+import {
+  courseCompletion,
+  lessonPracticeProgress,
+} from '../../apps/web/src/learning/course-completion';
 import {
   ACCOUNT_COURSE_LESSON_LIST_SQL,
   SEAT_COURSE_LESSON_LIST_SQL,
@@ -1612,8 +1615,8 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       [principalId, courseId, sectionId, JSON.stringify([firstBlock])],
     );
     const revision = Number(
-      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId]))
-        .rows[0].draft_revision,
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
     );
     const published = await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
       principalId,
@@ -1689,10 +1692,11 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     const academicVisible = async (actor: string, runId: string, viewerSeat = seat) =>
       (
         await inTenant(author, (client) =>
-          client.query(
-            'SELECT learning_course_academic_result_visible($1,$2,$3) AS allowed',
-            [actor, viewerSeat, runId],
-          ),
+          client.query('SELECT learning_course_academic_result_visible($1,$2,$3) AS allowed', [
+            actor,
+            viewerSeat,
+            runId,
+          ]),
         )
       ).rows[0].allowed as boolean;
     expect(await academicVisible(seatPrincipal, first.id)).toBe(true);
@@ -1717,9 +1721,9 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       });
       const run = apiPayload.items.find((item) => item.id === assigned.run_id);
       expect(run).toBeDefined();
-      const lesson = run?.sections.flatMap((section) => section.lessons).find(
-        (item) => item.id === first.source_course_lesson_id,
-      );
+      const lesson = run?.sections
+        .flatMap((section) => section.lessons)
+        .find((item) => item.id === first.source_course_lesson_id);
       expect(lesson).toBeDefined();
       const courseLesson = lesson as unknown as SeatCourseRunLesson;
       const practices = courseLesson.activityOccurrences;
@@ -1814,9 +1818,9 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       .flatMap((run) => run.sections)
       .flatMap((section) => section.lessons)
       .flatMap((lesson) => lesson.activityOccurrences);
-    expect(
-      revokedPractices.every((item) => item.canonicalState?.selectedResult == null),
-    ).toBe(true);
+    expect(revokedPractices.every((item) => item.canonicalState?.selectedResult == null)).toBe(
+      true,
+    );
     await admin.query(
       `UPDATE learner_identity_links SET status='active',disabled_at=NULL
         WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,

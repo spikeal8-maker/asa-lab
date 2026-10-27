@@ -298,10 +298,7 @@ function courseActivityOccurrenceMap(
       exact === null;
     const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
     const exactNotStarted =
-      participation?.applicable === true &&
-      row.project_id === null &&
-      !originPresent &&
-      row.not_started_visible === true;
+      row.project_id === null && !originPresent && row.not_started_visible === true;
     let occurrenceCanonicalState: CanonicalLearningSurfaceState | null = null;
     if (participation === null && courseProjectionsByRun.has(runKey)) {
       // A conflicting run cannot borrow a sibling's handout result.
