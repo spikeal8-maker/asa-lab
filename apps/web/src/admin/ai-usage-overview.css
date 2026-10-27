@@ -272,17 +272,19 @@
     --surface: #202123;
     --text: #f5f5f5;
     --muted: #b2b2b5;
-    --ink-muted: #b2b2b5;
     --border: #3a3a3d;
     --primary: #7cb9e6;
     --color-brand: #7cb9e6;
     --admin-blue: #7cb9e6;
     background: var(--bg);
     color: var(--text);
+  }
+  .asa-ai-admin-workspace:has(.asa-ai-usage-overview) {
     color-scheme: dark;
   }
   .admin-page:has(.asa-ai-usage-overview) {
     --admin-ink: #f5f5f5;
+    --ink-muted: #b2b2b5;
     --admin-blue: #7cb9e6;
     --admin-line: #3a3a3d;
     --admin-soft: #202123;
@@ -294,11 +296,39 @@
     border-color: var(--border);
   }
   .portal-shell:has(.asa-ai-usage-overview)
-    :is(.portal-nav-item, .portal-brand, .portal-global-nav a, .portal-sidebar-collapse) {
+    :is(
+      .portal-nav-item,
+      .portal-brand,
+      .portal-global-nav a,
+      .portal-sidebar-collapse,
+      .portal-sidebar-profile strong
+    ) {
     color: var(--text);
   }
+  .portal-shell:has(.asa-ai-usage-overview) .portal-admin-subnav-item {
+    color: var(--muted);
+  }
   .portal-shell:has(.asa-ai-usage-overview) .portal-nav-item:is(:hover, .active),
+  .portal-shell:has(.asa-ai-usage-overview) .portal-admin-subnav-item:is(:hover, .active),
   .asa-ai-admin-workspace:has(.asa-ai-usage-overview) .asa-ai-admin-tabs > button:hover {
     background: var(--surface);
+  }
+  .portal-shell:has(.asa-ai-usage-overview) .portal-admin-subnav-item.active {
+    color: var(--primary);
+  }
+  .portal-shell:has(.asa-ai-usage-overview) .portal-sidebar-collapse-visual {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .portal-shell:has(.asa-ai-usage-overview) :is(.portal-sidebar-profile, .portal-sidebar-footer) {
+    border-color: var(--border);
+  }
+  .admin-page:has(.asa-ai-usage-overview) .admin-scope-select select {
+    min-height: 44px;
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+    color-scheme: dark;
   }
 }

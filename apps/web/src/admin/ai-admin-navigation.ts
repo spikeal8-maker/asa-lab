@@ -42,7 +42,7 @@ export function readAiAdminNavigation(principalId: string): AiAdminNavigation {
     // Private browsing or invalid preferences must not block the administrative screen.
   }
   const [path, query = ''] = window.location.hash.replace(/^#/, '').split('?');
-  if (path !== '/admin/ai') return saved;
+  if (path?.replace(/\/+$/, '') !== '/admin/ai') return saved;
   const params = new URLSearchParams(query);
   const explicitSection = params.get('section');
   const explicitProvider = params.get('provider');
@@ -62,7 +62,7 @@ export function rememberAiAdminNavigation(principalId: string, value: AiAdminNav
 
 export function navigateAiAdmin(value: AiAdminNavigation): void {
   const [path, query = ''] = window.location.hash.replace(/^#/, '').split('?');
-  if (path !== '/admin/ai') return;
+  if (path?.replace(/\/+$/, '') !== '/admin/ai') return;
   const params = new URLSearchParams(query);
   params.set('section', value.section);
   params.set('provider', value.provider);

@@ -29,6 +29,7 @@ name: ASA AI Chat Focused
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
       - 'e2e/ai-*.spec.ts'
+      - 'e2e/ai-usage-native-zoom.ts'
       - 'migrations/*_ai_*.sql'
       - 'tests/admin/ai-*.ts'
       - 'tests/ai-attachments/**'
@@ -65,6 +66,7 @@ name: ASA AI Chat Focused
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
       - 'e2e/ai-*.spec.ts'
+      - 'e2e/ai-usage-native-zoom.ts'
       - 'migrations/*_ai_*.sql'
       - 'tests/admin/ai-*.ts'
       - 'tests/ai-attachments/**'
@@ -352,6 +354,7 @@ jobs:
       - name: Copy only the browser harness, preserve all baseline product sources
         run: |
           cp ../candidate/e2e/ai-usage-overview.spec.ts e2e/ai-usage-overview.spec.ts
+          cp ../candidate/e2e/ai-usage-native-zoom.ts e2e/ai-usage-native-zoom.ts
           cp ../candidate/playwright.ai-usage-overview.config.ts playwright.ai-usage-overview.config.ts
           test "$(git rev-parse HEAD)" = "$ASA_BUILD_REVISION"
           git diff --exit-code -- apps contexts packages migrations package.json pnpm-lock.yaml

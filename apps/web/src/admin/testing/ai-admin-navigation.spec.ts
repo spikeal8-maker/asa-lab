@@ -6,6 +6,7 @@ import {
   readAiAdminNavigation,
   rememberAiAdminNavigation,
 } from '../ai-admin-navigation';
+import { adminSectionFromLocation } from '../admin-navigation';
 
 beforeEach(() => {
   localStorage.clear();
@@ -43,6 +44,24 @@ it('prioritizes a valid explicit link and preserves unrelated query parameters o
   expect(window.location.hash).toContain('provider=ollama-cloud');
   expect(window.location.hash).toContain('view=owner');
   expect(readAiAdminNavigation('administrator-a').section).toBe('overview');
+});
+it('preserves explicit links accepted by the outer admin router with trailing slashes', () => {
+  window.history.replaceState(
+    null,
+    '',
+    '/#/admin/ai//?section=settings&provider=openai&view=owner',
+  );
+  expect(adminSectionFromLocation(window.location)).toBe('ai');
+  expect(readAiAdminNavigation('administrator-a')).toEqual({
+    section: 'settings',
+    provider: 'openai',
+  });
+  navigateAiAdmin({ section: 'connections', provider: 'deepseek' });
+  expect(window.location.hash).toBe('#/admin/ai?section=connections&provider=deepseek&view=owner');
+  expect(readAiAdminNavigation('administrator-a')).toEqual({
+    section: 'connections',
+    provider: 'deepseek',
+  });
 });
 it('rejects unrecognized stored/URL values and keeps navigation available when storage is blocked', () => {
   localStorage.setItem(

@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool } from './seed';
+import { openAiUsageNativeZoom } from './ai-usage-native-zoom';
 
 const ORIGIN = 'http://127.0.0.1:4612';
 const ENDPOINT = '/api/admin/v1/ai/usage-overview';
@@ -125,6 +126,260 @@ async function assertLayout(page: Page, width: number) {
   expect(layout.scrollWidth).toBeLessThanOrEqual(width);
   expect(layout.workspaceLeft).toBeGreaterThanOrEqual(0);
   expect(layout.workspaceRight).toBeLessThanOrEqual(width + 1);
+}
+
+async function assertMetricContent(page: Page) {
+  const cards = await page.locator('.asa-ai-usage-card').evaluateAll((elements) =>
+    elements.map((card) => {
+      const bounds = card.getBoundingClientRect();
+      const value = card.querySelector('.asa-ai-usage-value bdi');
+      const blocks = Array.from(card.querySelectorAll('h3, p')).map((element) =>
+        element.getBoundingClientRect(),
+      );
+      return {
+        inside: Array.from(value?.getClientRects() ?? []).every(
+          (rect) => rect.left >= bounds.left && rect.right <= bounds.right,
+        ),
+        noOverlap: blocks.every(
+          (rect, index) => index === 0 || blocks[index - 1]!.bottom <= rect.top + 1,
+        ),
+        textOverflow: value ? getComputedStyle(value).textOverflow : 'missing',
+      };
+    }),
+  );
+  expect(cards).toHaveLength(3);
+  for (const card of cards) {
+    expect(card.inside).toBe(true);
+    expect(card.noOverlap).toBe(true);
+    expect(card.textOverflow).not.toBe('ellipsis');
+  }
+}
+
+async function verifyKeyboardAndTouch(page: Page) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: 'light' });
+  const overviewTab = page.getByRole('tab', { name: 'Обзор', exact: true });
+  const settingsTab = page.getByRole('tab', { name: 'Настройки', exact: true });
+  const lastTab = page.getByRole('tab', { name: 'Изображения', exact: true });
+  await overviewTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(settingsTab).toBeFocused();
+  await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('End');
+  await expect(lastTab).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(overviewTab).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(lastTab).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(overviewTab).toBeFocused();
+  await assertMetrics(page);
+  const refresh = page.getByRole('button', { name: 'Обновить данные', exact: true });
+  await page.keyboard.press('Tab');
+  await expect(refresh).toBeFocused();
+  const focus = await refresh.evaluate((button) => {
+    const style = getComputedStyle(button);
+    return {
+      visible: button.matches(':focus-visible'),
+      outlineStyle: style.outlineStyle,
+      outlineWidth: Number.parseFloat(style.outlineWidth),
+    };
+  });
+  expect(focus.visible).toBe(true);
+  expect(focus.outlineStyle).not.toBe('none');
+  expect(focus.outlineWidth).toBeGreaterThanOrEqual(2);
+  const targets = await page
+    .locator(
+      '.asa-ai-admin-tabs > button, .asa-ai-usage-refresh, .asa-ai-usage-table-details summary',
+    )
+    .evaluateAll((elements) =>
+      elements.map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { label: element.textContent?.trim(), width: rect.width, height: rect.height };
+      }),
+    );
+  expect(targets).toHaveLength(8);
+  for (const target of targets) {
+    expect(target.width, target.label).toBeGreaterThanOrEqual(44);
+    expect(target.height, target.label).toBeGreaterThanOrEqual(44);
+  }
+  // Preserve the actual keyboard focus ring; the ordinary screenshot helper
+  // deliberately blurs focus and therefore cannot serve as this evidence.
+  await page.screenshot({
+    path: test.info().outputPath('keyboard-focus-390-light.png'),
+    fullPage: true,
+  });
+  writeFileSync(
+    test.info().outputPath('safe-keyboard-touch.json'),
+    JSON.stringify(
+      {
+        keys: ['ArrowRight', 'End', 'Home', 'ArrowLeft', 'ArrowRight', 'Tab'],
+        focus,
+        targets,
+        mobileKeyboard: 'No text input belongs to this read-only overview.',
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function verifyNativeZoom(sourcePage: Page) {
+  const zoom = await openAiUsageNativeZoom(sourcePage);
+  let failure: { error: unknown } | undefined;
+  let evidence: unknown;
+  try {
+    await zoom.page.goto('/#/admin/ai?section=overview');
+    await assertMetrics(zoom.page);
+    const before = await zoom.page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
+    const applied = await zoom.setZoom(2);
+    expect(applied).toMatchObject({ factor: 2, settings: { mode: 'automatic', scope: 'per-tab' } });
+    await expect.poll(() => zoom.page.evaluate(() => innerWidth)).toBeLessThan(before.width);
+    const after = await zoom.page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
+    expect(before.width / after.width).toBeCloseTo(2, 1);
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await zoom.page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+      await assertMetrics(zoom.page);
+      await assertLayout(zoom.page, after.width);
+      await assertMetricContent(zoom.page);
+      await screenshot(zoom.page, `native-200-percent-${colorScheme}`);
+    }
+    const reset = await zoom.setZoom(1);
+    expect(reset.factor).toBe(1);
+    evidence = {
+      method: 'Chromium tabs.setZoom, automatic per-tab, viewport:null',
+      before,
+      applied,
+      after,
+      reset,
+      trace: 'off',
+    };
+  } catch (error) {
+    failure = { error };
+  } finally {
+    await zoom.close(failure);
+  }
+  writeFileSync(test.info().outputPath('safe-native-zoom.json'), JSON.stringify(evidence, null, 2));
+}
+
+async function darkContrast(page: Page, includeCollapse: boolean) {
+  const selectors = [
+    { label: 'Profile name', selector: '.portal-sidebar-profile strong', minimum: 4.5 },
+    { label: 'Administration navigation', selector: '.portal-admin-subnav-item', minimum: 4.5 },
+    { label: 'Administration scope', selector: '.admin-scope-select select', minimum: 4.5 },
+    ...(includeCollapse
+      ? [{ label: 'Collapse control', selector: '.portal-sidebar-collapse-visual', minimum: 3 }]
+      : []),
+  ];
+  const checks = await page.evaluate((rules) => {
+    function color(value: string): [number, number, number, number] {
+      const rgb = /^rgba?\(([^)]+)\)$/.exec(value);
+      if (!rgb) throw new Error(`Unsupported computed color in contrast evidence: ${value}`);
+      const numbers = rgb[1]!
+        .split(/[\s,/]+/)
+        .filter(Boolean)
+        .map(Number);
+      if (numbers.length < 3 || numbers.some((n) => !Number.isFinite(n)))
+        throw new Error('Invalid computed color in contrast evidence');
+      return [numbers[0]!, numbers[1]!, numbers[2]!, numbers[3] ?? 1];
+    }
+    const composite = (front: number[], back: number[]) =>
+      front.slice(0, 3).map((n, i) => n * front[3]! + back[i]! * (1 - front[3]!));
+    function background(element: Element): number[] {
+      const layers: number[][] = [];
+      for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement)
+        layers.push(color(getComputedStyle(ancestor).backgroundColor));
+      return layers.reverse().reduce((back, front) => composite(front, back), [255, 255, 255]);
+    }
+    const luminance = (rgb: number[]) =>
+      rgb
+        .map((n) => {
+          const channel = n / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        })
+        .reduce((sum, n, i) => sum + n * [0.2126, 0.7152, 0.0722][i]!, 0);
+    return rules.map((rule) => {
+      const elements = Array.from(document.querySelectorAll(rule.selector)).filter(
+        (element) => element.getClientRects().length > 0,
+      );
+      return {
+        label: rule.label,
+        minimum: rule.minimum,
+        values: elements.map((element) => {
+          const back = background(element);
+          const front = composite(color(getComputedStyle(element).color), back);
+          const a = luminance(front),
+            b = luminance(back);
+          return {
+            foreground: front,
+            background: back,
+            contrast: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+          };
+        }),
+      };
+    });
+  }, selectors);
+  for (const check of checks) {
+    expect(check.values.length, check.label).toBeGreaterThan(0);
+    for (const value of check.values)
+      expect(value.contrast, check.label).toBeGreaterThanOrEqual(check.minimum);
+  }
+  return checks;
+}
+
+async function verifyDarkScopes(page: Page, db: pg.Pool, accountId: string) {
+  const tenant = await db.query<{ id: string }>(
+    'INSERT INTO tenants(title,workspace_slug) VALUES($1,$2) RETURNING id',
+    ['Школа проверки обзора ИИ', `ai-overview-${randomUUID()}`],
+  );
+  const workspace = await db.query<{ id: string }>(
+    "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'organization',$2) RETURNING id",
+    [tenant.rows[0]!.id, 'Школа проверки обзора ИИ'],
+  );
+  await db.query(
+    "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'school_admin')",
+    [accountId, workspace.rows[0]!.id],
+  );
+  const profile = await page.request.get('/api/admin/v1/me');
+  expect(profile.status()).toBe(200);
+  const scopes = (await profile.json()).scopes;
+  expect(scopes).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ kind: 'platform', role: 'platform_admin' }),
+      expect.objectContaining({ kind: 'organization', role: 'school_admin' }),
+    ]),
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.reload();
+  await assertMetrics(page);
+  await expect(
+    page.getByRole('combobox', { name: 'Область управления', exact: true }),
+  ).toBeVisible();
+  const desktop = await darkContrast(page, true);
+  await assertLayout(page, 1440);
+  await screenshot(page, 'dark-multiple-scopes-1440');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await assertLayout(page, 390);
+  await screenshot(page, 'dark-multiple-scopes-390');
+  await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+  const menu = page.getByRole('dialog', { name: 'Основная навигация', exact: true });
+  await expect(menu).toBeVisible();
+  await menu.evaluate(async (element) => {
+    await Promise.all(
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
+  const mobile = await darkContrast(page, false);
+  await screenshot(page, 'dark-mobile-menu-390');
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  writeFileSync(
+    test.info().outputPath('safe-dark-contrast.json'),
+    JSON.stringify({ scopeCount: scopes.length, desktop, mobile }, null, 2),
+  );
 }
 
 async function seedUsage(db: pg.Pool, actor: { principalId: string; accountId: string }) {
@@ -324,6 +579,7 @@ test(
             page.getByRole('img', { name: 'Количество запросов по дням за семь дней' }),
           ).toBeVisible();
           await assertLayout(page, width);
+          await assertMetricContent(page);
           await screenshot(page, `overview-${width}-${colorScheme}`);
         }
       }
@@ -344,6 +600,19 @@ test(
         'aria-selected',
         'true',
       );
+      await page.goto('/#/admin/ai/?section=settings&provider=openai');
+      await expect(page.getByRole('tab', { name: 'Настройки', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      await page.getByRole('tab', { name: 'Обзор', exact: true }).click();
+      await expect(page).toHaveURL(/#\/admin\/ai\?section=overview&provider=openai$/);
+      await page.reload();
+      await expect(page.getByRole('tab', { name: 'Обзор', exact: true })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+      await assertMetrics(page);
       await page.goto('/#/admin/ai?section=connections&provider=openai');
       await expect(page.getByRole('tab', { name: 'Подключения', exact: true })).toHaveAttribute(
         'aria-selected',
@@ -366,26 +635,65 @@ test(
       await page.getByRole('tab', { name: 'Обзор', exact: true }).click();
       await assertMetrics(page);
 
+      await verifyKeyboardAndTouch(page);
+      await verifyNativeZoom(page);
+      await verifyDarkScopes(page, db, actor.accountId);
+
+      // Real PostgreSQL SUM(bigint) exceeds JavaScript's safe integer range.
+      // Validate exact rendered decimal strings and wrapping on narrow phones.
+      const perOperation = '9007199254740991';
+      const largeTotal = (BigInt(perOperation) * 9n).toString();
+      await db.query(
+        'UPDATE ai_usage_journal SET input_tokens=$2::bigint,output_tokens=$2::bigint WHERE owner_principal_id=$1',
+        [actor.principalId, perOperation],
+      );
+      try {
+        await page.getByRole('button', { name: 'Обновить данные', exact: true }).click();
+        await assertMetrics(page, largeTotal, largeTotal);
+        const large = await overview(page);
+        expect(large.inputTokens.known).toBe(largeTotal);
+        expect(large.outputTokens.known).toBe(largeTotal);
+        for (const width of [320, 390]) {
+          for (const colorScheme of ['light', 'dark'] as const) {
+            await page.setViewportSize({ width, height: 1000 });
+            await page.emulateMedia({ colorScheme });
+            await assertLayout(page, width);
+            await assertMetricContent(page);
+            await screenshot(page, `long-token-counts-${width}-${colorScheme}`);
+          }
+        }
+        writeFileSync(
+          test.info().outputPath('safe-large-token-summary.json'),
+          JSON.stringify({ expectedTotal: largeTotal, api: large }, null, 2),
+        );
+      } finally {
+        for (const row of fixture.rows) {
+          await db.query(
+            'UPDATE ai_usage_journal SET input_tokens=$3,output_tokens=$4 WHERE owner_principal_id=$1 AND request_id=$2',
+            [actor.principalId, row.requestId, row.input, row.output],
+          );
+        }
+      }
+      await page.getByRole('button', { name: 'Обновить данные', exact: true }).click();
+      await assertMetrics(page);
+
       await page.setViewportSize({ width: 390, height: 844 });
       await page.emulateMedia({ colorScheme: 'light' });
-      let releaseRead: () => void = () => undefined;
-      const heldRead = new Promise<void>((resolve) => {
-        releaseRead = resolve;
-      });
-      const delayed = '**/api/admin/v1/ai/usage-overview';
-      // Delay the request, then pass it to the real API unchanged. No successful
-      // payload is substituted, including for the loading-state screenshot.
-      await page.route(delayed, async (route) => {
-        await heldRead;
-        await route.continue();
-      });
+      const blocker = await db.connect();
       try {
+        // A short transaction on this dedicated disposable database delays the
+        // real source read. There is no browser routing or fake successful API.
+        await blocker.query('BEGIN');
+        await blocker.query('LOCK TABLE ai_usage_journal IN ACCESS EXCLUSIVE MODE');
         await page.getByRole('button', { name: 'Обновить данные', exact: true }).click();
         await expect(page.getByText('Загружаем данные…', { exact: true })).toBeVisible();
         await screenshot(page, 'loading-390-light');
       } finally {
-        releaseRead();
-        await page.unroute(delayed);
+        try {
+          await blocker.query('ROLLBACK');
+        } finally {
+          blocker.release();
+        }
       }
       await assertMetrics(page);
 
