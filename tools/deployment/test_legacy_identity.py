@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import Blocked
 from deployment.legacy_identity import (LegacyInstallation, REVIEW_FILES, REVIEW_SERVICES, REVIEW_WRITERS, SOURCE_BINDS,
                                         actual_ports, assert_snapshot_equal, attest_foreign_mounts, attest_foreign_networks,
-                                        attest_legacy_storage, configured_ports, foreign_identity,
+                                        attest_legacy_storage, canonical_mounts, configured_ports, foreign_identity,
                                         input_inventory, plain_input, validate_review_configuration)
 
 
@@ -249,6 +249,21 @@ class PortTests(unittest.TestCase):
 
 
 class StorageIsolationTests(unittest.TestCase):
+    def test_mount_map_order_is_not_identity_but_every_mount_property_is(self):
+        mounts = [{"Type": "bind", "Source": "/owned/a", "Destination": "/a", "RW": False, "Propagation": "rprivate"},
+                  {"Type": "volume", "Name": "owned-data", "Destination": "/data", "RW": True, "Driver": "local"}]
+        original = deepcopy(mounts)
+        reversed_mounts = list(reversed(mounts))
+        self.assertEqual(canonical_mounts(mounts), canonical_mounts(reversed_mounts))
+        self.assertEqual(foreign_identity({"mounts": mounts}), foreign_identity({"mounts": reversed_mounts}))
+        for key, value in (("Source", "/foreign"), ("RW", True), ("Propagation", "rshared")):
+            changed = deepcopy(mounts)
+            changed[0][key] = value
+            with self.subTest(property=key):
+                self.assertNotEqual(canonical_mounts(mounts), canonical_mounts(changed))
+                self.assertNotEqual(foreign_identity({"mounts": mounts}), foreign_identity({"mounts": changed}))
+        self.assertEqual(mounts, original)
+
     def test_foreign_network_writer_is_rejected_and_network_drift_is_fingerprinted(self):
         config = {"networks": {"database": {"name": "asa-lab-dev_database"}}}
         foreign = {"id": "a" * 64, "name": "/foreign", "networks": {}, "networkMode": "bridge"}

@@ -45,6 +45,13 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
 
 
+def canonical_mounts(value):
+    """Docker exposes a mount map as an unordered array; retain every field."""
+    require(value is None or isinstance(value, list) and all(isinstance(item, dict) for item in value),
+            "LEGACY_MOUNT", "Actual container mounts are not a verifiable list.")
+    return sorted(deepcopy(value or []), key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":")))
+
+
 def normalized_path(value):
     """Compare Windows Compose labels without accepting container-side aliases."""
     return os.path.normcase(os.path.abspath(str(value))).replace("\\", "/").rstrip("/")
@@ -307,7 +314,8 @@ def attest_foreign_mounts(root, config, foreign, volumes=()):
 
 
 def foreign_identity(record):
-    return {**{key: record.get(key) for key in ("id", "name", "imageId", "running", "mounts", "ports", "networkMode")},
+    return {**{key: record.get(key) for key in ("id", "name", "imageId", "running", "ports", "networkMode")},
+            "mounts": canonical_mounts(record.get("mounts")),
             "networks": sorted((record.get("networks") or {}).keys())}
 
 
@@ -396,6 +404,7 @@ class LegacyInstallation(Installation):
         selected, foreign = {}, []
         expected_files = [normalized_path(self.root / name) for name in self.files]
         for record in self.containers():
+            record = {**record, "mounts": canonical_mounts(record.get("mounts"))}
             labels = record.get("labels") or {}
             root = labels.get("com.docker.compose.project.working_dir", "")
             same_root = bool(root) and normalized_path(root) == normalized_path(self.root)

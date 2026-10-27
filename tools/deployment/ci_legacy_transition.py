@@ -265,7 +265,11 @@ def negative_checks(install, snapshot):
         writer.terminate()
         writer.wait(timeout=10)
     install.revalidate(snapshot)
-    require(install.identity() == before, "CI_NEGATIVE", "A negative preflight changed a source container.")
+    observed = install.identity()
+    differences = {name: sorted(key for key in set(before[name]) | set(observed[name])
+                                if before[name].get(key) != observed[name].get(key)) for name in before}
+    differences = {name: fields for name, fields in differences.items() if fields}
+    require(not differences, "CI_NEGATIVE", "A negative preflight changed source container fields: " + json.dumps(differences))
     require(not (install.state / "maintenance.json").exists(), "CI_NEGATIVE", "A negative preflight began maintenance.")
     return results
 
