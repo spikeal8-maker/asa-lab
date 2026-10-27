@@ -1798,13 +1798,9 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         if (viewer === 'Account') {
           accountPractices = practices;
         } else {
-          expect(
-            practices.map((item) => item.canonicalState?.selectedResult?.completionValue ?? null),
-          ).toEqual(
-            accountPractices.map(
-              (item) => item.canonicalState?.selectedResult?.completionValue ?? null,
-            ),
-          );
+          const selectedCompletion = (entries: typeof practices) =>
+            entries.map((entry) => entry.canonicalState?.selectedResult?.completionValue ?? null);
+          expect(selectedCompletion(practices)).toEqual(selectedCompletion(accountPractices));
         }
       }
       return accountPractices;
