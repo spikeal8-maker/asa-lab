@@ -248,7 +248,8 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge",
+                                          "legacy-plan", "legacy-apply", "legacy-status"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -256,8 +257,32 @@ def main(argv=None):
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
+    parser.add_argument("--release", help="Explicit full product SHA for legacy-plan; stable/latest is not accepted")
+    parser.add_argument("--plan", type=Path, help="Previously reviewed private legacy transition plan")
+    parser.add_argument("--preserved-wip", type=Path, help="Existing verified private WIP preservation directory")
+    parser.add_argument("--entry-origin", help="Actual owner entry, matching the existing Blocks origins")
+    parser.add_argument("--review", help="Independent exact-manager-SHA GitHub review URL")
+    parser.add_argument("--allow-isolated-restore", action="store_true",
+                        help="Authorize new *_test DB and disposable no-port object recovery verification")
     args = parser.parse_args(argv)
     try:
+        if args.action.startswith('legacy-'):
+            from deployment.legacy import apply_plan, create_plan, status
+            require(args.profile == 'dev', 'LEGACY_PROFILE', 'This explicit adapter only accepts the reviewed dev layout.')
+            if args.action == 'legacy-status':
+                status(args.root)
+            elif args.action == 'legacy-plan':
+                require(args.release and args.output and args.preserved_wip and args.entry_origin and args.review,
+                        'ARGUMENT', 'legacy-plan requires --release, --output, --preserved-wip, --entry-origin and --review.')
+                create_plan(args.root, revision=args.release, output=args.output, preservation=args.preserved_wip,
+                            entry_origin=args.entry_origin, review_url=args.review)
+            else:
+                require(args.plan and args.output and args.database, 'ARGUMENT',
+                        'legacy-apply requires --plan, private backup --output and a new --database ending in _test.')
+                with operation_lock(args.root):
+                    apply_plan(args.root, args.plan, output=args.output, database=args.database,
+                               object_sandbox=args.allow_isolated_restore)
+            return 0
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
             manifest = verify_backup(args.backup)

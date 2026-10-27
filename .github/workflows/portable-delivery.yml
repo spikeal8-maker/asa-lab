@@ -100,3 +100,34 @@ jobs:
           PY
       - name: Verify portable boot and complete backup restoration
         run: python tools/deployment/ci_smoke.py /tmp/release.json
+
+  legacy-transition:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ASAI_LEGACY_EVIDENCE: ${{ runner.temp }}/asai-legacy-transition-evidence.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker
+      - name: Verify real legacy backup, restored upgrade and exact official release
+        run: python tools/deployment/ci_legacy_transition.py
+      - name: Preserve safe legacy transition evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asai-legacy-transition-evidence
+          path: ${{ runner.temp }}/asai-legacy-transition-evidence.json
+          if-no-files-found: warn

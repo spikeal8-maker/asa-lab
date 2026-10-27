@@ -1,0 +1,8 @@
+{
+  "name": "asa-legacy-transition-ci-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "vite": "6.4.4"
+  }
+}
