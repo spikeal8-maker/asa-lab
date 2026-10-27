@@ -46,6 +46,7 @@ const expectedPending = [
   '0264', // Private image generation and GPU admission.
   '0265', // Native tool provenance.
   '0266', // Administrative tool-policy controls.
+  '0267', // Additive frozen Courses completion repair, no data rewrite.
 ];
 
 interface Identity {
