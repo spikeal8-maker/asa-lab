@@ -47,6 +47,7 @@ const expectedPending = [
   '0265', // Native tool provenance.
   '0266', // Administrative tool-policy controls.
   '0267', // Additive frozen Courses completion repair, no data rewrite.
+  '0268', // Exact learner academic-result visibility, independent of Project files.
 ];
 
 interface Identity {

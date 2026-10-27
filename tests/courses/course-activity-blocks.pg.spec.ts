@@ -1555,7 +1555,6 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     await expectUnattributedWork();
   });
 
-
   it('matches exact SQL 0267 completion with the real Account API on shared-handout Course Activity runs', async () => {
     const electronics = await publishActivity(author, principalId, 'electronics');
     const threeD = await publishActivity(author, principalId, 'three-d');
@@ -1582,12 +1581,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(published.rows[0].result_code).toBe('ok');
 
     const { classroom, seat } = await classroomWithSeat(accountId);
-    const assigned = await assignCourseRun(
-      courseId,
-      classroom,
-      seat,
-      'p1:assigned:' + ++sequence,
-    );
+    const assigned = await assignCourseRun(courseId, classroom, seat, 'p1:assigned:' + ++sequence);
     expect(assigned.result_code).toBe('ok');
     const first = (
       await admin.query(
@@ -1749,8 +1743,10 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(half[1]?.canonicalState?.selectedResult).toBeNull();
     await accept(sibling.activity_run_id);
     const all = await inspect(2, 2, 0, true);
-    expect(all.map((item) => item.canonicalState?.selectedResult?.completionValue))
-      .toEqual([true, true]);
+    expect(all.map((item) => item.canonicalState?.selectedResult?.completionValue)).toEqual([
+      true,
+      true,
+    ]);
 
     // Revocation of the Account's learner link must revoke academic result
     // visibility, even though no Project exists for either selected result.

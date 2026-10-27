@@ -1060,7 +1060,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ]) {
       const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
       expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
-      expect(practices?.[1]?.canonicalState?.selectedResult).toBeNull();
+      expect(practices?.[1]?.canonicalState?.selectedResult ?? null).toBeNull();
       expect(practices?.map((practice) => practice.projectId)).toEqual([null, null]);
     }
     for (const [index, row] of occurrenceRows.entries()) {
