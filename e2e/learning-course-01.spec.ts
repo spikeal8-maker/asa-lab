@@ -4792,6 +4792,12 @@ test('Course media errors survive saved author preview and learner delivery with
   const videoTitle = 'Сохранённое видео платформы';
   const audioTitle = 'Сохранённое аудио платформы';
   const fileLabel = 'Памятка к сохранённому уроку';
+  // Only exact provisional URLs are allowed to fail while previewing an unsaved lesson.
+  const initialMediaUrls = [
+    '/assets/initial-' + suffix + '.png',
+    '/assets/initial-' + suffix + '.webm',
+    '/assets/initial-' + suffix + '.wav',
+  ];
   const media = [
     {
       url: imageUrl,
@@ -4815,7 +4821,11 @@ test('Course media errors survive saved author preview and learner delivery with
   // publication, assignment and learner responses always come from the API.
   async function observeMedia(target: Page) {
     const origin = new URL(target.url()).origin;
-    const expectedUrls = new Set(media.map((item) => new URL(item.url, origin).href));
+    const expectedUrls = new Set(
+      [...media.map((item) => item.url), ...initialMediaUrls].map(
+        (url) => new URL(url, origin).href,
+      ),
+    );
     const requestCounts = new Map<string, number>();
     const responses = new Map<string, number[]>();
     const consoleErrors: string[] = [];
@@ -5163,6 +5173,58 @@ test('Course media errors survive saved author preview and learner delivery with
     .filter({ has: page.getByLabel('Ссылка на аудио') })
     .getByLabel('Название медиа')
     .fill(audioTitle);
+
+  // The author sees the actual learner media renderer without saving or
+  // publishing. Missing resources expose the same native error and retry,
+  // and the HTTPS PDF stays a link: it must not make a speculative request.
+  const beforeAuthorMediaPreview = await outline();
+  const authorImage = editor.getByRole('region', {
+    name: 'Предпросмотр вложения блока 2',
+    exact: true,
+  });
+  const authorImg = authorImage.locator('img');
+  await expect(authorImg).toHaveAttribute('src', imageUrl);
+  await authorImg.scrollIntoViewIfNeeded();
+  await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await authorImage.scrollIntoViewIfNeeded();
+    const bounds = await authorImage.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x, 'author preview left at ' + width).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width, 'author preview right at ' + width).toBeLessThanOrEqual(
+      width,
+    );
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const previousAuthorImageRequests = authorObserver.requestCounts.get(imageUrl) ?? 0;
+  const authorImageRetry = page.waitForResponse(
+    (response) =>
+      response.url() === new URL(imageUrl, page.url()).href &&
+      response.request().method() === 'GET',
+  );
+  await authorImage.getByRole('button', { name: 'Повторить загрузку', exact: true }).click();
+  expect((await authorImageRetry).status()).toBe(404);
+  expect(authorObserver.requestCounts.get(imageUrl)).toBeGreaterThan(previousAuthorImageRequests);
+  await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
+  const authorFile = editor.getByRole('region', {
+    name: 'Предпросмотр вложения блока 3',
+    exact: true,
+  });
+  const authorFileLink = authorFile.getByRole('link', { name: new RegExp(fileLabel) });
+  await expect(authorFileLink).toHaveAttribute('href', fileUrl);
+  await expect(authorFileLink).toHaveAttribute('target', '_blank');
+  await expect(authorFileLink).toHaveAttribute('rel', 'noreferrer');
+  await expect(
+    editor.getByRole('region', { name: 'Предпросмотр вложения блока 4' }).locator('video'),
+  ).toHaveAttribute('src', videoUrl);
+  await expect(
+    editor.getByRole('region', { name: 'Предпросмотр вложения блока 5' }).locator('audio'),
+  ).toHaveAttribute('src', audioUrl);
+  expect(await outline(), 'inline author preview must not write the draft').toEqual(
+    beforeAuthorMediaPreview,
+  );
+
   const save = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
