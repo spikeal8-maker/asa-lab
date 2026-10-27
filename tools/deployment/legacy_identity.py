@@ -471,10 +471,17 @@ class LegacyInstallation(Installation):
         require(image["Id"] == record["imageId"], "LEGACY_IMAGE", "A mutable old image tag moved after container creation.")
         defaults, actual = image.get("Config") or {}, raw["Config"]
         for field, docker_field in (("command", "Cmd"), ("entrypoint", "Entrypoint"), ("working_dir", "WorkingDir"), ("user", "User")):
-            expected = configured[field] if field in configured else defaults.get(docker_field)
+            declared = configured.get(field)
+            # Compose emits null for inherited image fields in some versions.
+            # An explicit empty entrypoint/command still clears the image value.
+            expected = declared if declared is not None else defaults.get(docker_field)
+            if field in ("command", "entrypoint") and declared is not None:
+                # `compose config` serializes literal dollars as $$; Docker
+                # receives one literal $. Never unescape image defaults.
+                expected = [part.replace("$$", "$") for part in declared] if isinstance(declared, list) else declared.replace("$$", "$")
             # Compose discards the image CMD when an explicit entrypoint is
             # selected; it does not append the inherited Node default command.
-            if field == "command" and field not in configured and configured.get("entrypoint") is not None:
+            if field == "command" and declared is None and configured.get("entrypoint") is not None:
                 expected = None
             require(actual.get(docker_field) == expected or (not actual.get(docker_field) and not expected),
                     "LEGACY_PROCESS", f"Actual {name} process differs from Compose and its exact image.")

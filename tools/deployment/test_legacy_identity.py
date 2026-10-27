@@ -381,6 +381,26 @@ class ActualContainerTests(unittest.TestCase):
             with self.subTest(mutation=mutation), patch("deployment.legacy_identity.run", side_effect=[json.dumps([raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
                 self.install._attest_container_config("api", deepcopy(self.record), self.config)
 
+    def test_null_process_fields_inherit_the_exact_image_defaults(self):
+        for field in ("command", "entrypoint", "working_dir", "user"):
+            self.config[field] = None
+        self.image["Config"].update(Entrypoint=["docker-entrypoint.sh"], Cmd=["server", "$$IMAGE_LITERAL"], User="node")
+        self.raw["Config"].update(self.image["Config"])
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+        self.raw["Config"]["Entrypoint"] = ["foreign-entrypoint"]
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+
+    def test_compose_serialized_dollars_and_null_command_match_actual_runtime(self):
+        self.config.update(entrypoint=["sh", "-c", 'tool "$$PRIVATE_KEY"'], command=None)
+        self.raw["Config"].update(Entrypoint=["sh", "-c", 'tool "$PRIVATE_KEY"'], Cmd=None)
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+        self.raw["Config"]["Entrypoint"] = ["sh", "-c", 'foreign "$PRIVATE_KEY"']
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+
     def test_foreign_named_volume_and_extra_mount_are_rejected(self):
         config = {"services": {"postgres": {"volumes": [{"type": "volume", "source": "postgres-data", "target": "/var/lib/postgresql/data"}]}},
                   "volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}}}
