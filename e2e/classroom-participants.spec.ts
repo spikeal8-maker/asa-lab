@@ -257,9 +257,22 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await expect(earnedAwards).toContainText(savedBadge!.awardedBy);
     await expect(student.getByRole('button', { name: 'Выдать значок' })).toHaveCount(0);
     await expect(student.getByRole('button', { name: 'Отозвать значок' })).toHaveCount(0);
-    await expect(
-      (await (await student.request.get('/api/class-join/me/awards')).json()).items,
-    ).toContainEqual(savedBadge);
+    const studentAwardsResponse = await student.request.get('/api/class-join/me/awards');
+    expect(studentAwardsResponse.status(), await studentAwardsResponse.text()).toBe(200);
+    const studentAwards = (await studentAwardsResponse.json()) as { items: Award[] };
+    const studentBadges = studentAwards.items.filter((item) => item.awardKey === awardKey);
+    expect(studentBadges).toHaveLength(1);
+    const studentBadge = studentBadges[0]!;
+    expect(studentBadge).toMatchObject({
+      awardKey: savedBadge!.awardKey,
+      note: savedBadge!.note,
+      awardedBy: savedBadge!.awardedBy,
+    });
+    const teacherCreatedAt = Date.parse(savedBadge!.createdAt);
+    const studentCreatedAt = Date.parse(studentBadge.createdAt);
+    expect(Number.isFinite(teacherCreatedAt)).toBe(true);
+    expect(Number.isFinite(studentCreatedAt)).toBe(true);
+    expect(studentCreatedAt).toBe(teacherCreatedAt);
     await student.screenshot({ path: `${evidence}/builtin-student-granted.png` });
 
     // F5 and reopening the teacher profile must read the persisted award.
