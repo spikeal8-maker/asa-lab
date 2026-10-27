@@ -244,6 +244,9 @@ export class AiChatService {
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
   }
+  usageOverview(actor: string) {
+    return this.usage.overview(actor);
+  }
   saveGenerationPolicy(actor: string, input: AiGenerationPolicyUpdate) {
     return this.policy.save(actor, input, this.key !== null);
   }

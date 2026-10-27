@@ -257,6 +257,7 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
 async function openAdmin(page: Page) {
   await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('tab', { name: 'Подключения' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Подключения' }).click();
   await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toBeVisible();
   await expect(page.locator('.portal-global-error')).toHaveCount(0);
 }

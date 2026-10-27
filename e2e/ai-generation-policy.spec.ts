@@ -172,11 +172,12 @@ for (const width of [1440, 1024, 390, 320]) {
     const fixture = await adminFixture(page);
     await page.goto('/#/admin/ai');
     await expect(page.getByRole('tablist', { name: 'Разделы ИИ' }).getByRole('tab')).toHaveText([
-      'Подключения',
-      'Изображения',
-      'Системный промпт',
+      'Обзор',
       'Настройки',
+      'Подключения',
+      'Системный промпт',
       'Интернет-поиск',
+      'Изображения',
     ]);
     await page.getByRole('tab', { name: 'Системный промпт', exact: true }).click();
     const guideLink = page.getByRole('button', {
@@ -184,7 +185,7 @@ for (const width of [1440, 1024, 390, 320]) {
     });
     await expect(guideLink).toBeVisible();
     await guideLink.click();
-    await expect(page).toHaveURL(/\/#\/admin\/ai$/);
+    await expect(page).toHaveURL(/\/#\/admin\/ai\?section=prompt&provider=ollama$/);
     await expect(
       page.getByRole('heading', {
         name: 'Как работают системный промпт, переменные и инструменты',
@@ -281,14 +282,22 @@ test('AI section tabs support arrow, Home and End keyboard navigation', async ({
   const connections = page.getByRole('tab', { name: 'Подключения', exact: true });
   await connections.focus();
   await connections.press('End');
+  const images = page.getByRole('tab', { name: 'Изображения', exact: true });
+  await expect(images).toBeFocused();
+  await expect(images).toHaveAttribute('aria-selected', 'true');
+  await images.press('ArrowLeft');
   const internet = page.getByRole('tab', { name: 'Интернет-поиск', exact: true });
   await expect(internet).toBeFocused();
   await expect(internet).toHaveAttribute('aria-selected', 'true');
-  await internet.press('ArrowLeft');
+  await internet.press('Home');
+  const overview = page.getByRole('tab', { name: 'Обзор', exact: true });
+  await expect(overview).toBeFocused();
+  await expect(overview).toHaveAttribute('aria-selected', 'true');
+  await overview.press('ArrowRight');
   const settings = page.getByRole('tab', { name: 'Настройки', exact: true });
   await expect(settings).toBeFocused();
   await expect(page.getByRole('combobox', { name: 'Модель по умолчанию' })).toBeVisible();
   await settings.press('Home');
-  await expect(connections).toBeFocused();
-  await expect(connections).toHaveAttribute('aria-selected', 'true');
+  await expect(overview).toBeFocused();
+  await expect(overview).toHaveAttribute('aria-selected', 'true');
 });

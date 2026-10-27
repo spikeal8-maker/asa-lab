@@ -1727,7 +1727,7 @@ function AdminWorkspace({
       ) : visibleSection === 'operations' ? (
         <OperationsSection onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'ai' ? (
-        <AiAdminWorkspace onAccessDenied={onAccessDenied} />
+        <AiAdminWorkspace principalId={profile.principalId} onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'publications' ? (
         <AdminPublicationsPage key={selectedScopeKey} onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'logs' ? (

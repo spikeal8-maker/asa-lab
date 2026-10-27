@@ -1,0 +1,304 @@
+.asa-ai-usage-overview {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.asa-ai-usage-overview :is(p, h2, h3) {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.asa-ai-usage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.asa-ai-usage-heading > div {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.asa-ai-usage-heading h2 {
+  font-size: clamp(20px, 2vw, 25px);
+  font-weight: 650;
+  line-height: 1.3;
+  margin-bottom: 6px;
+}
+.asa-ai-usage-heading p,
+.asa-ai-usage-period,
+.asa-ai-usage-card-note,
+.asa-ai-usage-chart-heading p,
+.asa-ai-usage-chart-note,
+.asa-ai-usage-definition {
+  color: var(--muted);
+}
+.asa-ai-usage-overview .asa-ai-usage-refresh {
+  flex: none;
+  width: auto;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: normal;
+}
+.asa-ai-usage-refresh:hover:not(:disabled) {
+  border-color: var(--admin-blue, var(--primary));
+  background: color-mix(in srgb, var(--admin-blue, var(--primary)) 6%, var(--surface));
+}
+.asa-ai-usage-refresh:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.asa-ai-usage-overview :is(button, summary):focus-visible {
+  outline: 2px solid var(--admin-blue, var(--primary));
+  outline-offset: 3px;
+}
+.asa-ai-usage-period {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  font-size: 14px;
+}
+.asa-ai-usage-period > p:first-child {
+  color: var(--text);
+  font-weight: 600;
+}
+.asa-ai-usage-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.asa-ai-usage-card {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 12px);
+  background: var(--surface);
+}
+.asa-ai-usage-card h3 {
+  font-size: 16px;
+  font-weight: 500;
+}
+.asa-ai-usage-card .asa-ai-usage-value {
+  margin: 10px 0 8px;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+.asa-ai-usage-card .asa-ai-usage-value.is-unknown {
+  font-size: clamp(22px, 2.2vw, 28px);
+}
+.asa-ai-usage-card-note,
+.asa-ai-usage-unknown-count {
+  font-size: 14px;
+}
+.asa-ai-usage-card .asa-ai-usage-unknown-count {
+  margin-top: 4px;
+}
+.asa-ai-usage-notice,
+.asa-ai-usage-message {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 12px);
+  background: color-mix(in srgb, var(--admin-blue, var(--primary)) 5%, var(--surface));
+}
+.asa-ai-usage-message h3,
+.asa-ai-usage-notice strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+.asa-ai-usage-notice p,
+.asa-ai-usage-message p {
+  font-size: 14px;
+}
+.asa-ai-usage-chart-card {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 12px);
+  background: var(--surface);
+}
+.asa-ai-usage-chart-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.asa-ai-usage-chart-heading h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+.asa-ai-usage-chart-heading p {
+  font-size: 14px;
+}
+.asa-ai-usage-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: clamp(4px, 2vw, 22px);
+  padding-top: 34px;
+  margin: 16px 0;
+}
+.asa-ai-usage-day {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.asa-ai-usage-track {
+  height: 180px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent calc(25% - 1px),
+    var(--border) 25%
+  );
+}
+.asa-ai-usage-bar {
+  position: relative;
+  width: min(64px, 80%);
+  min-height: 2px;
+  border-radius: 5px 5px 0 0;
+  background: var(--admin-blue, var(--primary));
+}
+.asa-ai-usage-bar[data-empty='true'] {
+  min-height: 0;
+  background: transparent;
+}
+.asa-ai-usage-bar-value {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  translate: -50% 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.asa-ai-usage-day time {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.asa-ai-usage-day time span + span {
+  color: var(--muted);
+}
+.asa-ai-usage-chart-note,
+.asa-ai-usage-definition {
+  font-size: 14px;
+}
+.asa-ai-usage-table-details {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.asa-ai-usage-table-details summary {
+  min-height: 44px;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asa-ai-usage-table-details table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.asa-ai-usage-table-details :is(td, th) {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 6px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.asa-ai-usage-table-details tr > :last-child {
+  text-align: right;
+}
+.asa-ai-usage-table-details tbody th {
+  font-weight: 400;
+}
+.asa-ai-admin-workspace:has(.asa-ai-usage-overview) .asa-ai-admin-tabs > button {
+  min-height: 44px;
+}
+@media (max-width: 760px) {
+  .asa-ai-usage-cards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .asa-ai-usage-card {
+    padding: 16px 18px;
+  }
+}
+@media (max-width: 480px) {
+  .asa-ai-usage-overview {
+    gap: 16px;
+  }
+  .asa-ai-usage-chart-card {
+    padding: 16px 12px;
+  }
+  .asa-ai-usage-day time,
+  .asa-ai-usage-bar-value {
+    font-size: 11px;
+  }
+  .asa-ai-usage-chart {
+    gap: 4px;
+  }
+}
+/* The existing chat palette is scoped to the mounted overview; navigating
+ * elsewhere restores the portal without changing saved global theme state. */
+@media (prefers-color-scheme: dark) {
+  .portal-shell:has(.asa-ai-usage-overview),
+  .asa-ai-admin-workspace:has(.asa-ai-usage-overview) {
+    --bg: #161618;
+    --surface: #202123;
+    --text: #f5f5f5;
+    --muted: #b2b2b5;
+    --ink-muted: #b2b2b5;
+    --border: #3a3a3d;
+    --primary: #7cb9e6;
+    --color-brand: #7cb9e6;
+    --admin-blue: #7cb9e6;
+    background: var(--bg);
+    color: var(--text);
+    color-scheme: dark;
+  }
+  .admin-page:has(.asa-ai-usage-overview) {
+    --admin-ink: #f5f5f5;
+    --admin-blue: #7cb9e6;
+    --admin-line: #3a3a3d;
+    --admin-soft: #202123;
+    background: var(--bg);
+  }
+  .portal-shell:has(.asa-ai-usage-overview) :is(.portal-header, .portal-sidebar) {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .portal-shell:has(.asa-ai-usage-overview)
+    :is(.portal-nav-item, .portal-brand, .portal-global-nav a, .portal-sidebar-collapse) {
+    color: var(--text);
+  }
+  .portal-shell:has(.asa-ai-usage-overview) .portal-nav-item:is(:hover, .active),
+  .asa-ai-admin-workspace:has(.asa-ai-usage-overview) .asa-ai-admin-tabs > button:hover {
+    background: var(--surface);
+  }
+}

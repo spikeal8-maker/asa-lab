@@ -20,6 +20,10 @@ name: ASA AI Chat Focused
       - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
+      - 'apps/web/src/admin/AiAdminWorkspace.tsx'
+      - 'apps/web/src/admin/AdminAiUsageOverview.tsx'
+      - 'apps/web/src/admin/ai-admin-navigation.ts'
+      - 'apps/web/src/admin/ai-usage-overview*'
       - 'apps/web/src/admin/ai-admin.css'
       - 'apps/web/src/admin/testing/ai-*.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
@@ -30,6 +34,8 @@ name: ASA AI Chat Focused
       - 'tests/ai-attachments/**'
       - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
+      - 'playwright.ai-usage-overview.config.ts'
+      - 'packages/contracts/src/ai-usage-overview.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/ai-chat-focused.yml'
@@ -50,6 +56,10 @@ name: ASA AI Chat Focused
       - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
+      - 'apps/web/src/admin/AiAdminWorkspace.tsx'
+      - 'apps/web/src/admin/AdminAiUsageOverview.tsx'
+      - 'apps/web/src/admin/ai-admin-navigation.ts'
+      - 'apps/web/src/admin/ai-usage-overview*'
       - 'apps/web/src/admin/ai-admin.css'
       - 'apps/web/src/admin/testing/ai-*.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
@@ -60,6 +70,8 @@ name: ASA AI Chat Focused
       - 'tests/ai-attachments/**'
       - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
+      - 'playwright.ai-usage-overview.config.ts'
+      - 'packages/contracts/src/ai-usage-overview.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/ai-chat-focused.yml'
@@ -229,3 +241,145 @@ jobs:
           name: ai-chat-browser-${{ github.sha }}
           path: reports/playwright/ai-chat/
           if-no-files-found: ignore
+
+  usage-overview-browser:
+    name: AI usage overview real API and built Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_ai_overview_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ai-overview-isolated-ci-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_ai_overview_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      VITE_ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      TEST_DATABASE_URL: postgresql://postgres:ai-overview-isolated-ci-test@127.0.0.1:5432/asa_ai_overview_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:ai-overview-isolated-ci-test@127.0.0.1:5432/asa_ai_overview_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:ai-overview-isolated-ci-test@127.0.0.1:5432/asa_ai_overview_test
+      MIGRATION_EXPECT_DATABASE: asa_ai_overview_test
+      MIGRATION_CONFIRM: APPLY:asa_ai_overview_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Fresh isolated overview database
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'ai-overview-isolated-ci-test'"
+      - name: Build exact API and Web without cache
+        run: pnpm exec nx run-many -t build -p identity api web --skip-nx-cache
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Real overview metrics, states, navigation and responsive screenshots
+        run: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+      - name: Preserve safe exact-SHA overview evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-usage-overview-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/playwright/ai-usage-overview/
+          if-no-files-found: error
+          retention-days: 14
+
+  usage-overview-source-baseline:
+    # One-time implementation evidence. This comparator does not deploy an old
+    # revision or select a task. Future AI changes do not rebuild this baseline.
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'assistant/asai-01-')
+    name: ASAI-01 pristine source baseline screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: baseline
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_ai_baseline_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ai-baseline-isolated-ci-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_ai_baseline_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_AI_OVERVIEW_BASELINE: 'true'
+      ASA_BUILD_REVISION: e9013f86f17e1946857e5b2f4b7c30fd7b28fc82
+      VITE_ASA_BUILD_REVISION: e9013f86f17e1946857e5b2f4b7c30fd7b28fc82
+      TEST_DATABASE_URL: postgresql://postgres:ai-baseline-isolated-ci-test@127.0.0.1:5432/asa_ai_baseline_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:ai-baseline-isolated-ci-test@127.0.0.1:5432/asa_ai_baseline_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:ai-baseline-isolated-ci-test@127.0.0.1:5432/asa_ai_baseline_test
+      MIGRATION_EXPECT_DATABASE: asa_ai_baseline_test
+      MIGRATION_CONFIRM: APPLY:asa_ai_baseline_test
+    steps:
+      - name: Read candidate's narrow browser harness
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Checkout unchanged product source baseline
+        uses: actions/checkout@v4
+        with:
+          ref: e9013f86f17e1946857e5b2f4b7c30fd7b28fc82
+          path: baseline
+          persist-credentials: false
+      - name: Copy only the browser harness, preserve all baseline product sources
+        run: |
+          cp ../candidate/e2e/ai-usage-overview.spec.ts e2e/ai-usage-overview.spec.ts
+          cp ../candidate/playwright.ai-usage-overview.config.ts playwright.ai-usage-overview.config.ts
+          test "$(git rev-parse HEAD)" = "$ASA_BUILD_REVISION"
+          git diff --exit-code -- apps contexts packages migrations package.json pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: baseline/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Fresh isolated baseline database
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'ai-baseline-isolated-ci-test'"
+      - name: Build pristine baseline API and Web without cache
+        run: pnpm exec nx run-many -t build -p identity api web --skip-nx-cache
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Capture authentic baseline desktop and mobile views
+        run: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+      - name: Preserve source-baseline evidence with separate revision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-usage-baseline-e9013f86-${{ github.event.pull_request.head.sha }}
+          path: baseline/reports/playwright/ai-usage-overview/
+          if-no-files-found: error
+          retention-days: 14

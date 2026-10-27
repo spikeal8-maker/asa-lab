@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { AiUsageOverview } from '@asa-lab/contracts';
 import { providerModel, providerTokenCount, type AiProviderUsage } from './ai-provider-usage.js';
 
 export interface AiUsageAttempt {
@@ -39,6 +40,34 @@ export function usageFailureCode(problem: unknown): string {
 
 export class AiUsageJournal {
   constructor(private readonly pool: pg.Pool) {}
+
+  async overview(actor: string): Promise<AiUsageOverview> {
+    try {
+      const result = await this.pool.query<{ overview: AiUsageOverview }>(
+        'SELECT ai_usage_overview($1) AS overview',
+        [actor],
+      );
+      const overview = result.rows[0]?.overview;
+      if (!overview) throw new Error('AI_USAGE_MISSING');
+      // PostgreSQL COUNT is bigint. Reject an unsafe JSON number instead of
+      // silently rounding a chart/card; token sums already use exact strings.
+      const counts = [
+        overview.requests,
+        overview.inputTokens.knownOperations,
+        overview.inputTokens.unknownOperations,
+        overview.outputTokens.knownOperations,
+        overview.outputTokens.unknownOperations,
+        ...overview.daily.map((day) => day.requests),
+      ];
+      if (counts.some((count) => !Number.isSafeInteger(count) || count < 0)) {
+        throw new Error('AI_USAGE_UNSAFE_COUNT');
+      }
+      return overview;
+    } catch (problem) {
+      if ((problem as { code?: string } | null)?.code === '42501') throw problem;
+      throw new AiUsageUnavailable('AI_USAGE_UNAVAILABLE');
+    }
+  }
 
   async begin(
     owner: string,
