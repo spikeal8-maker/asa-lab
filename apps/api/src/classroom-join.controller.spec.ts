@@ -974,6 +974,128 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    // Regression: both frozen Activity occurrences share one compatibility handout,
+    // but Electronics is accepted while 3D is still waiting for review. Selected
+    // academic results must be scoped to Seat + ActivityRun, never the handout.
+    const sharedAttemptA = '66000000-0000-4000-8000-000000000091';
+    const sharedAttemptB = '66000000-0000-4000-8000-000000000092';
+    const sharedAcceptedResult = (attemptId: string, suffix: string) => ({
+      id: `67000000-0000-4000-8000-0000000000${suffix}`,
+      attemptId,
+      rawPoints: 20,
+      maxPoints: 20,
+      percentageBasisPoints: 10000,
+      displayGrade: '5',
+      outcome: 'passed',
+      publishedAt: '2026-10-27T09:30:00.000Z',
+      completionValue: true,
+    });
+    const attempt = (
+      id: string,
+      state: 'submitted' | 'closed',
+      reviewDecision: 'accepted' | 'changes_requested' | null,
+    ) => ({
+      id,
+      attemptNumber: 1,
+      state,
+      reviewDecision,
+      startedAt: '2026-10-27T09:00:00.000Z',
+      submittedAt: '2026-10-27T09:20:00.000Z',
+      lateState: 'on_time',
+    });
+    Object.assign(occurrenceRows[0], { shared_assignment: true });
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentA,
+      shared_assignment: true,
+      not_started_visible: true,
+    });
+    Object.assign(evidenceRows[0], {
+      attempt: attempt(sharedAttemptA, 'closed', 'accepted'),
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: sharedAttemptA,
+      selectedRevision: sharedAcceptedResult(sharedAttemptA, '91'),
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentA,
+      attempt: attempt(sharedAttemptB, 'submitted', null),
+      participation: { applicable: true, status: 'active', excused: false },
+    });
+
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.map((item) => item.classroomAssignmentId)).toEqual([
+        assignmentA,
+        assignmentA,
+      ]);
+      expect(practices?.map((item) => item.requirement)).toEqual(['required', 'required']);
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[0]?.canonicalState?.activityRunId).toBe(activityRunA);
+      expect(practices?.[1]?.canonicalState).toMatchObject({
+        activityRunId: activityRunB,
+        workflowState: 'submitted',
+        selectedResult: null,
+      });
+      // Shared assignment metadata cannot grant access to either project's bytes.
+      expect(practices?.map((item) => item.projectId)).toEqual([null, null]);
+    }
+
+    Object.assign(evidenceRows[1], {
+      attempt: attempt(sharedAttemptB, 'closed', 'changes_requested'),
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[1]?.canonicalState?.workflowState).toBe('changes_requested');
+      expect(practices?.[1]?.canonicalState?.selectedResult).toBeNull();
+    }
+
+    Object.assign(evidenceRows[1], {
+      attempt: attempt(sharedAttemptB, 'closed', 'accepted'),
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: sharedAttemptB,
+      selectedRevision: sharedAcceptedResult(sharedAttemptB, '92'),
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.map((item) => item.canonicalState?.selectedResult?.completionValue)).toEqual([
+        true,
+        true,
+      ]);
+    }
+
+    Object.assign(occurrenceRows[0], { shared_assignment: false });
+    Object.assign(occurrenceRows[1], {
+      classroom_assignment_id: assignmentB,
+      shared_assignment: false,
+      not_started_visible: false,
+    });
+    Object.assign(evidenceRows[0], {
+      attempt: null,
+      selectedAttemptExists: false,
+      resultSelectionSource: 'none',
+      selectedAttemptId: null,
+      selectedRevision: null,
+    });
+    Object.assign(evidenceRows[1], {
+      classroomAssignmentId: assignmentB,
+      attempt: null,
+      selectedAttemptExists: false,
+      resultSelectionSource: 'none',
+      selectedAttemptId: null,
+      selectedRevision: null,
+    });
+
     // A teacher excused 3D BEFORE the student started, so no Project/Attempt
     // or valid modern work origin exists. Both learner surfaces must keep the
     // authoritative participation decision, but never synthesize work access.
