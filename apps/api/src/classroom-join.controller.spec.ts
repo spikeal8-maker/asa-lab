@@ -974,6 +974,25 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    // Pin the exact authorized principal for each SQL reader; duplicate
+    // aliases can mask an incorrect Account-side projection.
+    const queriedSql = query.mock.calls.map(([statement]) => statement);
+    const accountOccurrenceSql = queriedSql.find((statement) =>
+      statement.includes('FROM classroom_course_activity_occurrences_for_account($1)'),
+    );
+    const seatOccurrenceSql = queriedSql.find((statement) =>
+      statement.includes('FROM classroom_course_activity_occurrences_for_seat($1)'),
+    );
+    expect(accountOccurrenceSql?.match(/AS academic_result_visible/g)).toHaveLength(1);
+    expect(seatOccurrenceSql?.match(/AS academic_result_visible/g)).toHaveLength(1);
+    expect(accountOccurrenceSql).toContain('$2, occurrence.seat_id, occurrence.activity_run_id');
+    expect(accountOccurrenceSql).not.toContain(
+      'principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id',
+    );
+    expect(seatOccurrenceSql).toContain(
+      'principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id',
+    );
+
     // Regression: both frozen Activity occurrences share one compatibility handout,
     // but Electronics is accepted while 3D is still waiting for review. Selected
     // academic results must be scoped to Seat + ActivityRun, never the handout.

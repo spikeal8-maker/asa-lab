@@ -1421,9 +1421,6 @@ export class ClassroomJoinController {
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_course_academic_result_visible(
-                  principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id
-                ) AS academic_result_visible,
-                learning_course_academic_result_visible(
                   $2, occurrence.seat_id, occurrence.activity_run_id
                 ) AS academic_result_visible,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
@@ -1621,6 +1618,9 @@ export class ClassroomJoinController {
       this.requirePool().query(
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
+                learning_course_academic_result_visible(
+                  principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id
+                ) AS academic_result_visible,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
