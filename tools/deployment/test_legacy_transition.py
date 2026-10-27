@@ -140,6 +140,9 @@ class TransitionOrderingTests(unittest.TestCase):
             stack.enter_context(patch.object(legacy, 'attest_target', return_value={}))
             stack.enter_context(patch.object(legacy, 'validate_resolved_images', return_value={}))
             stack.enter_context(patch.object(legacy, 'check_resources'))
+            # OS permission semantics have their own native Windows test;
+            # this fixture isolates ordering of backup, source and DB actions.
+            stack.enter_context(patch('deployment.legacy_backup._check_private'))
             stack.enter_context(patch.object(legacy, 'fetch_images', side_effect=lambda *a: events.append('images')))
             def probe(*a, **kwargs):
                 events.append('restored_upgrade' if kwargs.get('apply') else 'read_only_migration_plan')

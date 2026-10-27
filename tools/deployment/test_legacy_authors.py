@@ -160,7 +160,9 @@ class AuthorInventoryTests(unittest.TestCase):
 class NativeWindowsAuthorTests(unittest.TestCase):
     def test_real_relative_child_directory_and_owner_are_observed(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            # Windows TEMP may use its 8.3 alias. Match Installation.root's
+            # canonical path, as the native reader resolves the actual cwd.
+            root = Path(directory).resolve()
             (root / "watcher.py").write_text("import sys\nprint('ready', flush=True)\nsys.stdin.read()\n", encoding="utf-8")
             child = subprocess.Popen([sys.executable, "watcher.py"], cwd=root, stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

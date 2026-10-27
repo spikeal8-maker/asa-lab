@@ -8,8 +8,10 @@ Plans contain hashes of private values, never environment or credential values.
 from copy import deepcopy
 import hashlib
 import json
+import ntpath
 import os
 from pathlib import Path
+import posixpath
 import re
 import stat
 import urllib.error
@@ -274,18 +276,59 @@ def assert_snapshot_equal(expected, observed, *, allow_stopped=False):
             "Keep the running installation and create a fresh reviewed plan; never reuse a stale plan.")
 
 
-def attest_foreign_mounts(root, config, foreign):
+def mount_source_path(value):
+    """Docker daemon volume paths stay POSIX even for a Windows client."""
+    require(isinstance(value, (str, os.PathLike)) and str(value),
+            "LEGACY_SHARED_STORAGE", "A foreign mount has no verifiable source path.")
+    value = str(value)
+    if re.match(r"^[A-Za-z]:[\\/]", value) or value.startswith("\\\\"):
+        return ntpath.normcase(ntpath.normpath(value)).replace("\\", "/")
+    require(value.startswith("/"), "LEGACY_SHARED_STORAGE", "A foreign mount source is not absolute.")
+    return "/" + posixpath.normpath(value).lstrip("/")
+
+
+def attest_foreign_mounts(root, config, foreign, volumes=()):
     protected_volumes = {value["name"] for value in config.get("volumes", {}).values()}
-    protected_root = normalized_path(root)
+    protected_paths = [mount_source_path(root), *[mount_source_path(volume["Mountpoint"]) for volume in volumes]]
     for record in foreign:
         for mount in record.get("mounts") or []:
             require(not (mount.get("Type") == "volume" and mount.get("Name") in protected_volumes),
                     "LEGACY_SHARED_STORAGE", "A foreign container shares this installation's persistent storage.")
             if mount.get("Type") == "bind":
-                source = normalized_path(mount.get("Source", ""))
-                overlap = (source == protected_root or source.startswith(protected_root + "/")
-                           or protected_root.startswith(source + "/"))
-                require(not overlap, "LEGACY_SHARED_STORAGE", "A foreign container shares the live source tree.")
+                source = mount_source_path(mount.get("Source", ""))
+                overlap = any(source == protected or source.startswith(protected.rstrip("/") + "/")
+                              or protected.startswith(source.rstrip("/") + "/") for protected in protected_paths)
+                require(not overlap, "LEGACY_SHARED_STORAGE", "A foreign container shares source files or persistent storage.")
+
+
+def foreign_identity(record):
+    return {**{key: record.get(key) for key in ("id", "name", "imageId", "running", "mounts", "ports", "networkMode")},
+            "networks": sorted((record.get("networks") or {}).keys())}
+
+
+def attest_foreign_networks(config, foreign, selected):
+    protected = {network["name"] for network in config["networks"].values()}
+    all_records = [*selected.values(), *foreign]
+    owned_ids = {record["id"] for record in selected.values()}
+    for record in foreign:
+        require(record.get("networkMode") != "host" and not protected.intersection(record["networks"]), "LEGACY_SHARED_NETWORK",
+                "A foreign container can access this installation's private service networks.")
+        # Containers sharing another container's network namespace have no
+        # NetworkSettings.Networks of their own. Follow their exact namespace
+        # owner as well, so an invisible SQL/S3 writer cannot pass quiescence.
+        current, seen = record, set()
+        while str(current.get("networkMode", "")).startswith("container:"):
+            target = current["networkMode"].split(":", 1)[1]
+            matches = [item for item in all_records if item["id"] == target
+                       or str(item.get("name", "")).lstrip("/") == target
+                       or re.fullmatch(r"[a-f0-9]{12,64}", target) and item["id"].startswith(target)]
+            require(len(matches) == 1 and matches[0]["id"] not in seen,
+                    "LEGACY_SHARED_NETWORK", "A foreign network namespace owner cannot be verified.")
+            current = matches[0]
+            seen.add(current["id"])
+            require(current["id"] not in owned_ids and current.get("networkMode") != "host"
+                    and not protected.intersection(current["networks"]),
+                    "LEGACY_SHARED_NETWORK", "A foreign container shares an ASA network namespace.")
 
 
 class LegacyInstallation(Installation):
@@ -339,7 +382,7 @@ class LegacyInstallation(Installation):
         ids = run(["docker", "ps", "-aq"], capture=True).split()
         if not ids:
             return []
-        template = '{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"imageId":{{json .Image}},"labels":{{json .Config.Labels}},"running":{{json .State.Running}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}},"networks":{{json .NetworkSettings.Networks}}}'
+        template = '{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"imageId":{{json .Image}},"labels":{{json .Config.Labels}},"running":{{json .State.Running}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}},"networks":{{json .NetworkSettings.Networks}},"networkMode":{{json .HostConfig.NetworkMode}}}'
         return [json.loads(line) for line in run(["docker", "inspect", "--format", template, *ids], capture=True).splitlines()]
 
     def identity(self, existing=True):
@@ -353,7 +396,7 @@ class LegacyInstallation(Installation):
             same_root = bool(root) and normalized_path(root) == normalized_path(self.root)
             if labels.get("com.docker.compose.project") != self.project:
                 require(not same_root, "IDENTITY_PROJECT", "Canonical root belongs to another project.")
-                foreign.append({key: record.get(key) for key in ("id", "imageId", "running", "mounts", "ports")})
+                foreign.append(foreign_identity(record))
                 continue
             require(same_root, "IDENTITY_ROOT", "A project container comes from another root.")
             actual_files = [normalized_path(item) for item in labels.get("com.docker.compose.project.config_files", "").split(",") if item]
@@ -377,9 +420,10 @@ class LegacyInstallation(Installation):
                               "labels": {key: value for key, value in labels.items() if key.startswith("com.docker.compose.")}}
         require(set(selected) == REVIEW_SERVICES and selected["postgres"]["running"],
                 "IDENTITY_MISSING", "All eight legacy services and a running PostgreSQL are required.")
-        attest_foreign_mounts(self.root, config, foreign)
-        self.data_identity(selected)
         self._volumes = self.attest_volume_ownership(config)
+        attest_foreign_mounts(self.root, config, foreign, self._volumes)
+        attest_foreign_networks(config, foreign, selected)
+        self.data_identity(selected)
         self._records, self._foreign = selected, sorted(foreign, key=lambda item: item["id"])
         return selected
 
@@ -392,7 +436,7 @@ class LegacyInstallation(Installation):
         for item in observed:
             labels = item.get("Labels") or {}
             require(item.get("Driver") == "local" and item.get("Scope") == "local"
-                    and not item.get("Options") and item.get("CreatedAt")
+                    and not item.get("Options") and item.get("CreatedAt") and item.get("Mountpoint")
                     and labels.get("com.docker.compose.project") == self.project
                     and labels.get("com.docker.compose.volume") == names[item["Name"]],
                     "LEGACY_VOLUME", "A volume has foreign ownership or unsupported storage options.")

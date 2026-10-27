@@ -20,7 +20,7 @@ import uuid
 from .backup import db_command
 from .contracts import (Blocked, REPOSITORY, file_hash, read_env, require,
                         safe_member, validate_release, verify_backup, verify_embedded_entry_http)
-from .legacy_identity import LegacyInstallation
+from .legacy_identity import LegacyInstallation, foreign_identity
 from .legacy_release import github_json, read_exact_release, verify_manager_evidence
 from .paths import atomic_bytes, atomic_json, plain_paths
 from .releases import apply_release_environment, fetch_images, validate_resolved_images
@@ -368,7 +368,7 @@ def accepted_state(install, plan):
 
 
 def verify_neighbours(legacy, snapshot):
-    foreign = [{key: record.get(key) for key in ('id', 'imageId', 'running', 'mounts', 'ports')}
+    foreign = [foreign_identity(record)
                for record in legacy.containers()
                if (record.get('labels') or {}).get('com.docker.compose.project') != legacy.project]
     require(json_hash(sorted(foreign, key=lambda item: item['id'])) == snapshot['foreignSha256'],

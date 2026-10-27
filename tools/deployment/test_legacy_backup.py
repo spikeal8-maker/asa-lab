@@ -7,7 +7,9 @@ import copy
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -39,11 +41,12 @@ def saved_image(path, *, config=IMAGE_CONFIG, omit_layer=False, layer=IMAGE_LAYE
 
 class Fixture:
     def __init__(self, directory):
-        self.root = Path(directory) / "installation"
+        directory = Path(directory).resolve()
+        self.root = directory / "installation"
         self.root.mkdir(mode=0o700)
         self.state = self.root / ".asa"
         self.state.mkdir(mode=0o700)
-        self.output = Path(directory) / "private-backups"
+        self.output = directory / "private-backups"
         self.output.mkdir(mode=0o700)
         self.project, self.profile = "asa-lab-dev", "dev"
         self.env = {"POSTGRES_DB": "asalab", "POSTGRES_USER": "asalab_admin"}
@@ -99,6 +102,12 @@ class Fixture:
 
     def docker(self, args, **kwargs):
         args = [str(value) for value in args]
+        if args[0] == "powershell":
+            assert "Get-Acl" in args[-1] and "Set-Acl" not in args[-1]
+            # Simulated host boundary, separate from simulated Docker writes.
+            # Native ACL acceptance/rejection is exercised below on Windows.
+            return json.dumps({"owner": "S-1-5-21-100", "user": "S-1-5-21-100",
+                               "allow": ["S-1-5-21-100", "S-1-5-18", "S-1-5-32-544"]})
         self.commands.append(tuple(args))
         if args[:2] in (["docker", "stop"], ["docker", "start"]):
             for record in self.records.values():
@@ -428,6 +437,45 @@ class SandboxOwnershipTests(unittest.TestCase):
                         self.assertEqual(failure.exception.code, "LEGACY_BACKUP_PERMISSIONS")
                 self.assertIn("Get-Acl", command.call_args.args[0][-1])
                 self.assertNotIn("Set-Acl", command.call_args.args[0][-1])
+
+
+@unittest.skipUnless(os.name == "nt", "Real Windows directory ACLs are required")
+class NativeWindowsPermissionsTests(unittest.TestCase):
+    def test_actual_private_acl_is_accepted_and_extra_reader_is_rejected(self):
+        # Only this owned disposable test directory gets a fixture DACL. The
+        # production checker remains read-only and never repairs permissions.
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder).resolve()
+            literal = str(path).replace("'", "''")
+            setup = (
+                "$ErrorActionPreference='Stop'; "
+                "$owner=[System.Security.Principal.WindowsIdentity]::GetCurrent().User; "
+                "$acl=New-Object System.Security.AccessControl.DirectorySecurity; "
+                "$acl.SetOwner($owner); $acl.SetAccessRuleProtection($true,$false); "
+                "foreach($sid in @($owner.Value,'S-1-5-18','S-1-5-32-544')) { "
+                "$identity=New-Object System.Security.Principal.SecurityIdentifier($sid); "
+                "$rule=New-Object System.Security.AccessControl.FileSystemAccessRule($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow'); "
+                "$acl.AddAccessRule($rule) }; "
+                f"Set-Acl -LiteralPath '{literal}' -AclObject $acl"
+            )
+            provisioned = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", setup],
+                                         capture_output=True, text=True)
+            self.assertEqual(provisioned.returncode, 0, provisioned.stderr)
+            recovery._check_private(path)
+            broaden = (
+                "$ErrorActionPreference='Stop'; "
+                f"$acl=Get-Acl -LiteralPath '{literal}'; "
+                "$identity=New-Object System.Security.Principal.SecurityIdentifier('S-1-1-0'); "
+                "$rule=New-Object System.Security.AccessControl.FileSystemAccessRule($identity,'ReadAndExecute','Allow'); "
+                "$acl.AddAccessRule($rule); "
+                f"Set-Acl -LiteralPath '{literal}' -AclObject $acl"
+            )
+            provisioned = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", broaden],
+                                         capture_output=True, text=True)
+            self.assertEqual(provisioned.returncode, 0, provisioned.stderr)
+            with self.assertRaises(Blocked) as failure:
+                recovery._check_private(path)
+            self.assertEqual(failure.exception.code, "LEGACY_BACKUP_PERMISSIONS")
 
 
 SPACE_BUDGET = recovery._space_budget

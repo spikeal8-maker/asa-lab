@@ -15,7 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from deployment.contracts import Blocked
 from deployment.legacy_identity import (LegacyInstallation, REVIEW_FILES, REVIEW_SERVICES, REVIEW_WRITERS, SOURCE_BINDS,
-                                        actual_ports, assert_snapshot_equal, attest_foreign_mounts, attest_legacy_storage, configured_ports,
+                                        actual_ports, assert_snapshot_equal, attest_foreign_mounts, attest_foreign_networks,
+                                        attest_legacy_storage, configured_ports, foreign_identity,
                                         input_inventory, plain_input, validate_review_configuration)
 
 
@@ -236,6 +237,46 @@ class PortTests(unittest.TestCase):
 
 
 class StorageIsolationTests(unittest.TestCase):
+    def test_foreign_network_writer_is_rejected_and_network_drift_is_fingerprinted(self):
+        config = {"networks": {"database": {"name": "asa-lab-dev_database"}}}
+        foreign = {"id": "a" * 64, "name": "/foreign", "networks": {}, "networkMode": "bridge"}
+        first = foreign_identity(foreign)
+        attest_foreign_networks(config, [first], {})
+        foreign["networks"] = {"asa-lab-dev_database": {"IPAddress": "172.30.0.7"}}
+        observed = foreign_identity(foreign)
+        self.assertNotEqual(first, observed)
+        with self.assertRaises(Blocked) as failure:
+            attest_foreign_networks(config, [observed], {})
+        self.assertEqual(failure.exception.code, "LEGACY_SHARED_NETWORK")
+
+    def test_foreign_shared_network_namespace_cannot_hide_without_own_endpoints(self):
+        config = {"networks": {"database": {"name": "asa-lab-dev_database"}}}
+        owned = {"postgres": {"id": "b" * 64, "name": "/asa-postgres", "networks": ["asa-lab-dev_database"]}}
+        for target in ("b" * 64, "b" * 12, "asa-postgres", "unknown"):
+            foreign = {"id": "a" * 64, "name": "/foreign", "networks": [], "networkMode": "container:" + target}
+            with self.subTest(target=target), self.assertRaises(Blocked):
+                attest_foreign_networks(config, [foreign], owned)
+        separate = {"id": "c" * 64, "name": "/separate", "networks": ["other-network"], "networkMode": "other-network"}
+        foreign["networkMode"] = "container:" + separate["id"]
+        attest_foreign_networks(config, [foreign, separate], owned)
+        separate.update(networkMode="host", networks=[])
+        with self.assertRaises(Blocked):
+            attest_foreign_networks(config, [separate], owned)
+        with self.assertRaises(Blocked):
+            attest_foreign_networks(config, [foreign, separate], owned)
+
+    def test_foreign_bind_to_daemon_volume_path_blocks_even_with_windows_source_root(self):
+        config = {"volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}}}
+        location = "/var/lib/docker/volumes/asa-lab-dev_postgres-data/_data"
+        volumes = [{"Mountpoint": location}]
+        for source in (location, location + "/base", "/var/lib/docker/volumes", "/", location + "/../_data"):
+            with self.subTest(source=source), self.assertRaises(Blocked) as failure:
+                attest_foreign_mounts(r"C:\Users\owner\ASA", config,
+                                     [{"mounts": [{"Type": "bind", "Source": source, "RW": True}]}], volumes)
+            self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+        attest_foreign_mounts(r"C:\Users\owner\ASA", config,
+                             [{"mounts": [{"Type": "bind", "Source": "/var/lib/docker/volumes/another/_data"}]}], volumes)
+
     def test_foreign_container_cannot_share_owned_volume_or_source_tree(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "owned"
