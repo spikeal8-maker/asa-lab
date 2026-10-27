@@ -1550,6 +1550,10 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     await expectUnattributedWork();
   });
 
+  // This real PostgreSQL integration scenario performs multiple independent
+  // Seat/Account projections, version changes and legacy work checks. Its
+  // normal 5s Vitest limit flakes under parallel CI load; scope the budget
+  // to this scenario rather than weakening the suite-wide timeout.
   it('projects exact block occurrences for seat and account without changing legacy lesson runtime', async () => {
     const blockA = await publishActivity(
       author,
@@ -1866,7 +1870,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         goal: null,
       });
     }
-  });
+  }, 10_000);
 });
 
 describe('A2c exact Course Activity task blocks', () => {
