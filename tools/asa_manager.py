@@ -21,6 +21,7 @@ from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
 from deployment.contracts import proxy_provenance_diagnostic
 from deployment.resources import check_resources
+from deployment.search_secret import InvalidSearchSecret
 
 
 def clean_checkout(install):
@@ -297,7 +298,8 @@ def main(argv=None):
                     marker.rename(install.state / ("acknowledged-" + dt.datetime.now().strftime("%Y%m%d%H%M%S") + ".json"))
         return 0
     except (Blocked, OSError, ValueError, KeyError) as exc:
-        code = exc.code if isinstance(exc, Blocked) else "IO_OR_CONFIGURATION"
+        code = (exc.code if isinstance(exc, Blocked) else
+                "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
         print(f"BLOCKED {code}: {exc}\nSAFE_ACTION: {action}", file=sys.stderr)
         return 2
