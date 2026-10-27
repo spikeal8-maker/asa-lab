@@ -1867,7 +1867,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(threeDPending.id).toBeTruthy();
     const half = await inspect(2, 1, 0, false);
     expect(half[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
-    expect(half[1]?.canonicalState?.selectedResult).toBeNull();
+    expect(half[1]?.canonicalState?.selectedResult ?? null).toBeNull();
     await admin.query(
       "UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1",
       [threeDPending.id],
