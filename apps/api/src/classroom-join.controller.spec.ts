@@ -1045,7 +1045,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
 
     // On a legacy shared handout SQL cannot prove a unique modern Project.
     // The exact published academic result must survive that independent denial.
-    const originalProvenance = occurrenceRows.map((row) => row.modern_provenance);
+    const originalWorkRows = occurrenceRows.map((row) => ({ ...row }));
     for (const row of occurrenceRows) {
       Object.assign(row, {
         modern_provenance: { modernCourseRun: false, projectReadable: false },
@@ -1064,10 +1064,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       expect(practices?.map((practice) => practice.projectId)).toEqual([null, null]);
     }
     for (const [index, row] of occurrenceRows.entries()) {
-      Object.assign(row, {
-        modern_provenance: originalProvenance[index],
-        academic_result_visible: false,
-      });
+      Object.assign(row, originalWorkRows[index], { academic_result_visible: false });
     }
 
     // Another learner's accepted 3D cannot credit this seat even if a

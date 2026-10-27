@@ -987,6 +987,49 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       proof: { modernCourseRun: true, projectReadable: true },
     });
     expect(revisited.rows[0].submitted_at).toBeTruthy();
+
+    // Actual historical Course handout: submission exists, but no selected
+    // assessment result. API and client must agree with immutable SQL 0267.
+    const enrollment = (
+      await admin.query(
+        'SELECT id FROM course_enrollments WHERE course_run_id=$1 AND learner_identity_id=$2',
+        [assigned.run_id, identity],
+      )
+    ).rows[0] as { id: string };
+    expect(enrollment.id).toBeTruthy();
+    const historicSql = (
+      await admin.query('SELECT learning_course_completion_internal($1) AS value', [enrollment.id])
+    ).rows[0].value as { completed: boolean; total: number; completedCount: number };
+    expect(historicSql).toMatchObject({
+      total: 1,
+      completedCount: 0,
+      completed: false,
+    });
+    const historicApi = await inTenant(author, async (client) => {
+      const controller = new ClassroomJoinController(
+        client as unknown as pg.Pool,
+        {
+          resolve: async () => ({
+            accountId: learnerAccount,
+            principalId: learnerPrincipal,
+          }),
+        } as unknown as ActiveContextUseCase,
+      );
+      const request = {
+        cookies: { asa_session: 'isolated-historical-course' },
+      } as unknown as FastifyRequest;
+      return controller.accountCourseRuns(request);
+    });
+    const historicLesson = historicApi.items
+      .find((run) => run.id === assigned.run_id)
+      ?.sections.flatMap((section) => section.lessons)
+      .find((lesson) => lesson.id === runs[0].source_course_lesson_id);
+    expect(historicLesson?.submittedAt).toBeTruthy();
+    expect(historicLesson?.canonicalState?.selectedResult ?? null).toBeNull();
+    const historicalCompletion = courseCompletion([historicLesson as SeatCourseRunLesson]);
+    expect(historicalCompletion.complete).toBe(false);
+    expect(historicalCompletion.complete).toBe(historicSql.completed);
+
     expect((await accountList()).rows[0]).toMatchObject({
       project_id: projectId,
       modern_activity_run_id: activityRunId,
