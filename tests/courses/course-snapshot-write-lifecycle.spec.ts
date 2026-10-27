@@ -31,14 +31,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  for (const release of openedSources.splice(0)) release();
-  for (const projectId of observedProjects.splice(0))
+  for (const release of openedSources.splice(0)) {
+    release();
+  }
+  for (const projectId of observedProjects.splice(0)) {
     setProjectSnapshotWriteAllowed(projectId, true);
+  }
   vi.restoreAllMocks();
 });
 
 describe('Courses E1: learning submission and snapshot write lifecycle', () => {
-  it('does not send another snapshot after submission, and permits correction after re-admission', async () => {
+  it('stops snapshots after hand-in and resumes them after re-admission', async () => {
     let revision = 1;
     const projectId = 'courses-snapshot-hand-in';
     startSource(projectId, () => revision);
@@ -83,7 +86,10 @@ describe('Courses E1: learning submission and snapshot write lifecycle', () => {
     canvas.height = 90;
     const release = registerProjectSnapshotSource(
       projectId,
-      () => new Promise<HTMLCanvasElement>((resolve) => { deliver = resolve; }),
+      () =>
+        new Promise<HTMLCanvasElement>((resolve) => {
+          deliver = resolve;
+        }),
       () => 1,
     );
     openedSources.push(release);
