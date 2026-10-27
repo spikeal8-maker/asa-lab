@@ -80,5 +80,8 @@ export const usageTime = new Intl.DateTimeFormat('ru-RU', {
 });
 
 export function formatUsageTokens(known: string | null): string {
-  return known === null ? 'Неизвестно' : usageInteger.format(BigInt(known));
+  // Narrow cards may wrap between thousand groups without splitting a group.
+  return known === null
+    ? 'Неизвестно'
+    : usageInteger.format(BigInt(known)).replace(/[\u00a0\u202f]/g, ' ');
 }

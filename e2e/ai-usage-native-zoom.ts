@@ -84,7 +84,7 @@ export async function openAiUsageNativeZoom(sourcePage: Page) {
       args: [
         `--disable-extensions-except=${extension}`,
         `--load-extension=${extension}`,
-        '--window-size=1440,1000',
+        '--window-size=1440,1200',
       ],
     });
     // The dedicated runner has trace:off. No storage-state, cookie or profile

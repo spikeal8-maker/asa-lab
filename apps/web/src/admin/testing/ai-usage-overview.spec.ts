@@ -46,7 +46,7 @@ it('renders actual totals and all seven calendar days from one API snapshot', as
     expect.objectContaining({ cache: 'no-store', signal: expect.any(AbortSignal) }),
   );
   expect(metric('requests')).toBe('9');
-  expect(metric('input')).toBe('4\u00a0500');
+  expect(metric('input')).toBe('4 500');
   expect(metric('output')).toBe('450');
   expect([...host.querySelectorAll('tbody td')].map((cell) => cell.textContent)).toEqual([
     '1',
@@ -157,6 +157,7 @@ it('has a finite loading deadline and ignores a late successful response after t
 });
 
 it('keeps exact token sums beyond safe JavaScript integers and rejects inconsistent snapshots', () => {
+  expect(formatUsageTokens('81064793292668919')).toBe('81 064 793 292 668 919');
   expect(formatUsageTokens('18014398509481982').replace(/\s/g, '')).toBe('18014398509481982');
   expect(formatUsageTokens(null)).toBe('Неизвестно');
   expect(isAiUsageOverview(usageOverviewFixture())).toBe(true);

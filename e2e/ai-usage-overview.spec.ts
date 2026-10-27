@@ -231,18 +231,97 @@ async function verifyNativeZoom(sourcePage: Page) {
   try {
     await zoom.page.goto('/#/admin/ai?section=overview');
     await assertMetrics(zoom.page);
-    const before = await zoom.page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
+    const geometry = () =>
+      zoom.page.evaluate(() => ({
+        width: innerWidth,
+        height: innerHeight,
+        outerWidth,
+        outerHeight,
+        ratio: devicePixelRatio,
+        visualScale: visualViewport?.scale,
+        cssZoom: getComputedStyle(document.documentElement).zoom,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollY,
+      }));
+    const before = await geometry();
+    expect(before.width).toBe(1440);
     const applied = await zoom.setZoom(2);
     expect(applied).toMatchObject({ factor: 2, settings: { mode: 'automatic', scope: 'per-tab' } });
     await expect.poll(() => zoom.page.evaluate(() => innerWidth)).toBeLessThan(before.width);
-    const after = await zoom.page.evaluate(() => ({ width: innerWidth, ratio: devicePixelRatio }));
+    const after = await geometry();
     expect(before.width / after.width).toBeCloseTo(2, 1);
+    expect(after.ratio / before.ratio).toBe(2);
+    expect(after.outerWidth).toBe(before.outerWidth);
+    expect(after.cssZoom).toBe('1');
+    expect(after.visualScale).toBe(1);
+    const screenshots: unknown[] = [];
+    async function nativeViewport(name: string, selector?: string) {
+      if (selector)
+        await zoom.page.locator(selector).evaluate((element) => {
+          element.scrollIntoView({ block: 'center' });
+        });
+      else await zoom.page.evaluate(() => window.scrollTo(0, 0));
+      await zoom.page.evaluate(async () => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        await document.fonts.ready;
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+      });
+      // Playwright's CSS-sized fullPage clip crops a natively zoomed window.
+      // Capture Chromium's actual viewport with no clip, resize or CSS scaling.
+      const capture = await zoom.page.context().newCDPSession(zoom.page);
+      let png: Buffer;
+      try {
+        const result = await capture.send('Page.captureScreenshot', {
+          format: 'png',
+          fromSurface: true,
+          captureBeyondViewport: false,
+        });
+        png = Buffer.from(result.data, 'base64');
+      } finally {
+        await capture.detach();
+      }
+      expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+      const pixels = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+      expect(pixels.width).toBe(1440);
+      expect(pixels.width).toBe(Math.round(after.width * after.ratio));
+      const viewport = await geometry();
+      expect(pixels.height).toBe(Math.round(viewport.height * viewport.ratio));
+      const target = selector
+        ? await zoom.page.locator(selector).evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            const header = document.querySelector('.portal-header')?.getBoundingClientRect();
+            return {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              headerBottom: header?.bottom ?? 0,
+            };
+          })
+        : null;
+      if (target) {
+        expect(target.x).toBeGreaterThanOrEqual(0);
+        expect(target.x + target.width).toBeLessThanOrEqual(viewport.width + 1);
+        expect(target.y).toBeGreaterThanOrEqual(Math.max(0, target.headerBottom));
+        expect(target.y + target.height).toBeLessThanOrEqual(viewport.height + 1);
+      }
+      writeFileSync(test.info().outputPath(`${name}.png`), png);
+      screenshots.push({ name, pixels, viewport, target });
+    }
     for (const colorScheme of ['light', 'dark'] as const) {
       await zoom.page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
       await assertMetrics(zoom.page);
       await assertLayout(zoom.page, after.width);
       await assertMetricContent(zoom.page);
-      await screenshot(zoom.page, `native-200-percent-${colorScheme}`);
+      await nativeViewport(`native-200-percent-${colorScheme}`);
+      for (const metric of ['requests', 'input', 'output'])
+        await nativeViewport(
+          `native-200-percent-${colorScheme}-${metric}`,
+          `[data-testid="ai-usage-${metric}"]`,
+        );
+      await nativeViewport(`native-200-percent-${colorScheme}-chart`, '.asa-ai-usage-chart-card');
     }
     const reset = await zoom.setZoom(1);
     expect(reset.factor).toBe(1);
@@ -251,6 +330,7 @@ async function verifyNativeZoom(sourcePage: Page) {
       before,
       applied,
       after,
+      screenshots,
       reset,
       trace: 'off',
     };
@@ -269,7 +349,7 @@ async function darkContrast(page: Page, includeCollapse: boolean) {
     { label: 'Administration scope', selector: '.admin-scope-select select', minimum: 4.5 },
     ...(includeCollapse
       ? [{ label: 'Collapse control', selector: '.portal-sidebar-collapse-visual', minimum: 3 }]
-      : []),
+      : [{ label: 'Mobile menu close', selector: '.portal-menu-close', minimum: 4.5 }]),
   ];
   const checks = await page.evaluate((rules) => {
     function color(value: string): [number, number, number, number] {
@@ -653,18 +733,56 @@ test(
         const large = await overview(page);
         expect(large.inputTokens.known).toBe(largeTotal);
         expect(large.outputTokens.known).toBe(largeTotal);
+        const groupLayouts: unknown[] = [];
         for (const width of [320, 390]) {
           for (const colorScheme of ['light', 'dark'] as const) {
             await page.setViewportSize({ width, height: 1000 });
             await page.emulateMedia({ colorScheme });
             await assertLayout(page, width);
             await assertMetricContent(page);
+            const values = await page
+              .locator(
+                '[data-testid="ai-usage-input"] .asa-ai-usage-value bdi, ' +
+                  '[data-testid="ai-usage-output"] .asa-ai-usage-value bdi',
+              )
+              .evaluateAll((elements) =>
+                elements.map((element) => {
+                  const node = element.firstChild;
+                  if (!(node instanceof Text) || element.childNodes.length !== 1)
+                    throw new Error('Expected one text node containing the formatted token count');
+                  const groups = Array.from(node.data.matchAll(/\d+/g), (match) => {
+                    const range = document.createRange();
+                    range.setStart(node, match.index!);
+                    range.setEnd(node, match.index! + match[0].length);
+                    return {
+                      digits: match[0],
+                      rects: Array.from(range.getClientRects(), (rect) => ({
+                        x: rect.x,
+                        y: rect.y,
+                        width: rect.width,
+                        height: rect.height,
+                      })),
+                    };
+                  });
+                  return { text: node.data, groups };
+                }),
+              );
+            expect(values).toHaveLength(2);
+            for (const value of values) {
+              expect(value.text.replace(/\D/g, '')).toBe(largeTotal);
+              for (const group of value.groups) expect(group.rects, group.digits).toHaveLength(1);
+              if (width === 320)
+                expect(
+                  new Set(value.groups.map((group) => group.rects[0]!.y)).size,
+                ).toBeGreaterThan(1);
+            }
+            groupLayouts.push({ width, colorScheme, values });
             await screenshot(page, `long-token-counts-${width}-${colorScheme}`);
           }
         }
         writeFileSync(
           test.info().outputPath('safe-large-token-summary.json'),
-          JSON.stringify({ expectedTotal: largeTotal, api: large }, null, 2),
+          JSON.stringify({ expectedTotal: largeTotal, api: large, groupLayouts }, null, 2),
         );
       } finally {
         for (const row of fixture.rows) {
