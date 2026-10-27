@@ -305,10 +305,11 @@ jobs:
           retention-days: 14
 
   usage-overview-source-baseline:
-    # One-time implementation evidence. This comparator does not deploy an old
-    # revision or select a task. Future AI changes do not rebuild this baseline.
+    # Owner-requested density comparison against the unchanged previous PR
+    # candidate, with the same real PostgreSQL fixture and viewport sizes.
+    # This comparator neither deploys a revision nor selects another task.
     if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'assistant/asai-01-')
-    name: ASAI-01 pristine source baseline screenshots
+    name: ASAI-01 pristine pre-density overview comparison
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -331,8 +332,8 @@ jobs:
       NX_SKIP_NX_CACHE: 'true'
       NX_DAEMON: 'false'
       ASA_AI_OVERVIEW_BASELINE: 'true'
-      ASA_BUILD_REVISION: e9013f86f17e1946857e5b2f4b7c30fd7b28fc82
-      VITE_ASA_BUILD_REVISION: e9013f86f17e1946857e5b2f4b7c30fd7b28fc82
+      ASA_BUILD_REVISION: 8934e542d767b52b5e0d763c5db4d9835fda916b
+      VITE_ASA_BUILD_REVISION: 8934e542d767b52b5e0d763c5db4d9835fda916b
       TEST_DATABASE_URL: postgresql://postgres:ai-baseline-isolated-ci-test@127.0.0.1:5432/asa_ai_baseline_test
       APP_TEST_DATABASE_URL: postgresql://asalab_app:ai-baseline-isolated-ci-test@127.0.0.1:5432/asa_ai_baseline_test
       MIGRATION_DATABASE_URL: postgresql://postgres:ai-baseline-isolated-ci-test@127.0.0.1:5432/asa_ai_baseline_test
@@ -348,7 +349,7 @@ jobs:
       - name: Checkout unchanged product source baseline
         uses: actions/checkout@v4
         with:
-          ref: e9013f86f17e1946857e5b2f4b7c30fd7b28fc82
+          ref: 8934e542d767b52b5e0d763c5db4d9835fda916b
           path: baseline
           persist-credentials: false
       - name: Copy only the browser harness, preserve all baseline product sources
@@ -382,7 +383,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ai-usage-baseline-e9013f86-${{ github.event.pull_request.head.sha }}
+          name: ai-usage-before-density-8934e542-${{ github.event.pull_request.head.sha }}
           path: baseline/reports/playwright/ai-usage-overview/
           if-no-files-found: error
           retention-days: 14

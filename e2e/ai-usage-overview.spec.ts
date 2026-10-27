@@ -10,6 +10,7 @@ const ORIGIN = 'http://127.0.0.1:4612';
 const ENDPOINT = '/api/admin/v1/ai/usage-overview';
 const BASELINE = process.env.ASA_AI_OVERVIEW_BASELINE === 'true';
 const COUNTS = [1, 0, 2, 1, 3, 0, 2];
+const viewportFor = (width: number) => ({ width, height: width <= 480 ? 844 : 900 });
 
 interface Overview {
   schemaVersion: 1;
@@ -97,7 +98,7 @@ async function overview(page: Page): Promise<Overview> {
   return response.json();
 }
 
-async function screenshot(page: Page, name: string) {
+async function screenshot(page: Page, name: string, includeViewport = false) {
   await page.evaluate(async () => {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     window.scrollTo(0, 0);
@@ -109,6 +110,8 @@ async function screenshot(page: Page, name: string) {
     );
   });
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
+  if (includeViewport)
+    await page.screenshot({ path: test.info().outputPath(`${name}-viewport.png`) });
 }
 
 async function assertLayout(page: Page, width: number) {
@@ -138,10 +141,22 @@ async function assertMetricContent(page: Page) {
       );
       return {
         inside: Array.from(value?.getClientRects() ?? []).every(
-          (rect) => rect.left >= bounds.left && rect.right <= bounds.right,
+          (rect) =>
+            rect.left >= bounds.left &&
+            rect.right <= bounds.right &&
+            rect.top >= bounds.top &&
+            rect.bottom <= bounds.bottom,
         ),
-        noOverlap: blocks.every(
-          (rect, index) => index === 0 || blocks[index - 1]!.bottom <= rect.top + 1,
+        noOverlap: blocks.every((rect, index) =>
+          blocks
+            .slice(index + 1)
+            .every(
+              (other) =>
+                rect.right <= other.left + 1 ||
+                other.right <= rect.left + 1 ||
+                rect.bottom <= other.top + 1 ||
+                other.bottom <= rect.top + 1,
+            ),
         ),
         textOverflow: value ? getComputedStyle(value).textOverflow : 'missing',
       };
@@ -155,24 +170,186 @@ async function assertMetricContent(page: Page) {
   }
 }
 
+async function measureOverview(page: Page) {
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    await document.fonts.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  });
+  return page.evaluate(() => {
+    const required = (selector: string) => {
+      const element = document.querySelector(selector);
+      if (!element) throw new Error(`Missing overview evidence element: ${selector}`);
+      return element;
+    };
+    const rect = (element: Element) => {
+      const box = element.getBoundingClientRect();
+      return {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+        right: box.right,
+        bottom: box.bottom,
+      };
+    };
+    const overview = required('.asa-ai-usage-overview');
+    const heading = required('.asa-ai-usage-heading h2');
+    const tabs = required('.asa-ai-admin-tabs');
+    const bounds = rect(overview);
+    const headingBounds = rect(heading);
+    const nav = rect(tabs);
+    const kpi = overview.querySelector('.asa-ai-usage-cards');
+    const chart = overview.querySelector('.asa-ai-usage-chart-card');
+    const ancestors = [];
+    for (let element: Element | null = overview; element; element = element.parentElement) {
+      const style = getComputedStyle(element);
+      ancestors.push({
+        tag: element.tagName,
+        classes: element.className,
+        zoom: style.zoom,
+        transform: style.transform,
+        scale: style.scale,
+      });
+    }
+    const text = Array.from(overview.querySelectorAll('h2, h3, p, summary, time, bdi'))
+      .filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        // Screen-reader-only chart description remains accessible but is not
+        // visible copy; the critical state messages are asserted separately.
+        return bounds.width > 1 && bounds.height > 1;
+      })
+      .map((element) => {
+        const style = getComputedStyle(element);
+        return {
+          tag: element.tagName,
+          classes: element.className,
+          size: Number.parseFloat(style.fontSize),
+          textOverflow: style.textOverflow,
+          overflowX: style.overflowX,
+          overflowY: style.overflowY,
+        };
+      });
+    return {
+      viewport: { width: innerWidth, height: innerHeight, ratio: devicePixelRatio },
+      scrollWidth: document.documentElement.scrollWidth,
+      overview: bounds,
+      heading: headingBounds,
+      summaryHeight: bounds.bottom - headingBounds.y,
+      kpi: kpi ? rect(kpi) : null,
+      chart: chart ? rect(chart) : null,
+      nav: {
+        ...nav,
+        scrollWidth: tabs.scrollWidth,
+        clientWidth: tabs.clientWidth,
+        tabs: Array.from(tabs.querySelectorAll('[role="tab"]')).map((tab) => ({
+          label: tab.textContent,
+          selected: tab.getAttribute('aria-selected') === 'true',
+          ...rect(tab),
+        })),
+      },
+      overviewFontSize: Number.parseFloat(getComputedStyle(overview).fontSize),
+      ancestors,
+      text,
+    };
+  });
+}
+
+function assertCompactOverview(
+  layout: Awaited<ReturnType<typeof measureOverview>>,
+  enforceNormalHeight: boolean,
+) {
+  const width = layout.viewport.width;
+  expect(layout.scrollWidth).toBeLessThanOrEqual(width);
+  expect(layout.overviewFontSize).toBeGreaterThanOrEqual(14);
+  expect(layout.overviewFontSize).toBeLessThanOrEqual(16);
+  for (const font of layout.text) {
+    expect(font.size, `${font.tag}.${font.classes}`).toBeGreaterThanOrEqual(12);
+    expect(font.textOverflow).not.toBe('ellipsis');
+    expect(font.overflowX).not.toBe('hidden');
+    expect(font.overflowY).not.toBe('hidden');
+  }
+  for (const ancestor of layout.ancestors) {
+    expect(ancestor.zoom, ancestor.classes).toBe('1');
+    expect(ancestor.transform, ancestor.classes).toBe('none');
+    expect(ancestor.scale, ancestor.classes).toBe('none');
+  }
+  const firstTab = layout.nav.tabs[0]!;
+  for (const tab of layout.nav.tabs) {
+    expect(Math.abs(tab.y - firstTab.y), tab.label ?? 'Tab').toBeLessThanOrEqual(1);
+    expect(tab.height).toBeGreaterThanOrEqual(44);
+  }
+  const selected = layout.nav.tabs.find((tab) => tab.selected)!;
+  expect(selected.x).toBeGreaterThanOrEqual(layout.nav.x - 1);
+  expect(selected.right).toBeLessThanOrEqual(layout.nav.right + 1);
+  if (enforceNormalHeight && (width === 1440 || width === 390)) {
+    const mobile = width === 390;
+    expect(layout.kpi?.height, 'Entire KPI block height').toBeLessThanOrEqual(mobile ? 140 : 110);
+    expect(layout.chart?.height, 'Chart including labels').toBeLessThanOrEqual(mobile ? 220 : 260);
+    expect(layout.summaryHeight, 'Overview from its heading to end').toBeLessThanOrEqual(
+      mobile ? 480 : 560,
+    );
+    // Preserve useful room for the later, separately scoped journal: the
+    // current summary must end inside the initial viewport, with space below.
+    expect(
+      layout.overview.bottom + 80,
+      'First-viewport room below the summary',
+    ).toBeLessThanOrEqual(layout.viewport.height);
+  }
+}
+
+async function captureStateMatrix(page: Page, state: string, measurements: unknown[]) {
+  for (const width of [1440, 390, 320]) {
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.setViewportSize(viewportFor(width));
+      await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+      await assertLayout(page, width);
+      if (await page.locator('.asa-ai-usage-cards').count()) await assertMetricContent(page);
+      const layout = await measureOverview(page);
+      assertCompactOverview(layout, false);
+      measurements.push({ state, colorScheme, ...layout });
+      await screenshot(page, `${state}-${width}-${colorScheme}`);
+    }
+  }
+}
+
 async function verifyKeyboardAndTouch(page: Page) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: 'light' });
   const overviewTab = page.getByRole('tab', { name: 'Обзор', exact: true });
   const settingsTab = page.getByRole('tab', { name: 'Настройки', exact: true });
   const lastTab = page.getByRole('tab', { name: 'Изображения', exact: true });
+  const visibleSelection = async () => {
+    await expect
+      .poll(() =>
+        page.locator('.asa-ai-admin-tabs').evaluate((nav) => {
+          const selected = nav.querySelector('[aria-selected="true"]')!.getBoundingClientRect();
+          const viewport = nav.getBoundingClientRect();
+          return selected.left >= viewport.left - 1 && selected.right <= viewport.right + 1;
+        }),
+      )
+      .toBe(true);
+    await assertLayout(page, 390);
+  };
   await overviewTab.focus();
   await page.keyboard.press('ArrowRight');
   await expect(settingsTab).toBeFocused();
   await expect(settingsTab).toHaveAttribute('aria-selected', 'true');
+  await visibleSelection();
   await page.keyboard.press('End');
   await expect(lastTab).toBeFocused();
+  await visibleSelection();
   await page.keyboard.press('Home');
   await expect(overviewTab).toBeFocused();
+  await visibleSelection();
   await page.keyboard.press('ArrowLeft');
   await expect(lastTab).toBeFocused();
+  await visibleSelection();
   await page.keyboard.press('ArrowRight');
   await expect(overviewTab).toBeFocused();
+  await visibleSelection();
   await assertMetrics(page);
   const refresh = page.getByRole('button', { name: 'Обновить данные', exact: true });
   await page.keyboard.press('Tab');
@@ -189,16 +366,18 @@ async function verifyKeyboardAndTouch(page: Page) {
   expect(focus.outlineStyle).not.toBe('none');
   expect(focus.outlineWidth).toBeGreaterThanOrEqual(2);
   const targets = await page
-    .locator(
-      '.asa-ai-admin-tabs > button, .asa-ai-usage-refresh, .asa-ai-usage-table-details summary',
-    )
+    .locator('.asa-ai-admin-tabs > button, .asa-ai-usage-refresh, .asa-ai-usage-overview summary')
     .evaluateAll((elements) =>
       elements.map((element) => {
         const rect = element.getBoundingClientRect();
-        return { label: element.textContent?.trim(), width: rect.width, height: rect.height };
+        return {
+          label: element.getAttribute('aria-label') ?? element.textContent?.trim(),
+          width: rect.width,
+          height: rect.height,
+        };
       }),
     );
-  expect(targets).toHaveLength(8);
+  expect(targets).toHaveLength(9);
   for (const target of targets) {
     expect(target.width, target.label).toBeGreaterThanOrEqual(44);
     expect(target.height, target.label).toBeGreaterThanOrEqual(44);
@@ -209,11 +388,20 @@ async function verifyKeyboardAndTouch(page: Page) {
     path: test.info().outputPath('keyboard-focus-390-light.png'),
     fullPage: true,
   });
+  await page.getByText('Как считаем', { exact: true }).focus();
+  await page.keyboard.press('Enter');
+  const method = page
+    .locator('details')
+    .filter({ has: page.getByText('Как считаем', { exact: true }) });
+  await expect(method).toHaveAttribute('open', '');
+  await expect(method).toContainText('Повторное чтение');
+  await page.keyboard.press('Enter');
+  await expect(method).not.toHaveAttribute('open', '');
   writeFileSync(
     test.info().outputPath('safe-keyboard-touch.json'),
     JSON.stringify(
       {
-        keys: ['ArrowRight', 'End', 'Home', 'ArrowLeft', 'ArrowRight', 'Tab'],
+        keys: ['ArrowRight', 'End', 'Home', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter', 'Enter'],
         focus,
         targets,
         mobileKeyboard: 'No text input belongs to this read-only overview.',
@@ -438,7 +626,7 @@ async function verifyDarkScopes(page: Page, db: pg.Pool, accountId: string) {
       expect.objectContaining({ kind: 'organization', role: 'school_admin' }),
     ]),
   );
-  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.setViewportSize(viewportFor(1440));
   await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
   await page.reload();
   await assertMetrics(page);
@@ -553,10 +741,11 @@ async function assertMetrics(page: Page, input = '4500', output = '450') {
 
 test(
   BASELINE
-    ? 'ASAI-01 pristine source baseline snapshots'
+    ? 'ASAI-01 pristine pre-density overview comparison'
     : 'ASAI-01 real usage overview and owner journey',
   async ({ page }) => {
     const db = e2eAdminPool();
+    const measurements: unknown[] = [];
     try {
       // This dedicated job must not reuse another suite's journal or a working DB.
       const emptyJournal = await db.query<{ count: string }>(
@@ -570,22 +759,42 @@ test(
       await page.reload();
 
       if (BASELINE) {
-        await expect(tabs.getByRole('tab').first()).toHaveText('Подключения');
-        await expect(page.locator('#ai-panel-connections')).toBeVisible();
+        expect(provenance.revision).toBe('8934e542d767b52b5e0d763c5db4d9835fda916b');
+        await expect(tabs.getByRole('tab').first()).toHaveText('Обзор');
+        await expect(page.locator('#ai-panel-overview')).toBeVisible();
         const fixture = await seedUsage(db, actor);
-        for (const width of [1440, 390]) {
+        await page.getByRole('button', { name: 'Обновить данные', exact: true }).click();
+        await assertMetrics(page);
+        const received = await overview(page);
+        expect(received).toMatchObject({
+          requests: fixture.requests,
+          inputTokens: { known: fixture.input },
+          outputTokens: { known: fixture.output },
+          daily: fixture.daily,
+        });
+        const sql = await db.query(
+          `SELECT count(*)::integer AS requests, sum(input_tokens)::text AS input,
+                sum(output_tokens)::text AS output
+           FROM ai_usage_journal WHERE admitted_at >= $1 AND admitted_at < $2`,
+          [received.period.from, received.period.to],
+        );
+        expect(sql.rows).toEqual([{ requests: 9, input: '4500', output: '450' }]);
+        for (const width of [1440, 390, 320]) {
           for (const colorScheme of ['light', 'dark'] as const) {
-            await page.setViewportSize({ width, height: 1000 });
+            await page.setViewportSize(viewportFor(width));
             await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
-            await screenshot(page, `baseline-source-${width}-${colorScheme}`);
+            await assertMetrics(page);
+            await assertLayout(page, width);
+            measurements.push({ state: 'complete', colorScheme, ...(await measureOverview(page)) });
+            await screenshot(page, `before-density-${width}-${colorScheme}`, width !== 320);
           }
         }
         writeFileSync(
           test.info().outputPath('safe-baseline-summary.json'),
           JSON.stringify(
             {
-              kind: 'pristine-source-baseline-rendered-in-this-ci-run',
-              note: 'Source baseline snapshot, not a claim of chronological pre-edit capture. The previous admin UI has no dark theme.',
+              kind: 'pristine-pre-density-source-rendered-in-this-ci-run',
+              note: 'Unchanged pre-density product source, rebuilt in this CI run. This is a source comparison, not a claim of chronological pre-edit or installed D2R2 evidence.',
               ...provenance,
               source: 'ai_usage_journal in an isolated disposable PostgreSQL database',
               expected: {
@@ -594,6 +803,8 @@ test(
                 output: fixture.output,
                 daily: fixture.daily,
               },
+              sql: sql.rows[0],
+              api: received,
             },
             null,
             2,
@@ -608,7 +819,7 @@ test(
         'aria-selected',
         'true',
       );
-      await expect(page.getByRole('heading', { name: 'Обзор использования ИИ' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Обзор', exact: true })).toBeVisible();
       await expect(page.getByText('Данных за период нет', { exact: true })).toBeVisible();
       const initial = await overview(page);
       expect(initial).toMatchObject({
@@ -620,9 +831,7 @@ test(
       });
       expect(initial.daily).toHaveLength(7);
       expect(initial.daily.every((day) => day.requests === 0)).toBe(true);
-      await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
-      await screenshot(page, 'empty-1440-light');
+      await captureStateMatrix(page, 'empty', measurements);
 
       const fixture = await seedUsage(db, actor);
       await page.getByRole('button', { name: 'Обновить данные', exact: true }).click();
@@ -656,7 +865,7 @@ test(
 
       for (const width of [1440, 390, 320, 768, 1024, 1920]) {
         for (const colorScheme of ['light', 'dark'] as const) {
-          await page.setViewportSize({ width, height: 1000 });
+          await page.setViewportSize(viewportFor(width));
           await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
           await page.reload();
           await expect(page.getByRole('tab', { name: 'Обзор', exact: true })).toHaveAttribute(
@@ -669,7 +878,14 @@ test(
           ).toBeVisible();
           await assertLayout(page, width);
           await assertMetricContent(page);
-          await screenshot(page, `overview-${width}-${colorScheme}`);
+          const layout = await measureOverview(page);
+          assertCompactOverview(layout, true);
+          measurements.push({ state: 'complete', colorScheme, ...layout });
+          await screenshot(
+            page,
+            `overview-${width}-${colorScheme}`,
+            width === 1440 || width === 390,
+          );
         }
       }
       await page.getByText('Данные по дням', { exact: true }).click();
@@ -745,10 +961,13 @@ test(
         const groupLayouts: unknown[] = [];
         for (const width of [320, 390]) {
           for (const colorScheme of ['light', 'dark'] as const) {
-            await page.setViewportSize({ width, height: 1000 });
+            await page.setViewportSize(viewportFor(width));
             await page.emulateMedia({ colorScheme });
             await assertLayout(page, width);
             await assertMetricContent(page);
+            const layout = await measureOverview(page);
+            assertCompactOverview(layout, false);
+            measurements.push({ state: 'long-token-counts', colorScheme, ...layout });
             const values = await page
               .locator(
                 '[data-testid="ai-usage-input"] .asa-ai-usage-value bdi, ' +
@@ -843,7 +1062,7 @@ test(
           page.getByRole('heading', { name: 'Не удалось загрузить данные', exact: true }),
         ).toBeVisible();
         await expect(page.getByText('Данных за период нет', { exact: true })).toHaveCount(0);
-        await screenshot(page, 'source-error-390-light');
+        await captureStateMatrix(page, 'source-error', measurements);
       } finally {
         await db.query(
           'ALTER FUNCTION public.asai_overview_fixture_unavailable(uuid,timestamptz) RENAME TO ai_usage_overview',
@@ -865,7 +1084,7 @@ test(
         inputTokens: { known: '4400', knownOperations: 8, unknownOperations: 1 },
         outputTokens: { known: '450', knownOperations: 9, unknownOperations: 0 },
       });
-      await screenshot(page, 'partial-390-light');
+      await captureStateMatrix(page, 'partial', measurements);
       await db.query(
         'UPDATE ai_usage_journal SET input_tokens=NULL,output_tokens=NULL WHERE owner_principal_id=$1',
         [actor.principalId],
@@ -882,7 +1101,7 @@ test(
       await expect(
         page.getByTestId('ai-usage-output').locator('.asa-ai-usage-value bdi'),
       ).toHaveText('Неизвестно');
-      await screenshot(page, 'unknown-tokens-390-light');
+      await captureStateMatrix(page, 'unknown-tokens', measurements);
       // Remove only this fixture's records; an empty response must remain distinct
       // from both the previous partial state and the genuine source error.
       await db.query('DELETE FROM ai_usage_journal WHERE owner_principal_id=$1', [
@@ -892,6 +1111,21 @@ test(
       await expect(page.getByText('Данных за период нет', { exact: true })).toBeVisible();
       expect((await overview(page)).state).toBe('empty');
     } finally {
+      writeFileSync(
+        test.info().outputPath('safe-density-measurements.json'),
+        JSON.stringify(
+          {
+            revision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+            kind: BASELINE ? 'pre-density-source' : 'compact-candidate',
+            source: 'real built Web and API with isolated PostgreSQL',
+            viewportUnits: 'CSS pixels; native zoom is recorded separately',
+            normalData: { requests: 9, input: '4500', output: '450', daily: COUNTS },
+            measurements,
+          },
+          null,
+          2,
+        ),
+      );
       await db.end();
     }
   },

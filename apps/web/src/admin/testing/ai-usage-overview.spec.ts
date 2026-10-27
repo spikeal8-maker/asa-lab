@@ -33,7 +33,9 @@ const metric = (name: string) =>
   host.querySelector(`[data-testid="ai-usage-${name}"] .asa-ai-usage-value`)?.textContent;
 const click = (name: string) =>
   act(async () => {
-    const button = [...host.querySelectorAll('button')].find((entry) => entry.textContent === name);
+    const button = [...host.querySelectorAll('button')].find(
+      (entry) => (entry.getAttribute('aria-label') ?? entry.textContent) === name,
+    );
     expect(button).toBeTruthy();
     button!.click();
   });
@@ -57,7 +59,13 @@ it('renders actual totals and all seven calendar days from one API snapshot', as
     '0',
     '2',
   ]);
-  expect(host.textContent).toContain('Часовой пояс: UTC');
+  expect(host.querySelector('[aria-label="Часовой пояс: UTC"]')?.textContent).toBe('UTC');
+  expect(host.querySelector('h2')?.textContent).toBe('Обзор');
+  const methodology = host.querySelector<HTMLDetailsElement>('.asa-ai-usage-method');
+  expect(methodology?.querySelector('summary')?.textContent).toBe('Как считаем');
+  expect(methodology?.open).toBe(false);
+  expect(methodology?.textContent).toContain('Повторное чтение сохранённого результата');
+  expect(host.querySelector('[aria-label="Обновить данные"]')).not.toBeNull();
   expect(host.textContent).toContain('Сегодняшний день ещё идёт');
   expect(host.textContent).not.toContain('Данных за период нет');
 });

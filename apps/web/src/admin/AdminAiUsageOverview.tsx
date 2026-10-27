@@ -25,6 +25,17 @@ const chartDate = new Intl.DateTimeFormat('ru-RU', {
   timeZone: 'UTC',
 });
 const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'UTC' });
+const periodDate = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+const refreshedTime = new Intl.DateTimeFormat('ru-RU', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+});
 
 function TokenCard({
   label,
@@ -41,16 +52,12 @@ function TokenCard({
       <p className={'asa-ai-usage-value' + (tokens.known === null ? ' is-unknown' : '')}>
         <bdi>{formatUsageTokens(tokens.known)}</bdi>
       </p>
-      <p className="asa-ai-usage-card-note">
-        {tokens.unknownOperations > 0
-          ? tokens.known === null
-            ? 'Провайдеры не передали расход'
-            : `Учтено операций: ${usageInteger.format(tokens.knownOperations)}`
-          : 'За выбранные семь дней'}
-      </p>
       {tokens.unknownOperations > 0 ? (
-        <p className="asa-ai-usage-unknown-count">
-          Без данных: {usageInteger.format(tokens.unknownOperations)}
+        <p className="asa-ai-usage-card-note">
+          {tokens.known !== null ? (
+            <span>Учтено операций: {usageInteger.format(tokens.knownOperations)} · </span>
+          ) : null}
+          <span>Без данных: {usageInteger.format(tokens.unknownOperations)}</span>
         </p>
       ) : null}
     </article>
@@ -63,7 +70,6 @@ function DailyRequests({ data }: { readonly data: AiUsageOverview }) {
     <section className="asa-ai-usage-chart-card" aria-labelledby="ai-usage-chart-title">
       <header className="asa-ai-usage-chart-heading">
         <h3 id="ai-usage-chart-title">Запросы по дням</h3>
-        <p>Последние семь дней · UTC</p>
       </header>
       <div
         className="asa-ai-usage-chart"
@@ -97,41 +103,61 @@ function DailyRequests({ data }: { readonly data: AiUsageOverview }) {
           );
         })}
       </div>
-      <p id="ai-usage-chart-description" className="asa-ai-usage-chart-note">
+      <p id="ai-usage-chart-description" className="sr-only">
         {data.state === 'empty'
           ? 'За каждый из семи дней — 0 запросов.'
           : `Всего: ${usageInteger.format(data.requests)}. Точные значения доступны в таблице ниже.`}{' '}
         Сегодняшний день ещё идёт.
       </p>
-      <details className="asa-ai-usage-table-details">
-        <summary>Данные по дням</summary>
-        <table aria-label="Запросы по дням">
-          <thead>
-            <tr>
-              <th scope="col">Дата · UTC</th>
-              <th scope="col">Запросы</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.daily.map((day) => (
-              <tr key={day.date}>
-                <th scope="row">
-                  <time dateTime={day.date}>
-                    {usageDate.format(new Date(`${day.date}T00:00:00Z`))}
-                  </time>
-                </th>
-                <td>{usageInteger.format(day.requests)}</td>
+      <div className="asa-ai-usage-details">
+        <details className="asa-ai-usage-table-details">
+          <summary>Данные по дням</summary>
+          <table aria-label="Запросы по дням">
+            <thead>
+              <tr>
+                <th scope="col">Дата · UTC</th>
+                <th scope="col">Запросы</th>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <th scope="row">Всего</th>
-              <td>{usageInteger.format(data.requests)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </details>
+            </thead>
+            <tbody>
+              {data.daily.map((day) => (
+                <tr key={day.date}>
+                  <th scope="row">
+                    <time dateTime={day.date}>
+                      {usageDate.format(new Date(`${day.date}T00:00:00Z`))}
+                    </time>
+                  </th>
+                  <td>{usageInteger.format(day.requests)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row">Всего</th>
+                <td>{usageInteger.format(data.requests)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </details>
+        <details className="asa-ai-usage-method">
+          <summary>Как считаем</summary>
+          <p>
+            Один запрос — одна новая допущенная операция, включая новый вариант ответа. Повторное
+            чтение сохранённого результата не увеличивает показатели.
+          </p>
+          <p>
+            Учитываем шесть предыдущих дней и текущий день в UTC: с{' '}
+            {usageDate.format(new Date(data.period.from))}, 00:00 до{' '}
+            {usageDate.format(new Date(data.period.to))},{' '}
+            {usageTime.format(new Date(data.period.to))}. Сегодняшний день ещё идёт. Время операции
+            фиксируется при её допуске, конец периода не включён.
+          </p>
+          <p>
+            Токены — сумма известных значений из журнала. Неизвестный расход не включён в сумму и не
+            считается нулём. Дни без операций показаны нулевыми точками.
+          </p>
+        </details>
+      </div>
     </section>
   );
 }
@@ -186,25 +212,50 @@ export function AdminAiUsageOverview({ onAccessDenied }: { readonly onAccessDeni
       aria-busy={state.kind === 'loading'}
     >
       <header className="asa-ai-usage-heading">
-        <div>
-          <h2 id="ai-usage-title">Обзор использования ИИ</h2>
-          <p>Запросы и токены за последние семь дней</p>
-        </div>
+        <h2 id="ai-usage-title">Обзор</h2>
+        {data ? (
+          <p className="asa-ai-usage-period">
+            <span>
+              {periodDate.formatRange(new Date(data.period.from), new Date(data.period.to))}
+            </span>{' '}
+            · <span aria-label="Часовой пояс: UTC">UTC</span> ·{' '}
+            <time
+              dateTime={data.generatedAt}
+              title={`Обновлено ${usageTime.format(new Date(data.generatedAt))} UTC`}
+            >
+              Обновлено {refreshedTime.format(new Date(data.generatedAt))}
+            </time>
+          </p>
+        ) : null}
         {state.kind !== 'error' ? (
           <button
-            className="asa-ai-usage-refresh"
+            className="asa-ai-usage-refresh asa-ai-usage-refresh-icon"
             type="button"
+            aria-label="Обновить данные"
+            title="Обновить данные"
             disabled={state.kind === 'loading'}
             onClick={() => setRevision((current) => current + 1)}
           >
-            Обновить данные
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M20 7v5h-5M4 17v-5h5" />
+              <path d="M5.6 7a7.5 7.5 0 0 1 12.4-1L20 8M4 16l2 2a7.5 7.5 0 0 0 12.4-1" />
+            </svg>
           </button>
         ) : null}
       </header>
       {state.kind === 'loading' ? (
         <div className="asa-ai-usage-message" role="status">
           <p>Загружаем данные…</p>
-          <p>Читаем журнал использования. Часовой пояс: UTC.</p>
         </div>
       ) : state.kind === 'error' ? (
         <div className="asa-ai-usage-message" role="alert">
@@ -221,13 +272,6 @@ export function AdminAiUsageOverview({ onAccessDenied }: { readonly onAccessDeni
       ) : null}
       {data ? (
         <>
-          <div className="asa-ai-usage-period">
-            <p>
-              {usageDate.format(new Date(data.period.from))} —{' '}
-              {usageDate.format(new Date(data.period.to))}
-            </p>
-            <p>Часовой пояс: UTC · Обновлено {usageTime.format(new Date(data.generatedAt))} UTC</p>
-          </div>
           <div className="asa-ai-usage-cards">
             <article
               className="asa-ai-usage-card"
@@ -236,9 +280,8 @@ export function AdminAiUsageOverview({ onAccessDenied }: { readonly onAccessDeni
             >
               <h3>Запросы</h3>
               <p className="asa-ai-usage-value">
-                <bdi>{usageInteger.format(data.requests)}</bdi>
+                <bdi>{formatUsageTokens(String(data.requests))}</bdi>
               </p>
-              <p className="asa-ai-usage-card-note">Новые допущенные операции</p>
             </article>
             <TokenCard label="Входные токены" tokens={data.inputTokens} testId="ai-usage-input" />
             <TokenCard
@@ -250,25 +293,14 @@ export function AdminAiUsageOverview({ onAccessDenied }: { readonly onAccessDeni
           {data.state === 'partial' ? (
             <div className="asa-ai-usage-notice" role="status">
               <strong>Расход известен не полностью</strong>
-              <p>
-                Показаны только переданные провайдерами токены. Неизвестный расход не включён в
-                сумму.
-              </p>
+              <p>Показаны только известные токены.</p>
             </div>
           ) : data.state === 'empty' ? (
             <div className="asa-ai-usage-notice" role="status">
               <strong>Данных за период нет</strong>
-              <p>
-                Журнал прочитан успешно. Новые операции за этот период пока не зарегистрированы.
-              </p>
             </div>
           ) : null}
           <DailyRequests data={data} />
-          <p className="asa-ai-usage-definition">
-            Один запрос — одна новая допущенная операция, включая новый вариант ответа. Повторное
-            чтение сохранённого результата не увеличивает показатели. Время операции учитывается при
-            её допуске; сегодняшний день — до момента обновления.
-          </p>
         </>
       ) : null}
     </section>

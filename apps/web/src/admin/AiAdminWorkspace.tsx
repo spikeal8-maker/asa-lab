@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
@@ -55,6 +55,7 @@ function AiAdminWorkspaceSession({
 }) {
   const [navigation, setNavigation] = useState(() => readAiAdminNavigation(principalId));
   const { section, provider } = navigation;
+  const tabs = useRef<HTMLElement>(null);
   const [cloud, setCloud] = useState<AiAdminConfig | null>(null);
   const [local, setLocal] = useState<LocalState | null>(null);
   const [statusRevision, setStatusRevision] = useState(0);
@@ -77,6 +78,32 @@ function AiAdminWorkspaceSession({
   }, [principalId]);
 
   useEffect(() => rememberAiAdminNavigation(principalId, navigation), [principalId, navigation]);
+
+  useEffect(() => {
+    const nav = tabs.current;
+    if (!nav) return;
+    const revealSelected = () => {
+      const selected = nav.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!selected) return;
+      const container = nav.getBoundingClientRect();
+      const button = selected.getBoundingClientRect();
+      // Scroll this one navigation row, leaving the page's vertical position alone.
+      if (button.left < container.left + 4) {
+        nav.scrollLeft -= container.left + 4 - button.left;
+      } else if (button.right > container.right - 4) {
+        nav.scrollLeft += button.right - container.right + 4;
+      }
+    };
+    revealSelected();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(revealSelected);
+    observer?.observe(nav);
+    window.addEventListener('resize', revealSelected);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', revealSelected);
+    };
+  }, [section]);
 
   useEffect(() => {
     if (section !== 'connections') return;
@@ -111,7 +138,7 @@ function AiAdminWorkspaceSession({
 
   return (
     <div className="asa-ai-admin-workspace">
-      <nav className="asa-ai-admin-tabs" role="tablist" aria-label="Разделы ИИ">
+      <nav ref={tabs} className="asa-ai-admin-tabs" role="tablist" aria-label="Разделы ИИ">
         {SECTIONS.map((item, index) => (
           <button
             key={item.id}
