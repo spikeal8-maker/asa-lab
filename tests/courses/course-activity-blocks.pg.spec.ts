@@ -1728,9 +1728,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         [testSeat, tokenHash, credential.version],
       );
       const verified = await inTenant(author, (client) =>
-        client.query('SELECT seat_id FROM classroom_student_session_context($1)', [
-          tokenHash,
-        ]),
+        client.query('SELECT seat_id FROM classroom_student_session_context($1)', [tokenHash]),
       );
       expect(verified.rows.map((row) => row.seat_id)).toEqual([testSeat]);
       return token;
