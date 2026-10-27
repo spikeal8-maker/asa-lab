@@ -1043,6 +1043,32 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       expect(practices?.map((item) => item.projectId)).toEqual([null, null]);
     }
 
+    // Another learner's accepted 3D cannot credit this seat even if a
+    // compromised upstream list accidentally includes that evidence row.
+    evidenceRows.push({
+      ...evidenceBase,
+      seatId: '50000000-0000-4000-8000-000000000099',
+      classroomAssignmentId: assignmentA,
+      activityRunId: activityRunB,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+      attempt: attempt('66000000-0000-4000-8000-000000000093', 'closed', 'accepted'),
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: '66000000-0000-4000-8000-000000000093',
+      selectedRevision: sharedAcceptedResult('66000000-0000-4000-8000-000000000093', '93'),
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const practices = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(practices?.[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+      expect(practices?.[1]?.canonicalState?.selectedResult).toBeNull();
+      expect(practices?.[1]?.projectId).toBeNull();
+    }
+    evidenceRows.pop();
+
     Object.assign(evidenceRows[1], {
       attempt: attempt(sharedAttemptB, 'closed', 'changes_requested'),
     });

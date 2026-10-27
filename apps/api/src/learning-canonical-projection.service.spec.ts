@@ -290,6 +290,15 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     ]) {
       expect(snapshot.projections.size).toBe(1);
       expect(snapshot.participationByRun.size).toBe(2);
+      expect(snapshot.courseProjectionsByRun.size).toBe(2);
+      expect(
+        snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runA))
+          ?.surface.activityRunId,
+      ).toBe(runA);
+      expect(
+        snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runB))
+          ?.surface.activityRunId,
+      ).toBe(runB);
       expect(
         snapshot.participationByRun.get(canonicalCourseParticipationKey(base.seatId, runA)),
       ).toEqual({
@@ -306,6 +315,96 @@ describe('LRN-M0-007 canonical projection boundary', () => {
       });
     }
     expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it('isolates a selected accepted result from another run and learner seat', async () => {
+    const runA = '70000000-0000-4000-8000-000000000041';
+    const runB = '70000000-0000-4000-8000-000000000042';
+    const foreignSeat = '50000000-0000-4000-8000-000000000002';
+    const acceptedAttempt = {
+      id: '80000000-0000-4000-8000-000000000041',
+      attemptNumber: 1,
+      state: 'closed',
+      reviewDecision: 'accepted',
+      startedAt: '2026-10-27T09:00:00.000Z',
+      submittedAt: '2026-10-27T09:20:00.000Z',
+      lateState: 'on_time',
+    };
+    const acceptedResult = {
+      id: '90000000-0000-4000-8000-000000000041',
+      attemptId: acceptedAttempt.id,
+      rawPoints: 20,
+      maxPoints: 20,
+      percentageBasisPoints: 10000,
+      displayGrade: '5',
+      outcome: 'passed',
+      publishedAt: '2026-10-27T09:30:00.000Z',
+      completionValue: true,
+    };
+    const accepted = {
+      ...base,
+      kind: 'course_project',
+      activityRunId: runA,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+      attempt: acceptedAttempt,
+      selectedAttemptExists: true,
+      resultSelectionSource: 'canonical',
+      selectedAttemptId: acceptedAttempt.id,
+      selectedRevision: acceptedResult,
+    };
+    const awaiting = {
+      ...base,
+      kind: 'course_project',
+      activityRunId: runB,
+      participation: { applicable: true, status: 'active', excused: false },
+      legacyWork: null,
+      attempt: {
+        ...acceptedAttempt,
+        id: '80000000-0000-4000-8000-000000000042',
+        state: 'submitted',
+        reviewDecision: null,
+      },
+    };
+    const pool = poolWith(accepted, awaiting, {
+      ...accepted,
+      seatId: foreignSeat,
+      activityRunId: runB,
+    });
+    const snapshot = await new LearningCanonicalProjectionService(pool, {}).forAccountCourseRuns(
+      '50000000-0000-4000-8000-000000000099',
+      '2026-10-27T10:00:00.000Z',
+    );
+    expect(snapshot.projections.size).toBe(2);
+    expect(snapshot.courseProjectionsByRun.size).toBe(3);
+    expect(
+      snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runA))
+        ?.surface.selectedResult?.completionValue,
+    ).toBe(true);
+    expect(
+      snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runB))
+        ?.surface,
+    ).toMatchObject({ activityRunId: runB, workflowState: 'submitted', selectedResult: null });
+    expect(
+      snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(foreignSeat, runB))
+        ?.surface.selectedResult?.completionValue,
+    ).toBe(true);
+  });
+
+  it('fails closed when one seat and ActivityRun have duplicate canonical evidence', async () => {
+    const runId = '70000000-0000-4000-8000-000000000041';
+    const evidence = {
+      ...base,
+      kind: 'course_project',
+      activityRunId: runId,
+      participation: { applicable: true, status: 'active', excused: false },
+    };
+    const snapshot = await new LearningCanonicalProjectionService(poolWith(evidence, evidence), {})
+      .forSeatCourseRuns(base.seatId, '2026-10-27T10:00:00.000Z');
+    expect(snapshot.courseProjectionsByRun.get(canonicalCourseParticipationKey(base.seatId, runId)))
+      .toBeNull();
+    expect(snapshot.participationByRun.has(canonicalCourseParticipationKey(base.seatId, runId)))
+      .toBe(false);
   });
 
   it('has an explicit reversible legacy cutover that bypasses canonical reads', async () => {

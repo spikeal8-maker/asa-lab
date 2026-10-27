@@ -62,6 +62,8 @@ export interface CourseParticipationProof {
 export interface CanonicalCourseLearnerSnapshot {
   projections: Map<string, CanonicalLearningProjection>;
   participationByRun: Map<string, CourseParticipationProof>;
+  /** Canonical results for individual runs, including siblings on a shared handout. */
+  courseProjectionsByRun: Map<string, CanonicalLearningProjection | null>;
 }
 
 export function canonicalCourseParticipationKey(seatId: string, activityRunId: string): string {
@@ -282,7 +284,8 @@ export class LearningCanonicalProjectionService {
   ): Promise<CanonicalCourseLearnerSnapshot> {
     const projections = new Map<string, CanonicalLearningProjection>();
     const participationByRun = new Map<string, CourseParticipationProof>();
-    if (!this.enabled()) return { projections, participationByRun };
+    const courseProjectionsByRun = new Map<string, CanonicalLearningProjection | null>();
+    if (!this.enabled()) return { projections, participationByRun, courseProjectionsByRun };
     const result = await this.pool.query<{ evidence: EvidenceRow }>(
       `SELECT evidence FROM ${functionCall}`,
       parameters,
@@ -292,17 +295,26 @@ export class LearningCanonicalProjectionService {
       projections.set(key, canonicalProjectionFromEvidence(evidence, key, asOf, audience));
       // Handout-keyed canonical state may collapse sibling Activity Runs.
       // Preserve every learner/Run participation independently of work origin.
-      if (evidence.activityRunId && evidence.participation) {
-        participationByRun.set(
-          canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId),
-          {
+      if (evidence.kind === 'course_project' && evidence.activityRunId && evidence.participation) {
+        const runKey = canonicalCourseParticipationKey(evidence.seatId, evidence.activityRunId);
+        if (courseProjectionsByRun.has(runKey)) {
+          // Multiple evidence rows for the same learner/run are ambiguous.
+          // Never choose one accepted result or exemption arbitrarily.
+          courseProjectionsByRun.set(runKey, null);
+          participationByRun.delete(runKey);
+        } else {
+          courseProjectionsByRun.set(
+            runKey,
+            canonicalProjectionFromEvidence(evidence, runKey, asOf, audience),
+          );
+          participationByRun.set(runKey, {
             classroomAssignmentId: evidence.classroomAssignmentId,
             applicable: evidence.participation.applicable === true,
             excused: evidence.participation.excused === true,
-          },
-        );
+          });
+        }
       }
     }
-    return { projections, participationByRun };
+    return { projections, participationByRun, courseProjectionsByRun };
   }
 }

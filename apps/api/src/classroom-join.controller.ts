@@ -102,6 +102,7 @@ interface AssignmentForSeatRow {
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
 type CourseParticipationMap = Map<string, CourseParticipationProof>;
+type CourseRunProjectionMap = Map<string, CanonicalLearningProjection | null>;
 
 function canonicalFor(
   projections: CanonicalProjectionMap,
@@ -249,15 +250,15 @@ function courseActivityOccurrenceMap(
   projections: CanonicalProjectionMap,
   origins?: OriginLearnerList,
   participationByRun: CourseParticipationMap = new Map(),
+  courseProjectionsByRun: CourseRunProjectionMap = new Map(),
 ) {
   const result = new Map<string, CourseActivityOccurrenceView[]>();
   for (const row of rows) {
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
-    const exactParticipation = participationByRun.get(
-      canonicalCourseParticipationKey(row.seat_id, row.activity_run_id),
-    );
+    const runKey = canonicalCourseParticipationKey(row.seat_id, row.activity_run_id);
+    const exactParticipation = participationByRun.get(runKey);
     const participation =
       exactParticipation?.classroomAssignmentId === row.classroom_assignment_id
         ? exactParticipation
@@ -272,7 +273,15 @@ function courseActivityOccurrenceMap(
           : participation.excused
             ? 'excused'
             : 'required';
-    const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
+    const canonicalRun = courseProjectionsByRun.get(runKey);
+    const exactRunCanonicalState =
+      participation !== null &&
+      canonicalRun?.state.provenance.classroomAssignmentId === row.classroom_assignment_id &&
+      canonicalRun.state.provenance.activityRunId === row.activity_run_id
+        ? canonicalRun.surface
+        : null;
+    const origin = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
+    const exact = origin?.classroomAssignmentId === row.classroom_assignment_id ? origin : null;
     const originPresent =
       origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id) ?? false;
     const modernScope =
@@ -287,6 +296,33 @@ function courseActivityOccurrenceMap(
     const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
     const exactNotStarted =
       row.project_id === null && !originPresent && row.not_started_visible === true;
+    let occurrenceCanonicalState: CanonicalLearningSurfaceState | null = null;
+    if (participation === null && courseProjectionsByRun.has(runKey)) {
+      // A conflicting run cannot borrow a sibling's handout result.
+      occurrenceCanonicalState = null;
+    } else if (exact) {
+      occurrenceCanonicalState = exact.canonicalState;
+    } else if (modernScope && exactRunCanonicalState !== null) {
+      // Only the academic state comes from the exact authorized run. Project
+      // bytes still require the existing independent origin/readability proof.
+      occurrenceCanonicalState = exactRunCanonicalState;
+    } else if (exactNotStarted) {
+      occurrenceCanonicalState = {
+        activityRunId: row.activity_run_id,
+        workflowState: 'not_started',
+        selectedResult: null,
+        flags: [],
+        learnerMessageCode: null,
+      };
+    } else if (
+      modernScope &&
+      ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
+        legacyAllowed) &&
+      !originPresent &&
+      canonicalState?.activityRunId === row.activity_run_id
+    ) {
+      occurrenceCanonicalState = canonicalState;
+    }
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
@@ -323,23 +359,7 @@ function courseActivityOccurrenceMap(
         : !legacyAllowed || row.work_updated_at === null
           ? null
           : isoDate(row.work_updated_at),
-      canonicalState:
-        exact?.canonicalState ??
-        (exactNotStarted
-          ? {
-              activityRunId: row.activity_run_id,
-              workflowState: 'not_started',
-              selectedResult: null,
-              flags: [],
-              learnerMessageCode: null,
-            }
-          : modernScope &&
-              ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
-                legacyAllowed) &&
-              !originPresent &&
-              canonicalState?.activityRunId === row.activity_run_id
-            ? canonicalState
-            : null),
+      canonicalState: occurrenceCanonicalState,
       workOriginAmbiguous,
     });
     result.set(key, values);
@@ -353,12 +373,14 @@ function seatCourseRuns(
   occurrenceRows: CourseActivityOccurrenceRow[] = [],
   origins?: OriginLearnerList,
   participationByRun: CourseParticipationMap = new Map(),
+  courseProjectionsByRun: CourseRunProjectionMap = new Map(),
 ) {
   const activityOccurrences = courseActivityOccurrenceMap(
     occurrenceRows,
     projections,
     origins,
     participationByRun,
+    courseProjectionsByRun,
   );
   const guardedLessonWork = new Set(
     occurrenceRows
@@ -1402,6 +1424,7 @@ export class ClassroomJoinController {
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
         canonicalSnapshot.participationByRun,
+        canonicalSnapshot.courseProjectionsByRun,
       ),
     };
   }
@@ -1597,6 +1620,7 @@ export class ClassroomJoinController {
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
         canonicalSnapshot.participationByRun,
+        canonicalSnapshot.courseProjectionsByRun,
       ),
     };
   }

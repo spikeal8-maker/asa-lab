@@ -114,6 +114,11 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       unstarted,
     ]);
     expect(lessonComplete(studentLesson)).toBe(false);
+    expect(lessonPracticeProgress(studentLesson)).toMatchObject({
+      total: 2,
+      completed: 0,
+      unavailable: 0,
+    });
     expect(courseCompletion([studentLesson])).toEqual({
       total: 1,
       completed: 0,
@@ -175,6 +180,11 @@ describe('LRN-UX-02 pinned mixed-lesson completion', () => {
       { blockId: '3d-block', workflow: 'completed', accepted: true } as const,
     ];
     expect(lessonComplete(mixedLesson(false, twoAccepted))).toBe(false);
+    expect(lessonPracticeProgress(mixedLesson(true, twoAccepted))).toMatchObject({
+      total: 2,
+      completed: 2,
+      unavailable: 0,
+    });
     expect(lessonComplete(mixedLesson(true, twoAccepted))).toBe(true);
     expect(courseCompletion([mixedLesson(true, twoAccepted)]).complete).toBe(true);
     const excused = mixedLesson(true, [accepted, { ...unstarted, excused: true }]);
