@@ -5,6 +5,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpException,
   Inject,
@@ -19,6 +20,7 @@ import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
 import { ComfyUiError, discoverComfyUi } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
+import { AiUsageUnavailable } from './ai-usage-journal.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
 function reject(code: string, message: string, status: number): never {
@@ -67,6 +69,9 @@ export class AiAdminController {
     try {
       return await call();
     } catch (problem) {
+      if (problem instanceof AiUsageUnavailable) {
+        return reject('ai_usage_unavailable', 'Не удалось загрузить данные использования ИИ.', 503);
+      }
       if (
         problem instanceof AiServiceError ||
         problem instanceof AiWebSearchError ||
@@ -81,6 +86,13 @@ export class AiAdminController {
       }
       throw problem;
     }
+  }
+
+  @Get('usage-overview')
+  @Header('Cache-Control', 'private, no-store')
+  async usageOverview(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.usageOverview(actor));
   }
 
   @Get('web-search')

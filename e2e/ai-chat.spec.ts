@@ -1725,6 +1725,7 @@ test('Platform admin saves a separate cloud key without exposing it to the page'
 }) => {
   await fixture(page);
   await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
   await page
     .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
     .getByRole('button', { name: /^OpenAI/ })
@@ -1856,6 +1857,7 @@ for (const width of [1440, 600, 390, 320]) {
       });
     });
     await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
     await page
       .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
       .getByRole('button', { name: /^OpenAI/ })

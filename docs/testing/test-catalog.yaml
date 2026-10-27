@@ -26,6 +26,37 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-USAGE-OVERVIEW-CORE-001
+    title: AI overview finite loading, honest token completeness, exact decimal sums and administrator-specific navigation
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-usage-overview.spec.ts apps/web/src/admin/testing/ai-usage-overview.spec.ts apps/web/src/admin/testing/ai-admin-navigation.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [vitest-report]
+  - id: TST-AI-USAGE-OVERVIEW-PG-001
+    title: Existing journal UTC aggregates, composite request identity, replay, null usage and real SQL/HTTP administrative authorization
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-usage-overview.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-USAGE-OVERVIEW-E2E-001
+    title: Built API/Web overview with real PostgreSQL metrics, compact height bounds, keyboard navigation, partial/empty/failure states and matching pre-density screenshots
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [playwright-report, ai-usage-overview-screenshots, safe-overview-summary, safe-density-measurements]
+
   - id: TST-AI-ATTACHMENTS-CORE-001
     title: Private bounded attachment bytes, native early errors and response lifetime, actual HTTP owner boundary, shared mutation proof and immutable embedded SQL receipts
     suite: authorization

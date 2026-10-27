@@ -220,8 +220,13 @@ const upgradeArtifacts = [
     '0b9a958ecd190cfd19f82fc5e6c9dabeeb9508f4d2de18214768b250f0c9bf38',
   ],
   [
-    '0268',
-    '0268_learning_course_academic_result_access.sql',
+    '0268', // Additive read-only AI usage overview.
+    '0268_ai_usage_overview.sql',
+    '8676a797ac6abca8138320f2f90b2751b45bfb3e4bea7153c005243b26bf3441',
+  ],
+  [
+    '0269',
+    '0269_learning_course_academic_result_access.sql',
     '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
   ],
 ] as const;
