@@ -576,7 +576,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: models_access_merged_main_installed_acceptance_pending
+      checkpoint: owner_admin_connections_repair_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -599,6 +599,30 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-ADMIN-CONNECTIONS-REPAIR
+          issue: 373
+          scope: owner-requested connection status, five-key layout and model eligibility hierarchy
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner reported unclear saved enablement, five Ollama Cloud keys hidden in oversized
+            collapsed rows, and ineligible models appearing in Settings. Select one bounded
+            repair: distinguish draft from confirmed provider status; make all five account/key
+            slots and model selectors discoverable and compact; configure provider eligibility
+            in Connections and show only eligible models in Settings, retaining a separate
+            user-visibility choice and authoritative server admission/CAS. Preserve credentials,
+            priority/failover, quotas and model identity. Test actual save/reload and hierarchy,
+            plus responsive light/dark layouts; no paid inference or live secret access.
+            Later bounded programme dependencies are existing PR816 context controls, PR830
+            search diagnostic, ComfyUI connection/help and prompt readability audit. Do not
+            import those product changes into this slice. No server/Docker/working DB update;
+            owner explicitly cancelled deployment and now authorizes source implementation.
         - id: ASAI-MERGE-BASELINE
           issue: 373
           scope: owner-approved separate CI baseline repair for AI main integration
