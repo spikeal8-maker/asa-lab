@@ -218,7 +218,8 @@ export class PublicScratchPlayerService {
     const issuedAt = this.now();
     const { SignJWT } = await import('jose');
     const runtimeToken = await new SignJWT({
-      ...binding,
+      publicationId: binding.publicationId,
+      revisionId: binding.revisionId,
       runtimeOrigin: config.runtimeOrigin,
       mode: 'public-player',
     })

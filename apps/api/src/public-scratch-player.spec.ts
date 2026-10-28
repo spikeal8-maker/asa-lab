@@ -57,6 +57,45 @@ function fixture() {
   };
 }
 describe('public Scratch player authority', () => {
+  it('projects a richer publication DTO to only public capability bindings', async () => {
+    const f = fixture();
+    const publication = {
+      ...f.binding,
+      title: 'Published Scratch',
+      projectId: randomUUID(),
+      tenantId: randomUUID(),
+    };
+    const bootstrap = await f.service.issue(publication);
+    const { decodeJwt } = await import('jose');
+    const payload = decodeJwt(bootstrap.runtimeToken);
+    expect(Object.keys(payload).sort()).toEqual(
+      [
+        'iss',
+        'aud',
+        'iat',
+        'nbf',
+        'exp',
+        'jti',
+        'publicationId',
+        'revisionId',
+        'mode',
+        'runtimeOrigin',
+      ].sort(),
+    );
+    const asset = await f.service.asset(
+      f.binding,
+      bootstrap.runtimeToken,
+      ORIGIN,
+      f.input.ref.assetId,
+      'svg',
+    );
+    try {
+      for await (const bytes of asset.body) expect(bytes).toEqual(f.input.bytes);
+    } finally {
+      asset.release();
+    }
+  });
+
   it('cancels unresolved object opens and admits fresh work after client abort', async () => {
     const f = fixture();
     const grant = await f.service.issue(f.binding);
