@@ -485,7 +485,9 @@ describe('participant completion DOM behavior', () => {
 
   it('previews edited upload metadata and retries an ambiguous response with the identical batch receipts', async () => {
     const data = profile();
-    data.merits = [{ id: 'merit-a', title: 'Мастер', description: '', granted: false }];
+    data.merits = [
+      { id: 'merit-a', title: 'Мастер', description: '', granted: false, grantedAt: null },
+    ];
     const props = { classroomId: 'class', seatId: 'seat-a', profile: data, onChanged: vi.fn() };
     vi.spyOn(avatarFiles, 'createAvatarDataUrl').mockResolvedValue('data:image/webp;base64,AA==');
     vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ close: vi.fn() }));
