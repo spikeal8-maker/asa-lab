@@ -1751,9 +1751,11 @@ test('Platform admin saves a separate cloud key without exposing it to the page'
   await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
   await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
   await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
-  await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toContainText(
-    'Ключ сохранён',
-  );
+  const selectedCard = page
+    .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+    .getByRole('button', { name: /^OpenAI/ });
+  await expect(selectedCard).toHaveAttribute('aria-pressed', 'true');
+  await expect(selectedCard).toContainText('Выключен · ключ сохранён');
   expect(await page.evaluate((value) => document.body.textContent?.includes(value), secret)).toBe(
     false,
   );

@@ -210,7 +210,7 @@ function AiAdminWorkspaceSession({
           id="ai-panel-connections"
           role="tabpanel"
           aria-labelledby="ai-tab-connections"
-          className="asa-ai-connections"
+          className="asa-ai-connections asa-ai-settings"
         >
           <div className="asa-ai-connections-heading">
             <h2>Подключения и API-ключи</h2>

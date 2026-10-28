@@ -528,12 +528,16 @@ for (const width of [1440, 1024, 390, 320]) {
     test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width} ${theme}`, async ({
       page,
     }) => {
-      await page.addInitScript((value) => localStorage.setItem('asa-ai-chat-theme', value), theme);
+      await page.emulateMedia({ colorScheme: theme === 'dark' ? 'dark' : 'light' });
       await page.setViewportSize({ width, height: 900 });
       const fake = await adminFixture(page);
       await openAdmin(page);
       await selectProvider(page, 'ollama-cloud');
       await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toHaveCSS(
+        'background-color',
+        theme === 'dark' ? 'rgb(32, 33, 35)' : 'rgb(255, 255, 255)',
+      );
       await expect(
         page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
       ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
@@ -602,6 +606,22 @@ for (const width of [1440, 1024, 390, 320]) {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       });
       await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}-${theme}.png`) });
+      const editor = keyCard.locator('.asa-cloud-key-editor');
+      await editor.scrollIntoViewIfNeeded();
+      await expect(editor).toBeVisible();
+      const keyControl = editor.getByLabel('API-ключ 1', { exact: true });
+      if (theme === 'dark')
+        await expect(keyControl).toHaveCSS('background-color', 'rgb(22, 22, 24)');
+      else await expect(keyControl).not.toHaveCSS('background-color', 'rgb(22, 22, 24)');
+      await expect(
+        keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }),
+      ).toBeChecked();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.screenshot({
+        path: test.info().outputPath(`ollama-cloud-editor-${width}-${theme}.png`),
+      });
       expect(fake.pageErrors).toEqual([]);
     });
   }

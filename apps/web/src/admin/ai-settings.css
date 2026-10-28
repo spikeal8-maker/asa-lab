@@ -1,4 +1,4 @@
-/* Settings opts into the existing Overview OS palette only while mounted.
+/* Connections and Settings opt into the existing Overview OS palette only while mounted.
  * All shell selectors require this panel; no saved or global theme state. */
 .asa-ai-settings {
   min-width: 0;
@@ -148,5 +148,29 @@
   }
   .asa-ai-settings .asa-cloud-error button {
     color: var(--primary);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .asa-ai-connections.asa-ai-settings
+    :is(
+      .asa-ai-connections-heading span,
+      .asa-ai-provider-hint,
+      .asa-ai-provider-card-status,
+      .asa-cloud-top span,
+      .asa-cloud-key-help,
+      .asa-cloud-limit,
+      .asa-cloud-more,
+      .asa-cloud-enabled
+    ) {
+    color: var(--muted);
+  }
+  .asa-ai-connections.asa-ai-settings :is(.asa-cloud-key-help a, .asa-ai-provider-card-top > span) {
+    color: var(--primary);
+  }
+  .asa-ai-connections.asa-ai-settings .asa-ai-provider-card.selected {
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--primary);
   }
 }

@@ -82,7 +82,36 @@ async function adminFixture(page: Page) {
         available: false,
       });
     if (path === '/api/auth/max/config') return json({ enabled: false, launchUrl: null });
-    if (path === '/api/admin/v1/ai') return json(aiAdminFixture());
+    if (path === '/api/admin/v1/ai')
+      return json(
+        aiAdminFixture({
+          provider: 'ollama-cloud',
+          model: 'gemma4:31b',
+          enabled: true,
+          apiKeyConfigured: true,
+          paidOperationsPerHour: 5,
+        }),
+      );
+    if (path === '/api/admin/v1/ai/ollama-cloud/keys' && request.method() === 'GET')
+      return json({
+        configurationVersion: 1,
+        managed: true,
+        models: [
+          { id: 'gemma4:31b', model: 'gemma4:31b', active: true, capabilities: ['completion'] },
+        ],
+        keys: [1, 2, 3, 4, 5].map((slot) => ({
+          slot,
+          label: 'Key ' + slot,
+          priority: slot,
+          enabled: slot === 1,
+          configured: slot === 1,
+          fingerprint: slot === 1 ? 'fixture-hash' : null,
+          models: slot === 1 ? ['gemma4:31b'] : [],
+          account: null,
+          blockedUntil: null,
+          unavailableModels: [],
+        })),
+      });
     if (path === '/api/admin/v1/ai/ollama')
       return json({
         enabled: false,
@@ -120,7 +149,7 @@ async function adminFixture(page: Page) {
       if (request.method() === 'PUT') {
         const body = request.postDataJSON();
         writes.push(body);
-        if (conflict)
+        if (conflict || body.configurationVersion !== policy.configurationVersion)
           return json({ error: { code: 'changed', message: 'private server detail' } }, 409);
         policy = {
           ...policy,
@@ -212,7 +241,20 @@ for (const width of [1440, 1024, 390, 320]) {
     await noOverflow(page);
     await normalView(page);
     await page.screenshot({ path: testInfo.outputPath(`prompt-${width}.png`), fullPage: true });
-    await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
+    // Confirm the prompt before navigating: pending edits must never be discarded implicitly.
+    await page.getByRole('button', { name: 'Сохранить промпт', exact: true }).click();
+    await expect(
+      page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
+    ).toBeVisible();
+    expect(fixture.writes[0]).toMatchObject({
+      configurationVersion: 3,
+      systemPrompt: expect.stringContaining('{{display_name}}'),
+    });
+    await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
+    await page
+      .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+      .getByRole('button', { name: /^Ollama Cloud/ })
+      .click();
     const cloudEligibility = page.getByRole('checkbox', {
       name: 'Разрешить у провайдера Gemma 4 31B · Ollama Cloud',
       exact: true,
@@ -221,6 +263,40 @@ for (const width of [1440, 1024, 390, 320]) {
       name: 'Показывать пользователям: Gemma 4 31B · Ollama Cloud',
       exact: true,
     });
+    await expect(cloudEligibility).toBeChecked();
+    await expect(cloudVisibility).toHaveCount(0);
+    await cloudEligibility.uncheck();
+    await page.getByRole('button', { name: 'Сохранить модели подключения', exact: true }).click();
+    await expect(
+      page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
+    ).toBeVisible();
+    expect(fixture.writes[1]).toMatchObject({
+      configurationVersion: 4,
+      defaultModel: 'deepseek-flash',
+      allowedModels: ['deepseek-flash'],
+      modelPreferences: expect.arrayContaining([{ id: 'gemma4:31b', eligible: false, order: 0 }]),
+    });
+    await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
+    await expect(cloudVisibility).toHaveCount(0);
+    await expect(
+      page
+        .getByRole('combobox', { name: 'Модель по умолчанию' })
+        .locator('option[value="gemma4:31b"]'),
+    ).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Подключения', exact: true }).click();
+    await expect(cloudEligibility).not.toBeChecked();
+    await cloudEligibility.check();
+    await page.getByRole('button', { name: 'Сохранить модели подключения', exact: true }).click();
+    await expect(
+      page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
+    ).toBeVisible();
+    expect(fixture.writes[2]).toMatchObject({
+      configurationVersion: 5,
+      defaultModel: 'deepseek-flash',
+      allowedModels: ['deepseek-flash'],
+      modelPreferences: expect.arrayContaining([{ id: 'gemma4:31b', eligible: true, order: 0 }]),
+    });
+    await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
     await expect(cloudEligibility).toHaveCount(0);
     await expect(cloudVisibility).not.toBeChecked();
     await cloudVisibility.check();
@@ -236,10 +312,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
     ).toBeVisible();
-    expect(fixture.writes[0]).toMatchObject({
+    expect(fixture.writes[3]).toMatchObject({
       defaultModel: 'gemma4:31b',
       allowedModels: ['gemma4:31b'],
-      configurationVersion: 3,
+      configurationVersion: 6,
       systemPrompt: expect.stringContaining('{{display_name}}'),
       requestId: expect.any(String),
     });
@@ -256,7 +332,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByText('Настройки сохранены. Поисковый запрос не выполнялся.'),
     ).toBeVisible();
-    expect(fixture.writes[1]).toMatchObject({
+    expect(fixture.writes[4]).toMatchObject({
       allowedDomains: ['example.org', 'наука.рф'],
       blockedDomains: ['ads.example.org'],
       weatherEnabled: true,
