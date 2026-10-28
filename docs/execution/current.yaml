@@ -90,7 +90,9 @@ parallel_lanes:
       issue: 843
       branch: main
       base_branch: main
-      pr: 842
+      pr: null
+      source_pr: 842
+      source_merge_sha: 414df125ef81fa6df0d2cff2e3ec7be5cb4be86e
       pr_draft: false
       status: in_progress
       checkpoint: prebackup_runtime_target_search_separation
