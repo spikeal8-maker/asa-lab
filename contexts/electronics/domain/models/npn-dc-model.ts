@@ -140,10 +140,9 @@ export function classifyNpnOperatingRegion(
   parameters: NpnParameters,
   operatingPoint: NpnOperatingPoint,
 ): NpnOperatingRegion {
-  if (
-    operatingPoint.baseEmitterDropVolt <
-    parameters.baseEmitterVoltageVolt - REGION_HYSTERESIS_VOLT
-  ) {
+  // A conducting base companion needs positive forward current, including
+  // when an earlier iteration was saturated.
+  if (operatingPoint.baseEmitterDropVolt <= parameters.baseEmitterVoltageVolt) {
     return 'cutoff';
   }
   if (
@@ -296,8 +295,7 @@ export const NPN_DEVICE_MODEL: IterativeDcDeviceModel<
     // evaluation and cannot persist across document changes.
     const region =
       state.region === 'saturation' &&
-      operatingPoint.baseEmitterDropVolt >=
-        parameters.baseEmitterVoltageVolt - REGION_HYSTERESIS_VOLT
+      operatingPoint.baseEmitterDropVolt > parameters.baseEmitterVoltageVolt
         ? 'saturation'
         : classified;
     const idealCollectorCurrentAmp =

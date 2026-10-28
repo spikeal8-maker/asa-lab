@@ -1,5 +1,10 @@
 # Arduino 1–4 display qualification — blocked before full matrix
 
+Electrical follow-up: the coupled diode/NPN defect below is corrected by the
+independently reviewed [819 repair evidence](../../evidence/diode-active-set-819/README.md).
+The original BEFORE receipts remain unchanged. Optical multiplex rendering,
+user functions and performance remain unqualified.
+
 This is a causal BEFORE checkpoint for Issue 817, not a functional example or
 approval of the requested twelve-case matrix. No production code was changed.
 Owner requests one Uno, 1/2/3/4 raw displays, genuine linear Blockly, linear text,

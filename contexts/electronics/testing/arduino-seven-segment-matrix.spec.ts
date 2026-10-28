@@ -32,7 +32,7 @@ describe('Arduino raw display bounded feasibility before qualification', () => {
       ),
     );
   });
-  it.each([1, 4] as const)(
+  it.each([1, 2, 3, 4] as const)(
     'measures the complete %i-display real NPN multiplex circuit',
     (count) => {
       const document = arduinoSevenSegmentMatrix(count);
@@ -74,8 +74,9 @@ describe('Arduino raw display bounded feasibility before qualification', () => {
           2,
         ),
       );
-      expect(actual.executionStatus).toBe('fault');
-      expect(quality.passed).toBe(false);
+      expect(actual.executionStatus, JSON.stringify(actual.diagnostics)).toBe('ready');
+      expect(actual.result?.quality.passed).toBe(true);
+      expect(quality.passed).toBe(true);
     },
   );
   it.each([1, 4] as const)('probes safe GPIO common-drive alternative for %i displays', (count) => {

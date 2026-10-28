@@ -12494,7 +12494,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point2_arduino_failures_confirmed_solver_repair_selected
+      checkpoint: remaining20_point2_electrical_cutoff_verified_optical_repair_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -12505,7 +12505,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-DIODE-ACTIVE-SET-001
+      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-OPTICAL-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -12514,7 +12514,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Directpupilcircuit815verified. Arduino817diagnostic602independentAPPROVE_NOTfeaturePASS confirmsunsupportedfunctions,3mAphysicalKCLfailure,instantaneousonlymultiplexoptics andwalllag. HIGHsolver819selectedfirst; functions/optics/performance andfullmatrixremainpending. Preserveforeignfields,no server orparallelheavytests. No wholepoint2orinstalledacceptanceclaim.
+      execution_coordination: Directpupil815verified. Electrical819candidate9c265independentAPPROVE199tests plusFIRSTcanonical2381tests71freshNxallcapsPASS,1to4NPNclocksREADY. Optical821selectednext. Userfunctions/performance/fullmatrixremainpending. GeneralCIseparate; no wholepoint2orinstalledacceptanceclaim. Foreignfields/serveruntouched, no parallelheavytests.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13845,11 +13845,16 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: phase2_selected_coupled_NPN_base_admission_after_bounded_STOP
+      checkpoint: independently_verified_coupled_cutoff_repair_ready_for_main
+      accepted_candidate_sha: 9c265e32d1548e98507a75cb83840c52fda938de
+      independent_review: APPROVE_exact9c265_199tests_including18immutablegoldens_and_same_before_after_inputs
+      accepted_evidence: docs/product/electronics/evidence/diode-active-set-819/README.md
+      technical_evidence: FIRSTcanonical2381tests71freshNxallcacheSkipped NX_SKIP_NX_CACHE=true. Allcaps166663of222000_1999997of2000000_initial552023of600000. Actual1_2_3_4NPNclockREADYqualitytrue maxKCL4.8e-11A source0; initialheld3.060306mAto2.5e-11A. No VCEmechanism/profile/version/quality/cadencechange.
+      residual_boundary: Electricalcutoffonly. Userfunctions_opticalmultiplex_performance_fullmatrixremainpending. MainCIpendingnotPASSclaim; no installedacceptance.
       preserved_partial_sha: 8f7027f797277eed427d8c12af89949d7c3e66e5
       phase1_result: WIP_NOT_READY exactkneediodecorrectionfixesoriginalheldKCL3mAto2.5e-11 and18immutablegoldensPASS. FourclockcasesstillFAILafter2msdueNPNbasebelowkneeactivation. No partialproductionmerge.
       phase2_authorization: ControllerselectsNEWboundedexecutorfornecessarycoupledNPNbaseadmissioninclassifyandsaturationlatch. IndependentcausalreviewconfirmsVBE0.693137below0.7stampnegative686uAobserved0. PreserveVCEsaturationmechanismandquality; no optics/functions/refactor/server.
@@ -13879,6 +13884,49 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-28T11:12:12Z'
       observation_note: Fresh fetch main before each edit. Actual817diagnostic602independentAPPROVEreproducedLEDactive_setnegativecompanioncurrents and3mAKCL. Preservealllegacyrawgoldenbytes, source/currentqualitythresholds andforeignfields. Functionsupport/opticalintegration/performance remainseparaterepairs.
+
+  - id: electronics-seven-segment-optical
+    parent_lane: electronics
+    worktree_id: electronics-seven-segment-optical
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-OPTICAL-001.md
+    task:
+      id: TASK-ELECTRONICS-SEVEN-SEGMENT-OPTICAL-001
+      issue: 821
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_explicit_opt_in_physical_segment_history_and_native_projection
+      owner_acceptance: pending
+      execution_role: bounded_optical_executor_then_new_independent_review
+      owner_authorization: Ownerrequestsfunctional1to4Arduinoindicators. Actual817fourdisplayelectricalscansshowonlyinstantaneousdigit. After819verifiedelectricalrepair, extendexistingcanonicalopticalpipelinewithphysicalperbranchhistoryandacknowledgedprojection. No runtimefunctionsorquality/cadence/thermalchanges.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-OPTICAL-001.md
+        - docs/product/electronics/evidence/diode-active-set-819/README.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 7f47c9e791b2858bffadab2ef6dd066e161d7662
+      convergence_baseline_sha: 7f47c9e791b2858bffadab2ef6dd066e161d7662
+      head_sha: null
+      observed_at: '2026-10-28T11:39:49Z'
+      observation_note: Fresh fetch main before each edit. Source819candidate9c265exactfocusedandindependentPASS. Optical821executesonlyafterthatcoupledelectricalsourceisinmain. PreserveoldobserveLedTemporalrawgoldenbyteswithnewoptin; runtimefunctions/performance separate. No server/foreignchanges.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
