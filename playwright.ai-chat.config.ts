@@ -9,7 +9,7 @@ export default defineConfig({
   testMatch: 'ai-*.spec.ts',
   // This suite uses mocked API responses. The real PostgreSQL + built API/Web
   // overview journey has its own playwright.ai-usage-overview.config.ts runner.
-  testIgnore: 'ai-usage-overview.spec.ts',
+  testIgnore: ['ai-usage-overview.spec.ts', 'ai-native-streaming-real.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,

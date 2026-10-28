@@ -36,11 +36,18 @@ name: ASA AI Chat Focused
       - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
       - 'playwright.ai-usage-overview.config.ts'
+      - 'playwright.ai-native-streaming.config.ts'
       - 'packages/contracts/src/ai-usage-overview.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/ai-chat-focused.yml'
   workflow_dispatch:
+    inputs:
+      streaming_source_baseline:
+        description: 'Run the isolated ASAI-15 source-baseline comparator once'
+        type: boolean
+        required: false
+        default: false
   pull_request:
     paths:
       - 'apps/api/src/ai-*'
@@ -73,6 +80,7 @@ name: ASA AI Chat Focused
       - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
       - 'playwright.ai-usage-overview.config.ts'
+      - 'playwright.ai-native-streaming.config.ts'
       - 'packages/contracts/src/ai-usage-overview.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -82,11 +90,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: asa-ai-chat-${{ github.head_ref || github.ref_name }}
+  group: asa-ai-chat-${{ github.head_ref || github.ref_name }}-${{ github.event_name == 'workflow_dispatch' && inputs.streaming_source_baseline == true && 'baseline' || 'candidate' }}
   cancel-in-progress: true
 
 jobs:
   focused:
+    if: github.event_name != 'workflow_dispatch' || inputs.streaming_source_baseline != true
     name: AI unit and API/Web types
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -120,6 +129,7 @@ jobs:
         run: pnpm exec nx run web:typecheck --skip-nx-cache
 
   database:
+    if: github.event_name != 'workflow_dispatch' || inputs.streaming_source_baseline != true
     name: AI real PostgreSQL isolation
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -167,6 +177,7 @@ jobs:
         run: pnpm exec vitest run tests/admin/ai-*.pg.spec.ts
 
   storage:
+    if: github.event_name != 'workflow_dispatch' || inputs.streaming_source_baseline != true
     name: AI real S3 attachment isolation
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -216,6 +227,7 @@ jobs:
         run: GITHUB_SHA="$ASA_AI_CANDIDATE_SHA" node tests/ai-attachments/minio-fixture.mjs stop
 
   browser:
+    if: github.event_name != 'workflow_dispatch' || inputs.streaming_source_baseline != true
     name: AI desktop and mobile browser
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -245,7 +257,8 @@ jobs:
           if-no-files-found: ignore
 
   usage-overview-browser:
-    name: AI usage overview real API and built Web
+    if: github.event_name != 'workflow_dispatch' || inputs.streaming_source_baseline != true
+    name: AI usage overview and native streaming real API and built Web
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -295,6 +308,8 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Real overview metrics, states, navigation and responsive screenshots
         run: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+      - name: ASAI-15 native streaming through built API and isolated PostgreSQL
+        run: pnpm exec playwright test --config playwright.ai-native-streaming.config.ts
       - name: Preserve safe exact-SHA overview evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -302,6 +317,14 @@ jobs:
           name: ai-usage-overview-${{ github.event.pull_request.head.sha || github.sha }}
           path: reports/playwright/ai-usage-overview/
           if-no-files-found: error
+          retention-days: 14
+      - name: Preserve safe native streaming browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-native-streaming-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/playwright/ai-native-streaming/
+          if-no-files-found: ignore
           retention-days: 14
 
   usage-overview-source-baseline:
@@ -385,5 +408,85 @@ jobs:
         with:
           name: ai-usage-before-density-8934e542-${{ github.event.pull_request.head.sha }}
           path: baseline/reports/playwright/ai-usage-overview/
+          if-no-files-found: error
+          retention-days: 14
+
+  streaming-source-baseline:
+    if: github.event_name == 'workflow_dispatch' && inputs.streaming_source_baseline == true
+    name: ASAI-15 pristine buffered source comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: baseline
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_ai_stream_before_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ai-stream-before-ci-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_ai_stream_before_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASAI_STREAM_EXPECT_BUFFERED: 'true'
+      ASA_BUILD_REVISION: 26c5a2cc3684fa16268058626e74a0ccf5ae2eaa
+      VITE_ASA_BUILD_REVISION: 26c5a2cc3684fa16268058626e74a0ccf5ae2eaa
+      TEST_DATABASE_URL: postgresql://postgres:ai-stream-before-ci-test@127.0.0.1:5432/asa_ai_stream_before_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:ai-stream-before-ci-test@127.0.0.1:5432/asa_ai_stream_before_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:ai-stream-before-ci-test@127.0.0.1:5432/asa_ai_stream_before_test
+      MIGRATION_EXPECT_DATABASE: asa_ai_stream_before_test
+      MIGRATION_CONFIRM: APPLY:asa_ai_stream_before_test
+    steps:
+      - name: Read candidate browser harness only
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Checkout unchanged source baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 26c5a2cc3684fa16268058626e74a0ccf5ae2eaa
+          path: baseline
+          persist-credentials: false
+      - name: Copy narrow harness without modifying baseline product
+        run: |
+          cp ../candidate/e2e/ai-native-streaming-real.spec.ts e2e/ai-native-streaming-real.spec.ts
+          cp ../candidate/playwright.ai-native-streaming.config.ts playwright.ai-native-streaming.config.ts
+          test "$(git rev-parse HEAD)" = "$ASA_BUILD_REVISION"
+          git diff --exit-code -- apps contexts packages migrations package.json pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: baseline/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Fresh disposable source-baseline database
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'ai-stream-before-ci-test'"
+      - name: Build pristine baseline API and Web
+        run: pnpm exec nx run-many -t build -p identity api web --skip-nx-cache
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Capture held first fragment from source baseline
+        run: pnpm exec playwright test --config playwright.ai-native-streaming.config.ts
+      - name: Preserve safe before sequence and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-native-streaming-before-26c5a2cc-${{ github.sha }}
+          path: baseline/reports/playwright/ai-native-streaming/
           if-no-files-found: error
           retention-days: 14

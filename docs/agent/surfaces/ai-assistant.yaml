@@ -32,14 +32,14 @@ surfaces:
   - id: SURF-AI-LOCAL-IMAGES
     routes: [/api/ai/image-generation/status, /api/admin/v1/ai/images, '/api/ai/threads/:threadId/image-generations', '/api/ai/threads/:threadId/image-generations/:requestId', '/api/ai/threads/:threadId/image-generations/:requestId/cancel', '/api/ai/threads/:threadId/image-generations/:requestId/image']
     implementation:
-      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
+      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, migrations/0270_ai_streamed_tool_prefix.sql, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
     invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-SESSION-001, AI-ADMISSION-001, AI-REPLAY-001, AI-USAGE-001]
     tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
     controls:
       - id: CTRL-AI-LOCAL-IMAGES
         label: Generate and recover a private local GPU image without replaying dispatch or exposing another owner
         change_class: L3_CRITICAL
-        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
+        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, migrations/0270_ai_streamed_tool_prefix.sql, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
         invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
         tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
 
@@ -175,14 +175,14 @@ surfaces:
   - id: SURF-AI-TEXT-HISTORY
     routes: ['#/ai', /api/ai/threads, '/api/ai/threads/:threadId/archive', '/api/ai/threads/:threadId/requests/:requestId', '/api/ai/threads/:threadId/regenerations/stream']
     implementation:
-      files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, migrations/0244_ai_usage_journal.sql, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/AiAnswerDownloads.tsx, apps/web/src/ai/ai-download.ts, apps/web/src/ai/ai-document-export.ts, apps/web/src/ai/AiHistoryAttachment.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
+      files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, migrations/0244_ai_usage_journal.sql, migrations/0270_ai_streamed_tool_prefix.sql, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/AiAnswerDownloads.tsx, apps/web/src/ai/ai-download.ts, apps/web/src/ai/ai-document-export.ts, apps/web/src/ai/AiHistoryAttachment.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
     invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-USAGE-001, AI-HISTORY-001, AI-VARIANT-001, AI-CONTENT-001]
     tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
     controls:
       - id: CTRL-AI-TEXT-HISTORY-VARIANT
         label: Search all own history, archive or restore without data loss and generate a separate source-bound paid answer
         change_class: L3_CRITICAL
-        files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, migrations/0244_ai_usage_journal.sql]
+        files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/api/src/account-verification.guard.ts, migrations/0228_ai_text_history.sql, migrations/0244_ai_usage_journal.sql, migrations/0270_ai_streamed_tool_prefix.sql]
         invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-USAGE-001, AI-HISTORY-001, AI-VARIANT-001]
         tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-PG-001]
       - id: CTRL-AI-TEXT-CONTENT

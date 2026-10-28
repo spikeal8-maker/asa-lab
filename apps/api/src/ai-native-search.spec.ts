@@ -1,8 +1,9 @@
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
-import { AiChatService } from './ai-chat.service';
+import { AiChatService, AiServiceError } from './ai-chat.service';
 import { imageSearchQueryAllowed } from './ai-web-search';
 import { AiWebSearchService } from './ai-web-search';
+import { AiImageError, type AiImageService } from './ai-image.service';
 import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 
 const OWNER = '11111111-1111-4111-8111-111111111111';
@@ -11,20 +12,29 @@ const REQUEST = '33333333-3333-4333-8333-333333333333';
 
 function fixture(
   mode: 'auto' | 'off',
-  tool: 'web_search' | 'image_search' | 'weather' = 'web_search',
+  tool: 'web_search' | 'image_search' | 'weather' | 'generate_image' = 'web_search',
   toolQuery = 'Казань новости',
   disabledTools: readonly ('web_search' | 'image_search' | 'weather')[] = [],
   weatherVariant: 'complete' | 'partial' | 'ambiguous' | 'future' = 'complete',
   toolsCapable = true,
   userPrompt = tool === 'weather' ? 'Какая погода сейчас в Казани?' : 'Найди факты',
+  firstPrefix = '',
+  firstRoundGate?: Promise<void>,
+  imageEnabled = false,
+  firstRoundUsesTool = true,
+  imageFailureAfterCommit = false,
+  completionReadFails = false,
 ) {
   let admitted = false;
   let answer: string | null = null;
+  let answerState = 'complete';
+  let imageCommitted = false;
   const calls: { sql: string; params: unknown[] }[] = [];
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
     const journal = aiUsageQueryFixture(sql);
     if (journal) return journal;
+    if (sql.includes('ai_tool_request_options')) return { rows: [{ value: true }] };
     if (sql.includes('to_regprocedure') && disabledTools.length) return { rows: [{ ready: true }] };
     if (sql.includes('ai_tool_policy_snapshot'))
       return {
@@ -130,7 +140,9 @@ function fixture(
     if (sql.includes('ai_web_search_claim')) return { rows: [{ status: 'ready' }] };
     if (sql.includes('ai_text_generation_context'))
       return { rows: [{ role: 'user', content: userPrompt }] };
-    if (sql.includes('ai_text_messages_page'))
+    if (sql.includes('ai_text_request_messages') && completionReadFails)
+      throw new Error('Completion read unavailable');
+    if (sql.includes('ai_text_messages_page') || sql.includes('ai_text_request_messages'))
       return {
         rows: answer
           ? [
@@ -139,13 +151,17 @@ function fixture(
                 role: 'assistant',
                 content: answer,
                 request_id: REQUEST,
-                state: 'complete',
+                state: answerState,
                 created_at: new Date(),
               },
             ]
           : [],
       };
-    if (sql.includes('ai_chat_finish')) answer = String(params[3]);
+    if (sql.includes('ai_chat_finish')) {
+      if (answer !== null) throw new Error('AI_THREAD_DENIED');
+      answer = String(params[3]);
+      answerState = String(params[4]);
+    }
     return { rows: [] };
   });
   const requests: { url: string; body?: Record<string, unknown> }[] = [];
@@ -162,14 +178,23 @@ function fixture(
     if (address.endsWith('/api/chat')) {
       const round = requests.filter((item) => item.url.endsWith('/api/chat')).length;
       const packet =
-        round === 1 && mode === 'auto' && toolsCapable && disabledTools.length < 3
+        round === 1 &&
+        mode === 'auto' &&
+        toolsCapable &&
+        disabledTools.length < 3 &&
+        firstRoundUsesTool
           ? {
               message: {
                 tool_calls: [
                   {
                     function: {
                       name: tool,
-                      arguments: tool === 'weather' ? { city: 'Казань' } : { query: toolQuery },
+                      arguments:
+                        tool === 'weather'
+                          ? { city: 'Казань' }
+                          : tool === 'generate_image'
+                            ? { prompt: toolQuery, size: 512, model: 'flux2-klein-4b-v1' }
+                            : { query: toolQuery },
                     },
                   },
                 ],
@@ -186,7 +211,25 @@ function fixture(
               eval_count: 5,
               model: 'fixture:8b',
             };
-      return new Response(JSON.stringify(packet) + '\n');
+      const prefixFrames =
+        round === 1 && firstPrefix
+          ? (firstPrefix.match(/[\s\S]{1,8000}/gu) ?? []).map(
+              (content) => JSON.stringify({ message: { content }, done: false }) + '\n',
+            )
+          : [];
+      if (round === 1 && firstRoundGate)
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            async start(controller) {
+              const encoder = new TextEncoder();
+              for (const frame of prefixFrames) controller.enqueue(encoder.encode(frame));
+              await firstRoundGate;
+              controller.enqueue(encoder.encode(JSON.stringify(packet) + '\n'));
+              controller.close();
+            },
+          }),
+        );
+      return new Response(prefixFrames.join('') + JSON.stringify(packet) + '\n');
     }
     if (address.includes('/search?'))
       return new Response(
@@ -196,25 +239,297 @@ function fixture(
       );
     throw new Error('Unexpected network request: ' + address);
   });
-  const service = new AiChatService({ query } as unknown as pg.Pool, { fetchImpl });
+  const imageCalls: unknown[][] = [];
+  const images = imageEnabled
+    ? ({
+        nativeSchemaReady: async () => true,
+        status: async () => ({ enabled: true, ready: true, remainingToday: 1, sizes: [512] }),
+        toolContext: async () => [],
+        replayTool: async () => (imageCommitted ? { requestId: 'image-job' } : null),
+        createFromTool: async (...args: unknown[]) => {
+          imageCalls.push(args);
+          answer = String(args[6]) + '\n\nЗадание на создание изображения принято.';
+          imageCommitted = true;
+          if (imageFailureAfterCommit)
+            throw new AiImageError(
+              'ai_image_post_admission',
+              503,
+              'Задание принято, но чтение состояния не удалось.',
+            );
+          return { requestId: 'image-job' };
+        },
+      } as unknown as AiImageService)
+    : undefined;
+  const service = new AiChatService({ query } as unknown as pg.Pool, { fetchImpl, images });
   const deltas: string[] = [];
-  const send = () =>
+  const send = (signal = new AbortController().signal) =>
     service.sendStream(
       OWNER,
       THREAD,
       userPrompt,
       REQUEST,
       (chunk) => deltas.push(chunk),
-      new AbortController().signal,
+      signal,
       undefined,
       undefined,
       [],
       mode,
+      undefined,
+      imageEnabled ? { mode: 'auto', size: 512 } : undefined,
     );
-  return { service, send, calls, requests, fetchImpl, deltas };
+  return { service, send, calls, requests, fetchImpl, deltas, imageCalls };
 }
 
 describe('native local internet tools', () => {
+  it('streams and saves visible text before a web tool call', async () => {
+    const f = fixture(
+      'auto',
+      'web_search',
+      'Казань новости',
+      [],
+      'complete',
+      true,
+      'Найди факты',
+      'Нашёл источники. ',
+    );
+    await f.send();
+    expect(f.deltas).toEqual(['Нашёл источники. ', 'Ответ по источнику']);
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Нашёл источники. Ответ по источнику',
+    );
+  });
+
+  it('exposes the first delta before the first Ollama round has completed', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const f = fixture(
+      'auto',
+      'web_search',
+      'Казань новости',
+      [],
+      'complete',
+      true,
+      'Найди факты',
+      'Начало. ',
+      gate,
+    );
+    let settled = false;
+    const pending = f.send().then((result) => {
+      settled = true;
+      return result;
+    });
+    try {
+      await vi.waitFor(() => expect(f.deltas).toEqual(['Начало. ']));
+      expect(settled).toBe(false);
+    } finally {
+      release();
+    }
+    await pending;
+    expect(f.deltas).toEqual(['Начало. ', 'Ответ по источнику']);
+  });
+
+  it('streams an offered-but-unused tool response before terminal and saves it once', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const f = fixture(
+      'auto',
+      'web_search',
+      'Казань новости',
+      [],
+      'complete',
+      true,
+      'Напиши код',
+      'const a = 1;\n',
+      gate,
+      false,
+      false,
+    );
+    const pending = f.send();
+    try {
+      await vi.waitFor(() => expect(f.deltas).toEqual(['const a = 1;\n']));
+      expect(f.calls.some((item) => item.sql.includes('ai_chat_finish'))).toBe(false);
+    } finally {
+      release();
+    }
+    await pending;
+    expect(f.deltas.join('')).toBe('const a = 1;\nОтвет по источнику');
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      f.deltas.join(''),
+    );
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
+    expect(f.requests[0]?.body?.tools).toBeDefined();
+  });
+
+  it('preserves an untruncated local answer when tools are off', async () => {
+    const code = 'let answer = 1;\n'.repeat(5000);
+    const f = fixture('off', 'web_search', 'unused', [], 'complete', true, 'Напиши код', code);
+    await f.send();
+    expect(f.deltas.join('')).toBe(code + 'Ответ по источнику');
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      f.deltas.join(''),
+    );
+  });
+
+  it('preserves a long native tool prefix without the old 65,536-character truncation', async () => {
+    const code = 'const value = 12345;\n'.repeat(4000);
+    const f = fixture(
+      'auto',
+      'web_search',
+      'Казань новости',
+      [],
+      'complete',
+      true,
+      'Напиши код',
+      code,
+    );
+    await f.send();
+    expect(f.deltas.join('')).toBe(code + 'Ответ по источнику');
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      f.deltas.join(''),
+    );
+  });
+
+  it('keeps a stopped first-round prefix in canonical history and replays without another model call', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const f = fixture(
+      'auto',
+      'web_search',
+      'Казань новости',
+      [],
+      'complete',
+      true,
+      'Найди факты',
+      'Частичный текст',
+      gate,
+    );
+    const controller = new AbortController();
+    const pending = f.send(controller.signal);
+    try {
+      await vi.waitFor(() => expect(f.deltas).toEqual(['Частичный текст']));
+      controller.abort();
+    } finally {
+      release();
+    }
+    const result = await pending;
+    expect(result.stopped).toBe(true);
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params).toContain(
+      'stopped',
+    );
+    expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]).toBe(
+      'Частичный текст',
+    );
+    const before = f.fetchImpl.mock.calls.length;
+    expect((await f.send()).replayed).toBe(true);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(before);
+  });
+
+  it('streams a visible image-tool prefix and the atomic admission acknowledgement once', async () => {
+    const f = fixture(
+      'auto',
+      'generate_image',
+      'A detailed forest',
+      [],
+      'complete',
+      true,
+      'Нарисуй лес',
+      'Создам изображение.',
+      undefined,
+      true,
+    );
+    const result = await f.send();
+    expect(f.imageCalls).toHaveLength(1);
+    expect(f.imageCalls[0]?.[6]).toBe('Создам изображение.');
+    expect(result.imageJob?.requestId).toBe('image-job');
+    expect(f.deltas).toEqual([
+      'Создам изображение.',
+      '\n\nЗадание на создание изображения принято.',
+    ]);
+    expect(result.messages.find((message) => message.role === 'assistant')?.content).toBe(
+      f.deltas.join(''),
+    );
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
+  });
+
+  it('does not re-finish an atomically committed image parent when a later image read fails', async () => {
+    const f = fixture(
+      'auto',
+      'generate_image',
+      'A detailed forest',
+      [],
+      'complete',
+      true,
+      'Нарисуй лес',
+      'Создам изображение.',
+      undefined,
+      true,
+      true,
+      true,
+    );
+    await expect(f.send()).rejects.toMatchObject({ code: 'ai_image_post_admission' });
+    expect(f.calls.filter((item) => item.sql.includes('ai_chat_finish'))).toHaveLength(0);
+    const before = f.fetchImpl.mock.calls.length;
+    const replay = await f.send();
+    expect(replay.replayed).toBe(true);
+    expect(replay.imageJob?.requestId).toBe('image-job');
+    expect(replay.messages.find((item) => item.role === 'assistant')?.content).toBe(
+      'Создам изображение.\n\nЗадание на создание изображения принято.',
+    );
+    expect(f.imageCalls).toHaveLength(1);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(before);
+  });
+
+  it('preserves the original post-admission error when the completion receipt is temporarily unreadable', async () => {
+    const f = fixture(
+      'auto',
+      'generate_image',
+      'A detailed forest',
+      [],
+      'complete',
+      true,
+      'Нарисуй лес',
+      'Создам изображение.',
+      undefined,
+      true,
+      true,
+      true,
+      true,
+    );
+    await expect(f.send()).rejects.toMatchObject({ code: 'ai_image_post_admission' });
+    expect(
+      f.calls.filter(
+        (item) => item.sql.includes('ai_chat_finish') || item.sql.includes('ai_chat_abort'),
+      ),
+    ).toHaveLength(0);
+    expect(f.calls.filter((item) => item.sql.includes('ai_usage_finish'))).toHaveLength(0);
+  });
+
+  it('keeps an ordinary completed answer if usage finalization subsequently throws', async () => {
+    const f = fixture('off');
+    const usage = (
+      f.service as unknown as { usage: { finish: (...args: unknown[]) => Promise<void> } }
+    ).usage;
+    const finish = vi
+      .spyOn(usage, 'finish')
+      .mockRejectedValueOnce(new AiServiceError('ai_usage_post_finish', 503, 'usage failed'));
+    await expect(f.send()).rejects.toMatchObject({ code: 'ai_usage_post_finish' });
+    expect(f.calls.filter((item) => item.sql.includes('ai_chat_finish'))).toHaveLength(1);
+    expect(finish).toHaveBeenCalledTimes(2);
+    expect(finish.mock.calls[1]?.[2]).toBe('succeeded');
+    const before = f.fetchImpl.mock.calls.length;
+    const replay = await f.send();
+    expect(replay.replayed).toBe(true);
+    expect(replay.messages.find((item) => item.role === 'assistant')?.content).toBe(
+      'Ответ по источнику',
+    );
+    expect(f.fetchImpl).toHaveBeenCalledTimes(before);
+  });
   it('admits once, calls web search once, persists evidence, follows up once and replays without network', async () => {
     const f = fixture('auto');
     const first = await f.send();
@@ -330,6 +645,25 @@ describe('native local internet tools', () => {
     const networkCalls = f.fetchImpl.mock.calls.length;
     expect((await f.send()).replayed).toBe(true);
     expect(f.fetchImpl).toHaveBeenCalledTimes(networkCalls);
+  });
+
+  it('keeps a streamed weather-tool prefix in the canonical deterministic forecast answer', async () => {
+    const f = fixture(
+      'auto',
+      'weather',
+      'Казань',
+      [],
+      'complete',
+      true,
+      'Какая погода сейчас в Казани?',
+      'Проверяю прогноз. ',
+    );
+    await f.send();
+    const saved = String(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params[3]);
+    expect(f.deltas[0]).toBe('Проверяю прогноз. ');
+    expect(f.deltas.join('')).toBe(saved);
+    expect(saved).toContain('Проверяю прогноз. \n\n🌡 Казань');
+    expect(f.requests.filter((item) => item.url.endsWith('/api/chat'))).toHaveLength(1);
   });
 
   it('omits absent weather measures instead of inventing zeros', async () => {
