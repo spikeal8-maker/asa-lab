@@ -7051,8 +7051,8 @@ parallel_lanes:
       issue: 834
       branch: codex/publication-electronics-gate-baseline-20261028
       base_branch: main
-      status: in_progress
-      checkpoint: readonly_container_report_path_repair_selected
+      status: done
+      checkpoint: report_fix_accepted_in_PR826_general_40717386887
       kind: maintenance
       risk: medium
       semantic_change: 'no'
@@ -7177,48 +7177,54 @@ parallel_lanes:
         owner_acceptance: pending
         deployment: not_run
         evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
+      - task_id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
+        issue: 211
+        pr: 826
+        accepted_candidate_sha: 068e48bdc0095c1ae6445a3f08924f3ed4091872
+        integrated_sha: 5638358526d255886380fb52a3f8a1ebbc6d6db4
+        independent_review: approved
+        exact_candidate_focused_run: 40717387188
+        exact_candidate_general_run: 40717386887
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        evidence: docs/product/projects/evidence/student-policy-20261028-acceptance.md
     task:
-      id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
+      id: TASK-PROJ-ACQUISITION-CONTROLS-001
       issue: 211
       branch: main
-      candidate_branch: codex/student-publication-policy-20261028
+      candidate_branch: codex/public-project-acquisition-controls-20261028
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: class_and_seat_publication_download_policy_selected
+      checkpoint: global_author_and_student_acquisition_controls_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Owner commissioned three ordered results: finish official Scratch player and Main,
-        finish likes/downloads with class and individual StudentSeat permissions, then update
-        the existing site and verify save/reopen. Step one is accepted in PR814/Main06df71f2.
-        Select one bounded prerequisite for step two under PROJ-STUDENT-PUBLICATION-POLICY.md:
-        audited teacher-managed class download/publish flags (default false), independent
-        per-Seat inherit/allow/deny overrides, effective server admission and actual safe
-        Seat publishing through the current immutable publication writer. Reuse existing
-        Account/StudentSeat/class and teacher authority; do not create accounts for pupils.
-        Owner explicitly chose on 2026-10-28 that disabling publishing prevents new publish
-        and republish but leaves existing publications available. Viewing and future likes
-        do not depend on these toggles. Preserve protected Learning/assignment sources,
-        personal Account independence, current moderation/revoke/read boundaries and Games.
-        This slice does not implement export archives or reactions; the controller continues
-        those dependent slices after acceptance. Preserve the compact page accepted in PR814.
-        One author, independent Code/Security review, exact real PG/API/browser and General
-        before ordinary Main integration. No working database or deployment in this slice.
-        The owner separately authorized the final guarded production update after all steps;
-        that authorization is not revoked by this source-only slice boundary.
+        Continue the owner-commissioned publication programme after accepted PR826.
+        Owner clarified that download means both adding a personal project copy and
+        physically exporting a file. Global admin OFF overrides every Account/teacher/
+        StudentSeat and direct API. Class/Seat permissions cannot bypass it. Owner
+        approved author consent default OFF including old publications. DEC121 records
+        these decisions. Select one bounded slice: global/author controls and existing
+        native Electronics/3D public-domain copy for Account and allowed StudentSeat,
+        using canonical immutable source and Project writer, with real edit/save/reopen.
+        No second Account, Games, solver, AI, native export or like implementation in
+        this slice. One new author, independent exact Code/Security, real PG/browser
+        focused and General before Main. Controller continues remaining dependencies
+        after acceptance. Final guarded working-site update remains owner-authorized;
+        no working server/database actions in this source-only slice.
       context_hints:
-        - docs/product/projects/tasks/PROJ-STUDENT-PUBLICATION-POLICY.md
+        - docs/product/projects/tasks/PROJ-ACQUISITION-CONTROLS.md
         - docs/product/projects/DECISION_LEDGER.md
         - docs/agent/contracts/identity.yaml
-        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
       - id: TASK-ELECTRONICS-REPORT-BASELINE-001
-        status: in_progress
+        status: done
         branch: codex/publication-electronics-gate-baseline-20261028
         issue: 817
         scope:
