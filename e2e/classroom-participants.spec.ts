@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page, type Response } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedLegacyTeacherIdentity, seedTeacher, type SeededTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
@@ -62,14 +62,20 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
   const seatId = roster.items.find((s) => s.displayLabel === 'Анна Участница')!.id;
   const peerSeatId = roster.items.find((s) => s.displayLabel === 'Борис Участник')!.id;
   expect(peerSeatId).not.toBe(seatId);
+  const peerRow = page.getByRole('row').filter({ hasText: 'Борис Участник' });
+  await peerRow.locator('.classroom-login-handle').click();
+  const peerCode = (await peerRow.locator('.classroom-login-handle').innerText()).trim();
   await page.locator('.classroom-code-chip').click();
   const shareCode = (await page.locator('.classroom-code-chip').innerText()).trim();
+  const loginSeat = async (learner: Page, seatCode = code) => {
+    await learner.goto(`/#/join-class?code=${encodeURIComponent(shareCode)}`);
+    await learner.getByLabel('Код ученика', { exact: true }).fill(seatCode);
+    await learner.getByRole('button', { name: 'Войти', exact: true }).click();
+  };
   const studentContext = await browser.newContext();
   try {
     const student = await studentContext.newPage();
-    await student.goto(`/#/join-class?code=${encodeURIComponent(shareCode)}`);
-    await student.getByLabel('Код ученика', { exact: true }).fill(code);
-    await student.getByRole('button', { name: 'Войти', exact: true }).click();
+    await loginSeat(student);
     const createMenu = student.locator('.portal-header .portal-quick-create');
     await createMenu.locator('> summary').click();
     const createdProject = student.waitForResponse(
@@ -158,6 +164,36 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     const writePath = (targetClassId = classId) =>
       `/api/classrooms/${targetClassId}/participants/actions/builtin_grant`;
     const origin = new URL(page.url()).origin;
+    type Merit = {
+      id: string;
+      title: string;
+      description: string;
+      granted: boolean;
+      grantedAt: string | null;
+    };
+    let customMeritId = '';
+    const meritWritePath = (targetClassId = classId) =>
+      `/api/classrooms/${targetClassId}/participants/actions/merit_grant`;
+    const readMerits = async (targetClassId = classId, targetSeatId = seatId) => {
+      const response = await page.request.get(
+        `/api/classrooms/${targetClassId}/participants/${targetSeatId}/profile`,
+      );
+      expect(response.status(), await response.text()).toBe(200);
+      return ((await response.json()) as { merits: Merit[] }).merits;
+    };
+    const readMeritGrants = async (seats: readonly string[] = [seatId]) =>
+      (
+        await admin.query<{
+          seat_id: string;
+          merit_id: string;
+          granted_by: string;
+          granted_at: Date;
+        }>(
+          `SELECT seat_id,merit_id,granted_by,granted_at FROM classroom_custom_merit_grants
+           WHERE seat_id=ANY($1::uuid[]) ORDER BY seat_id,merit_id`,
+          [seats],
+        )
+      ).rows;
     const readAwards = async (targetClassId = classId, targetSeatId = seatId) => {
       const response = await page.request.get(awardPath(targetClassId, targetSeatId));
       expect(response.status(), await response.text()).toBe(200);
@@ -170,30 +206,48 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       targetClassId = classId,
       targetSeatId = seatId,
       watched: ReadonlyArray<readonly [string, string]> = [[classId, seatId]],
+      targetMeritId = customMeritId,
+      actions: readonly ('builtin_grant' | 'merit_grant')[] = ['builtin_grant', 'merit_grant'],
     ) => {
-      const snapshot = () =>
-        Promise.all(
+      const snapshot = async () => ({
+        awards: await Promise.all(
           watched.map(([watchedClassId, watchedSeatId]) =>
             readAwards(watchedClassId, watchedSeatId),
           ),
-        );
-      for (const granted of [true, false]) {
-        const before = await snapshot();
-        const denied = await requester.post(writePath(targetClassId), {
-          headers: { origin },
-          data: {
-            requestId: randomUUID(),
-            seatId: targetSeatId,
-            awardKey,
-            granted,
-            note: granted ? awardNote : null,
-          },
-        });
-        expect(
-          denied.status(),
-          `${context}: ${granted ? 'grant' : 'revoke'}: ${await denied.text()}`,
-        ).toBe(expectedStatus);
-        expect(await snapshot()).toEqual(before);
+        ),
+        merits: await Promise.all(watched.map(([c, s]) => readMerits(c, s))),
+        grants: await readMeritGrants(watched.map(([, s]) => s)),
+      });
+      for (const action of actions) {
+        for (const granted of [true, false]) {
+          const before = await snapshot();
+          const denied = await requester.post(
+            action === 'builtin_grant' ? writePath(targetClassId) : meritWritePath(targetClassId),
+            {
+              headers: { origin },
+              data:
+                action === 'builtin_grant'
+                  ? {
+                      requestId: randomUUID(),
+                      seatId: targetSeatId,
+                      awardKey,
+                      granted,
+                      note: granted ? awardNote : null,
+                    }
+                  : {
+                      requestId: randomUUID(),
+                      seatId: targetSeatId,
+                      id: targetMeritId,
+                      granted,
+                    },
+            },
+          );
+          expect(
+            denied.status(),
+            `${context}: ${action} ${granted ? 'grant' : 'revoke'}: ${await denied.text()}`,
+          ).toBe(expectedStatus);
+          expect(await snapshot()).toEqual(before);
+        }
       }
     };
     const awardGrid = page.getByTestId('seat-award-grid');
@@ -340,6 +394,193 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await expect(badgeButton).toHaveAttribute('aria-pressed', 'true');
     await expect(badgeButton).toContainText(awardNote);
 
+    await page.getByLabel('Название заслуги').fill('Мастер класса');
+    await page.getByLabel('Описание', { exact: true }).fill('Аккуратная работа');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveAccessibleName('Описание');
+    const refreshProfile = async () => {
+      const refreshedProfile = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().endsWith(`/classrooms/${classId}/participants/${seatId}/profile`),
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      expect((await refreshedProfile).ok()).toBe(true);
+    };
+    await refreshProfile();
+    await expect(page.getByLabel('Название заслуги')).toHaveValue('Мастер класса');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveValue('Аккуратная работа');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveAccessibleName('Описание');
+    const meritCreated = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith(`/api/classrooms/${classId}/participants/actions/merit`),
+    );
+    await page.getByRole('button', { name: 'Создать заслугу' }).click();
+    const createdMerit = await meritCreated;
+    expect(createdMerit.status(), await createdMerit.text()).toBe(201);
+    customMeritId = ((await createdMerit.json()) as { id: string }).id;
+    expect(customMeritId).toMatch(/^[0-9a-f-]{36}$/);
+    const teacherPrincipal = await admin.query<{ principal_id: string }>(
+      'SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [teacher.tenantId, teacher.teacherId],
+    );
+    expect(teacherPrincipal.rows).toHaveLength(1);
+    const teacherActor = teacherPrincipal.rows[0]!.principal_id;
+    const expectMeritReceipt = async (response: Response, granted: boolean) => {
+      expect(response.status(), await response.text()).toBe(201);
+      const input = response.request().postDataJSON() as { requestId: string };
+      expect(input).toEqual({ requestId: expect.any(String), seatId, id: customMeritId, granted });
+      const result = await response.json();
+      expect(result).toEqual({ saved: true });
+      const receipt = await admin.query<{ payload: unknown; result: unknown }>(
+        `SELECT payload,result FROM classroom_participant_receipts
+         WHERE classroom_id=$1 AND actor_id=$2 AND request_id=$3`,
+        [classId, teacherActor, input.requestId],
+      );
+      expect(receipt.rows).toHaveLength(1);
+      expect(receipt.rows[0]!.payload).toEqual({ action: 'merit_grant', input });
+      expect(receipt.rows[0]!.result).toEqual(result);
+      const grants = (await readMeritGrants()).filter((g) => g.merit_id === customMeritId);
+      const merits = await readMerits();
+      const persistedMerit = merits.find((m) => m.id === customMeritId);
+      expect(persistedMerit).toMatchObject({
+        id: customMeritId,
+        title: 'Мастер класса',
+        description: 'Аккуратная работа',
+        granted,
+      });
+      if (granted) {
+        expect(grants).toHaveLength(1);
+        expect(grants[0]).toMatchObject({
+          seat_id: seatId,
+          merit_id: customMeritId,
+          granted_by: teacherActor,
+        });
+        expect(Number.isFinite(grants[0]!.granted_at.getTime())).toBe(true);
+        expect(Date.parse(persistedMerit!.grantedAt!)).toBe(grants[0]!.granted_at.getTime());
+      } else {
+        expect(grants).toEqual([]);
+        expect(persistedMerit!.grantedAt).toBeNull();
+      }
+      return persistedMerit!;
+    };
+    const merit = page.locator('.participant-merits li').filter({ hasText: 'Мастер класса' });
+    const meritGranted = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith(meritWritePath()),
+    );
+    await merit.getByRole('button', { name: 'Выдать', exact: true }).click();
+    const savedMerit = await expectMeritReceipt(await meritGranted, true);
+    await expect(merit.getByRole('button', { name: 'Отозвать', exact: true })).toBeVisible();
+
+    const reopenMerits = async () => {
+      await page.reload();
+      await page
+        .getByRole('row')
+        .filter({ hasText: 'Анна Участница' })
+        .locator('.classroom-student-name')
+        .click();
+      await page
+        .getByRole('navigation', { name: 'Разделы профиля' })
+        .getByRole('button', { name: 'Заслуги', exact: true })
+        .click();
+    };
+    await reopenMerits();
+    await expect(merit.getByRole('button', { name: 'Отозвать', exact: true })).toBeVisible();
+    expect((await readMerits()).find((m) => m.id === customMeritId)).toEqual(savedMerit);
+
+    const expectLearnerMerit = async (learner: Page, hasMerit: boolean, expectedSeat = seatId) => {
+      const ownResponse = await learner.request.get('/api/class-join/participants/me');
+      expect(ownResponse.status(), await ownResponse.text()).toBe(200);
+      const ownProfile = (await ownResponse.json()) as {
+        metrics: { seatId: string };
+        merits: Merit[];
+      };
+      expect(ownProfile.metrics.seatId).toBe(expectedSeat);
+      expect(ownProfile.merits.filter((m) => m.id === customMeritId)).toEqual(
+        hasMerit ? [savedMerit] : [],
+      );
+      const summary = learner.getByRole('region', { name: 'Мои показатели' });
+      await expect(summary).toBeVisible();
+      await expect(summary.getByRole('status')).toHaveCount(0);
+      await expect(summary.getByRole('alert')).toHaveCount(0);
+      const ownMerit = summary
+        .locator('.participant-merits li')
+        .filter({ hasText: 'Мастер класса' });
+      if (hasMerit) {
+        await expect(ownMerit).toHaveCount(1);
+        await expect(ownMerit).toContainText('Аккуратная работа');
+        await expect(ownMerit.getByText('Выдана', { exact: true })).toBeVisible();
+      } else {
+        await expect(ownMerit).toHaveCount(0);
+      }
+      await expect(summary.getByRole('button', { name: 'Выдать', exact: true })).toHaveCount(0);
+      await expect(summary.getByRole('button', { name: 'Отозвать', exact: true })).toHaveCount(0);
+    };
+    const studentMeritPage = await studentContext.newPage();
+    const expectMeritAfterReloadAndLogin = async (hasMerit: boolean) => {
+      // Re-enter from a new document: the same hash URL can retain the pre-revoke DOM.
+      await studentMeritPage.goto('about:blank');
+      const browserProfile = studentMeritPage.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().endsWith('/api/class-join/participants/me'),
+      );
+      await studentMeritPage.goto('/#/learning?view=results');
+      expect((await browserProfile).status()).toBe(200);
+      await expectLearnerMerit(studentMeritPage, hasMerit);
+      await studentMeritPage.reload();
+      await expectLearnerMerit(studentMeritPage, hasMerit);
+      const freshContext = await browser.newContext();
+      try {
+        const fresh = await freshContext.newPage();
+        await loginSeat(fresh);
+        await fresh.goto('/#/learning?view=results');
+        await expectLearnerMerit(fresh, hasMerit);
+        await fresh.screenshot({
+          path: `${evidence}/custom-merit-${hasMerit ? 'granted' : 'revoked'}-relogin.png`,
+        });
+      } finally {
+        await freshContext.close();
+      }
+    };
+    await expectMeritAfterReloadAndLogin(true);
+
+    // A teacher sees the class catalogue for the peer, but never the other seat's grant.
+    await page.getByRole('button', { name: 'Выбрать ученика: Анна Участница' }).click();
+    await page
+      .getByRole('dialog', { name: 'Ученики класса' })
+      .getByRole('button', { name: 'Борис Участник' })
+      .click();
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Заслуги', exact: true })
+      .click();
+    await expect(merit.getByRole('button', { name: 'Выдать', exact: true })).toBeVisible();
+    expect(
+      (await readMerits(classId, peerSeatId)).find((m) => m.id === customMeritId),
+    ).toMatchObject({ id: customMeritId, granted: false, grantedAt: null });
+    expect(await readMeritGrants([peerSeatId])).toEqual([]);
+    const peerContext = await browser.newContext();
+    try {
+      const peer = await peerContext.newPage();
+      await loginSeat(peer, peerCode);
+      await peer.goto('/#/learning?view=results');
+      await expectLearnerMerit(peer, false, peerSeatId);
+    } finally {
+      await peerContext.close();
+    }
+    await page.getByRole('button', { name: 'Выбрать ученика: Борис Участник' }).click();
+    await page
+      .getByRole('dialog', { name: 'Ученики класса' })
+      .getByRole('button', { name: 'Анна Участница' })
+      .click();
+    await page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Заслуги', exact: true })
+      .click();
+    await expect(merit.getByRole('button', { name: 'Отозвать', exact: true })).toBeVisible();
+
     // Authorization is enforced by the actual API, with unchanged reads after every denial.
     await expectDenied(request, 401, 'anonymous');
     await expectDenied(student.request, 401, 'student seat without teacher credentials');
@@ -370,6 +611,26 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
         student: { id: string };
       }
     ).student.id;
+    const otherMeritCreated = await page.request.post(
+      `/api/classrooms/${otherClassId}/participants/actions/merit`,
+      {
+        headers: { origin },
+        data: {
+          requestId: randomUUID(),
+          title: 'Заслуга другого класса',
+          description: 'Чужой каталог',
+        },
+      },
+    );
+    expect(otherMeritCreated.status(), await otherMeritCreated.text()).toBe(201);
+    const otherMeritId = ((await otherMeritCreated.json()) as { id: string }).id;
+    const otherMeritGrant = await page.request.post(meritWritePath(otherClassId), {
+      headers: { origin },
+      data: { requestId: randomUUID(), seatId: otherSeatId, id: otherMeritId, granted: true },
+    });
+    expect(otherMeritGrant.status(), await otherMeritGrant.text()).toBe(201);
+    expect(await otherMeritGrant.json()).toEqual({ saved: true });
+    expect((await readMeritGrants([otherSeatId])).map((g) => g.merit_id)).toEqual([otherMeritId]);
     expect((await readAwards(otherClassId, otherSeatId)).items).toEqual([]);
     const watchedSeats: ReadonlyArray<readonly [string, string]> = [
       [classId, seatId],
@@ -382,6 +643,16 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       otherClassId,
       seatId,
       watchedSeats,
+    );
+    await expectDenied(
+      page.request,
+      403,
+      'foreign merit for valid classroom and seat',
+      classId,
+      seatId,
+      watchedSeats,
+      otherMeritId,
+      ['merit_grant'],
     );
     await expectDenied(
       page.request,
@@ -458,40 +729,26 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       data: { status: 'archived' },
     });
     expect(archivedResponse.status(), await archivedResponse.text()).toBe(201);
-    await expectDenied(page.request, 409, 'archived classroom', otherClassId, otherSeatId, [
-      [otherClassId, otherSeatId],
-    ]);
+    await expectDenied(
+      page.request,
+      409,
+      'archived classroom',
+      otherClassId,
+      otherSeatId,
+      [[otherClassId, otherSeatId]],
+      otherMeritId,
+    );
     expect((await readAwards(otherClassId, otherSeatId)).items).toEqual([]);
 
-    await page.getByLabel('Название заслуги').fill('Мастер класса');
-    await page.getByLabel('Описание', { exact: true }).fill('Аккуратная работа');
-    await expect(page.getByLabel('Описание', { exact: true })).toHaveAccessibleName('Описание');
-    const refreshProfile = async () => {
-      const refreshedProfile = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'GET' &&
-          response.url().endsWith(`/classrooms/${classId}/participants/${seatId}/profile`),
-      );
-      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-      expect((await refreshedProfile).ok()).toBe(true);
-    };
-    await refreshProfile();
-    await expect(page.getByLabel('Название заслуги')).toHaveValue('Мастер класса');
-    await expect(page.getByLabel('Описание', { exact: true })).toHaveValue('Аккуратная работа');
-    await expect(page.getByLabel('Описание', { exact: true })).toHaveAccessibleName('Описание');
-    await page.getByRole('button', { name: 'Создать заслугу' }).click();
-    const merit = page.locator('.participant-merits li').filter({ hasText: 'Мастер класса' });
-    await merit.getByRole('button', { name: 'Выдать', exact: true }).click();
-    await expect(merit.getByRole('button', { name: 'Отозвать', exact: true })).toBeVisible();
     await page.getByLabel('Название аватара').fill('Секретный мастер');
     await page.getByLabel('Секретный аватар', { exact: true }).check();
     const meritResponse = await page.request.get(
       `/api/classrooms/${classId}/participants/${seatId}/profile`,
     );
-    const beforeUpload = (await meritResponse.json()) as { merits: Array<{ id: string }> };
-    await page
-      .getByLabel('Открыть при достижении')
-      .selectOption(`custom:${beforeUpload.merits[0]!.id}`);
+    expect(meritResponse.status(), await meritResponse.text()).toBe(200);
+    const beforeUpload = (await meritResponse.json()) as { merits: Merit[] };
+    expect(beforeUpload.merits.find((m) => m.id === customMeritId)).toEqual(savedMerit);
+    await page.getByLabel('Открыть при достижении').selectOption(`custom:${customMeritId}`);
     const image = new PNG({ width: 32, height: 32 });
     image.data.fill(255);
     await page
@@ -501,9 +758,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await refreshProfile();
     await expect(page.getByLabel('Название аватара')).toHaveValue('Секретный мастер');
     await expect(page.getByLabel('Секретный аватар', { exact: true })).toBeChecked();
-    await expect(page.getByLabel('Открыть при достижении')).toHaveValue(
-      `custom:${beforeUpload.merits[0]!.id}`,
-    );
+    await expect(page.getByLabel('Открыть при достижении')).toHaveValue(`custom:${customMeritId}`);
     await expect(page.getByRole('button', { name: 'Загрузить 1', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Загрузить 1', exact: true }).click();
     await page.getByRole('button', { name: 'Выбрать Секретный мастер', exact: true }).click();
@@ -616,11 +871,19 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     );
     await merit.getByRole('button', { name: 'Отозвать', exact: true }).click();
     const revokedResponse = await meritRevoked;
-    expect(revokedResponse.status(), await revokedResponse.text()).toBe(201);
+    await expectMeritReceipt(revokedResponse, false);
     await expect(merit.getByRole('button', { name: 'Выдать', exact: true })).toBeVisible();
     const revoked = await (await student.request.get('/api/class-join/participants/me')).json();
     expect(revoked.avatars).toEqual([]);
     expect(revoked.metrics.avatarUrl).toBeNull();
+    expect(revoked.merits.some((m: Merit) => m.id === customMeritId)).toBe(false);
+    await reopenMerits();
+    await expect(merit.getByRole('button', { name: 'Выдать', exact: true })).toBeVisible();
+    expect((await readMerits()).find((m) => m.id === customMeritId)).toMatchObject({
+      granted: false,
+      grantedAt: null,
+    });
+    await expectMeritAfterReloadAndLogin(false);
 
     // Grant and revoke controls must remain visible at all four owner widths.
     for (const width of [320, 390, 1024, 1440]) {
@@ -688,9 +951,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     const freshStudentContext = await browser.newContext();
     try {
       const freshStudent = await freshStudentContext.newPage();
-      await freshStudent.goto(`/#/join-class?code=${encodeURIComponent(shareCode)}`);
-      await freshStudent.getByLabel('Код ученика', { exact: true }).fill(code);
-      await freshStudent.getByRole('button', { name: 'Войти', exact: true }).click();
+      await loginSeat(freshStudent);
       await freshStudent.locator('.portal-account > summary').click();
       await freshStudent.getByRole('button', { name: 'Настройки', exact: true }).click();
       await expect(freshStudent.getByTestId('seat-awards-earned')).toHaveCount(0);
