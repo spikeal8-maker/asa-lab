@@ -212,6 +212,51 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('committed ancillary result consumers', () => {
+  it('retains the native LED owner and resident image through Run, preparation, generation clear and Stop', async () => {
+    const component = schematic.components[0]!;
+    const entry = catalogEntry(component);
+    if (!entry) throw new Error('Missing LED fixture catalog entry');
+    const renderNative = (running: boolean) =>
+      createElement(
+        NativeOpticalProvider,
+        { port },
+        createElement(
+          'svg',
+          null,
+          createElement(ProductionComponentVisual, {
+            entry,
+            component,
+            width: 40,
+            height: 60,
+            visualState: 'off',
+            simulationRunning: running,
+          }),
+        ),
+      );
+    await act(async () => root.render(renderNative(false)));
+    const resident = host.querySelector<SVGImageElement>(
+      'image.workbench-led-asset[href$="_i000.svg"]',
+    );
+    expect(resident).not.toBeNull();
+    const asset = resident!.getAttribute('href')!.replace('_i000.svg', '_i080.svg');
+    await act(async () =>
+      port.setPreparation({ token: 'native-continuity', assets: new Map([['led', asset]]) }),
+    );
+    await act(async () => root.render(renderNative(true)));
+    expect(resident!.isConnected).toBe(true);
+    expect(host.querySelector('image.workbench-led-asset[href$="_i000.svg"]')).toBe(resident);
+    // JSDOM cannot supply a trusted native load. This regression checks owner
+    // continuity; canonical clock/browser suites retain responsibility for
+    // readiness, resource leases and the DOM-ACK protocol.
+    expect(port.getCommittedSnapshot()).toBeNull();
+    await act(async () => port.setObservation(null));
+    await act(async () => port.setPreparation(null));
+    expect(resident!.isConnected).toBe(true);
+    await act(async () => root.render(renderNative(false)));
+    expect(resident!.isConnected).toBe(true);
+    expect(host.querySelector('image.workbench-led-asset[href$="_i000.svg"]')).toBe(resident);
+  });
+
   it('routes real body pointer-down and click through the owner alpha hit check', async () => {
     await act(async () => root.render(createElement(Probe)));
     const body = host.querySelector<SVGGElement>('.workbench-part');

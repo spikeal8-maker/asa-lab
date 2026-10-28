@@ -49,7 +49,10 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
     if (opticalPort) return opticalPort.rendered(componentId, snapshot);
     return undefined;
   }, [opticalPort, componentId, snapshot]);
-  if (!opticalPort) return <CommittedComponentVisual {...props} />;
+  // Native resource leases belong to the mounted OwnerVisual. Keep its parent
+  // path identical across Run/Stop rather than remounting it through a wrapper.
+  if (!opticalPort)
+    return nativeKind >= 0 ? <OwnerVisual {...props} /> : <CommittedComponentVisual {...props} />;
   // Servo and raw display follow committed physics without waiting for an editor render.
   // Proposed optical frames still belong to the LED/native-asset commit barrier.
   const observation =
