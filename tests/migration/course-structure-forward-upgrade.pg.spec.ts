@@ -140,6 +140,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0267', // Canonical frozen mixed Course completion, additive only.
         '0268', // Additive read-only AI usage overview.
         '0269', // Exact public Scratch player and version-scoped asset reads.
+        '0270', // Atomic history for a visible native image-tool prefix.
+        '0271', // Explicit own-personal quality review.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -439,6 +441,8 @@ describe('Course Builder structure forward upgrade', () => {
           '0267', // Course completion formula from exact frozen lesson practices.
           '0268', // Additive read-only AI usage overview.
           '0269', // Exact public Scratch player and version-scoped asset reads.
+          '0270', // Atomic history for a visible native image-tool prefix.
+          '0271', // Explicit own-personal quality review.
         ]);
         expect(
           await applyIsolatedTestPlan(

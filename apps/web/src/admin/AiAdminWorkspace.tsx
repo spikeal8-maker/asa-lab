@@ -5,6 +5,7 @@ import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import { AdminAiUsageOverview } from './AdminAiUsageOverview';
+import { AdminAiOwnQuality } from './AdminAiOwnQuality';
 import type { AiAdminConfig } from './ai-model-config';
 import {
   AI_ADMIN_SECTIONS as SECTIONS,
@@ -175,6 +176,7 @@ function AiAdminWorkspaceSession({
       {section === 'overview' ? (
         <div id="ai-panel-overview" role="tabpanel" aria-labelledby="ai-tab-overview">
           <AdminAiUsageOverview onAccessDenied={onAccessDenied} />
+          <AdminAiOwnQuality />
         </div>
       ) : section === 'connections' ? (
         <section

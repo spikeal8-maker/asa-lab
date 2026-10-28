@@ -14,7 +14,8 @@ export type AdminPermission =
   | 'administration.security.manage'
   | 'administration.moderation.read'
   | 'administration.billing.read'
-  | 'administration.operations.read';
+  | 'administration.operations.read'
+  | 'administration.ai.quality.own.read';
 
 export type AdminScopeKind = 'platform' | 'organization';
 

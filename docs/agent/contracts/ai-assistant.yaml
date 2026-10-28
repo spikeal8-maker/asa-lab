@@ -4,6 +4,14 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-OWN-QUALITY-001
+    statement: Content review requires a separate verified own-personal capability and verified platform administrator. Actor ownership is fixed on the server; all foreign Accounts and Seats are excluded. CAS and immutable grant receipts support explicit opt-in and revoke. Last ten operations use exact request and regeneration joins, exclude proven native children, preserve unknown metadata and never restore deleted content. Reads are bounded, masked, no-store and metadata-audited without inference. This own-only capability does not authorize global or school review.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: AI-OWN-QUALITY-001
+    applies_to: [own_quality_grant, own_quality_list, own_quality_detail]
+    forbid: [implicit_admin_content_grant, foreign_conversation_read, seat_content_review, hidden_content_copy, inference_on_review]
+
   - id: AI-IMAGE-JOB-001
     statement: Local ComfyUI generation has canonical owner and school admission, independent UTC daily GPU quota and durable bounded global slots. A fixed native recipe is dispatched once after SQL CAS; uncertain dispatch is observed by its existing identity and never retried. Unknown jobs retain their slot. Only exact owned outputs become bounded metadata-stripped PNGs in private integrity-checked storage and owner-bound history/downloads. Cancellation never interrupts other GPU jobs. Deletion clears private prompts and schedules recoverable output cleanup while quota and usage tombstones survive. Readiness does not prove GPU quality; saving settings performs no generation.
     master_refs:

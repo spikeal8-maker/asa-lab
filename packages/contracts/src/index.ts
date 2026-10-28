@@ -1,5 +1,11 @@
 /** Foundation surface for the contracts package. OpenAPI/JSON Schema and event contract types. */
 export const PACKAGE_NAME = '@asa-lab/contracts';
+export type {
+  AiOwnQualityGrant,
+  AiOwnQualityGrantUpdate,
+  AiOwnQualityOperation,
+  AiOwnQualityPage,
+} from './ai-own-quality.js';
 export { PUBLIC_ARTIFACT_V1_LIMITS, validatePublicArtifact } from './public-artifact.js';
 export type {
   PublicArtifact,

@@ -4,7 +4,7 @@ import { defineConfig } from '@playwright/test';
 // anything except an explicit isolated *_test database; no successful API is mocked.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'ai-usage-overview.spec.ts',
+  testMatch: ['ai-usage-overview.spec.ts', 'own-quality-real.spec.ts'],
   workers: 1,
   fullyParallel: false,
   retries: 0,

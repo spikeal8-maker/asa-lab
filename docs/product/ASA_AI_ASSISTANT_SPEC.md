@@ -115,3 +115,11 @@ Markdown и формулы отображаются без исполнения 
 ## Разрешённый объём публикации
 
 Поручение владельца на эту редакцию: разместить актуальное AI-ТЗ на GitHub, устранить устаревшие конкурирующие AI-инструкции и проверить связность документов. Оно не означает автоматический запуск ASAI-01, реализацию всех карточек, обновление сервера, изменение рабочей БД, платные вызовы или скачивание/удаление моделей. Следующий продуктовый срез выбирается отдельно в действующем каноническом контуре.
+
+### AI-OWN-QUALITY-001 — explicit own-personal quality review
+
+A verified platform administrator must separately opt in to `ai_quality_review_own`. General administrative permissions never grant conversation content access. The server fixes ownership to the authenticated personal Account and excludes foreign Accounts and all Seats. Revocation clears displayed content and prevents further reads.
+
+Review includes the last ten root operations, independent of the chart period, through exact request/thread/regeneration links. Proven native image child operations are excluded. Deleted text is unavailable and is never restored from stored prompt context. Unknown actual model, usage and prompt version remain explicit. Previews are bounded to 240 Unicode codepoints; detail JSON is bounded to 256 KiB with an explicit truncation flag. Recognized key prefixes, Bearer and labelled secrets, email and phone patterns are masked before clipping; this is not universal secret detection.
+
+Grant writes use revision CAS and immutable request UUIDs. Reads are private no-store, metadata-audited and invoke no inference. This own-only permission does not authorize global or school conversation review; that broader scope requires a separate owner policy decision.
