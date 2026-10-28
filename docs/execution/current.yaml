@@ -477,7 +477,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asai_01_integrated_d2r2_update_blocked
+      checkpoint: asai_15_selected_product_and_delivery_parallel
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -488,12 +488,43 @@ parallel_lanes:
         programme. Preserve concurrent non-AI work, personal Account independence, Seat access without mandatory Account,
         existing tenant/RLS boundaries and protected data. Ordinary integration and closure of superseded AI drafts
         follow evidence; no force-push or destructive history/data action.
+        On 2026-10-28 the owner commissioned continuation of the whole ASAI programme
+        with bounded product authors, a separate delivery author and independent review.
+        The D2R2 deployment blocker does not block independent isolated product work.
+        Select ASAI-15 while issue806 awaits an explicit content-read grant and personal/school
+        admissibility policy. Preserve Draft PR811 and its separate merge decision, the live
+        source-mounted checkout, private WIP, data, credentials and all existing safety guards.
       context_hints:
         - docs/product/ASA_AI_ASSISTANT_SPEC.md
         - docs/product/ai/README.md
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-15
+          issue: 373
+          scope: real user-facing streaming when local model tools are offered but unused or called
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R03, R31]
+          acceptance_checks: [C03, C28]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_baseline: c0b673b7e39c5fab3beaede55bfba6ad4565b87f
+          selection: >-
+            Owner selected the whole programme on 2026-10-28. Issue806 needs a separate explicit
+            content-read grant and an admissibility policy; aggregate platform_admin access must
+            not expose personal or school conversations. Select independent ASAI-15 instead.
+            Existing Ollama transport emits content deltas, but chat service suppresses them
+            whenever tools are offered. One author changes only the streaming path and focused
+            regressions; preserve Draft PR816 inference-settings semantics and do not edit its
+            candidate or the live D2R2 checkout. Known legacy WIP remains untouched; other dirty
+            workflow worktrees are outside this slice. Validate actual ordered deltas, tool args
+            exclusion, Stop, replay and browser timing. Isolated evidence is separate from the
+            blocked installed demonstration and from real paid-provider acceptance.
         - id: ASAI-01
           issue: 799
           scope: existing AI administration overview, real usage aggregates and first daily request chart
@@ -601,12 +632,14 @@ parallel_lanes:
                 earlier Git-fixture cleanup in issue308; no foreign repair or rerun in ASAI-01.
           preparation_basis: docs/product/ASA_AI_ASSISTANT_SPEC.md
           selection: >-
-            Continue only the selected ASAI-01 delivery. The compact overview is implemented and
+            Continue the selected ASAI-01 delivery independently of the product programme. The compact overview is implemented and
             PR800 is merged; the independent candidate review is anchored with its original source.
             Exact integrated-version CI/release and actual D2R2 installation/demo are separate states.
             C28, issue799 closure and owner acceptance remain pending. The confirmed deployment guard
             blocks that action only; registering issues808/809 does not select their implementation
-            or any subsequent AI slice. Fetch main and exact-SHA evidence before continuing.
+            or any subsequent AI slice by itself. The later owner programme instruction and
+            explicit ASAI-15 selection above govern independent product work. Fetch main and
+            exact-SHA evidence before continuing.
         - id: AI-TEXT-UI-001
           source_pr: 623
           scope: existing chat screen, styles and AI browser regressions
@@ -1588,7 +1621,7 @@ parallel_lanes:
             a root-cause fix. Observer still has no separate query deadline/cancellation.'
           historical_root_cause: unproven; successful observation does not establish a fix
       programme_definition: docs/product/ai/PROGRAM_DEFINITION.json
-      dependency_sequence: [ASAI-01]
+      dependency_sequence: [ASAI-01, ASAI-15]
       historical_foundation_dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
