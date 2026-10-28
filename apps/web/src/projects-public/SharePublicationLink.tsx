@@ -14,7 +14,7 @@ export function SharePublicationLink({
   async function share(): Promise<void> {
     if (busy) return;
     const value = publicationUrl(publicationId, window.location.href);
-    setUrl(value);
+    setUrl(null);
     setNotice(null);
     setBusy(true);
     try {
@@ -22,6 +22,7 @@ export function SharePublicationLink({
       await navigator.clipboard.writeText(value);
       setNotice('Ссылка скопирована.');
     } catch {
+      setUrl(value);
       setNotice('Выделите и скопируйте ссылку ниже.');
     } finally {
       setBusy(false);
@@ -30,11 +31,11 @@ export function SharePublicationLink({
   return (
     <div className="publication-share">
       <button type="button" className="btn-secondary" disabled={busy} onClick={() => void share()}>
-        {busy ? 'Копируем ссылку…' : 'Поделиться'}
+        {busy ? 'Копируем…' : 'Копировать ссылку'}
       </button>
+      {notice ? <p role="status">{notice}</p> : null}
       {url ? (
         <div className="publication-share-address">
-          {notice ? <p role="status">{notice}</p> : null}
           <label className="sr-only" htmlFor={fieldId}>
             Публичная ссылка на проект
           </label>

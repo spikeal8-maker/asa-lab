@@ -745,8 +745,14 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       });
       expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.workspace.top);
       expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.actions.top);
-      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
-      expect(geometry.workspace.width).toBeGreaterThan(width * 0.8);
+      if (width >= 900) {
+        expect(geometry.workspace.right).toBeLessThanOrEqual(geometry.about.left);
+        expect(Math.abs(geometry.workspace.top - geometry.about.top)).toBeLessThan(2);
+        expect(geometry.workspace.width).toBeGreaterThan(Math.min(width, 1180) * 0.5);
+      } else {
+        expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
+        expect(geometry.workspace.width).toBeGreaterThan(width * 0.8);
+      }
       await expect(guest.getByTestId('public-project-detail').locator('aside, figure')).toHaveCount(
         0,
       );
@@ -757,6 +763,15 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       }
     }
 
+    const refreshDetail = async () => {
+      await guest.evaluate(() => {
+        location.hash = '#/explore';
+      });
+      await expect(guest.getByTestId('public-project-detail')).toHaveCount(0);
+      await guest.evaluate((id) => {
+        location.hash = `#/public-projects/${id}`;
+      }, firstId);
+    };
     // A failed real image request preserves the cover boundary and the real actions.
     const coverUrl = await guest.getByTestId('public-project-preview').getAttribute('src');
     expect(coverUrl).toBeTruthy();
@@ -769,11 +784,14 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
     await expectNoOverflow(guest);
     await guest.screenshot({ path: `${EVIDENCE}/detail-image-error.png`, fullPage: true });
     await guest.unroute(coverPattern);
-    await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+    await refreshDetail();
     await expectPublicImage(guest);
 
-    // Exercise the actual share fallback and keyboard focus without replacing API data.
-    const share = guest.getByRole('button', { name: 'Поделиться', exact: true });
+    // Exercise denied browser clipboard permission, without replacing API data.
+    await guest.evaluate(() =>
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined }),
+    );
+    const share = guest.getByRole('button', { name: 'Копировать ссылку', exact: true });
     await share.focus();
     await expect(share).toBeFocused();
     await guest.keyboard.press('Enter');
@@ -781,9 +799,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       new RegExp(`/#/public-projects/${firstId}$`),
     );
     const copy = guest.getByRole('button', { name: 'Создать свою копию', exact: true });
-    await expect(copy).toBeDisabled();
+    await expect(copy).toHaveCount(0);
     await guestContext.setOffline(true);
-    await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+    await refreshDetail();
     await expect(guest.getByTestId('public-project-error')).toBeVisible();
     await expectNoOverflow(guest);
     await guest.screenshot({ path: `${EVIDENCE}/detail-network-error.png`, fullPage: true });
@@ -796,7 +814,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
     try {
       await lock.query('BEGIN');
       await lock.query('LOCK TABLE project_publication_state IN ACCESS EXCLUSIVE MODE');
-      await guest.getByRole('button', { name: 'Обновить публикацию', exact: true }).click();
+      await refreshDetail();
       await expect(guest.getByTestId('public-project-loading')).toBeVisible();
       await guest.screenshot({ path: `${EVIDENCE}/detail-loading.png`, fullPage: true });
       await guest.goto('/#/explore');

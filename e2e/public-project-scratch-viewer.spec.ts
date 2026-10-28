@@ -97,6 +97,11 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
         })
       ).status(),
     ).toBe(200);
+    const publicProfile = await admin.query(
+      "UPDATE profiles SET display_name=$2,visibility='public' WHERE account_id=$1",
+      [account.account.id, 'Анна — мастерская Scratch'],
+    );
+    expect(publicProfile.rowCount).toBe(1);
     const published = await page.request.post(`/api/projects/${project.id}/publication`, {
       headers,
       data: {
@@ -128,6 +133,9 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       );
     const initialBootstrap = playerBootstrap();
     await guest.goto(route);
+    await expect(guest.locator('.public-project-detail-author')).toHaveText(
+      'Анна — мастерская Scratch',
+    );
     const frame = guest.frameLocator('[data-testid="public-scratch-frame"]');
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-editor-state',
@@ -211,13 +219,37 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       await expect(frame.getByRole('button', { name: 'Start project', exact: true })).toBeVisible();
       await expect(frame.getByRole('button', { name: 'Stop project', exact: true })).toBeVisible();
     };
-    for (const width of [1440, 1024, 390, 320]) {
+    for (const width of [1440, 1120, 1024, 390, 320]) {
       await guest.setViewportSize({ width, height: 900 });
       await expect
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         .toBe(true);
       await expect(frame.getByRole('button', { name: 'Start project', exact: true })).toBeVisible();
       await assertStageFits();
+      const pageLayout = await guest.getByTestId('public-project-detail').evaluate((article) => {
+        const player = article.querySelector('.public-project-viewer')!.getBoundingClientRect();
+        const notes = article.querySelector('.public-project-about')!.getBoundingClientRect();
+        return {
+          playerRight: player.right,
+          playerBottom: player.bottom,
+          playerTop: player.top,
+          notesLeft: notes.left,
+          notesTop: notes.top,
+        };
+      });
+      if (width >= 900) {
+        expect(pageLayout.playerRight).toBeLessThanOrEqual(pageLayout.notesLeft);
+        expect(Math.abs(pageLayout.playerTop - pageLayout.notesTop)).toBeLessThan(2);
+      } else expect(pageLayout.playerBottom).toBeLessThan(pageLayout.notesTop);
+      await expect(
+        guest.getByRole('button', { name: 'Обновить публикацию', exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        guest.getByRole('link', { name: 'Открыть изображение', exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        guest.getByRole('button', { name: 'Создать свою копию', exact: true }),
+      ).toHaveCount(0);
       await guest.screenshot({ path: `${EVIDENCE}/native-${width}.png`, fullPage: true });
     }
     await guest.setViewportSize({ width: 1440, height: 900 });

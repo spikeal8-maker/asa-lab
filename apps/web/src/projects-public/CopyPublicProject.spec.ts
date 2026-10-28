@@ -125,12 +125,11 @@ describe('published private copy UI', () => {
     },
   );
 
-  it('leaves unsupported publications visibly unavailable', async () => {
+  it('hides unavailable copying without offering a disabled dead end', async () => {
     const copy = vi.spyOn(publicProjectsApi, 'copy');
     await render({ ...publication, capabilities: { ...publication.capabilities, canCopy: false } });
-    expect(button().disabled).toBe(true);
-    expect(container.textContent).toContain('Другие лицензии и модули пока не поддерживаются');
-    await act(async () => button().click());
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.textContent).toBe('');
     expect(copy).not.toHaveBeenCalled();
   });
 

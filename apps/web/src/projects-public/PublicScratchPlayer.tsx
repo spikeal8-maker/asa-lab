@@ -252,11 +252,12 @@ export function PublicScratchPlayer({
       data-testid="public-scratch-player"
     >
       <div className="public-scratch-tools">
-        <span>Scratch · просмотр</span>
         {typeof document !== 'undefined' && document.fullscreenEnabled ? (
           <button
             type="button"
             data-testid="public-scratch-fullscreen"
+            aria-label={fullscreen ? 'Выйти из полного экрана' : 'На весь экран'}
+            title={fullscreen ? 'Выйти из полного экрана' : 'На весь экран'}
             onClick={() => {
               setFullscreenError(false);
               void (
@@ -266,7 +267,23 @@ export function PublicScratchPlayer({
               ).catch(() => setFullscreenError(true));
             }}
           >
-            {fullscreen ? 'Выйти из полного экрана' : 'На весь экран'}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path
+                d={
+                  fullscreen
+                    ? 'M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5'
+                    : 'M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5'
+                }
+              />
+            </svg>
           </button>
         ) : null}
       </div>

@@ -131,7 +131,7 @@ export function PublicationArtifact({
     <>
       {state === 'error' ? (
         <p data-testid="public-artifact-error" role="status">
-          Схема не загрузилась. Обновите публикацию, чтобы повторить.
+          Схема не загрузилась. Обновите страницу, чтобы повторить.
         </p>
       ) : null}
       {fallback}

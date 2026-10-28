@@ -908,3 +908,95 @@
     height: 360px;
   }
 }
+
+/* Compact publication workspace: native player first, readable notes alongside. */
+.portal-shell.public-projects-guest > .public-project-detail,
+.public-project-detail {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+.public-project-detail .public-project-heading h1 {
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.25;
+}
+.public-project-detail .public-project-badges {
+  gap: 6px 12px;
+  font-size: 12px;
+}
+.public-project-detail .public-project-detail-author {
+  font-size: 13px;
+}
+.public-project-detail .publication-module {
+  padding: 2px 5px;
+  font-size: 11px;
+}
+.public-project-detail .public-project-commandbar {
+  padding-block: 4px;
+  border: 0;
+  gap: 8px;
+}
+.public-project-commandbar :is(.btn-primary, .btn-secondary) {
+  font-size: 13px;
+  padding: 8px 12px;
+}
+.public-project-commandbar .public-project-copy {
+  min-width: 0;
+  margin: 0;
+}
+.public-project-about {
+  gap: 12px;
+}
+.public-project-metadata {
+  font-size: 12px;
+  color: var(--asa-slate-700);
+}
+.public-project-metadata > summary {
+  cursor: pointer;
+  padding-block: 12px;
+}
+.public-project-metadata .public-project-facts {
+  display: grid;
+  gap: 12px;
+}
+.public-scratch-tools {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  padding: 0;
+  border: 0;
+}
+.public-scratch-tools button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 0;
+  background: white;
+}
+.publication-share > [role='status'] {
+  margin: 0;
+  font-size: 12px;
+}
+@media (min-width: 900px) {
+  .public-project-detail .public-project-layout.has-description {
+    grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+    column-gap: 24px;
+  }
+  .public-project-detail .has-description .public-project-heading {
+    grid-column: 1 / -1;
+  }
+  .public-project-detail .has-description .public-project-viewer {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .public-project-detail .has-description .public-project-commandbar {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .public-project-detail .has-description .public-project-about {
+    grid-column: 2;
+    grid-row: 2 / 4;
+  }
+}
