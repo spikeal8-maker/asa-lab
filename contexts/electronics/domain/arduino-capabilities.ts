@@ -1,4 +1,5 @@
 import { analyseArduinoProgramSyntax } from './arduino-program-runtime.js';
+import { parseArduinoVoidFunctions } from './arduino-user-functions.js';
 import { arduinoServoDeclarationNames } from './arduino-servo-runtime.js';
 
 export type ArduinoSupportStatus = 'supported' | 'limited' | 'unsupported';
@@ -358,7 +359,13 @@ export function analyseArduinoSourceSupport(
     diagnostics.push({ code, status, start, length, message, ...sourcePosition(source, start) });
   };
 
-  for (const syntaxDiagnostic of analyseArduinoProgramSyntax(source)) {
+  const syntaxDiagnostics = analyseArduinoProgramSyntax(source);
+  const helperNames = new Set(
+    syntaxDiagnostics.length
+      ? []
+      : parseArduinoVoidFunctions(source).functions.map((fn) => fn.name),
+  );
+  for (const syntaxDiagnostic of syntaxDiagnostics) {
     add(
       'syntax-error',
       'unsupported',
@@ -419,7 +426,13 @@ export function analyseArduinoSourceSupport(
     const insideMemberCall = memberCallRanges.some(
       (range) => start >= range.start && start < range.end,
     );
-    if (insideMemberCall || SUPPORTED_CALLS.has(lower) || CONTROL_CALLS.has(lower)) continue;
+    if (
+      insideMemberCall ||
+      SUPPORTED_CALLS.has(lower) ||
+      CONTROL_CALLS.has(lower) ||
+      helperNames.has(name)
+    )
+      continue;
     const knownMessage = UNSUPPORTED_CALL_MESSAGES.get(lower);
     add(
       knownMessage ? 'unsupported-call' : 'unknown-call',

@@ -17,16 +17,23 @@ import {
 } from './fixtures/arduino-seven-segment-matrix.js';
 
 describe('Arduino raw display bounded feasibility before qualification', () => {
-  it('preserves the actual user-function capability failure rather than calling it functional parity', () => {
+  it('executes the exact formerly rejected user-function sketch after helper admission', () => {
     const syntax = analyseArduinoProgramSyntax(FUNCTION_PROBE_SOURCE);
     const actual = advanceClockedArduinoRuntime(FUNCTION_PROBE_SOURCE, {}, 10);
-    expect(syntax.length).toBeGreaterThan(0);
-    expect(actual.diagnostics.length).toBeGreaterThan(0);
+    expect(syntax).toEqual([]);
+    expect(actual.diagnostics).toEqual([]);
+    expect(actual.executionStatus).toBe('ready');
+    expect(actual.state.outputVoltages.d2).toBe(5);
     mkdirSync('test-results/arduino-seven-segment-matrix', { recursive: true });
     writeFileSync(
-      'test-results/arduino-seven-segment-matrix/functions-before.json',
+      'test-results/arduino-seven-segment-matrix/functions-after.json',
       JSON.stringify(
-        { status: 'BLOCKED_user_functions', source: FUNCTION_PROBE_SOURCE, syntax, actual },
+        {
+          status: 'PASS_scalar_void_helper_not_full_Cplusplus',
+          source: FUNCTION_PROBE_SOURCE,
+          syntax,
+          actual,
+        },
         null,
         2,
       ),
