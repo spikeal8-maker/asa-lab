@@ -195,6 +195,66 @@ def assert_refused(call, expected):
     raise Blocked("CI_NEGATIVE", "An unsafe legacy scenario was accepted.", "Fix the transition guard before publishing the manager.")
 
 
+def foreign_volume_alias_negative(install, postgres, source_volume):
+    """A real differently named local volume must not hide shared ASA storage.
+
+    The disposable container is never started, the mount is read-only and
+    volume-nocopy prevents initialization writes into the protected data. Only
+    this fixture's exact container and labelled alias volume are removed.
+    """
+    source = json.loads(run(["docker", "volume", "inspect", source_volume], capture=True))[0]
+    require(source.get("Name") == source_volume and source.get("Driver") == "local"
+            and source.get("Scope") == "local" and not source.get("Options")
+            and source.get("Mountpoint"), "CI_NEGATIVE", "The source volume is not the attested local storage.")
+    token = uuid.uuid4().hex
+    alias = "asa-legacy-ci-alias-" + token
+    name = "asa-legacy-ci-alias-container-" + token
+    operation = "legacy-ci-negative-volume-alias"
+    options = {"type": "none", "o": "bind", "device": source["Mountpoint"]}
+    created = run(["docker", "volume", "create", "--driver", "local", "--label", "asa.operation=" + operation,
+                   "--label", "asa.legacy.ci=" + token, "--opt", "type=none", "--opt", "o=bind",
+                   "--opt", "device=" + source["Mountpoint"], alias], capture=True)
+    require(created == alias, "CI_NEGATIVE", "The alias volume has an unexpected identity.")
+    container = None
+    try:
+        metadata = json.loads(run(["docker", "volume", "inspect", alias], capture=True))[0]
+        require(metadata.get("Name") == alias and metadata.get("Driver") == "local"
+                and metadata.get("Scope") == "local" and metadata.get("Options") == options
+                and metadata.get("Mountpoint") != source["Mountpoint"],
+                "CI_NEGATIVE", "The real named-volume alias does not match the intended Docker configuration.")
+        container = run(["docker", "create", "--name", name, "--network", "none", "--read-only",
+                         "--label", "asa.operation=" + operation, "--label", "asa.legacy.ci=" + token,
+                         "--mount", f"type=volume,source={alias},target=/data,readonly,volume-nocopy",
+                         "--entrypoint", "/not-executed", postgres["imageId"]], capture=True)
+        actual = json.loads(run(["docker", "inspect", container], capture=True))[0]
+        require(actual.get("Id") == container and actual.get("State", {}).get("Status") == "created"
+                and actual.get("State", {}).get("Running") is False
+                and actual.get("HostConfig", {}).get("NetworkMode") == "none"
+                and not actual.get("HostConfig", {}).get("PortBindings")
+                and any(mount.get("Type") == "volume" and mount.get("Name") == alias
+                        and mount.get("Source") == metadata["Mountpoint"]
+                        and mount.get("Destination") == "/data" and mount.get("RW") is False
+                        for mount in actual.get("Mounts", [])),
+                "CI_NEGATIVE", "The stopped alias container does not have the intended isolation.")
+        return assert_refused(install.identity, {"LEGACY_SHARED_STORAGE"})
+    finally:
+        if container:
+            actual = json.loads(run(["docker", "inspect", container], capture=True))[0]
+            labels = actual.get("Config", {}).get("Labels") or {}
+            require(actual.get("Id") == container and actual.get("Name") == "/" + name
+                    and actual.get("State", {}).get("Running") is False
+                    and labels.get("asa.operation") == operation and labels.get("asa.legacy.ci") == token,
+                    "CI_CLEANUP", "The stopped alias fixture ownership or state changed.")
+            run(["docker", "rm", container], capture=True)
+        metadata = json.loads(run(["docker", "volume", "inspect", alias], capture=True))[0]
+        labels = metadata.get("Labels") or {}
+        require(metadata.get("Name") == alias and metadata.get("Driver") == "local"
+                and metadata.get("Options") == options and labels.get("asa.operation") == operation
+                and labels.get("asa.legacy.ci") == token,
+                "CI_CLEANUP", "The alias volume ownership or backing configuration changed.")
+        run(["docker", "volume", "rm", alias], capture=True)
+
+
 def negative_checks(install, snapshot):
     before = snapshot["containers"]
     overlay = install.root / ".asa/local-review/compose.review.yaml"
@@ -250,6 +310,7 @@ def negative_checks(install, snapshot):
                 and labels.get("asa.legacy.ci") == token,
                 "CI_CLEANUP", "The stopped negative fixture ownership or state changed.")
         run(["docker", "rm", container], capture=True)
+    results["foreign_named_volume_alias"] = foreign_volume_alias_negative(install, postgres, storage[0])
     source = install.root / "apps/api/src/asai-809-fixture-wip.txt"
     content = source.read_bytes()
     try:

@@ -299,15 +299,79 @@ def mount_source_path(value):
     return "/" + posixpath.normpath(value).lstrip("/")
 
 
+def inspect_foreign_volumes(records):
+    """Read every used foreign named volume without trusting its container name.
+
+    A local volume with driver options can bind an unrelated-looking name to an
+    ASA directory. Docker's metadata does not resolve device symlinks or Desktop
+    host-path aliases, so redirected backing is deliberately unsupported here.
+    Only ordinary local volumes can be attested without mutating the daemon.
+    """
+    names = set()
+    for record in records:
+        for mount in record.get("mounts") or []:
+            if mount.get("Type") == "volume":
+                name = mount.get("Name")
+                require(isinstance(name, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name),
+                        "LEGACY_SHARED_STORAGE", "A foreign named volume has no verifiable identity.")
+                names.add(name)
+    if not names:
+        return {}
+    try:
+        observed = json.loads(run(["docker", "volume", "inspect", *sorted(names)], capture=True))
+    except (ValueError, TypeError) as failure:
+        raise Blocked("LEGACY_SHARED_STORAGE", "Foreign volume metadata cannot be verified.",
+                      "Inspect the existing storage without changing neighbouring containers.") from failure
+    require(isinstance(observed, list) and len(observed) == len(names)
+            and all(isinstance(item, dict) for item in observed)
+            and all(isinstance(item.get("Name"), str) for item in observed)
+            and {item.get("Name") for item in observed} == names,
+            "LEGACY_SHARED_STORAGE", "The foreign named-volume set cannot be verified.")
+    result = {}
+    for item in observed:
+        require(item.get("Driver") == "local" and item.get("Scope") == "local"
+                and item.get("Options") in (None, {})
+                and isinstance(item.get("CreatedAt"), str) and item["CreatedAt"]
+                and (item.get("Labels") is None or isinstance(item.get("Labels"), dict)),
+                "LEGACY_SHARED_STORAGE", "A foreign volume uses redirected or unverifiable backing storage.",
+                "A separate storage qualification is required; do not change, remove or ignore the foreign volume.")
+        mount_source_path(item.get("Mountpoint", ""))
+        result[item["Name"]] = {key: deepcopy(item.get(key)) for key in
+                                ("Name", "Driver", "Scope", "Options", "Labels", "CreatedAt", "Mountpoint")}
+    for record in records:
+        for mount in record.get("mounts") or []:
+            if mount.get("Type") == "volume":
+                volume = result[mount["Name"]]
+                require(mount.get("Driver") == volume["Driver"]
+                        and mount_source_path(mount.get("Source", "")) == mount_source_path(volume["Mountpoint"]),
+                        "LEGACY_SHARED_STORAGE", "A foreign volume mount differs from its inspected storage identity.")
+    return result
+
+
 def attest_foreign_mounts(root, config, foreign, volumes=()):
     protected_volumes = {value["name"] for value in config.get("volumes", {}).values()}
     protected_paths = [mount_source_path(root), *[mount_source_path(volume["Mountpoint"]) for volume in volumes]]
     for record in foreign:
+        metadata = record.get("volumeIdentity") or []
+        require(isinstance(metadata, list) and all(isinstance(item, dict) for item in metadata)
+                and all(isinstance(item.get("Name"), str) for item in metadata)
+                and len({item.get("Name") for item in metadata}) == len(metadata),
+                "LEGACY_SHARED_STORAGE", "Foreign named-volume metadata is missing or ambiguous.")
+        by_name = {item.get("Name"): item for item in metadata}
+        require(set(by_name) == {mount.get("Name") for mount in record.get("mounts") or [] if mount.get("Type") == "volume"},
+                "LEGACY_SHARED_STORAGE", "Foreign named-volume metadata is incomplete.")
         for mount in record.get("mounts") or []:
             require(not (mount.get("Type") == "volume" and mount.get("Name") in protected_volumes),
                     "LEGACY_SHARED_STORAGE", "A foreign container shares this installation's persistent storage.")
-            if mount.get("Type") == "bind":
+            if mount.get("Type") in ("bind", "volume"):
                 source = mount_source_path(mount.get("Source", ""))
+                if mount["Type"] == "volume":
+                    volume = by_name[mount["Name"]]
+                    require(volume.get("Driver") == "local" and volume.get("Scope") == "local"
+                            and volume.get("Options") in (None, {}) and volume.get("CreatedAt")
+                            and mount.get("Driver") == volume["Driver"]
+                            and source == mount_source_path(volume.get("Mountpoint", "")),
+                            "LEGACY_SHARED_STORAGE", "A foreign volume has unverified or redirected backing storage.")
                 overlap = any(source == protected or source.startswith(protected.rstrip("/") + "/")
                               or protected.startswith(source.rstrip("/") + "/") for protected in protected_paths)
                 require(not overlap, "LEGACY_SHARED_STORAGE", "A foreign container shares source files or persistent storage.")
@@ -316,6 +380,7 @@ def attest_foreign_mounts(root, config, foreign, volumes=()):
 def foreign_identity(record):
     return {**{key: record.get(key) for key in ("id", "name", "imageId", "running", "ports", "networkMode")},
             "mounts": canonical_mounts(record.get("mounts")),
+            "volumeIdentity": sorted(deepcopy(record.get("volumeIdentity") or []), key=lambda item: item["Name"]),
             "networks": sorted((record.get("networks") or {}).keys())}
 
 
@@ -396,7 +461,16 @@ class LegacyInstallation(Installation):
         if not ids:
             return []
         template = '{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Config.Image}},"imageId":{{json .Image}},"labels":{{json .Config.Labels}},"running":{{json .State.Running}},"mounts":{{json .Mounts}},"ports":{{json .HostConfig.PortBindings}},"networks":{{json .NetworkSettings.Networks}},"networkMode":{{json .HostConfig.NetworkMode}}}'
-        return [json.loads(line) for line in run(["docker", "inspect", "--format", template, *ids], capture=True).splitlines()]
+        records = [json.loads(line) for line in run(["docker", "inspect", "--format", template, *ids], capture=True).splitlines()]
+        foreign = [record for record in records
+                   if (record.get("labels") or {}).get("com.docker.compose.project") != self.project]
+        # Re-read these metadata on every observation, including post-switch
+        # neighbour verification. A reused name or changed backing is not cached.
+        volumes = inspect_foreign_volumes(foreign)
+        for record in foreign:
+            names = {mount["Name"] for mount in record.get("mounts") or [] if mount.get("Type") == "volume"}
+            record["volumeIdentity"] = [deepcopy(volumes[name]) for name in sorted(names)]
+        return records
 
     def identity(self, existing=True):
         require(existing, "LEGACY_EXISTING", "Legacy adoption cannot create an installation.")

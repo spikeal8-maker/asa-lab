@@ -17,7 +17,7 @@ from deployment.contracts import Blocked
 from deployment.legacy_identity import (LegacyInstallation, REVIEW_FILES, REVIEW_SERVICES, REVIEW_WRITERS, SOURCE_BINDS,
                                         actual_ports, assert_snapshot_equal, attest_foreign_mounts, attest_foreign_networks,
                                         attest_legacy_storage, canonical_mounts, configured_ports, foreign_identity,
-                                        input_inventory, plain_input, validate_review_configuration)
+                                        input_inventory, inspect_foreign_volumes, plain_input, validate_review_configuration)
 
 
 def review_fixture(root):
@@ -249,6 +249,17 @@ class PortTests(unittest.TestCase):
 
 
 class StorageIsolationTests(unittest.TestCase):
+    def foreign_volume(self, name="foreign_data", **changes):
+        return {"Name": name, "Driver": "local", "Scope": "local", "Options": None,
+                "CreatedAt": "2026-10-01T00:00:00Z", "Mountpoint": f"/var/lib/docker/volumes/{name}/_data",
+                "Labels": {"com.docker.compose.project": "unrelated"}, **changes}
+
+    def foreign_record(self, volume):
+        return {"id": "c" * 64, "labels": {"com.docker.compose.project": "unrelated"},
+                "mounts": [{"Type": "volume", "Name": volume["Name"], "Driver": "local",
+                            "Source": volume["Mountpoint"], "Destination": "/data", "RW": True}],
+                "volumeIdentity": [deepcopy(volume)]}
+
     def test_mount_map_order_is_not_identity_but_every_mount_property_is(self):
         mounts = [{"Type": "bind", "Source": "/owned/a", "Destination": "/a", "RW": False, "Propagation": "rprivate"},
                   {"Type": "volume", "Name": "owned-data", "Destination": "/data", "RW": True, "Driver": "local"}]
@@ -316,8 +327,97 @@ class StorageIsolationTests(unittest.TestCase):
                 with self.subTest(mount=mount), self.assertRaises(Blocked) as failure:
                     attest_foreign_mounts(root, config, [{"mounts": [mount]}])
                 self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
-            attest_foreign_mounts(root, config, [{"mounts": [{"Type": "volume", "Name": "foreign_data"},
-                                                           {"Type": "bind", "Source": str(root.parent / "neighbour")}]}])
+            foreign = self.foreign_record(self.foreign_volume())
+            foreign["mounts"].append({"Type": "bind", "Source": str(root.parent / "neighbour")})
+            attest_foreign_mounts(root, config, [foreign])
+
+    def test_foreign_named_volume_redirects_fail_closed_including_desktop_and_symlink_paths(self):
+        devices = ("/var/lib/docker/volumes/asa-lab-dev_postgres-data/_data",
+                   "/var/lib/docker/volumes/asa-lab-dev_blocks-object-data/_data",
+                   r"C:\Users\owner\ASA", "/run/desktop/mnt/host/c/Users/owner/ASA",
+                   "/host_mnt/c/Users/owner/ASA", "/unverified-symlink-to-ASA", "/unrelated")
+        for device in devices:
+            for flags in ("bind", "rbind", "bind,ro"):
+                volume = self.foreign_volume(Options={"type": "none", "o": flags, "device": device})
+                with self.subTest(device=device, flags=flags), \
+                        patch("deployment.legacy_identity.run", return_value=json.dumps([volume])), self.assertRaises(Blocked) as failure:
+                    inspect_foreign_volumes([self.foreign_record(volume)])
+                self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+                self.assertNotIn(device, str(failure.exception))
+
+    def test_missing_duplicate_and_unknown_foreign_volume_metadata_are_rejected(self):
+        volume = self.foreign_volume()
+        cases = [[], [volume, volume], [{**volume, "Name": "different"}], [{**volume, "Name": None}],
+                 [{**volume, "Driver": "nfs"}], [{**volume, "Scope": "global"}],
+                 [{**volume, "CreatedAt": None}], [{**volume, "Mountpoint": "relative"}],
+                 [{**volume, "Options": {"device": "/unknown"}}], [{**volume, "Labels": []}], {}]
+        for observed in cases:
+            with self.subTest(observed=observed), patch("deployment.legacy_identity.run", return_value=json.dumps(observed)), self.assertRaises(Blocked):
+                inspect_foreign_volumes([self.foreign_record(volume)])
+        with patch("deployment.legacy_identity.run", return_value="not-json"), self.assertRaises(Blocked):
+            inspect_foreign_volumes([self.foreign_record(volume)])
+
+    def test_foreign_mount_must_match_inspected_driver_and_actual_source(self):
+        volume = self.foreign_volume()
+        for change in ({"Source": "/another/source"}, {"Source": ""}, {"Driver": "other"}, {"Name": "--help"}):
+            record = self.foreign_record(volume)
+            record["mounts"][0].update(change)
+            with self.subTest(change=change), patch("deployment.legacy_identity.run", return_value=json.dumps([volume])), self.assertRaises(Blocked):
+                inspect_foreign_volumes([record])
+
+    def test_raw_foreign_name_without_backing_metadata_is_never_accepted(self):
+        record = self.foreign_record(self.foreign_volume())
+        record.pop("volumeIdentity")
+        with self.assertRaises(Blocked) as failure:
+            attest_foreign_mounts("/owned", {"volumes": {}}, [record])
+        self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+
+    def test_plain_foreign_volume_mountpoint_cannot_overlap_owned_data(self):
+        owned = "/var/lib/docker/volumes/asa-lab-dev_postgres-data/_data"
+        for source in (owned, owned + "/base", "/var/lib/docker/volumes", "/"):
+            volume = self.foreign_volume(Mountpoint=source)
+            with self.subTest(source=source), self.assertRaises(Blocked):
+                attest_foreign_mounts(r"C:\Users\owner\ASA", {"volumes": {}},
+                                     [self.foreign_record(volume)], [{"Mountpoint": owned}])
+
+    def test_foreign_metadata_is_reobserved_and_sealed_for_neighbour_verification(self):
+        from deployment.legacy import json_hash, verify_neighbours
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+            install = LegacyInstallation(root)
+            first, second = self.foreign_volume("other_a"), self.foreign_volume("other_b")
+            record = self.foreign_record(first)
+            record["mounts"].append(self.foreign_record(second)["mounts"][0])
+            record.pop("volumeIdentity")
+            changed = {**first, "CreatedAt": "2026-10-28T00:00:00Z"}
+            replies = [record["id"], json.dumps(record), json.dumps([second, first]),
+                       record["id"], json.dumps(record), json.dumps([changed, second])]
+            with patch("deployment.legacy_identity.run", side_effect=replies) as command:
+                before = install.containers()
+                observed = foreign_identity(before[0])
+                self.assertEqual([item["Name"] for item in observed["volumeIdentity"]], ["other_a", "other_b"])
+                snapshot = {"foreignSha256": json_hash([observed])}
+                with self.assertRaises(Blocked) as failure:
+                    verify_neighbours(install, snapshot)
+                self.assertEqual(failure.exception.code, "LEGACY_NEIGHBOUR_DRIFT")
+                volume_reads = [call.args[0] for call in command.call_args_list if call.args[0][:3] == ["docker", "volume", "inspect"]]
+                self.assertEqual(volume_reads, [["docker", "volume", "inspect", "other_a", "other_b"]] * 2)
+
+    def test_plain_foreign_volume_metadata_is_exact_without_mutating_input(self):
+        volume = self.foreign_volume()
+        record = self.foreign_record(volume)
+        original = deepcopy(record)
+        with patch("deployment.legacy_identity.run", return_value=json.dumps([volume])) as command:
+            self.assertEqual(inspect_foreign_volumes([record, record]), {volume["Name"]: volume})
+            command.assert_called_once_with(["docker", "volume", "inspect", volume["Name"]], capture=True)
+        self.assertEqual(record, original)
+        for key, value in (("CreatedAt", "later"), ("Options", {}), ("Mountpoint", "/different"),
+                           ("Labels", {"owner": "changed"}), ("Driver", "other")):
+            changed = deepcopy(record)
+            changed["volumeIdentity"][0][key] = value
+            with self.subTest(field=key):
+                self.assertNotEqual(foreign_identity(record), foreign_identity(changed))
 
     def test_volume_labels_driver_and_options_are_attested_and_creation_is_pinned(self):
         with tempfile.TemporaryDirectory() as directory:
