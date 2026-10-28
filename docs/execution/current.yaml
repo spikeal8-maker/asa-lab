@@ -7126,6 +7126,58 @@ parallel_lanes:
       convergence_baseline_sha: 1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66
       head_sha: fc9407e68da4557200b2217585797360d3550c8e
 
+  - id: electronics-committed-result-consumers
+    parent_lane: electronics
+    worktree_id: electronics-committed-result-consumers
+    owned_paths:
+      - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/NativeOpticalComponentVisual.tsx
+      - apps/web/src/electronics/native-optical-presentation.ts
+      - apps/web/src/electronics/WorkbenchStage.tsx
+      - apps/web/src/electronics/use-piezo-audio.ts
+      - apps/web/src/electronics/testing/**
+      - e2e/electronics-interactions.spec.ts
+    task:
+      id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
+      issue: 836
+      branch: main
+      candidate_branch: codex/electronics-committed-result-consumers-20261028
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: confirmed_native_piezo_result_subscription_gap_selected
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001.md
+      owner_authorization: >-
+        Controller selects the proven stability dependency of the owner-authorized publication
+        and working-site-update programme. Repair committed result delivery to piezo visual
+        and audio consumers without weakening optical commit barriers or whole-editor per-frame
+        rendering. Preserve accepted acquisition controls, solver/time/budgets and all foreign
+        WIP. One new source author, independent exact Code/Security review, real native browser
+        and General before ordinary Main integration. No working database/deployment in slice.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
+      convergence_baseline_sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
+      head_sha: null
+      observed_at: '2026-10-28T17:48:10Z'
+      observation_note: Fresh fetch main is required before integration; source snapshot is not CI or deployment acceptance.
+
   - id: projects
     worktree_id: projects-publication
     owned_paths:
@@ -7237,16 +7289,28 @@ parallel_lanes:
         owner_acceptance: pending
         deployment: not_run
         evidence: docs/product/projects/evidence/student-policy-20261028-acceptance.md
+      - task_id: TASK-PROJ-ACQUISITION-CONTROLS-001
+        issue: 211
+        pr: 837
+        accepted_candidate_sha: 1d7133f6e7e14769d73c33a6a172fa39dd4b0f21
+        integrated_sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
+        independent_review: approved
+        exact_candidate_focused_run: 40733497724
+        exact_candidate_general_run: 40733497796
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        evidence: docs/product/projects/evidence/acquisition-controls-20261028-acceptance.md
     task:
       id: TASK-PROJ-ACQUISITION-CONTROLS-001
       issue: 211
       branch: main
       candidate_branch: codex/public-project-acquisition-controls-20261028
       base_branch: main
-      pr: null
-      pr_draft: true
-      status: in_progress
-      checkpoint: global_author_and_student_acquisition_controls_selected
+      pr: 837
+      pr_draft: false
+      status: done
+      checkpoint: acquisition_controls_accepted_PR837_native_copies_verified
       kind: implementation
       risk: high
       semantic_change: 'yes'
@@ -7271,6 +7335,14 @@ parallel_lanes:
         - docs/agent/contracts/identity.yaml
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
+      - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
+        issue: 836
+        status: in_progress
+        selection: >-
+          Confirmed original-active native piezo visual/audio consumers remain stale despite
+          270 correct ready advances. Separate bounded committed-result consumer repair is
+          selected in its canonical Electronics child lane before the programme update.
+          No whole-Electronics acceptance or production update claim from PR837 acceptance.
       - id: TASK-ELECTRONICS-REPORT-BASELINE-001
         status: done
         branch: codex/publication-electronics-gate-baseline-20261028
@@ -14566,6 +14638,33 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-836-COMMITTED-RESULT-QUALIFICATION
+    kind: deployment_blocker
+    lane: electronics-committed-result-consumers
+    task_id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
+    blocks:
+      - production_update
+      - electronics_runtime_acceptance
+      - full_system_stability_claim
+    allows:
+      - readonly_diagnostics
+      - selected_bounded_repair
+      - focused_verification
+      - independent_source_review
+      - source_integration
+    reason: >-
+      Exact068 native evidence records 270 correct same-run ready advances with both piezos
+      at2300Hz/0.8/energized, but visual consumers stay zero and running AudioContext creates
+      no voice. Source lacks reactive committed-result delivery to those consumers. Artifact
+      SHA25666ad8c1a1ac2465059410852d051f89ef83ba76ddc74800569377656f74c15ed verified;
+      selected JSON/trace CRC PASS. No installed update has run. Other89 failures are not
+      declared solved or harmless by this selected diagnosis.
+    unblock_requires: >-
+      Independently reviewed bounded source with successful actual original-active visual
+      and audio evidence, relevant optical/lifecycle regression checks, General and focused
+      native qualification; honestly classify remaining native failures before programme
+      update. One passing case or text change alone cannot assert full Electronics stability.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/836
   - id: CLASSROOM-820-EXTERNAL-ELECTRONICS-DATA-817
     kind: acceptance_blocker
     lane: classroom-access-budget
