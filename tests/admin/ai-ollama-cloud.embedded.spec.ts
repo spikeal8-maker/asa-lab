@@ -45,6 +45,22 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => db?.close());
 
+async function publishModels(
+  service: AiChatService,
+  admin: string,
+  models: string[],
+  defaultModel = models[0]!,
+) {
+  const policy = await service.generationPolicy(admin);
+  await service.saveGenerationPolicy(admin, {
+    configurationVersion: policy.configurationVersion,
+    systemPrompt: policy.systemPrompt,
+    allowedModels: models,
+    defaultModel,
+    requestId: randomUUID(),
+  });
+}
+
 it('refreshes only the server catalogue with an authorized key and routes a discovered model through ordinary SQL admission', async () => {
   const admin = await identity(true),
     owner = await identity(),
@@ -140,6 +156,8 @@ it('refreshes only the server catalogue with an authorized key and routes a disc
     10,
     enabled.configurationVersion,
   ]);
+  expect((await service.status()).availableModels).toEqual([]); // Discovery never publishes models.
+  await publishModels(service, admin, ['ollama-cloud/future:27b']);
   const thread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [owner]))
     .rows[0]!.id;
   await service.send(owner, thread, 'Hello', randomUUID());
@@ -326,6 +344,7 @@ it('routes five private slots in priority order, deduplicates availability, and 
     100,
     selected.configurationVersion,
   ]);
+  await publishModels(service, admin, [a, b]);
   expect((await service.status()).availableModels.sort()).toEqual([a, b].sort());
   const thread = await service.createThread(owner);
   const quota = async () =>

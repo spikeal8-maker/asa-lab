@@ -1,3 +1,4 @@
+import { publishFixturePolicy, fixtureGenerationSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
@@ -259,10 +260,14 @@ it('image UUID tombstones do not consume the existing text hourly budget', async
       'SELECT revision FROM ai_ollama_settings WHERE singleton_key',
     )
   ).rows[0]!.revision;
-  const result = await pool.query<{ admitted: boolean }>(
-    'SELECT ai_text_begin_local($1,$2,$3,$4,$5::bigint) AS admitted',
-    [owner, t, randomUUID(), 'A text question', revision],
-  );
+  await publishFixturePolicy(pool, admin, 'ollama-local');
+  const result = await pool.query<{ admitted: boolean }>(fixtureGenerationSql, [
+    owner,
+    t,
+    randomUUID(),
+    'A text question',
+    revision,
+  ]);
   expect(result.rows[0]?.admitted).toBe(true);
 });
 it('lost dispatch-CAS response is reconciled without ever posting the provider job', async () => {
@@ -553,14 +558,18 @@ it('atomically turns an admitted local text request into one owner-scoped image 
       'SELECT revision FROM ai_ollama_settings WHERE singleton_key',
     )
   ).rows[0]!.revision;
+  await publishFixturePolicy(pool, admin, 'ollama-local');
   const parent = randomUUID();
   const childPrompt = 'A detailed sunlit forest with a village and winding path';
   expect(
     (
-      await pool.query<{ admitted: boolean }>(
-        'SELECT ai_text_begin_local($1,$2,$3,$4,$5::bigint) AS admitted',
-        [actor, chat, parent, 'Нарисуй красивый лес и деревню', revision],
-      )
+      await pool.query<{ admitted: boolean }>(fixtureGenerationSql, [
+        actor,
+        chat,
+        parent,
+        'Нарисуй красивый лес и деревню',
+        revision,
+      ])
     ).rows[0]?.admitted,
   ).toBe(true);
   const options = {

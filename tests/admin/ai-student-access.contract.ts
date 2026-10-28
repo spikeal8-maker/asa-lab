@@ -1,3 +1,4 @@
+import { publishFixtureModels, fixtureGenerationSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -107,6 +108,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       },
       randomUUID(),
     );
+    await publishFixtureModels(service, f.teacher.principal_id, ['gpt-5-mini']);
     async function policy(update: Record<string, unknown>) {
       const current = await access.classroom(f.teacher.principal_id, f.classroomId);
       return access.saveClassroom(f.teacher.principal_id, f.classroomId, {
@@ -189,10 +191,24 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       const f = await fixture();
       await f.policy({ kind: 'classroom', mode: 'allow', minimumRating: 50 });
       const chat = await f.service.createThread(f.principalId);
-      await f.admin.query(
-        'INSERT INTO ai_assistant_request_quota(owner_principal_id,request_id) SELECT $1,gen_random_uuid() FROM generate_series(1,30)',
-        [f.principalId],
+      const version = Number(
+        (
+          await f.runtime.query<{ configuration_version: number }>(
+            'SELECT * FROM ai_runtime_config()',
+          )
+        ).rows[0]!.configuration_version,
       );
+      for (let n = 0; n < 30; n++) {
+        const request = randomUUID();
+        await f.runtime.query(fixtureGenerationSql, [
+          f.principalId,
+          chat.id,
+          request,
+          'Лимитный запрос',
+          version,
+        ]);
+        await f.runtime.query('SELECT ai_chat_abort($1,$2,$3)', [f.principalId, chat.id, request]);
+      }
       const account = await aiIdentity(f.admin);
       await f.admin.query('UPDATE classroom_student_seats SET account_id=$2 WHERE id=$1', [
         f.seatId,
@@ -419,7 +435,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       );
       expect(quota.rows[0]!.n).toBe(1);
       await f.admin.query(
-        'UPDATE ai_assistant_config SET enabled=false,configuration_version=configuration_version+1',
+        "UPDATE ai_provider_settings SET enabled=false WHERE provider='openai';UPDATE ai_assistant_config SET enabled=false,configuration_version=configuration_version+1",
       );
       await expect(
         f.service.send(f.principalId, next.id, 'Провайдер выключен', randomUUID()),

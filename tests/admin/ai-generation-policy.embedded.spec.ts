@@ -628,3 +628,171 @@ it('keeps the selected default while changing another provider and rejects stale
   expect(fetchImpl).toHaveBeenCalledTimes(1);
   expect(String(fetchImpl.mock.calls[0]![0])).toContain('api.deepseek.com');
 });
+
+it('B freezes new discoveries hidden, retains lost selections, orders independent providers and rechecks SQL eligibility', async () => {
+  const service = chat();
+  // Restore an enabled credential without ever calling a live provider.
+  const config = await service.adminConfig(admin);
+  const slot = config.providerConfigurations.find((p) => p.provider === 'deepseek')!;
+  await service.saveAdminConfig(
+    admin,
+    {
+      enabled: true,
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      paidOperationsPerHour: 100,
+      configurationVersion: config.configurationVersion,
+      providerConfigurationVersion: slot.revision,
+    },
+    randomUUID(),
+  );
+  let current = await service.generationPolicy(admin);
+  const payload = {
+    configurationVersion: current.configurationVersion,
+    systemPrompt: 'Кратко.',
+    allowedModels: ['deepseek-flash', 'gemma4:31b'],
+    defaultModel: 'deepseek-flash',
+    modelPreferences: [
+      { id: 'deepseek-flash', eligible: true, order: 20 },
+      { id: 'gemma4:31b', eligible: true, order: 1 },
+    ],
+    providerOrder: { deepseek: 2, 'ollama-cloud': 1 },
+    requestId: randomUUID(),
+  };
+  await service.saveGenerationPolicy(admin, payload);
+  expect((await service.status()).availableModels).toEqual(['gemma4:31b', 'deepseek-flash']);
+  const revision = (
+    await db.query<{ revision: number }>(
+      "SELECT revision FROM ai_provider_settings WHERE provider='deepseek'",
+    )
+  ).rows[0]!.revision;
+  await pool.query('SELECT ai_provider_catalog_apply($1,$2,$3,$4::jsonb)', [
+    admin,
+    'deepseek',
+    revision,
+    JSON.stringify(['deepseek-flash', 'new-unknown-model']),
+  ]);
+  current = await service.generationPolicy(admin);
+  await expect(
+    pool.query('SELECT ai_provider_catalog_apply($1,$2,$3,$4::jsonb)', [
+      admin,
+      'deepseek',
+      Number(revision) + 1,
+      '[]',
+    ]),
+  ).rejects.toMatchObject({ code: '40001' });
+  expect(current.models.find((m) => m.id === 'catalog:deepseek:new-unknown-model')).toMatchObject({
+    allowed: false,
+    adapterCompatible: false,
+    selectable: false,
+    eligible: false,
+  });
+  const replayThread = await service.createThread(owner),
+    replayId = randomUUID();
+  const originalReply = await service.send(owner, replayThread.id, 'Сохрани ответ', replayId);
+  // Retire the default while another provider is usable: retain explicit lost identity, no paid fallback.
+  await pool.query('SELECT ai_provider_catalog_apply($1,$2,$3,$4::jsonb)', [
+    admin,
+    'deepseek',
+    revision,
+    '[]',
+  ]);
+  const status = await service.status();
+  expect(status.model).toBe('deepseek-flash');
+  expect(status.availableModels).toEqual(['gemma4:31b']);
+  const thread = await service.createThread(owner);
+  const calls = fetchImpl.mock.calls.length;
+  expect(await service.send(owner, replayThread.id, 'Сохрани ответ', replayId)).toEqual({
+    ...originalReply,
+    replayed: true,
+  });
+  await expect(
+    service.send(owner, thread.id, 'Не переключай модель', randomUUID()),
+  ).rejects.toBeDefined();
+  expect(fetchImpl.mock.calls).toHaveLength(calls);
+  expect((await service.generationPolicy(admin)).allowedModels).toContain('deepseek-flash');
+  await pool.query('SELECT ai_provider_catalog_apply($1,$2,$3,$4::jsonb)', [
+    admin,
+    'deepseek',
+    revision,
+    JSON.stringify(['deepseek-flash']),
+  ]);
+  current = await service.generationPolicy(admin);
+  await service.saveGenerationPolicy(admin, {
+    ...payload,
+    configurationVersion: current.configurationVersion,
+    defaultModel: 'gemma4:31b',
+    modelPreferences: [{ id: 'deepseek-flash', eligible: false, order: 0 }],
+    requestId: randomUUID(),
+  });
+  await expect(
+    pool.query('SELECT * FROM ai_generation_runtime($1)', ['deepseek-flash']),
+  ).resolves.toMatchObject({ rows: [] });
+  const deniedPolicy = await service.generationPolicy(admin);
+  const quotaBefore = (await db.query('SELECT count(*) n FROM ai_paid_operation_quota')).rows[0];
+  const deniedConfig = await service.adminConfig(admin);
+  await expect(
+    pool.query('SELECT ai_generation_begin($1,$2,$3,$4::jsonb,$5,$6,$7)', [
+      owner,
+      thread.id,
+      randomUUID(),
+      JSON.stringify({ text: 'forged', model: 'deepseek-flash' }),
+      'deepseek-flash',
+      deniedPolicy.configurationVersion,
+      deniedConfig.configurationVersion,
+    ]),
+  ).rejects.toBeDefined();
+  expect((await db.query('SELECT count(*) n FROM ai_paid_operation_quota')).rows[0]).toEqual(
+    quotaBefore,
+  );
+  // Re-enable and make default in one CAS update, evaluated against proposed settings.
+  current = await service.generationPolicy(admin);
+  const enabled = {
+    ...payload,
+    configurationVersion: current.configurationVersion,
+    requestId: randomUUID(),
+  };
+  await service.saveGenerationPolicy(admin, enabled);
+  await service.saveGenerationPolicy(admin, enabled);
+  await expect(
+    service.saveGenerationPolicy(admin, { ...enabled, requestId: randomUUID() }),
+  ).rejects.toMatchObject({ status: 409 });
+});
+
+it('B invalidates metadata access after key replacement and fetches only bounded metadata for the new credential', async () => {
+  const service = chat();
+  const config = await service.adminConfig(admin),
+    slot = config.providerConfigurations.find((p) => p.provider === 'deepseek')!;
+  await service.saveAdminConfig(
+    admin,
+    {
+      enabled: true,
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      apiKey: 'replacement-discovery-fixture-key',
+      paidOperationsPerHour: 100,
+      configurationVersion: config.configurationVersion,
+      providerConfigurationVersion: slot.revision,
+    },
+    randomUUID(),
+  );
+  expect(
+    (await service.generationPolicy(admin)).observations?.find((o) => o.provider === 'deepseek'),
+  ).toMatchObject({ checkedAt: null, credentialChanged: true });
+  expect((await service.status()).availableModels).not.toContain('deepseek-flash');
+  const metadata = vi.fn<typeof fetch>(
+    async () => new Response(JSON.stringify({ data: [{ id: 'deepseek-flash' }] })),
+  );
+  const refreshing = new AiChatService(pool, { encryptionKey: root, fetchImpl: metadata });
+  const refreshed = await refreshing.refreshProviderCatalog(admin, 'deepseek');
+  expect(refreshed.observations?.find((o) => o.provider === 'deepseek')).toMatchObject({
+    credentialChanged: false,
+    failed: false,
+  });
+  await refreshing.refreshProviderCatalog(admin, 'deepseek');
+  expect(metadata).toHaveBeenCalledTimes(1);
+  expect(metadata.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/models');
+  expect(metadata.mock.calls[0]?.[1]?.method).toBe('GET');
+  expect(JSON.stringify(refreshed)).not.toContain('replacement-discovery-fixture-key');
+  expect((await refreshing.status()).availableModels).toContain('deepseek-flash');
+});

@@ -140,3 +140,32 @@ it('renders missing fields truthfully and does not recursively interpolate profi
   expect(result).toContain('UTC');
   expect(result).not.toContain('INVALID/zone');
 });
+
+it('B bounds eligibility and sort numbers independently from visibility', () => {
+  const input = {
+    configurationVersion: 1,
+    systemPrompt: 'Кратко.',
+    allowedModels: ['deepseek-flash'],
+    defaultModel: 'deepseek-flash',
+    requestId: randomUUID(),
+  };
+  expect(
+    validPolicyInput({
+      ...input,
+      modelPreferences: [{ id: 'deepseek-flash', eligible: true, order: -10 }],
+      providerOrder: { deepseek: 2 },
+    }),
+  ).toMatchObject({ providerOrder: { deepseek: 2 } });
+  for (const extra of [
+    { providerOrder: { unknown: 1 } },
+    { providerOrder: { deepseek: 1.1 } },
+    { modelPreferences: [{ id: 'deepseek-flash', eligible: true, order: Infinity }] },
+    {
+      modelPreferences: [
+        { id: 'deepseek-flash', eligible: true, order: 0 },
+        { id: 'deepseek-flash', eligible: false, order: 2 },
+      ],
+    },
+  ])
+    expect(() => validPolicyInput({ ...input, ...extra })).toThrow();
+});

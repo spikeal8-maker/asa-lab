@@ -64,7 +64,7 @@ beforeAll(async () => {
     adapter,
     plan.filter((migration) => migration.version < '0229'),
   );
-  const f = await aiTextFixture(admin, runtime),
+  const f = await aiTextFixture(admin, runtime, true),
     request = randomUUID(),
     regeneration = randomUUID();
   await runtime.query("SELECT ai_text_begin_paid($1,$2,$3,'Сохранённый вопрос',$4)", [
@@ -128,6 +128,16 @@ beforeAll(async () => {
     ).rows,
   };
   await applyPlan(adapter, plan);
+  const seeded = (
+    await runtime.query<{
+      value: { customized: boolean; allowedModels: string[]; defaultModel: string };
+    }>('SELECT ai_generation_policy_runtime() AS value')
+  ).rows[0]!.value;
+  expect(seeded.customized).toBe(true);
+  expect(seeded.defaultModel).toBe('gpt-5-mini');
+  expect([...seeded.allowedModels].sort()).toEqual(
+    ['gpt-6-luna', 'gpt-5-mini', 'gpt-4.1-mini'].sort(),
+  );
   historicalBootstrap = false;
   expect(f.upstream).not.toHaveBeenCalled();
 }, 30000);

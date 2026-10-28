@@ -105,7 +105,8 @@ it('preserves draft across the two policy tabs and disables a default removed fr
       createElement(AdminAiGenerationPolicy, { section: 'settings', onAccessDenied: denied }),
     ),
   );
-  expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(call).mock.calls.filter(([, init]) => !init?.method)).toHaveLength(1);
+  expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2);
   const labels = [...host.querySelectorAll('label.asa-ai-policy-model')];
   const deepseek = labels
     .find((label) => label.textContent?.includes('DeepSeek Flash'))!
@@ -190,4 +191,83 @@ it.each([403, 404])('does not expose a policy form for unavailable API %s', asyn
   expect(host.querySelector('form')).toBeNull();
   if (status === 403) expect(denied).toHaveBeenCalledOnce();
   else expect(host.textContent).toContain('требуется обновление API');
+});
+
+it('B keeps eligibility separate from visibility and persists numeric ordering without changing hidden prompt', async () => {
+  vi.mocked(call).mockImplementation(async (_url, init) => ({
+    ok: true,
+    status: 200,
+    data: generationPolicyFixture(init?.method === 'PUT' ? { configurationVersion: 4 } : {}),
+  }));
+  await render('settings');
+  const eligible = host.querySelector<HTMLInputElement>(
+    '[aria-label="Разрешить у провайдера DeepSeek Flash"]',
+  )!;
+  expect(eligible).not.toBeNull();
+  const number = host.querySelector<HTMLInputElement>(
+    '[aria-label="Порядок модели DeepSeek Flash"]',
+  )!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(number, '-7');
+    number.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await submit();
+  expect(writes()[0]).toMatchObject({
+    allowedModels: ['deepseek-flash'],
+    modelPreferences: [{ id: 'deepseek-flash', eligible: true, order: -7 }],
+  });
+});
+
+it('B preserves unsaved visibility, default and rank during metadata refresh and reports a concurrent policy revision', async () => {
+  const observations = (['openai', 'deepseek'] as const).map((provider) => ({
+    provider,
+    source: 'fixture metadata',
+    checkedAt: new Date().toISOString(),
+    failed: false,
+    models: [],
+  }));
+  const initial = generationPolicyFixture({ observations });
+  vi.mocked(call).mockResolvedValueOnce({ ok: true, status: 200, data: initial });
+  await act(async () =>
+    root.render(
+      createElement(AdminAiGenerationPolicy, { section: 'settings', onAccessDenied: denied }),
+    ),
+  );
+  const rank = host.querySelector<HTMLInputElement>('[aria-label="Порядок модели GPT-6 Luna"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(rank, '-9');
+    rank.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const labels = [...host.querySelectorAll('label.asa-ai-policy-model')];
+  await act(async () =>
+    labels
+      .find((l) => l.textContent?.includes('GPT-6 Luna'))!
+      .querySelector<HTMLInputElement>('input')!
+      .click(),
+  );
+  const select = host.querySelector<HTMLSelectElement>('[aria-label="Модель по умолчанию"]')!;
+  await act(async () => {
+    select.value = 'gpt-6-luna';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: generationPolicyFixture({ configurationVersion: 4, observations }),
+  });
+  await act(async () =>
+    [...host.querySelectorAll('button')]
+      .find((b) => b.textContent === 'Обновить каталог OpenAI')!
+      .click(),
+  );
+  expect(rank.value).toBe('-9');
+  expect(select.value).toBe('gpt-6-luna');
+  expect(
+    labels
+      .find((l) => l.textContent?.includes('GPT-6 Luna'))!
+      .querySelector<HTMLInputElement>('input')!.checked,
+  ).toBe(true);
+  expect(host.textContent).toContain('Настройки изменились во время обновления каталога');
+  expect(host.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+  expect(writes()).toHaveLength(0);
 });

@@ -105,6 +105,7 @@ interface AiStatus {
   readonly ollamaModel?: string | null;
   readonly model: string;
   readonly availableModels?: readonly string[];
+  readonly modelChoices?: readonly { id: string; label: string }[];
 }
 
 /** Keep the popover entirely inside the chat canvas, including short viewports
@@ -699,9 +700,7 @@ export function AiChatPage({
     )
       return;
     setStatus(reply.data);
-    setSelectedModel((previous) =>
-      reply.data.availableModels!.includes(previous) ? previous : reply.data.model,
-    );
+    setSelectedModel((previous) => previous || reply.data.model);
   }, [call]);
   const wasGenerating = useRef(false);
   useEffect(() => {
@@ -2320,7 +2319,9 @@ export function AiChatPage({
                     <div className="asa-ai-provider-label">
                       {imageMode ? (
                         <span className="asa-ai-model-single">FLUX.2 Klein 4B</span>
-                      ) : (status?.availableModels?.length ?? 0) > 1 ? (
+                      ) : (status?.availableModels?.length ?? 0) > 1 ||
+                        (status?.enabled &&
+                          !status.availableModels?.includes(selectedModel || status.model)) ? (
                         <select
                           className="asa-ai-model-picker"
                           aria-label="Модель ИИ"
@@ -2330,11 +2331,18 @@ export function AiChatPage({
                           onChange={(event) => setSelectedModel(event.target.value)}
                           disabled={interactionBusy || !status?.enabled}
                         >
+                          {status &&
+                          !status.availableModels?.includes(selectedModel || status.model) ? (
+                            <option value={selectedModel || status.model} disabled>
+                              Выбранная модель недоступна — выберите другую
+                            </option>
+                          ) : null}
                           {status?.availableModels?.map((name) => (
                             <option key={name} value={name}>
-                              {name === 'ollama-local'
-                                ? status.ollamaModel || 'Локальная модель'
-                                : name}
+                              {status.modelChoices?.find((m) => m.id === name)?.label ??
+                                (name === 'ollama-local'
+                                  ? status.ollamaModel || 'Локальная модель'
+                                  : name)}
                             </option>
                           ))}
                         </select>
@@ -2343,7 +2351,8 @@ export function AiChatPage({
                           {status?.enabled
                             ? status.model === 'ollama-local'
                               ? status.ollamaModel || 'Локальная модель'
-                              : status.model
+                              : (status.modelChoices?.find((m) => m.id === status.model)?.label ??
+                                status.model)
                             : schoolPolicyDenied
                               ? 'Доступ закрыт'
                               : 'Модель'}

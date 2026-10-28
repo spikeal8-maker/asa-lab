@@ -107,6 +107,17 @@ export class AiAdminController {
     return this.safe(() => this.ai.generationPolicy(actor));
   }
 
+  @Post('generation-policy/catalog')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async refreshCatalog(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const provider = (raw as { provider?: unknown } | null)?.provider;
+    if (provider !== 'openai' && provider !== 'deepseek')
+      return reject('ai_catalog_invalid', 'Выберите провайдера.', 400);
+    return this.safe(() => this.ai.refreshProviderCatalog(actor, provider));
+  }
   @Put('generation-policy')
   async saveGenerationPolicy(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);

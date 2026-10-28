@@ -21,6 +21,8 @@ export type {
 export type {
   AiPromptVariable,
   AiGenerationModel,
+  AiModelPreference,
+  AiCatalogObservation,
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';

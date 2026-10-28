@@ -140,6 +140,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0267', // Canonical frozen mixed Course completion, additive only.
         '0268', // Additive read-only AI usage overview.
         '0269', // Exact public Scratch player and version-scoped asset reads.
+        '0271', // Cloud catalogue.
+        '0272', // Cloud key pool.
+        '0273', // Independent providers.
+        '0274', // Cloud pool provider projection.
+        '0275', // Model selection policy.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -439,6 +444,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0267', // Course completion formula from exact frozen lesson practices.
           '0268', // Additive read-only AI usage overview.
           '0269', // Exact public Scratch player and version-scoped asset reads.
+          '0271', // Cloud catalogue.
+          '0272', // Cloud key pool.
+          '0273', // Independent providers.
+          '0274', // Cloud pool provider projection.
+          '0275', // Model selection policy.
         ]);
         expect(
           await applyIsolatedTestPlan(

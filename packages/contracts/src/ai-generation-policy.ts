@@ -15,6 +15,19 @@ export interface AiPromptVariable {
   readonly missingValue: string;
 }
 
+export interface AiModelPreference {
+  readonly id: string;
+  readonly eligible: boolean;
+  readonly order: number;
+}
+export interface AiCatalogObservation {
+  readonly provider: 'openai' | 'deepseek';
+  readonly source: string;
+  readonly checkedAt: string | null;
+  readonly failed: boolean;
+  readonly credentialChanged?: boolean;
+  readonly models: readonly { id: string; active: boolean }[];
+}
 export interface AiGenerationModel {
   readonly id: string;
   readonly provider: 'openai' | 'deepseek' | 'ollama-cloud' | 'ollama';
@@ -22,6 +35,10 @@ export interface AiGenerationModel {
   readonly ready: boolean;
   readonly selectable: boolean;
   readonly allowed: boolean;
+  readonly eligible?: boolean;
+  readonly order?: number;
+  readonly adapterCompatible?: boolean;
+  readonly unavailableReason?: string | null;
 }
 
 export interface AiGenerationPolicy {
@@ -32,6 +49,9 @@ export interface AiGenerationPolicy {
   readonly allowedModels: readonly string[];
   readonly models: readonly AiGenerationModel[];
   readonly variables: readonly AiPromptVariable[];
+  readonly modelPreferences?: readonly AiModelPreference[];
+  readonly providerOrder?: Readonly<Record<string, number>>;
+  readonly observations?: readonly AiCatalogObservation[];
 }
 
 export interface AiGenerationPolicyUpdate {
@@ -39,6 +59,8 @@ export interface AiGenerationPolicyUpdate {
   readonly systemPrompt: string;
   readonly defaultModel: string | null;
   readonly allowedModels: readonly string[];
+  readonly modelPreferences?: readonly AiModelPreference[];
+  readonly providerOrder?: Readonly<Record<string, number>>;
   /** Stable UUID retained across an uncertain save; changed payload requires a new UUID. */
   readonly requestId: string;
 }

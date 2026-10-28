@@ -7,6 +7,7 @@ export interface AiModelOption {
   readonly inputModalities: readonly ('text' | 'image')[];
   readonly outputModalities: readonly ('text' | 'image')[];
   readonly streaming: boolean;
+  readonly adapterCompatible?: boolean;
   readonly shutdownDate: string | null;
   readonly selectable: boolean;
   readonly lifecycle: 'active' | 'deprecated' | 'retired';
@@ -78,6 +79,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     typeof catalog['revision'] !== 'string' ||
     !Array.isArray(models) ||
     !models.length ||
+    models.length > 2400 ||
     !Array.isArray(providers) ||
     ![2, 3].includes(providers.length) ||
     !Array.isArray(slots) ||
@@ -103,7 +105,10 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         ['inputModalities', 'outputModalities'].every(
           (key) =>
             Array.isArray(model[key]) &&
-            model[key].length > 0 &&
+            (model[key].length > 0 ||
+              (model['adapterCompatible'] === false &&
+                model['selectable'] === false &&
+                model['streaming'] === false)) &&
             model[key].every((item: unknown) => item === 'text' || item === 'image'),
         ),
     )

@@ -1,3 +1,5 @@
+import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
+import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
 import {
   cloudPoolFetch,
@@ -260,6 +262,36 @@ export class AiChatService {
     this.policy = new AiGenerationPolicyStore(pool);
   }
 
+  async refreshProviderCatalog(actor: string, provider: 'openai' | 'deepseek') {
+    const policy = await this.policy.row(actor);
+    const observation = policy?.observations?.find((o) => o.provider === provider);
+    if (
+      observation?.checkedAt &&
+      !observation.failed &&
+      Date.now() - Date.parse(observation.checkedAt) < 300000
+    )
+      return this.generationPolicy(actor);
+    const result = await this.pool.query<RuntimeRow & { revision: number }>(
+      'SELECT * FROM ai_provider_catalog_credentials($1,$2)',
+      [actor, provider],
+    );
+    const credentials = result.rows[0];
+    const key = credentials ? this.decrypt(credentials) : null;
+    if (!key)
+      throw new AiServiceError(
+        'ai_catalog_key_required',
+        409,
+        'Настройте ключ провайдера перед обновлением каталога.',
+      );
+    let ids: string[] | null = null;
+    try {
+      ids = await discoverProviderModels(provider, key, this.fetchImpl);
+    } catch {
+      /* Preserve the last successful observation; never log upstream bodies or keys. */
+    }
+    await applyCatalogObservation(this.pool, actor, provider, Number(credentials!.revision), ids);
+    return this.generationPolicy(actor);
+  }
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
   }
@@ -310,6 +342,12 @@ export class AiChatService {
       const row = (
         await this.pool.query<RuntimeRow>('SELECT * FROM ai_generation_runtime($1)', [selected])
       ).rows[0];
+      if (row && Number(row.configuration_version) !== Number(runtime.configuration_version))
+        throw new AiServiceError(
+          'ai_config_changed',
+          409,
+          'Настройки изменились до начала запроса. Повторите выбор модели.',
+        );
       if (row?.provider === 'ollama-cloud') await reloadOllamaCloudCatalog(this.pool);
       if (!row)
         throw new AiServiceError(
@@ -903,14 +941,16 @@ export class AiChatService {
     provider: AiProvider | 'ollama';
     model: AiChatModel;
     availableModels: readonly AiChatModel[];
+    modelChoices?: readonly { id: string; label: string }[];
     modelCatalog: AiModelCatalog;
     productFeatures: typeof AI_PRODUCT_FEATURES;
     ollamaModel: string | null;
     nativeImageTools: readonly string[];
   }> {
     const [config, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
-    const modelCatalog = getAiModelCatalog();
     const policy = await this.policy.row();
+    installProviderObservations(policy?.observations ?? []);
+    const modelCatalog = getAiModelCatalog();
     const nativeImageTools = (await this.nativeImageReady(local)) ? [OLLAMA_SELECTION] : [];
     if (policy?.customized) {
       const available: AiChatModel[] = modelCatalog.models
@@ -918,6 +958,7 @@ export class AiChatService {
           (m) =>
             this.key !== null &&
             policy.allowedModels.includes(m.id) &&
+            (policy.modelPreferences?.find((p) => p.id === m.id)?.eligible ?? true) &&
             m.selectable &&
             policy.providerReady?.[m.provider],
         )
@@ -925,9 +966,22 @@ export class AiChatService {
       if (
         local.enabled &&
         validOllamaModel(local.model) &&
-        policy.allowedModels.includes(OLLAMA_SELECTION)
+        policy.allowedModels.includes(OLLAMA_SELECTION) &&
+        (policy.modelPreferences?.find((p) => p.id === OLLAMA_SELECTION)?.eligible ?? true)
       )
         available.push(OLLAMA_SELECTION);
+      const providerOf = (id: string) =>
+        id === OLLAMA_SELECTION
+          ? 'ollama'
+          : (modelCatalog.models.find((m) => m.id === id)?.provider ?? '');
+      available.sort(
+        (left, right) =>
+          (policy.providerOrder?.[providerOf(left)] ?? 0) -
+            (policy.providerOrder?.[providerOf(right)] ?? 0) ||
+          (policy.modelPreferences?.find((p) => p.id === left)?.order ?? 0) -
+            (policy.modelPreferences?.find((p) => p.id === right)?.order ?? 0) ||
+          (left < right ? -1 : left > right ? 1 : 0),
+      );
       const model = (
         available.includes(policy.defaultModel as AiChatModel)
           ? policy.defaultModel
@@ -942,6 +996,13 @@ export class AiChatService {
         provider,
         model,
         availableModels: available,
+        modelChoices: available.map((id) => ({
+          id,
+          label:
+            id === OLLAMA_SELECTION
+              ? local.model
+              : (modelCatalog.models.find((m) => m.id === id)?.label ?? id),
+        })),
         modelCatalog,
         productFeatures: AI_PRODUCT_FEATURES,
         ollamaModel: local.enabled ? local.model : null,
