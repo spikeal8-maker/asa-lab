@@ -12461,7 +12461,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point2_arduino_one_to_four_qualification_selected
+      checkpoint: remaining20_point2_arduino_failures_confirmed_solver_repair_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -12472,7 +12472,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-ARDUINO-MATRIX-001
+      current_slice: TASK-ELECTRONICS-DIODE-ACTIVE-SET-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -12481,7 +12481,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Newpoint2directpupilcircuit40781ac independentAPPROVE16domain20press20release1440and390reopenPASS. Arduinoeffects/counterremainpending. Point1main9ddsourceverifiedindependentPASS; General40671936111cancelledafternewmain, notPASSorproductFAIL. Foreignworkflowdirtypathsuntouched; no server/heavyparallelruns. No wholepoint2orinstalledacceptanceclaim.
+      execution_coordination: Directpupilcircuit815verified. Arduino817diagnostic602independentAPPROVE_NOTfeaturePASS confirmsunsupportedfunctions,3mAphysicalKCLfailure,instantaneousonlymultiplexoptics andwalllag. HIGHsolver819selectedfirst; functions/optics/performance andfullmatrixremainpending. Preserveforeignfields,no server orparallelheavytests. No wholepoint2orinstalledacceptanceclaim.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13768,11 +13768,16 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_bounded_syntax_and_physical_multiplex_feasibility
+      checkpoint: independently_approved_diagnostic_three_real_failures_not_product_pass
+      accepted_diagnostic_sha: 602253ce2716e6a46682f30a8f0438ea15e93dfe
+      independent_review: APPROVE_DIAGNOSTIC_exact602253ce_6tests_and_native1_4_text_genuineBlockly
+      evidence: docs/product/electronics/examples/arduino-seven-segment-matrix/README.md
+      observed_failures: UserfunctionscompileFAIL; NPN_LED_KCL0.00306030601AFAIL; fourGPIOmultiplexshowsonevisibleonlyFAIL, model25.1msversuswall398to471ms. SixgreentestsmeanreproductionnotfeaturePASS.
+      validation_boundary: Full1_2_3_4_by3codeforms_NOT_RUN; 2and3_counters_effects_mobile_sustained_Stop_Resetpending. No productionedits; archivesandlogicalcausalnativeproofindependentlyverified.
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       owner_authorization: OwnerexplicitlyrequestsArduino1to4displays genuineBlocklylineartextlinearanduserfunctions counters/effects no problematiclag. Firstcausalqualificationonly; runtime/opticsrepairrequiresseparateselectionafteractualreproduction.
@@ -13795,6 +13800,49 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-28T10:55:00Z'
       observation_note: Fresh fetch main before each edit. Observed4718clean, prior751fullsourcegateand815independentdirectmatrixproofretained. Readonlyinventorysuspectsunsupportedfunctions andrawmultiplexinstantaneousoptics; requireactualcausalreceiptsnotassumptions. No repairorserverauthorityinsidetestslice.
+
+  - id: electronics-diode-active-set
+    parent_lane: electronics
+    worktree_id: electronics-diode-active-set
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-DIODE-ACTIVE-SET-001.md
+    task:
+      id: TASK-ELECTRONICS-DIODE-ACTIVE-SET-001
+      issue: 819
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_negative_forward_companion_current_repair
+      owner_acceptance: pending
+      execution_role: bounded_solver_executor_then_new_independent_review
+      owner_authorization: OwnerrequestsfunctionalArduinoone_to_fourdisplayprogramme; actual817physicalKCLfailure independentlyconfirmed. Fixdiodeactive_set_stamp_reportconsistencyonly, no numericalqualityweakening/clampmask/NPNonlypatch/foreignrefactor.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-DIODE-ACTIVE-SET-001.md
+        - docs/product/electronics/examples/arduino-seven-segment-matrix/README.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 0ffb433ee57cef07e64f93fea25b680f4efc1742
+      convergence_baseline_sha: 0ffb433ee57cef07e64f93fea25b680f4efc1742
+      head_sha: null
+      observed_at: '2026-10-28T11:12:12Z'
+      observation_note: Fresh fetch main before each edit. Actual817diagnostic602independentAPPROVEreproducedLEDactive_setnegativecompanioncurrents and3mAKCL. Preservealllegacyrawgoldenbytes, source/currentqualitythresholds andforeignfields. Functionsupport/opticalintegration/performance remainseparaterepairs.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
