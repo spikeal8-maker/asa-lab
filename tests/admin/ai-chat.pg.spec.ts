@@ -462,19 +462,19 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       const [, selectedOptions] = mockFetch.mock.calls[1]!;
       const selectedInput = JSON.parse(String(selectedOptions?.body)) as { model: string };
       expect(selectedInput.model).toBe('gpt-4.1-mini');
-      const invalidModel = await inject(app, {
+      const hiddenModel = await inject(app, {
         method: 'POST',
         url: msgUrl + '/stream',
         headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
         cookies: { asa_session: ownerToken },
         payload: {
-          message: 'Неподдерживаемый DeepSeek',
+          message: 'Скрытая модель DeepSeek',
           requestId: randomUUID(),
           model: 'deepseek-flash',
         },
       });
-      expect(invalidModel.statusCode).toBe(200);
-      expect(invalidModel.body).toContain('ai_model_invalid');
+      expect(hiddenModel.statusCode).toBe(200);
+      expect(hiddenModel.body).toContain('ai_model_not_allowed');
       expect(mockFetch).toHaveBeenCalledTimes(2);
       const streamedHistory = await service.messages(owner.principalId, threadId);
       expect(streamedHistory).toContainEqual(

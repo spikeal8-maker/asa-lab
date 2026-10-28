@@ -380,9 +380,11 @@ it('captures source and event facts without inventing historical attribution or 
 
 it('includes retained legacy AI admissions, deduplicates journal overlap and keeps unknown tokens unknown', async () => {
   const f = await fixture(),
-    account = f.accounts[0]!,
+    account = f.accounts.find((candidate) => candidate.status === 'active')!,
     legacy = randomUUID(),
     both = randomUUID();
+  expect(account.status).toBe('active');
+  expect(f.accounts[0]!.status).toBe('suspended');
   await withLocalFixtureAdmissions(
     admin,
     f.actor.principal_id,
