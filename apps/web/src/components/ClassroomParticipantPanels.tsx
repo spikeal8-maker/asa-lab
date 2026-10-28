@@ -297,6 +297,12 @@ export function ParticipantMeritsAndAvatars({
     }>
   >([]);
   const uploadSubmitted = uploads.some((file) => file.submitted);
+  const uploadControlStyle = {
+    minHeight: 44,
+    minWidth: 44,
+    maxWidth: '100%',
+    boxSizing: 'border-box' as const,
+  };
   const uploadAtCapacity = profile.avatars.length >= 24;
   const uploadBlocked = uploadAtCapacity && !uploads.some((file) => file.attempted);
   const preparedUploads = uploads.map((file) => ({
@@ -586,7 +592,10 @@ export function ParticipantMeritsAndAvatars({
           </button>
         </div>
         {!readOnly ? (
-          <fieldset disabled={locked || (profile.avatars.length >= 24 && uploads.length === 0)}>
+          <fieldset
+            disabled={locked || (profile.avatars.length >= 24 && uploads.length === 0)}
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}
+          >
             <legend>Загрузить аватары · до 24 на класс</legend>
             <p>
               PNG, JPEG, WebP до 8 МБ исходный файл; 320×320 после уменьшения, до 220 КБ. SVG и HTML
@@ -596,14 +605,16 @@ export function ParticipantMeritsAndAvatars({
               Название аватара
               <input
                 maxLength={60}
+                style={uploadControlStyle}
                 disabled={uploadSubmitted}
                 value={avatarTitle}
                 onChange={(e) => setAvatarTitle(e.target.value)}
               />
             </label>
-            <label>
+            <label style={{ minHeight: 44, alignItems: 'center' }}>
               <input
                 type="checkbox"
+                style={{ width: 20, height: 20, minWidth: 20, flexShrink: 0 }}
                 disabled={uploadSubmitted}
                 checked={secret}
                 onChange={(e) => setSecret(e.target.checked)}
@@ -614,6 +625,7 @@ export function ParticipantMeritsAndAvatars({
               <label>
                 Открыть при достижении
                 <select
+                  style={uploadControlStyle}
                   disabled={uploadSubmitted}
                   value={achievement}
                   onChange={(e) => setAchievement(e.target.value)}
@@ -636,6 +648,7 @@ export function ParticipantMeritsAndAvatars({
               Файлы аватаров
               <input
                 type="file"
+                style={{ ...uploadControlStyle, width: '100%' }}
                 disabled={uploadSubmitted || profile.avatars.length >= 24}
                 accept="image/png,image/jpeg,image/webp"
                 multiple
@@ -707,10 +720,15 @@ export function ParticipantMeritsAndAvatars({
                     Остальные файлы остаются в очереди; её можно отменить.
                   </p>
                 ) : null}
-                <button type="button" disabled={uploadBlocked} onClick={() => void upload()}>
+                <button
+                  type="button"
+                  style={uploadControlStyle}
+                  disabled={uploadBlocked}
+                  onClick={() => void upload()}
+                >
                   Загрузить {uploads.length}
                 </button>
-                <button type="button" onClick={cancelUpload}>
+                <button type="button" style={uploadControlStyle} onClick={cancelUpload}>
                   Отмена загрузки
                 </button>
               </>
