@@ -9,8 +9,12 @@ import { STUDENT_SESSION_COOKIE } from './seat-context';
 const CLASS = '123e4567-e89b-42d3-a456-426614174001';
 const SEAT = '123e4567-e89b-42d3-a456-426614174002';
 function fixture(data: unknown = { publish: false, download: false, version: 0 }) {
-  const resolve = vi.fn(async () => ({ principalId: 'trusted-actor', tenantId: 'trusted-tenant' }));
-  const query = vi.fn(async () => ({ rows: [{ data }] }));
+  const resolve = vi.fn(async () => ({
+    principalId: 'trusted-actor',
+    accountId: 'trusted-account',
+    tenantId: 'different-active-workspace',
+  }));
+  const query = vi.fn(async (_sql: string, _params: unknown[]) => ({ rows: [{ data }] }));
   const controller = new ProjectDistributionController(
     { resolve } as unknown as ActiveContextUseCase,
     { query } as unknown as pg.Pool,
@@ -28,12 +32,19 @@ describe('Exact-class project distribution API', () => {
     await f.controller.write(f.req, CLASS, input);
     expect(f.query).toHaveBeenCalledWith(
       expect.stringContaining('classroom_project_policy_write'),
-      ['trusted-actor', 'trusted-tenant', CLASS, null, JSON.stringify(input), 'server-request'],
+      ['trusted-account', CLASS, 'trusted-actor', null, JSON.stringify(input), 'server-request'],
+    );
+    expect(f.query.mock.calls[0]?.[0]).toContain('classroom_teacher_access($1,$2)');
+    expect(f.query.mock.calls[0]?.[0]).toContain('resource.tenant_id');
+    await f.controller.readSeat(f.req, CLASS, SEAT);
+    expect(f.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('classroom_project_policy_read'),
+      ['trusted-account', CLASS, 'trusted-actor', SEAT],
     );
     await expect(
       f.controller.write(f.req, CLASS, { ...input, actor: 'forged' }),
     ).rejects.toMatchObject({ status: 400 });
-    expect(f.query).toHaveBeenCalledTimes(1);
+    expect(f.query).toHaveBeenCalledTimes(2);
   });
   it.each(['', 'revoked'])(
     'never falls back to Account when a Seat cookie exists (%s)',

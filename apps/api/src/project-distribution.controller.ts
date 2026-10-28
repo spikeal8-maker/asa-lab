@@ -49,13 +49,20 @@ export class ProjectDistributionController {
               : ['publish', 'download', 'expectedVersion'],
           );
     if (shape && !shape.ok) reject(400, 'invalid_policy');
+    // An invited co-teacher may keep a different personal workspace active.
+    // Derive the resource tenant through the existing exact-class ACL; the
+    // audited policy writer rechecks that ACL after acquiring its class lock.
     const result = await this.pool.query<{ data: Record<string, unknown> | null }>(
       body === undefined
-        ? 'SELECT public.classroom_project_policy_read($1,$2,$3,$4) AS data'
-        : 'SELECT public.classroom_project_policy_write($1,$2,$3,$4,$5::jsonb,$6) AS data',
+        ? `WITH resource AS MATERIALIZED (
+             SELECT tenant_id FROM public.classroom_teacher_access($1,$2)
+           ) SELECT public.classroom_project_policy_read($3,resource.tenant_id,$2,$4) AS data FROM resource`
+        : `WITH resource AS MATERIALIZED (
+             SELECT tenant_id FROM public.classroom_teacher_access($1,$2)
+           ) SELECT public.classroom_project_policy_write($3,resource.tenant_id,$2,$4,$5::jsonb,$6) AS data FROM resource`,
       body === undefined
-        ? [actor.principalId, actor.tenantId, id, seat]
-        : [actor.principalId, actor.tenantId, id, seat, JSON.stringify(body), request.id],
+        ? [actor.accountId, id, actor.principalId, seat]
+        : [actor.accountId, id, actor.principalId, seat, JSON.stringify(body), request.id],
     );
     const data = result.rows[0]?.data;
     if (!data || data['error'] === 'forbidden') reject(403, 'forbidden');

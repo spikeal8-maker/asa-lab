@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { testAdminPool, testAppPool } from './helpers';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { publicScratchFixture } from '../../apps/api/src/testing/fixtures/public-scratch';
 import { PublicScratchPlayerService } from '../../apps/api/src/public-scratch-player';
 import { buildTestApp, inject, type NestApp } from './app';
@@ -506,4 +507,141 @@ describe('StudentSeat actual immutable publication and audited permissions', () 
       ).toEqual({ pinned: true, lifecycle_version: initialEpoch });
     },
   );
+  it('invited co-teacher manages another personal tenant class and Seat without switching workspace', async () => {
+    async function educator() {
+      const id = crypto.randomUUID().replaceAll('-', '');
+      const registered = await inject(app, {
+        method: 'POST',
+        url: '/api/auth/register',
+        payload: {
+          email: `policy-co-${id}@isolated.test`,
+          username: `pco_${id.slice(0, 24)}`,
+          displayName: 'Policy co-teacher',
+          password: `Policy-${id}-Password`,
+          birthDate: '1990-01-01',
+          country: 'RU',
+        },
+      });
+      expect(registered.statusCode, registered.body).toBe(201);
+      const token = registered.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
+      if (!token) throw new Error('Personal Account session required');
+      const cookies = { asa_session: token };
+      const enabled = await inject(app, {
+        method: 'POST',
+        url: '/api/capabilities/educator/self-attest',
+        cookies,
+        payload: {},
+      });
+      expect(enabled.statusCode, enabled.body).toBe(201);
+      const session = async () =>
+        (
+          await admin.query(
+            `SELECT account.id account_id,actor.id principal_id,workspace.id workspace_id,workspace.tenant_id
+        FROM sessions_v2 session JOIN principals actor ON actor.id=session.principal_id
+        JOIN accounts account ON account.id=actor.account_id JOIN workspaces workspace ON workspace.id=session.active_workspace_id
+        WHERE session.token_hash=$1 AND workspace.kind='personal'`,
+            [hashSessionToken(token)],
+          )
+        ).rows[0];
+      const initial = await session();
+      expect(initial).toBeDefined();
+      return { cookies, session, initial };
+    }
+    const owner = await educator();
+    const colleague = await educator();
+    const outsider = await educator();
+    expect(colleague.initial.tenant_id).not.toBe(owner.initial.tenant_id);
+    const created = await inject(app, {
+      method: 'POST',
+      url: '/api/classrooms',
+      cookies: owner.cookies,
+      headers: { 'idempotency-key': crypto.randomUUID() },
+      payload: {
+        title: 'Cross-personal policy',
+        ageBand: 'mixed',
+        topicKeys: [],
+        safeModeDefault: true,
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const classroomId = created.json().classroom.id as string;
+    const seat = (
+      await runtime.query(
+        "SELECT id FROM classroom_management_add_seat($1,$2,'Scoped policy Seat',$3,true)",
+        [owner.initial.account_id, classroomId, crypto.randomUUID().slice(0, 8)],
+      )
+    ).rows[0].id as string;
+    const invite = crypto.randomUUID();
+    await runtime.query(
+      "SELECT * FROM classroom_teacher_invitation_create($1,$2,$3,now()+interval '1 day')",
+      [owner.initial.account_id, classroomId, invite],
+    );
+    const accepted = await runtime.query(
+      'SELECT * FROM classroom_teacher_invitation_accept($1,$2)',
+      [colleague.initial.account_id, invite],
+    );
+    expect(accepted.rows[0]).toMatchObject({
+      classroom_id: classroomId,
+      teacher_role: 'co_teacher',
+    });
+    const path = `/api/project-distribution/classrooms/${classroomId}`;
+    for (const suffix of ['policy', `seats/${seat}`]) {
+      const read = await inject(app, {
+        method: 'GET',
+        url: `${path}/${suffix}`,
+        cookies: colleague.cookies,
+      });
+      expect(read.statusCode, read.body).toBe(200);
+      expect(read.json()).toMatchObject({ publish: false, download: false, version: 0 });
+      const denied = await inject(app, {
+        method: 'GET',
+        url: `${path}/${suffix}`,
+        cookies: outsider.cookies,
+      });
+      expect(denied.statusCode, denied.body).toBe(403);
+    }
+    const saved = await inject(app, {
+      method: 'PUT',
+      url: `${path}/policy`,
+      cookies: colleague.cookies,
+      payload: { publish: true, download: false, expectedVersion: 0 },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(saved.json()).toMatchObject({ publish: true, download: false, version: 1 });
+    const overridden = await inject(app, {
+      method: 'PUT',
+      url: `${path}/seats/${seat}`,
+      cookies: colleague.cookies,
+      payload: { publishOverride: 'deny', downloadOverride: 'allow', expectedVersion: 1 },
+    });
+    expect(overridden.statusCode, overridden.body).toBe(200);
+    expect(overridden.json()).toMatchObject({
+      publishOverride: 'deny',
+      downloadOverride: 'allow',
+      version: 2,
+    });
+    for (const suffix of ['policy', `seats/${seat}`]) {
+      const denied = await inject(app, {
+        method: 'PUT',
+        url: `${path}/${suffix}`,
+        cookies: outsider.cookies,
+        payload:
+          suffix === 'policy'
+            ? { publish: false, download: true, expectedVersion: 2 }
+            : { publishOverride: 'allow', downloadOverride: 'deny', expectedVersion: 2 },
+      });
+      expect(denied.statusCode, denied.body).toBe(403);
+    }
+    expect(await colleague.session()).toEqual(colleague.initial);
+    expect(await owner.session()).toEqual(owner.initial);
+    const audit = await admin.query(
+      "SELECT tenant_id,payload_json FROM audit_events WHERE entity_id=$1 AND action='classroom.projects.policy' ORDER BY id",
+      [classroomId],
+    );
+    expect(audit.rows).toHaveLength(2);
+    for (const row of audit.rows) {
+      expect(row.tenant_id).toBe(owner.initial.tenant_id);
+      expect(row.payload_json.actorId).toBe(colleague.initial.principal_id);
+    }
+  });
 });
