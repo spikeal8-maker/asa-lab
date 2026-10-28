@@ -599,6 +599,31 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-MODELS-ACCESS-A
+          issue: 373
+          scope: independent provider enablement preserving model admission and legacy compatibility
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R21, R22]
+          acceptance_checks: [C17, C20, C25]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner explicitly requests model/access settings on 2026-10-28: independently enabled
+            providers, catalog eligibility separate from user visibility, global default/order,
+            and both global and per-user per-model monthly token budgets. First bounded source
+            vertical replaces singleton-only provider enablement with independent persisted
+            states, truthful admin cards and matching runtime admission/status. Preserve keys,
+            CAS/idempotency/audit, legacy compatibility, paid operation ceilings, local resource
+            protection and no automatic paid fallback. Do not change live settings or call paid
+            providers. Independent review and focused SQL/API/UI regressions required. Subsequent
+            selected verticals cover global model selection/order and atomic UTC-month token
+            reserve/settle for both global and user scopes; do not claim cosmetic fields enforce
+            budgets. Existing Draft PR816 and candidates822/828/830 remain separate and preserved.
         - id: ASAI-19A
           issue: 807
           scope: truthful search outcomes and explicit administrator diagnostic
