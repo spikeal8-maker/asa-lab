@@ -1,3 +1,9 @@
+import {
+  AI_IMAGE_PRESETS,
+  aiImageDimensions,
+  isAiImageSize,
+  type AiImageStoredSize,
+} from '@asa-lab/contracts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -44,7 +50,7 @@ export interface ImageJobRow {
   marker: string;
   seed: number;
   prompt: string | null;
-  size: AiImageSize;
+  size: AiImageStoredSize;
   state: AiImageJobState;
   created_at: string;
   cancel_requested: boolean;
@@ -81,7 +87,7 @@ export function imageInput(raw: unknown): AiImageGenerationRequest {
     p.prompt.trim().length < 1 ||
     p.prompt.length > 3000 ||
     /[\p{Cc}]/u.test(p.prompt) ||
-    ![512, 768, 1024].includes(Number(p.size)) ||
+    !isAiImageSize(p.size) ||
     typeof p.size !== 'number'
   )
     throw new AiImageError(
@@ -109,9 +115,9 @@ export function imageAdminInput(raw: unknown): AiImageGenerationAdminUpdate {
     p.globalConcurrency > 2 ||
     !Array.isArray(p.sizes) ||
     p.sizes.length < 1 ||
-    p.sizes.length > 3 ||
+    p.sizes.length > AI_IMAGE_PRESETS.length ||
     new Set(p.sizes).size !== p.sizes.length ||
-    p.sizes.some((v) => ![512, 768, 1024].includes(v))
+    p.sizes.some((v) => !isAiImageSize(v))
   )
     throw new AiImageError(
       'ai_image_config_invalid',
@@ -141,8 +147,7 @@ function descriptor(j: ImageJobRow): AiAttachmentObject {
 function image(j: ImageJobRow): AiGeneratedImage {
   return {
     requestId: j.request_id,
-    width: j.size,
-    height: j.size,
+    ...aiImageDimensions(j.size),
     mimeType: 'image/png',
     sizeBytes: j.size_bytes!,
     downloadUrl: `/api/ai/threads/${j.thread_id}/image-generations/${j.request_id}/image`,
@@ -311,6 +316,32 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     }
   }
   async create(owner: string, thread: string, raw: unknown): Promise<AiImageGenerationJob> {
+    if (raw && typeof raw === 'object' && (raw as { size?: unknown }).size === 512) {
+      // 512 is receipt-only. Prove the existing owner-bound job before parsing its old intent;
+      // SQL compares the original immutable payload digest, including size and thread.
+      const input = imageInput({ ...raw, size: 768 });
+      const t = imageId(thread);
+      const existing = await this.value<ImageJobRow>('SELECT ai_image_get($1,$2,$3) AS value', [
+        owner,
+        t,
+        input.requestId,
+      ]);
+      await this.value(
+        'SELECT ai_image_begin($1,$2,$3,$4,$5::integer,$6,$7::bigint,false,$8::varchar) AS value',
+        [
+          owner,
+          t,
+          input.requestId,
+          input.prompt,
+          512,
+          existing.provider_id,
+          Number(existing.seed),
+          existing.graph_digest,
+        ],
+      );
+      // Even an admitted legacy job resumes through the worker, never a replay POST.
+      return this.get(owner, t, input.requestId);
+    }
     const j = await this.admit(owner, thread, raw);
     await this.dispatchAdmitted(j);
     return this.get(owner, j.thread_id, j.request_id);

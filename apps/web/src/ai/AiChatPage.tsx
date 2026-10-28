@@ -1,3 +1,4 @@
+import { aiImageSizeLabel } from '@asa-lab/contracts';
 import {
   useEffect,
   useCallback,
@@ -157,7 +158,7 @@ export function AiChatPage({
   const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [imageMode, setImageMode] = useState(false);
   const [imageSelection, setImageSelection] = useState<ImageGenerationMode>('auto');
-  const [imageSize, setImageSize] = useState<AiImageSize>(512);
+  const [imageSize, setImageSize] = useState<AiImageSize>(1024);
   const imageController = useRef<ImageComposerController>(null);
   const imageHandoffPending = useRef(false);
   const [imageUi, setImageUi] = useState<ImageComposerState>({
@@ -165,7 +166,7 @@ export function AiChatPage({
     canCancel: false,
     canSubmit: false,
     notice: '',
-    sizes: [512],
+    sizes: [1024],
   });
   const onImageState = useCallback((state: ImageComposerState) => {
     if (state.busy) imageHandoffPending.current = false;
@@ -2112,7 +2113,7 @@ export function AiChatPage({
                     >
                       {imageUi.sizes.map((value) => (
                         <option key={value} value={value}>
-                          {value} × {value}
+                          {aiImageSizeLabel(value as AiImageSize)}
                         </option>
                       ))}
                     </select>

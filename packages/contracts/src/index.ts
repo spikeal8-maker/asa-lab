@@ -76,3 +76,12 @@ export type {
   AiTokenBudgetUpdate,
   AiTokenBudgetsOwn,
 } from './ai-token-budgets.js';
+
+export {
+  AI_IMAGE_PRESETS,
+  aiImagePreset,
+  aiImageDimensions,
+  isAiImageSize,
+  aiImageSizeLabel,
+} from './ai-image-generation.js';
+export type { AiImageStoredSize } from './ai-image-generation.js';

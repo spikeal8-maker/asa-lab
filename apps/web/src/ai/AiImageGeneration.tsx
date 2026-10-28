@@ -1,3 +1,4 @@
+import { aiImageSizeLabel, isAiImageSize } from '@asa-lab/contracts';
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import type {
   AiImageGenerationJob,
@@ -31,7 +32,7 @@ export function imageGenerationStatusShape(value: unknown): value is AiImageGene
     typeof status.ready === 'boolean' &&
     Array.isArray(status.sizes) &&
     status.sizes.length > 0 &&
-    status.sizes.every((size) => [512, 768, 1024].includes(size)) &&
+    status.sizes.every(isAiImageSize) &&
     Number.isSafeInteger(status.dailyLimit) &&
     Number.isSafeInteger(status.remainingToday)
   );
@@ -82,7 +83,7 @@ export function AiImageGeneration({
   const call = useRef(createAiScopeCall(seatId)).current;
   const [status, setStatus] = useState<AiImageGenerationStatus | null>(null);
   const [prompt, setPrompt] = useState(initialPrompt);
-  const [size, setSize] = useState<AiImageSize>(512);
+  const [size, setSize] = useState<AiImageSize>(1024);
   const [job, setJob] = useState<AiImageGenerationJob | null>(null);
   const [notice, setNotice] = useState('');
   const [sending, setSending] = useState(false);
@@ -351,7 +352,7 @@ export function AiImageGeneration({
         !!status?.enabled &&
         status.ready &&
         status.remainingToday > 0,
-      sizes: status?.sizes || [512],
+      sizes: status?.sizes || [1024],
       notice:
         notice ||
         (job
@@ -430,9 +431,9 @@ export function AiImageGeneration({
                   onChange={(event) => setSize(Number(event.target.value) as AiImageSize)}
                   disabled={sending || !!pending}
                 >
-                  {(status?.sizes || [512]).map((value) => (
+                  {(status?.sizes || [1024]).map((value) => (
                     <option key={value} value={value}>
-                      {value} × {value}
+                      {aiImageSizeLabel(value as AiImageSize)}
                     </option>
                   ))}
                 </select>

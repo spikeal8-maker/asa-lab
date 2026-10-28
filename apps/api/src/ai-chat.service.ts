@@ -11,7 +11,7 @@ import {
 import { isOllamaCloudPoolManaged } from './ai-model-catalog.js';
 import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
 import type { AiOllamaCloudInspection } from '@asa-lab/contracts';
-import type { AiGeneratedImage, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
+import type { AiGeneratedImage, AiImageGenerationJob, AiImageStoredSize } from '@asa-lab/contracts';
 import { AiImageService } from './ai-image.service.js';
 import {
   AiToolPolicyError,
@@ -89,7 +89,7 @@ export type { AiProvider, AiModel } from './ai-model-catalog.js';
 export type AiChatModel = AiModel | typeof OLLAMA_SELECTION;
 export interface AiNativeImageOptions {
   readonly mode: 'off' | 'auto';
-  readonly size: AiImageSize;
+  readonly size: AiImageStoredSize;
 }
 
 export interface AiProviderConfiguration {
@@ -1572,6 +1572,24 @@ export class AiChatService {
         409,
         'Инструмент модели пока недоступен. Обновите страницу.',
       );
+    // The retired size is transport-compatible only for an exact existing owner receipt.
+    // Prove it before runtime access or any text, token-budget or GPU admission.
+    if (nativeImage?.size === 512) {
+      const receipt = await this.pool.query<{ value: boolean }>(
+        'SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,false) AS value',
+        [principalId, threadId, requestId, JSON.stringify(nativePayload)],
+      );
+      if (!receipt.rows[0]?.value)
+        throw new AiServiceError('ai_input_invalid', 400, 'Выберите доступный размер изображения.');
+      const messages = await this.requestMessages(principalId, threadId, requestId);
+      const imageJob = await this.images!.replayTool(principalId, threadId, requestId);
+      return {
+        messages,
+        replayed: true,
+        stopped: messages.some((m) => m.state === 'stopped'),
+        ...(imageJob ? { imageJob } : {}),
+      };
+    }
     const replayImage = async () =>
       schemaReady ? await this.images!.replayTool(principalId, threadId, requestId) : null;
     if (

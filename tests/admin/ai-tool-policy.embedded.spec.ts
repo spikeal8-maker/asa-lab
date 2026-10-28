@@ -167,7 +167,7 @@ it('freezes the admitted parent policy and blocks disabled manual web lookup bef
     new AiImageService(pool).create(owner, thread.id, {
       requestId: imageRequest,
       prompt: 'A classroom globe',
-      size: 512,
+      size: 768,
     }),
   ).rejects.toMatchObject({ code: 'ai_image_not_admitted' });
   expect(

@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -12,7 +13,7 @@ const config = {
   enabled: false,
   dailyLimit: 10,
   globalConcurrency: 1,
-  sizes: [512],
+  sizes: [768],
   ready: false,
   reason: 'model_missing',
   recipe: 'flux2-klein-4b-v1',
@@ -59,7 +60,7 @@ it('keeps default OFF and readiness separate; saves revisioned settings without 
     enabled: false,
     dailyLimit: 10,
     globalConcurrency: 1,
-    sizes: [512],
+    sizes: [768],
   });
   expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
   expect(host.textContent).toContain('Генерация не запускалась');
@@ -106,4 +107,12 @@ it('rejects 101 locally even when submit bypasses native number validation', asy
   expect(host.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
   await save();
   expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+});
+
+it('offers exactly the six agreed image presets and no 512 square', async () => {
+  await render();
+  const sizes = host.querySelector('fieldset')!;
+  expect(sizes.querySelectorAll('input[type=checkbox]')).toHaveLength(6);
+  for (const preset of AI_IMAGE_PRESETS) expect(sizes.textContent).toContain(preset.label);
+  expect(sizes.textContent).not.toContain('512');
 });

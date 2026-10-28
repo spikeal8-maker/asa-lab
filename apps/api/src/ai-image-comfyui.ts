@@ -1,8 +1,9 @@
+import { aiImageDimensions, isAiImageSize, type AiImageStoredSize } from '@asa-lab/contracts';
 import { createHash } from 'node:crypto';
 import { ollamaBaseUrl } from './ai-ollama.js';
 import { validateAiAttachment } from './ai-attachments/validation.js';
 
-type Size = 512 | 768 | 1024;
+type Size = AiImageStoredSize;
 type JsonObject = Record<string, unknown>;
 export type ComfyImageRecovery = {
   state: 'pending' | 'running' | 'missing' | 'failed' | 'complete';
@@ -34,11 +35,12 @@ function identity(id: string, marker: string, size: Size): void {
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ||
     marker !== 'ASA_' + id.replaceAll('-', '') ||
-    ![512, 768, 1024].includes(size)
+    !(size === 512 || isAiImageSize(size))
   )
     invalid();
 }
 function graph(prompt: string, size: Size, seed: number, marker: string): JsonObject {
+  const dimensions = aiImageDimensions(size);
   return {
     '1': { class_type: 'UNETLoader', inputs: { unet_name: MODELS.unet, weight_dtype: 'default' } },
     '2': {
@@ -50,10 +52,13 @@ function graph(prompt: string, size: Size, seed: number, marker: string): JsonOb
     '5': { class_type: 'BasicGuider', inputs: { model: ['1', 0], conditioning: ['4', 0] } },
     '6': {
       class_type: 'EmptyFlux2LatentImage',
-      inputs: { width: size, height: size, batch_size: 1 },
+      inputs: { width: dimensions.width, height: dimensions.height, batch_size: 1 },
     },
     '7': { class_type: 'RandomNoise', inputs: { noise_seed: seed } },
-    '8': { class_type: 'Flux2Scheduler', inputs: { steps: 4, width: size, height: size } },
+    '8': {
+      class_type: 'Flux2Scheduler',
+      inputs: { steps: 4, width: dimensions.width, height: dimensions.height },
+    },
     '9': { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
     '10': {
       class_type: 'SamplerCustomAdvanced',
@@ -339,7 +344,8 @@ export class ComfyImageTransport {
       );
       png = await bounded(response, 8 * 1024 * 1024);
       const validated = validateAiAttachment(png, 'result.png');
-      if (validated.width !== size || validated.height !== size) invalid();
+      const dimensions = aiImageDimensions(size);
+      if (validated.width !== dimensions.width || validated.height !== dimensions.height) invalid();
       const chunks = [png.subarray(0, 8)];
       for (let offset = 8; offset < png.length;) {
         const end = offset + 12 + png.readUInt32BE(offset);

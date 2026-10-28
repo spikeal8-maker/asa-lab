@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS, type AiImageStoredSize } from '@asa-lab/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { deflateSync } from 'node:zlib';
 import { ComfyImageTransport, imageWorkflowDigest } from './ai-image-comfyui.js';
@@ -20,22 +21,23 @@ function chunk(type: string, data: Buffer): Buffer {
   out.writeUInt32BE((crc ^ 0xffffffff) >>> 0, out.length - 4);
   return out;
 }
-function png(size = 512): Buffer {
+function png(size = 512, height = size): Buffer {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(size);
-  header.writeUInt32BE(size, 4);
+  header.writeUInt32BE(height, 4);
   header[8] = 8;
   header[9] = 2;
   return Buffer.concat([
     Buffer.from('89504e470d0a1a0a', 'hex'),
     chunk('IHDR', header),
     chunk('tEXt', Buffer.from('prompt\0private')),
-    chunk('IDAT', deflateSync(Buffer.alloc((size * 3 + 1) * size))),
+    chunk('IDAT', deflateSync(Buffer.alloc((size * 3 + 1) * height))),
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
 async function fixture(
   options: {
+    size?: AiImageStoredSize;
     filename?: string;
     image?: Buffer;
     mutate?: (entry: Record<string, unknown>) => void;
@@ -72,7 +74,7 @@ async function fixture(
     return json({ queue_running: [], queue_pending: [] });
   });
   const transport = new ComfyImageTransport({ fetchImpl: mock as typeof fetch });
-  await transport.dispatch(id, 'A blue tree', 512, 42, marker);
+  await transport.dispatch(id, 'A blue tree', options.size ?? 512, 42, marker);
   return { transport, mock, tuple };
 }
 describe('fixed native Comfy image transport', () => {
@@ -316,4 +318,49 @@ describe('fixed native Comfy image transport', () => {
       reason: 'ai_image_provider_not_ready',
     });
   });
+});
+
+it.each(AI_IMAGE_PRESETS)(
+  'dispatches and recovers the exact $width × $height preset',
+  async (preset) => {
+    const { transport, mock } = await fixture({
+      size: preset.id,
+      image: png(preset.width, preset.height),
+    });
+    const submitted = JSON.parse(String(mock.mock.calls[0]?.[1]?.body));
+    expect(submitted.prompt['6'].inputs).toMatchObject({
+      width: preset.width,
+      height: preset.height,
+      batch_size: 1,
+    });
+    expect(submitted.prompt['8'].inputs).toEqual({
+      steps: 4,
+      width: preset.width,
+      height: preset.height,
+    });
+    const result = await transport.recover(
+      id,
+      marker,
+      preset.id,
+      imageWorkflowDigest('A blue tree', preset.id, 42, marker),
+    );
+    expect(result.state).toBe('complete');
+  },
+);
+it('rejects swapped portrait dimensions even for an otherwise owned PNG', async () => {
+  const { transport } = await fixture({ size: 864, image: png(1536, 864) });
+  await expect(
+    transport.recover(id, marker, 864, imageWorkflowDigest('A blue tree', 864, 42, marker)),
+  ).rejects.toMatchObject({ code: 'ai_image_output_invalid' });
+});
+
+// Golden digests computed from the integrated pre-preset 4cf9369a graph.
+it.each([
+  [512, '362252dc2ff7f99d7d341d1b72b0cdb92d7c546638fd34b3a8cb7e15ee98a0f8'],
+  [768, '1b6c249fa107d0852bbe4f67a3a60068f6716e8b6ddad57deee48aebfe3ff83c'],
+  [1024, '1dbc80bf14665e2254acd607028f2012edc84230accd24b9f8bea33e68d423f5'],
+] as const)('preserves the immutable legacy %i workflow receipt', async (size, expected) => {
+  expect(imageWorkflowDigest('A blue tree', size, 42, marker)).toBe(expected);
+  const { transport } = await fixture({ size, image: png(size) });
+  expect((await transport.recover(id, marker, size, expected)).state).toBe('complete');
 });

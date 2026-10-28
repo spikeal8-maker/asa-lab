@@ -32,6 +32,7 @@ import {
   GalleryGlyph,
   HelpGlyph,
   HomeGlyph,
+  BrainGlyph,
   LearningGlyph,
   ProjectsGlyph,
   SchoolGlyph,
@@ -104,7 +105,7 @@ function sectionIcon(section: PortalSection): JSX.Element {
   if (section === 'classes') return <ClassesGlyph />;
   if (section === 'projects') return <ProjectsGlyph />;
   if (section === 'games') return <span className="portal-games-glyph">♟</span>;
-  if (section === 'ai') return <span className="portal-games-glyph">✦</span>;
+  if (section === 'ai') return <BrainGlyph />;
   if (section === 'collections') return <CollectionsGlyph />;
   if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;

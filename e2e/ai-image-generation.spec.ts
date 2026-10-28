@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 import { expect, test, type Page } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
@@ -43,7 +44,7 @@ async function imageFixture(page: Page) {
     enabled: true,
     dailyLimit: 10,
     globalConcurrency: 1,
-    sizes: [512, 768, 1024],
+    sizes: AI_IMAGE_PRESETS.map((p) => p.id),
     ready: true,
     reason: null,
     recipe: 'flux2-klein-4b-v1',
@@ -357,7 +358,7 @@ test('image Auto sends a native image-tool allowance from plain chat without ope
   expect(requests[0]).toMatchObject({
     message: 'Нарисуй кота на белом фоне',
     model: 'ollama-local',
-    nativeImage: { mode: 'auto', size: 512 },
+    nativeImage: { mode: 'auto', size: 1024 },
   });
   expect(fixture.imagePosts).toHaveLength(0);
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addNativeUsage, nativeTools, parseNativeToolCalls } from './ai-native-tools';
 
 describe('native image tool admission', () => {
-  const offered = nativeTools({ imageSizes: [512], search: false, weather: false });
+  const offered = nativeTools({ imageSizes: [768], search: false, weather: false });
   const call = (arguments_: unknown) => [
     { function: { name: 'generate_image', arguments: arguments_ } },
   ];
@@ -17,22 +17,22 @@ describe('native image tool admission', () => {
       offered,
     );
     expect(parsed[0]?.arguments.prompt).toContain('forest');
-    expect(offered[0]?.function.parameters.properties).toMatchObject({ size: { enum: [512] } });
+    expect(offered[0]?.function.parameters.properties).toMatchObject({ size: { enum: [768] } });
   });
 
   it('rejects invented model, malformed size, extra keys and multiple calls', () => {
     for (const bad of [
       { prompt: 'Forest', size: 2048, model: 'flux2-klein-4b-v1' },
       { prompt: 'Forest', size: '512', model: 'flux2-klein-4b-v1' },
-      { prompt: 'Forest', size: 512, model: 'other' },
-      { prompt: 'Forest', size: 512, model: 'flux2-klein-4b-v1', url: 'https://example.invalid' },
+      { prompt: 'Forest', size: 768, model: 'other' },
+      { prompt: 'Forest', size: 768, model: 'flux2-klein-4b-v1', url: 'https://example.invalid' },
     ])
       expect(() => parseNativeToolCalls(call(bad), offered)).toThrow('AI_TOOL_CALL_INVALID');
     expect(() =>
       parseNativeToolCalls(
         [
-          ...call({ prompt: 'Forest', size: 512, model: 'flux2-klein-4b-v1' }),
-          ...call({ prompt: 'Village', size: 512, model: 'flux2-klein-4b-v1' }),
+          ...call({ prompt: 'Forest', size: 768, model: 'flux2-klein-4b-v1' }),
+          ...call({ prompt: 'Village', size: 768, model: 'flux2-klein-4b-v1' }),
         ],
         offered,
       ),

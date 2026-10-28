@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 import { useEffect, useRef, useState } from 'react';
 import type { AiImageGenerationAdminConfig, AiImageSize } from '@asa-lab/contracts';
 import { call } from './admin-api';
@@ -8,7 +9,7 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
   const [config, setConfig] = useState<AiImageGenerationAdminConfig | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [limit, setLimit] = useState(10);
-  const [sizes, setSizes] = useState<readonly AiImageSize[]>([512]);
+  const [sizes, setSizes] = useState<readonly AiImageSize[]>([1024]);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
@@ -136,7 +137,7 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
           </label>
           <fieldset disabled={busy}>
             <legend>Разрешённые размеры</legend>
-            {([512, 768, 1024] as const).map((value) => (
+            {AI_IMAGE_PRESETS.map(({ id: value, label }) => (
               <label key={value}>
                 <input
                   type="checkbox"
@@ -144,12 +145,14 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
                   onChange={(e) =>
                     setSizes((previous) =>
                       e.target.checked
-                        ? [...previous, value].sort((a, b) => a - b)
+                        ? AI_IMAGE_PRESETS.filter(
+                            (p) => p.id === value || previous.includes(p.id),
+                          ).map((p) => p.id)
                         : previous.filter((size) => size !== value),
                     )
                   }
                 />{' '}
-                {value} × {value}{' '}
+                {label}{' '}
               </label>
             ))}
           </fieldset>
