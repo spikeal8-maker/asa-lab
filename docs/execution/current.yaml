@@ -613,7 +613,9 @@ parallel_lanes:
           source_pr: 841
           candidate_sha: dbb4787a91859b7668728b7edcdbf2dfdf3c05e1
           independent_review: approved_exact_source
-          ci_status: general_ci_pending
+          ci_status: general_ci_pass
+          integrated_sha: 1a6b2b7446d67156b52a33c6003e9243c2d346b4
+          general_ci_run: 40757550383
           selection: >-
             Owner explicitly approved a separate baseline PR before merging AI838: fix only
             tests/games-admission/http-contract.ts stale prepared-SQL lock marker and
@@ -637,10 +639,12 @@ parallel_lanes:
           requirements: [R19, R20, R21, R22, R23, R31]
           acceptance_checks: [C17, C20, C25, C28]
           source_pr: 838
-          candidate_sha: baa41d9a14fa8a783fd33630f8ebc93b11b53fc2
+          candidate_sha: 96593a3d4613d7a9ad97c2634d86fb0fab67e09b
           independent_review: approved_exact_composition
-          focused_ci_run: 40753059881
-          ci_status: focused_pass_general_waits_baseline_841
+          focused_ci_run: 40762382615
+          ci_status: final_composition_ci_pending
+          general_ci_run: 40762382474
+          baseline_merge_sha: 1a6b2b7446d67156b52a33c6003e9243c2d346b4
           source_dependency: da8c27b3f2a48f2915f329e0a0317371fc076512
           implementation_started: true
           implementation_complete: true
@@ -714,14 +718,16 @@ parallel_lanes:
             kind: acceptance_blocker
             lane: ai-assistant
             task_id: TASK-AI-ASSISTANT-PROGRAMME-001
-            blocks: [main_merge, release_claim, owner_acceptance]
-            allows: [focused_tests, source_review, isolated_ci_demo]
+            blocks: [release_claim, owner_acceptance]
+            allows: [focused_tests, source_review, isolated_ci_demo, main_merge_after_ci]
             reason: >-
-              Main independently added ComfyUI migration0273 and changed shared AI controllers
-              after the single controlled provider-A convergence. Preserve both implementations;
-              defer final numbering and composition to a coordinated integration window, without
-              chasing every new overlapping main revision. Source code and isolated checks may
-              continue; this does not bypass required repository gates or D2R2 deployment guards.
+              Owner-approved conflict resolution is complete at bd8b35a5346628ad03965b02f82391b2f105975e:
+              main migrations0271-0275 preserved and AI0276-0279 SQL bytes unchanged. Baseline841
+              merged at1a6b2b7446d67156b52a33c6003e9243c2d346b4 after all General40757550383 jobs passed.
+              Final composition96593a3d4613d7a9ad97c2634d86fb0fab67e09b has independent source approval;
+              AI and SQL blobs equal the previously green baa candidate. Main merge is authorized
+              only after exact final focused and repository CI success. Installed D2R2 demo,
+              full C28 and owner acceptance remain pending; this is not deployment permission.
           source_dependency: ecbd9fc5eed6aa46f642e26623640d180299d043
           selection: >-
             Owner explicitly chose BOTH global/model and user/model monthly budgets and
