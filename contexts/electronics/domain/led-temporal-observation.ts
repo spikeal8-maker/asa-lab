@@ -32,6 +32,8 @@ export interface ElectronicsArduinoIndicatorTemporal {
 
 export interface ElectronicsSevenSegmentTemporal {
   readonly componentId: string;
+  /** First actually observed whole-display failed-health state in this request. */
+  readonly failedAtMicroseconds?: number;
   /** Branch componentId is its canonical a..g/dp channel, not a circuit component. */
   readonly branches: readonly ElectronicsLedTemporalComponent[];
 }
@@ -98,6 +100,7 @@ export function createLedTemporalObservation(
   const displays = sevenSegmentComponentIds.map((componentId) => ({
     componentId,
     collector: createLedTemporalObservation(segments, fromMicroseconds),
+    failedAtMicroseconds: undefined as number | undefined,
   }));
   const histories: LedHistory[] = componentIds.map((componentId) => ({
     componentId,
@@ -203,6 +206,22 @@ export function createLedTemporalObservation(
         valid = false;
         return;
       }
+      if (
+        result.presentationState === 'failed' ||
+        result.deviceHealth === 'failed_open' ||
+        result.damageState === 'failed'
+      ) {
+        if (
+          segments.some(
+            (segment) =>
+              result.branchBrightness?.[segment] !== 0 || result.branchCurrents?.[segment] !== 0,
+          )
+        ) {
+          valid = false;
+          return;
+        }
+        display.failedAtMicroseconds ??= time;
+      }
       display.collector.observe(
         time,
         segments.map((segment) => ({
@@ -229,7 +248,13 @@ export function createLedTemporalObservation(
       for (const display of displays) {
         const observation = display.collector.finish(toMicroseconds);
         if (!observation) return null;
-        sevenSegments.push({ componentId: display.componentId, branches: observation.components });
+        sevenSegments.push({
+          componentId: display.componentId,
+          branches: observation.components,
+          ...(display.failedAtMicroseconds === undefined
+            ? {}
+            : { failedAtMicroseconds: display.failedAtMicroseconds }),
+        });
       }
       return {
         profile: 'ordinary-led-held-v1',

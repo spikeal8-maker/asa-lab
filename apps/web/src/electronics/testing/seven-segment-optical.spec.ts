@@ -167,15 +167,15 @@ describe('raw display optical admission and joint native cursor', () => {
     const display = history.sevenSegments![0]!;
     const branches = display.branches.map((branch) =>
       channel(branch.componentId, [
-        ...branch.samples.filter((sample) => sample.atMicroseconds < 20000),
-        { atMicroseconds: 20000, brightness: 0, current: 0 },
+        ...branch.samples.filter((sample) => sample.atMicroseconds < 18000),
+        { atMicroseconds: 18000, brightness: 0, current: 0 },
         { atMicroseconds: 30000, brightness: 0, current: 0 },
       ]),
     );
     const failed = {
       ...history,
       sevenSegments: history.sevenSegments!.map((entry, i) =>
-        i === 0 ? { ...entry, branches } : entry,
+        i === 0 ? { ...entry, branches, failedAtMicroseconds: 20000 } : entry,
       ),
     };
     const endpoint = {
@@ -193,14 +193,39 @@ describe('raw display optical admission and joint native cursor', () => {
       ),
     };
     const p = create(endpoint, failed);
-    const earlier = p.prepareFrame(18000)!;
+    const earlier = p.prepareFrame(19000)!;
     expect(earlier.sevenSegmentBrightness!.get('display-0')!.b).toBeGreaterThan(0);
-    p.acknowledgeFrame(earlier, 18000);
+    p.acknowledgeFrame(earlier, 19000);
     const frame = p.prepareFrame(20000)!;
     expect(
       Object.values(frame.sevenSegmentBrightness!.get('display-0')!).every((value) => value === 0),
     ).toBe(true);
     expect(frame.sevenSegmentBrightness!.get('display-1')!.a).toBeGreaterThan(0);
+    const missing = new LedTemporalPresentation();
+    missing.accept(
+      endpoint,
+      {
+        ...failed,
+        sevenSegments: failed.sevenSegments!.map((entry, i) =>
+          i === 0 ? { componentId: entry.componentId, branches: entry.branches } : entry,
+        ),
+      },
+      0,
+    );
+    expect(missing.prepareFrame(30000)).toBeNull();
+  });
+  it('rejects nonfinite or out-of-window failed-health timestamps', () => {
+    for (const failedAtMicroseconds of [Number.NaN, -1, 30001]) {
+      const history = {
+        ...observation,
+        sevenSegments: observation.sevenSegments!.map((entry, i) =>
+          i === 0 ? { ...entry, failedAtMicroseconds } : entry,
+        ),
+      };
+      const p = create();
+      p.accept(result, history, 30000);
+      expect(p.prepareFrame(30000)).toBeNull();
+    }
   });
   it('expires a normal constant-zero tail without inventing per-branch damage or retaining an old cycle forever', () => {
     const display = observation.sevenSegments![0]!;

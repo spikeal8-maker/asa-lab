@@ -17,7 +17,8 @@ Invalid optical-only reads discard metadata rather than changing execution statu
 The existing shared optical cursor projects only proven complete fast cycles.
 The native barrier waits for each display's actual proposed vector. An explicit
 render-only prop leaves electrical currents/results unchanged. Explicit whole-
-display thermal failure kills prior mean emission at its observed all-dark tail;
+display thermal failure kills prior mean emission at its captured first failed-
+health timestamp, never at an earlier normal dark scan edge;
 other displays retain their histories. Normal dark segments do not imply damage.
 
 ## Evidence

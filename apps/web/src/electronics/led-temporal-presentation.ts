@@ -409,6 +409,32 @@ export class LedTemporalPresentation {
         this.reset();
         return brightness;
       }
+      if (display.failedAtMicroseconds !== undefined) {
+        const failedAt = display.failedAtMicroseconds;
+        if (
+          !Number.isSafeInteger(failedAt) ||
+          failedAt < observation.fromMicroseconds ||
+          failedAt > observation.toMicroseconds ||
+          display.branches.some((branch: ElectronicsLedTemporalComponent) => {
+            const held = branch.samples
+              .filter((sample) => sample.atMicroseconds <= failedAt)
+              .at(-1);
+            return (
+              !held ||
+              held.brightness !== 0 ||
+              held.current !== 0 ||
+              branch.samples.some(
+                (sample) =>
+                  sample.atMicroseconds >= failedAt &&
+                  (sample.brightness !== 0 || sample.current !== 0),
+              )
+            );
+          })
+        ) {
+          this.reset();
+          return brightness;
+        }
+      }
       ids.add(display.componentId);
     }
     if (observation.sevenSegments !== undefined) {
@@ -484,6 +510,7 @@ export class LedTemporalPresentation {
         electrical.damageState === 'failed'
       ) {
         if (
+          display.failedAtMicroseconds === undefined ||
           display.branches.some(
             (branch) =>
               branch.samples.at(-1)!.brightness !== 0 || branch.samples.at(-1)!.current !== 0,
@@ -492,23 +519,16 @@ export class LedTemporalPresentation {
           this.reset();
           return new Map();
         }
-        // The existing thermal overlay reports the whole display open and all
-        // eight channels zero. Retain earlier cursor states, but never recycle
-        // a healthy cycle after the final physically observed all-dark boundary.
-        const darkSince = Math.max(
-          ...display.branches.map((branch) => {
-            for (let index = branch.samples.length - 2; index >= 0; index--) {
-              const sample = branch.samples[index]!;
-              if (sample.brightness > 0 || sample.current > 0)
-                return branch.samples[index + 1]!.atMicroseconds;
-            }
-            return branch.samples[0]!.atMicroseconds;
-          }),
-        );
+        // A scan can already be dark before thermal failure. Only the captured
+        // failed-health observation may cut off an earlier healthy-cycle mean.
+        const failedAt = display.failedAtMicroseconds;
         nextDisplayFailures.set(
           display.componentId,
-          Math.min(this.displayFailures.get(display.componentId) ?? darkSince, darkSince),
+          Math.min(this.displayFailures.get(display.componentId) ?? failedAt, failedAt),
         );
+      } else if (display.failedAtMicroseconds !== undefined) {
+        this.reset();
+        return new Map();
       }
       const branches = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
       for (const branch of display.branches) {

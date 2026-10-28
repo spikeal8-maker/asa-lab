@@ -207,4 +207,47 @@ describe('explicit raw-display optical observations', () => {
     cancelled.observe(1000, sample);
     expect(cancelled.finish(1000)).toBeNull();
   });
+
+  it('records first reported failed health at 20ms instead of backdating it to a normal dark edge at 18ms', () => {
+    const components = run(arduinoSevenSegmentMatrix(1), true).observation.components;
+    const dark = components.map((component) =>
+      component.componentId === 'display-0'
+        ? {
+            ...component,
+            current: 0,
+            brightness: 0,
+            lit: false,
+            branchBrightness: Object.fromEntries(
+              ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => [segment, 0]),
+            ),
+            branchCurrents: Object.fromEntries(
+              ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'].map((segment) => [segment, 0]),
+            ),
+          }
+        : component,
+    );
+    const failed = dark.map((component) =>
+      component.componentId === 'display-0'
+        ? {
+            ...component,
+            deviceHealth: 'failed_open' as const,
+            damageState: 'failed' as const,
+            presentationState: 'failed' as const,
+          }
+        : component,
+    );
+    const collector = createLedTemporalObservation([], 0, [], ['display-0']);
+    collector.observe(0, components);
+    collector.observe(18000, dark);
+    expect(collector.finish(18000)!.sevenSegments![0]!.failedAtMicroseconds).toBeUndefined();
+    collector.observe(20000, failed);
+    collector.observe(30000, failed);
+    const display = collector.finish(30000)!.sevenSegments![0]!;
+    expect(display.failedAtMicroseconds).toBe(20000);
+    expect(
+      display.branches
+        .find((branch) => branch.componentId === 'b')!
+        .samples.map((sample) => sample.atMicroseconds),
+    ).toEqual([0, 18000, 30000]);
+  });
 });

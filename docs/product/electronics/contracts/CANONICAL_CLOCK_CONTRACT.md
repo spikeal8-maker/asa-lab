@@ -308,8 +308,11 @@ native acknowledgment. Missing, duplicate or stale channels cannot establish a
 complete averaged vector. Source/generation changes, Reset and Stop discard it.
 
 The existing whole-display thermal failure overlay reports all channels open
-and zero. At its observed all-dark boundary an earlier healthy-cycle mean must
-not survive; unaffected neighboring displays keep their own physical histories.
+and zero. Capture records the first actual failed-health sample timestamp in
+`failedAtMicroseconds`; it must not infer failure from an earlier normal dark
+scan edge. At that reported failure boundary an earlier healthy-cycle mean must
+not survive; earlier cursors and unaffected neighboring displays retain their
+legitimate physical histories.
 A normal dark segment alone does not imply unreported damage, and constant-zero
 history expires any earlier fast-cycle mean. This projection proves optical
 correctness, not realtime throughput or support for additional Arduino syntax.
