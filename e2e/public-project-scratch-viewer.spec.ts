@@ -167,6 +167,19 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     const assertStageFits = async () => {
       await expect
         .poll(async () =>
+          frame.locator('[class*="stage-header_stage-menu-wrapper_"]').evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return (
+              rect.x >= 0 &&
+              rect.y >= 0 &&
+              rect.right <= innerWidth + 1 &&
+              rect.bottom <= innerHeight + 1
+            );
+          }),
+        )
+        .toBe(true);
+      await expect
+        .poll(async () =>
           frame
             .locator('canvas')
             .first()

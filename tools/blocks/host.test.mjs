@@ -576,6 +576,30 @@ test('public publication uses the pinned official embedded preset without save, 
   assert.equal(f.counts().quits, 1);
 });
 
+test('publication fit CSS matches pinned native stage and header inline sizing', () => {
+  const css = fs.readFileSync(
+    new URL('../../infra/scratch-editor/host/host.css', import.meta.url),
+    'utf8',
+  );
+  // Actual class families from pinned 82c5fea6 native browser DOM, not invented wrappers.
+  for (const family of [
+    'stage-wrapper_stage-wrapper_',
+    'stage-header_stage-menu-wrapper_',
+    'stage_stage_',
+    'monitor-list_monitor-list_',
+    'stage_stage-bottom-wrapper_',
+    'stage_frame-wrapper_',
+    'monitor-list_monitor-list-scaler_',
+  ]) {
+    assert.ok(css.includes(`[data-public-player='true'] [class*='${family}']`));
+  }
+  assert.match(
+    css,
+    /stage-header_stage-menu-wrapper_'\] \{\s*width: var\(--asa-player-width\) !important;/,
+  );
+  assert.equal(css.includes('stage-wrapper_stage-menu-wrapper_'), false);
+});
+
 test('only publication players fit native 4:3 coordinates on resize and disconnect on teardown', async () => {
   const values = new Map(),
     listeners = new Map();

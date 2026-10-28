@@ -52,8 +52,8 @@ body {
   width: 100%;
   padding: 0;
 }
-[data-public-player='true'] [class*='stage-wrapper_stage-menu-wrapper_'] {
-  width: var(--asa-player-width);
+[data-public-player='true'] [class*='stage-header_stage-menu-wrapper_'] {
+  width: var(--asa-player-width) !important;
   max-width: 100%;
   margin-inline: auto;
 }
