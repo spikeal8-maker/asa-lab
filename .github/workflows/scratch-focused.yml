@@ -16,6 +16,15 @@ on:
       - 'apps/api/src/module-registry.ts'
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
+      - 'apps/api/src/public-scratch-player*'
+      - 'apps/api/src/testing/fixtures/public-scratch.ts'
+      - 'apps/web/src/projects-public/PublicScratchPlayer.tsx'
+      - 'apps/web/src/projects-public/PublicationArtifact.tsx'
+      - 'apps/web/src/projects-public/public-projects.css'
+      - 'packages/contracts/src/public-scratch-player.ts'
+      - 'migrations/*public*scratch*.sql'
+      - 'tests/portal/public-scratch-player.pg.spec.ts'
+      - 'e2e/public-project-scratch-viewer.spec.ts'
       - 'apps/web/src/blocks/**'
       - 'e2e/blocks-*.spec.ts'
       - 'tests/blocks/**'
@@ -46,6 +55,15 @@ on:
       - 'apps/api/src/module-registry.ts'
       - 'apps/api/src/modules.controller.spec.ts'
       - 'infra/scratch-editor/**'
+      - 'apps/api/src/public-scratch-player*'
+      - 'apps/api/src/testing/fixtures/public-scratch.ts'
+      - 'apps/web/src/projects-public/PublicScratchPlayer.tsx'
+      - 'apps/web/src/projects-public/PublicationArtifact.tsx'
+      - 'apps/web/src/projects-public/public-projects.css'
+      - 'packages/contracts/src/public-scratch-player.ts'
+      - 'migrations/*public*scratch*.sql'
+      - 'tests/portal/public-scratch-player.pg.spec.ts'
+      - 'e2e/public-project-scratch-viewer.spec.ts'
       - 'apps/web/src/blocks/**'
       - 'e2e/blocks-*.spec.ts'
       - 'tests/blocks/**'
@@ -108,6 +126,18 @@ jobs:
     name: Standalone host image and health smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 55
+    services:
+      public-player-postgres:
+        image: docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854
+        env:
+          POSTGRES_DB: asa_public_scratch_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: public-scratch-ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_public_scratch_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
     concurrency:
       group: scratch-runtime-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
@@ -169,6 +199,58 @@ jobs:
           docker exec asa-lab-scratch-editor grep -F 'SCRATCH_EDITOR_COMMIT=82c5fea6d3e60c781f25c09b375045f9b46a43f7' /usr/share/nginx/html/licenses/scratch-editor-upstream.env
           curl --fail --silent --show-error --output /dev/null http://127.0.0.1:4613/vendor/scratch/scratch-gui-standalone.js
 
+      - name: Prepare isolated private storage for public Scratch playback
+        run: |
+          docker build -f infra/minio/Dockerfile -t asa-public-scratch-minio:ci infra/minio
+          docker run -d --name asa-public-scratch-minio -p 127.0.0.1:19000:9000 \
+            -e MINIO_ROOT_USER=public-scratch-ci-only -e MINIO_ROOT_PASSWORD=public-scratch-ci-only-secret \
+            asa-public-scratch-minio:ci server /data
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:19000/minio/health/live; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:19000/minio/health/live
+
+      - name: Real public Scratch PostgreSQL, private assets and native player
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          VITE_ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          TEST_DATABASE_URL: postgresql://postgres:public-scratch-ci-only@127.0.0.1:5432/asa_public_scratch_test
+          APP_TEST_DATABASE_URL: postgresql://asalab_app:public-scratch-ci-only@127.0.0.1:5432/asa_public_scratch_test
+          MIGRATION_DATABASE_URL: postgresql://postgres:public-scratch-ci-only@127.0.0.1:5432/asa_public_scratch_test
+          MIGRATION_EXPECT_DATABASE: asa_public_scratch_test
+          MIGRATION_CONFIRM: APPLY:asa_public_scratch_test
+          NODE_ENV: test
+          ASA_SEED_DEMO: 'false'
+          ASA_WEB_PORT: '4612'
+          ASA_WEB_ORIGIN: http://127.0.0.1:4612
+          ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
+          ASA_BLOCKS_RUNTIME_SIGNING_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          ASA_BLOCKS_UPSTREAM_ORIGIN: http://127.0.0.1:4613
+          ASA_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:19000
+          ASA_OBJECT_STORAGE_REGION: us-east-1
+          ASA_OBJECT_STORAGE_BUCKET: public-scratch-ci-only
+          ASA_OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+          ASA_OBJECT_STORAGE_ACCESS_KEY: public-scratch-ci-only
+          ASA_OBJECT_STORAGE_SECRET_KEY: public-scratch-ci-only-secret
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'public-scratch-ci-only'"
+          pnpm exec nx run-many -t build --projects=api,web --parallel=2
+          pnpm exec vitest run tests/portal/public-scratch-player.pg.spec.ts --maxWorkers=1
+          pnpm exec playwright test e2e/public-project-scratch-viewer.spec.ts --workers=1 --reporter=list --output=reports/blocks/public-player-results
+
+      - name: Preserve early native public player visual
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scratch-public-player-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            reports/blocks/public-player
+            reports/blocks/public-player-results
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Real pinned Scratch activity and minute-save regression
         env:
           BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
@@ -216,6 +298,10 @@ jobs:
       - name: Remove isolated runtime
         if: always()
         run: docker rm -f asa-lab-scratch-editor || true
+
+      - name: Remove only isolated public player storage
+        if: always()
+        run: docker rm -f asa-public-scratch-minio || true
 
   portable:
     name: Fresh ZIP installation

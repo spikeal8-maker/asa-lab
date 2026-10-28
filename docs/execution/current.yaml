@@ -550,7 +550,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asai_15_selected_product_and_delivery_parallel
+      checkpoint: asai_15_candidate_and_806_own_quality_parallel
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -573,6 +573,35 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-01B-OWN
+          issue: 806
+          scope: last ten own personal Account operations with a separate explicit content-read grant
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/OWNER_REFINEMENTS_2026-10-27.md
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R20, R24, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          content_scope: own_personal_only
+          selection: >-
+            The owner programme explicitly permits own or controlled conversations before a
+            global content-review policy exists. Select a complete own-personal vertical:
+            platform Account plus a separate explicit verified quality-review grant, exact
+            owner/request/source/regeneration joins, bounded last-ten preview and detail,
+            metadata-only read audit, no-store and tested revocation. Never inherit content
+            permission automatically from the default platform-admin permission array.
+            Browser cannot choose another owner. Foreign personal, school and Seat content
+            remain denied; global issue806 acceptance and its broader privacy-policy decision
+            remain pending. Grant opt-in/revocation is an explicit own-only administrator action,
+            not an automatic migration grant. Isolated fixtures may grant synthetic actors.
+            Preserve compact overview and immutable receipts; do not copy all conversation text
+            into another journal. Keep ASAI-15 streaming and D2R2 delivery evidence separate.
+            Author works in a separate non-mounted checkout; coordinate migration expectations
+            after the streaming candidate, reserve additive 0271 and never edit published SQL.
         - id: ASAI-15
           issue: 373
           scope: real user-facing streaming when local model tools are offered but unused or called
@@ -582,10 +611,14 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R03, R31]
           acceptance_checks: [C03, C28]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_pr: 822
+          candidate_sha: 9dd0e4e79f070182ca87700c3eebd1f7081bd58c
+          independent_review: approved_code_and_harness
+          ci_status: pending_exact_candidate
           source_baseline: c0b673b7e39c5fab3beaede55bfba6ad4565b87f
           selection: >-
             Owner selected the whole programme on 2026-10-28. Issue806 needs a separate explicit
@@ -14147,7 +14180,10 @@ blocking:
       - release_publication
     reason: >-
       The bounded legacy adapter is published in Draft PR811 at manager
-      260826ecd5385206053eaf9d85f66fc4790e8e92. Read-only D2R2 qualification
+      c8e4339ba0ba70ed752453098eaeed9f449029f5. Exact Windows code review approved;
+      the single authorized 2026-10-28 diagnostic remains BLOCKED with AUTHOR10,
+      EXCLUDED157 and UNKNOWN475 (metadata denial, command ambiguity and churn).
+      Read-only D2R2 qualification
       supports the actual review identity, mount shape and preserved WIP.
       Author attestation returns LEGACY_AUTHORS because required process
       owner metadata cannot be verified in the available operator context.

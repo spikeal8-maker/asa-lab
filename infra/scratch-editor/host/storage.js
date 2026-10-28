@@ -114,6 +114,14 @@
   };
 
   function createReadOnlyStorage(standalone, options = {}) {
+    if (
+      options.publicationRevisionId !== undefined &&
+      (options.canSave !== false ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          options.publicationRevisionId,
+        ))
+    )
+      throw unavailable();
     const scratchStorage = new standalone.ScratchStorage();
     const newProject = options.projectJson === null || typeof options.projectJson === 'undefined';
     const cachedAssets = new Map();
@@ -447,7 +455,9 @@
       if (existing) return existing;
 
       const response = await runtimeFetch(
-        `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
+        options.publicationRevisionId && options.canSave === false
+          ? `${options.apiOrigin}/api/blocks/runtime/publications/${options.projectId}/revisions/${options.publicationRevisionId}/assets/${reference.assetId}.${reference.dataFormat}`
+          : `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
         {
           method: 'GET',
           credentials: 'omit',

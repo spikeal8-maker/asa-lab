@@ -8,6 +8,9 @@ const Scene = lazy(() =>
     default: module.ElectronicsPublicationScene,
   })),
 );
+const ScratchPlayer = lazy(() =>
+  import('./PublicScratchPlayer').then((module) => ({ default: module.PublicScratchPlayer })),
+);
 class SceneBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
   { failed: boolean }
@@ -91,6 +94,19 @@ export function PublicationArtifact({
       <PublicationPreview publication={publication} detail />
     </div>
   );
+  if (publication.moduleKey === 'blocks')
+    return (
+      <SceneBoundary fallback={fallback}>
+        <Suspense fallback={<p role="status">Загружаем Scratch…</p>}>
+          <ScratchPlayer
+            publicationId={publication.publicationId}
+            revisionId={publication.revisionId}
+            onUnavailable={onUnavailable}
+            fallback={fallback}
+          />
+        </Suspense>
+      </SceneBoundary>
+    );
   if (artifact)
     return (
       <SceneBoundary fallback={fallback}>
@@ -115,7 +131,7 @@ export function PublicationArtifact({
     <>
       {state === 'error' ? (
         <p data-testid="public-artifact-error" role="status">
-          Схема не загрузилась. Обновите публикацию, чтобы повторить.
+          Схема не загрузилась. Обновите страницу, чтобы повторить.
         </p>
       ) : null}
       {fallback}

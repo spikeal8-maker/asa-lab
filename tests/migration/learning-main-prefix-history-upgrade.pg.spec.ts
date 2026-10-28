@@ -225,6 +225,11 @@ const upgradeArtifacts = [
     '8676a797ac6abca8138320f2f90b2751b45bfb3e4bea7153c005243b26bf3441',
   ],
   [
+    '0269',
+    '0269_public_scratch_player.sql',
+    'c52c18d59e636f33da852645786dec2e8a0aa2525736c650e7e088e0294a5ba7',
+  ],
+  [
     '0270', // Atomic history for a visible native image-tool prefix.
     '0270_ai_streamed_tool_prefix.sql',
     '7d0849271eff92862aa110a465146869f5e9770b56d4041f29eac1b8f0c60241',

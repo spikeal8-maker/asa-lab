@@ -78,15 +78,15 @@ it('reads title, honest cover, real actions, then description and publication fa
   expect(container.querySelector('.public-project-title-toggle')).toBeNull();
   expect(article.querySelector('.public-project-info')).toBeNull();
   expect(article.querySelector('.public-project-viewer button')).toBeNull();
-  expect(article.querySelector('a[target="_blank"]')?.getAttribute('href')).toBe('/cover.png');
-  expect(article.querySelector<HTMLButtonElement>('.public-project-copy button')?.disabled).toBe(
-    true,
-  );
+  expect(article.querySelector('a[target="_blank"]')).toBeNull();
+  expect(article.querySelector('.public-project-copy')).toBeNull();
+  expect(container.textContent).not.toContain('Обновить публикацию');
+  expect(article.querySelector('details summary')?.textContent).toContain('Лицензия');
   expect(article.querySelector('dl')?.textContent).toContain('Версия проекта3');
   expect(container.querySelector('[data-testid="public-project-pinned"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="public-project-featured"]')).not.toBeNull();
   const share = [...container.querySelectorAll('button')].find(
-    (button) => button.textContent === 'Поделиться',
+    (button) => button.textContent === 'Копировать ссылку',
   )!;
   await act(async () => share.click());
   expect(container.querySelector<HTMLInputElement>('.publication-share input')?.value).toContain(
@@ -133,7 +133,7 @@ it('shows loading, retries a failed request, and closes an unavailable publicati
   expect(container.querySelector('h1')?.textContent).toBe('Публикация недоступна');
   expect(container.querySelector('article')).toBeNull();
 });
-it('keeps a compact refresh action after an image load failure', async () => {
+it('keeps a failed image honest without adding a public update control', async () => {
   const get = vi
     .spyOn(publicProjectsApi, 'get')
     .mockResolvedValue({ ok: true, status: 200, data: { publication } });
@@ -142,10 +142,29 @@ it('keeps a compact refresh action after an image load failure', async () => {
   expect(
     container.querySelector('[data-testid="public-project-preview-unavailable"]')?.textContent,
   ).toContain('Изображение не загрузилось');
+  expect(container.querySelector('.public-project-refresh')).toBeNull();
+  expect(get).toHaveBeenCalledTimes(1);
+});
+
+it('copies the URL without expanding an address field on clipboard success', async () => {
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn().mockResolvedValue(undefined) },
+  });
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication },
+  });
+  await render();
   await act(async () =>
-    container.querySelector<HTMLButtonElement>('.public-project-refresh')!.click(),
+    container.querySelector<HTMLButtonElement>('.publication-share button')!.click(),
   );
-  expect(get).toHaveBeenCalledTimes(2);
+  expect(container.querySelector('.publication-share [role="status"]')?.textContent).toContain(
+    'Ссылка скопирована',
+  );
+  expect(container.querySelector('.publication-share input')).toBeNull();
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
 });
 
 it('tears down publication content when exact artifact access is revoked', async () => {
