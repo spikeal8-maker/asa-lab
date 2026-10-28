@@ -71,7 +71,9 @@ async function mount() {
   });
   return { iframe, post, unavailable };
 }
-function messages(post: ReturnType<typeof vi.spyOn>) {
+function messages(post: {
+  readonly mock: { readonly calls: readonly unknown[][] };
+}): Record<string, unknown>[] {
   return post.mock.calls.map((call) => call[0] as Record<string, unknown>);
 }
 async function ready(iframe: HTMLIFrameElement, init: Record<string, unknown>) {
