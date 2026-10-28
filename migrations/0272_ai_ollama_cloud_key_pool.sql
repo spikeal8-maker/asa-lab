@@ -111,4 +111,3 @@ BEGIN
 END;$$;
 REVOKE ALL ON FUNCTION public.ai_ollama_cloud_key_observe(integer,varchar,jsonb,timestamptz,varchar) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ai_ollama_cloud_key_observe(integer,varchar,jsonb,timestamptz,varchar) TO asalab_app;
-
