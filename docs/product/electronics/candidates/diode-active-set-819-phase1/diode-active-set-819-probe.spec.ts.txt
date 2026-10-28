@@ -1,0 +1,25 @@
+import { it, vi } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import * as solver from '../domain/solver.js';
+import { compileCircuit, verifyCircuitQuality } from '../domain/simulation.js';
+import { createArduinoCircuitClockExecutor } from '../domain/arduino-circuit-scheduler.js';
+import { arduinoSevenSegmentMatrix } from './fixtures/arduino-seven-segment-matrix.js';
+
+it.each([1, 4] as const)('captures the first corrected diode clock failure for %i displays', count => {
+  const original = solver.solveRcCircuitWithHeldArduino;
+  const captures: unknown[] = [];
+  const spy = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino').mockImplementation((...args) => {
+    const result = original(...args);
+    const quality = verifyCircuitQuality(args[0], compileCircuit(args[0]), result, { simulationTimeMs: args[1] });
+    if (!result.solved || !quality.passed || !result.transientState) {
+      captures.push({ args: args.slice(0,4).map(value => value instanceof Map ? [...value.entries()] : value), result, quality });
+    }
+    return result;
+  });
+  try {
+    const document = arduinoSevenSegmentMatrix(count);
+    const actual = createArduinoCircuitClockExecutor(document)(20_000);
+    mkdirSync('test-results/diode-active-set-819', { recursive: true });
+    writeFileSync(`test-results/diode-active-set-819/rc-fault-${count}.json`, JSON.stringify({ document, actual, captures }, null, 2));
+  } finally { spy.mockRestore(); }
+});

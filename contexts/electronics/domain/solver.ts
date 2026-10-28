@@ -3592,7 +3592,9 @@ function solveCircuitStep(
       const drop =
         voltageFrom(solution, physicalNodeIndex(branch.component, branch.anode)) -
         voltageFrom(solution, physicalNodeIndex(branch.component, branch.cathode));
-      const next = drop >= segment.kneeVoltage - 0.02;
+      // An active companion stamps (drop - knee) / resistance. Below the
+      // knee it would inject a negative forward current that observation clips.
+      const next = drop >= segment.kneeVoltage;
       if (next !== diodeStates.get(key)) {
         diodeStates.set(key, next);
         changed = true;
