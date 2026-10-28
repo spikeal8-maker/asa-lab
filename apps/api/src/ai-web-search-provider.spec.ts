@@ -91,6 +91,25 @@ it('preserves source order, normalizes plain text and skips only unsafe previews
     images: [{ id: 1, title: 'Два', sourceUrl: 'https://example.org/two' }],
   });
 });
+it('bounds raw provider counts and records partial engine failures without exposing engine details', () => {
+  const parsed = parseSearxResults(
+    {
+      results: [{ title: 'Учебный источник', url: 'https://example.org/lesson' }],
+      unresponsive_engines: [
+        ['bing', 'timeout'],
+        ['duckduckgo', 'error'],
+      ],
+    },
+    false,
+  );
+  expect(parsed.rawCount).toBe(1);
+  expect(parsed.engineFailureCount).toBe(2);
+  expect(parsed.sources).toHaveLength(1);
+  expect(parsed).not.toHaveProperty('unresponsive_engines');
+  expect(
+    parseSearxResults({ results: Array.from({ length: 100 }, () => ({})) }, false).rawCount,
+  ).toBe(32);
+});
 it.each([
   'https://127.0.0.1/',
   'https://2130706433/',
@@ -522,4 +541,96 @@ it('rejects paid API keys and endpoints in free admin configuration', async () =
     ),
   ).rejects.toMatchObject({ code: 'ai_web_config_invalid' });
   expect(pool.query).not.toHaveBeenCalled();
+});
+it('runs only fixed neutral admin probes and distinguishes upstream empty from domain filtering', async () => {
+  const pool = {
+    query: vi.fn(async () => ({
+      rows: [
+        {
+          enabled: false,
+          weather_enabled: false,
+          operations_per_hour: 100,
+          revision: 4,
+          allowed_domains: [],
+          blocked_domains: ['example.org'],
+        },
+      ],
+    })),
+  } as unknown as pg.Pool;
+  const fetchImpl = vi.fn<typeof fetch>(
+    async (url) =>
+      new Response(
+        JSON.stringify({
+          results: String(url).includes('categories=images')
+            ? [{ title: 'Учебный источник', url: 'https://example.org/lesson' }]
+            : [],
+        }),
+      ),
+  );
+  const service = new AiWebSearchService(pool, fetchImpl);
+  const result = await service.probe('administrator');
+  expect(result.modes.map(({ status }) => status)).toEqual(['empty', 'filtered']);
+  expect(result.modes[0]?.diagnostics).toMatchObject({ rawCount: 0, validatedCount: 0 });
+  expect(result.modes[1]?.diagnostics).toMatchObject({
+    rawCount: 1,
+    validatedCount: 1,
+    postDomainCount: 0,
+  });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  for (const [url] of fetchImpl.mock.calls) {
+    const parsed = new URL(String(url));
+    expect(parsed.searchParams.get('q')).toBe('наука образование');
+    expect(parsed.searchParams.get('safesearch')).toBe('2');
+    expect(parsed.searchParams.get('engines')).toMatch(/bing/);
+  }
+  expect(vi.mocked(pool.query)).toHaveBeenCalledTimes(1);
+  await expect(service.probe('administrator')).rejects.toMatchObject({
+    code: 'ai_web_probe_limited',
+    status: 429,
+  });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+});
+it('does not treat partial engine failure or invalid rows as proof of no web results', async () => {
+  const pool = {
+    query: vi.fn(async () => ({ rows: [{ enabled: true, revision: 1 }] })),
+  } as unknown as pg.Pool;
+  const fetchImpl = vi.fn<typeof fetch>(
+    async (url) =>
+      new Response(
+        JSON.stringify(
+          String(url).includes('categories=images')
+            ? { results: [{ url: 'http://127.0.0.1/private' }] }
+            : { results: [], unresponsive_engines: [['bing', 'timeout']] },
+        ),
+      ),
+  );
+  const result = await new AiWebSearchService(pool, fetchImpl).probe('administrator');
+  expect(result.modes.map(({ status }) => status)).toEqual(['partial', 'invalid']);
+  expect(result.modes[0]?.diagnostics?.engineFailureCount).toBe(1);
+  expect(result.modes[1]?.diagnostics).toMatchObject({ rawCount: 1, validatedCount: 0 });
+});
+it('classifies all 32 bounded candidates before applying the eight-source display limit', async () => {
+  const pool = {
+    query: vi.fn(async () => ({
+      rows: [{ enabled: true, revision: 1, blocked_domains: ['blocked.example.org'] }],
+    })),
+  } as unknown as pg.Pool;
+  const fetchImpl = vi.fn<typeof fetch>(
+    async () =>
+      new Response(
+        JSON.stringify({
+          results: [
+            ...Array.from({ length: 8 }, (_, index) => ({
+              url: `https://blocked.example.org/${index}`,
+            })),
+            { url: 'https://allowed.example.org/ninth' },
+          ],
+        }),
+      ),
+  );
+  const result = await new AiWebSearchService(pool, fetchImpl).probe('administrator');
+  expect(result.modes[0]).toMatchObject({
+    status: 'results',
+    diagnostics: { rawCount: 9, validatedCount: 9, postDomainCount: 1 },
+  });
 });

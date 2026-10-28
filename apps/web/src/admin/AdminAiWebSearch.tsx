@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { AiWebSearchAdminConfig, AiWebSearchAdminUpdate } from '@asa-lab/contracts';
+import type {
+  AiWebSearchAdminConfig,
+  AiWebSearchAdminUpdate,
+  AiWebSearchProbeResult,
+} from '@asa-lab/contracts';
 import { call } from './admin-api';
 import './ai-web-search-admin.css';
 
@@ -24,6 +28,44 @@ function configShape(value: unknown): value is AiWebSearchAdminConfig {
   );
 }
 
+function probeShape(value: unknown): value is AiWebSearchProbeResult {
+  if (!value || typeof value !== 'object') return false;
+  const data = value as Partial<AiWebSearchProbeResult>;
+  return (
+    data.schemaVersion === 1 &&
+    typeof data.checkedAt === 'string' &&
+    Number.isFinite(Date.parse(data.checkedAt)) &&
+    Array.isArray(data.modes) &&
+    data.modes.length === 2 &&
+    (['web', 'images'] as const).every((mode) =>
+      data.modes?.some(
+        (item) =>
+          item.mode === mode &&
+          ['results', 'empty', 'invalid', 'filtered', 'partial', 'unavailable'].includes(
+            item.status,
+          ) &&
+          Number.isFinite(item.durationMs) &&
+          item.durationMs >= 0 &&
+          (item.diagnostics === undefined ||
+            (Number.isInteger(item.diagnostics.rawCount) &&
+              Number.isInteger(item.diagnostics.validatedCount) &&
+              Number.isInteger(item.diagnostics.postDomainCount) &&
+              Number.isInteger(item.diagnostics.engineFailureCount) &&
+              typeof item.diagnostics.partial === 'boolean')),
+      ),
+    )
+  );
+}
+
+const probeStatus: Record<AiWebSearchProbeResult['modes'][number]['status'], string> = {
+  results: 'Есть результаты в этой проверке',
+  empty: 'Пусто в этом ограниченном запросе',
+  invalid: 'В выдаче нет допустимых публичных URL',
+  filtered: 'Результаты исключены правилами доменов',
+  partial: 'Часть поисковых движков недоступна',
+  unavailable: 'Не удалось проверить провайдера',
+};
+
 export function AdminAiWebSearch({
   onAccessDenied,
 }: {
@@ -40,9 +82,13 @@ export function AdminAiWebSearch({
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [probeBusy, setProbeBusy] = useState(false);
+  const [probe, setProbe] = useState<AiWebSearchProbeResult | null>(null);
+  const [probeError, setProbeError] = useState('');
   const [reload, setReload] = useState(0);
   const inFlight = useRef(false);
   const apply = (data: AiWebSearchAdminConfig) => {
+    setProbe(null);
     setConfig(data);
     setEnabled(data.enabled);
     setWeatherEnabled(data.weatherEnabled);
@@ -51,6 +97,31 @@ export function AdminAiWebSearch({
     setBlockedDomains((data.blockedDomains ?? []).join('\n'));
     setSearchInstructions(data.searchInstructions ?? '');
   };
+  async function runProbe() {
+    if (!config || loading || busy || probeBusy) return;
+    setProbeBusy(true);
+    setProbe(null);
+    setProbeError('');
+    try {
+      const reply = await call<unknown>('/api/admin/v1/ai/web-search/probe', {
+        method: 'POST',
+        body: '{}',
+      });
+      if (!reply.ok) {
+        if (reply.status === 401 || reply.status === 403) onAccessDenied();
+        setProbeError(
+          reply.status === 429
+            ? 'Ручную проверку можно повторить через минуту.'
+            : 'Проверка поиска не удалась. Повторите её вручную.',
+        );
+      } else if (probeShape(reply.data)) setProbe(reply.data);
+      else setProbeError('Сервер вернул несовместимый результат проверки.');
+    } catch {
+      setProbeError('Проверка поиска не удалась. Повторите её вручную.');
+    } finally {
+      setProbeBusy(false);
+    }
+  }
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -193,6 +264,37 @@ export function AdminAiWebSearch({
               ? 'Адрес компонента настроен на сервере.'
               : 'Компонент поиска ещё не подключён на сервере. Обычный чат продолжает работать.'}
           </p>
+          <section className="asa-ai-web-admin-probe" aria-label="Ручная проверка поиска">
+            <h3>Ручная проверка поиска</h3>
+            <p>
+              Нейтральный запрос к фиксированному веб-поиску и поиску изображений. Проверка
+              использует сохранённые фильтры сайтов даже при выключенном поиске. Она не изменяет
+              настройки, не расходует пользовательскую квоту и ограничена одной проверкой в минуту
+              на администратора на этом сервере. Результат не доказывает полноту интернета.
+            </p>
+            <button
+              type="button"
+              disabled={busy || probeBusy || loading}
+              onClick={() => void runProbe()}
+            >
+              {probeBusy ? 'Проверяем…' : 'Проверить сейчас'}
+            </button>
+            {probeError ? <p role="alert">{probeError}</p> : null}
+            {probe ? (
+              <div role="status">
+                <p>Проверено: {new Date(probe.checkedAt).toLocaleString('ru-RU')}</p>
+                {probe.modes.map((result) => (
+                  <p key={result.mode}>
+                    {result.mode === 'web' ? 'Веб-поиск' : 'Поиск изображений'}:{' '}
+                    {probeStatus[result.status]}; {result.durationMs} мс.
+                    {result.diagnostics
+                      ? ` Рассмотрено (до 32): ${result.diagnostics.rawCount}, допустимых URL: ${result.diagnostics.validatedCount}, после фильтра доменов: ${result.diagnostics.postDomainCount}, сбоев движков: ${result.diagnostics.engineFailureCount}.`
+                      : ''}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+          </section>
           <label className="asa-cloud-field asa-ai-web-admin-limit">
             <span>Лимит поисковых операций за час</span>
             <input

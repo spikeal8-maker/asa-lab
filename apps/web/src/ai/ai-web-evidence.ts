@@ -174,6 +174,10 @@ export function readWebEvidence(value: unknown): AiWebSearchEvidence | null {
       'location_required',
       'location_ambiguous',
       'rate_limit',
+      'upstream_empty',
+      'invalid_results',
+      'domain_filtered',
+      'provider_partial_failure',
     ].includes(value.reason)
       ? { reason: value.reason as NonNullable<AiWebSearchEvidence['reason']> }
       : {}),
