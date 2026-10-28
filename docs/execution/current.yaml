@@ -12430,7 +12430,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point1_source_verified_independent_pass_main_ci_pending
+      checkpoint: remaining20_point2_direct_diode_matrix_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -12441,7 +12441,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
+      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-DIODE-MATRIX-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -12450,7 +12450,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Newpoint1 task751sourceverifiede8c4b6c9 independentAPPROVE4widthnative,2345tests71freshNxallcapsPASS. Finalconvergencemain38c95393addsclassroomtest/doconly; fivecandidatepathsidentical. ExactmainCIpending, no releaseorinstalledacceptance. 789remainsNOTREADY. Foreignworkflowdirtypathsuntouched; no server/heavyparallelruns.
+      execution_coordination: OwnerprovidedpupilTinkercadimage newpoint2direct10buttondiodecircuit selectedtest-onlyqualification. Point1main9ddsourceverifiedindependentPASS, exactGeneral40671936111inprogresslastobserved. Foreignworkflowdirtypathsinspectedunchangedandexcluded; no server/heavyparallelruns. No claim wholepoint2orArduinoeffectscomplete.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13681,6 +13681,45 @@ parallel_lanes:
         workflow: Electronics R4-M1 Focused
         commands:
           - pnpm gate:electronics-m1
+
+  - id: electronics-seven-segment-diode-matrix
+    parent_lane: electronics
+    worktree_id: electronics-reverse-led-simple
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-DIODE-MATRIX-001.md
+    task:
+      id: TASK-ELECTRONICS-SEVEN-SEGMENT-DIODE-MATRIX-001
+      issue: 815
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: selected_owner_pupil_direct_circuit_qualification
+      owner_acceptance: pending
+      execution_role: bounded_test_executor_then_new_independent_review
+      owner_authorization: OwnerexplicitlyrequestsfunctionalASAversionofpupilTinkercadtenbuttondiodecircuit. No Arduino substitute; preserve2AAphysicalsourceanddocumentchosenresistors. Testfirst STOPonactualproductdefectforboundedrepairselection.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVEN-SEGMENT-DIODE-MATRIX-001.md
+        - docs/product/electronics/OWNER_REMAINING_PLAN_20.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 7db417dee1520019aecb63ec886493c384145813
+      convergence_baseline_sha: 7db417dee1520019aecb63ec886493c384145813
+      head_sha: null
+      observed_at: '2026-10-28T10:35:58Z'
+      observation_note: Fresh fetch main before each edit. Observed7dbclean,preflightCPPASSknown2foreignworkflowdirtypathsuntouched. Prior751sourcegate2345tests71freshNxallcapsPASS, mainGeneral9ddinprogressnotPASS. Qualificationtest-only no productionrepairorserverauthority.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
