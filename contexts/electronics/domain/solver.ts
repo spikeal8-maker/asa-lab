@@ -110,6 +110,7 @@ import {
 } from './models/nonlinear-dc-models.js';
 import {
   createNpnDcDevice,
+  npnDcDefinitionHasOriginalDefinition,
   NPN_DEVICE_MODEL,
   type NpnIterationState,
   type NpnObservation,
@@ -434,6 +435,7 @@ interface ArduinoAlgebraicPoint {
   readonly rhs: number[];
   readonly diodeStates: ReadonlyMap<string, boolean>;
   readonly diodeSegments: ReadonlyMap<string, number>;
+  readonly npnStates?: ReadonlyMap<string, NpnIterationState>;
   readonly iterations: number;
   readonly template?: ArduinoElectricalTemplate;
 }
@@ -490,11 +492,24 @@ const sevenSegmentDefinitionIsOriginal = captureDeviceModelDefinition([
   electricalModelFor(sevenSegmentReference).requiredTerminals,
 ]);
 
+const npnReference: SchematicComponent = {
+  id: 'npn-definition',
+  kind: 'transistor',
+  componentTypeId: 'transistor-npn',
+  value: 100,
+  position: { x: 0, y: 0 },
+};
+const npnMetadataIsOriginal = captureDeviceModelDefinition([
+  resolveElectricalModelIdentity(npnReference),
+  electricalModelFor(npnReference).requiredTerminals,
+]);
+
 /** Pure electrical work only. Owned by one advance, never persisted or shared. */
 export function createArduinoOperatingPointReuse() {
   let previousDocument: ElectronicsDocument | undefined;
   let eligible = false;
   let hasSevenSegment = false;
+  let hasNpn = false;
   const slots: { readonly key: readonly unknown[]; point?: ArduinoAlgebraicPoint }[] = [];
   return (
     document: ElectronicsDocument,
@@ -503,11 +518,13 @@ export function createArduinoOperatingPointReuse() {
     })[],
     snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
     failedIds: ReadonlySet<string>,
+    previousBjtRegions?: Readonly<Record<string, 'cutoff' | 'active' | 'saturation'>>,
   ): { point?: ArduinoAlgebraicPoint } | undefined => {
     if (previousDocument !== document) {
       previousDocument = document;
       slots.length = 0;
       hasSevenSegment = document.components.some((component) => component.kind === 'seven-segment');
+      hasNpn = document.components.some((component) => component.kind === 'transistor');
       eligible = document.components.every((component) => {
         const model = electricalModelFor(component);
         return (
@@ -522,7 +539,15 @@ export function createArduinoOperatingPointReuse() {
                 component.kind === 'resistor') ||
               (model.id === 'ordinary-led' &&
                 model.profileId === 'generic-red-led' &&
-                component.kind === 'led'))) ||
+                component.kind === 'led') ||
+              (model.id === 'npn-transistor' &&
+                model.profileId === 'generic-npn-to92' &&
+                component.componentTypeId === 'transistor-npn' &&
+                component.kind === 'transistor' &&
+                model.requiredTerminals.length === 3 &&
+                model.requiredTerminals.every(
+                  (terminal, index) => terminal === ['base', 'collector', 'emitter'][index],
+                )))) ||
             (model.id === 'seven-segment' &&
               model.profileId === 'single-digit-seven-segment-10pin' &&
               model.profileVersion === 2 &&
@@ -533,6 +558,7 @@ export function createArduinoOperatingPointReuse() {
     }
     if (
       !eligible ||
+      (hasNpn && (!npnDcDefinitionHasOriginalDefinition() || !npnMetadataIsOriginal())) ||
       (hasSevenSegment &&
         (!sevenSegmentProfileHasOriginalDefinition() || !sevenSegmentDefinitionIsOriginal())) ||
       [...snapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)
@@ -541,6 +567,10 @@ export function createArduinoOperatingPointReuse() {
       return undefined;
     }
     const key: unknown[] = [failedIds.size, ...failedIds, branches.length];
+    if (hasNpn)
+      for (const component of document.components)
+        if (component.kind === 'transistor')
+          key.push(component.id, previousBjtRegions?.[component.id]);
     for (const branch of branches)
       key.push(
         branch.component.id,
@@ -2732,6 +2762,7 @@ function solveCircuitStep(
         earlyBranches,
         options.heldArduinoSnapshots!,
         failedComponentIds,
+        options.bjtPreviousRegionById,
       )
     : undefined;
   if (earlySlot?.point?.template) {
@@ -3294,6 +3325,7 @@ function solveCircuitStep(
         arduinoBranches,
         arduinoSnapshots,
         failedComponentIds,
+        options.bjtPreviousRegionById,
       );
   const reusedPoint = pointSlot?.point;
   if (reusedPoint) {
@@ -3304,6 +3336,7 @@ function solveCircuitStep(
     converged = true;
     for (const [key, value] of reusedPoint.diodeStates) diodeStates.set(key, value);
     for (const [key, value] of reusedPoint.diodeSegments) diodeSegmentIndices.set(key, value);
+    for (const [key, value] of reusedPoint.npnStates ?? []) npnIterationStates.set(key, value);
   }
   for (; !reusedPoint && iterations <= maxIterations; iterations += 1) {
     const matrix = Array.from({ length: size }, () => Array<number>(size).fill(0));
@@ -3906,7 +3939,9 @@ function solveCircuitStep(
 
   const linearDcObservationById = new Map<string, LinearDcObservation>();
   const templateInputs: ArduinoElectricalInput[] | undefined =
-    pointSlot && !reusedPoint && failedComponentIds.size === 0 ? [] : undefined;
+    pointSlot && !reusedPoint && failedComponentIds.size === 0 && npnDcDevices.length === 0
+      ? []
+      : undefined;
   const components: ComponentResult[] = observationRouting.components.map(
     ({ component, terminals }) => {
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
@@ -5024,6 +5059,7 @@ function solveCircuitStep(
       diodeStates: new Map(diodeStates),
       diodeSegments: new Map(diodeSegmentIndices),
       iterations,
+      ...(npnDcDevices.length ? { npnStates: new Map(npnIterationStates) } : {}),
       ...(templateInputs &&
       components.every((component) =>
         Object.values(component).every((value) =>

@@ -3,7 +3,12 @@ import {
   componentModelIdentityIsInstalled,
   electricalModelIdentityForComponent,
 } from '../model-identity.js';
-import type { DeviceDiagnostic, IterativeDcDeviceModel, NormalizedDevice } from './device-model.js';
+import {
+  captureDeviceModelDefinition,
+  type DeviceDiagnostic,
+  type IterativeDcDeviceModel,
+  type NormalizedDevice,
+} from './device-model.js';
 
 const GMIN = 1e-12;
 const REGION_HYSTERESIS_VOLT = 0.02;
@@ -397,6 +402,13 @@ export const NPN_DEVICE_MODEL: IterativeDcDeviceModel<
     };
   },
 };
+
+const npnDefinitionIsOriginal = captureDeviceModelDefinition([NPN_DEVICE_MODEL, NPN_DC_PROFILES]);
+
+/** Module-origin guard for exact algebra reuse; never grants authority to caller data. */
+export function npnDcDefinitionHasOriginalDefinition(): boolean {
+  return npnDefinitionIsOriginal();
+}
 
 export function createNpnDcDevice(component: SchematicComponent): NpnDcDevice | null {
   if (!componentModelIdentityIsInstalled(component)) return null;
