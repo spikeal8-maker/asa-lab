@@ -40,7 +40,7 @@ it('preserves a complete long code answer, owner isolation and idempotent replay
     "SELECT busy_until > clock_timestamp() + interval '1800 seconds' AS ok FROM ai_assistant_threads WHERE id=$1",
     [f.thread.id],
   );
-  expect(lease.rows[0].admitted).toBe(true);
+  expect(lease.rows[0].ok).toBe(true);
   const answer = "function completeCode() { return 'END'; }\n".repeat(2000);
   await expect(
     runtime.query('SELECT ai_chat_finish($1,$2,$3,$4,$5)', [
