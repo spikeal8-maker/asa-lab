@@ -47,7 +47,8 @@ components:
       - path: apps/api/src/public-scratch-player.ts
         symbols: [PublicScratchPlayerService, publicScratchDocument]
       - apps/api/src/public-scratch-player.controller.ts
-      - apps/web/src/projects-public/PublicScratchPlayer.tsx
+      - path: apps/web/src/projects-public/PublicScratchPlayer.tsx
+        symbols: [PublicScratchPlayer]
       - packages/contracts/src/public-scratch-player.ts
       - migrations/0269_public_scratch_player.sql
     tests:
