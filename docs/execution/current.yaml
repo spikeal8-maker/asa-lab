@@ -550,7 +550,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asai_15_selected_product_and_delivery_parallel
+      checkpoint: asai_15_candidate_browser_fixture_repair_delivery_blocked
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -582,10 +582,14 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R03, R31]
           acceptance_checks: [C03, C28]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_pr: 822
+          candidate_sha: 93e6cbf8c42afb2b44bbffaf4dc016704d5893dd
+          independent_review: approved_code_and_harness
+          ci_status: failed_new_real_browser_under_repair
           source_baseline: c0b673b7e39c5fab3beaede55bfba6ad4565b87f
           selection: >-
             Owner selected the whole programme on 2026-10-28. Issue806 needs a separate explicit
@@ -14147,7 +14151,10 @@ blocking:
       - release_publication
     reason: >-
       The bounded legacy adapter is published in Draft PR811 at manager
-      260826ecd5385206053eaf9d85f66fc4790e8e92. Read-only D2R2 qualification
+      c8e4339ba0ba70ed752453098eaeed9f449029f5. Exact Windows code review approved;
+      the single authorized 2026-10-28 diagnostic remains BLOCKED with AUTHOR10,
+      EXCLUDED157 and UNKNOWN475 (metadata denial, command ambiguity and churn).
+      Read-only D2R2 qualification
       supports the actual review identity, mount shape and preserved WIP.
       Author attestation returns LEGACY_AUTHORS because required process
       owner metadata cannot be verified in the available operator context.
