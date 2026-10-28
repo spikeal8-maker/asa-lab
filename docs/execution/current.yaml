@@ -7135,7 +7135,7 @@ parallel_lanes:
       - apps/web/src/electronics/native-optical-presentation.ts
       - apps/web/src/electronics/WorkbenchStage.tsx
       - apps/web/src/electronics/use-piezo-audio.ts
-      - apps/web/src/electronics/testing/**
+      - apps/web/src/electronics/testing/committed-result-consumers.spec.ts
       - e2e/electronics-interactions.spec.ts
     task:
       id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
