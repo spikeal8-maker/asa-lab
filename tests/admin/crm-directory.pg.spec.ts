@@ -390,6 +390,10 @@ it('includes retained legacy AI admissions, deduplicates journal overlap and kee
     [legacy, both],
     async (client) => {
       await client.query(
+        'DELETE FROM ai_token_budget_reservations WHERE owner_principal_id=$1 AND request_id=$2',
+        [account.principal, legacy],
+      );
+      await client.query(
         'DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2',
         [account.principal, legacy],
       );

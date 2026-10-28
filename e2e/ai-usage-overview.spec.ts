@@ -1104,6 +1104,9 @@ test(
       await captureStateMatrix(page, 'unknown-tokens', measurements);
       // Remove only this fixture's records; an empty response must remain distinct
       // from both the previous partial state and the genuine source error.
+      await db.query('DELETE FROM ai_token_budget_reservations WHERE owner_principal_id=$1', [
+        actor.principalId,
+      ]);
       await db.query('DELETE FROM ai_usage_journal WHERE owner_principal_id=$1', [
         actor.principalId,
       ]);

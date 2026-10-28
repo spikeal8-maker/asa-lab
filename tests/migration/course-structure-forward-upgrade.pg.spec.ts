@@ -145,6 +145,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0273', // Independent providers.
         '0274', // Cloud pool provider projection.
         '0275', // Model selection policy.
+        '0276', // Soft monthly token budgets.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -449,6 +450,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0273', // Independent providers.
           '0274', // Cloud pool provider projection.
           '0275', // Model selection policy.
+          '0276', // Soft monthly token budgets.
         ]);
         expect(
           await applyIsolatedTestPlan(

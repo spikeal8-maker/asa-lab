@@ -54,6 +54,7 @@ const expectedPending = [
   '0273', // Independent providers.
   '0274', // Cloud pool provider projection.
   '0275', // Model selection policy.
+  '0276', // Soft monthly token budgets.
 ];
 
 interface Identity {

@@ -106,6 +106,10 @@ it('keeps historical aggregate setup on one real admission transaction and resto
         ).rows[0].n,
       ).toBe(1);
       await client.query(
+        'DELETE FROM ai_token_budget_reservations WHERE owner_principal_id=$1 AND request_id=$2',
+        [f.owner.principal_id, request],
+      );
+      await client.query(
         'DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2',
         [f.owner.principal_id, request],
       );

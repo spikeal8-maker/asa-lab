@@ -38,7 +38,7 @@ it('shows actual overage, separate save semantics and UTC reset with truthful sc
   await act(async () =>
     root.render(createElement(AdminAiTokenBudgets, { onAccessDenied: vi.fn() })),
   );
-  expect(host.textContent).toContain('Общий расход: 15');
+  expect(host.textContent).toContain('Подтверждено токенов всего: 15');
   expect(host.textContent).toContain('Остаток: 0');
   expect(host.textContent).toContain('начатый ответ завершается полностью');
   expect(host.textContent).toContain('UTC');
@@ -69,6 +69,11 @@ it('preserves a draft and mutation identity across uncertain retries; CAS confli
   expect(bodies).toHaveLength(2);
   expect(bodies[0]).toBe(bodies[1]);
   expect(host.textContent).toContain('Черновик остаётся');
+  expect(host.querySelector('input')?.value).toBe('12');
+  await act(async () =>
+    root.render(createElement(AdminAiTokenBudgets, { onAccessDenied: vi.fn() })),
+  );
+  expect(vi.mocked(call).mock.calls.filter(([, init]) => !init)).toHaveLength(1);
   expect(host.querySelector('input')?.value).toBe('12');
 });
 it('distinguishes blank unlimited from zero and rejects invalid server data', () => {

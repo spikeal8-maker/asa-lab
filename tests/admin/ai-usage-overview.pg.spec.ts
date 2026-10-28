@@ -38,10 +38,15 @@ beforeAll(async () => {
 
 afterAll(async () => {
   try {
-    if (fixtureOwners.length)
+    if (fixtureOwners.length) {
+      await admin.query(
+        'DELETE FROM ai_token_budget_reservations WHERE owner_principal_id=ANY($1::uuid[])',
+        [fixtureOwners],
+      );
       await admin.query('DELETE FROM ai_usage_journal WHERE owner_principal_id=ANY($1::uuid[])', [
         fixtureOwners,
       ]);
+    }
     await runtime?.end();
   } finally {
     await unlock?.();

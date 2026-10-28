@@ -1982,8 +1982,9 @@ export function AiChatPage({
           )}
           {selectedBudget && !imageMode ? (
             <p className="chat-runtime-note" role="status">
-              Токены модели за месяц: {selectedBudget.used} · Резерв: {selectedBudget.held} ·
-              Остаток личного бюджета: {selectedBudget.remaining ?? 'без лимита'}.
+              Подтверждено токенов модели за месяц: {selectedBudget.used} · Резерв:{' '}
+              {selectedBudget.held} · Остаток личного бюджета:{' '}
+              {selectedBudget.remaining ?? 'без лимита'}.
               {selectedBudget.pendingUnknown
                 ? ' Часть расхода неизвестна; резерв сохранён без срока истечения.'
                 : ''}

@@ -40,6 +40,10 @@ export function AdminAiTokenBudgets({ onAccessDenied }: { readonly onAccessDenie
   const [draft, setDraft] = useState<readonly AiTokenBudgetLimit[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const denied = useRef(onAccessDenied);
+  useEffect(() => {
+    denied.current = onAccessDenied;
+  }, [onAccessDenied]);
   const pending = useRef<{ signature: string; requestId: string } | null>(null);
   function accept(value: AiTokenBudgetAdmin) {
     setConfig(value);
@@ -55,7 +59,7 @@ export function AdminAiTokenBudgets({ onAccessDenied }: { readonly onAccessDenie
         if (!active) return;
         if (reply.ok && budgetAdminShape(reply.data)) accept(reply.data);
         else if (reply.ok) setNotice('Данные бюджетов несовместимы с этой версией.');
-        else if (reply.status === 403) onAccessDenied();
+        else if (reply.status === 403) denied.current();
         else setNotice('Не удалось загрузить лимиты токенов. Обновите страницу.');
       })
       .catch(() => {
@@ -64,7 +68,7 @@ export function AdminAiTokenBudgets({ onAccessDenied }: { readonly onAccessDenie
     return () => {
       active = false;
     };
-  }, [onAccessDenied]);
+  }, []);
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!config || busy) return;
@@ -163,7 +167,7 @@ export function AdminAiTokenBudgets({ onAccessDenied }: { readonly onAccessDenie
                     />
                   </label>
                   <p>
-                    Общий расход: {usage.used} · Резерв: {usage.held}
+                    Подтверждено токенов всего: {usage.used} · Резерв: {usage.held}
                     {usage.globalLimit !== null
                       ? ' · Остаток: ' +
                         String(

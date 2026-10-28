@@ -113,6 +113,10 @@ it('includes retained pre-journal AI admissions without duplicating journaled re
       );
       // Simulate a retained pre-0244 admission in this isolated test's own rows.
       await client.query(
+        'DELETE FROM ai_token_budget_reservations WHERE owner_principal_id=$1 AND request_id=$2',
+        [f.target.principal_id, request],
+      );
+      await client.query(
         'DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2',
         [f.target.principal_id, request],
       );

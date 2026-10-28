@@ -55,6 +55,14 @@ Local checks use direct commands (no Nx cache):
   8 skipped. The failures concern POSIX file mode `0600` versus Windows `0666`
   and the resulting unknown upload/cleanup diagnostic; those files were not repaired.
 - Contracts build, API/Web TypeScript and changed product-file ESLint: PASS.
+- After composing the independently approved B fixture repairs, the 25 budget
+  tests plus four admission-fixture tests passed together (29 PASS). The full
+  `pnpm test:ai-chat` repeated with 1204 PASS / the same 2 Windows failures /
+  8 skipped. The three pure pre-SQL upgrade-plan guards passed; their real
+  PostgreSQL case was deliberately excluded by the test-name filter.
+- All three migration upgrade plans include 0276. Its LF-normalized SHA-256 is
+  `12bf74c83cfffe55898a3793f9b3a4b0d6b4824d1454fb8f84fe0bcd59b1baae`.
+  Existing published migration content and earlier artifact hashes are unchanged.
 - New real PostgreSQL and browser tests collect successfully; execution is
   **NOT_RUN locally**. No Docker, working database, live vendor, paid service or
   workstation inference process was used.
@@ -66,6 +74,10 @@ isolated migration coordinator and creates no ad-hoc roles or grants. It does
 not move or delete another suite's history to obtain budget room.
 
 `pnpm e2e:ai-token-budgets` uses the built Web, real API and isolated PostgreSQL.
+It proves per-user overage/exhaustion for a fresh principal with the global cap
+unlimited; pre-existing overview fixture usage cannot consume that own-user cap.
+The global-cap concurrency assertion belongs to the separate fresh PostgreSQL
+suite. The overview journey runs first and has no assertions after this journey.
 Only inference is a controlled loopback CI transport with explicit synthetic
 token counts, not real-vendor quality evidence. Its hard GitHub-CI guard runs
 before binding port 11434. The existing real-overview CI build is reused; safe

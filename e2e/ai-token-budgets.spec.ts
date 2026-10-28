@@ -164,7 +164,7 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       for (const colorScheme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
         await page.emulateMedia({ colorScheme });
-        await expect(row).toContainText('Общий расход:');
+        await expect(row).toContainText('Подтверждено токенов всего:');
         await row.scrollIntoViewIfNeeded();
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
