@@ -679,22 +679,46 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     expect(await countCompletedNotifications()).toBe(0);
 
     const threeDCorrected = await addAttempt(practiceRuns[1].id, 2, 'closed', threeDPending);
-    await publishReview(threeDCorrected, 'accepted');
-    expect(await completion()).toMatchObject({
-      completed: true,
-      total: 1,
-      lessonCount: 1,
-      completedCount: 1,
-      reason: 'required_lessons_completed',
-    });
-
-    await inTenant(author, (client) =>
-      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,false)', [
-        seat,
-        delivery.run_id,
-        runLesson.id,
-      ]),
-    );
+    // Another Vitest worker may sweep the same PostgreSQL fixture concurrently.
+    // Make the transient completed state unobservable outside the transaction:
+    // academic acceptance and theory unread must commit atomically. Inside the
+    // transaction we still assert the accepted result completes the course.
+    const transaction = await admin.connect();
+    try {
+      await transaction.query('BEGIN');
+      await transaction.query("SELECT set_config('app.tenant_id',$1,true)", [author.tenantId]);
+      const accepted = await transaction.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         SELECT tenant_id,id,20,'passed','accepted',true
+           FROM learning_attempts WHERE id=$1 RETURNING id`,
+        [threeDCorrected],
+      );
+      expect(accepted.rows).toHaveLength(1);
+      const completedInTransaction = (
+        await transaction.query('SELECT learning_course_completion_internal($1) AS value', [
+          enrollment.id,
+        ])
+      ).rows[0].value;
+      expect(completedInTransaction).toMatchObject({
+        completed: true,
+        total: 1,
+        lessonCount: 1,
+        completedCount: 1,
+        reason: 'required_lessons_completed',
+      });
+      const unread = await transaction.query(
+        'SELECT * FROM classroom_course_material_progress_set($1,$2,$3,false)',
+        [seat, delivery.run_id, runLesson.id],
+      );
+      expect(unread.rows[0].result_code).toBe('ok');
+      await transaction.query('COMMIT');
+    } catch (error) {
+      await transaction.query('ROLLBACK');
+      throw error;
+    } finally {
+      transaction.release();
+    }
     expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
     await sweep();
     expect(await countCompletedNotifications()).toBe(0);
