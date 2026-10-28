@@ -34,20 +34,25 @@ export function PublicScratchPlayer({
   }, []);
   useEffect(() => {
     if (!loaded || !frame.current?.contentWindow) return;
-    let disposed = false;
-    let failed = false;
+    let disposed = false,
+      failed = false;
     setState('loading');
     let bridge: BlocksRuntimeBridge | null = null;
     let controller: AbortController | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let deadlineTimer: ReturnType<typeof setTimeout> | null = null;
-    let fetching = false;
-    let retries = 0;
+    let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+    let epoch = 0,
+      retries = 0,
+      validUntil = 0;
     const startupTimer = setTimeout(() => fail(false), 45000);
     const clear = () => {
+      epoch++;
       controller?.abort();
+      controller = null;
       if (refreshTimer) clearTimeout(refreshTimer);
       if (deadlineTimer) clearTimeout(deadlineTimer);
+      if (resumeTimer) clearTimeout(resumeTimer);
       clearTimeout(startupTimer);
       bridge?.stop();
       bridge = null;
@@ -64,28 +69,33 @@ export function PublicScratchPlayer({
       if (unavailable) onUnavailable();
     };
     const connect = async () => {
-      if (disposed || failed || fetching) return;
+      if (disposed || failed || controller) return;
       if (refreshTimer) {
         clearTimeout(refreshTimer);
         refreshTimer = null;
       }
-      fetching = true;
-      controller = new AbortController();
+      const generation = epoch;
+      const requestController = new AbortController();
+      controller = requestController;
+      const current = () =>
+        !disposed && !failed && generation === epoch && controller === requestController;
       const requestStart = performance.now();
-      const requestTimer = setTimeout(() => controller?.abort(), 15000);
+      const requestTimer = setTimeout(() => requestController.abort(), 15000);
+      let retryable = true;
       try {
         const response = await fetch(
           `/api/public-projects/${publicationId}/scratch-player?revisionId=${revisionId}`,
           {
-            signal: controller.signal,
+            signal: requestController.signal,
             credentials: 'omit',
             cache: 'no-store',
             redirect: 'error',
             headers: { accept: 'application/json' },
           },
         );
-        if (disposed) return;
-        if ([400, 403, 404, 409, 410].includes(response.status)) {
+        if (!current()) return;
+        if (requestController.signal.aborted) throw new Error('Player request timed out');
+        if ([400, 401, 403, 404, 409, 410].includes(response.status)) {
           fail(true);
           return;
         }
@@ -93,9 +103,17 @@ export function PublicScratchPlayer({
           fail(false);
           return;
         }
-        if (!response.ok) throw new Error('Player unavailable');
+        if (!response.ok) {
+          retryable = response.status === 429 || response.status >= 500;
+          throw new Error('Player unavailable');
+        }
+        retryable = false;
         const value = (await response.json()) as PublicScratchPlayerBootstrap;
-        if (disposed) return;
+        if (!current()) return;
+        if (requestController.signal.aborted) {
+          retryable = true;
+          throw new Error('Player request timed out');
+        }
         if (
           value.schemaVersion !== 1 ||
           value.viewerFamily !== 'scratch' ||
@@ -103,6 +121,9 @@ export function PublicScratchPlayer({
           value.revisionId !== revisionId
         )
           throw new Error('Player binding mismatch');
+        // The HTTP server Date, not a body field or the pupil's calendar, anchors expiry.
+        const date = response.headers.get('date');
+        const serverNow = date ? Math.floor(Date.parse(date) / 1000) : NaN;
         const session = parseBlocksRuntimeSession(
           {
             runtimeOrigin: value.runtimeOrigin,
@@ -112,7 +133,7 @@ export function PublicScratchPlayer({
             projectJson: value.projectJson,
             assets: value.assets,
           },
-          value.serverTime,
+          serverNow,
           requestStart,
         );
         if (!session || !session.projectJson || session.assets.length > 256)
@@ -139,28 +160,38 @@ export function PublicScratchPlayer({
             projectJson: session.projectJson,
             hasProjectJson: true,
             assets: session.assets,
-            // Scope marker only; recovery is never constructed in player mode.
             recoveryPrincipalKey: `public:${publicationId}:${revisionId}`,
           });
           bridge.sendInit();
         } else bridge.updateToken(session.runtimeToken);
+        validUntil = session.expiresAtMonotonicMs;
         if (deadlineTimer) clearTimeout(deadlineTimer);
-        deadlineTimer = setTimeout(
-          () => fail(false),
-          Math.max(0, session.expiresAtMonotonicMs - performance.now()),
-        );
+        deadlineTimer = setTimeout(() => fail(false), Math.max(0, validUntil - performance.now()));
         refreshTimer = setTimeout(
           () => void connect(),
-          Math.min(60000, Math.max(1000, session.expiresAtMonotonicMs - performance.now() - 30000)),
+          Math.min(60000, Math.max(1000, validUntil - performance.now() - 30000)),
         );
       } catch {
-        if (!disposed && !failed) {
-          if (++retries <= 2) refreshTimer = setTimeout(() => void connect(), retries * 2000);
-          else fail(false);
+        if (!current()) return;
+        if (!retryable) {
+          fail(false);
+          return;
         }
+        retries++;
+        const remaining = validUntil - performance.now();
+        if (bridge && remaining > 0) {
+          // Keep the already authorised running VM during a temporary outage.
+          // The existing deadline still tears it down; retries never extend authority.
+          refreshTimer = setTimeout(
+            () => void connect(),
+            Math.min(remaining, retries <= 2 ? retries * 2000 : 30000),
+          );
+        } else if (!bridge && retries <= 2)
+          refreshTimer = setTimeout(() => void connect(), retries * 2000);
+        else fail(false);
       } finally {
         clearTimeout(requestTimer);
-        fetching = false;
+        if (controller === requestController) controller = null;
       }
     };
     const receive = (event: MessageEvent) => {
@@ -177,7 +208,22 @@ export function PublicScratchPlayer({
       }
     };
     const resume = () => {
-      if (document.visibilityState === 'visible') void connect();
+      if (disposed || failed || document.visibilityState !== 'visible') return;
+      // An in-flight response may predate OS suspension while performance.now paused.
+      // Invalidate it even if fetch/json ignores abort; one fresh request follows the burst.
+      epoch++;
+      const old = controller;
+      controller = null;
+      old?.abort();
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+      if (resumeTimer !== null) return;
+      resumeTimer = setTimeout(() => {
+        resumeTimer = null;
+        if (document.visibilityState === 'visible') void connect();
+      }, 0);
     };
     window.addEventListener('message', receive);
     window.addEventListener('pageshow', resume);
@@ -187,7 +233,6 @@ export function PublicScratchPlayer({
     return () => {
       disposed = true;
       clear();
-      window.removeEventListener('message', receive);
     };
   }, [loaded, publicationId, revisionId, onUnavailable]);
   if (state === 'error')

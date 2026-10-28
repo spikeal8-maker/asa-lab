@@ -7,6 +7,7 @@ import { assetByteLimit, inspectBlocksDocument, snapshotJson } from './blocks-du
 import { readBlocksRuntimeServerConfig } from './blocks-runtime-config.js';
 import {
   S3BlocksBlobStore,
+  disposeBlocksBlobBody,
   readBlocksObjectStorageConfig,
   type BlocksBlobStorePort,
 } from './blocks-asset-storage.js';
@@ -46,12 +47,7 @@ const BLOCK_FAMILIES = new Set([
   'argument',
   ...EXTENSIONS,
 ]);
-const error = () =>
-  publicationError(
-    'not_available',
-    'РџСЂРѕРµРєС‚ РЅРµРґРѕСЃС‚СѓРїРµРЅ РґР»СЏ РїСЂРѕСЃРјРѕС‚СЂР°.',
-    404,
-  );
+const error = () => publicationError('not_available', 'Проект недоступен для просмотра.', 404);
 
 /** A separate public namespace. Never passed to editor/principal authorization. */
 export interface PublicScratchBinding {
@@ -67,11 +63,7 @@ export async function publicScratchDocument(value: unknown): Promise<BlocksProje
   const document = await inspectBlocksDocument(value, JSON_LIMIT, ASSET_LIMIT);
   const project = document.projectJson;
   const unsupported = () =>
-    publicationError(
-      'player_unsupported',
-      'Р­С‚РѕС‚ РїСЂРѕРµРєС‚ РїРѕРєР° РґРѕСЃС‚СѓРїРµРЅ РєР°Рє РѕР±Р»РѕР¶РєР°.',
-      422,
-    );
+    publicationError('player_unsupported', 'Этот проект пока доступен как обложка.', 422);
   if (!project || document.assets.length > 256) throw unsupported();
   const targets = project['targets'] as Record<string, unknown>[];
   const extensions = project['extensions'] as unknown[];
@@ -201,11 +193,7 @@ export class PublicScratchPlayerService {
       try {
         document = await publicScratchDocument(result.rows[0].document_json);
       } catch {
-        throw publicationError(
-          'player_unsupported',
-          'Р­С‚РѕС‚ РїСЂРѕРµРєС‚ РїРѕРєР° РґРѕСЃС‚СѓРїРµРЅ РєР°Рє РѕР±Р»РѕР¶РєР°.',
-          422,
-        );
+        throw publicationError('player_unsupported', 'Этот проект пока доступен как обложка.', 422);
       }
       const bytes = Buffer.byteLength(JSON.stringify(document));
       while (this.cache.size >= 16 || this.cacheBytes + bytes > 8 * 1024 * 1024) {
@@ -309,11 +297,7 @@ export class PublicScratchPlayerService {
       )
         throw error();
       if (!this.budget.consume(payload.jti!).allowed)
-        throw publicationError(
-          'too_many_requests',
-          'РЎР»РёС€РєРѕРј РјРЅРѕРіРѕ Р·Р°РїСЂРѕСЃРѕРІ РїСЂРѕСЃРјРѕС‚СЂР°.',
-          429,
-        );
+        throw publicationError('too_many_requests', 'Слишком много запросов просмотра.', 429);
       return payload;
     } catch (cause) {
       if (cause && typeof cause === 'object' && 'getStatus' in cause) throw cause;
@@ -368,18 +352,52 @@ export class PublicScratchPlayerService {
       const blobs =
         this.options.blobs ??
         (this.blobs ??= new S3BlocksBlobStore(readBlocksObjectStorageConfig(this.env)));
-      const body = await blobs.open({ tenantId: ref.tenant_id, sha256: ref.sha256, dataFormat });
-      if (!body) throw error();
-      const input = Readable.from(body);
-      const cancel = () => input.destroy(new Error('public_player_request_cancelled'));
+      const readAbort = new AbortController();
+      let input: Readable | null = null;
+      const cancel = () => readAbort.abort();
+      const cancelled = () =>
+        publicationError('asset_unavailable', 'Чтение ресурса прервано.', 503);
+      const destroyInput = () => input?.destroy(new Error('public_player_request_cancelled'));
+      // The same deadline covers SDK headers/open AND verified body consumption.
       const inputTimer = setTimeout(cancel, 30000);
       inputTimer.unref();
       signal?.addEventListener('abort', cancel, { once: true });
-      const bytes = Buffer.alloc(sizeBytes);
-      let offset = 0;
-      const hash = createHash('sha256');
+      readAbort.signal.addEventListener('abort', destroyInput, { once: true });
+      let bytes: Buffer;
       try {
         if (signal?.aborted) cancel();
+        if (readAbort.signal.aborted) throw cancelled();
+        const opened = blobs.open(
+          { tenantId: ref.tenant_id, sha256: ref.sha256, dataFormat },
+          { signal: readAbort.signal },
+        );
+        // Real S3 receives the signal. The guard also releases admission if a
+        // noncompliant adapter ignores it; any late body is closed, never leaked.
+        const body = await new Promise<Awaited<typeof opened>>((resolve, reject) => {
+          const aborted = () => reject(cancelled());
+          readAbort.signal.addEventListener('abort', aborted, { once: true });
+          void opened.then(
+            (value) => {
+              readAbort.signal.removeEventListener('abort', aborted);
+              if (readAbort.signal.aborted) {
+                if (value) disposeBlocksBlobBody(value);
+                return;
+              }
+              resolve(value);
+            },
+            (cause) => {
+              readAbort.signal.removeEventListener('abort', aborted);
+              reject(cause);
+            },
+          );
+          if (readAbort.signal.aborted) aborted();
+        });
+        if (!body) throw error();
+        input = Readable.from(body);
+        bytes = Buffer.alloc(sizeBytes);
+        let offset = 0;
+        const hash = createHash('sha256');
+        if (readAbort.signal.aborted) destroyInput();
         for await (const chunk of input) {
           if (
             !(chunk instanceof Uint8Array) ||
@@ -394,14 +412,18 @@ export class PublicScratchPlayerService {
         if (
           offset !== sizeBytes ||
           hash.digest('hex') !== ref.sha256 ||
-          signal?.aborted ||
+          readAbort.signal.aborted ||
           this.now() >= grant.exp!
         )
           throw publicationError('asset_integrity_error', 'Ресурс не прошёл проверку.', 503);
+      } catch (cause) {
+        if (readAbort.signal.aborted) throw cancelled();
+        throw cause;
       } finally {
         clearTimeout(inputTimer);
         signal?.removeEventListener('abort', cancel);
-        input.destroy();
+        readAbort.signal.removeEventListener('abort', destroyInput);
+        input?.destroy();
       }
       // No bytes are returned before whole-object size/SHA validation succeeds.
       const stream = Readable.from([bytes]);

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
+import type { BlocksBlobStorePort, BlocksBlobReadable } from './blocks-asset-storage.js';
 import { describe, it, expect, vi } from 'vitest';
 import type pg from 'pg';
 import { PublicScratchPlayerService, publicScratchDocument } from './public-scratch-player.js';
@@ -29,7 +31,7 @@ function fixture() {
             ]
           : [],
   }));
-  const open = vi.fn(async () =>
+  const open = vi.fn<BlocksBlobStorePort['open']>(async () =>
     (async function* () {
       yield input.bytes;
     })(),
@@ -55,6 +57,95 @@ function fixture() {
   };
 }
 describe('public Scratch player authority', () => {
+  it('cancels unresolved object opens and admits fresh work after client abort', async () => {
+    const f = fixture();
+    const grant = await f.service.issue(f.binding);
+    const clients = Array.from({ length: 4 }, () => new AbortController());
+    let cancelled = 0;
+    f.open.mockImplementation(
+      async (_input, options) =>
+        new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => {
+              cancelled++;
+              reject(new Error('SDK aborted'));
+            },
+            { once: true },
+          );
+        }),
+    );
+    const settled = Promise.allSettled(
+      clients.map((c) =>
+        f.service.asset(
+          f.binding,
+          grant.runtimeToken,
+          ORIGIN,
+          f.input.ref.assetId,
+          'svg',
+          c.signal,
+        ),
+      ),
+    );
+    await vi.waitFor(() => expect(f.open).toHaveBeenCalledTimes(4));
+    clients.forEach((c) => c.abort());
+    expect((await settled).every((r) => r.status === 'rejected')).toBe(true);
+    expect(cancelled).toBe(4);
+    f.open.mockImplementation(async () => Readable.from([f.input.bytes]));
+    const fresh = await f.service.asset(
+      f.binding,
+      grant.runtimeToken,
+      ORIGIN,
+      f.input.ref.assetId,
+      'svg',
+    );
+    try {
+      for await (const bytes of fresh.body) expect(bytes).toEqual(f.input.bytes);
+    } finally {
+      fresh.release();
+    }
+  });
+  it('bounds hung object opening, aborts SDK signals, closes late bodies and frees admission', async () => {
+    const f = fixture();
+    const grant = await f.service.issue(f.binding);
+    const late: { resolve: (body: BlocksBlobReadable | null) => void; signal: AbortSignal }[] = [];
+    f.open.mockImplementation(
+      async (_input, options) =>
+        new Promise((resolve) => late.push({ resolve, signal: options!.signal! })),
+    );
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const settled = Promise.allSettled(
+        Array.from({ length: 4 }, () =>
+          f.service.asset(f.binding, grant.runtimeToken, ORIGIN, f.input.ref.assetId, 'svg'),
+        ),
+      );
+      await vi.waitFor(() => expect(late).toHaveLength(4));
+      await vi.advanceTimersByTimeAsync(30001);
+      expect((await settled).every((r) => r.status === 'rejected')).toBe(true);
+      expect(late.every((r) => r.signal.aborted)).toBe(true);
+      const bodies = late.map(() => Readable.from([f.input.bytes]));
+      late.forEach((r, i) => r.resolve(bodies[i]!));
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(bodies.every((b) => b.destroyed)).toBe(true);
+      f.open.mockImplementation(async () => Readable.from([f.input.bytes]));
+      const fresh = await f.service.asset(
+        f.binding,
+        grant.runtimeToken,
+        ORIGIN,
+        f.input.ref.assetId,
+        'svg',
+      );
+      try {
+        for await (const bytes of fresh.body) expect(bytes).toEqual(f.input.bytes);
+      } finally {
+        fresh.release();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('queues fifteen pupils with four parallel assets each and drains with bounded work', async () => {
     const f = fixture();
     const b = await f.service.issue(f.binding);
