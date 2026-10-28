@@ -129,6 +129,46 @@ export class AiAdminController {
     return this.safe(() => this.ai.adminConfig(principalId));
   }
 
+  @Get('ollama-cloud/keys')
+  @Header('Cache-Control', 'private, no-store')
+  async cloudKeys(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.ollamaCloudPool(actor));
+  }
+  @Put('ollama-cloud/keys')
+  @Header('Cache-Control', 'private, no-store')
+  async saveCloudKeys(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const body = raw as { configurationVersion?: unknown; keys?: unknown } | null;
+    if (
+      !body ||
+      !Number.isSafeInteger(body.configurationVersion) ||
+      Number(body.configurationVersion) < 1
+    )
+      return reject('ai_cloud_pool_invalid', 'Нужна актуальная версия настроек.', 400);
+    return this.safe(() =>
+      this.ai.saveOllamaCloudPool(actor, Number(body.configurationVersion), body.keys, request.id),
+    );
+  }
+  @Post('ollama-cloud/keys/inspect')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async inspectCloudKeys(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const body = raw as { configurationVersion?: unknown } | null;
+    if (
+      !body ||
+      !Number.isSafeInteger(body.configurationVersion) ||
+      Number(body.configurationVersion) < 1
+    )
+      return reject('ai_cloud_pool_invalid', 'Нужна актуальная версия настроек.', 400);
+    return this.safe(() =>
+      this.ai.inspectOllamaCloudPool(actor, Number(body.configurationVersion), request.id),
+    );
+  }
+
   @Post('test')
   @HttpCode(200)
   async test(@Req() request: FastifyRequest, @Body() raw: unknown) {

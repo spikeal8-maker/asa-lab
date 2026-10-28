@@ -234,6 +234,21 @@ const upgradeArtifacts = [
     '0271_ai_ollama_cloud_catalog.sql',
     '92687599d4e6eb7021cae11a7a103dedefde20b361b53bcffa8a0b6d338f53e0',
   ],
+  [
+    '0272',
+    '0272_ai_ollama_cloud_key_pool.sql',
+    '3c12c7ec70cf62f4ef070d3b08b2be1b99998fa9407e02de6b14c7645312b21d',
+  ],
+  [
+    '0273',
+    '0273_ai_independent_provider_enablement.sql',
+    '14f0a27095f4372a702cebf2e66ea19e8d38745f4a639c3e081dc18a7f052413',
+  ],
+  [
+    '0274',
+    '0274_ai_cloud_pool_provider_projection.sql',
+    '3fc2ca05414a843e1974349ad01dfe0dea4af27b9bdff628727d354325c97dc4',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

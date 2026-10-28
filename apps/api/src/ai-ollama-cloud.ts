@@ -22,11 +22,20 @@ export async function reloadOllamaCloudCatalog(
   pool: pg.Pool,
 ): Promise<{ models: readonly AiOllamaCloudModel[]; checkedAt: string | null }> {
   const result = await pool.query<{
-    value?: { models?: readonly AiOllamaCloudModel[]; checkedAt?: string | null };
+    value?: {
+      models?: readonly AiOllamaCloudModel[];
+      checkedAt?: string | null;
+      poolManaged?: boolean;
+      availableModels?: readonly string[];
+    };
   }>('SELECT ai_ollama_cloud_catalog_runtime() AS value');
   const snapshot = result.rows[0]?.value;
   if (Array.isArray(snapshot?.models))
-    installOllamaCloudCatalog(snapshot.models, snapshot.checkedAt ?? null);
+    installOllamaCloudCatalog(
+      snapshot.models,
+      snapshot.checkedAt ?? null,
+      snapshot.poolManaged ? (snapshot.availableModels ?? []) : null,
+    );
   return { models: snapshot?.models ?? [], checkedAt: snapshot?.checkedAt ?? null };
 }
 /** Only fixed Ollama metadata endpoints; this adapter cannot generate text or follow redirects. */

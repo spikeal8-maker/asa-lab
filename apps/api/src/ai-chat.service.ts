@@ -1,4 +1,11 @@
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
+import {
+  cloudPoolFetch,
+  accountBlockUntil,
+  type CloudKeyCredential,
+} from './ai-ollama-cloud-pool.js';
+import { isOllamaCloudPoolManaged } from './ai-model-catalog.js';
+import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
 import type { AiOllamaCloudInspection } from '@asa-lab/contracts';
 import type { AiGeneratedImage, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
 import { AiImageService } from './ai-image.service.js';
@@ -173,6 +180,11 @@ interface RuntimeRow {
   readonly api_key_auth_tag: string | null;
 }
 
+type ProviderCredential = Pick<
+  RuntimeRow,
+  'api_key_ciphertext' | 'api_key_iv' | 'api_key_auth_tag'
+>;
+
 interface OllamaRow {
   readonly enabled: boolean;
   readonly base_url: string;
@@ -236,7 +248,9 @@ export class AiChatService {
     options: AiServiceOptions = {},
   ) {
     this.key = rootKey(options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY']);
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = cloudPoolFetch(pool, options.fetchImpl ?? fetch, (row) =>
+      this.requireProviderKey(row),
+    );
     this.history = new AiTextHistoryStore(pool);
     this.attachments = options.attachments;
     this.images = options.images;
@@ -656,6 +670,16 @@ export class AiChatService {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
     }
     const before = await this.adminConfig(principalId);
+    if (
+      input.provider === 'ollama-cloud' &&
+      isOllamaCloudPoolManaged() &&
+      (input.apiKey !== undefined || input.clearApiKey)
+    )
+      throw new AiServiceError(
+        'ai_cloud_pool_managed',
+        400,
+        'Меняйте ключи в карточках Ollama Cloud.',
+      );
     const expectedVersion = input.configurationVersion ?? before.configurationVersion;
     if (
       !Number.isSafeInteger(expectedVersion) ||
@@ -924,9 +948,13 @@ export class AiChatService {
         nativeImageTools,
       };
     }
+    const availableExternalModels = modelCatalog.models
+      .filter((m) => m.provider === config.provider && m.selectable)
+      .map((m) => m.id);
     const externalReady =
       config.enabled &&
       isModelForProvider(config.provider, config.model) &&
+      availableExternalModels.length > 0 &&
       this.decrypt(config) !== null;
     const localReady = local.enabled && validOllamaModel(local.model);
     return {
@@ -2132,6 +2160,163 @@ export class AiChatService {
   }
 
   private cloudMetadataClient: OllamaCloudMetadata | null = null;
+  async ollamaCloudPool(actor: string): Promise<AiOllamaCloudPool> {
+    await this.adminConfig(actor);
+    return (
+      await this.pool.query<{ value: AiOllamaCloudPool }>(
+        'SELECT ai_ollama_cloud_pool_admin($1) AS value',
+        [actor],
+      )
+    ).rows[0]!.value;
+  }
+  async saveOllamaCloudPool(
+    actor: string,
+    version: number,
+    input: unknown,
+    requestId: string,
+  ): Promise<AiOllamaCloudPool> {
+    await this.adminConfig(actor);
+    if (
+      !Array.isArray(input) ||
+      input.length !== 5 ||
+      !Number.isSafeInteger(version) ||
+      version < 1
+    )
+      throw new AiServiceError(
+        'ai_cloud_pool_invalid',
+        400,
+        'Нужны пять карточек ключей и актуальная версия настроек.',
+      );
+    const rows = input.map((value: unknown) => {
+      const row = value as AiOllamaCloudKeyUpdate | null;
+      if (
+        !row ||
+        !Number.isInteger(row.slot) ||
+        row.slot < 1 ||
+        row.slot > 5 ||
+        !Number.isInteger(row.priority) ||
+        row.priority < 1 ||
+        row.priority > 5 ||
+        typeof row.label !== 'string' ||
+        !row.label.trim() ||
+        row.label.length > 64 ||
+        /[\p{Cc}\p{Zl}\p{Zp}]/u.test(row.label) ||
+        typeof row.enabled !== 'boolean' ||
+        !Array.isArray(row.models) ||
+        row.models.length > 300 ||
+        row.models.some((m) => typeof m !== 'string') ||
+        (row.apiKey !== undefined && typeof row.apiKey !== 'string') ||
+        (row.clearApiKey !== undefined && typeof row.clearApiKey !== 'boolean')
+      )
+        throw new AiServiceError(
+          'ai_cloud_pool_invalid',
+          400,
+          'Проверьте название, порядок и модели ключей.',
+        );
+      const candidate = row.apiKey?.trim();
+      if (
+        candidate &&
+        (candidate.length < 12 ||
+          candidate.length > 2048 ||
+          /[\p{Cc}\p{Zl}\p{Zp}]/u.test(candidate))
+      )
+        throw new AiServiceError('ai_key_invalid', 400, 'Недопустимый API-ключ.');
+      if (candidate && row.clearApiKey)
+        throw new AiServiceError(
+          'ai_key_invalid',
+          400,
+          'Нельзя одновременно заменить и удалить ключ.',
+        );
+      return {
+        slot: row.slot,
+        label: row.label.trim(),
+        priority: row.priority,
+        enabled: row.enabled,
+        models: [...new Set(row.models)],
+        action: row.clearApiKey ? 'clear' : candidate ? 'replace' : 'keep',
+        ...(candidate ? this.encrypt(candidate) : {}),
+      };
+    });
+    if (
+      new Set(rows.map((r) => r.slot)).size !== 5 ||
+      new Set(rows.map((r) => r.priority)).size !== 5
+    )
+      throw new AiServiceError(
+        'ai_cloud_pool_invalid',
+        400,
+        'Порядок и номера карточек не должны повторяться.',
+      );
+    try {
+      await this.pool.query('SELECT ai_ollama_cloud_pool_save($1,$2,$3::jsonb,$4::varchar)', [
+        actor,
+        version,
+        JSON.stringify(rows),
+        requestId,
+      ]);
+    } catch (problem) {
+      this.rethrowAdmissionError(problem);
+      if ((problem as { code?: string }).code === '22023')
+        throw new AiServiceError(
+          'ai_cloud_pool_invalid',
+          400,
+          'Проверьте список моделей: одинаковый ключ нельзя добавлять дважды.',
+        );
+      throw problem;
+    }
+    return this.ollamaCloudPool(actor);
+  }
+  async inspectOllamaCloudPool(
+    actor: string,
+    version: number,
+    requestId: string,
+  ): Promise<AiOllamaCloudPool> {
+    const before = await this.adminConfig(actor);
+    if (before.configurationVersion !== version)
+      throw new AiServiceError('ai_config_changed', 409, 'Настройки изменились. Обновите вкладку.');
+    this.cloudMetadataClient ??= new OllamaCloudMetadata(this.fetchImpl);
+    const credentials = (
+      await this.pool.query<CloudKeyCredential>(
+        'SELECT * FROM ai_ollama_cloud_pool_credentials($1)',
+        [actor],
+      )
+    ).rows;
+    const catalog = await this.cloudMetadataClient.catalog().catch(() => null);
+    const observations = await Promise.all(
+      credentials
+        .filter((k) => k.api_key_ciphertext)
+        .map(async (k) => ({
+          key: k,
+          account: await this.cloudMetadataClient!.account(this.requireProviderKey(k)),
+        })),
+    );
+    if ((await this.adminConfig(actor)).configurationVersion !== version)
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Ключи изменились во время проверки. Повторите обновление.',
+      );
+    if (catalog)
+      await this.pool.query('SELECT ai_ollama_cloud_catalog_apply($1,$2,$3::jsonb,$4::varchar)', [
+        actor,
+        version,
+        JSON.stringify(catalog),
+        requestId,
+      ]);
+    for (const { key, account } of observations) {
+      const until = accountBlockUntil(account);
+      await this.pool.query(
+        'SELECT ai_ollama_cloud_key_observe($1,$2,$3::jsonb,$4::timestamptz,$5::varchar)',
+        [
+          key.slot,
+          key.key_fingerprint,
+          JSON.stringify(account),
+          until === undefined ? key.blocked_until : until,
+          null,
+        ],
+      );
+    }
+    return this.ollamaCloudPool(actor);
+  }
   async isDiscoveredCloudModel(model: unknown): Promise<boolean> {
     if (typeof model !== 'string' || !model.startsWith('ollama-cloud/')) return false;
     await reloadOllamaCloudCatalog(this.pool);
@@ -2352,7 +2537,7 @@ export class AiChatService {
     };
   }
 
-  private requireProviderKey(row: RuntimeRow): string {
+  private requireProviderKey(row: ProviderCredential): string {
     if (!row.api_key_ciphertext) {
       throw new AiServiceError('ai_key_required', 503, 'API-ключ провайдера ещё не сохранён.');
     }
@@ -2374,7 +2559,7 @@ export class AiChatService {
     return key;
   }
 
-  private decrypt(row: RuntimeRow): string | null {
+  private decrypt(row: ProviderCredential): string | null {
     if (!this.key || !row.api_key_ciphertext || !row.api_key_iv || !row.api_key_auth_tag) {
       return null;
     }

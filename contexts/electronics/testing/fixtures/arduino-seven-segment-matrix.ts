@@ -10,22 +10,25 @@ export const MATRIX_DIGITS = ['bc', 'abdeg', 'abcdg', 'bcfg'] as const;
 export type MatrixCommand = { pin: number; high: boolean } | { waitMs: number };
 
 /** Actual shared buses and NPN common-cathode selection; no serial display adapter. */
-export function matrixCommands(count: number): MatrixCommand[] {
+export function matrixCommands(
+  count: number,
+  patterns: readonly string[] = MATRIX_DIGITS,
+): MatrixCommand[] {
   const commands: MatrixCommand[] = [];
   for (let digit = 0; digit < count; digit++) {
     for (let index = 0; index < count; index++) commands.push({ pin: 10 + index, high: false });
     MATRIX_SEGMENTS.forEach((segment, index) =>
-      commands.push({ pin: 2 + index, high: MATRIX_DIGITS[digit]!.includes(segment) }),
+      commands.push({ pin: 2 + index, high: patterns[digit]!.includes(segment) }),
     );
     commands.push({ pin: 10 + digit, high: true }, { waitMs: 2 }, { pin: 10 + digit, high: false });
   }
   return commands;
 }
 
-export function matrixLinearSource(count: number): string {
+export function matrixLinearSource(count: number, patterns?: readonly string[]): string {
   const pins = Array.from({ length: 8 + count }, (_, index) => index + 2);
   const setup = pins.map((pin) => `pinMode(${pin}, OUTPUT);`).join('\n');
-  const loop = matrixCommands(count)
+  const loop = matrixCommands(count, patterns)
     .map((command) =>
       'waitMs' in command
         ? `delay(${command.waitMs});`

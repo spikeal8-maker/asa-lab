@@ -4,6 +4,7 @@ import type {
   ElectronicsLedTemporalComponent,
   ElectronicsLedTemporalObservation,
   ElectronicsLedTemporalSample,
+  ElectronicsSevenSegmentTemporal,
 } from '@asa-lab/electronics/engine';
 import type { SolveResult } from '../api';
 
@@ -17,6 +18,7 @@ const FAST_PHASE_MICROSECONDS = 16_667;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
+const DISPLAY_SEGMENTS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
 // One wall microsecond advances one physical microsecond; instruction time is unchanged.
 export const ELECTRONICS_CLASSROOM_PACE = 1;
 // Keep the requested future window within 50 ms of wall time at the shared pace.
@@ -42,6 +44,7 @@ export interface LedPresentationFrame {
   readonly atMicroseconds: number;
   readonly brightness: ReadonlyMap<string, number>;
   readonly arduinoLStates: ReadonlyMap<string, boolean>;
+  readonly sevenSegmentBrightness?: ReadonlyMap<string, Readonly<Record<string, number>>>;
 }
 
 export interface LedNativeAssetFrame extends Omit<LedPresentationFrame, 'token'> {
@@ -61,6 +64,14 @@ function sameLedBrightness(
 export function sameOpticalFrame(left: LedPresentationFrame, right: LedPresentationFrame): boolean {
   return (
     sameLedBrightness(left.brightness, right.brightness) &&
+    (left.sevenSegmentBrightness?.size ?? 0) === (right.sevenSegmentBrightness?.size ?? 0) &&
+    [...(left.sevenSegmentBrightness ?? [])].every(([id, branches]) =>
+      DISPLAY_SEGMENTS.every(
+        (segment) =>
+          Math.round(branches[segment]!) ===
+          Math.round(right.sevenSegmentBrightness?.get(id)?.[segment] ?? -1),
+      ),
+    ) &&
     left.arduinoLStates.size === right.arduinoLStates.size &&
     [...left.arduinoLStates].every(([id, value]) => right.arduinoLStates.get(id) === value)
   );
@@ -245,6 +256,8 @@ export class LedTemporalPresentation {
   private k: LedPresentationFrame | null = null;
   private l: Omit<LedPresentationFrame, 'token'> | null = null;
   private m = 0;
+  private displays = new Map<string, Map<string, HeldHistory<ElectronicsLedTemporalSample>>>();
+  private displayFailures = new Map<string, number>();
 
   /** A discontinuity is observable evidence, never successful phase preservation. */
   get reanchorCount(): number {
@@ -316,6 +329,8 @@ export class LedTemporalPresentation {
     this.a = null;
     this.b.clear();
     this.c.clear();
+    this.displays.clear();
+    this.displayFailures.clear();
     this.d = null;
     this.e = null;
     this.k = null;
@@ -342,6 +357,7 @@ export class LedTemporalPresentation {
       !Array.isArray(observation.components) ||
       (observation.arduinoIndicators !== undefined &&
         !Array.isArray(observation.arduinoIndicators)) ||
+      (observation.sevenSegments !== undefined && !Array.isArray(observation.sevenSegments)) ||
       !result.solved ||
       !result.quality?.passed
     ) {
@@ -373,6 +389,67 @@ export class LedTemporalPresentation {
         return brightness;
       }
       ids.add(indicator.componentId);
+    }
+    const displays: readonly ElectronicsSevenSegmentTemporal[] = observation.sevenSegments ?? [];
+    for (const display of displays) {
+      if (
+        !display ||
+        typeof display.componentId !== 'string' ||
+        ids.has(display.componentId) ||
+        !Array.isArray(display.branches) ||
+        display.branches.length !== DISPLAY_SEGMENTS.length ||
+        Array.from(display.branches).some(
+          (branch) =>
+            !validComponent(branch, observation.fromMicroseconds, observation.toMicroseconds) ||
+            !DISPLAY_SEGMENTS.includes(branch.componentId),
+        ) ||
+        new Set(display.branches.map((branch) => branch.componentId)).size !==
+          DISPLAY_SEGMENTS.length
+      ) {
+        this.reset();
+        return brightness;
+      }
+      if (display.failedAtMicroseconds !== undefined) {
+        const failedAt = display.failedAtMicroseconds;
+        if (
+          !Number.isSafeInteger(failedAt) ||
+          failedAt < observation.fromMicroseconds ||
+          failedAt > observation.toMicroseconds ||
+          display.branches.some((branch: ElectronicsLedTemporalComponent) => {
+            const held = branch.samples
+              .filter((sample) => sample.atMicroseconds <= failedAt)
+              .at(-1);
+            return (
+              !held ||
+              held.brightness !== 0 ||
+              held.current !== 0 ||
+              branch.samples.some(
+                (sample) =>
+                  sample.atMicroseconds >= failedAt &&
+                  (sample.brightness !== 0 || sample.current !== 0),
+              )
+            );
+          })
+        ) {
+          this.reset();
+          return brightness;
+        }
+      }
+      ids.add(display.componentId);
+    }
+    if (observation.sevenSegments !== undefined) {
+      const required = result.components.filter((component) =>
+        DISPLAY_SEGMENTS.every((segment) => component.branchBrightness?.[segment] !== undefined),
+      );
+      if (
+        required.length !== displays.length ||
+        required.some(
+          (component) => !displays.some((display) => display.componentId === component.componentId),
+        )
+      ) {
+        this.reset();
+        return brightness;
+      }
     }
     if (this.a !== observation.fromMicroseconds) {
       if (this.a !== null) this.m++;
@@ -417,6 +494,65 @@ export class LedTemporalPresentation {
       const mean = fastCycleBrightness(history.samples, observation.toMicroseconds);
       if (mean !== undefined) brightness.set(component.componentId, mean);
     }
+    const nextDisplays = new Map<string, Map<string, HeldHistory<ElectronicsLedTemporalSample>>>();
+    const nextDisplayFailures = new Map<string, number>();
+    for (const display of displays) {
+      const electrical = result.components.find(
+        (component) => component.componentId === display.componentId,
+      );
+      if (!electrical) {
+        this.reset();
+        return new Map();
+      }
+      if (
+        electrical.presentationState === 'failed' ||
+        electrical.deviceHealth === 'failed_open' ||
+        electrical.damageState === 'failed'
+      ) {
+        if (
+          display.failedAtMicroseconds === undefined ||
+          display.branches.some(
+            (branch) =>
+              branch.samples.at(-1)!.brightness !== 0 || branch.samples.at(-1)!.current !== 0,
+          )
+        ) {
+          this.reset();
+          return new Map();
+        }
+        // A scan can already be dark before thermal failure. Only the captured
+        // failed-health observation may cut off an earlier healthy-cycle mean.
+        const failedAt = display.failedAtMicroseconds;
+        nextDisplayFailures.set(
+          display.componentId,
+          Math.min(this.displayFailures.get(display.componentId) ?? failedAt, failedAt),
+        );
+      } else if (display.failedAtMicroseconds !== undefined) {
+        this.reset();
+        return new Map();
+      }
+      const branches = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
+      for (const branch of display.branches) {
+        const final = branch.samples.at(-1)!;
+        if (
+          electrical.branchBrightness?.[branch.componentId] !== final.brightness ||
+          electrical.branchCurrents?.[branch.componentId] !== final.current
+        ) {
+          this.reset();
+          return new Map();
+        }
+        branches.set(
+          branch.componentId,
+          retainHistory(
+            this.displays.get(display.componentId)?.get(branch.componentId),
+            branch,
+            observation.fromMicroseconds,
+            observation.toMicroseconds,
+            this.d ?? observation.toMicroseconds,
+          ),
+        );
+      }
+      nextDisplays.set(display.componentId, branches);
+    }
     const nextIndicators = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
     for (const indicator of arduinoIndicators) {
       const electrical = result.components.find(
@@ -441,7 +577,14 @@ export class LedTemporalPresentation {
     this.c = nextIndicators;
     this.a = observation.toMicroseconds;
     this.b = next;
+    this.displays = nextDisplays;
+    this.displayFailures = nextDisplayFailures;
     if (this.k && [...this.k.brightness.keys()].some((id) => !next.has(id))) this.k = null;
+    if (
+      this.k &&
+      [...(this.k.sevenSegmentBrightness?.keys() ?? [])].some((id) => !nextDisplays.has(id))
+    )
+      this.k = null;
     // Ingestion never advances or publishes the optical cursor. In particular,
     // a burst of completed Worker windows cannot compress a later visible phase.
     return brightness;
@@ -459,7 +602,7 @@ export class LedTemporalPresentation {
       this.reset();
       return;
     }
-    if (this.b.size || this.c.size) this.reset();
+    if (this.b.size || this.c.size || this.displays.size) this.reset();
     this.l = {
       atMicroseconds,
       brightness: new Map(
@@ -484,8 +627,11 @@ export class LedTemporalPresentation {
     const values = this.o(0);
     if (
       !values ||
-      values.brightness.size === 0 ||
+      (values.brightness.size === 0 && !values.sevenSegmentBrightness?.size) ||
       [...values.brightness.values()].some((value) => value !== 0) ||
+      [...(values.sevenSegmentBrightness?.values() ?? [])].some((branches) =>
+        Object.values(branches).some((value) => value !== 0),
+      ) ||
       [...values.arduinoLStates.values()].some(Boolean)
     )
       return null;
@@ -571,10 +717,26 @@ export class LedTemporalPresentation {
     if (this.l) return this.l;
     const brightness = this.q(atMicroseconds);
     const voltages = this.p(atMicroseconds);
+    const sevenSegmentBrightness = new Map<string, Readonly<Record<string, number>>>();
+    for (const [id, branches] of this.displays) {
+      const values: Record<string, number> = {};
+      for (const [segment, history] of branches) {
+        if (history.completeSince > atMicroseconds) return null;
+        const prefix = this.n(history.samples, atMicroseconds);
+        const final = prefix.at(-1);
+        if (!final) return null;
+        values[segment] =
+          atMicroseconds >= (this.displayFailures.get(id) ?? Number.POSITIVE_INFINITY)
+            ? 0
+            : (fastCycleBrightness(prefix, atMicroseconds) ?? final.brightness);
+      }
+      sevenSegmentBrightness.set(id, values);
+    }
     if (brightness.size !== this.b.size || voltages.size !== this.c.size) return null;
     return {
       atMicroseconds,
       brightness,
+      ...(sevenSegmentBrightness.size ? { sevenSegmentBrightness } : {}),
       arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
     };
   }
