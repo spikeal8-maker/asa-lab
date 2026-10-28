@@ -331,6 +331,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     prompt: string,
     size: AiImageSize,
     signal: AbortSignal,
+    visiblePrefix = '',
   ): Promise<AiImageGenerationJob> {
     const input = imageInput({ requestId: randomUUID(), prompt, size });
     if (signal.aborted) throw new AiImageError('ai_image_cancelled', 409, 'Запрос остановлен.');
@@ -344,7 +345,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       'ASA_' + provider.replaceAll('-', ''),
     );
     const j = await this.value<ImageJobRow>(
-      'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar) AS value',
+      'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar) AS value',
       [
         owner,
         imageId(thread),
@@ -356,6 +357,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         seed,
         availability.ready,
         digest,
+        visiblePrefix,
       ],
     );
     const cancel = () => {
@@ -372,7 +374,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   }
   async nativeSchemaReady(): Promise<boolean> {
     const result = await this.pool.query<{ ready: boolean }>(
-      "SELECT to_regprocedure('public.ai_tool_image_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying)') IS NOT NULL AND to_regprocedure('public.ai_tool_request_options(uuid,uuid,uuid,jsonb,boolean)') IS NOT NULL AS ready",
+      "SELECT to_regprocedure('public.ai_tool_image_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying,character varying)') IS NOT NULL AND to_regprocedure('public.ai_tool_request_options(uuid,uuid,uuid,jsonb,boolean)') IS NOT NULL AS ready",
     );
     return result.rows[0]?.ready === true;
   }

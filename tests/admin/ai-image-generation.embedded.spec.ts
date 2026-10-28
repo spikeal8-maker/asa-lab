@@ -3,7 +3,12 @@ import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { beforeAll, afterAll, it, expect, vi } from 'vitest';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
-import { AiImageService, imageInput, imageAdminInput } from '../../apps/api/src/ai-image.service';
+import {
+  AiImageError,
+  AiImageService,
+  imageInput,
+  imageAdminInput,
+} from '../../apps/api/src/ai-image.service';
 import type { ComfyImageRecovery } from '../../apps/api/src/ai-image-comfyui';
 import { AiAttachmentStorageError } from '../../apps/api/src/ai-attachments/blob-store';
 import { AiTextHistoryStore } from '../../apps/api/src/ai-text-history';
@@ -575,14 +580,23 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   ]);
   await pool.query('SELECT ai_tool_policy_snapshot($1,$2,$3) AS value', [actor, chat, parent]);
   const before = transport.dispatch.mock.calls.length;
-  const job = await service().createFromTool(
-    actor,
-    chat,
-    parent,
-    childPrompt,
-    512,
-    new AbortController().signal,
+  const streamedPrefix = 'Сначала проверю рисунок.\n'.repeat(3000);
+  const admitting = service();
+  vi.spyOn(admitting, 'get').mockRejectedValueOnce(
+    new AiImageError('ai_image_post_admission', 503, 'Read failed after commit.'),
   );
+  await expect(
+    admitting.createFromTool(
+      actor,
+      chat,
+      parent,
+      childPrompt,
+      512,
+      new AbortController().signal,
+      streamedPrefix,
+    ),
+  ).rejects.toMatchObject({ code: 'ai_image_post_admission' });
+  const job = (await service().replayTool(actor, chat, parent))!;
   expect(
     (
       await db.query<{ size: number }>('SELECT size FROM ai_image_jobs WHERE request_id=$1', [
@@ -614,7 +628,14 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   const acknowledged = await new AiTextHistoryStore(pool).messages(actor, chat);
   expect(
     acknowledged.find((item) => item.role === 'assistant' && item.requestId === parent)?.content,
-  ).toContain('Задание');
+  ).toBe(streamedPrefix + '\n\nЗадание на создание изображения принято.');
+  expect(
+    (
+      await pool.query<{ ready: boolean }>(
+        "SELECT to_regprocedure('public.ai_tool_image_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying)') IS NOT NULL AS ready",
+      )
+    ).rows[0]?.ready,
+  ).toBe(true);
   const lease = randomUUID();
   await db.query(
     "UPDATE ai_image_jobs SET lease_id=$2,lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",

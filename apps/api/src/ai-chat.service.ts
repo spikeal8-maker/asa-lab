@@ -1,5 +1,5 @@
 import type { AiGeneratedImage, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
-import { AiImageService } from './ai-image.service.js';
+import { AiImageError, AiImageService } from './ai-image.service.js';
 import {
   AiToolPolicyError,
   AiToolPolicyService,
@@ -1627,6 +1627,11 @@ export class AiChatService {
     let usageAttempt: AiUsageAttempt | undefined;
     let usageFinished = false;
     let capturedUsage: AiProviderUsage | undefined;
+    let visibleText = '';
+    let finishAttempted = false;
+    let completionCommitted = false;
+    let imageAdmissionAttempted = false;
+    let intendedUsageStatus: 'succeeded' | 'stopped' | 'cancelled' = 'succeeded';
     try {
       if (nativeImage)
         await this.pool.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
@@ -1753,6 +1758,12 @@ export class AiChatService {
               : item,
           )
         : historyContext;
+      // Only message.content is exposed by the Ollama transport. Keep exactly the
+      // emitted text for the immutable assistant message, including a tool prefix.
+      const emitVisible = (delta: string) => {
+        visibleText += delta;
+        onDelta(delta);
+      };
       const result = useLocal
         ? await streamOllamaText({
             baseUrl: local!.base_url,
@@ -1773,7 +1784,7 @@ export class AiChatService {
                 : ''),
             ...(permittedTools.length ? { tools: permittedTools } : {}),
             signal: combined,
-            onDelta: permittedTools.length ? () => undefined : onDelta,
+            onDelta: emitVisible,
             fetchImpl: this.fetchImpl,
           })
         : await streamProviderText({
@@ -1788,6 +1799,7 @@ export class AiChatService {
           });
 
       capturedUsage = result.usage;
+      const toolPrefix = visibleText;
       if (deadlineSignal.aborted && !clientSignal.aborted && !abort.signal.aborted)
         throw new AiServiceError(
           useLocal ? 'ai_ollama_timeout' : 'ai_provider_timeout',
@@ -1805,6 +1817,7 @@ export class AiChatService {
         if (call.name === 'generate_image') {
           if (!nativeImageEnabled)
             throw new AiServiceError('ai_tool_call_invalid', 503, 'Инструмент не разрешён.');
+          imageAdmissionAttempted = true;
           const imageJob = await this.images!.createFromTool(
             principalId,
             threadId,
@@ -1812,7 +1825,11 @@ export class AiChatService {
             call.arguments.prompt as string,
             nativeImage!.size,
             combined,
+            toolPrefix,
           );
+          completionCommitted = true;
+          const acknowledgement = 'Задание на создание изображения принято.';
+          emitVisible((toolPrefix ? '\n\n' : '') + acknowledgement);
           await this.usage.finish(
             principalId,
             requestId,
@@ -1858,14 +1875,16 @@ export class AiChatService {
             ? readyWeatherAnswer(webEvidence.weather)
             : null;
         if (weatherAnswer && !combined.aborted) {
-          onDelta(weatherAnswer);
+          emitVisible((toolPrefix ? '\n\n' : '') + weatherAnswer);
+          finishAttempted = true;
           await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
             principalId,
             threadId,
             requestId,
-            weatherAnswer.slice(0, AI_MAX_ANSWER_CHARS),
+            visibleText,
             'complete',
           ]);
+          completionCommitted = true;
           await this.usage.finish(
             principalId,
             requestId,
@@ -1929,18 +1948,25 @@ export class AiChatService {
               : ''),
           toolResults: [{ call, content: toolContent }],
           signal: combined,
-          onDelta,
+          onDelta: emitVisible,
           fetchImpl: this.fetchImpl,
         });
         capturedUsage = addNativeUsage(capturedUsage, followup.usage);
-        if (followup.text.trim()) {
+        if (visibleText.trim()) {
+          intendedUsageStatus = combined.aborted
+            ? 'cancelled'
+            : followup.stopped || !followup.text.trim()
+              ? 'stopped'
+              : 'succeeded';
+          finishAttempted = true;
           await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
             principalId,
             threadId,
             requestId,
-            followup.text,
-            followup.stopped ? 'stopped' : 'complete',
+            visibleText,
+            followup.stopped || !followup.text.trim() ? 'stopped' : 'complete',
           ]);
+          completionCommitted = true;
         } else {
           await this.pool.query('SELECT ai_chat_abort($1,$2,$3)', [
             principalId,
@@ -1951,7 +1977,11 @@ export class AiChatService {
         await this.usage.finish(
           principalId,
           requestId,
-          combined.aborted ? 'cancelled' : followup.stopped ? 'stopped' : 'succeeded',
+          combined.aborted
+            ? 'cancelled'
+            : followup.stopped || !followup.text.trim()
+              ? 'stopped'
+              : 'succeeded',
           null,
           capturedUsage,
           usageAttempt,
@@ -1960,18 +1990,26 @@ export class AiChatService {
         return {
           messages: await this.requestMessages(principalId, threadId, requestId),
           replayed: false,
-          stopped: followup.stopped,
+          stopped: followup.stopped || !followup.text.trim(),
         };
       }
-      if (permittedTools.length && result.text) onDelta(result.text);
-      if (result.text.trim()) {
+      const completedText = useLocal ? visibleText : result.text.slice(0, AI_MAX_ANSWER_CHARS);
+      if (completedText.trim()) {
+        intendedUsageStatus =
+          clientSignal.aborted || abort.signal.aborted
+            ? 'cancelled'
+            : result.stopped
+              ? 'stopped'
+              : 'succeeded';
+        finishAttempted = true;
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
           threadId,
           requestId,
-          useLocal ? result.text : result.text.slice(0, AI_MAX_ANSWER_CHARS),
+          completedText,
           result.stopped ? 'stopped' : 'complete',
         ]);
+        completionCommitted = true;
       } else {
         await this.pool.query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId]);
       }
@@ -1996,33 +2034,57 @@ export class AiChatService {
         stopped: result.stopped,
       };
     } catch (problem) {
-      if (usageAttempt && !usageFinished)
-        await this.usage.finish(
-          principalId,
-          requestId,
-          'failed',
-          usageFailureCode(problem),
-          problem instanceof OllamaError && capturedUsage
-            ? addNativeUsage(capturedUsage, problem.usage)
-            : (capturedUsage ??
-                (problem instanceof ProviderStreamError || problem instanceof OllamaError
-                  ? problem.usage
-                  : undefined)),
-          usageAttempt,
-        );
-      if (
-        (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
-        problem.partialText.trim()
-      ) {
+      // The image admission transaction can commit the parent answer before a
+      // later dispatch/get fails. A lost SQL finish reply has the same shape.
+      // Read the exact owner/request receipt before attempting a partial finish.
+      let savedAnswer = completionCommitted;
+      let completionUnknown = false;
+      if (!savedAnswer && (finishAttempted || imageAdmissionAttempted)) {
+        try {
+          savedAnswer = (await this.requestMessages(principalId, threadId, requestId)).some(
+            (message) => message.role === 'assistant',
+          );
+        } catch {
+          completionUnknown = true;
+        }
+      }
+      if (usageAttempt && !usageFinished && savedAnswer)
+        await this.usage
+          .finish(principalId, requestId, intendedUsageStatus, null, capturedUsage, usageAttempt)
+          .catch(() => undefined);
+      if (usageAttempt && !usageFinished && !savedAnswer && !completionUnknown)
+        await this.usage
+          .finish(
+            principalId,
+            requestId,
+            'failed',
+            usageFailureCode(problem),
+            problem instanceof OllamaError && capturedUsage
+              ? addNativeUsage(capturedUsage, problem.usage)
+              : (capturedUsage ??
+                  (problem instanceof ProviderStreamError || problem instanceof OllamaError
+                    ? problem.usage
+                    : undefined)),
+            usageAttempt,
+          )
+          .catch(() => undefined);
+      const partialText = useLocal
+        ? visibleText
+        : problem instanceof ProviderStreamError
+          ? problem.partialText.slice(0, AI_MAX_ANSWER_CHARS)
+          : '';
+      if (!savedAnswer && !completionUnknown && partialText.trim()) {
         // Preserve a visible partial answer before releasing this request's SQL lease.
-        await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
-          principalId,
-          threadId,
-          requestId,
-          useLocal ? problem.partialText : problem.partialText.slice(0, AI_MAX_ANSWER_CHARS),
-          'stopped',
-        ]);
-      } else {
+        await this.pool
+          .query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
+            principalId,
+            threadId,
+            requestId,
+            partialText,
+            'stopped',
+          ])
+          .catch(() => undefined);
+      } else if (!savedAnswer && !completionUnknown) {
         await this.pool
           .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
           .catch(() => undefined);
@@ -2037,6 +2099,8 @@ export class AiChatService {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
       if (problem instanceof AiToolPolicyError)
+        throw new AiServiceError(problem.code, problem.status, problem.message);
+      if (problem instanceof AiImageError)
         throw new AiServiceError(problem.code, problem.status, problem.message);
       if (problem instanceof AiServiceError) throw problem;
       throw new AiServiceError(
