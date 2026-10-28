@@ -98,9 +98,17 @@ let cloudModels: {
   active: true,
 }));
 let cloudRevision: string | null = null;
+let cloudAvailable: ReadonlySet<string> | null = null;
+export function isOllamaCloudPoolManaged(): boolean {
+  return cloudAvailable !== null;
+}
+export function isOllamaCloudModelAvailable(model: string): boolean {
+  return cloudAvailable === null || cloudAvailable.has(model);
+}
 export function installOllamaCloudCatalog(
   rows: readonly AiOllamaCloudModel[],
   checkedAt: string | null,
+  availableModels: readonly string[] | null = null,
 ): void {
   if (!rows.length || rows.length > 600) throw new Error('AI_CLOUD_CATALOG_INVALID');
   const next = rows.map((row) => {
@@ -129,6 +137,7 @@ export function installOllamaCloudCatalog(
     throw new Error('AI_CLOUD_CATALOG_INVALID');
   cloudModels = next;
   cloudRevision = checkedAt;
+  cloudAvailable = availableModels === null ? null : new Set(availableModels);
 }
 function modelEntries() {
   return [...MODELS.filter((m) => m.provider !== 'ollama-cloud'), ...cloudModels];
@@ -200,7 +209,9 @@ export function getAiModelCatalog(now = Date.now()) {
       outputModalities: ['text'],
       streaming: true,
       shutdownDate: model.shutdownDate,
-      selectable: isAiModel(model.id, now),
+      selectable:
+        isAiModel(model.id, now) &&
+        (model.provider !== 'ollama-cloud' || isOllamaCloudModelAvailable(model.id)),
       lifecycle:
         model.shutdownDate === null
           ? ('active' as const)
