@@ -28,6 +28,38 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 describe('Blocks object-storage configuration and keys', () => {
+  it('passes a public read cancellation signal to the real SDK send boundary', async () => {
+    const controller = new AbortController();
+    let received: AbortSignal | undefined;
+    const store = new S3BlocksBlobStore(config, {
+      send: async (_command, options) => {
+        received = options?.abortSignal;
+        return { Body: Readable.from([Buffer.from('body')]) };
+      },
+    });
+    const body = await store.open(
+      { tenantId, sha256, dataFormat: 'svg' },
+      { signal: controller.signal },
+    );
+    expect(received).toBe(controller.signal);
+    if (body) for await (const chunk of body) expect(chunk).toEqual(Buffer.from('body'));
+  });
+  it('destroys a late SDK body when public read cancellation preceded the headers', async () => {
+    const controller = new AbortController();
+    let resolve!: (value: unknown) => void;
+    const store = new S3BlocksBlobStore(config, {
+      send: () => new Promise((done) => (resolve = done)),
+    });
+    const request = store.open(
+      { tenantId, sha256, dataFormat: 'svg' },
+      { signal: controller.signal },
+    );
+    controller.abort();
+    const body = Readable.from([Buffer.from('late')]);
+    resolve({ Body: body });
+    await expect(request).rejects.toThrow('blocks_object_read_aborted');
+    expect(body.destroyed).toBe(true);
+  });
   it('requires the exact private storage configuration and normalises only the origin', () => {
     expect(
       readBlocksObjectStorageConfig({

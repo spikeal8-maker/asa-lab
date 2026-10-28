@@ -297,7 +297,12 @@ test('editor-created immutable Electronics publication is a real inert responsiv
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         .toBe(true);
       const viewer = await guest.getByTestId('public-electronics-viewer').boundingBox();
-      expect(viewer!.width).toBeGreaterThan(width * 0.8);
+      const sideBySide = await guest
+        .getByTestId('public-project-detail')
+        .evaluate((element) => element.classList.contains('has-description'));
+      expect(viewer!.width).toBeGreaterThan(
+        width >= 900 && sideBySide ? Math.min(width, 1180) * 0.5 : Math.min(width, 1180) * 0.8,
+      );
       if ([320, 390, 1440].includes(width)) await capture(guest, `normal-${width}`);
     }
     const fitted = await scene.getAttribute('viewBox');

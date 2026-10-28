@@ -8,6 +8,85 @@ import { Buffer } from 'node:buffer';
 import { TextEncoder, TextDecoder } from 'node:util';
 import test from 'node:test';
 
+test('public player namespace derives one fixed read-only asset path and never an editor URL', async () => {
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+  const reference = runtimeReference(bytes);
+  const calls = [];
+  const api = loadHost('storage', {
+    crypto: webcrypto,
+    fetch: async (url, init) => {
+      calls.push({ url, init });
+      return new globalThis.Response(bytes, { headers: { 'content-type': 'image/svg+xml' } });
+    },
+  }).AsaBlocksStorage;
+  const revision = '22222222-2222-4222-8222-222222222222';
+  const storage = api.createReadOnlyStorage(standaloneFixture(), {
+    projectId: PROJECT_ID,
+    publicationRevisionId: revision,
+    canSave: false,
+    projectJson: { targets: [], monitors: [], extensions: [] },
+    assets: [reference],
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => RUNTIME_TOKEN,
+  });
+  await storage.prepareProjectAssets();
+  assert.equal(calls.length, 1);
+  assert.equal(
+    calls[0].url,
+    `${API_ORIGIN}/api/blocks/runtime/publications/${PROJECT_ID}/revisions/${revision}/assets/${reference.assetId}.svg`,
+  );
+  assert.equal(calls[0].init.credentials, 'omit');
+  assert.equal(calls[0].init.headers.authorization, `Bearer ${RUNTIME_TOKEN}`);
+  assert.throws(() =>
+    storage.scratchStorage.webStore.create({
+      assetId: reference.assetId,
+      dataFormat: 'svg',
+      assetType: storage.scratchStorage.AssetType.ImageVector,
+    }),
+  );
+  storage.dispose();
+  assert.throws(() =>
+    api.createReadOnlyStorage(standaloneFixture(), {
+      publicationRevisionId: 'https://evil.test',
+      canSave: false,
+    }),
+  );
+  assert.throws(() =>
+    api.createReadOnlyStorage(standaloneFixture(), {
+      publicationRevisionId: revision,
+      canSave: true,
+    }),
+  );
+});
+
+test('public asset namespace is accepted only for a bound player, never editor', () => {
+  const f = protocolHarness();
+  const message = {
+    ...validInitMessage(),
+    mode: 'player',
+    versionId: '22222222-2222-4222-8222-222222222222',
+    assetScope: 'publication',
+  };
+  f.handlers.get('message')({ source: f.parent, origin: API_ORIGIN, data: message });
+  assert.equal(f.calls[0][0].assetScope, 'publication');
+  assert.equal(f.calls[0][0].projectId, PROJECT_ID);
+  f.protocol.dispose();
+  for (const change of [
+    { mode: 'editor' },
+    { assetScope: 'https://evil.test' },
+    { versionId: null },
+  ]) {
+    const denied = protocolHarness();
+    denied.handlers.get('message')({
+      source: denied.parent,
+      origin: API_ORIGIN,
+      data: { ...message, ...change },
+    });
+    assert.equal(denied.calls.length, 0);
+    denied.protocol.dispose();
+  }
+});
+
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const API_ORIGIN = 'https://asa.example';
 const RUNTIME_TOKEN = 'header.payload.signature';
@@ -406,8 +485,9 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
       },
     }),
   };
-  const shell = { dataset: {} };
+  const shell = options.shell ?? { dataset: {} };
   const api = loadHost('editor', {
+    ...options.hostGlobals,
     ...(options.crypto ? { crypto: options.crypto } : {}),
     AsaBlocksStorage: {
       createReadOnlyStorage: () => storage,
@@ -427,7 +507,13 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     standalone,
     container: {},
     shell,
-    session: { mode, projectId: PROJECT_ID },
+    session: {
+      mode,
+      projectId: PROJECT_ID,
+      ...(options.publicPublication
+        ? { assetScope: 'publication', versionId: '22222222-2222-4222-8222-222222222222' }
+        : {}),
+    },
     bootstrap,
     ...(options.trackRecovery
       ? {
@@ -472,6 +558,122 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
 }
+
+test('public publication uses the pinned official embedded preset without save, cloud, dirty or recovery authority', async () => {
+  const f = await editorFixture(true, 'player', { publicPublication: true, trackRecovery: true });
+  assert.equal(f.params.isPlayerOnly, true);
+  assert.equal(f.params.isEmbedded, true);
+  assert.equal(f.props.canSave, false);
+  assert.equal(f.props.canCreateNew, false);
+  assert.equal(f.props.cloudHost, null);
+  assert.equal(f.props.hasCloudPermission, false);
+  f.props.onProjectLoaded();
+  f.machine.emit('PROJECT_CHANGED');
+  f.props.onUpdateProjectThumbnail(PROJECT_ID, null);
+  assert.deepEqual(f.dirtyGenerations, []);
+  assert.deepEqual(f.localCheckpoints, []);
+  await f.editor.dispose();
+  assert.equal(f.counts().quits, 1);
+});
+
+test('publication fit CSS matches pinned native stage and header inline sizing', () => {
+  const css = fs.readFileSync(
+    new URL('../../infra/scratch-editor/host/host.css', import.meta.url),
+    'utf8',
+  );
+  // Actual class families from pinned 82c5fea6 native browser DOM, not invented wrappers.
+  for (const family of [
+    'stage-wrapper_stage-wrapper_',
+    'stage-header_stage-menu-wrapper_',
+    'stage_stage_',
+    'monitor-list_monitor-list_',
+    'stage_stage-bottom-wrapper_',
+    'stage_frame-wrapper_',
+    'monitor-list_monitor-list-scaler_',
+  ]) {
+    assert.ok(css.includes(`[data-public-player='true'] [class*='${family}']`));
+  }
+  assert.match(
+    css,
+    /stage-header_stage-menu-wrapper_'\] \{\s*width: var\(--asa-player-width\) !important;/,
+  );
+  assert.equal(css.includes('stage-wrapper_stage-menu-wrapper_'), false);
+  assert.match(
+    css,
+    /stage-header_stage-menu-wrapper_'\] \{[^}]*box-sizing: border-box;[^}]*padding-inline-end: 44px;/,
+  );
+});
+
+test('only publication players fit native 4:3 coordinates on resize and disconnect on teardown', async () => {
+  const values = new Map(),
+    listeners = new Map();
+  let callback,
+    observed,
+    disconnects = 0,
+    resizeEvents = 0;
+  const shell = {
+    dataset: {},
+    clientWidth: 390,
+    clientHeight: 360,
+    style: { setProperty: (key, value) => values.set(key, value) },
+  };
+  const hostGlobals = {
+    Event: class {
+      constructor(type) {
+        this.type = type;
+      }
+    },
+    ResizeObserver: class {
+      constructor(fn) {
+        callback = fn;
+      }
+      observe(element) {
+        observed = element;
+      }
+      disconnect() {
+        disconnects++;
+      }
+    },
+    window: {
+      dispatchEvent(event) {
+        resizeEvents++;
+        listeners.get(event.type)?.();
+      },
+      addEventListener: (type, fn) => listeners.set(type, fn),
+      removeEventListener: (type, fn) => {
+        if (listeners.get(type) === fn) listeners.delete(type);
+      },
+    },
+  };
+  const f = await editorFixture(true, 'player', { publicPublication: true, shell, hostGlobals });
+  assert.equal(observed, shell);
+  assert.equal(shell.dataset.publicPlayer, 'true');
+  assert.equal(
+    Number.parseFloat(values.get('--asa-player-width')) /
+      Number.parseFloat(values.get('--asa-player-height')),
+    4 / 3,
+  );
+  assert.ok(Number.parseFloat(values.get('--asa-player-width')) <= 390);
+  shell.clientWidth = 320;
+  callback();
+  assert.ok(Number.parseFloat(values.get('--asa-player-width')) <= 320);
+  assert.equal(
+    Number(values.get('--asa-player-scale')),
+    Number.parseFloat(values.get('--asa-player-width')) / 480,
+  );
+  assert.equal(resizeEvents, 2);
+  callback();
+  assert.equal(resizeEvents, 2, 'unchanged observer notifications do not loop');
+  await f.editor.dispose();
+  assert.equal(disconnects, 1);
+  assert.equal(listeners.has('resize'), false);
+  assert.equal(shell.dataset.publicPlayer, undefined);
+  observed = undefined;
+  const editor = await editorFixture(true, 'editor', { shell, hostGlobals });
+  assert.equal(observed, undefined);
+  assert.equal(shell.dataset.publicPlayer, undefined);
+  await editor.editor.dispose();
+});
 
 test('new project mount uses Scratch default project and preserves native editor events', async () => {
   const fixture = await editorFixture();

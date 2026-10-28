@@ -164,6 +164,11 @@
       if (!nonEmptyString(message.sessionNonce)) return reject('session_nonce');
       if (!validRuntimeToken(message.runtimeToken)) return reject('runtime_token');
       if (message.mode !== 'editor' && message.mode !== 'player') return reject('mode');
+      if (
+        message.assetScope !== undefined &&
+        (message.assetScope !== 'publication' || message.mode !== 'player')
+      )
+        return reject('asset_scope');
       if (message.mode === 'player' && !UUID_RE.test(message.versionId ?? '')) {
         return reject('version_id');
       }
@@ -175,6 +180,7 @@
         projectId: message.projectId,
         sessionNonce: message.sessionNonce,
         mode: message.mode,
+        ...(message.assetScope === 'publication' ? { assetScope: 'publication' } : {}),
         versionId: message.versionId ?? null,
         runtimeToken: message.runtimeToken,
       };
@@ -184,6 +190,7 @@
           projectId: session.projectId,
           sessionNonce: session.sessionNonce,
           mode: session.mode,
+          ...(session.assetScope === 'publication' ? { assetScope: 'publication' } : {}),
           versionId: session.versionId,
         }),
         bootstrap,

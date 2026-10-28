@@ -48,6 +48,8 @@ export interface BlocksRuntimeInitOptions {
   runtimeOrigin: string;
   projectId: string;
   mode: BlocksRuntimeMode;
+  /** Public namespace: projectId = publicationId, versionId = revisionId. Never editor authority. */
+  assetScope?: 'publication';
   versionId: string | null;
   apiOrigin: string;
   runtimeToken: string;
@@ -123,6 +125,13 @@ export class BlocksRuntimeBridge {
   constructor(options: BlocksRuntimeInitOptions) {
     this.runtimeOrigin = requireExactHttpOrigin(options.runtimeOrigin);
     if (!UUID_RE.test(options.projectId)) throw new Error('Blocks projectId must be a UUID');
+    if (
+      options.assetScope !== undefined &&
+      (options.assetScope !== 'publication' ||
+        options.mode !== 'player' ||
+        !UUID_RE.test(options.versionId ?? ''))
+    )
+      throw new Error('Invalid public Blocks namespace');
     if (!options.runtimeToken) throw new Error('Blocks runtimeToken is required');
     if (!options.recoveryPrincipalKey || options.recoveryPrincipalKey.length > 256) {
       throw new Error('Blocks recoveryPrincipalKey is required');
@@ -156,6 +165,7 @@ export class BlocksRuntimeBridge {
     this.assertActive();
     this.post('ASA_BLOCKS_INIT', {
       mode: this.options.mode,
+      ...(this.options.assetScope ? { assetScope: this.options.assetScope } : {}),
       versionId: this.options.versionId,
       apiOrigin: requireExactHttpOrigin(this.options.apiOrigin),
       runtimeToken: this.runtimeToken,

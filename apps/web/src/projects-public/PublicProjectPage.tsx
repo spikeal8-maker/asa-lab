@@ -110,9 +110,14 @@ export function PublicProjectPage({
           Загружаем публикацию…
         </p>
       ) : (
-        <article className="public-project-layout" data-testid="public-project-detail">
+        <article
+          className={`public-project-layout${publication.description ? ' has-description' : ''}`}
+          data-testid="public-project-detail"
+        >
           <header className="public-project-heading">
+            <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             <div className="public-project-badges">
+              <span className="public-project-detail-author">{publication.authorLabel}</span>
               <span className="publication-module" data-module={publication.moduleKey}>
                 {publicModuleName(publication.moduleKey)}
               </span>
@@ -127,8 +132,6 @@ export function PublicProjectPage({
                 </span>
               ) : null}
             </div>
-            <PublicProjectTitle key={publication.revisionId} title={publication.title} />
-            <p className="public-project-detail-author">{publication.authorLabel}</p>
           </header>
           <section className="public-project-viewer" aria-label="Просмотр проекта">
             <PublicationArtifact
@@ -140,27 +143,10 @@ export function PublicProjectPage({
           <div className="public-project-commandbar" aria-label="Действия с проектом">
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
-              {publication.preview ? (
-                <a
-                  className="btn-secondary"
-                  href={publication.preview.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Открыть изображение
-                </a>
-              ) : null}
               <SharePublicationLink
                 key={publication.publicationId}
                 publicationId={publication.publicationId}
               />
-              <button
-                type="button"
-                className="public-project-refresh"
-                onClick={() => void reload()}
-              >
-                Обновить публикацию
-              </button>
             </div>
           </div>
           <section className="public-project-about" aria-label="О проекте">
@@ -179,26 +165,29 @@ export function PublicProjectPage({
                 ))}
               </ul>
             ) : null}
-            <dl className="public-project-facts">
-              <div>
-                <dt>Лицензия</dt>
-                <dd>{licence}</dd>
-              </div>
-              <div>
-                <dt>Опубликовано</dt>
-                <dd>
-                  <time dateTime={publication.publishedAt}>
-                    {time.date(publication.publishedAt)}
-                  </time>
-                </dd>
-              </div>
-              <div>
-                <dt>Версия проекта</dt>
-                <dd>
-                  {publication.versionNo} · Публикация {publication.revisionNo}
-                </dd>
-              </div>
-            </dl>
+            <details className="public-project-metadata">
+              <summary>Лицензия и сведения о публикации</summary>
+              <dl className="public-project-facts">
+                <div>
+                  <dt>Лицензия</dt>
+                  <dd>{licence}</dd>
+                </div>
+                <div>
+                  <dt>Опубликовано</dt>
+                  <dd>
+                    <time dateTime={publication.publishedAt}>
+                      {time.date(publication.publishedAt)}
+                    </time>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Версия проекта</dt>
+                  <dd>
+                    {publication.versionNo} · Публикация {publication.revisionNo}
+                  </dd>
+                </div>
+              </dl>
+            </details>
           </section>
         </article>
       )}

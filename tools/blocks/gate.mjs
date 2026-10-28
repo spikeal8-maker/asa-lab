@@ -41,6 +41,9 @@ const focused = [
     '--check',
     'apps/api/src/blocks-runtime-capability.ts',
     'apps/api/src/blocks-runtime-capability.spec.ts',
+    'apps/api/src/public-scratch-player.ts',
+    'apps/api/src/public-scratch-player.controller.ts',
+    'apps/api/src/public-scratch-player.spec.ts',
     'apps/api/src/blocks-runtime-authority.ts',
     'apps/api/src/blocks-runtime-authority.spec.ts',
     'apps/api/src/blocks-runtime-config.ts',
@@ -125,6 +128,7 @@ const focused = [
     'apps/web/src/blocks',
   ],
   ['pnpm', 'vitest', 'run', 'contexts/blocks/testing', 'apps/web/src/blocks/testing'],
+  ['pnpm', 'vitest', 'run', 'apps/api/src/public-scratch-player.spec.ts'],
   [
     'pnpm',
     'vitest',
