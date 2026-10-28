@@ -39,7 +39,9 @@ import {
 } from './student-code-protection.js';
 import {
   LearningCanonicalProjectionService,
+  canonicalCourseParticipationKey,
   canonicalProjectionKey,
+  type CourseParticipationProof,
   type CanonicalLearningProjection,
   type CanonicalLearningSurfaceState,
 } from './learning-canonical-projection.service.js';
@@ -99,6 +101,8 @@ interface AssignmentForSeatRow {
 }
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
+type CourseParticipationMap = Map<string, CourseParticipationProof>;
+type CourseRunProjectionMap = Map<string, CanonicalLearningProjection | null>;
 
 function canonicalFor(
   projections: CanonicalProjectionMap,
@@ -182,6 +186,8 @@ interface CourseActivityOccurrenceRow {
   work_updated_at: Date | string | null;
   shared_assignment: boolean;
   not_started_visible: boolean;
+  /** Exact viewer / Seat / Course Activity scope, independent from Project bytes. */
+  academic_result_visible?: boolean | null;
   modern_provenance?: {
     modernCourseRun?: boolean;
     activityRunId?: string | null;
@@ -204,6 +210,8 @@ interface CourseActivityOccurrenceView {
   snapshotRevision: number | null;
   updatedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  /** Authoritative exact-seat, exact-run published block assignment eligibility. */
+  requirement: 'required' | 'excused' | 'not_assigned' | 'unknown';
   workOriginAmbiguous: boolean;
 }
 
@@ -243,13 +251,40 @@ function courseActivityOccurrenceMap(
   rows: CourseActivityOccurrenceRow[],
   projections: CanonicalProjectionMap,
   origins?: OriginLearnerList,
+  participationByRun: CourseParticipationMap = new Map(),
+  courseProjectionsByRun: CourseRunProjectionMap = new Map(),
 ) {
   const result = new Map<string, CourseActivityOccurrenceView[]>();
   for (const row of rows) {
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
-    const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
+    const runKey = canonicalCourseParticipationKey(row.seat_id, row.activity_run_id);
+    const exactParticipation = participationByRun.get(runKey);
+    const participation =
+      exactParticipation?.classroomAssignmentId === row.classroom_assignment_id
+        ? exactParticipation
+        : null;
+    // The assigned/excused decision must not depend on whether legacy project
+    // origin, editable work or a selected attempt is available to this viewer.
+    const requirement =
+      participation === null
+        ? 'unknown'
+        : !participation.applicable
+          ? 'not_assigned'
+          : participation.excused
+            ? 'excused'
+            : 'required';
+    const canonicalRun = courseProjectionsByRun.get(runKey);
+    const exactRunCanonicalState =
+      participation?.applicable === true &&
+      canonicalRun?.state.provenance.seatId === row.seat_id &&
+      canonicalRun.state.provenance.classroomAssignmentId === row.classroom_assignment_id &&
+      canonicalRun.state.provenance.activityRunId === row.activity_run_id
+        ? canonicalRun.surface
+        : null;
+    const origin = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
+    const exact = origin?.classroomAssignmentId === row.classroom_assignment_id ? origin : null;
     const originPresent =
       origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id) ?? false;
     const modernScope =
@@ -264,10 +299,53 @@ function courseActivityOccurrenceMap(
     const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
     const exactNotStarted =
       row.project_id === null && !originPresent && row.not_started_visible === true;
+    let occurrenceCanonicalState: CanonicalLearningSurfaceState | null = null;
+    if (participation === null && courseProjectionsByRun.has(runKey)) {
+      // A conflicting run cannot borrow a sibling's handout result.
+      occurrenceCanonicalState = null;
+    } else if (exact) {
+      occurrenceCanonicalState = exact.canonicalState;
+    } else if (
+      row.academic_result_visible === true &&
+      !originPresent &&
+      exactRunCanonicalState?.selectedResult !== null &&
+      exactRunCanonicalState !== null
+    ) {
+      // A selected academic result needs its own viewer proof, not a readable
+      // Project origin. Keep projectId, drafts and revision gated separately.
+      occurrenceCanonicalState = exactRunCanonicalState;
+    } else if (
+      modernScope &&
+      !originPresent &&
+      exactRunCanonicalState !== null &&
+      (!workOriginAmbiguous ||
+        exactRunCanonicalState.selectedResult !== null ||
+        row.project_id === null)
+    ) {
+      // The existing modern unique-Run path retains its workflow state.
+      occurrenceCanonicalState = exactRunCanonicalState;
+    } else if (exactNotStarted) {
+      occurrenceCanonicalState = {
+        activityRunId: row.activity_run_id,
+        workflowState: 'not_started',
+        selectedResult: null,
+        flags: [],
+        learnerMessageCode: null,
+      };
+    } else if (
+      modernScope &&
+      ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
+        legacyAllowed) &&
+      !originPresent &&
+      canonicalState?.activityRunId === row.activity_run_id
+    ) {
+      occurrenceCanonicalState = canonicalState;
+    }
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
       classroomAssignmentId: row.classroom_assignment_id,
+      requirement,
       learningActivityVersionId: row.learning_activity_version_id,
       title: row.title,
       goal: exact
@@ -299,23 +377,7 @@ function courseActivityOccurrenceMap(
         : !legacyAllowed || row.work_updated_at === null
           ? null
           : isoDate(row.work_updated_at),
-      canonicalState:
-        exact?.canonicalState ??
-        (exactNotStarted
-          ? {
-              activityRunId: row.activity_run_id,
-              workflowState: 'not_started',
-              selectedResult: null,
-              flags: [],
-              learnerMessageCode: null,
-            }
-          : modernScope &&
-              ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
-                legacyAllowed) &&
-              !originPresent &&
-              canonicalState?.activityRunId === row.activity_run_id
-            ? canonicalState
-            : null),
+      canonicalState: occurrenceCanonicalState,
       workOriginAmbiguous,
     });
     result.set(key, values);
@@ -328,8 +390,16 @@ function seatCourseRuns(
   projections: CanonicalProjectionMap = new Map(),
   occurrenceRows: CourseActivityOccurrenceRow[] = [],
   origins?: OriginLearnerList,
+  participationByRun: CourseParticipationMap = new Map(),
+  courseProjectionsByRun: CourseRunProjectionMap = new Map(),
 ) {
-  const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections, origins);
+  const activityOccurrences = courseActivityOccurrenceMap(
+    occurrenceRows,
+    projections,
+    origins,
+    participationByRun,
+    courseProjectionsByRun,
+  );
   const guardedLessonWork = new Set(
     occurrenceRows
       .filter(
@@ -1341,15 +1411,18 @@ export class ClassroomJoinController {
   async accountCourseRuns(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections, occurrences, origins] = await Promise.all([
+    const [result, canonicalSnapshot, occurrences, origins] = await Promise.all([
       this.requirePool().query(ACCOUNT_COURSE_LESSON_LIST_SQL, [
         context.accountId,
         context.principalId,
       ]),
-      this.canonical().forAccount(context.accountId),
+      this.canonical().forAccountCourseRuns(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
+                learning_course_academic_result_visible(
+                  $2, occurrence.seat_id, occurrence.activity_run_id
+                ) AS academic_result_visible,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL
@@ -1368,9 +1441,11 @@ export class ClassroomJoinController {
     return {
       items: seatCourseRuns(
         result.rows as SeatCourseRunRow[],
-        projections,
+        canonicalSnapshot.projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
+        canonicalSnapshot.participationByRun,
+        canonicalSnapshot.courseProjectionsByRun,
       ),
     };
   }
@@ -1537,12 +1612,15 @@ export class ClassroomJoinController {
   @Get('me/course-runs')
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections, occurrences, origins] = await Promise.all([
+    const [result, canonicalSnapshot, occurrences, origins] = await Promise.all([
       this.requirePool().query(SEAT_COURSE_LESSON_LIST_SQL, [seat.seat_id]),
-      this.canonical().forSeat(seat.seat_id),
+      this.canonical().forSeatCourseRuns(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
+                learning_course_academic_result_visible(
+                  principal_for_seat($1), occurrence.seat_id, occurrence.activity_run_id
+                ) AS academic_result_visible,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
@@ -1562,9 +1640,11 @@ export class ClassroomJoinController {
     return {
       items: seatCourseRuns(
         result.rows as SeatCourseRunRow[],
-        projections,
+        canonicalSnapshot.projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
+        canonicalSnapshot.participationByRun,
+        canonicalSnapshot.courseProjectionsByRun,
       ),
     };
   }
