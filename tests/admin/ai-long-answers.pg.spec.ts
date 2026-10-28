@@ -1,3 +1,4 @@
+import { fixtureGenerationSql, publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -25,20 +26,21 @@ afterAll(async () => {
 
 it('preserves a complete long code answer, owner isolation and idempotent replay', async () => {
   const f = await aiTextFixture(admin, runtime);
-  await admin.query('UPDATE ai_ollama_settings SET enabled=true WHERE singleton_key');
+  await admin.query(
+    "UPDATE ai_ollama_settings SET enabled=true,model='fixture:long-answer' WHERE singleton_key",
+  );
   const revision = Number(
     (await runtime.query('SELECT * FROM ai_ollama_runtime()')).rows[0].revision,
   );
+  await publishFixtureModels(f.service, f.platform.principal_id, ['ollama-local']);
   const request = randomUUID();
   const args = [f.owner.principal_id, f.thread.id, request, 'Write full code', revision];
-  expect(
-    (await runtime.query('SELECT ai_text_begin_local($1,$2,$3,$4,$5) AS ok', args)).rows[0].ok,
-  ).toBe(true);
+  expect((await runtime.query(fixtureGenerationSql, args)).rows[0].admitted).toBe(true);
   const lease = await admin.query(
     "SELECT busy_until > clock_timestamp() + interval '1800 seconds' AS ok FROM ai_assistant_threads WHERE id=$1",
     [f.thread.id],
   );
-  expect(lease.rows[0].ok).toBe(true);
+  expect(lease.rows[0].admitted).toBe(true);
   const answer = "function completeCode() { return 'END'; }\n".repeat(2000);
   await expect(
     runtime.query('SELECT ai_chat_finish($1,$2,$3,$4,$5)', [
@@ -59,11 +61,9 @@ it('preserves a complete long code answer, owner isolation and idempotent replay
   expect((await f.service.messages(f.owner.principal_id, f.thread.id)).at(-1)?.content).toBe(
     answer,
   );
-  expect(
-    (await runtime.query('SELECT ai_text_begin_local($1,$2,$3,$4,$5) AS ok', args)).rows[0].ok,
-  ).toBe(false);
+  expect((await runtime.query(fixtureGenerationSql, args)).rows[0].admitted).toBe(false);
   const next = randomUUID();
-  await runtime.query('SELECT ai_text_begin_local($1,$2,$3,$4,$5)', [
+  await runtime.query(fixtureGenerationSql, [
     f.owner.principal_id,
     f.thread.id,
     next,
