@@ -31,7 +31,7 @@ CIM_PROCESS_SCRIPT = (
 )
 AUTHOR_NAME = re.compile(
     r"^(?:python(?:w|[0-9.]*)?|node|nodejs|deno|bun|ruby|perl|php|java|dotnet|"
-    r"powershell|pwsh|cmd|bash|sh|wsl|git|codex|claude|code(?: - insiders)?|"
+    r"powershell|pwsh|cmd|bash|sh|wsl|mshta|cscript|wscript|git|codex|claude|code(?: - insiders)?|"
     r"cursor|windsurf|notepad(?:\+\+)?|sublime_text|vim|nvim|emacs|devenv)\.exe$", re.I)
 MAX_CWD_BYTES = 65532
 QUERY_LIMITED_INFORMATION = 0x1000
@@ -187,6 +187,80 @@ def normalized_windows_directory(value):
     return path
 
 
+def _within_root(path, root):
+    path = normalized_windows_directory(path)
+    return path == root or path.startswith(root.rstrip("\\") + "\\")
+
+
+def _command_paths(command, name):
+    """Recognize simple Windows argv only; never interpret shell/program code.
+
+    Backslash-escaped quotes, expansion, inline code and drive-relative paths
+    require context this collector intentionally does not read. They cannot
+    support a negative author proof. Ordinary quoted paths retain their spaces.
+    """
+    if len(command) > 32767 or any(ord(char) < 32 and char != "\t" for char in command):
+        return [], True
+    arguments, value, quoted = [], [], False
+    for index, char in enumerate(command):
+        if char == '"':
+            if index and command[index - 1] in ('\\', '"'):
+                return [], True
+            quoted = not quoted
+        elif char in " \t" and not quoted:
+            if value:
+                arguments.append("".join(value))
+                value = []
+        else:
+            value.append(char)
+    if quoted:
+        return [], True
+    if value:
+        arguments.append("".join(value))
+    if not arguments:
+        return [], True
+    executable = ntpath.basename(name).casefold().removesuffix(".exe")
+    options = [argument.casefold() for argument in arguments[1:]]
+    ambiguous = any(char in command for char in "&|<>^;%$*?~")
+    ambiguous |= ntpath.basename(arguments[0]).casefold().removesuffix(".exe") != executable
+    if executable in ("cmd", "powershell", "pwsh", "bash", "sh", "wsl"):
+        # Shell bodies can change their own effective cwd or expand variables.
+        # Even benign-looking inline bodies are outside this parser's contract.
+        ambiguous |= (executable == "wsl" and bool(options)
+                      or executable == "cmd" and any(value.startswith(("/c", "/k")) for value in options)
+                      or executable in ("powershell", "pwsh") and any(value.startswith(("-c", "-e")) for value in options)
+                      or executable in ("bash", "sh") and any(value.startswith("-") and "c" in value for value in options))
+    if (executable.startswith("python") or executable in ("node", "nodejs", "ruby", "perl", "php", "deno", "bun")):
+        ambiguous |= any(value == "eval" or value.startswith(("-c", "-e", "--eval", "--print", "-p", "-r"))
+                         for value in options)
+    paths = []
+    for index, argument in enumerate(arguments):
+        if index == 0 and not any(char in argument for char in "\\/:"):
+            continue  # An executable basename is resolved by Windows, not cwd alone.
+        if argument.startswith(("-", "/")) and "=" in argument:
+            argument = argument.split("=", 1)[1]
+        elif argument.startswith("-"):
+            ambiguous |= any(char in argument for char in "\\/:")
+            continue
+        if not argument:
+            continue
+        # Win32 device paths and trailing dots/spaces have extra name-resolution
+        # rules. Lexical normpath alone cannot prove that they are unrelated.
+        if argument.startswith("\\\\.\\") or any(
+                part not in (".", "..") and part.endswith((".", " "))
+                for part in argument.replace("/", "\\").split("\\")):
+            ambiguous = True
+        drive, tail = ntpath.splitdrive(argument)
+        if drive and not ntpath.isabs(argument):
+            ambiguous = True  # C:relative uses a separate per-drive working directory.
+            continue
+        if ":" in tail:
+            ambiguous = True  # URI/code/alternate-stream syntax is not a plain path.
+            continue
+        paths.append(argument)
+    return paths, bool(ambiguous)
+
+
 def observe_windows_authors(root, records, owners, exempt, read_cwd, *, current_pid,
                             read_identity=None, read_image=None, windows_directory=None):
     """Classify the complete CIM/WTS union without hiding authors behind UNKNOWN.
@@ -248,12 +322,18 @@ def observe_windows_authors(root, records, owners, exempt, read_cwd, *, current_
         if command_known and protected in ntpath.normcase(command):
             item.update(state="AUTHOR", reason="protected_path_in_command")
             continue
+        paths, ambiguous_command = _command_paths(command, name) if command_known else ([], False)
+        if any(ntpath.isabs(path) and ntpath.splitdrive(path)[0] and _within_root(path, protected) for path in paths):
+            item.update(state="AUTHOR", reason="protected_normalized_command_path")
+            continue
+        needs_directory = any(not ntpath.isabs(path) or not ntpath.splitdrive(path)[0] for path in paths)
         sid = identity.get("sid")
         # This retains the existing narrow native-system-image exception. Its
         # SID and executable conditions are conjunctive, never name-only. If
         # they cannot be observed, try the ordinary cwd/command proof instead.
         image_failure = None
-        if (isinstance(operator_sid, str) and operator_sid and isinstance(sid, str) and sid
+        if (not ambiguous_command and not needs_directory
+                and isinstance(operator_sid, str) and operator_sid and isinstance(sid, str) and sid
                 and sid != operator_sid and system_sid(sid) and not AUTHOR_NAME.fullmatch(name)):
             if read_image and windows_directory:
                 try:
@@ -282,13 +362,17 @@ def observe_windows_authors(root, records, owners, exempt, read_cwd, *, current_
             if image_failure:
                 item["alternativeProofUnavailable"] = "native_system_image"
             continue
-        if cwd == protected or cwd.startswith(protected.rstrip("\\") + "\\"):
+        if _within_root(cwd, protected):
             item.update(state="AUTHOR", reason="protected_current_directory")
         elif not command_known:
             _unknown(item, stage="CIM.CommandLine", reason="command_line_unavailable")
+        elif ambiguous_command:
+            _unknown(item, stage="CIM.CommandLine", reason="command_path_context_ambiguous")
+        elif any(_within_root(ntpath.join(cwd, path), protected) for path in paths):
+            item.update(state="AUTHOR", reason="protected_resolved_command_path")
         else:
-            # Unlike an absent root string alone, this combines a real current
-            # directory with a command and creation-checked process identity.
+            # A negative proof combines a real cwd, resolved simple arguments
+            # and creation-checked identity. Ambiguous command syntax cannot pass.
             item.update(state="EXCLUDED", reason="verified_unrelated_command_and_cwd")
     return report
 

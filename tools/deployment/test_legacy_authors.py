@@ -321,6 +321,59 @@ class ProductionEntrypointTests(AuthorFixture, unittest.TestCase):
         self.assertEqual([item["pid"] for item in report.unknown], [31])
         self.assertIn("31", str(failure.exception))
 
+    def test_parent_relative_and_normalized_absolute_arguments_detect_authors(self):
+        cases = [
+            (self.root, r"C:\Users\operator", r"notepad.exe .\ASA-lab\draft.txt"),
+            (self.root, r"C:\Users\operator\neighbour", r"notepad.exe ..\ASA-lab\draft.txt"),
+            (self.root, r"C:\Users\operator", r"notepad.exe C:\Users\operator\neighbour\..\ASA-lab\draft.txt"),
+            (r"C:\Users\operator\ASA Lab", r"C:\Users\operator", 'notepad.exe ".\\ASA Lab\\draft file.txt"'),
+        ]
+        for root, cwd, command in cases:
+            records, owners = self.background()
+            records.append(self.record(30, "notepad.exe", command))
+            owners.append({"pid": 30, "name": "notepad.exe", "sid": None})
+            probe = self.probe(owners)
+            probe.cwd.side_effect = lambda pid, created, directory=cwd: directory if pid == 30 else r"C:\outside"
+            with self.subTest(command=command), patch.object(self, "root", root):
+                report = self.scan(records, probe)
+                self.assertIn(30, [item["pid"] for item in report.authors])
+
+    def test_drive_relative_and_inline_shell_cannot_claim_unrelated_without_context(self):
+        for name, command in (
+                ("notepad.exe", r"notepad.exe C:ASA-lab\draft.txt"),
+                ("notepad.exe", r"notepad.exe .\ASA-lab.\draft.txt"),
+                ("notepad.exe", 'notepad.exe ".\\ASA-lab \\draft.txt"'),
+                ("notepad.exe", r"notepad.exe \\.\C:\Users\operator\other\..\ASA-lab\draft.txt"),
+                ("cmd.exe", r"cmd.exe /c cd .. & notepad ASA-lab\draft.txt"),
+                ("powershell.exe", r"powershell.exe -Command Set-Location ..; notepad .\ASA-lab\draft.txt")):
+            records, owners = self.background()
+            records.append(self.record(30, name, command))
+            owners.append({"pid": 30, "name": name, "sid": self.sid})
+            probe = self.probe(owners)
+            probe.cwd.return_value = r"D:\outside"
+            with self.subTest(command=command):
+                report = self.scan(records, probe)
+                self.assertTrue(any(item.get("pid") == 30 for item in report.unknown) or
+                                any(item["pid"] == 30 for item in report.authors))
+
+    def test_native_system_image_cannot_hide_relative_author_arguments(self):
+        records, owners = self.background()
+        records.append(self.record(30, "cscript.exe", r"cscript.exe .\ASA-lab\writer.js"))
+        owners.append({"pid": 30, "name": "cscript.exe", "sid": "S-1-5-18"})
+        for denied in (False, True):
+            probe = self.probe(owners)
+            probe.image.side_effect = lambda pid, created: r"C:\Windows\System32\cscript.exe" if pid == 30 else r"C:\Windows\System32\svchost.exe"
+            def cwd(pid, created):
+                if pid == 30:
+                    if denied: raise PermissionError()
+                    return r"C:\Users\operator"
+                return r"C:\outside"
+            probe.cwd.side_effect = cwd
+            with self.subTest(denied=denied):
+                report = self.scan(records, probe)
+                self.assertTrue(any(item.get("pid") == 30 for item in report.unknown) or
+                                any(item["pid"] == 30 for item in report.authors))
+
     def test_new_process_during_inventory_and_same_name_pid_reuse_block(self):
         records, owners = self.background()
         probe = self.probe(owners)
@@ -374,6 +427,15 @@ class ProductionEntrypointTests(AuthorFixture, unittest.TestCase):
 
 @unittest.skipUnless(os.name == "nt" and ctypes.sizeof(ctypes.c_void_p) == 8, "Real Windows x64 process APIs are required")
 class NativeWindowsAuthorTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        try:
+            WindowsProcessProbe()
+        except WindowsProbeError as failure:
+            if failure.reason == "debug_privilege_enabled":
+                raise unittest.SkipTest("Runner debug privilege is enabled; full native suite runs in a restricted disposable child")
+            raise
+
     def records(self):
         output = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", CIM_PROCESS_SCRIPT],
                                 capture_output=True, text=True, encoding="utf-8", check=True, timeout=60)
@@ -452,6 +514,25 @@ class NativeWindowsAuthorTests(unittest.TestCase):
             self.assertTrue(any(item.get("pid") == child.pid and "exit" in item.get("reason", "")
                                 for item in report.observations))
 
+    def test_real_parent_directory_relative_argument_is_an_author(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve()
+            root = parent / "ASA Lab"
+            root.mkdir()
+            (root / "watcher.py").write_text("import sys\nprint('ready', flush=True)\nsys.stdin.read()\n", encoding="utf-8")
+            child = subprocess.Popen([sys.executable, r"ASA Lab\watcher.py"], cwd=parent, stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(child.stdout.readline().strip(), "ready")
+                records = self.records()
+                record = next(item for item in records if item["ProcessId"] == child.pid)
+                self.assertNotIn(str(root), record["CommandLine"])
+                report = self.full_scan(root)
+                self.assertIn(child.pid, [item["pid"] for item in report.authors])
+            finally:
+                child.communicate("", timeout=10)
+                self.assertEqual(child.returncode, 0)
+
     def test_real_read_only_diagnostic_cli_uses_full_collector(self):
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(
@@ -465,5 +546,80 @@ class NativeWindowsAuthorTests(unittest.TestCase):
             self.assertFalse(any(key in item for item in report["observations"] for key in ("CommandLine", "cwd", "image")))
 
 
+def remove_debug_privilege_from_test_child():
+    """Only the disposable CI child calls this; removal cannot enable a privilege.
+
+    GitHub's Windows runner may begin with SeDebugPrivilege enabled. Production
+    refuses that context. Remove this one privilege from this child's own token
+    before running the unchanged production entrypoint; never alter the parent,
+    impersonate an account, change an ACL or restore/enable the privilege.
+    """
+    from ctypes import wintypes
+    class Luid(ctypes.Structure):
+        _fields_ = [("low", wintypes.DWORD), ("high", wintypes.LONG)]
+    class LuidAttributes(ctypes.Structure):
+        _fields_ = [("luid", Luid), ("attributes", wintypes.DWORD)]
+    class TokenPrivileges(ctypes.Structure):
+        _fields_ = [("count", wintypes.DWORD), ("privileges", LuidAttributes * 1)]
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel.GetCurrentProcess.argtypes = []
+    kernel.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi.OpenProcessToken.restype = wintypes.BOOL
+    advapi.LookupPrivilegeValueW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, ctypes.POINTER(Luid)]
+    advapi.LookupPrivilegeValueW.restype = wintypes.BOOL
+    advapi.AdjustTokenPrivileges.argtypes = [wintypes.HANDLE, wintypes.BOOL, ctypes.POINTER(TokenPrivileges),
+                                            wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p]
+    advapi.AdjustTokenPrivileges.restype = wintypes.BOOL
+    token = wintypes.HANDLE()
+    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 0x0008 | 0x0020, ctypes.byref(token)):
+        raise OSError("Cannot open the disposable test child's token")
+    try:
+        state = TokenPrivileges()
+        state.count = 1
+        if not advapi.LookupPrivilegeValueW(None, "SeDebugPrivilege", ctypes.byref(state.privileges[0].luid)):
+            raise OSError("Cannot identify the debug privilege in the test child")
+        state.privileges[0].attributes = 0x00000004  # SE_PRIVILEGE_REMOVED, never ENABLED.
+        ctypes.set_last_error(0)
+        if not advapi.AdjustTokenPrivileges(token, False, ctypes.byref(state), 0, None, None) or ctypes.get_last_error() != 0:
+            raise OSError("Cannot remove debug privilege from the disposable test child")
+    finally:
+        kernel.CloseHandle(token)
+    context = WindowsProcessProbe().operator_context
+    if context["seDebugPrivilegePresent"] or context["seDebugPrivilegeEnabled"]:
+        raise AssertionError("Disposable test child still has debug privilege")
+
+
+@unittest.skipUnless(os.name == "nt" and ctypes.sizeof(ctypes.c_void_p) == 8, "Real Windows x64 process APIs are required")
+class NativeWindowsRestrictedRunnerTests(unittest.TestCase):
+    def test_full_native_suite_uses_current_or_restricted_child_context(self):
+        try:
+            probe = WindowsProcessProbe()
+        except WindowsProbeError as failure:
+            self.assertEqual(failure.reason, "debug_privilege_enabled")
+            result = subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()), "--native-child"],
+                                    capture_output=True, text=True, encoding="utf-8", timeout=150)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            expected = unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsAuthorTests).countTestCases()
+            self.assertIn(f"Ran {expected} tests", result.stderr)
+            self.assertNotIn("skipped", result.stderr)
+            self.assertIn("WINDOWS_FULL_BACKGROUND=", result.stdout)
+            with self.assertRaises(WindowsProbeError) as parent:
+                WindowsProcessProbe()
+            self.assertEqual(parent.exception.reason, "debug_privilege_enabled")
+            print("WINDOWS_RESTRICTED_CHILD=" + result.stdout.strip())
+            print(result.stderr.strip())
+        else:
+            self.assertFalse(probe.operator_context["seDebugPrivilegeEnabled"])
+
+
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--native-child"]:
+        remove_debug_privilege_from_test_child()
+        suite = unittest.defaultTestLoader.loadTestsFromTestCase(NativeWindowsAuthorTests)
+        result = unittest.TextTestRunner(verbosity=2).run(suite)
+        raise SystemExit(0 if result.wasSuccessful() else 1)
     unittest.main()
