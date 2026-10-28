@@ -192,6 +192,60 @@ describe('public player capability lifecycle', () => {
     ).toBe(true);
     expect(container.querySelector('iframe')).toBe(f.iframe);
   });
+  it.each(['truncated', 'timeout'] as const)(
+    'retains a valid running player when a 200 refresh body is %s, then recovers',
+    async (failure) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+      let failedSignal: AbortSignal | undefined;
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(response())
+        .mockImplementationOnce(async (_url, options) => {
+          failedSignal = options?.signal as AbortSignal;
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ date: new Date(SERVER + 60000).toUTCString() }),
+            json:
+              failure === 'truncated'
+                ? async () => {
+                    throw new SyntaxError('Truncated response body');
+                  }
+                : () =>
+                    new Promise((_resolve, reject) =>
+                      failedSignal!.addEventListener(
+                        'abort',
+                        () => reject(new DOMException('Body read aborted', 'AbortError')),
+                        { once: true },
+                      ),
+                    ),
+          } as Response;
+        })
+        .mockImplementation(async () =>
+          response('header.recovered.signature', Math.floor(performance.now() / 1000)),
+        );
+      vi.stubGlobal('fetch', fetcher);
+      const f = await mount();
+      await ready(
+        f.iframe,
+        messages(f.post).find((m) => m['messageType'] === 'ASA_BLOCKS_INIT')!,
+      );
+      await act(async () => vi.advanceTimersByTimeAsync(failure === 'timeout' ? 75000 : 60000));
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(container.querySelector('iframe')).toBe(f.iframe);
+      expect(container.textContent).not.toContain('Cover');
+      if (failure === 'timeout') expect(failedSignal?.aborted).toBe(true);
+      await act(async () => vi.advanceTimersByTimeAsync(2000));
+      expect(
+        messages(f.post).some(
+          (m) =>
+            m['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE' &&
+            m['runtimeToken'] === 'header.recovered.signature',
+        ),
+      ).toBe(true);
+      expect(container.querySelector('iframe')).toBe(f.iframe);
+    },
+  );
   it('keeps the old grant only until its original monotonic expiry during an outage', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
     const fetcher = vi

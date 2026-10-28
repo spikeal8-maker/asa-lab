@@ -107,13 +107,15 @@ export function PublicScratchPlayer({
           retryable = response.status === 429 || response.status >= 500;
           throw new Error('Player unavailable');
         }
-        retryable = false;
         const value = (await response.json()) as PublicScratchPlayerBootstrap;
         if (!current()) return;
         if (requestController.signal.aborted) {
           retryable = true;
           throw new Error('Player request timed out');
         }
+        // A complete body is required before classifying schema/authority errors.
+        // Stream truncation or a body-read abort is still a temporary transport failure.
+        retryable = false;
         if (
           value.schemaVersion !== 1 ||
           value.viewerFamily !== 'scratch' ||
