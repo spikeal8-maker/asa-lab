@@ -71,6 +71,7 @@ import {
   buildAiTextRequest,
   getAiModelCatalog,
   isModelForProvider,
+  isKnownModelForProvider,
   type AiModel,
   type AiModelCatalog,
   type AiProvider,
@@ -727,7 +728,7 @@ export class AiChatService {
       );
     }
     if (!(
-      isModelForProvider(input.provider, input.model) ||
+      isKnownModelForProvider(input.provider, input.model) ||
       (input.provider === 'ollama-cloud' && (await this.isDiscoveredCloudModel(input.model)))
     )) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');

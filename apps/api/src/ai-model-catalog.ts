@@ -184,6 +184,13 @@ export function isAiModel(value: unknown, now = Date.now()): value is AiModel {
   );
 }
 
+/** Configuration maintenance validates adapter identity, independently of observed availability. */
+export function isKnownModelForProvider(provider: unknown, model: unknown): model is AiModel {
+  return modelEntries().some(
+    (candidate) => candidate.id === model && candidate.provider === provider,
+  );
+}
+
 export function isModelForProvider(
   provider: unknown,
   model: unknown,

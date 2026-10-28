@@ -16,7 +16,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
-import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
+import { isAiProvider, isKnownModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
 import { ComfyUiError } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
@@ -251,7 +251,7 @@ export class AiAdminController {
     if (
       !isAiProvider(provider) ||
       !(
-        isModelForProvider(provider, model) ||
+        isKnownModelForProvider(provider, model) ||
         (provider === 'ollama-cloud' &&
           typeof model === 'string' &&
           model.startsWith('ollama-cloud/') &&
