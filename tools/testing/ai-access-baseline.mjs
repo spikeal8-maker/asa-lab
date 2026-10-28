@@ -9,6 +9,15 @@ import { pathToFileURL } from 'node:url';
 
 const config = 'playwright.access-a.config.ts';
 const natSpec = 'student-seat-access-hardening.spec.ts';
+const participantsSpec = 'classroom-participants.spec.ts';
+const executionBatches = ['journeys', 'participants', 'nat'];
+function assignedBatch(file) {
+  return basename(file) === natSpec
+    ? 'nat'
+    : basename(file) === participantsSpec
+      ? 'participants'
+      : 'journeys';
+}
 const require = createRequire(import.meta.url);
 
 // Explicit targets/options retain Playwright's original argument order and last
@@ -19,6 +28,7 @@ export function invocationPlan(args) {
     : [
         { batch: 'discovery', args: ['test', '--config', config, '--list'] },
         { batch: 'journeys', args: ['test', '--config', config] },
+        { batch: 'participants', args: ['test', '--config', config] },
         { batch: 'nat', args: ['test', '--config', config] },
       ];
 }
@@ -56,11 +66,11 @@ function collectCases(report) {
 export function verifyCoverage(discovery, batches) {
   const errors = [];
   if (
-    batches.length !== 2 ||
-    new Set(batches.map((entry) => entry.batch)).size !== 2 ||
-    batches.some((entry) => !['journeys', 'nat'].includes(entry.batch))
+    batches.length !== executionBatches.length ||
+    new Set(batches.map((entry) => entry.batch)).size !== executionBatches.length ||
+    batches.some((entry) => !executionBatches.includes(entry.batch))
   )
-    errors.push('Exactly one journeys invocation and one NAT invocation are required');
+    errors.push('Exactly one journeys, participants and NAT invocation are required');
   let expected;
   try {
     expected = collectCases(discovery);
@@ -70,14 +80,15 @@ export function verifyCoverage(discovery, batches) {
       if (item.test.results.length !== 0 || item.expectedStatus !== 'passed')
         throw new Error('Discovery must contain the original, unexecuted passing cases');
     }
-    const nat = [...expected.values()].filter((item) => basename(item.file) === natSpec);
-    if (nat.length === 0 || nat.length === expected.size)
-      throw new Error('Discovery must contain both ordinary journeys and the complete NAT file');
+    for (const batch of executionBatches) {
+      if (![...expected.values()].some((item) => assignedBatch(item.file) === batch))
+        throw new Error(`Discovery must contain the complete ${batch} batch`);
+    }
   } catch (error) {
     return { ok: false, expected: 0, executed: 0, errors: [error.message] };
   }
   const observed = new Set();
-  for (const batch of ['journeys', 'nat']) {
+  for (const batch of executionBatches) {
     const result = batches.find((entry) => entry.batch === batch);
     if (!result) {
       errors.push(`${batch}: invocation is missing`);
@@ -99,7 +110,7 @@ export function verifyCoverage(discovery, batches) {
           item.expectedStatus !== original.expectedStatus
         )
           errors.push(`Case identity changed after discovery: ${key}`);
-        if ((basename(item.file) === natSpec) !== (batch === 'nat'))
+        if (assignedBatch(item.file) !== batch)
           errors.push(`Case ran in the wrong process: ${key}`);
         const runs = item.test.results;
         if (
@@ -205,7 +216,7 @@ export async function runAccessBaseline(
           break;
         }
       }
-      // A failed journey does not suppress the separate NAT evidence. Its
+      // A failed batch does not suppress later participants or NAT evidence. Its
       // nonzero status is retained and still fails the complete command.
     }
     const discovery = results.find((entry) => entry.batch === 'discovery');
