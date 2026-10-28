@@ -608,10 +608,27 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R23, R20]
           acceptance_checks: [C20]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_pr: 838
+          candidate_sha: 2b1906682514661c4f4e1e64aed71f8bb9eea415
+          independent_review: approved_exact_source_and_harness
+          ci_status: pending_exact_candidate
+          isolated_ci_run: 40732021261
+          integration_blocker:
+            kind: acceptance_blocker
+            lane: ai-assistant
+            task_id: TASK-AI-ASSISTANT-PROGRAMME-001
+            blocks: [main_merge, release_claim, owner_acceptance]
+            allows: [focused_tests, source_review, isolated_ci_demo]
+            reason: >-
+              Main independently added ComfyUI migration0273 and changed shared AI controllers
+              after the single controlled provider-A convergence. Preserve both implementations;
+              defer final numbering and composition to a coordinated integration window, without
+              chasing every new overlapping main revision. Source code and isolated checks may
+              continue; this does not bypass required repository gates or D2R2 deployment guards.
           source_dependency: ecbd9fc5eed6aa46f642e26623640d180299d043
           selection: >-
             Owner explicitly chose BOTH global/model and user/model monthly budgets and
