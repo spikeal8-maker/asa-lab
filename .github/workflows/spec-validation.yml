@@ -190,7 +190,12 @@ jobs:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm gate:data
+        run: |
+          # Bind-mounted reports belong to this host user. Keep the container
+          # non-root while allowing it to write and clean its own diagnostics.
+          export ASA_TEST_UID="$(id -u)" ASA_TEST_GID="$(id -g)"
+          test "$ASA_TEST_UID" -ne 0
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm gate:data
 
       - name: Stop this job's log observer
         if: always()
@@ -204,7 +209,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: full-data-gate-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
-          path: reports/checks/full-data-gate.log
+          path: |
+            reports/checks/full-data-gate.log
+            reports/arduino-seven-segment-matrix
           retention-days: 14
 
       - name: Cleanup isolated test environment
