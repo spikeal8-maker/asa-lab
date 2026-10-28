@@ -168,7 +168,13 @@ export class AiAdminController {
     const configurationVersion = value['configurationVersion'];
     if (
       !isAiProvider(provider) ||
-      !isModelForProvider(provider, model) ||
+      !(
+        isModelForProvider(provider, model) ||
+        (provider === 'ollama-cloud' &&
+          typeof model === 'string' &&
+          model.startsWith('ollama-cloud/') &&
+          (await this.ai.isDiscoveredCloudModel(model)))
+      ) ||
       typeof enabled !== 'boolean' ||
       (paidOperationsPerHour !== undefined &&
         (!Number.isInteger(paidOperationsPerHour) ||
@@ -193,6 +199,30 @@ export class AiAdminController {
           ...(typeof apiKey === 'string' ? { apiKey } : {}),
           ...(typeof clearApiKey === 'boolean' ? { clearApiKey } : {}),
         },
+        request.id,
+      ),
+    );
+  }
+
+  @Post('ollama-cloud/inspect')
+  @HttpCode(200)
+  async inspectOllamaCloud(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+      return reject('ai_config_invalid', 'Неверный запрос.', 400);
+    const input = raw as { configurationVersion?: unknown; apiKey?: unknown };
+    if (
+      !Number.isSafeInteger(input.configurationVersion) ||
+      Number(input.configurationVersion) < 1 ||
+      (input.apiKey !== undefined && typeof input.apiKey !== 'string')
+    )
+      return reject('ai_config_invalid', 'Неверный запрос.', 400);
+    return this.safe(() =>
+      this.ai.inspectOllamaCloud(
+        actor,
+        Number(input.configurationVersion),
+        input.apiKey as string | undefined,
         request.id,
       ),
     );

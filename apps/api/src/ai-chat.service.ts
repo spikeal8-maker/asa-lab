@@ -1,3 +1,5 @@
+import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
+import type { AiOllamaCloudInspection } from '@asa-lab/contracts';
 import type { AiGeneratedImage, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
 import { AiImageService } from './ai-image.service.js';
 import {
@@ -291,6 +293,7 @@ export class AiChatService {
       const row = (
         await this.pool.query<RuntimeRow>('SELECT * FROM ai_generation_runtime($1)', [selected])
       ).rows[0];
+      if (row?.provider === 'ollama-cloud') await reloadOllamaCloudCatalog(this.pool);
       if (!row)
         throw new AiServiceError(
           'ai_model_not_allowed',
@@ -600,6 +603,7 @@ export class AiChatService {
         'Требуется обновление схемы настроек ИИ.',
       );
     }
+    await reloadOllamaCloudCatalog(this.pool);
     return {
       schemaVersion: 2,
       modelCatalog: getAiModelCatalog(),
@@ -640,7 +644,10 @@ export class AiChatService {
         'Лимит должен быть целым числом от 0 до 2147483647.',
       );
     }
-    if (!isModelForProvider(input.provider, input.model)) {
+    if (!(
+      isModelForProvider(input.provider, input.model) ||
+      (input.provider === 'ollama-cloud' && (await this.isDiscoveredCloudModel(input.model)))
+    )) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
     }
     const before = await this.adminConfig(principalId);
@@ -2062,10 +2069,91 @@ export class AiChatService {
     return { stopped: true };
   }
 
+  private cloudMetadataClient: OllamaCloudMetadata | null = null;
+  async isDiscoveredCloudModel(model: unknown): Promise<boolean> {
+    if (typeof model !== 'string' || !model.startsWith('ollama-cloud/')) return false;
+    await reloadOllamaCloudCatalog(this.pool);
+    return isModelForProvider('ollama-cloud', model);
+  }
+  async inspectOllamaCloud(
+    principalId: string,
+    expectedVersion: number,
+    apiKey: string | undefined,
+    requestId: string,
+  ): Promise<AiOllamaCloudInspection> {
+    const before = await this.adminConfig(principalId);
+    if (before.configurationVersion !== expectedVersion)
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Настройки изменились. Обновите страницу.',
+      );
+    const candidate = apiKey?.trim();
+    if (
+      apiKey !== undefined &&
+      (!candidate ||
+        candidate.length < 12 ||
+        candidate.length > 2048 ||
+        /[\p{Cc}\p{Zl}\p{Zp}]/u.test(candidate))
+    )
+      throw new AiServiceError('ai_key_invalid', 400, 'Недопустимый API-ключ.');
+    let key: string | null = candidate ?? null;
+    if (apiKey === undefined) {
+      const row = (
+        await this.pool.query<RuntimeRow>('SELECT * FROM ai_ollama_cloud_admin_credentials($1)', [
+          principalId,
+        ])
+      ).rows[0];
+      if (row?.api_key_ciphertext) key = this.requireProviderKey(row);
+    }
+    this.cloudMetadataClient ??= new OllamaCloudMetadata(this.fetchImpl);
+    const [catalog, account] = await Promise.allSettled([
+      this.cloudMetadataClient.catalog(),
+      this.cloudMetadataClient.account(key),
+    ]);
+    const after = await this.adminConfig(principalId);
+    if (after.configurationVersion !== expectedVersion)
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Ключ или настройки изменились во время проверки. Повторите обновление.',
+      );
+    let catalogError: 'catalog_unavailable' | null = null;
+    if (catalog.status === 'fulfilled') {
+      try {
+        await this.pool.query('SELECT ai_ollama_cloud_catalog_apply($1,$2,$3::jsonb,$4::varchar)', [
+          principalId,
+          expectedVersion,
+          JSON.stringify(catalog.value),
+          requestId,
+        ]);
+      } catch (problem) {
+        this.rethrowAdmissionError(problem);
+        throw problem;
+      }
+    } else catalogError = 'catalog_unavailable';
+    const snapshot = await reloadOllamaCloudCatalog(this.pool);
+    return {
+      models: snapshot.models,
+      catalogCheckedAt: snapshot.checkedAt,
+      catalogError,
+      account:
+        account.status === 'fulfilled'
+          ? account.value
+          : {
+              status: 'unavailable',
+              checkedAt: new Date().toISOString(),
+              retryAfterSeconds: null,
+              balance: null,
+            },
+    };
+  }
+
   private async runtime(): Promise<RuntimeRow> {
     const result = await this.pool.query<RuntimeRow>('SELECT * FROM ai_runtime_config()');
     const row = result.rows[0];
     if (!row) throw new AiServiceError('ai_config_unavailable', 503, 'Конфигурация ИИ недоступна.');
+    await reloadOllamaCloudCatalog(this.pool);
     return row;
   }
 
