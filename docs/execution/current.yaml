@@ -81,6 +81,52 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: unified-setup-792
+    worktree_id: unified-setup-792-20261029
+    owned_paths:
+      - docs/deployment/UNIFIED_SETUP.md
+    task:
+      id: TASK-ASA-UNIFIED-SETUP-792
+      issue: 792
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_implementation_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner supplied the complete unified installer/updater implementation brief on
+        2026-10-29: code, tests, independent review, ready reviewable PRs and separate
+        operational evidence. Continue independent implementation while external access
+        or permissions remain unavailable; do not claim host acceptance from unit tests.
+      scope: >-
+        One verified entrypoint for install/update, complete installation inventory and
+        owner selection, durable operations, full encrypted backup with verified cloud
+        delivery, independent backup scheduling, browser acceptance and Russian results.
+      constraints:
+        - Preserve existing CLI/MCP contracts, secrets, canonical project and all data.
+        - No automatic restore, owner-pin bypass, production deployment or cloud deletion.
+        - Merge, publication and live/cloud actions remain subject to existing explicit authority.
+        - Use isolated source changes; preserve unrelated active work and existing Draft PRs.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 4cf9369a714abb797adbfcf9d7bf901a5dbd5b41
+      head_sha: null
+      observed_at: '2026-10-28T23:34:49Z'
+      main:
+        branch: main
+        sha: 4cf9369a714abb797adbfcf9d7bf901a5dbd5b41
+      observation_note: Programme selection only; no implementation, CI or operational acceptance is claimed. Fetch main and actual exact-SHA CI before writes.
+    gates:
+      focused:
+        workflow: ASA Portable Release
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
