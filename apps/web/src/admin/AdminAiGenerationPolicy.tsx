@@ -549,6 +549,7 @@ export function AdminAiGenerationPolicy({
                             <label className="asa-ai-policy-model">
                               <input
                                 type="checkbox"
+                                aria-label={'Показывать пользователям: ' + model.label}
                                 checked={allowedModels.includes(model.id)}
                                 disabled={
                                   busy ||

@@ -16,6 +16,10 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     origin = 'http://127.0.0.1:4612',
     headers = { origin };
   const calls: unknown[] = [];
+  let releaseAnswer: () => void = () => undefined;
+  const answerReleased = new Promise<void>((resolve) => {
+    releaseAnswer = resolve;
+  });
   const provider = createServer(async (request, response) => {
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
@@ -30,6 +34,7 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       return;
     }
     calls.push(body);
+    await answerReleased;
     response.setHeader('content-type', 'application/x-ndjson');
     response.end(
       JSON.stringify({
@@ -115,16 +120,62 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     const row = budgets
       .locator('fieldset')
       .filter({ has: page.locator('legend').getByText('ollama-local', { exact: true }) });
-    for (const width of [1440, 390, 320])
-      for (const colorScheme of ['light', 'dark'] as const) {
-        await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-        await page.emulateMedia({ colorScheme });
-        await row.scrollIntoViewIfNeeded();
-        await page.screenshot({
-          path: test.info().outputPath(`before-limits-${width}-${colorScheme}.png`),
-          fullPage: true,
-        });
+    // Evidence is from native product CSS, never injected screenshot styles.
+    async function capture(state: string, widths = [1440, 1024, 390, 320]) {
+      for (const width of widths) {
+        const backgrounds: string[] = [];
+        for (const colorScheme of ['light', 'dark'] as const) {
+          await page.setViewportSize({ width, height: width <= 390 ? 844 : 900 });
+          await page.emulateMedia({ colorScheme });
+          await expect(row).toBeVisible();
+          const background = await budgets.evaluate(
+            (element) => getComputedStyle(element).backgroundColor,
+          );
+          backgrounds.push(background);
+          if (colorScheme === 'dark') expect(background).toBe('rgb(32, 33, 35)');
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+            ),
+          ).toBe(true);
+          await row.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+          await row.getByLabel('Общий лимит в месяц', { exact: true }).focus();
+          const globalInput = row.getByLabel('Общий лимит в месяц', { exact: true });
+          await expect(globalInput).toBeInViewport();
+          await expect(globalInput).toHaveCSS('outline-width', '2px');
+          if (colorScheme === 'dark') {
+            await expect(globalInput).toHaveCSS('color', 'rgb(245, 245, 245)');
+            await expect(globalInput).toHaveCSS('border-top-color', 'rgb(116, 116, 122)');
+            await expect(globalInput).toHaveCSS('outline-color', 'rgb(124, 185, 230)');
+          }
+          await expect(
+            row.getByLabel('Лимит каждого пользователя в месяц', { exact: true }),
+          ).toBeInViewport();
+          await page.screenshot({
+            path: test.info().outputPath(`${state}-${width}-${colorScheme}.png`),
+          });
+          await row.screenshot({
+            path: test.info().outputPath(`${state}-row-${width}-${colorScheme}.png`),
+          });
+          if (state === 'before-limits') {
+            const model = page.locator('.asa-ai-policy-model-row').first();
+            await model.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+            await expect(model.getByRole('spinbutton')).toBeInViewport();
+            await page.screenshot({
+              path: test.info().outputPath(`model-controls-${width}-${colorScheme}.png`),
+            });
+            await model.screenshot({
+              path: test.info().outputPath(`model-row-${width}-${colorScheme}.png`),
+            });
+          }
+        }
+        expect(
+          backgrounds[1],
+          'dark media preference must change actual Settings background',
+        ).not.toBe(backgrounds[0]);
       }
+    }
+    await capture('before-limits');
     await row.getByLabel('Общий лимит в месяц', { exact: true }).fill('');
     await row.getByLabel('Лимит каждого пользователя в месяц', { exact: true }).fill('1');
     await budgets.getByRole('button', { name: 'Сохранить лимиты токенов' }).click();
@@ -133,10 +184,25 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     expect(threadReply.status()).toBe(201);
     const thread = (await threadReply.json()).id,
       requestId = randomUUID();
-    const answer = await page.request.post(`/api/ai/threads/${thread}/messages`, {
+    const pendingAnswer = page.request.post(`/api/ai/threads/${thread}/messages`, {
       headers,
       data: { message: 'Покажи полный ответ', requestId },
+      timeout: 120000,
     });
+    // Hold one real admitted operation before synthetic terminal usage arrives.
+    // No successful API mocks or manually inserted ledger records.
+    try {
+      await expect.poll(() => calls.length).toBe(1);
+      const pending = await (await page.request.get('/api/ai/token-budgets')).json();
+      expect(BigInt(pending.models[0].held)).toBeGreaterThan(0n);
+      expect(pending.models[0].used).toBe('0');
+      await page.reload();
+      await expect(row).toContainText('Резерв: ' + pending.models[0].held);
+      await capture('pending-admitted-answer', [390]);
+    } finally {
+      releaseAnswer();
+    }
+    const answer = await pendingAnswer;
     expect(answer.status()).toBe(200);
     expect(JSON.stringify(await answer.json())).toContain('Полный ответ сохранён');
     const denied = await page.request.post(`/api/ai/threads/${thread}/messages`, {
@@ -172,21 +238,23 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       }),
       contentType: 'application/json',
     });
-    for (const width of [1440, 390, 320])
-      for (const colorScheme of ['light', 'dark'] as const) {
-        await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
-        await page.emulateMedia({ colorScheme });
-        await expect(row).toContainText('Подтверждено токенов всего:');
-        await row.scrollIntoViewIfNeeded();
-        expect(
-          await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
-        ).toBe(true);
-        await page.screenshot({
-          path: test.info().outputPath(`after-limits-${width}-${colorScheme}.png`),
-          fullPage: true,
-        });
-      }
+    await expect(row).toContainText('Подтверждено токенов всего: 12');
+    await capture('after-limits');
+    // Leaving Settings removes the shell opt-in; Prompt retains its own layout.
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.getByRole('tab', { name: 'Системный промпт', exact: true }).click();
+    await expect(page.locator('.asa-ai-settings')).toHaveCount(0);
+    expect(
+      await page
+        .locator('.portal-shell')
+        .evaluate((element) => getComputedStyle(element).backgroundColor),
+    ).not.toBe('rgb(22, 22, 24)');
+    await test.info().attach('visual-scope-limits', {
+      body: 'Native OS media theme, 1440/1024/390/320 viewport and row crops. Browser zoom 200%: NOT_RUN; no CSS scale emulation. Controlled inference uses fixed synthetic prompt/usage and proves accounting only.',
+      contentType: 'text/plain',
+    });
   } finally {
+    releaseAnswer();
     await new Promise<void>((resolve) => provider.close(() => resolve()));
     await db.end();
   }

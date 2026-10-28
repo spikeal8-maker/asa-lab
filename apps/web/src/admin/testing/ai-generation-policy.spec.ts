@@ -271,3 +271,16 @@ it('B preserves unsaved visibility, default and rank during metadata refresh and
   expect(host.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
   expect(writes()).toHaveLength(0);
 });
+
+it('names provider eligibility and user visibility as separate checkbox actions', async () => {
+  await render('settings');
+  const eligible = host.querySelector<HTMLInputElement>(
+    '[aria-label="Разрешить у провайдера DeepSeek Flash"]',
+  );
+  const visible = host.querySelector<HTMLInputElement>(
+    '[aria-label="Показывать пользователям: DeepSeek Flash"]',
+  );
+  expect(eligible?.type).toBe('checkbox');
+  expect(visible?.type).toBe('checkbox');
+  expect(eligible).not.toBe(visible);
+});

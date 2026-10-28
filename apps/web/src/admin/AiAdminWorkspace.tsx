@@ -18,6 +18,7 @@ import {
 import { call } from './admin-api';
 import './ai-ollama.css';
 import './ai-admin.css';
+import './ai-settings.css';
 
 interface LocalState {
   enabled: boolean;
@@ -230,7 +231,12 @@ function AiAdminWorkspaceSession({
           )}
         </section>
       ) : section === 'prompt' || section === 'settings' ? (
-        <div id={'ai-panel-' + section} role="tabpanel" aria-labelledby={'ai-tab-' + section}>
+        <div
+          id={'ai-panel-' + section}
+          role="tabpanel"
+          aria-labelledby={'ai-tab-' + section}
+          className={section === 'settings' ? 'asa-ai-settings' : undefined}
+        >
           <AdminAiGenerationPolicy section={section} onAccessDenied={onAccessDenied} />
           {section === 'settings' ? <AdminAiTokenBudgets onAccessDenied={onAccessDenied} /> : null}
         </div>
