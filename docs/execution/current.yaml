@@ -92,10 +92,10 @@ parallel_lanes:
       issue: 809
       branch: main
       base_branch: main
-      pr: null
-      pr_draft: false
-      status: in_progress
-      checkpoint: explicit_legacy_transition_selected
+      pr: 811
+      pr_draft: true
+      status: blocked
+      checkpoint: manager_candidate_d2_author_attestation_blocked
       change_class: L3_CRITICAL
       owner_acceptance: pending
       target_product_revision: bd80426472edc25f3a184a29eb1a28216600c4cd
@@ -131,26 +131,37 @@ parallel_lanes:
         - https://github.com/spikeal8-maker/asa-lab/issues/809#issuecomment-6455177685
       publication: draft_pr_then_exact_sha_checks_and_independent_review
       candidate_branch: codex/deployment-legacy-809
+      candidate_sha: 260826ecd5385206053eaf9d85f66fc4790e8e92
+      implementation_complete: true
+      exact_head_general_run: 40606850715
+      exact_head_focused_run: 40606850643
+      qualification_scope: windows_d2r2_legacy_transition
+      main_integration: not_merged
       required_focused_workflow: ASA Portable Delivery Checks
       focused_checks:
         - python -m unittest discover -s tools/deployment -p "test_*.py" -v
         - node --test tools/blocks/deployment.test.mjs
-      deployment: not_run
-      installed_demo: not_run
+      deployment: blocked_legacy_authors
+      full_database_object_backup: not_run
+      live_restore_check: not_run
+      installed_demo: BLOCKED_DEMO
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 18cf193f772800fa3ec1efdd56d6cef79e3bdd03
+      convergence_baseline_sha: 07c80558e9a95c94494ab6fc72b57e2d463578ef
       head_sha: null
-      observed_at: '2026-10-27T22:40:27Z'
+      observed_at: '2026-10-28T00:25:00Z'
       main:
         branch: main
-        sha: 18cf193f772800fa3ec1efdd56d6cef79e3bdd03
+        sha: 07c80558e9a95c94494ab6fc72b57e2d463578ef
       observation_note: >-
-        Bounded deployment selection after fresh origin/main, clean local tree,
-        SAFE_TO_START preflight and exact baseline General40590381103 SUCCESS.
-        Dated snapshot only; fetch main and refresh task branch and exact checks
-        before publication/application. Selection does not clear the existing
-        ASAI-01 deployment blocker or claim a backup, installed demo or acceptance.
+        Dated main observation; fetch main and refresh the exact candidate checks
+        before further writes. Manager evidence belongs to task.candidate_sha;
+        run references are evidence locations, not cached conclusions or approval.
+        The same D2R2 root/project, eight services, foreign storage and preserved WIP
+        passed read-only identity qualification. Author attestation returns
+        LEGACY_AUTHORS because required process owner metadata remain unavailable.
+        Full application backup, restore, update and installed demo have not run;
+        owner acceptance is pending. Draft PR811 has not been merged.
     gates:
       general:
         workflow: ASA Lab Governance and Code Gates
@@ -13797,17 +13808,22 @@ blocking:
       - exact_sha_ci
       - release_publication
     reason: >-
-      Installed manager doctor on D2R2 exits2 IDENTITY_FILES because asa-lab-dev uses an unsupported
-      .asa/local-review/compose.review.yaml overlay. API/Web source bind mounts make checkout or stash
-      a live-runtime mutation before full backup; current backup mount guards also reject this shape.
-      WIP/configuration copies are verified, but originals and runtime remain unchanged. No supported
-      legacy adoption/transition was found; do not bypass guards, change the canonical root or use a second stack.
+      The bounded legacy adapter is published in Draft PR811 at manager
+      260826ecd5385206053eaf9d85f66fc4790e8e92. Read-only D2R2 qualification
+      supports the actual review identity, mount shape and preserved WIP.
+      Author attestation returns LEGACY_AUTHORS because required process
+      owner metadata cannot be verified in the available operator context.
+      No full application backup, live restore, source switch or update has run.
     unblock_requires: >-
-      Separately selected and tested deployment adoption/transition for the same root/project/data volumes
-      must support the actual identity and mount shape without bypass. Confirm preserved inactive WIP and
-      private configuration plus an exact released target with required green CI and immutable image digests.
-      These prerequisites permit starting the supported backup/update sequence; its ordinary full-backup,
-      version and data guards still apply before any service mutation.
+      Require successful General and Portable CI and independent review of the
+      exact manager candidate before any live application. Obtain a successful
+      ordinary read-only legacy-plan with that manager and approved exact product
+      in an authorized operator context that
+      can verify the required process metadata. Do not weaken author guards,
+      enable privileges, alter host settings or ignore unknown processes.
+      Revalidate preserved WIP, current identity and release evidence. A successful
+      plan permits starting the supported backup/update sequence; ordinary full
+      backup, isolated restore, version and data guards still apply before switching.
     delivery_completion_requires: >-
       Verified full database/object/configuration backup, supported update, separately verified API/Web/schema
       versions and real D2R2 administrator/browser evidence. These are results of the allowed sequence, not

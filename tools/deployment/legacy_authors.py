@@ -1,19 +1,22 @@
 """Read-only Windows author attestation for the bounded legacy transition.
 
-No privileges are enabled and no process is changed. WTS supplies user SIDs in
-one native enumeration. Only the PEB process-parameters pointer and the bounded
-CurrentDirectory field are read from another process; environment blocks and
+No privileges are enabled and no process is changed. WTS supplies process
+identities; missing owner information is never an exclusion. Only the PEB
+process-parameters pointer and the bounded CurrentDirectory field are read from another process; environment blocks and
 arbitrary process memory are never collected or persisted.
 """
 
+import argparse
 import ctypes
 from ctypes import wintypes
+import json
 import ntpath
 import os
 from pathlib import Path
 import platform
 import re
 import struct
+import subprocess
 
 from .contracts import Blocked, require
 
@@ -31,6 +34,98 @@ AUTHOR_NAME = re.compile(
     r"powershell|pwsh|cmd|bash|sh|wsl|git|codex|claude|code(?: - insiders)?|"
     r"cursor|windsurf|notepad(?:\+\+)?|sublime_text|vim|nvim|emacs|devenv)\.exe$", re.I)
 MAX_CWD_BYTES = 65532
+QUERY_LIMITED_INFORMATION = 0x1000
+QUERY_DIRECTORY = 0x0400 | 0x0010
+TOKEN_QUERY = 0x0008
+
+
+class WindowsProbeError(Blocked):
+    """Safe API diagnostics, without paths, command lines or exception text."""
+
+    def __init__(self, stage, rights=None, winerror=None, reason="observation_unavailable", ntstatus=None):
+        super().__init__("LEGACY_AUTHORS", "A required Windows author observation is unavailable.",
+                         "Run the reviewed read-only author diagnosis; do not change privileges or stop unknown processes.")
+        self.stage, self.rights, self.winerror = stage, rights, winerror
+        self.reason, self.ntstatus = reason, ntstatus
+
+
+class WindowsAuthorReport:
+    def __init__(self, observations=()):
+        self.observations = list(observations)
+        self.operator_context = {}
+
+    @property
+    def authors(self):
+        return [{"pid": item["pid"], "name": item["name"]} for item in self.observations if item["state"] == "AUTHOR"]
+
+    @property
+    def unknown(self):
+        return [item for item in self.observations if item["state"] == "UNKNOWN"]
+
+    def as_dict(self):
+        counts = {state: sum(item["state"] == state for item in self.observations)
+                  for state in ("AUTHOR", "EXCLUDED", "UNKNOWN")}
+        return {"status": "BLOCKED" if counts["AUTHOR"] or counts["UNKNOWN"] else "CLEAR",
+                "counts": counts, "observations": self.observations, "authors": self.authors,
+                "unknown": self.unknown, "operatorContext": self.operator_context}
+
+
+class WindowsAuthorBlocked(Blocked):
+    def __init__(self, report):
+        unknown = report.unknown
+        first = unknown[0] if unknown else {}
+        detail = (f" First unknown PID={first.get('pid')}, stage={first.get('stage')}, "
+                  f"rights={first.get('rights')}, winerror={first.get('winerror')}.") if first else ""
+        super().__init__("LEGACY_AUTHORS", f"Windows author check has {len(unknown)} unknown observations "
+                         f"and {len(report.authors)} related processes." + detail,
+                         "Run the reviewed manager's read-only author diagnostic for this installation; "
+                         "unknown observations block changes. Do not enable privileges or stop unknown processes.")
+        self.report = report
+
+
+def _observation(pid, name, created, state, reason):
+    # Only the basename is diagnostic. No command, cwd, image or owner SID is persisted.
+    name = ntpath.basename(name) if isinstance(name, str) else ""
+    name = re.sub(r"[\x00-\x1f\x7f]", "?", name)[:260]
+    return {"pid": pid, "name": name, "creationTime": str(created) if created is not None else None,
+            "state": state, "reason": reason}
+
+
+def _unknown(item, failure=None, *, stage="metadata", reason="metadata_unavailable"):
+    item.update(state="UNKNOWN", reason=reason, stage=stage)
+    if isinstance(failure, WindowsProbeError):
+        item.update(reason=failure.reason, stage=failure.stage)
+        for key in ("rights", "winerror", "ntstatus"):
+            value = getattr(failure, key)
+            if isinstance(value, int):
+                item[key] = value
+    elif isinstance(failure, OSError):
+        # Never format failure: an OSError may embed private command lines or paths.
+        value = getattr(failure, "winerror", None)
+        if isinstance(value, int):
+            item["winerror"] = value
+    return item
+
+
+def _index(values, key):
+    if not isinstance(values, list) or len(values) > 100000:
+        raise WindowsProbeError("inventory", reason="invalid_inventory")
+    result = {}
+    for value in values:
+        if not isinstance(value, dict) or type(value.get(key)) is not int or not 0 <= value[key] <= 0xFFFFFFFF:
+            raise WindowsProbeError("inventory", reason="invalid_process_id")
+        if value[key] in result:
+            raise WindowsProbeError("inventory", reason="duplicate_process_id")
+        result[value[key]] = value
+    return result
+
+
+def _created(record):
+    value = record.get("CreationTime") if isinstance(record, dict) else None
+    if not isinstance(value, (str, int)) or isinstance(value, bool):
+        return None
+    value = str(value)
+    return int(value) if value.isdigit() and len(value) <= 20 and 0 < int(value) < (1 << 64) else None
 
 
 def author_unknown():
@@ -92,64 +187,129 @@ def normalized_windows_directory(value):
     return path
 
 
-def find_windows_authors(root, records, owners, exempt, read_cwd, *, current_pid,
-                         read_image=None, windows_directory=None):
-    """Join CIM metadata to authoritative WTS SIDs; unknown authors never pass."""
-    processes = {int(value["ProcessId"]): value for value in records}
-    identities = {int(value["pid"]): value for value in owners}
-    require(len(processes) == len(records) and len(identities) == len(owners)
-            and current_pid in identities and identities[current_pid].get("sid"),
-            "LEGACY_AUTHORS", "Windows process identity inventory is incomplete.")
-    operator_sid = identities[current_pid]["sid"]
+def observe_windows_authors(root, records, owners, exempt, read_cwd, *, current_pid,
+                            read_identity=None, read_image=None, windows_directory=None):
+    """Classify the complete CIM/WTS union without hiding authors behind UNKNOWN.
+
+    An invocation ancestor can itself be an editor. The caller's historical
+    ``exempt`` set is therefore not authority to exclude anything except this
+    running collector. Positive and negative observations require the same
+    creation-checked process identity. A missing SID never grants an exclusion.
+    """
+    report = WindowsAuthorReport()
+    try:
+        processes, identities = _index(records, "ProcessId"), _index(owners, "pid")
+    except WindowsProbeError as failure:
+        report.observations.append(_unknown(_observation(None, "", None, "UNKNOWN", "invalid_inventory"), failure))
+        return report
     protected = normalized_windows_directory(root)
-    found = []
-    for pid, identity in identities.items():
-        if pid in exempt or pid in (0, 4):  # Windows idle/kernel processes have no user cwd.
+    if not ntpath.isabs(protected) or not ntpath.splitdrive(protected)[0]:
+        report.observations.append(_unknown(_observation(None, "", None, "UNKNOWN", "invalid_root"),
+                                            stage="root", reason="invalid_root"))
+        return report
+    operator_sid = identities.get(current_pid, {}).get("sid")
+    if current_pid not in identities or current_pid not in processes:
+        report.observations.append(_unknown(_observation(current_pid, "", None, "UNKNOWN", "collector_missing"),
+                                            stage="inventory", reason="collector_missing"))
+    for pid in sorted(set(processes) | set(identities)):
+        record, identity = processes.get(pid), identities.get(pid)
+        name = (identity or {}).get("name", (record or {}).get("Name", ""))
+        created = _created(record)
+        item = _observation(pid, name, created, "UNKNOWN", "metadata_unavailable")
+        report.observations.append(item)
+        if pid in (0, 4):
+            item.update(state="EXCLUDED", reason="windows_idle_or_kernel")
             continue
-        name, sid = identity.get("name", ""), identity.get("sid")
-        require(isinstance(sid, str) and sid, "LEGACY_AUTHORS", "A process owner SID cannot be verified.")
-        record = processes.get(pid)
-        command = record.get("CommandLine") if record else None
-        if isinstance(command, str) and protected in ntpath.normcase(command):
-            found.append({"pid": pid, "name": name})
+        if pid == current_pid and record and identity:
+            item.update(state="EXCLUDED", reason="current_collector")
             continue
-        require(record and record.get("Name", "").casefold() == name.casefold()
-                and str(record.get("CreationTime", "")).isdigit(),
-                "LEGACY_AUTHORS", "A process has missing or changed identity metadata.")
-        # SID alone is insufficient: custom services also run as SYSTEM. Only
-        # an observed native Windows system executable may omit a cwd probe.
-        # A known interpreter/editor still requires one even under System32.
-        if sid != operator_sid and system_sid(sid) and not AUTHOR_NAME.fullmatch(name):
-            require(read_image and windows_directory, "LEGACY_AUTHORS", "System executable identity is unavailable.")
-            try:
-                executable = normalized_windows_directory(read_image(pid, int(record["CreationTime"])))
-            except ProcessLookupError:
-                continue
-            except (OSError, ValueError) as exc:
-                raise author_unknown() from exc
-            directories = [normalized_windows_directory(ntpath.join(windows_directory, name)) for name in ("System32", "SysWOW64")]
-            if ntpath.basename(executable) == name.casefold() and any(executable.startswith(path + "\\") for path in directories):
-                continue
-        require(isinstance(command, str) and command.strip(),
-                "LEGACY_AUTHORS", "An author process has missing or changed metadata.")
+        if created is None or not isinstance(name, str) or not name or not record:
+            _unknown(item, stage="CIM.Win32_Process", reason="missing_identity_metadata")
+            continue
+        if not read_identity:
+            _unknown(item, stage="identity", reason="identity_probe_unavailable")
+            continue
         try:
-            cwd = normalized_windows_directory(read_cwd(pid, int(record["CreationTime"])))
+            read_identity(pid, created)
         except ProcessLookupError:
-            continue  # A confirmed exited process cannot still write source files.
-        except (OSError, ValueError) as exc:
-            raise author_unknown() from exc
-        if cwd == protected or cwd.startswith(protected + "\\"):
-            found.append({"pid": pid, "name": name})
-    return found
+            item.update(state="EXCLUDED", reason="confirmed_exited")
+            continue
+        except (Blocked, OSError, ValueError) as failure:
+            _unknown(item, failure, stage="identity", reason="identity_unverifiable")
+            continue
+        if identity is None:
+            _unknown(item, stage="inventory", reason="process_missing_from_wts")
+            continue
+        if not isinstance(record.get("Name"), str) or record["Name"].casefold() != name.casefold():
+            _unknown(item, stage="inventory", reason="process_identity_changed")
+            continue
+        command = record.get("CommandLine")
+        command_known = isinstance(command, str) and bool(command.strip())
+        if command_known and protected in ntpath.normcase(command):
+            item.update(state="AUTHOR", reason="protected_path_in_command")
+            continue
+        sid = identity.get("sid")
+        # This retains the existing narrow native-system-image exception. Its
+        # SID and executable conditions are conjunctive, never name-only. If
+        # they cannot be observed, try the ordinary cwd/command proof instead.
+        image_failure = None
+        if (isinstance(operator_sid, str) and operator_sid and isinstance(sid, str) and sid
+                and sid != operator_sid and system_sid(sid) and not AUTHOR_NAME.fullmatch(name)):
+            if read_image and windows_directory:
+                try:
+                    executable = normalized_windows_directory(read_image(pid, created))
+                    directories = [normalized_windows_directory(ntpath.join(windows_directory, part))
+                                   for part in ("System32", "SysWOW64")]
+                    if (ntpath.basename(executable) == name.casefold()
+                            and any(executable.startswith(path + "\\") for path in directories)):
+                        item.update(state="EXCLUDED", reason="verified_native_system_image")
+                        continue
+                except ProcessLookupError:
+                    item.update(state="EXCLUDED", reason="confirmed_exited")
+                    continue
+                except (Blocked, OSError, ValueError) as failure:
+                    image_failure = failure
+        try:
+            directory = read_cwd(pid, created)
+            if not isinstance(directory, str) or not ntpath.isabs(directory) or not ntpath.splitdrive(directory)[0]:
+                raise WindowsProbeError("cwd", reason="invalid_current_directory")
+            cwd = normalized_windows_directory(directory)
+        except ProcessLookupError:
+            item.update(state="EXCLUDED", reason="confirmed_exited")
+            continue
+        except (Blocked, OSError, ValueError) as failure:
+            _unknown(item, failure, stage="cwd", reason="cwd_unverifiable")
+            if image_failure:
+                item["alternativeProofUnavailable"] = "native_system_image"
+            continue
+        if cwd == protected or cwd.startswith(protected.rstrip("\\") + "\\"):
+            item.update(state="AUTHOR", reason="protected_current_directory")
+        elif not command_known:
+            _unknown(item, stage="CIM.CommandLine", reason="command_line_unavailable")
+        else:
+            # Unlike an absent root string alone, this combines a real current
+            # directory with a command and creation-checked process identity.
+            item.update(state="EXCLUDED", reason="verified_unrelated_command_and_cwd")
+    return report
+
+
+def find_windows_authors(root, records, owners, exempt, read_cwd, *, current_pid,
+                         read_identity=None, read_image=None, windows_directory=None):
+    report = observe_windows_authors(root, records, owners, exempt, read_cwd, current_pid=current_pid,
+                                     read_identity=read_identity, read_image=read_image,
+                                     windows_directory=windows_directory)
+    if report.unknown:
+        raise WindowsAuthorBlocked(report)
+    return report.authors
 
 
 class WindowsProcessProbe:
     """Native APIs with bounded buffers and query/read rights only."""
 
     def __init__(self):
-        require(os.name == "nt" and ctypes.sizeof(ctypes.c_void_p) == 8
-                and platform.machine().casefold() in ("amd64", "x86_64"),
-                "LEGACY_AUTHORS", "Legacy Windows author attestation requires 64-bit x86 Python.")
+        if not (os.name == "nt" and ctypes.sizeof(ctypes.c_void_p) == 8
+                and platform.machine().casefold() in ("amd64", "x86_64")):
+            raise WindowsProbeError("platform", reason="requires_windows_x64_python")
         self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         self.advapi = ctypes.WinDLL("advapi32", use_last_error=True)
         self.ntdll = ctypes.WinDLL("ntdll", use_last_error=True)
@@ -158,6 +318,8 @@ class WindowsProcessProbe:
         self.kernel.OpenProcess.restype = wintypes.HANDLE
         self.kernel.CloseHandle.argtypes = [wintypes.HANDLE]
         self.kernel.CloseHandle.restype = wintypes.BOOL
+        self.kernel.GetCurrentProcess.argtypes = []
+        self.kernel.GetCurrentProcess.restype = wintypes.HANDLE
         self.kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
         self.kernel.GetExitCodeProcess.restype = wintypes.BOOL
         self.kernel.GetProcessTimes.argtypes = [wintypes.HANDLE, *([ctypes.POINTER(wintypes.FILETIME)] * 4)]
@@ -169,8 +331,9 @@ class WindowsProcessProbe:
         self.kernel.GetWindowsDirectoryW.restype = wintypes.UINT
         directory = ctypes.create_unicode_buffer(32768)
         length = self.kernel.GetWindowsDirectoryW(directory, len(directory))
-        require(0 < length < len(directory) and ntpath.isabs(directory.value),
-                "LEGACY_AUTHORS", "Cannot verify the native Windows system directory.")
+        if not 0 < length < len(directory) or not ntpath.isabs(directory.value):
+            raise WindowsProbeError("GetWindowsDirectoryW", winerror=ctypes.get_last_error(),
+                                    reason="windows_directory_unverifiable")
         self.windows_directory = directory.value
         self.kernel.ReadProcessMemory.argtypes = [wintypes.HANDLE, ctypes.c_void_p, ctypes.c_void_p,
                                                   ctypes.c_size_t, ctypes.POINTER(ctypes.c_size_t)]
@@ -182,6 +345,57 @@ class WindowsProcessProbe:
         self.advapi.IsValidSid.restype = wintypes.BOOL
         self.advapi.GetLengthSid.argtypes = [ctypes.c_void_p]
         self.advapi.GetLengthSid.restype = wintypes.DWORD
+        self.advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+        self.advapi.OpenProcessToken.restype = wintypes.BOOL
+        self.advapi.GetTokenInformation.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p,
+                                                   wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+        self.advapi.GetTokenInformation.restype = wintypes.BOOL
+        self.operator_context = self.check_operator_privileges()
+
+    def check_operator_privileges(self):
+        """Inspect the existing token; never enable, disable or impersonate it."""
+        class Luid(ctypes.Structure):
+            _fields_ = [("low", wintypes.DWORD), ("high", wintypes.LONG)]
+        self.advapi.LookupPrivilegeValueW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, ctypes.POINTER(Luid)]
+        self.advapi.LookupPrivilegeValueW.restype = wintypes.BOOL
+        token = wintypes.HANDLE()
+        if not self.advapi.OpenProcessToken(self.kernel.GetCurrentProcess(), TOKEN_QUERY, ctypes.byref(token)):
+            raise WindowsProbeError("OpenProcessToken(self)", TOKEN_QUERY, ctypes.get_last_error(), "operator_token_unavailable")
+        try:
+            required = wintypes.DWORD()
+            self.advapi.GetTokenInformation(token, 3, None, 0, ctypes.byref(required))  # TokenPrivileges
+            error = ctypes.get_last_error()
+            if error != 122 or not 4 <= required.value <= 65536:
+                raise WindowsProbeError("GetTokenInformation(TokenPrivileges)", TOKEN_QUERY, error, "operator_privileges_unavailable")
+            buffer = ctypes.create_string_buffer(required.value)
+            if not self.advapi.GetTokenInformation(token, 3, buffer, len(buffer), ctypes.byref(required)):
+                raise WindowsProbeError("GetTokenInformation(TokenPrivileges)", TOKEN_QUERY, ctypes.get_last_error(),
+                                        "operator_privileges_unavailable")
+            count = struct.unpack_from("<I", buffer.raw)[0]
+            if count > 1024 or 4 + count * 12 > required.value or required.value > len(buffer):
+                raise WindowsProbeError("GetTokenInformation(TokenPrivileges)", TOKEN_QUERY, reason="invalid_token_privileges")
+            debug = Luid()
+            if not self.advapi.LookupPrivilegeValueW(None, "SeDebugPrivilege", ctypes.byref(debug)):
+                raise WindowsProbeError("LookupPrivilegeValueW", winerror=ctypes.get_last_error(),
+                                        reason="debug_privilege_unverifiable")
+            present, enabled = False, False
+            for offset in range(4, 4 + count * 12, 12):
+                low, high, attributes = struct.unpack_from("<IiI", buffer.raw, offset)
+                if (low, high) == (debug.low, debug.high):
+                    present, enabled = True, bool(attributes & 0x00000002)
+            if enabled:
+                raise WindowsProbeError("GetTokenInformation(TokenPrivileges)", TOKEN_QUERY,
+                                        reason="debug_privilege_enabled")
+            elevation, size = wintypes.DWORD(), wintypes.DWORD()
+            if not self.advapi.GetTokenInformation(token, 20, ctypes.byref(elevation), ctypes.sizeof(elevation), ctypes.byref(size)):
+                raise WindowsProbeError("GetTokenInformation(TokenElevation)", TOKEN_QUERY, ctypes.get_last_error(),
+                                        "operator_elevation_unavailable")
+            if size.value != ctypes.sizeof(elevation):
+                raise WindowsProbeError("GetTokenInformation(TokenElevation)", TOKEN_QUERY, reason="invalid_token_elevation")
+            return {"tokenElevated": bool(elevation.value), "seDebugPrivilegePresent": present,
+                    "seDebugPrivilegeEnabled": False}
+        finally:
+            self.kernel.CloseHandle(token)
 
     def inventory(self):
         class ProcessInfo(ctypes.Structure):
@@ -194,8 +408,8 @@ class WindowsProcessProbe:
         self.wts.WTSEnumerateProcessesW.restype = wintypes.BOOL
         self.wts.WTSFreeMemory.argtypes = [ctypes.c_void_p]
         self.wts.WTSFreeMemory.restype = None
-        require(self.wts.WTSEnumerateProcessesW(None, 0, 1, ctypes.byref(values), ctypes.byref(count)),
-                "LEGACY_AUTHORS", "Cannot enumerate Windows process owners without changing privileges.")
+        if not self.wts.WTSEnumerateProcessesW(None, 0, 1, ctypes.byref(values), ctypes.byref(count)):
+            raise WindowsProbeError("WTSEnumerateProcessesW", winerror=ctypes.get_last_error(), reason="inventory_unavailable")
         try:
             require(0 < count.value <= 100000, "LEGACY_AUTHORS", "Invalid Windows process inventory size.")
             result = []
@@ -215,78 +429,216 @@ class WindowsProcessProbe:
         finally:
             self.wts.WTSFreeMemory(values)
 
-    def check_creation(self, handle, creation_time):
+    def check_creation(self, handle, creation_time, rights=QUERY_LIMITED_INFORMATION):
         times = [wintypes.FILETIME() for _ in range(4)]
-        require(self.kernel.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)),
-                "LEGACY_AUTHORS", "Cannot verify process creation time.")
+        if not self.kernel.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+            raise WindowsProbeError("GetProcessTimes", rights, ctypes.get_last_error(), "creation_time_unavailable")
         actual_created = (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
         # CIM dates have microsecond precision; FILETIME uses 100 ns ticks.
-        require(actual_created // 10 == creation_time // 10,
-                "LEGACY_AUTHORS", "A process ID was reused after the author inventory.")
+        if actual_created // 10 != creation_time // 10:
+            raise WindowsProbeError("GetProcessTimes", rights, reason="pid_reused")
+
+    def _open(self, pid, creation_time, rights):
+        if not (type(pid) is int and 4 < pid <= 0xFFFFFFFF and type(creation_time) is int
+                and 0 < creation_time < (1 << 64)):
+            raise WindowsProbeError("identity", rights, reason="invalid_process_identity")
+        handle = self.kernel.OpenProcess(rights, False, pid)
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == 87:  # A validated, previously enumerated PID no longer exists.
+                raise ProcessLookupError(pid)
+            raise WindowsProbeError("OpenProcess", rights, error, "process_handle_unavailable")
+        return handle
+
+    def _alive(self, handle, rights):
+        code = wintypes.DWORD()
+        if not self.kernel.GetExitCodeProcess(handle, ctypes.byref(code)):
+            raise WindowsProbeError("GetExitCodeProcess", rights, ctypes.get_last_error(), "process_lifetime_unavailable")
+        if code.value != 259:
+            raise ProcessLookupError()
+
+    def identity(self, pid, creation_time):
+        handle = self._open(pid, creation_time, QUERY_LIMITED_INFORMATION)
+        try:
+            self._alive(handle, QUERY_LIMITED_INFORMATION)
+            self.check_creation(handle, creation_time)
+            self._alive(handle, QUERY_LIMITED_INFORMATION)
+        finally:
+            self.kernel.CloseHandle(handle)
 
     def image(self, pid, creation_time):
-        handle = self.kernel.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
-        if not handle:
-            if ctypes.get_last_error() == 87:
-                raise ProcessLookupError(pid)
-            raise author_unknown()
+        handle = self._open(pid, creation_time, QUERY_LIMITED_INFORMATION)
         try:
+            self._alive(handle, QUERY_LIMITED_INFORMATION)
             self.check_creation(handle, creation_time)
             value = ctypes.create_unicode_buffer(32768)
             length = wintypes.DWORD(len(value))
-            require(self.kernel.QueryFullProcessImageNameW(handle, 0, value, ctypes.byref(length))
-                    and 0 < length.value < len(value) and ntpath.isabs(value.value),
-                    "LEGACY_AUTHORS", "Cannot attest the executable of a system-owned process.")
+            if not self.kernel.QueryFullProcessImageNameW(handle, 0, value, ctypes.byref(length)):
+                raise WindowsProbeError("QueryFullProcessImageNameW", QUERY_LIMITED_INFORMATION, ctypes.get_last_error(),
+                                        "executable_unavailable")
+            if not 0 < length.value < len(value) or not ntpath.isabs(value.value):
+                raise WindowsProbeError("QueryFullProcessImageNameW", QUERY_LIMITED_INFORMATION, reason="invalid_executable_path")
+            self._alive(handle, QUERY_LIMITED_INFORMATION)
             return value.value
         finally:
             self.kernel.CloseHandle(handle)
 
     def cwd(self, pid, creation_time):
-        require(type(pid) is int and pid > 4 and type(creation_time) is int and creation_time > 0,
-                "LEGACY_AUTHORS", "Invalid process identity for author attestation.")
-        handle = self.kernel.OpenProcess(0x0400 | 0x0010, False, pid)  # QUERY_INFORMATION | VM_READ
-        if not handle:
-            if ctypes.get_last_error() == 87:  # PID no longer exists.
-                raise ProcessLookupError(pid)
-            raise author_unknown()
+        handle = self._open(pid, creation_time, QUERY_DIRECTORY)
         try:
-            def still_alive():
-                code = wintypes.DWORD()
-                require(self.kernel.GetExitCodeProcess(handle, ctypes.byref(code)),
-                        "LEGACY_AUTHORS", "Cannot check process lifetime during author attestation.")
-                if code.value != 259:
-                    raise ProcessLookupError(pid)
-            still_alive()
-            self.check_creation(handle, creation_time)
+            self._alive(handle, QUERY_DIRECTORY)
+            self.check_creation(handle, creation_time, QUERY_DIRECTORY)
             returned = wintypes.ULONG()
             wow64 = ctypes.c_size_t()
-            require(self.ntdll.NtQueryInformationProcess(handle, 26, ctypes.byref(wow64),
-                    ctypes.sizeof(wow64), ctypes.byref(returned)) >= 0,
-                    "LEGACY_AUTHORS", "Cannot verify Windows process pointer width.")
+            status = self.ntdll.NtQueryInformationProcess(handle, 26, ctypes.byref(wow64),
+                                                         ctypes.sizeof(wow64), ctypes.byref(returned))
+            if status < 0:
+                raise WindowsProbeError("NtQueryInformationProcess(ProcessWow64Information)", QUERY_DIRECTORY,
+                                        reason="process_pointer_width_unavailable", ntstatus=status & 0xFFFFFFFF)
             if wow64.value:
                 peb, width = wow64.value, 4
             else:
                 basic = ctypes.create_string_buffer(48)
-                require(self.ntdll.NtQueryInformationProcess(handle, 0, basic, len(basic), ctypes.byref(returned)) >= 0,
-                        "LEGACY_AUTHORS", "Cannot locate Windows process parameters.")
+                status = self.ntdll.NtQueryInformationProcess(handle, 0, basic, len(basic), ctypes.byref(returned))
+                if status < 0:
+                    raise WindowsProbeError("NtQueryInformationProcess(ProcessBasicInformation)", QUERY_DIRECTORY,
+                                            reason="process_parameters_unavailable", ntstatus=status & 0xFFFFFFFF)
                 peb, width = struct.unpack_from("<Q", basic.raw, 8)[0], 8
             def read(address, size):
                 buffer, received = ctypes.create_string_buffer(size), ctypes.c_size_t()
                 if not self.kernel.ReadProcessMemory(handle, address, buffer, size, ctypes.byref(received)):
-                    still_alive()
-                    raise author_unknown()
-                require(received.value == size, "LEGACY_AUTHORS", "Incomplete Windows process-directory read.")
+                    error = ctypes.get_last_error()
+                    self._alive(handle, QUERY_DIRECTORY)
+                    raise WindowsProbeError("ReadProcessMemory(CurrentDirectory)", QUERY_DIRECTORY, error,
+                                            "current_directory_unavailable")
+                if received.value != size:
+                    raise WindowsProbeError("ReadProcessMemory(CurrentDirectory)", QUERY_DIRECTORY,
+                                            reason="incomplete_current_directory_read")
                 return buffer.raw
-            directory = read_peb_cwd(read, peb, width)
-            still_alive()
-            resolved = Path(directory).resolve(strict=True)
-            require(resolved.is_dir(), "LEGACY_AUTHORS", "The observed process current directory is not a directory.")
+            try:
+                directory = read_peb_cwd(read, peb, width)
+            except WindowsProbeError:
+                raise
+            except (Blocked, ValueError, struct.error):
+                raise WindowsProbeError("ReadProcessMemory(CurrentDirectory)", QUERY_DIRECTORY,
+                                        reason="current_directory_changed_or_invalid") from None
+            self._alive(handle, QUERY_DIRECTORY)
+            try:
+                resolved = Path(directory).resolve(strict=True)
+                if not resolved.is_dir():
+                    raise WindowsProbeError("ResolveCurrentDirectory", reason="current_directory_not_directory")
+            except OSError as failure:
+                raise WindowsProbeError("ResolveCurrentDirectory", winerror=getattr(failure, "winerror", None),
+                                        reason="current_directory_unresolvable") from None
+            self._alive(handle, QUERY_DIRECTORY)
             return str(resolved)
         finally:
             self.kernel.CloseHandle(handle)
 
 
-def windows_active_authors(root, records, exempt):
-    probe = WindowsProcessProbe()
-    return find_windows_authors(root, records, probe.inventory(), exempt, probe.cwd, current_pid=os.getpid(),
-                                read_image=probe.image, windows_directory=probe.windows_directory)
+def _finish_inventory(report, records, owners, probe):
+    """A new process or reused PID after the scan is UNKNOWN, never a clean result."""
+    try:
+        final = _index(probe.inventory(), "pid")
+        initial, processes = _index(owners, "pid"), _index(records, "ProcessId")
+    except (Blocked, OSError, ValueError) as failure:
+        report.observations.append(_unknown(_observation(None, "", None, "UNKNOWN", "final_inventory_unavailable"),
+                                            failure, stage="inventory", reason="final_inventory_unavailable"))
+        return
+    if os.getpid() not in final:
+        report.observations.append(_unknown(_observation(None, "", None, "UNKNOWN", "collector_missing"),
+                                            stage="inventory", reason="collector_missing_from_final_inventory"))
+    observed_pids = {item["pid"] for item in report.observations}
+    for pid in sorted(set(final) - set(initial)):
+        if pid in (0, 4, os.getpid()):
+            continue
+        # A previously recorded CIM PID can also have vanished and reappeared.
+        item = next((item for item in report.observations if item["pid"] == pid), None)
+        if item is None:
+            item = _observation(pid, final[pid].get("name", ""), None, "UNKNOWN", "process_appeared_during_scan")
+            report.observations.append(item)
+        _unknown(item, stage="inventory", reason="process_appeared_during_scan")
+    for item in report.observations:
+        pid = item["pid"]
+        if pid in (None, 0, 4, os.getpid()) or pid not in observed_pids or item["state"] == "UNKNOWN":
+            continue
+        if item["reason"] == "confirmed_exited" and pid not in final:
+            continue
+        created = _created(processes.get(pid))
+        if created is None:
+            _unknown(item, stage="inventory", reason="missing_identity_metadata")
+            continue
+        try:
+            probe.identity(pid, created)
+        except ProcessLookupError:
+            item.update(state="EXCLUDED", reason="confirmed_exited")
+            continue
+        except (Blocked, OSError, ValueError) as failure:
+            _unknown(item, failure, stage="identity", reason="final_identity_unverifiable")
+            continue
+        if pid not in final or pid not in initial:
+            _unknown(item, stage="inventory", reason="process_inventory_changed")
+        elif any(final[pid].get(key) != initial[pid].get(key) for key in ("name", "sid")):
+            _unknown(item, stage="inventory", reason="process_identity_changed")
+        elif item["reason"] == "confirmed_exited":
+            _unknown(item, stage="inventory", reason="process_reappeared_after_exit")
+
+
+def collect_windows_records():
+    try:
+        result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", CIM_PROCESS_SCRIPT],
+                                capture_output=True, text=True, encoding="utf-8", check=True, timeout=45)
+        records = json.loads(result.stdout)
+        if isinstance(records, dict):
+            records = [records]
+        _index(records, "ProcessId")
+        return records
+    except (subprocess.SubprocessError, OSError, ValueError, WindowsProbeError):
+        raise WindowsProbeError("CIM.Win32_Process", reason="metadata_collection_failed") from None
+
+
+def windows_active_authors(root, records=None, exempt=(), *, report_only=False):
+    """The production entrypoint and read-only diagnostic use the same full scan."""
+    try:
+        probe = WindowsProcessProbe()
+        if records is None:
+            records = collect_windows_records()
+        owners = probe.inventory()
+        report = observe_windows_authors(root, records, owners, exempt, probe.cwd, current_pid=os.getpid(),
+                                          read_identity=probe.identity, read_image=probe.image,
+                                          windows_directory=probe.windows_directory)
+        context = getattr(probe, "operator_context", {})
+        if isinstance(context, dict):
+            report.operator_context = context
+        _finish_inventory(report, records, owners, probe)
+    except (Blocked, OSError, ValueError) as failure:
+        report = WindowsAuthorReport([_unknown(_observation(None, "", None, "UNKNOWN", "collector_unavailable"),
+                                               failure, stage="collector", reason="collector_unavailable")])
+    if report_only:
+        return report
+    if report.unknown:
+        raise WindowsAuthorBlocked(report)
+    return report.authors
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Read-only Windows author diagnosis; never changes privileges or processes.")
+    parser.add_argument("--root", required=True, help="Absolute protected installation directory")
+    parser.add_argument("--diagnose", required=True, action="store_true", help="Print only safe author observations")
+    args = parser.parse_args(argv)
+    root = Path(args.root)
+    try:
+        if not root.is_absolute() or not root.is_dir():
+            report = WindowsAuthorReport([_unknown(_observation(None, "", None, "UNKNOWN", "invalid_root"),
+                                                   stage="root", reason="invalid_root")])
+        else:
+            report = windows_active_authors(root.resolve(strict=True), report_only=True)
+    except (Blocked, OSError, ValueError):
+        report = WindowsAuthorReport([_unknown(_observation(None, "", None, "UNKNOWN", "invalid_root"),
+                                               stage="root", reason="root_unresolvable")])
+    print(json.dumps(report.as_dict(), ensure_ascii=True, sort_keys=True))
+    return 2 if report.unknown or report.authors else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

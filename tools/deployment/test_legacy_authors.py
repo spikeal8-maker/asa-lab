@@ -12,7 +12,8 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import Blocked
-from deployment.legacy_authors import (CIM_PROCESS_SCRIPT, WindowsProcessProbe, find_windows_authors,
+from deployment.legacy_authors import (CIM_PROCESS_SCRIPT, WindowsProcessProbe, WindowsProbeError,
+                                       WindowsAuthorBlocked, find_windows_authors, observe_windows_authors,
                                        read_peb_cwd, windows_active_authors)
 
 
@@ -67,127 +68,401 @@ class DirectoryLayoutTests(unittest.TestCase):
                 read_peb_cwd(read, peb, 8)
 
 
-class AuthorInventoryTests(unittest.TestCase):
+class AuthorFixture:
     root = r"C:\Users\operator\ASA-lab"
     sid = "S-1-5-21-1-2-3-1001"
+    created = 134000000000000000
+    current_pid = 10
+
+    def record(self, pid, name="python.exe", command="python watcher.py", **values):
+        return {"ProcessId": pid, "ParentProcessId": 10, "Name": name,
+                "CommandLine": command, "CreationTime": str(self.created + pid * 100), **values}
 
     def fixtures(self, *, name="python.exe", command="python watcher.py", sid=None):
-        records = [{"ProcessId": 30, "ParentProcessId": 10, "Name": name,
-                    "CommandLine": command, "CreationTime": "134000000000000000"}]
+        records = [self.record(10), self.record(30, name, command)]
         owners = [{"pid": 10, "name": "python.exe", "sid": self.sid},
                   {"pid": 30, "name": name, "sid": self.sid if sid is None else sid}]
         return records, owners
 
-    def check(self, records, owners, read, exempt=None):
-        return find_windows_authors(self.root, records, owners, {10} if exempt is None else exempt,
-                                    read, current_pid=10, windows_directory=r"C:\Windows",
-                                    read_image=lambda pid, created: ntpath.join(r"C:\Windows\System32", owners[1]["name"]))
+    def observe(self, records, owners, read=None, **kwargs):
+        return observe_windows_authors(
+            self.root, records, owners, kwargs.pop("exempt", {10}), read or Mock(return_value=r"C:\unrelated"),
+            current_pid=10, read_identity=kwargs.pop("read_identity", Mock()),
+            windows_directory=r"C:\Windows", read_image=kwargs.pop("read_image", Mock(return_value=r"C:\Windows\System32\svchost.exe")),
+            **kwargs)
 
+    def probe(self, owners):
+        probe = Mock(windows_directory=r"C:\Windows")
+        probe.operator_context = {"tokenElevated": False, "seDebugPrivilegeEnabled": False}
+        probe.inventory.return_value = owners
+        probe.cwd.return_value = r"C:\unrelated"
+        probe.image.return_value = r"C:\Windows\System32\svchost.exe"
+        return probe
+
+    def scan(self, records, probe, *, enforce=False, exempt=None):
+        with patch("deployment.legacy_authors.WindowsProcessProbe", return_value=probe), \
+                patch("deployment.legacy_authors.os.getpid", return_value=10):
+            return windows_active_authors(self.root, records, {10} if exempt is None else exempt,
+                                          report_only=not enforce)
+
+    def observation(self, report, pid):
+        values = [item for item in report.observations if item.get("pid") == pid]
+        self.assertTrue(values, f"No observation for PID {pid}")
+        return values
+
+
+class AuthorInventoryTests(AuthorFixture, unittest.TestCase):
     def test_relative_command_in_live_cwd_is_an_active_author(self):
         records, owners = self.fixtures()
         read = Mock(return_value=self.root + r"\apps\api")
-        self.assertEqual(self.check(records, owners, read), [{"pid": 30, "name": "python.exe"}])
-        read.assert_called_once_with(30, 134000000000000000)
+        identity = Mock()
+        report = self.observe(records, owners, read, read_identity=identity)
+        self.assertEqual(report.authors, [{"pid": 30, "name": "python.exe"}])
+        self.assertFalse(report.unknown)
+        identity.assert_called_once_with(30, self.created + 3000)
+        read.assert_called_once_with(30, self.created + 3000)
 
-    def test_arbitrarily_named_same_user_process_is_also_checked(self):
+    def test_arbitrary_process_denied_cwd_is_unknown_even_with_unrelated_command(self):
         records, owners = self.fixtures(name="custom-tool.exe", command="custom-tool")
-        with self.assertRaises(Blocked):
-            self.check(records, owners, Mock(side_effect=PermissionError("private process")))
-        self.assertEqual(self.check(records, owners, Mock(return_value=self.root)),
+        report = self.observe(records, owners, Mock(side_effect=PermissionError("private detail must not leak")))
+        self.assertEqual([item["pid"] for item in report.unknown], [30])
+        self.assertNotIn("private detail", json.dumps(report.as_dict()))
+        self.assertEqual(self.observe(records, owners, Mock(return_value=self.root)).authors,
                          [{"pid": 30, "name": "custom-tool.exe"}])
 
-    def test_unknown_sid_missing_command_and_new_process_fail_closed(self):
-        for case in ("sid", "command", "record", "time", "name"):
-            records, owners = self.fixtures(name="custom.exe", command="custom")
-            if case == "sid": owners[1]["sid"] = None
-            if case == "command": records[0]["CommandLine"] = None
-            if case == "record": records.clear()
-            if case == "time": records[0]["CreationTime"] = None
-            if case == "name": owners[1]["name"] = "different.exe"
-            with self.subTest(case=case), self.assertRaises(Blocked):
-                self.check(records, owners, Mock(return_value=r"C:\unrelated"))
+    def test_sid_is_not_required_to_detect_a_creation_checked_author(self):
+        records, owners = self.fixtures(command="editor " + self.root + r"\file.py")
+        owners[1]["sid"] = None
+        identity = Mock()
+        report = self.observe(records, owners, read_identity=identity)
+        self.assertEqual(report.authors, [{"pid": 30, "name": "python.exe"}])
+        self.assertFalse(report.unknown)
+        identity.assert_called_once_with(30, self.created + 3000)
 
-    def test_system_owner_exemption_does_not_apply_to_writer_or_same_user(self):
-        read = Mock(side_effect=PermissionError())
+    def test_missing_sid_never_substitutes_for_command_cwd_or_lifetime(self):
+        records, owners = self.fixtures()
+        owners[1]["sid"] = None
+        report = self.observe(records, owners)
+        self.assertFalse(report.unknown)
+        excluded = self.observation(report, 30)
+        self.assertTrue(all(item["state"] == "EXCLUDED" for item in excluded))
+        self.assertTrue(all(item.get("reason") for item in excluded))
+        for missing in ("command", "cwd", "identity"):
+            current = [dict(item) for item in records]
+            kwargs = {}
+            read = Mock(return_value=r"C:\outside")
+            if missing == "command": current[1]["CommandLine"] = None
+            if missing == "cwd": read.side_effect = PermissionError()
+            if missing == "identity": kwargs["read_identity"] = Mock(side_effect=PermissionError())
+            with self.subTest(missing=missing):
+                self.assertEqual([item["pid"] for item in self.observe(current, owners, read, **kwargs).unknown], [30])
+
+    def test_missing_changed_or_duplicate_identity_metadata_fails_closed(self):
+        for case in ("record", "time", "name", "duplicate_owner", "duplicate_record"):
+            records, owners = self.fixtures(name="custom.exe", command="custom")
+            if case == "record": records.pop()
+            if case == "time": records[1]["CreationTime"] = None
+            if case == "name": owners[1]["name"] = "different.exe"
+            if case == "duplicate_owner": owners.append(dict(owners[1]))
+            if case == "duplicate_record": records.append(dict(records[1]))
+            with self.subTest(case=case):
+                try:
+                    report = self.observe(records, owners)
+                except Blocked:
+                    continue
+                self.assertTrue(report.unknown)
+
+    def test_verified_system_role_has_full_image_and_lifetime_evidence(self):
         records, owners = self.fixtures(name="svchost.exe", command=None, sid="S-1-5-18")
-        self.assertEqual(self.check(records, owners, read), [])
+        read = Mock(side_effect=PermissionError())
+        identity, image = Mock(), Mock(return_value=r"C:\Windows\System32\svchost.exe")
+        report = self.observe(records, owners, read, read_identity=identity, read_image=image)
+        self.assertFalse(report.unknown)
+        self.assertEqual(self.observation(report, 30)[0]["state"], "EXCLUDED")
+        identity.assert_called_once_with(30, self.created + 3000)
+        image.assert_called_once_with(30, self.created + 3000)
         read.assert_not_called()
         for sid, name in (("S-1-5-18", "python.exe"), (self.sid, "svchost.exe")):
             records, owners = self.fixtures(name=name, command=None, sid=sid)
-            with self.subTest(sid=sid, name=name), self.assertRaises(Blocked):
-                self.check(records, owners, read)
+            with self.subTest(sid=sid, name=name):
+                self.assertTrue(self.observe(records, owners, read).unknown)
 
-    def test_root_in_command_and_boundary_of_unrelated_cwd(self):
-        records, owners = self.fixtures(command="editor " + self.root + r"\file.py")
-        read = Mock()
-        self.assertEqual(self.check(records, owners, read), [{"pid": 30, "name": "python.exe"}])
-        read.assert_not_called()
-        records, owners = self.fixtures()
-        self.assertEqual(self.check(records, owners, Mock(return_value=self.root + "-neighbour")), [])
-        self.assertEqual(self.check(records, owners, Mock(return_value="\\\\?\\" + self.root)),
-                         [{"pid": 30, "name": "python.exe"}])
-
-    def test_system_sid_with_custom_or_unverified_executable_does_not_exempt_author(self):
+    def test_system_name_sid_or_path_alone_never_excludes_a_process(self):
         records, owners = self.fixtures(name="custom.exe", command=None, sid="S-1-5-18")
         for image in (r"C:\Program Files\Custom\custom.exe", r"C:\Windows\System32-foreign\custom.exe",
                       r"C:\Windows\System32\other.exe"):
-            with self.subTest(image=image), self.assertRaises(Blocked):
-                find_windows_authors(self.root, records, owners, {10}, Mock(), current_pid=10,
-                                     windows_directory=r"C:\Windows", read_image=Mock(return_value=image))
-        with self.assertRaises(Blocked):
-            find_windows_authors(self.root, records, owners, {10}, Mock(), current_pid=10,
-                                 windows_directory=r"C:\Windows", read_image=Mock(side_effect=PermissionError()))
+            with self.subTest(image=image):
+                self.assertTrue(self.observe(records, owners, read_image=Mock(return_value=image)).unknown)
+        self.assertTrue(self.observe(records, owners, read_image=Mock(side_effect=PermissionError())).unknown)
 
-    def test_only_confirmed_exited_process_or_invocation_ancestor_is_exempt(self):
+    def test_cwd_boundary_and_extended_windows_path(self):
         records, owners = self.fixtures()
-        self.assertEqual(self.check(records, owners, Mock(side_effect=ProcessLookupError())), [])
-        read = Mock(side_effect=PermissionError())
-        self.assertEqual(self.check(records, owners, read, {10, 30}), [])
-        read.assert_not_called()
-        with self.assertRaises(Blocked):
-            self.check(records, owners, Mock(side_effect=PermissionError()))
+        self.assertFalse(self.observe(records, owners, Mock(return_value=self.root + "-neighbour")).authors)
+        self.assertEqual(self.observe(records, owners, Mock(return_value="\\\\?\\" + self.root)).authors,
+                         [{"pid": 30, "name": "python.exe"}])
 
-    def test_unverified_current_operator_and_unsupported_manager_fail_closed(self):
+    def test_only_proven_exit_is_excluded_not_access_denied_or_reused_pid(self):
         records, owners = self.fixtures()
-        owners[0]["sid"] = None
-        with self.assertRaises(Blocked):
-            self.check(records, owners, Mock())
-        with patch("deployment.legacy_authors.ctypes.sizeof", return_value=4), self.assertRaises(Blocked):
-            WindowsProcessProbe()
+        report = self.observe(records, owners, read_identity=Mock(side_effect=ProcessLookupError()))
+        self.assertFalse(report.unknown)
+        self.assertTrue(any("exit" in item["reason"] for item in self.observation(report, 30)))
+        for problem in (PermissionError(), Blocked("LEGACY_AUTHORS", "PID reused", "Repeat read-only observation")):
+            with self.subTest(problem=type(problem).__name__):
+                self.assertEqual([item["pid"] for item in self.observe(records, owners, read_identity=Mock(side_effect=problem)).unknown], [30])
+
+    def test_invocation_editor_ancestor_and_reused_ancestor_are_not_exempt(self):
+        records, owners = self.fixtures(name="Code.exe", command="Code.exe " + self.root)
+        self.assertEqual(self.observe(records, owners, exempt={10, 30}).authors, [{"pid": 30, "name": "Code.exe"}])
+        report = self.observe(records, owners, exempt={10, 30}, read_identity=Mock(side_effect=PermissionError()))
+        self.assertEqual([item["pid"] for item in report.unknown], [30])
+
+    def test_missing_identity_probe_cannot_claim_a_verified_exclusion(self):
+        records, owners = self.fixtures()
+        self.assertTrue(self.observe(records, owners, read_identity=None).unknown)
+
+    def test_error_identifies_requested_right_without_exposing_process_contents(self):
+        records, owners = self.fixtures()
+        error = WindowsProbeError(stage="OpenProcess", rights=0x1000, winerror=5, reason="identity_unavailable")
+        report = self.observe(records, owners, read_identity=Mock(side_effect=error))
+        observed = report.unknown[0]
+        self.assertEqual(observed["stage"], "OpenProcess")
+        self.assertEqual(observed["rights"], 0x1000)
+        self.assertEqual(observed["winerror"], 5)
+        self.assertEqual(str(observed["creationTime"]), records[1]["CreationTime"])
+        encoded = json.dumps(report.as_dict())
+        self.assertNotIn("watcher.py", encoded)
+        self.assertNotIn(self.root, encoded)
+
+
+class OperatorContextTests(unittest.TestCase):
+    def fake_probe(self, enabled):
+        probe = object.__new__(WindowsProcessProbe)
+        probe.kernel, probe.advapi = Mock(), Mock()
+        probe.kernel.GetCurrentProcess.return_value = 77
+        def open_token(handle, rights, output):
+            self.assertEqual(rights, 0x0008)
+            output._obj.value = 88
+            return 1
+        def lookup(machine, name, output):
+            self.assertIsNone(machine)
+            self.assertEqual(name, "SeDebugPrivilege")
+            output._obj.low, output._obj.high = 20, 0
+            return 1
+        def information(token, kind, output, size, required):
+            if kind == 3:
+                payload = struct.pack("<IIiI", 1, 20, 0, 2 if enabled else 0)
+                required._obj.value = len(payload)
+                if output is None: return 0
+                ctypes.memmove(output, payload, len(payload))
+                return 1
+            self.assertEqual(kind, 20)
+            output._obj.value = 1
+            required._obj.value = ctypes.sizeof(output._obj)
+            return 1
+        probe.advapi.OpenProcessToken.side_effect = open_token
+        probe.advapi.LookupPrivilegeValueW.side_effect = lookup
+        probe.advapi.GetTokenInformation.side_effect = information
+        return probe
+
+    def test_enabled_debug_privilege_stops_without_adjusting_the_token(self):
+        probe = self.fake_probe(True)
+        with patch("deployment.legacy_authors.ctypes.get_last_error", return_value=122, create=True), \
+                self.assertRaises(WindowsProbeError) as failure:
+            probe.check_operator_privileges()
+        self.assertEqual(failure.exception.reason, "debug_privilege_enabled")
+        probe.advapi.AdjustTokenPrivileges.assert_not_called()
+        probe.kernel.OpenProcess.assert_not_called()
+        probe.kernel.CloseHandle.assert_called_once()
+
+    def test_elevation_and_disabled_debug_are_reported_without_adjustment(self):
+        probe = self.fake_probe(False)
+        with patch("deployment.legacy_authors.ctypes.get_last_error", return_value=122, create=True):
+            context = probe.check_operator_privileges()
+        self.assertTrue(context["tokenElevated"])
+        self.assertTrue(context["seDebugPrivilegePresent"])
+        self.assertFalse(context["seDebugPrivilegeEnabled"])
+        probe.advapi.AdjustTokenPrivileges.assert_not_called()
+        probe.kernel.CloseHandle.assert_called_once()
+
+
+class ProductionEntrypointTests(AuthorFixture, unittest.TestCase):
+    def background(self):
+        records = [self.record(10), self.record(20, "svchost.exe", None),
+                   self.record(21, "RuntimeBroker.exe", "RuntimeBroker.exe"),
+                   self.record(22, "explorer.exe", "explorer.exe"), self.record(23, "node.exe", "node worker.js")]
+        owners = [{"pid": item["ProcessId"], "name": item["Name"],
+                   "sid": "S-1-5-18" if item["ProcessId"] == 20 else self.sid} for item in records]
+        return records, owners
+
+    def test_full_production_entrypoint_classifies_a_mixed_windows_background(self):
+        records, owners = self.background()
+        probe = self.probe(owners)
+        report = self.scan(records, probe)
+        self.assertEqual({item["pid"] for item in report.observations}, {10, 20, 21, 22, 23})
+        self.assertFalse(report.authors)
+        self.assertFalse(report.unknown)
+        self.assertEqual(self.scan(records, probe, enforce=True), [])
+        self.assertGreaterEqual(probe.inventory.call_count, 4)
+        self.assertTrue(all(item.get("reason") for item in report.observations))
+
+    def test_unknown_background_does_not_mask_a_controlled_relative_author(self):
+        records, owners = self.background()
+        records += [self.record(30), self.record(31, "private.exe", None)]
+        owners += [{"pid": 30, "name": "python.exe", "sid": self.sid}, {"pid": 31, "name": "private.exe", "sid": None}]
+        probe = self.probe(owners)
+        probe.cwd.side_effect = lambda pid, created: self.root if pid == 30 else r"C:\outside"
+        def identity(pid, created):
+            if pid == 31: raise WindowsProbeError(stage="OpenProcess", rights=0x1000, winerror=5)
+        probe.identity.side_effect = identity
+        with self.assertRaises(WindowsAuthorBlocked) as failure:
+            self.scan(records, probe, enforce=True)
+        report = failure.exception.report
+        self.assertEqual(report.authors, [{"pid": 30, "name": "python.exe"}])
+        self.assertEqual([item["pid"] for item in report.unknown], [31])
+        self.assertIn("31", str(failure.exception))
+
+    def test_new_process_during_inventory_and_same_name_pid_reuse_block(self):
+        records, owners = self.background()
+        probe = self.probe(owners)
+        probe.inventory.side_effect = [owners, owners + [{"pid": 50, "name": "python.exe", "sid": self.sid}]]
+        with self.assertRaises(WindowsAuthorBlocked):
+            self.scan(records, probe, enforce=True)
+        probe = self.probe(owners)
+        calls = {}
+        def reused(pid, created):
+            calls[pid] = calls.get(pid, 0) + 1
+            if pid == 23 and calls[pid] > 1:
+                raise WindowsProbeError(stage="GetProcessTimes", reason="pid_reused")
+        probe.identity.side_effect = reused
+        with self.assertRaises(WindowsAuthorBlocked) as failure:
+            self.scan(records, probe, enforce=True)
+        self.assertTrue(any(item.get("pid") == 23 for item in failure.exception.report.unknown))
+
+    def test_cim_process_missing_from_wts_requires_confirmed_exit(self):
+        records, owners = self.background()
+        records.append(self.record(50))
+        probe = self.probe(owners)
+        with self.assertRaises(WindowsAuthorBlocked):
+            self.scan(records, probe, enforce=True)
+        probe.identity.side_effect = lambda pid, created: (_ for _ in ()).throw(ProcessLookupError()) if pid == 50 else None
+        report = self.scan(records, probe)
+        self.assertFalse(report.unknown)
+        self.assertTrue(any(item.get("pid") == 50 and "exit" in item["reason"] for item in report.observations))
+
+    def test_author_appearing_after_plan_stops_actual_apply_before_backup(self):
+        from deployment import legacy
+        from deployment.test_legacy_transition import TransitionOrderingTests
+        records, owners = self.background()
+        probe = self.probe(owners)
+        self.assertEqual(self.scan(records, probe, enforce=True), [])
+        records.append(self.record(30))
+        owners.append({"pid": 30, "name": "python.exe", "sid": self.sid})
+        probe.cwd.side_effect = lambda pid, created: self.root if pid == 30 else r"C:\outside"
+        fixture = TransitionOrderingTests()
+        with fixture.fixture() as (root, path, private, events, install):
+            def revalidate(*args, **kwargs):
+                authors = self.scan(records, probe, enforce=True)
+                if authors: raise Blocked("LEGACY_AUTHOR", "New source author", "Save the active work first")
+            install.revalidate.side_effect = revalidate
+            with self.assertRaises(Blocked) as failure:
+                legacy.apply_plan(root, path, output=private, database="legacy_test", object_sandbox=True)
+            self.assertEqual(failure.exception.code, "LEGACY_AUTHOR")
+            self.assertNotIn("full_backup", events)
+            self.assertNotIn("source_switch", events)
+            self.assertNotIn("live_migration", events)
 
 
 @unittest.skipUnless(os.name == "nt" and ctypes.sizeof(ctypes.c_void_p) == 8, "Real Windows x64 process APIs are required")
 class NativeWindowsAuthorTests(unittest.TestCase):
-    def test_real_relative_child_directory_and_owner_are_observed(self):
+    def records(self):
+        output = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", CIM_PROCESS_SCRIPT],
+                                capture_output=True, text=True, encoding="utf-8", check=True, timeout=60)
+        value = json.loads(output.stdout)
+        return value if isinstance(value, list) else [value]
+
+    def full_scan(self, root, records=None):
+        probe = WindowsProcessProbe()
+        native_inventory = probe.inventory
+        snapshots = []
+        def inventory():
+            observed = native_inventory()
+            snapshots.append(observed)
+            return observed
+        # Instrument the complete native inventory; never select only our PIDs.
+        with patch("deployment.legacy_authors.WindowsProcessProbe", return_value=probe), \
+                patch.object(probe, "inventory", side_effect=inventory):
+            report = windows_active_authors(root, records, {os.getpid()}, report_only=True)
+        self.assertGreaterEqual(len(snapshots), 2)
+        self.assertGreater(len(snapshots[0]), 2)
+        self.assertTrue({item["pid"] for item in snapshots[0]}.issubset(
+            {item["pid"] for item in report.observations}))
+        self.assertTrue(all(item.get("reason") and item["state"] in {"AUTHOR", "EXCLUDED", "UNKNOWN"}
+                            for item in report.observations))
+        return report
+
+    def test_real_full_background_has_a_justified_result_in_current_operator_context(self):
         with tempfile.TemporaryDirectory() as directory:
-            # Windows TEMP may use its 8.3 alias. Match Installation.root's
-            # canonical path, as the native reader resolves the actual cwd.
+            root = Path(directory).resolve()
+            report = self.full_scan(root)
+            # BLOCKED is an honest qualified collector outcome, not deployment PASS.
+            print("WINDOWS_FULL_BACKGROUND=" + json.dumps({
+                "observations": len(report.observations), "authors": len(report.authors),
+                "unknown": len(report.unknown), "installationAllowed": not (report.authors or report.unknown)}))
+            self.assertTrue(report.observations)
+
+    def test_real_relative_author_is_found_among_full_native_background(self):
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             (root / "watcher.py").write_text("import sys\nprint('ready', flush=True)\nsys.stdin.read()\n", encoding="utf-8")
             child = subprocess.Popen([sys.executable, "watcher.py"], cwd=root, stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             try:
                 self.assertEqual(child.stdout.readline().strip(), "ready")
-                output = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", CIM_PROCESS_SCRIPT],
-                                        capture_output=True, text=True, encoding="utf-8", check=True)
-                records = json.loads(output.stdout)
-                if isinstance(records, dict): records = [records]
+                records = self.records()
                 record = next(value for value in records if value["ProcessId"] == child.pid)
                 self.assertNotIn(str(root), record["CommandLine"])
+                report = self.full_scan(root)
+                self.assertIn(child.pid, [value["pid"] for value in report.authors])
                 probe = WindowsProcessProbe()
-                owners = [value for value in probe.inventory() if value["pid"] in (os.getpid(), child.pid)]
-                self.assertEqual(len(owners), 2)
-                self.assertEqual(owners[0]["sid"], owners[1]["sid"])
-                observed = probe.cwd(child.pid, int(record["CreationTime"]))
-                self.assertEqual(ntpath.normcase(observed), ntpath.normcase(str(root)))
-                self.assertEqual(ntpath.normcase(probe.image(child.pid, int(record["CreationTime"]))), ntpath.normcase(sys.executable))
-                found = find_windows_authors(root, [record], owners, {os.getpid()}, probe.cwd, current_pid=os.getpid())
-                self.assertEqual([value["pid"] for value in found], [child.pid])
+                self.assertEqual(ntpath.normcase(probe.cwd(child.pid, int(record["CreationTime"]))), ntpath.normcase(str(root)))
                 with self.assertRaises(Blocked):
-                    probe.cwd(child.pid, int(record["CreationTime"]) - 10000000)
+                    probe.identity(child.pid, int(record["CreationTime"]) - 10000000)
+                try:
+                    authors = windows_active_authors(root, self.records(), {os.getpid()})
+                except WindowsAuthorBlocked as failure:
+                    self.assertIn(child.pid, [value["pid"] for value in failure.report.authors])
+                else:
+                    self.assertIn(child.pid, [value["pid"] for value in authors])
             finally:
                 child.communicate("", timeout=10)
                 self.assertEqual(child.returncode, 0)
+
+    def test_real_exited_process_is_reidentified_without_losing_background(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            child = subprocess.Popen([sys.executable, "-c", "import sys;print('ready',flush=True);sys.stdin.read()"],
+                                     cwd=root, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(child.stdout.readline().strip(), "ready")
+                records = self.records()
+            finally:
+                child.communicate("", timeout=10)
+            report = self.full_scan(root, records)
+            self.assertNotIn(child.pid, [value["pid"] for value in report.authors])
+            self.assertTrue(any(item.get("pid") == child.pid and "exit" in item.get("reason", "")
+                                for item in report.observations))
+
+    def test_real_read_only_diagnostic_cli_uses_full_collector(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, "-B", "-m", "deployment.legacy_authors", "--root", str(Path(directory).resolve()), "--diagnose"],
+                cwd=Path(__file__).resolve().parents[1], capture_output=True, encoding="utf-8", timeout=90)
+            self.assertIn(result.returncode, (0, 2), result.stderr)
+            report = json.loads(result.stdout)
+            self.assertGreater(len(report["observations"]), 2)
+            self.assertFalse(report["operatorContext"]["seDebugPrivilegeEnabled"])
+            self.assertEqual(result.returncode == 0, report["status"] == "CLEAR")
+            self.assertFalse(any(key in item for item in report["observations"] for key in ("CommandLine", "cwd", "image")))
 
 
 if __name__ == "__main__":
