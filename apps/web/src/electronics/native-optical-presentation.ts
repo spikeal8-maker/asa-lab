@@ -53,6 +53,7 @@ export class NativeOpticalPresentation {
   }
   private barrier: ((snapshot: NativeOpticalSnapshot) => void) | null = null;
   readonly getSnapshot = () => this.snapshot;
+  readonly getCommittedSnapshot = () => this.snapshot.committed;
   readonly subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     return () => {

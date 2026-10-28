@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useCommittedWorkbenchPresentation } from './committed-result-presentation';
 import {
   INCANDESCENT_LAMP_PROFILE,
   ledForwardVoltageAtCurrent,
@@ -365,7 +366,6 @@ export function WorkbenchSidebars({
 }: {
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
-  const [helpOpen, setHelpOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const mobileSearchExpanded = mobileSearchOpen || c.libraryQuery.length > 0;
@@ -445,187 +445,6 @@ export function WorkbenchSidebars({
       document.removeEventListener('visibilitychange', hidden);
     };
   }, []);
-  const [stateOpen, setStateOpen] = useState(false);
-  const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
-  const measurement = c.selectedComponent
-    ? c.resultByComponent.get(c.selectedComponent.id)
-    : undefined;
-  const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
-  const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
-  const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
-  const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
-  const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
-  const selectedIsVibrationMotor = c.selectedEntry?.key === 'vibration-motor';
-  const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
-  const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
-  const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
-  const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
-  const selectedIsSignalGenerator = c.selectedEntry?.key === 'signal-generator';
-  const selectedIsOscilloscope = c.selectedEntry?.key === 'oscilloscope';
-  const selectedIsPiezo = c.selectedComponent?.kind === 'piezo';
-  const selectedPiezoMode = selectedIsPiezo
-    ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
-    : 'passive';
-  const selectedMotorProfile =
-    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
-      ? resolveBrushedMotorProfileSelection(c.selectedComponent)
-      : null;
-  const selectedDiagnostics = c.selectedComponent
-    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
-    : [];
-  const selectedDiagnosticSeverity = selectedDiagnostics.some(
-    (diagnostic) => diagnostic.severity === 'error',
-  )
-    ? 'error'
-    : selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'warning')
-      ? 'warning'
-      : undefined;
-  const selectedLedColour =
-    c.selectedComponent?.kind === 'led'
-      ? String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')
-      : null;
-  const selectedLedProfile = selectedLedColour ? ordinaryLedProfile(selectedLedColour) : null;
-  const selectedLedColourLabel =
-    LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
-    selectedLedColour;
-  const selectedPhotoresistor =
-    c.selectedComponent?.kind === 'photoresistor'
-      ? {
-          lux: photoresistorIlluminanceLux(c.selectedComponent),
-          resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
-        }
-      : null;
-  const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
-    ? Number(
-        c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
-          c.selectedComponent?.value ??
-          5,
-      )
-    : 0;
-  const selectedSupplyCurrentLimit = selectedIsAdjustableSource
-    ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
-    : 0;
-  const selectedSupplyOutputEnabled = selectedIsAdjustableSource
-    ? typeof c.selectedComponent?.stateProperties?.['outputEnabled'] === 'boolean'
-      ? c.selectedComponent.stateProperties['outputEnabled']
-      : c.selectedComponent?.state === true
-    : false;
-  const selectedGeneratorWaveform = selectedIsSignalGenerator
-    ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
-    : 'sine';
-  const selectedGeneratorFrequencyHz = selectedIsSignalGenerator
-    ? Number(
-        c.selectedComponent?.stateProperties?.['frequencyHz'] ??
-          c.selectedComponent?.value ??
-          1_000,
-      )
-    : 1_000;
-  const selectedGeneratorAmplitudeVpp = selectedIsSignalGenerator
-    ? Number(c.selectedComponent?.stateProperties?.['amplitudeVpp'] ?? 5)
-    : 5;
-  const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
-    ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
-    : 0;
-  const generatorOutputProperty = c.selectedComponent?.stateProperties?.['outputEnabled'];
-  const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
-    ? typeof generatorOutputProperty === 'boolean'
-      ? generatorOutputProperty
-      : c.selectedComponent?.state === true
-    : false;
-  const scopeDisplayProperty = c.selectedComponent?.stateProperties?.['displayEnabled'];
-  const selectedScopeDisplayEnabled = selectedIsOscilloscope
-    ? typeof scopeDisplayProperty === 'boolean'
-      ? scopeDisplayProperty
-      : c.selectedComponent?.state !== false
-    : true;
-  const selectedScopeVoltsPerDivision = selectedIsOscilloscope
-    ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
-    : 1;
-  const selectedScopeTimePerDivisionMs = selectedIsOscilloscope
-    ? Number(c.selectedComponent?.stateProperties?.['timePerDivisionMs'] ?? 1)
-    : 1;
-  const selectedScopeTriggerLevelVolt = selectedIsOscilloscope
-    ? Number(c.selectedComponent?.stateProperties?.['triggerLevelVolt'] ?? 0)
-    : 0;
-  useEffect(() => {
-    setHelpSections(null);
-  }, [c.selectedComponent?.id]);
-  useEffect(() => {
-    if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
-    let active = true;
-    setHelpSections(null);
-    void import('./component-help-content').then(({ componentHelpSections }) => {
-      if (active) {
-        setHelpSections(
-          componentHelpSections(
-            c.selectedComponent!.kind,
-            c.selectedEntry!.description,
-            c.selectedEntry!.key,
-            selectedLedColour ? { ledColour: selectedLedColour } : undefined,
-          ),
-        );
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [c.selectedComponent, c.selectedEntry, helpOpen, selectedLedColour]);
-  const informationProfile =
-    c.selectedComponent && c.selectedFamily
-      ? componentInformationProfile(c.selectedFamily.familyId, c.selectedComponent.kind)
-      : null;
-  const technicalMetrics =
-    informationProfile && measurement
-      ? informationProfile.technicalMetrics.flatMap((metric) => {
-          const value = readMetricBinding(metric.metricBindingId, measurement);
-          return value === null ? [] : [{ ...metric, value }];
-        })
-      : [];
-  const resistanceComponent =
-    c.selectedComponent && ['resistor', 'potentiometer'].includes(c.selectedComponent.kind)
-      ? c.selectedComponent
-      : null;
-  const storedResistanceUnit = resistanceComponent?.stateProperties?.['resistanceUnit'];
-  const resistanceUnit =
-    typeof storedResistanceUnit === 'string' &&
-    RESISTANCE_UNITS.some((candidate) => candidate.id === storedResistanceUnit)
-      ? (storedResistanceUnit as ResistanceUnit)
-      : defaultResistanceUnit(resistanceComponent?.value ?? 0);
-  const transistorType = (() => {
-    if (c.selectedComponent?.kind !== 'transistor') return null;
-    const raw = String(c.selectedComponent.stateProperties?.['transistorType'] ?? '');
-    if (raw === 'pnp' || raw === 'fet' || raw === 'npn') return raw;
-    const typeId = String(
-      c.selectedComponent.variantId ?? c.selectedComponent.componentTypeId ?? '',
-    );
-    if (typeId.includes('pnp')) return 'pnp';
-    if (typeId.includes('fet')) return 'fet';
-    return 'npn';
-  })();
-  const transistorOverloaded =
-    measurement?.stressState === 'overcurrent' || measurement?.stressState === 'burned';
-  const transistorStateLabel = transistorOverloaded
-    ? 'Перегрузка — возможен перегрев'
-    : measurement?.stressState === 'warning'
-      ? 'Повышенная нагрузка'
-      : measurement?.operatingRegion === 'saturation'
-        ? 'Полностью открыт как ключ'
-        : measurement?.operatingRegion === 'active'
-          ? 'Регулирует ток'
-          : measurement?.operatingRegion === 'ohmic'
-            ? 'Открыт — проводит ток'
-            : 'Закрыт — ток нагрузки не проходит';
-  const transistorStateExplanation = transistorOverloaded
-    ? (measurement?.baseCurrent ?? 0) > (measurement?.collectorCurrent ?? 0)
-      ? 'Ток базы слишком большой. Добавьте ограничивающий резистор в цепь базы.'
-      : 'Ток нагрузки или нагрев выше безопасного предела.'
-    : measurement?.operatingRegion === 'saturation'
-      ? 'Транзистор работает как замкнутый электронный выключатель.'
-      : measurement?.operatingRegion === 'active'
-        ? 'Небольшой ток базы управляет током нагрузки.'
-        : measurement?.operatingRegion === 'ohmic'
-          ? 'Канал открыт и проводит ток между стоком и истоком.'
-          : 'Управляющего напряжения недостаточно для открытия.';
   return (
     <>
       <aside
@@ -877,6 +696,201 @@ export function WorkbenchSidebars({
         ) : null}
       </aside>
 
+      <WorkbenchInspector controller={c} />
+    </>
+  );
+}
+
+export function WorkbenchInspector({
+  controller,
+}: {
+  controller: ElectronicsWorkbenchController;
+}): JSX.Element {
+  const c = useCommittedWorkbenchPresentation(controller);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [stateOpen, setStateOpen] = useState(false);
+  const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
+  const measurement = c.selectedComponent
+    ? c.resultByComponent.get(c.selectedComponent.id)
+    : undefined;
+  const selectedIsArduino = c.selectedEntry?.key === 'arduino-uno';
+  const selectedIsPotentiometer = c.selectedComponent?.kind === 'potentiometer';
+  const selectedIsAdjustableSource = c.selectedEntry?.key === 'regulated-power-supply';
+  const selectedIsDcMotor = c.selectedEntry?.key === 'dc-motor';
+  const selectedIsGearmotor = c.selectedEntry?.key === 'gearmotor';
+  const selectedIsVibrationMotor = c.selectedEntry?.key === 'vibration-motor';
+  const selectedIsLamp = c.selectedEntry?.key === 'incandescent-lamp';
+  const selectedIsRgbLed = c.selectedEntry?.key === 'rgb-led';
+  const selectedIsSevenSegment = c.selectedEntry?.key === 'seven-segment-display';
+  const selectedIsMultimeter = c.selectedEntry?.key === 'multimeter';
+  const selectedIsSignalGenerator = c.selectedEntry?.key === 'signal-generator';
+  const selectedIsOscilloscope = c.selectedEntry?.key === 'oscilloscope';
+  const selectedIsPiezo = c.selectedComponent?.kind === 'piezo';
+  const selectedPiezoMode = selectedIsPiezo
+    ? String(c.selectedComponent?.stateProperties?.['piezoMode'] ?? 'passive')
+    : 'passive';
+  const selectedMotorProfile =
+    c.selectedComponent && (selectedIsDcMotor || selectedIsGearmotor || selectedIsVibrationMotor)
+      ? resolveBrushedMotorProfileSelection(c.selectedComponent)
+      : null;
+  const selectedDiagnostics = c.selectedComponent
+    ? (c.diagnosticsByComponent.get(c.selectedComponent.id) ?? [])
+    : [];
+  const selectedDiagnosticSeverity = selectedDiagnostics.some(
+    (diagnostic) => diagnostic.severity === 'error',
+  )
+    ? 'error'
+    : selectedDiagnostics.some((diagnostic) => diagnostic.severity === 'warning')
+      ? 'warning'
+      : undefined;
+  const selectedLedColour =
+    c.selectedComponent?.kind === 'led'
+      ? String(c.selectedComponent.stateProperties?.['ledColour'] ?? 'red')
+      : null;
+  const selectedLedProfile = selectedLedColour ? ordinaryLedProfile(selectedLedColour) : null;
+  const selectedLedColourLabel =
+    LED_COLOUR_OPTIONS.find((option) => option.value === selectedLedColour)?.label ??
+    selectedLedColour;
+  const selectedPhotoresistor =
+    c.selectedComponent?.kind === 'photoresistor'
+      ? {
+          lux: photoresistorIlluminanceLux(c.selectedComponent),
+          resistanceOhm: photoresistorResistanceOhm(c.selectedComponent),
+        }
+      : null;
+  const selectedSupplyVoltageSetpoint = selectedIsAdjustableSource
+    ? Number(
+        c.selectedComponent?.stateProperties?.['voltageSetpointVolt'] ??
+          c.selectedComponent?.value ??
+          5,
+      )
+    : 0;
+  const selectedSupplyCurrentLimit = selectedIsAdjustableSource
+    ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
+    : 0;
+  const selectedSupplyOutputEnabled = selectedIsAdjustableSource
+    ? typeof c.selectedComponent?.stateProperties?.['outputEnabled'] === 'boolean'
+      ? c.selectedComponent.stateProperties['outputEnabled']
+      : c.selectedComponent?.state === true
+    : false;
+  const selectedGeneratorWaveform = selectedIsSignalGenerator
+    ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
+    : 'sine';
+  const selectedGeneratorFrequencyHz = selectedIsSignalGenerator
+    ? Number(
+        c.selectedComponent?.stateProperties?.['frequencyHz'] ??
+          c.selectedComponent?.value ??
+          1_000,
+      )
+    : 1_000;
+  const selectedGeneratorAmplitudeVpp = selectedIsSignalGenerator
+    ? Number(c.selectedComponent?.stateProperties?.['amplitudeVpp'] ?? 5)
+    : 5;
+  const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
+    ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
+    : 0;
+  const generatorOutputProperty = c.selectedComponent?.stateProperties?.['outputEnabled'];
+  const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
+    ? typeof generatorOutputProperty === 'boolean'
+      ? generatorOutputProperty
+      : c.selectedComponent?.state === true
+    : false;
+  const scopeDisplayProperty = c.selectedComponent?.stateProperties?.['displayEnabled'];
+  const selectedScopeDisplayEnabled = selectedIsOscilloscope
+    ? typeof scopeDisplayProperty === 'boolean'
+      ? scopeDisplayProperty
+      : c.selectedComponent?.state !== false
+    : true;
+  const selectedScopeVoltsPerDivision = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
+    : 1;
+  const selectedScopeTimePerDivisionMs = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['timePerDivisionMs'] ?? 1)
+    : 1;
+  const selectedScopeTriggerLevelVolt = selectedIsOscilloscope
+    ? Number(c.selectedComponent?.stateProperties?.['triggerLevelVolt'] ?? 0)
+    : 0;
+  useEffect(() => {
+    setHelpSections(null);
+  }, [c.selectedComponent?.id]);
+  useEffect(() => {
+    if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
+    let active = true;
+    setHelpSections(null);
+    void import('./component-help-content').then(({ componentHelpSections }) => {
+      if (active) {
+        setHelpSections(
+          componentHelpSections(
+            c.selectedComponent!.kind,
+            c.selectedEntry!.description,
+            c.selectedEntry!.key,
+            selectedLedColour ? { ledColour: selectedLedColour } : undefined,
+          ),
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [c.selectedComponent, c.selectedEntry, helpOpen, selectedLedColour]);
+  const informationProfile =
+    c.selectedComponent && c.selectedFamily
+      ? componentInformationProfile(c.selectedFamily.familyId, c.selectedComponent.kind)
+      : null;
+  const technicalMetrics =
+    informationProfile && measurement
+      ? informationProfile.technicalMetrics.flatMap((metric) => {
+          const value = readMetricBinding(metric.metricBindingId, measurement);
+          return value === null ? [] : [{ ...metric, value }];
+        })
+      : [];
+  const resistanceComponent =
+    c.selectedComponent && ['resistor', 'potentiometer'].includes(c.selectedComponent.kind)
+      ? c.selectedComponent
+      : null;
+  const storedResistanceUnit = resistanceComponent?.stateProperties?.['resistanceUnit'];
+  const resistanceUnit =
+    typeof storedResistanceUnit === 'string' &&
+    RESISTANCE_UNITS.some((candidate) => candidate.id === storedResistanceUnit)
+      ? (storedResistanceUnit as ResistanceUnit)
+      : defaultResistanceUnit(resistanceComponent?.value ?? 0);
+  const transistorType = (() => {
+    if (c.selectedComponent?.kind !== 'transistor') return null;
+    const raw = String(c.selectedComponent.stateProperties?.['transistorType'] ?? '');
+    if (raw === 'pnp' || raw === 'fet' || raw === 'npn') return raw;
+    const typeId = String(
+      c.selectedComponent.variantId ?? c.selectedComponent.componentTypeId ?? '',
+    );
+    if (typeId.includes('pnp')) return 'pnp';
+    if (typeId.includes('fet')) return 'fet';
+    return 'npn';
+  })();
+  const transistorOverloaded =
+    measurement?.stressState === 'overcurrent' || measurement?.stressState === 'burned';
+  const transistorStateLabel = transistorOverloaded
+    ? 'Перегрузка — возможен перегрев'
+    : measurement?.stressState === 'warning'
+      ? 'Повышенная нагрузка'
+      : measurement?.operatingRegion === 'saturation'
+        ? 'Полностью открыт как ключ'
+        : measurement?.operatingRegion === 'active'
+          ? 'Регулирует ток'
+          : measurement?.operatingRegion === 'ohmic'
+            ? 'Открыт — проводит ток'
+            : 'Закрыт — ток нагрузки не проходит';
+  const transistorStateExplanation = transistorOverloaded
+    ? (measurement?.baseCurrent ?? 0) > (measurement?.collectorCurrent ?? 0)
+      ? 'Ток базы слишком большой. Добавьте ограничивающий резистор в цепь базы.'
+      : 'Ток нагрузки или нагрев выше безопасного предела.'
+    : measurement?.operatingRegion === 'saturation'
+      ? 'Транзистор работает как замкнутый электронный выключатель.'
+      : measurement?.operatingRegion === 'active'
+        ? 'Небольшой ток базы управляет током нагрузки.'
+        : measurement?.operatingRegion === 'ohmic'
+          ? 'Канал открыт и проводит ток между стоком и истоком.'
+          : 'Управляющего напряжения недостаточно для открытия.';
+  return (
+    <>
       {c.selection ? (
         <aside
           className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
