@@ -902,10 +902,26 @@ describe('global and author acquisition controls', () => {
       [seat.hash],
     );
     expect((await copy(source, randomUUID(), {}, cookies)).statusCode).toBe(401);
+    const copiesBeforeEmptySeat = (
+      await admin.query('SELECT count(*)::int n FROM projects WHERE copied_from_project_id=$1', [
+        source.id,
+      ])
+    ).rows[0].n;
+    const emptySeat = await copy(
+      source,
+      randomUUID(),
+      {},
+      { ...source.reader, asa_student_session: '' },
+    );
+    expect(emptySeat.statusCode).toBe(401);
+    expect(emptySeat.json().error.code).toBe('unauthorized');
     expect(
-      (await copy(source, randomUUID(), {}, { ...source.reader, asa_student_session: '' }))
-        .statusCode,
-    ).toBe(409);
+      (
+        await admin.query('SELECT count(*)::int n FROM projects WHERE copied_from_project_id=$1', [
+          source.id,
+        ])
+      ).rows[0].n,
+    ).toBe(copiesBeforeEmptySeat);
   });
 
   it.each(['global', 'author'] as const)(
