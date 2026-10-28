@@ -245,6 +245,7 @@ export function AiChatPage({
     loaded: Set<string>;
   }>({ threadId: null, loaded: new Set<string>() });
   const [busy, setBusy] = useState(false);
+  // Reuse model-status refresh (focus/60s) to recover availability after a limit change.
   useEffect(() => {
     if (busy) return;
     let active = true;
@@ -258,7 +259,7 @@ export function AiChatPage({
     return () => {
       active = false;
     };
-  }, [call, busy]);
+  }, [call, busy, status]);
   const selectedBudget = tokenBudgets?.models?.find(
     (row) => row.model === (selectedModel || status?.model),
   );

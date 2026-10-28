@@ -201,6 +201,35 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
         await expect(
           chat.getByRole('button', { name: 'Отправить сообщение', exact: true }),
         ).toHaveAttribute('title', 'Месячный бюджет модели исчерпан');
+        // Change the real admin policy while this exhausted chat stays mounted.
+        const current = await (await page.request.get('/api/admin/v1/ai/token-budgets')).json();
+        const raised = await page.request.put('/api/admin/v1/ai/token-budgets', {
+          headers,
+          data: {
+            configurationVersion: current.configurationVersion,
+            requestId: randomUUID(),
+            models: current.models.map(
+              (model: { model: string; globalLimit: string | null; userLimit: string | null }) => ({
+                model: model.model,
+                globalLimit: model.globalLimit,
+                userLimit: model.model === 'ollama-local' ? '100' : model.userLimit,
+              }),
+            ),
+          },
+        });
+        expect(raised.status()).toBe(200);
+        const refreshed = page.waitForResponse(
+          (response) =>
+            response.url().endsWith('/api/ai/token-budgets') && response.status() === 200,
+        );
+        await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+        const recovered = await (await refreshed).json();
+        expect(recovered.models[0]).toMatchObject({ used: '12', held: '0', available: true });
+        await expect(
+          chat.getByRole('button', { name: 'Отправить сообщение', exact: true }),
+        ).toBeEnabled();
+        await expect(chat.locator('p.chat-runtime-note[role="status"]')).toHaveCount(0);
+        expect(calls).toHaveLength(1);
       }
       await page.goto('/#/admin/ai?section=settings');
       await expect(row).toBeVisible();
@@ -273,6 +302,7 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     await expect(row).toContainText('Подтверждено токенов всего: 12');
     await capture('after-limits');
     await checkChatAccountingHidden(true);
+    await expect(row).toContainText('Подтверждено токенов всего: 12');
     expect(calls).toHaveLength(1);
     // Leaving Settings removes the shell opt-in; Prompt retains its own layout.
     await page.emulateMedia({ colorScheme: 'dark' });
