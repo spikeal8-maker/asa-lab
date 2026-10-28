@@ -52,7 +52,7 @@ tests:
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts own-quality-real.spec.ts
+    command: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts e2e/own-quality-real.spec.ts
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [vitest-report, playwright-report]
