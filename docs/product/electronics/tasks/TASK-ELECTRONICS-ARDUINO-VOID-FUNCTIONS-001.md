@@ -19,8 +19,9 @@ This slice does not claim arbitrary C++ functions, arrays, overloads or all C++.
 
 Primary `electronics.arduino.runtime`, dependency `electronics.arduino.capabilities`;
 exact Arduino component entries and runtime state/journal/scheduler contracts apply.
-Preserve old compiled instructions,
-all old admission and state bytes, canonical time and GPIO/library semantics.
+Preserve old compiled instructions, correct legacy admission/state bytes,
+canonical time and GPIO/library semantics. Explicitly reproduced admission
+defects below are intentional corrections, not silently pruned oracle cases.
 
 ## Bounded language surface
 
@@ -34,10 +35,14 @@ Non-void returns, helper calls as value expressions, references/pointers, arrays
 overloading, default parameters and templates remain explicitly unsupported;
 do not admit them merely because a name is defined.
 
-Preserve recognition of existing strictly verified generated adapters (including
-ultrasonic and Servo) before generic helper admission. A matching builtin name
-alone must not exempt an arbitrary user body from validation or replace its
-meaning. Parse comments/strings/braces without mistaking their text for definitions.
+Preserve exact canonical generated adapter behavior (including ultrasonic and
+Servo) before generic helper admission. Initial 824 inspection found current
+ultrasonic dispatch can ignore an arbitrary conflicting body by builtin name;
+capture that separate BEFORE admission defect and reject such bodies before GPIO.
+Do not claim its former behavior is preserved or silently omit it from evidence.
+Existing direct intrinsic calls without definitions remain unchanged. A matching
+builtin name alone must not bypass validation or replace the user's body meaning.
+Parse comments/strings/braces without mistaking their text for definitions.
 
 Use proper call frames/instruction streams or an equivalently correct compiler
 lowering. Plain textual inlining under caller scopes is not equivalent: a callee

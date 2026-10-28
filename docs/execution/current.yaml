@@ -7004,6 +7004,43 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: electronics-report-baseline
+    parent_lane: electronics
+    worktree_id: electronics-report-baseline
+    owned_paths:
+      - contexts/electronics/testing/arduino-seven-segment-matrix.spec.ts
+    task:
+      id: TASK-ELECTRONICS-REPORT-BASELINE-001
+      issue: 834
+      branch: codex/publication-electronics-gate-baseline-20261028
+      base_branch: main
+      status: in_progress
+      checkpoint: readonly_container_report_path_repair_selected
+      kind: maintenance
+      risk: medium
+      semantic_change: 'no'
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REPORT-BASELINE-001.md
+      owner_authorization: >-
+        Controller-selected independent integration dependency of the owner-authorized
+        publication programme. Preserve accepted Main Arduino helpers from242d401f.
+        Correct only matrix report output for read-only CI filesystem with writable reports.
+        No runtime, assertion, deployment or working database changes. Exact independent
+        review and General CI before Main; resume PR826 after accepted baseline.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:data
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      convergence_baseline_sha: 1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66
+      head_sha: fc9407e68da4557200b2217585797360d3550c8e
+
   - id: projects
     worktree_id: projects-publication
     owned_paths:
@@ -7143,6 +7180,22 @@ parallel_lanes:
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
+      - id: TASK-ELECTRONICS-REPORT-BASELINE-001
+        status: in_progress
+        branch: codex/publication-electronics-gate-baseline-20261028
+        issue: 817
+        scope:
+          - contexts/electronics/testing/arduino-seven-segment-matrix.spec.ts
+          - related_test_report_directory_contract
+        selection: >-
+          Controller selects a separate bounded category C baseline repair under AGENTS section7.
+          Public policy exact7bcccbaa General40706739645 Data job122886468256 failed eight
+          unchanged Arduino matrix tests with ENOENT creating/writing relative test-results.
+          8387 tests passed; no product defect is established. Determine the actual directory
+          lifecycle/race cause and isolate report output without skipping tests, swallowing
+          errors, weakening assertions or changing Electronics runtime. Preserve PR826.
+          Independent exact-source review and actual General CI are required before Main.
+          Task: docs/product/projects/tasks/PROJ-ELECTRONICS-REPORT-BASELINE.md.
       - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
         status: in_progress
         branch: codex/projects-build-baseline
@@ -12782,7 +12835,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-ARDUINO-VOID-FUNCTIONS-001
+      current_slice: TASK-ELECTRONICS-NPN-REUSE-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -12791,7 +12844,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Electrical819andoptical821verified. 821candidate652f independent234tests16nativecases320physicalmeanszeroerrorplus815regressionPASS; canonical2404tests71freshNxallcapsPASS. Preserveforeignc621typeonlyAIcontracts/testscript;8sourceblobsidentical andadditional7freshWebtasksallcapsPASS9bed. Helpers824selectednext; counters/performance/fullmatrixremainpending. No server/foreignchanges orparallelheavytests; no wholepoint2orinstalledclaim.
+      execution_coordination: Electrical819andoptical821verified. Helpers824source4c50 independentlyAPPROVED45tests_and_native1and4carry. Full24nativecases1to4_lineartext_helpertext_genuineBlockly_at1440and390_show72counterstates. Canonical2441tests71freshNxallcapsPASS_after_one_classD_asset_timeout_retry; legacy20byteexact_plus5numericmacrobaseline_cases. Performance_NOT_realtime_100to125msmodel_cost1.55to6.62swall; nextdependency_is_bounded_measured_solver_reuse. No wholepoint2_or_arbitraryCplusplus_installed_save_deploy_owneracceptance_claim. PreserveforeignAI_changes.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -14222,11 +14275,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_real_nonrecursive_void_helpers_legacy_oracle_first
+      checkpoint: source_verified_scalar_void_helpers_24_native_counter_cases_performance_open
       owner_acceptance: pending
       execution_role: bounded_runtime_executor_then_new_independent_review
       owner_authorization: OwnerexplicitlyrequestsArduino1to4indicatorslinearBlockly_lineartext_and_functions. Actual817showDigit_intcompilefailure. Implementgenuineordinaryvoidhelpersscalarparams_nesting_lexicalscope_waits_JSON_asnecessarydisplaydependency. No macromasquerade, returnvalue_arrays_overload_recursionextensions or allCplusplusclaim.
@@ -14252,7 +14305,54 @@ parallel_lanes:
       convergence_baseline_sha: c621592f30bf8637da10466fbac50e03a8f742d3
       head_sha: null
       observed_at: '2026-10-28T13:18:19Z'
-      observation_note: Fresh fetch main before each edit. Helpers824onlyafterelectrical819andoptical821sourcesareinmain. Actual1to4text_Blocklyoptics652fverified; sourcefunctionsstillcompileFAIL. Capturefulllegacycompiled_state_action_event_diagnosticbytesBEFOREedits, preservev7oldstatesandstrictframevalidation. No sourceguard/capraise/server/foreignchanges.
+      observation_note: Source4c50c4e20dc177efa40f6fe2c2fff6fae99ac0de independentlyAPPROVED45focusedtests_and_native1and4helpercarry. Canonical2441tests71freshNxPASS_withoutcache_after_single_verified_classD_asset_timeout_retry. All8capsPASS_Editor169815_Arduino1999997. Finalcomposition_a3ecf1e8815fc2e0cc11f208170ee6c94bfa7325_with_main7133a66f_preserves3productblobs_and_foreignAI; additional7freshWebtasks_all8capsPASS_notanotherfullgate. 24nativecases72counterstates_1to4_displays_threecodeforms_two_widthsPASS; original20legacyoracle467942B_ce74_and_supplemental5numericmacros53008B_61cee_byteequal. Performance1.55to6.62swall_for100to125msmodel_NOT_realtime; broaderCplusplus_0to9effects_sustained_lifecycle_installedSave_owneracceptance_remainopen. Evidence_docs/product/electronics/evidence/arduino-void-functions-824/README.md. No server_Docker_DB_foreignchanges_guard_or_capraise. Fresh fetch main is required before integration.
+    source_review_evidence:
+      source_candidate_sha: 4c50c4e20dc177efa40f6fe2c2fff6fae99ac0de
+      evidence_candidate_sha: 7da57bd8016b70aa08633825373b89b7976020e7
+      independent_review: approved_exact_source_45_tests_and_native_one_four_helper_carry
+
+  - id: electronics-npn-operating-point-reuse
+    parent_lane: electronics
+    worktree_id: electronics-npn-operating-point-reuse
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NPN-REUSE-001.md
+    task:
+      id: TASK-ELECTRONICS-NPN-REUSE-001
+      issue: 833
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'no'
+      checkpoint: selected_measured_exact_npn_algebra_reuse_after_verified_helpers
+      owner_acceptance: pending
+      execution_role: new_bounded_solver_executor_then_new_independent_review
+      owner_authorization: Ownerrequestsfullyworking1to4Arduinoindicators_withoutproblematicdelays. Helpers824integrated242d401f_correct24nativecases_but1.55to6.62swall_for100to125msmodel. Selectsolveronly_exactalgebrareuse_with_beforeafterfullparity_and_boundedmeasurement; no physics_cadence_quality_thermalchanges_or_wholeCplusplusclaim.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NPN-REUSE-001.md
+        - docs/product/electronics/evidence/arduino-void-functions-824/README.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 242d401f988c88b0975556ffa878891e40fde80e
+      convergence_baseline_sha: 242d401f988c88b0975556ffa878891e40fde80e
+      head_sha: null
+      observed_at: '2026-10-28T14:54:00Z'
+      observation_note: Main242d401f_published_helpers824; General40710169237_inprogress_notPASS. Independenthelper45tests_native1and4PASS; canonical2441tests71freshNxallcapsPASS. ExistingcacheexcludesNPN_hypothesis_for_measuredlag. Authoroneboundedsolverfile_plusmeaningfultests_androuting_thenSTOP; independentnewreview_required. ForeignProjects_baselinereport_task_and_allforeignfields_preserved. Fresh fetch main is required before integration.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics

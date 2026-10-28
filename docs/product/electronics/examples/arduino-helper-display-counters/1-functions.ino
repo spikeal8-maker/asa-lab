@@ -1,0 +1,14 @@
+int d0=8;
+unsigned long lastTick=0;
+void setup(){for(int p=2;p<11;p++){pinMode(p,OUTPUT);}lastTick=millis();}
+void loop(){scan(0,d0);if(millis()-lastTick>=40){increment();lastTick=millis();}}
+void segments(int value){digitalWrite(2,value==0||value==2||value==3||value==5||value==6||value==7||value==8||value==9);
+digitalWrite(3,value==0||value==1||value==2||value==3||value==4||value==7||value==8||value==9);
+digitalWrite(4,value==0||value==1||value==3||value==4||value==5||value==6||value==7||value==8||value==9);
+digitalWrite(5,value==0||value==2||value==3||value==5||value==6||value==8||value==9);
+digitalWrite(6,value==0||value==2||value==6||value==8);
+digitalWrite(7,value==0||value==4||value==5||value==6||value==8||value==9);
+digitalWrite(8,value==2||value==3||value==4||value==5||value==6||value==8||value==9);
+digitalWrite(9,LOW);}
+void scan(int selector,int value){for(int p=10;p<11;p++){digitalWrite(p,LOW);}segments(value);digitalWrite(10+selector,HIGH);delay(2);digitalWrite(10+selector,LOW);}
+void increment(){d0++;if(d0>=10){d0=0;}}
