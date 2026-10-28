@@ -1,0 +1,1582 @@
+[
+  {
+    "width": 1440,
+    "supplyVolt": 3,
+    "componentCount": 117,
+    "diodeRoutes": 49,
+    "samples": [
+      {
+        "pressed": {
+          "digit": 0,
+          "active": "abcdef",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 50300,
+          "currents": {
+            "a": 0.001517359452,
+            "b": 0.001517359451,
+            "c": 0.00151735945,
+            "d": 0.001517359453,
+            "e": 0.001517359459,
+            "f": 0.001517359455,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.36,
+            "b": 29.36,
+            "c": 29.36,
+            "d": 29.36,
+            "e": 29.36,
+            "f": 29.36,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.56e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000182083138,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 100300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 1,
+          "active": "bc",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 150300,
+          "currents": {
+            "a": 0,
+            "b": 0.001525373096,
+            "c": 0.001525373093,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 29.46,
+            "c": 29.46,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 7.8e-11,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000061014925,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 200300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 2,
+          "active": "abdeg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 250300,
+          "currents": {
+            "a": 0.001519354958,
+            "b": 0.001519354958,
+            "c": 0,
+            "d": 0.00151935496,
+            "e": 0.001519354966,
+            "f": 0,
+            "g": 0.00151935496,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.38,
+            "b": 29.38,
+            "c": 0,
+            "d": 29.38,
+            "e": 29.38,
+            "f": 0,
+            "g": 29.38,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.36e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000151935499,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 300300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 3,
+          "active": "abcdg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 350300,
+          "currents": {
+            "a": 0.001519354959,
+            "b": 0.001519354959,
+            "c": 0.001519354957,
+            "d": 0.00151935496,
+            "e": 0,
+            "f": 0,
+            "g": 0.00151935496,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.38,
+            "b": 29.38,
+            "c": 29.38,
+            "d": 29.38,
+            "e": 0,
+            "f": 0,
+            "g": 29.38,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.46e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000151935499,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 400300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 4,
+          "active": "bcfg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 450300,
+          "currents": {
+            "a": 0,
+            "b": 0.001521355721,
+            "c": 0.001521355719,
+            "d": 0,
+            "e": 0,
+            "f": 0.001521355725,
+            "g": 0.001521355723,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 29.41,
+            "c": 29.41,
+            "d": 0,
+            "e": 0,
+            "f": 29.41,
+            "g": 29.41,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.21e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.00012170846,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 500300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 5,
+          "active": "acdfg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 550300,
+          "currents": {
+            "a": 0.001519354958,
+            "b": 0,
+            "c": 0.001519354956,
+            "d": 0.00151935496,
+            "e": 0,
+            "f": 0.001519354962,
+            "g": 0.00151935496,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.38,
+            "b": 0,
+            "c": 29.38,
+            "d": 29.38,
+            "e": 0,
+            "f": 29.38,
+            "g": 29.38,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.44e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000151935499,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 600300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 6,
+          "active": "acdefg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 650300,
+          "currents": {
+            "a": 0.001517359451,
+            "b": 0,
+            "c": 0.001517359449,
+            "d": 0.001517359453,
+            "e": 0.001517359459,
+            "f": 0.001517359455,
+            "g": 0.001517359453,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.36,
+            "b": 0,
+            "c": 29.36,
+            "d": 29.36,
+            "e": 29.36,
+            "f": 29.36,
+            "g": 29.36,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.55e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000182083138,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 700300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 7,
+          "active": "abc",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 750300,
+          "currents": {
+            "a": 0.00152336176,
+            "b": 0.00152336176,
+            "c": 0.001523361758,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.43,
+            "b": 29.43,
+            "c": 29.43,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.04e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000091401708,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 800300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 8,
+          "active": "abcdefg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 850300,
+          "currents": {
+            "a": 0.00151536918,
+            "b": 0.00151536918,
+            "c": 0.001515369178,
+            "d": 0.001515369182,
+            "e": 0.001515369187,
+            "f": 0.001515369183,
+            "g": 0.001515369182,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.33,
+            "b": 29.33,
+            "c": 29.33,
+            "d": 29.33,
+            "e": 29.33,
+            "f": 29.33,
+            "g": 29.33,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.69e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000212151689,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 900300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 9,
+          "active": "abcdfg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 950300,
+          "currents": {
+            "a": 0.001517359452,
+            "b": 0.001517359452,
+            "c": 0.00151735945,
+            "d": 0.001517359454,
+            "e": 0,
+            "f": 0.001517359455,
+            "g": 0.001517359454,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.36,
+            "b": 29.36,
+            "c": 29.36,
+            "d": 29.36,
+            "e": 0,
+            "f": 29.36,
+            "g": 29.36,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.61e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000182083138,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 1000300,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      }
+    ],
+    "savedReopened": true,
+    "wallMs": 10555
+  },
+  {
+    "width": 390,
+    "supplyVolt": 3,
+    "componentCount": 117,
+    "diodeRoutes": 49,
+    "samples": [
+      {
+        "pressed": {
+          "digit": 0,
+          "active": "abcdef",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 50600,
+          "currents": {
+            "a": 0.001517359452,
+            "b": 0.001517359451,
+            "c": 0.00151735945,
+            "d": 0.001517359453,
+            "e": 0.001517359459,
+            "f": 0.001517359455,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.36,
+            "b": 29.36,
+            "c": 29.36,
+            "d": 29.36,
+            "e": 29.36,
+            "f": 29.36,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.56e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000182083138,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 100600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 1,
+          "active": "bc",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 150600,
+          "currents": {
+            "a": 0,
+            "b": 0.001525373096,
+            "c": 0.001525373093,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 29.46,
+            "c": 29.46,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 7.8e-11,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000061014925,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 200600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 2,
+          "active": "abdeg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 250600,
+          "currents": {
+            "a": 0.001519354958,
+            "b": 0.001519354958,
+            "c": 0,
+            "d": 0.00151935496,
+            "e": 0.001519354966,
+            "f": 0,
+            "g": 0.00151935496,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.38,
+            "b": 29.38,
+            "c": 0,
+            "d": 29.38,
+            "e": 29.38,
+            "f": 0,
+            "g": 29.38,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.36e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000151935499,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 300600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 3,
+          "active": "abcdg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 350600,
+          "currents": {
+            "a": 0.001519354959,
+            "b": 0.001519354959,
+            "c": 0.001519354957,
+            "d": 0.00151935496,
+            "e": 0,
+            "f": 0,
+            "g": 0.00151935496,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.38,
+            "b": 29.38,
+            "c": 29.38,
+            "d": 29.38,
+            "e": 0,
+            "f": 0,
+            "g": 29.38,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.46e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000151935499,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 400600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 4,
+          "active": "bcfg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 450600,
+          "currents": {
+            "a": 0,
+            "b": 0.001521355721,
+            "c": 0.001521355719,
+            "d": 0,
+            "e": 0,
+            "f": 0.001521355725,
+            "g": 0.001521355723,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 29.41,
+            "c": 29.41,
+            "d": 0,
+            "e": 0,
+            "f": 29.41,
+            "g": 29.41,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.21e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.00012170846,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 500600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 5,
+          "active": "acdfg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 550600,
+          "currents": {
+            "a": 0.001519354958,
+            "b": 0,
+            "c": 0.001519354956,
+            "d": 0.00151935496,
+            "e": 0,
+            "f": 0.001519354962,
+            "g": 0.00151935496,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.38,
+            "b": 0,
+            "c": 29.38,
+            "d": 29.38,
+            "e": 0,
+            "f": 29.38,
+            "g": 29.38,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.44e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000151935499,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 600600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 6,
+          "active": "acdefg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 650600,
+          "currents": {
+            "a": 0.001517359451,
+            "b": 0,
+            "c": 0.001517359449,
+            "d": 0.001517359453,
+            "e": 0.001517359459,
+            "f": 0.001517359455,
+            "g": 0.001517359453,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.36,
+            "b": 0,
+            "c": 29.36,
+            "d": 29.36,
+            "e": 29.36,
+            "f": 29.36,
+            "g": 29.36,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.55e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000182083138,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 700600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 7,
+          "active": "abc",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 750600,
+          "currents": {
+            "a": 0.00152336176,
+            "b": 0.00152336176,
+            "c": 0.001523361758,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.43,
+            "b": 29.43,
+            "c": 29.43,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.04e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000091401708,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 800600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 8,
+          "active": "abcdefg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 850600,
+          "currents": {
+            "a": 0.00151536918,
+            "b": 0.00151536918,
+            "c": 0.001515369178,
+            "d": 0.001515369182,
+            "e": 0.001515369187,
+            "f": 0.001515369183,
+            "g": 0.001515369182,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.33,
+            "b": 29.33,
+            "c": 29.33,
+            "d": 29.33,
+            "e": 29.33,
+            "f": 29.33,
+            "g": 29.33,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.69e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000212151689,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 900600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      },
+      {
+        "pressed": {
+          "digit": 9,
+          "active": "abcdfg",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 950600,
+          "currents": {
+            "a": 0.001517359452,
+            "b": 0.001517359452,
+            "c": 0.00151735945,
+            "d": 0.001517359454,
+            "e": 0,
+            "f": 0.001517359455,
+            "g": 0.001517359454,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 29.36,
+            "b": 29.36,
+            "c": 29.36,
+            "d": 29.36,
+            "e": 0,
+            "f": 29.36,
+            "g": 29.36,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 1.61e-10,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000182083138,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        },
+        "released": {
+          "digit": null,
+          "active": "",
+          "projectSessionId": "servo-project-1",
+          "generationId": 1,
+          "inputDigest": "8a1b2cdd7800cbaf7166e4f2fdf9c9b1f719356bb7bb08297f3ce4bc9a20c195",
+          "frame": 1000600,
+          "currents": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "brightness": {
+            "a": 0,
+            "b": 0,
+            "c": 0,
+            "d": 0,
+            "e": 0,
+            "f": 0,
+            "g": 0,
+            "dp": 0
+          },
+          "quality": {
+            "finite": true,
+            "passed": true,
+            "maxKclResidualAmp": 0,
+            "maxSourceVoltageResidualVolt": 0,
+            "powerBalanceResidualWatt": 0,
+            "powerBalanceToleranceWatt": 1e-9,
+            "kclToleranceAmp": 0.000001,
+            "sourceVoltageToleranceVolt": 1e-9
+          }
+        }
+      }
+    ],
+    "savedReopened": true,
+    "wallMs": 10100
+  }
+]

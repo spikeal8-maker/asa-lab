@@ -12430,7 +12430,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point2_direct_diode_matrix_selected
+      checkpoint: remaining20_point2_direct_matrix_verified_arduino_effects_pending
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -12450,7 +12450,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: OwnerprovidedpupilTinkercadimage newpoint2direct10buttondiodecircuit selectedtest-onlyqualification. Point1main9ddsourceverifiedindependentPASS, exactGeneral40671936111inprogresslastobserved. Foreignworkflowdirtypathsinspectedunchangedandexcluded; no server/heavyparallelruns. No claim wholepoint2orArduinoeffectscomplete.
+      execution_coordination: Newpoint2directpupilcircuit40781ac independentAPPROVE16domain20press20release1440and390reopenPASS. Arduinoeffects/counterremainpending. Point1main9ddsourceverifiedindependentPASS; General40671936111cancelledafternewmain, notPASSorproductFAIL. Foreignworkflowdirtypathsuntouched; no server/heavyparallelruns. No wholepoint2orinstalledacceptanceclaim.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -13693,11 +13693,16 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_owner_pupil_direct_circuit_qualification
+      checkpoint: independently_verified_direct_pupil_circuit_ready_for_main
+      accepted_candidate_sha: 40781ac27280172b64daee6678bb6ce7f33a19a9
+      independent_review: APPROVE_exact40781ac_16domain20press20release1440_390_reopen
+      evidence: docs/product/electronics/examples/seven-segment-diode-matrix/README.md
+      technical_evidence: Full117components2AA3V49diodes49branch220Ohm7bus100Ohm. Independent16domainPASS plusactualWorkerStage10digitsbothwidths; maxI0.001525373096A maxKCL1.69e-10 source0. ReopenedcircuitSHA7e4a502c611297245528eaf97aec93f98f702867a0a6a1df7e199d2472d53c67 matchescommittedexample. No productcodeorphysicschanged; carryprior751fullgate2345tests71freshNxallcapsPASS, no newfullbuildclaim.
+      residual_boundary: UserUIimportinstalledSaveandcomfortablemobileeditingNOT_RUN; nativepairmultitouchNOTproven. Wholepoint2Arduinocountereffectsremainpending. MainCIpendingnotPASSclaim.
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       owner_authorization: OwnerexplicitlyrequestsfunctionalASAversionofpupilTinkercadtenbuttondiodecircuit. No Arduino substitute; preserve2AAphysicalsourceanddocumentchosenresistors. Testfirst STOPonactualproductdefectforboundedrepairselection.

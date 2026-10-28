@@ -69,6 +69,7 @@ components:
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
     - apps/web/src/electronics/testing/workbench-tooltips.browser.mjs
+    - apps/web/src/electronics/testing/servo-runtime.browser.mjs
     - apps/web/src/electronics/testing/workbench-geometry.spec.ts
     - apps/web/src/electronics/testing/workbench-drag-preview.spec.ts
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts

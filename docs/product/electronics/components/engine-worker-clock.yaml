@@ -99,6 +99,8 @@ components:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/linear-dc-models.spec.ts
     - contexts/electronics/testing/brushed-motor-profiles.spec.ts
+    - contexts/electronics/testing/seven-segment-diode-matrix.spec.ts
+    - contexts/electronics/testing/fixtures/seven-segment-diode-matrix.ts
     dependencies:
     - electronics.engine.document
     symbols:
