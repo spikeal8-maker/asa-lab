@@ -187,14 +187,20 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
         /Подтверждено токенов|Резерв:|Остаток личного бюджета|Новый период:/,
       );
       await expect(chat.getByRole('button', { name: 'Проверить остаток' })).toHaveCount(0);
+      await expect(chat.locator('p.chat-runtime-note[role="status"]')).toHaveCount(0);
+      await expect(
+        chat
+          .getByRole('status')
+          .filter({ hasText: /бюджет модели исчерпан|расход ожидает подтверждения/ }),
+      ).toHaveCount(0);
       if (exhausted) {
-        await expect(
-          chat.getByRole('status').filter({ hasText: 'месячный бюджет модели исчерпан' }),
-        ).toBeVisible();
         await chat.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Новый ответ');
         await expect(
           chat.getByRole('button', { name: 'Отправить сообщение', exact: true }),
         ).toBeDisabled();
+        await expect(
+          chat.getByRole('button', { name: 'Отправить сообщение', exact: true }),
+        ).toHaveAttribute('title', 'Месячный бюджет модели исчерпан');
       }
       await page.goto('/#/admin/ai?section=settings');
       await expect(row).toBeVisible();

@@ -1979,13 +1979,6 @@ export function AiChatPage({
               </div>
             </div>
           )}
-          {!imageMode && selectedBudget?.available === false ? (
-            <p className="chat-runtime-note" role="status">
-              {selectedBudget.reason === 'ai_budget_pending'
-                ? 'Новые ответы временно недоступны: расход ожидает подтверждения.'
-                : 'Новые ответы недоступны: месячный бюджет модели исчерпан.'}
-            </p>
-          ) : null}
           {visibleError || schoolAdmission || archived || (!busy && pendingRegeneration) ? (
             <div
               className={'asa-ai-error' + (visibleError ? '' : ' chat-history-notice')}
@@ -2422,6 +2415,13 @@ export function AiChatPage({
                     <button
                       type={composerBusy ? 'button' : 'submit'}
                       className="chat-send-button"
+                      title={
+                        !composerBusy && !imageMode && selectedBudget?.available === false
+                          ? selectedBudget.reason === 'ai_budget_pending'
+                            ? 'Расход ожидает подтверждения'
+                            : 'Месячный бюджет модели исчерпан'
+                          : undefined
+                      }
                       disabled={
                         (imageUi.busy && !imageUi.canCancel) ||
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
