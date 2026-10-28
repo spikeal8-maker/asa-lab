@@ -42,6 +42,8 @@ services:
         condition: service_completed_successfully
     working_dir: /workspace
     environment:
+      CI: ${CI:-}
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS:-}
       TEST_DATABASE_URL: postgres://asalab_admin:asa-local-test-admin-change-me@postgres:5432/asalab_test
       APP_TEST_DATABASE_URL: postgres://asalab_app:asa-local-test-runtime-change-me@postgres:5432/asalab_test
       ASA_E2E_EXTERNAL: 'true'
@@ -50,6 +52,7 @@ services:
     tmpfs:
       - /tmp
       - /workspace/node_modules/.vite
+      - /workspace/test-results:mode=1777
     volumes:
       - ./e2e/artifacts:/workspace/e2e/artifacts
       - ./reports:/workspace/reports
