@@ -576,7 +576,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asai_15_candidate_and_806_own_quality_parallel
+      checkpoint: models_access_focused_pass_waiting_baseline_841
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -607,9 +607,13 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R31]
           acceptance_checks: [C20]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
+          source_pr: 841
+          candidate_sha: dbb4787a91859b7668728b7edcdbf2dfdf3c05e1
+          independent_review: approved_exact_source
+          ci_status: general_ci_pending
           selection: >-
             Owner explicitly approved a separate baseline PR before merging AI838: fix only
             tests/games-admission/http-contract.ts stale prepared-SQL lock marker and
@@ -633,9 +637,13 @@ parallel_lanes:
           requirements: [R19, R20, R21, R22, R23, R31]
           acceptance_checks: [C17, C20, C25, C28]
           source_pr: 838
+          candidate_sha: baa41d9a14fa8a783fd33630f8ebc93b11b53fc2
+          independent_review: approved_exact_composition
+          focused_ci_run: 40753059881
+          ci_status: focused_pass_general_waits_baseline_841
           source_dependency: da8c27b3f2a48f2915f329e0a0317371fc076512
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
