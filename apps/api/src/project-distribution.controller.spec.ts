@@ -14,7 +14,9 @@ function fixture(data: unknown = { publish: false, download: false, version: 0 }
     accountId: 'trusted-account',
     tenantId: 'different-active-workspace',
   }));
-  const query = vi.fn(async (_sql: string, _params: unknown[]) => ({ rows: [{ data }] }));
+  const query = vi
+    .fn<(sql: string, params: unknown[]) => Promise<{ rows: { data: unknown }[] }>>()
+    .mockResolvedValue({ rows: [{ data }] });
   const controller = new ProjectDistributionController(
     { resolve } as unknown as ActiveContextUseCase,
     { query } as unknown as pg.Pool,

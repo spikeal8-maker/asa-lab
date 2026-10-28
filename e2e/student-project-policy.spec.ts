@@ -131,7 +131,11 @@ test('teacher policy explicitly permits own Seat publication and preserves publi
     await capture(page, 'teacher-class');
     await learner.reload();
     const card = learner.getByTestId('project-card').filter({ hasText: 'Публикация ученика' });
-    await card.locator('details > summary').click();
+    await expect(card).toBeVisible();
+    await card.hover();
+    const actions = card.locator('details > summary');
+    await expect(actions).toBeVisible();
+    await actions.click();
     await card.getByRole('button', { name: 'Публикация', exact: true }).click();
     const dialog = learner.getByRole('dialog', { name: 'Публикация проекта' });
     await expect(dialog.getByRole('button', { name: 'Опубликовать', exact: true })).toBeEnabled();
