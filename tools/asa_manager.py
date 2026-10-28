@@ -192,6 +192,10 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN"):
         if key in install.env:
             exact_origin(install.env[key])
+    # Backup and its finally/readiness path still belong to the installed
+    # runtime. Target-only images (for example a newly introduced search
+    # service) must not become requirements of the previous application.
+    backup_install = None if fresh else Installation(install.root, install.profile)
     apply_release_environment(install, release)
     validate_resolved_images(install, release)
     check_resources(install, install.identity(existing=not fresh))
@@ -204,7 +208,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     backup = None
     if not fresh:
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "node", "migration", "tools/migrate.mjs", "--plan")
-        backup = export_backup(install)
+        backup = export_backup(backup_install)
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
     if "search" in release["images"]:

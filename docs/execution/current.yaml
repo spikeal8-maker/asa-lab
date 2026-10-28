@@ -81,6 +81,26 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: deployment-runtime-search-prebackup
+    worktree_id: deployment-runtime-search-prebackup-20261029
+    owned_paths:
+      - docs/deployment/tasks/TASK-DEPLOYMENT-RUNTIME-SEARCH-PREBACKUP-001.md
+    task:
+      id: TASK-DEPLOYMENT-RUNTIME-SEARCH-PREBACKUP-001
+      issue: null
+      branch: codex/manager-runtime-search-prebackup-20261029
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: prebackup_runtime_target_search_separation
+      owner_acceptance: pending
+      owner_authorization: Owner requested checking the updater and updating the existing asa-lab production installation on 2026-10-29.
+      scope: Separate installed runtime search readiness from target release search readiness during consistent backup and writer restart. Preserve mandatory post-switch target search verification.
+      constraints:
+        - No live database changes, production update, backup bypass, release bypass, Electronics edits or legacy809 work in this source repair.
+        - Require regression coverage for legacy runtime without search and existing runtime with search, plus independent review and exact CI before integration.
+      execution_coordination: Direct-main shared deployment source repair authorized by owner; legacy809 remains unchanged and its D2R2 installation blockers do not grant or remove authority for this distinct asa-lab source task.
   - id: classroom-access-budget
     worktree_id: classroom-access-budget-820
     owned_paths:
