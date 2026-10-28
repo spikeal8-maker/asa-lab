@@ -176,6 +176,49 @@ describe('server-issued internet evidence', () => {
     expect(html).toContain('попытка');
     expect(html).not.toContain('получено');
   });
+  it('renders a scrollable multi-image gallery with distinct source links and a truthful temperature card', () => {
+    const basePath =
+      '/api/ai/threads/11111111-1111-4111-8111-111111111111/web-search/22222222-2222-4222-8222-222222222222/images/';
+    const html = renderToStaticMarkup(
+      createElement(AiWebEvidence, {
+        evidence: {
+          ...evidence,
+          mode: 'weather',
+          images: [1, 2, 3].map((id) => ({
+            id,
+            title: 'Фото ' + id,
+            thumbnailUrl: basePath + id,
+            sourceUrl: `https://example.org/image-${id}`,
+          })),
+          weather: {
+            provider: 'met-norway',
+            forecastAt: '2026-10-25T12:00:00Z',
+            forecastUpdatedAt: '2026-10-25T11:00:00Z',
+            attributions: [],
+            location: 'Москва',
+            sourceUrl: 'https://www.yr.no/en/forecast',
+            temperatureC: 12,
+            hours: [
+              {
+                time: '2026-10-25T12:00:00Z',
+                temperatureC: 12,
+                humidityPercent: 65,
+                windSpeedMs: 3,
+              },
+            ],
+          },
+        },
+      }),
+    );
+    expect(html).toContain('aria-label="Найденные изображения, прокрутка по горизонтали"');
+    expect(html.match(/class="asa-ai-web-image-preview"/g)).toHaveLength(3);
+    for (const id of [1, 2, 3]) expect(html).toContain(`href="https://example.org/image-${id}"`);
+    expect(html).toContain('Температура 12 °C');
+    expect(html).toContain('💧 65%');
+    expect(html).toContain('💨 3.0 м/с');
+    expect(html).toContain('MET Norway');
+    expect(html).not.toContain('солнечно');
+  });
   it('drops invalid weather values and future schemas without crashing history', () => {
     expect(readWebEvidence({ ...evidence, schemaVersion: 2 })).toBeNull();
     const result = readWebEvidence({

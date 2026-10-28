@@ -9,6 +9,23 @@ export type {
   PublicArtifactValidation,
 } from './public-artifact.js';
 export type {
+  AiImageSize,
+  AiImageJobState,
+  AiGeneratedImage,
+  AiImageGenerationStatus,
+  AiImageGenerationRequest,
+  AiImageGenerationJob,
+  AiImageGenerationAdminConfig,
+  AiImageGenerationAdminUpdate,
+} from './ai-image-generation.js';
+export type {
+  AiPromptVariable,
+  AiGenerationModel,
+  AiGenerationPolicy,
+  AiGenerationPolicyUpdate,
+} from './ai-generation-policy.js';
+export type { AiUsageOverview, AiUsageTokenTotal } from './ai-usage-overview.js';
+export type {
   AiWebSearchMode,
   AiWebSource,
   AiWebImage,

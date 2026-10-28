@@ -81,6 +81,92 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: deployment-legacy-809
+    worktree_id: deployment-legacy-809
+    owned_paths:
+      - tools/asa_manager.py
+      - tools/deployment/**
+      - docs/deployment/LEGACY_REVIEW_TRANSITION.md
+    task:
+      id: TASK-DEPLOYMENT-LEGACY-809
+      issue: 809
+      branch: main
+      base_branch: main
+      pr: 811
+      pr_draft: true
+      status: blocked
+      checkpoint: manager_candidate_d2_author_attestation_blocked
+      change_class: L3_CRITICAL
+      owner_acceptance: pending
+      target_product_revision: bd80426472edc25f3a184a29eb1a28216600c4cd
+      target_product_schema: 268
+      owner_authorization: >-
+        Owner selected issue809 on 2026-10-28: implement, test and independently
+        review a bounded legacy-review transition, then use the checked manager
+        for the already authorized backup/update of the existing D2-R2 ASA Lab
+        and demonstrate the integrated ASAI-01. Preserve canonical root/project,
+        ports, PostgreSQL/MinIO, keys and inactive WIP. Develop outside mounted
+        runtime inputs. Revalidate the explicitly selected official product
+        release, never automatically choose latest main or downgrade. Permission
+        to merge PR800 does not authorize merging a new manager PR.
+      scope: >-
+        Explicit immutable transition plan and drift/active-author refusal;
+        constrained actual Compose/overlay/mount identity; honest legacy Web
+        provenance; complete consistent database/object/private configuration
+        and mounted-input backup with verified isolated restore; interrupted
+        operation state and guarded switch with ordinary exact new-release
+        readiness. Preserve existing guards and unrelated lanes. No UI/API/SQL,
+        issue806/807/808 repair, second permanent stack, host/network changes,
+        Linux test server or production action, paid model call or owner acceptance.
+      context_hints:
+        - docs/deployment/PORTABLE_OPERATIONS.md
+        - docs/agent/contracts/deployment.yaml
+      normative_refs:
+        - document: PORTABLE-DEPLOYMENT-STANDARD
+          revision: '1.1'
+        - document: PORTABLE-DEPLOYMENT-CONTRACT
+          revision: '1.0'
+      coordination_refs:
+        - https://github.com/spikeal8-maker/asa-lab/issues/809
+        - https://github.com/spikeal8-maker/asa-lab/issues/809#issuecomment-6455177685
+      publication: draft_pr_then_exact_sha_checks_and_independent_review
+      candidate_branch: codex/deployment-legacy-809
+      candidate_sha: 260826ecd5385206053eaf9d85f66fc4790e8e92
+      implementation_complete: true
+      exact_head_general_run: 40606850715
+      exact_head_focused_run: 40606850643
+      qualification_scope: windows_d2r2_legacy_transition
+      main_integration: not_merged
+      required_focused_workflow: ASA Portable Delivery Checks
+      focused_checks:
+        - python -m unittest discover -s tools/deployment -p "test_*.py" -v
+        - node --test tools/blocks/deployment.test.mjs
+      deployment: blocked_legacy_authors
+      full_database_object_backup: not_run
+      live_restore_check: not_run
+      installed_demo: BLOCKED_DEMO
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 07c80558e9a95c94494ab6fc72b57e2d463578ef
+      head_sha: null
+      observed_at: '2026-10-28T00:25:00Z'
+      main:
+        branch: main
+        sha: 07c80558e9a95c94494ab6fc72b57e2d463578ef
+      observation_note: >-
+        Dated main observation; fetch main and refresh the exact candidate checks
+        before further writes. Manager evidence belongs to task.candidate_sha;
+        run references are evidence locations, not cached conclusions or approval.
+        The same D2R2 root/project, eight services, foreign storage and preserved WIP
+        passed read-only identity qualification. Author attestation returns
+        LEGACY_AUTHORS because required process owner metadata remain unavailable.
+        Full application backup, restore, update and installed demo have not run;
+        owner acceptance is pending. Draft PR811 has not been merged.
+    gates:
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-browser-partition-722
     parent_lane: electronics
     worktree_id: electronics-browser-partition-722
@@ -391,7 +477,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: text_key_model_and_private_attachment_foundation_integrated_in_main
+      checkpoint: asai_01_integrated_d2r2_update_blocked
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -404,8 +490,123 @@ parallel_lanes:
         follow evidence; no force-push or destructive history/data action.
       context_hints:
         - docs/product/ASA_AI_ASSISTANT_SPEC.md
+        - docs/product/ai/README.md
+        - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-01
+          issue: 799
+          scope: existing AI administration overview, real usage aggregates and first daily request chart
+          status: in_progress
+          selected_at: '2026-10-27'
+          task_card: docs/product/ai/FIRST_TASK_ASAI-01.md
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: true
+          implementation_complete: true
+          owner_acceptance: pending
+          demo_status: BLOCKED_DEMO
+          source_pr: 800
+          candidate_sha: 987769b6d5799de0fc2a03cfea8e2bab7d6c8592
+          integrated_sha: bd80426472edc25f3a184a29eb1a28216600c4cd
+          main_integration: merged
+          integrated_at: '2026-10-27T18:19:45Z'
+          independent_review: approved_code_and_visual_on_candidate
+          review_anchor: https://github.com/spikeal8-maker/asa-lab/pull/800#pullrequestreview-5671924999
+          exact_head_focused_run: 40544688735
+          exact_head_general_run: 40544689120
+          exact_main_focused_run: 40558947792
+          exact_main_general_run: 40558947804
+          integration_checks_status: passed
+          exact_main_general_jobs: 4_passed
+          exact_main_focused_jobs: 5_passed_1_pr_only_comparison_skipped
+          exact_main_account_run: 40558947980
+          exact_main_public_projects_run: 40558948004
+          release_revision: bd80426472edc25f3a184a29eb1a28216600c4cd
+          release_workflow_run: 40563198844
+          release_status: published_and_registry_verified
+          release_schema: 268
+          release_deployment_digest: sha256:23f7ef66db27606ad31e1206ce0ab89660a8af60208d154a30b240445759a91a
+          release_manifest_sha256: 88f115db5916a8d9c6216cc7cd282b98697d2da8c1de50bdd3841f2c5526a2a7
+          release_image_digests:
+            api: sha256:c97c909c31019b92f5135433b27522dca20df6396bd3266e6b44c4927bdb2ea7
+            web: sha256:8614c1695ad4f0202e232c64fdad541e46fba92127b07a767b44150e8d19a0eb
+            scratch: sha256:e8f01d750c16a0b40817d84ed2501cf7634c627ac5db46e0dc6e1ffcb2ba3aee
+            minio: sha256:69bcf6ffa1348fbbd1dbc4c39e7b818ff2a32adc9a327e45ed2043d5e9f8dfb9
+            search: sha256:d31eb29e3e106e6dee813e350c99853f19dba71c06432f46a9735e22c0c6e047
+          owner_integration_authorization: >-
+            On 2026-10-27 the owner explicitly authorized marking only PR800 ready and ordinary
+            expected-HEAD merge after checks, followed by the supported guarded update of the existing
+            D2R2 installation. Preserve WIP, data, keys and other projects; do not bypass updater guards,
+            change host/network settings, create another permanent stack or assign owner acceptance.
+            No Linux test-server update, paid model calls, UI redesign, issue806 or issue807 work.
+          deployment:
+            target: D2-R2
+            status: blocked_identity_files
+            issue: 809
+            entry_origin: http://127.0.0.1:4610
+            project: asa-lab-dev
+            canonical_root: 'C:\Users\spike\.codex\worktrees\ai-layout-quality\ASA-lab'
+            observed_at: '2026-10-27T18:58:14Z'
+            observed_api_sha: 2d6394a299418b8ada6a77b0a17748b946cf4ace
+            observed_web_sha: null
+            observed_web_version_status: not_verified_html_instead_of_build_metadata
+            observed_schema: 261
+            expected_schema_of_running_api: 261
+            source_head: cdb28684116a8990d948d73605437e795b8b7bfa
+            source_branch: codex/ai-generation-policy
+            compose_files: [compose.yaml, compose.dev.yaml, .asa/local-review/compose.review.yaml]
+            doctor_exit_code: 2
+            doctor_blocker: IDENTITY_FILES
+            full_database_object_backup: not_run
+            update: not_run
+            installed_demo: not_run
+            browser_access: originating_connected_browser_context_required
+            preservation:
+              status: verified
+              private_root: 'C:\Users\spike\ASA-Lab-private-backups\asai-01-integration-20261027T180950Z'
+              tracked_wip_files: 8
+              untracked_wip_files: 2
+              source_copies: 138
+              manifest_files: 173
+              bundle_bytes: 235282974
+              bundle_sha256: 8ba6e7eed26a9600ab743061895268264f55a8635d15c9e37d041227e7187560
+              manifest_sha256: 5c9adcedd8f6c2de721d1fa367470c9f192919c9f1dbc2cae61cd0811a1c33d0
+              independent_bundle_fetch_fsck: passed
+              private_configuration_copy: verified
+              originals_index_runtime_unchanged: true
+              is_live_database_object_backup: false
+              final_readonly_verification_at: '2026-10-27T18:58:14Z'
+              changed_source_copies: 0
+              git_status_and_container_ids_unchanged: true
+            observation: >-
+              Installed manager doctor rejects the actual third review overlay. API/Web read host
+              source bind mounts, so stash or checkout would change live runtime before full backup.
+              Current backup code also rejects these mounts; BACKUP_MOUNTS is code-derived, not a
+              separately executed backup failure. No supported adoption/transition was found; issue809
+              requires a separately selected deployment repair. HTTP root and API version return200;
+              build-metadata.json returns HTML, so Web revision is not claimed. No service, database,
+              branch or host configuration was changed. Private preservation is not full live backup.
+          observations:
+            - issue: 808
+              classification: independent_C_provisional
+              sha: cd8cb028ef067cc0b353a1ef48504e71d62115b4
+              workflow_run: 40546216288
+              attempt: 2
+              status: needs_root_cause
+              summary: >-
+                Pre-merge main General failed only the CRM acquisition PostgreSQL test at line154
+                with timeout5000ms. Governance, Code and Access A passed. This is distinct from the
+                earlier Git-fixture cleanup in issue308; no foreign repair or rerun in ASAI-01.
+          preparation_basis: docs/product/ASA_AI_ASSISTANT_SPEC.md
+          selection: >-
+            Continue only the selected ASAI-01 delivery. The compact overview is implemented and
+            PR800 is merged; the independent candidate review is anchored with its original source.
+            Exact integrated-version CI/release and actual D2R2 installation/demo are separate states.
+            C28, issue799 closure and owner acceptance remain pending. The confirmed deployment guard
+            blocks that action only; registering issues808/809 does not select their implementation
+            or any subsequent AI slice. Fetch main and exact-SHA evidence before continuing.
         - id: AI-TEXT-UI-001
           source_pr: 623
           scope: existing chat screen, styles and AI browser regressions
@@ -1386,7 +1587,9 @@ parallel_lanes:
             The historical60000ms timeout and JIT hypothesis remain unproved; successful diagnostic execution is not
             a root-cause fix. Observer still has no separate query deadline/cancellation.'
           historical_root_cause: unproven; successful observation does not establish a fix
-      dependency_sequence:
+      programme_definition: docs/product/ai/PROGRAM_DEFINITION.json
+      dependency_sequence: [ASAI-01]
+      historical_foundation_dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
         - provider_catalog_and_compatible_encrypted_configuration
@@ -1451,7 +1654,13 @@ parallel_lanes:
             - 655
       deployment: not_run
       live_provider_verification: not_run
-      latest_owner_instruction:
+      latest_owner_instruction: >-
+        2026-10-27: prepare AI specification v1.1 for implementation, fix its documentation
+        gate and prepare the first bounded visible result. ASAI-01 / Issue 799 is selected
+        and ready, but product implementation has not started. An explicit start follows
+        fresh preflight and canonical state verification; no deployment, working-data
+        change, paid inference or model installation is authorized by this preparation.
+      historical_latest_owner_instruction:
         '2026-10-20: continue after chat interruption; owner explicitly expects accepted implementation
         in main.'
       combined_candidate:
@@ -2084,19 +2293,22 @@ parallel_lanes:
           were controlled fixtures; no live paid key verification or deployment is claimed.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 5a401356c0882cd369f5eff215afaca79015a625
+      convergence_baseline_sha: cd8cb028ef067cc0b353a1ef48504e71d62115b4
       head_sha: null
-      observed_at: '2026-10-21T06:48:09Z'
+      observed_at: '2026-10-27T18:58:14Z'
       main:
         branch: main
-        sha: 0a7e4725c1afcc105aa1ff98288c5c3affa9c270
-      observation_note:
-        'Dated acceptance receipt: final 1648 exact tree2d406b passed seven required workflows/nineteen
-        jobs and new independent source plus AI/General/dependency actual reviews. Ordinary owner-authorized PR655
-        merge and preserved superseded AI branches verified. This AI-only metadata update records that tested source;
-        it does not modify product code or retest it under another SHA. Programme remains in_progress, owner acceptance
-        pending. No deployment, working database action or live paid-provider verification. Fresh fetch main and exact-SHA
-        CI before further writes and integration.'
+        sha: bd80426472edc25f3a184a29eb1a28216600c4cd
+      observation_note: >-
+        Dated ASAI-01 integration receipt. Owner-authorized normal PR800 merge preserved the reviewed
+        compact candidate987; its independent code/visual review is anchored in the PR. Exact merge General,
+        applicable AI, Account and Public Projects checks passed. Release40563198844 published bd804, and
+        its manifest/schema/five immutable image digests were verified against the public registry.
+        This metadata records that tested product revision. D2R2 WIP/configuration preservation is verified
+        without changing originals or runtime. Installed manager doctor confirmed IDENTITY_FILES for the legacy overlay;
+        full live backup/update/demo are not run, issue809 records the deployment prerequisite. Historical
+        accepted AI slices remain unchanged. Owner acceptance pending; fetch main and exact-SHA CI/release
+        before further writes or installation. No next slice is selected by this receipt.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
@@ -2956,27 +3168,37 @@ parallel_lanes:
       - e2e/classroom-student-profile.spec.ts
       - e2e/classroom-profile-completion.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
+    accepted_slices:
+      - task_id: TASK-TEACHER-STUDENT-PROFILE-UI-734
+        issue: 734
+        source_pr: 736
+        accepted_candidate_sha: 9a130a22de1836dbc262b54e7ed3a0c1c5082733
+        integrated_sha: 28e05dde76f838357975477c91f1f0fbc8cac300
+        checkpoint: ui04a_b_c_merged_main_28e05dde_technical_accepted
+        status: technical_accepted
+        independent_review: approved
+        owner_acceptance: pending
+        deployment: not_run
     task:
-      id: TASK-TEACHER-STUDENT-PROFILE-UI-734
-      issue: 734
+      id: TASK-TEACHER-STUDENT-PROFILE-UI-755
+      issue: 755
       branch: main
       base_branch: main
       pr: null
-      status: done
-      checkpoint: ui04a_b_c_merged_main_28e05dde_technical_accepted
+      status: ready
+      checkpoint: ui05_real_functional_verification_pending
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner Issue #734 and comment 6387720711 authorized complete UI-04A/B/C
-        teacher-facing student-settings consolidation. Owner explicitly authorized
-        publishing the finished result in main on 2026-10-25. PR #736 source
-        9a130a22de1836dbc262b54e7ed3a0c1c5082733 passed six exact-SHA
-        workflows and independent Codex review, then GitHub merged it as
-        28e05dde76f838357975477c91f1f0fbc8cac300. Issue #734 is closed
-        completed. No school installation or production database action was
-        authorized; separate owner visual acceptance remains pending.
+        Owner Issue #755 and the 2026-10-27 handoff authorize only this bounded
+        UI-05 governance selection proposal. UI-04 (#734 / PR #736) remains
+        integrated and recorded in accepted_slices. This Draft proposal does not
+        authorize B1-B6, product or test file edits, main merge, deployment, or
+        any school/production data action. A separate controller-accepted main
+        selection and fresh scoped preflight are required before a product author
+        may begin UI-05 verification.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
@@ -2985,16 +3207,16 @@ parallel_lanes:
         - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
         - https://github.com/spikeal8-maker/asa-lab/issues/734
         - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
+        - https://github.com/spikeal8-maker/asa-lab/issues/755
       scope: >-
-        UI-04A/B/C product code and real React/UI tests are integrated in main
-        through PR #736: single lazy server-backed games editor and permissions
-        solely under Settings, authorized pupil management and Safe Mode grouped
-        in four closed-by-default categories, no persistent external controls,
-        grade/rating/awards in their respective nine profile tabs, compact mobile
-        controls and accessible work-visibility disclosure. Owner visual
-        acceptance, deployment and next programme slice are separate decisions.
-        Do not reimplement UI-04; the next classroom task must be selected
-        independently under Issue #715 after its own governance preflight.
+        UI-05 (#755): verify preservation of existing real student-profile actions
+        after accepted UI-04 (#734 / PR #736): merits and awards, ordinary/class/
+        secret avatars, helperClasses, Student Code/access cards, role-based ACL,
+        ten profile tabs and responsive keyboard/mobile navigation. Any subsequent
+        repair is bounded to proven UI-05 regressions with real API/browser and
+        negative authorization evidence. This governance-only change makes no
+        product or test edits; UI-04 remains accepted, and independent controller
+        acceptance of this proposal in main is required before verification.
       coordinated_paths:
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
@@ -3005,6 +3227,8 @@ parallel_lanes:
         owned_paths plus coordinated_paths are the complete permitted path set; no tooling changes.
       constraints:
         - Selection must be accepted on GitHub main before the separate product author inherits it and starts edits; this governance branch authorizes no product writes.
+        - This UI-05 governance proposal changes only docs/execution/current.yaml; B1-B6, React, CSS, API, SQL, E2E, and deployment are excluded until separately authorized after main acceptance.
+        - Issue #753 owns existing ten-tab navigation baseline tests; do not edit its two test files without explicit coordination.
         - Preserve every existing lane selection; one product writer per path, independent read-only exact-final-SHA reviewer and separate controller.
         - Stage only explicitly reviewed bounded owned/coordinated paths; never include another writer's changes or protected assets/backups.
         - No API, SQL, Auth/permissions, grade semantics or shared component expansion without a separate audited slice.
@@ -3020,11 +3244,11 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 1c41341a492f0318cec49b5ab8d32eb622c6e54d
       head_sha: null
-      observed_at: '2026-10-18T07:22:04Z'
+      observed_at: '2026-10-27T10:38:40Z'
       main:
         branch: main
-        sha: 1c41341a492f0318cec49b5ab8d32eb622c6e54d
-      observation_note: Dated controller audit snapshot; fetch main before writes. Governance selection requires main acceptance; no UI, CI success, owner acceptance or deployment is claimed.
+        sha: 4957352d412fb532afae1830ebc9812b609a1497
+      observation_note: Dated main snapshot for the UI-05 governance proposal only; fetch main before writes. Draft selection is not effective until controller-approved integration in main; no UI, CI success, owner acceptance or deployment is claimed.
     execution_lease:
       executor_id: teacher-student-profile-ui-589
       holder: unassigned
@@ -12206,8 +12430,8 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_requirements_renumbered_product_execution_still_paused
-      owner_pause: Ownerexplicitlyasksfinishcurrentworknowduetokenbudget andpublishallwork. Stopnewprogrammeexecutionafterthisarchive; resumeonlyonnewownerrequest.
+      checkpoint: remaining20_resumed_point1_tooltips_bounded_completion
+      owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
       context_hints:
@@ -12216,7 +12440,7 @@ parallel_lanes:
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
-      programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Currentownerpauseisnotrevokedbydocumentationrenumbering.
+      programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
       current_slice: TASK-ELECTRONICS-TOOLBAR-TOOLTIPS-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
@@ -12226,7 +12450,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Remaining20isactivecatalogueperowner, numbers1to20nowdefault. Historical45sourcearraysretainOLDnumbersnotnew20statuses. Currentmutationdocumentationrenumberingonly,751and789WIPpreservedNOTREADY. Productexecutionremainspauseduntilownerresume; no source/server/foreignchanges.
+      execution_coordination: Newpoint1 task751selectedforboundedWIPcompletionthenindependentreview. 789remainspreservedNOTREADY. Preflightmain326a4d6f CPpass exactGeneralCI success; twoexistingforeignworkflowdirtypathsinspectedandexcludedfromthisslice. No server/foreignchanges; no heavyparallelruns.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -12266,12 +12490,12 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: owner_wrapup_wip_archived_not_ready
+      checkpoint: owner_resumed_new_point1_complete_and_verify_fresh_wip
       preserved_wip_sha: c32354392cf90515ffd5ffcfb38c8fb06d52a621
       wrapup_evidence: BEFORE4widthsDPR1.25PASS, fresh4fileimplementationUNTESTED; AFTERunitlinttypesbuildbudgetreviewNOT_RUN. NativeAFTERexplicitthrow, sourceNOTREADY. ArchivedpatchandBEFOREreceipts/photosdocs/candidates/wrapup-20261026, noactivation.
       owner_acceptance: pending
       execution_role: bounded_fresh_executor_then_independent_review
-      publication: owner_requested_WIP_archive_only_NOT_READY
+      publication: resumed_bounded_completion_not_yet_verified
       owner_budget_decision: Owner explicitly retained222000 bytes and requested a separate cleanup prerequisite on2026-10-25. No cap increase authorized.
       budget_unblock_evidence: Acceptedforeign280publicviewerentrychangesandfinal591afresh7taskWebbuildPASS allcaps Editor163363of222000 Arduino1999997of2000000.58637Editorheadroom measured, no capchangeorcleanup. Meetsactualboundedprerequisitebudgetunblock; freshfeaturemustpasssamecaps.
       preserved_candidates: Neverintegrateold3e706prototypeor25c690cleanup; freshHeaderimplementationonly.
@@ -13569,6 +13793,42 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ASAI-01-D2R2-LEGACY-ADOPTION-809
+    kind: deployment_blocker
+    lane: ai-assistant
+    task_id: TASK-AI-ASSISTANT-PROGRAMME-001
+    blocks:
+      - d2r2_full_backup
+      - d2r2_update
+      - asai_01_installed_demo
+    allows:
+      - documentation_update
+      - readonly_environment_diagnostics
+      - private_wip_preservation
+      - exact_sha_ci
+      - release_publication
+    reason: >-
+      The bounded legacy adapter is published in Draft PR811 at manager
+      260826ecd5385206053eaf9d85f66fc4790e8e92. Read-only D2R2 qualification
+      supports the actual review identity, mount shape and preserved WIP.
+      Author attestation returns LEGACY_AUTHORS because required process
+      owner metadata cannot be verified in the available operator context.
+      No full application backup, live restore, source switch or update has run.
+    unblock_requires: >-
+      Require successful General and Portable CI and independent review of the
+      exact manager candidate before any live application. Obtain a successful
+      ordinary read-only legacy-plan with that manager and approved exact product
+      in an authorized operator context that
+      can verify the required process metadata. Do not weaken author guards,
+      enable privileges, alter host settings or ignore unknown processes.
+      Revalidate preserved WIP, current identity and release evidence. A successful
+      plan permits starting the supported backup/update sequence; ordinary full
+      backup, isolated restore, version and data guards still apply before switching.
+    delivery_completion_requires: >-
+      Verified full database/object/configuration backup, supported update, separately verified API/Web/schema
+      versions and real D2R2 administrator/browser evidence. These are results of the allowed sequence, not
+      prerequisites for starting its backup step. Owner acceptance remains a separate pending decision.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/809
   - id: ELECTRONICS-752-CLASSROOM-BASELINE
     kind: acceptance_blocker
     lane: electronics-owner23-potentiometer-hygiene

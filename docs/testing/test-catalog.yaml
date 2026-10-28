@@ -26,6 +26,37 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-USAGE-OVERVIEW-CORE-001
+    title: AI overview finite loading, honest token completeness, exact decimal sums and administrator-specific navigation
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-usage-overview.spec.ts apps/web/src/admin/testing/ai-usage-overview.spec.ts apps/web/src/admin/testing/ai-admin-navigation.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [vitest-report]
+  - id: TST-AI-USAGE-OVERVIEW-PG-001
+    title: Existing journal UTC aggregates, composite request identity, replay, null usage and real SQL/HTTP administrative authorization
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-usage-overview.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-USAGE-OVERVIEW-E2E-001
+    title: Built API/Web overview with real PostgreSQL metrics, compact height bounds, keyboard navigation, partial/empty/failure states and matching pre-density screenshots
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [playwright-report, ai-usage-overview-screenshots, safe-overview-summary, safe-density-measurements]
+
   - id: TST-AI-ATTACHMENTS-CORE-001
     title: Private bounded attachment bytes, native early errors and response lifetime, actual HTTP owner boundary, shared mutation proof and immutable embedded SQL receipts
     suite: authorization
@@ -1237,6 +1268,39 @@ tests:
     owner: ai-assistant
     artifacts: [test-report]
 
+  - id: TST-AI-GENERATION-POLICY-001
+    title: Canonical owner prompt context and cross-provider generation policy
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-generation-policy.spec.ts tests/admin/ai-generation-policy.embedded.spec.ts apps/web/src/admin/testing/ai-generation-policy.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-GENERATION-POLICY-E2E-001
+    title: Prompt settings and internet policy administration at four widths
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-generation-policy.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-TOOL-POLICY-001
+    title: Platform-admin native tool controls, immutable snapshots and embedded SQL admission
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-chat
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report, embedded-postgresql-report]
+
   - id: TST-AI-WEB-PG-001
     title: Concurrent PostgreSQL retrieval intent and global geocoder admission
     suite: authorization
@@ -1255,6 +1319,28 @@ tests:
     phase_available: PHASE-12
     required_for: []
     command: pnpm exec playwright test e2e/ai-web-search.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-IMAGE-CORE-001
+    title: Local image job ownership, at-most-once dispatch, bounded PNG and recoverable private storage
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-image-comfyui.spec.ts tests/admin/ai-image-generation.embedded.spec.ts apps/web/src/ai/ai-image-generation.spec.ts apps/web/src/ai/ai-generated-image.spec.ts apps/web/src/admin/testing/ai-images.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [test-report]
+
+  - id: TST-AI-IMAGE-E2E-001
+    title: Image mode, private PNG preview and download, readonly recovery and image administration
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/ai-image-generation.spec.ts
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [test-report]

@@ -49,7 +49,7 @@ components:
       - apps/api/src/public-scratch-player.controller.ts
       - apps/web/src/projects-public/PublicScratchPlayer.tsx
       - packages/contracts/src/public-scratch-player.ts
-      - migrations/0261_public_scratch_player.sql
+      - migrations/0269_public_scratch_player.sql
     tests:
       - apps/api/src/public-scratch-player.spec.ts
       - tests/portal/public-scratch-player.pg.spec.ts

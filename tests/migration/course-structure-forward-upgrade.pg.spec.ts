@@ -131,7 +131,15 @@ describe('Course Builder structure forward upgrade', () => {
         '0258', // Immutable Public Projects publication pins.
         '0259', // Private immutable-revision report intake.
         '0260', // Exact immutable Electronics public display.
-        '0261', // Exact public Scratch player and version-scoped asset reads.
+        '0261', // Complete AI answers preserve existing course history.
+        '0262', // Local owner-bound 30-minute generation lease.
+        '0263', // Governed generation policy and retrieval.
+        '0264', // Private image generation and GPU admission.
+        '0265', // Native tool provenance.
+        '0266', // Administrative tool-policy controls.
+        '0267', // Canonical frozen mixed Course completion, additive only.
+        '0268', // Additive read-only AI usage overview.
+        '0269', // Exact public Scratch player and version-scoped asset reads.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -422,7 +430,15 @@ describe('Course Builder structure forward upgrade', () => {
           '0258', // Immutable Public Projects publication pins.
           '0259', // Private immutable-revision report intake.
           '0260', // Exact immutable Electronics public display.
-          '0261', // Exact public Scratch player and version-scoped asset reads.
+          '0261', // Complete AI answers preserve existing course history.
+          '0262', // Local owner-bound 30-minute generation lease.
+          '0263', // Governed generation policy and retrieval.
+          '0264', // Private image generation and GPU admission.
+          '0265', // Native tool provenance.
+          '0266', // Administrative tool-policy controls.
+          '0267', // Course completion formula from exact frozen lesson practices.
+          '0268', // Additive read-only AI usage overview.
+          '0269', // Exact public Scratch player and version-scoped asset reads.
         ]);
         expect(
           await applyIsolatedTestPlan(

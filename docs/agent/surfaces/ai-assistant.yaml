@@ -1,6 +1,62 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-USAGE-OVERVIEW
+    routes: ['#/admin/ai', /api/admin/v1/ai/usage-overview]
+    implementation:
+      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-usage-journal.ts, packages/contracts/src/ai-usage-overview.ts, migrations/0268_ai_usage_overview.sql, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/AdminAiUsageOverview.tsx, apps/web/src/admin/ai-admin-navigation.ts, apps/web/src/admin/ai-usage-overview-model.ts, apps/web/src/admin/ai-usage-overview.css, apps/web/src/admin/ai-ollama.css]
+    invariants: [AI-USAGE-001, AI-OWNER-001, AI-REPLAY-001]
+    tests: [TST-AI-USAGE-OVERVIEW-CORE-001, TST-AI-USAGE-OVERVIEW-PG-001, TST-AI-USAGE-OVERVIEW-E2E-001]
+    controls:
+      - id: CTRL-AI-USAGE-OVERVIEW
+        label: Read one administrator-authorized UTC journal snapshot with exact known token sums and honest empty or unknown states
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-usage-journal.ts, migrations/0268_ai_usage_overview.sql, apps/web/src/admin/AdminAiUsageOverview.tsx]
+        invariants: [AI-USAGE-001, AI-OWNER-001, AI-REPLAY-001]
+        tests: [TST-AI-USAGE-OVERVIEW-CORE-001, TST-AI-USAGE-OVERVIEW-PG-001, TST-AI-USAGE-OVERVIEW-E2E-001]
+
+  - id: SURF-AI-LOCAL-IMAGES
+    routes: [/api/ai/image-generation/status, /api/admin/v1/ai/images, '/api/ai/threads/:threadId/image-generations', '/api/ai/threads/:threadId/image-generations/:requestId', '/api/ai/threads/:threadId/image-generations/:requestId/cancel', '/api/ai/threads/:threadId/image-generations/:requestId/image']
+    implementation:
+      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
+    invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-SESSION-001, AI-ADMISSION-001, AI-REPLAY-001, AI-USAGE-001]
+    tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
+    controls:
+      - id: CTRL-AI-LOCAL-IMAGES
+        label: Generate and recover a private local GPU image without replaying dispatch or exposing another owner
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
+        invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
+        tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
+
+  - id: SURF-AI-GENERATION-POLICY
+    routes: [/api/admin/v1/ai/generation-policy, /api/admin/v1/ai/web-search, /api/ai/status]
+    implementation:
+      files: [apps/api/src/ai-generation-policy.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-admin.controller.ts, apps/api/src/ai-web-search.ts, packages/contracts/src/ai-generation-policy.ts, migrations/0263_ai_generation_policy.sql, apps/web/src/admin/AdminAiGenerationPolicy.tsx, apps/web/src/admin/ai-generation-policy.css, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/AdminAiWebSearch.tsx]
+    invariants: [AI-GENERATION-POLICY-001, AI-OWNER-001, AI-REPLAY-001, AI-CLOUD-CREDENTIAL-001, AI-ADMISSION-001]
+    tests: [TST-AI-GENERATION-POLICY-001, TST-AI-GENERATION-POLICY-E2E-001]
+    controls:
+      - id: CTRL-AI-GENERATION-POLICY
+        label: Edit system prompt and allowed/default models without changing credentials or immutable safety rules
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-generation-policy.ts, apps/api/src/ai-chat.service.ts, migrations/0263_ai_generation_policy.sql, apps/web/src/admin/AdminAiGenerationPolicy.tsx]
+        invariants: [AI-GENERATION-POLICY-001, AI-OWNER-001, AI-REPLAY-001]
+        tests: [TST-AI-GENERATION-POLICY-001, TST-AI-GENERATION-POLICY-E2E-001]
+
+  - id: SURF-AI-TOOL-POLICY
+    routes: [/api/admin/v1/ai/tool-policy]
+    implementation:
+      files: [apps/api/src/ai-tool-policy.controller.ts, apps/api/src/ai-tool-policy.ts, apps/api/src/ai-chat.service.ts, apps/api/src/abuse-protection.ts, migrations/0266_ai_tool_policy.sql, apps/web/src/admin/AdminAiToolPolicies.tsx]
+    invariants: [AI-GENERATION-POLICY-001, AI-OWNER-001, AI-REPLAY-001]
+    tests: [TST-AI-TOOL-POLICY-001]
+    controls:
+      - id: CTRL-AI-TOOL-POLICY
+        label: Configure bounded native tools and freeze each admitted request's policy
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-tool-policy.controller.ts, apps/api/src/ai-tool-policy.ts, migrations/0266_ai_tool_policy.sql, apps/web/src/admin/AdminAiToolPolicies.tsx]
+        invariants: [AI-GENERATION-POLICY-001, AI-OWNER-001, AI-REPLAY-001]
+        tests: [TST-AI-TOOL-POLICY-001]
+
   - id: SURF-AI-WEB-SEARCH
     routes: [/api/ai/web-search/status, /api/admin/v1/ai/web-search, '/api/ai/threads/:threadId/web-search/:requestId/images/:imageId']
     implementation:

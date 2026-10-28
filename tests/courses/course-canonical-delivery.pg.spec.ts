@@ -196,6 +196,94 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ).rows,
     ).toHaveLength(0);
   });
+  it('keeps an orphan ActivityRun required despite legacy excusal and suppresses NF15', async () => {
+    const authored = await material();
+    const published = await course(authored.version);
+    const cls = await classroom();
+    const student = await seat(cls);
+    const delivery = await assign(published.id, cls, [student], 'course01:orphan:' + ++seq);
+    expect(delivery.result_code).toBe('ok');
+
+    const runs = (
+      await admin.query(
+        'SELECT run.id,run.source_course_lesson_id,run.source_classroom_assignment_id,' +
+          ' part.id AS participation_id,part.source_course_enrollment_id AS enrollment_id' +
+          ' FROM activity_runs run JOIN activity_participations part ON part.activity_run_id=run.id' +
+          ' WHERE run.source_course_run_id=$1 ORDER BY run.id',
+        [delivery.run_id],
+      )
+    ).rows;
+    expect(runs).toHaveLength(2);
+    const [excusedRoot, remainingRoot] = runs;
+
+    const excused = await tx((c) =>
+      c.query("SELECT * FROM activity_participation_excuse($1,$2,'Освобождение от практики')", [
+        principal,
+        excusedRoot.participation_id,
+      ]),
+    );
+    expect(excused.rows[0].result_code).toBe('ok');
+
+    const orphan = await tx((c) =>
+      c.query(
+        "SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,$7)",
+        [
+          principal,
+          excusedRoot.source_classroom_assignment_id,
+          authored.version,
+          delivery.run_id,
+          excusedRoot.source_course_lesson_id,
+          'course01:orphan-create:' + ++seq,
+          'orphan-not-in-frozen-course',
+        ],
+      ),
+    );
+    expect(orphan.rows[0]).toMatchObject({ result_code: 'ok' });
+    expect(orphan.rows[0].activity_run_id).not.toBe(excusedRoot.id);
+
+    const acceptedAttempt = await admin.query(
+      'INSERT INTO learning_attempts' +
+        ' (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,' +
+        ' seat_id,learner_identity_id,activity_participation_id,attempt_number,state,' +
+        ' started_at,submitted_at,evaluated_at)' +
+        ' SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,' +
+        " run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,'closed'," +
+        " now()-interval '4 minutes',now()-interval '2 minutes',now()-interval '1 minute'" +
+        ' FROM activity_runs run JOIN activity_participations part ON part.activity_run_id=run.id' +
+        ' WHERE run.id=$1 AND part.source_course_enrollment_id=$3 RETURNING id',
+      [remainingRoot.id, student, remainingRoot.enrollment_id],
+    );
+    expect(acceptedAttempt.rows).toHaveLength(1);
+    const acceptedResult = await admin.query(
+      'INSERT INTO assessment_results' +
+        ' (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)' +
+        " SELECT tenant_id,id,20,'passed','accepted',true FROM learning_attempts" +
+        ' WHERE id=$1 RETURNING id',
+      [acceptedAttempt.rows[0].id],
+    );
+    expect(acceptedResult.rows).toHaveLength(1);
+
+    const completion = (
+      await admin.query('SELECT learning_course_completion_internal($1) AS value', [
+        remainingRoot.enrollment_id,
+      ])
+    ).rows[0].value;
+    expect(completion).toMatchObject({
+      completed: false,
+      lessonCount: 2,
+      total: 2,
+      completedCount: 1,
+      excusedCount: 0,
+      reason: 'required_lessons_pending',
+    });
+    await admin.query('SELECT learning_notification_sweep()');
+    const notice = await admin.query(
+      "SELECT count(*)::int AS n FROM learning_notifications WHERE course_run_id=$1 AND event_kind='NF15' AND category='NC06'",
+      [delivery.run_id],
+    );
+    expect(notice.rows[0].n).toBe(0);
+  });
+
   it('pins canonical material without a legacy root, materializes repeated blocks, retries and explicit repeat delivery', async () => {
     const authored = await material('three-d');
     const published = await course(authored.version);

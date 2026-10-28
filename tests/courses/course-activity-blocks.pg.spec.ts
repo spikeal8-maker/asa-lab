@@ -509,6 +509,203 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     ).rows[0];
     expect(retryCounts).toEqual({ activity_runs: 2, handouts: 2, participations: 2 });
   });
+  it('does not finish Автоматический ночник after theory read with two mandatory practices pending', async () => {
+    const electronics = await publishActivity(author, principalId, 'electronics');
+    const threeD = await publishActivity(author, principalId, 'three-d');
+    const { courseId, sectionId } = await newCourse('Автоматический ночник');
+    const blocks = [
+      {
+        id: 'electronics-nightlight',
+        type: 'activity',
+        learningActivityVersionId: electronics.versionId,
+      },
+      { id: 'three-d-nightlight', type: 'activity', learningActivityVersionId: threeD.versionId },
+    ];
+    const lesson = await admin.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Свет и сопротивление',NULL,$4::jsonb,'material',NULL,15,NULL) AS id",
+      [principalId, courseId, sectionId, JSON.stringify(blocks)],
+    );
+    expect(lesson.rows[0].id).toBeTruthy();
+    const revision = (
+      await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])
+    ).rows[0].draft_revision as number;
+    const published = await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      'nightlight:publish:' + ++sequence,
+    ]);
+    expect(published.rows[0].result_code).toBe('ok');
+
+    const { classroom, seat } = await classroomWithSeat();
+    const delivery = await assignCourseRun(
+      courseId,
+      classroom,
+      seat,
+      'nightlight:assign:' + ++sequence,
+    );
+    expect(delivery.result_code).toBe('ok');
+    const runLesson = (
+      await admin.query('SELECT id FROM classroom_course_run_lessons WHERE run_id=$1', [
+        delivery.run_id,
+      ])
+    ).rows[0];
+    const enrollment = (
+      await admin.query('SELECT id FROM course_enrollments WHERE course_run_id=$1', [
+        delivery.run_id,
+      ])
+    ).rows[0];
+    const runs = await admin.query(
+      'SELECT id FROM activity_runs WHERE source_course_lesson_id=$1',
+      [runLesson.id],
+    );
+    expect(runs.rows).toHaveLength(2);
+
+    const marked = await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,true)', [
+        seat,
+        delivery.run_id,
+        runLesson.id,
+      ]),
+    );
+    expect(marked.rows[0].result_code).toBe('ok');
+
+    const completion = async () =>
+      (
+        await admin.query('SELECT learning_course_completion_internal($1) AS value', [
+          enrollment.id,
+        ])
+      ).rows[0].value;
+    const countCompletedNotifications = async () =>
+      Number(
+        (
+          await admin.query(
+            "SELECT count(*)::int AS count FROM learning_notifications WHERE course_run_id=$1 AND event_kind='NF15' AND category='NC06'",
+            [delivery.run_id],
+          )
+        ).rows[0].count,
+      );
+    const sweep = async () => admin.query('SELECT learning_notification_sweep()');
+
+    expect(await completion()).toMatchObject({
+      completed: false,
+      total: 1,
+      lessonCount: 1,
+      excusedCount: 0,
+      completedCount: 0,
+      reason: 'required_lessons_pending',
+      resultPolicy: 'no_course_grade',
+    });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    const practiceRuns = (
+      await admin.query(
+        'SELECT id,source_course_block_id FROM activity_runs WHERE source_course_lesson_id=$1 ORDER BY source_course_block_id',
+        [runLesson.id],
+      )
+    ).rows as { id: string; source_course_block_id: string }[];
+    expect(practiceRuns.map((row) => row.source_course_block_id)).toEqual([
+      'electronics-nightlight',
+      'three-d-nightlight',
+    ]);
+
+    const addAttempt = async (
+      runId: string,
+      attemptNumber: number,
+      state: 'submitted' | 'closed',
+      previousAttempt: string | null = null,
+    ) => {
+      const result = await admin.query(
+        `INSERT INTO learning_attempts
+           (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+            seat_id,learner_identity_id,activity_participation_id,attempt_number,state,
+            revision_of_attempt_id,started_at,submitted_at,evaluated_at)
+         SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+                run.learning_activity_version_id,$2,part.learner_identity_id,part.id,$3,$4::varchar,
+                $5::uuid,now()-interval '4 minutes',now()-interval '2 minutes',
+                CASE WHEN $4::varchar='closed' THEN now()-interval '1 minute' END
+           FROM activity_runs run
+           JOIN activity_participations part ON part.activity_run_id=run.id
+          WHERE run.id=$1 AND part.source_course_enrollment_id=$6
+         RETURNING id`,
+        [runId, seat, attemptNumber, state, previousAttempt, enrollment.id],
+      );
+      expect(result.rows).toHaveLength(1);
+      return result.rows[0].id as string;
+    };
+    const publishReview = async (attemptId: string, decision: 'accepted' | 'changes_requested') => {
+      const result = await admin.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         SELECT tenant_id,id,20,$2::varchar,$3::varchar,$4::boolean
+           FROM learning_attempts WHERE id=$1 RETURNING id`,
+        [
+          attemptId,
+          decision === 'accepted' ? 'passed' : 'incomplete',
+          decision,
+          decision === 'accepted',
+        ],
+      );
+      expect(result.rows).toHaveLength(1);
+    };
+
+    const electronicsAttempt = await addAttempt(practiceRuns[0].id, 1, 'closed');
+    await publishReview(electronicsAttempt, 'accepted');
+    expect(await completion()).toMatchObject({ completed: false, total: 1, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    const threeDPending = await addAttempt(practiceRuns[1].id, 1, 'submitted');
+    expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    await admin.query(
+      "UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1",
+      [threeDPending],
+    );
+    await publishReview(threeDPending, 'changes_requested');
+    expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    const threeDCorrected = await addAttempt(practiceRuns[1].id, 2, 'closed', threeDPending);
+    await publishReview(threeDCorrected, 'accepted');
+    expect(await completion()).toMatchObject({
+      completed: true,
+      total: 1,
+      lessonCount: 1,
+      completedCount: 1,
+      reason: 'required_lessons_completed',
+    });
+
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,false)', [
+        seat,
+        delivery.run_id,
+        runLesson.id,
+      ]),
+    );
+    expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(0);
+
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,true)', [
+        seat,
+        delivery.run_id,
+        runLesson.id,
+      ]),
+    );
+    expect(await completion()).toMatchObject({ completed: true, total: 1, completedCount: 1 });
+    await sweep();
+    const firstNotificationCount = await countCompletedNotifications();
+    expect(firstNotificationCount).toBeGreaterThan(0);
+    await sweep();
+    expect(await countCompletedNotifications()).toBe(firstNotificationCount);
+  });
+
   it('assigns inherited participation to an issued named learner before first login', async () => {
     const activity = await publishActivity(author, principalId, 'electronics');
     const { courseId, sectionId } = await newCourse('D5 issued seat participation');
@@ -1353,6 +1550,10 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     await expectUnattributedWork();
   });
 
+  // This real PostgreSQL integration scenario performs multiple independent
+  // Seat/Account projections, version changes and legacy work checks. Its
+  // normal 5s Vitest limit flakes under parallel CI load; scope the budget
+  // to this scenario rather than weakening the suite-wide timeout.
   it('projects exact block occurrences for seat and account without changing legacy lesson runtime', async () => {
     const blockA = await publishActivity(
       author,
@@ -1669,7 +1870,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         goal: null,
       });
     }
-  });
+  }, 10_000);
 });
 
 describe('A2c exact Course Activity task blocks', () => {

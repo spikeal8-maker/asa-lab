@@ -121,7 +121,7 @@ describe('native AI SSE transport', () => {
 
   for (const complete of [false, true]) {
     it(`rejects an oversized single event, complete=${complete}`, async () => {
-      const payload = frame('delta', { text: 'x'.repeat(4 * 1024 * 1024) });
+      const payload = frame('delta', { text: 'x'.repeat(32 * 1024 * 1024) });
       respond(complete ? [payload] : [payload.slice(0, 100_000), payload.slice(100_000, -2)]);
       const onDelta = vi.fn();
       await expect(send(onDelta)).rejects.toMatchObject({ code: 'ai_stream_invalid' });

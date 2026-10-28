@@ -4,11 +4,27 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-IMAGE-JOB-001
+    statement: Local ComfyUI generation has canonical owner and school admission, independent UTC daily GPU quota and durable bounded global slots. A fixed native recipe is dispatched once after SQL CAS; uncertain dispatch is observed by its existing identity and never retried. Unknown jobs retain their slot. Only exact owned outputs become bounded metadata-stripped PNGs in private integrity-checked storage and owner-bound history/downloads. Cancellation never interrupts other GPU jobs. Deletion clears private prompts and schedules recoverable output cleanup while quota and usage tombstones survive. Readiness does not prove GPU quality; saving settings performs no generation.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: AI-IMAGE-JOB-001
+    applies_to: [image_generation, image_job_admission, image_job_recovery, generated_image_storage, generated_image_download]
+    forbid: [paid_image_provider, arbitrary_comfy_graph, automatic_image_resubmission, foreign_gpu_interrupt, public_generated_image_url, cross_owner_image_read, image_token_estimates, deletion_refunds_gpu_quota]
+
+  - id: AI-GENERATION-POLICY-001
+    statement: Platform-admin generation policy uses revision CAS and immutable write receipts. A customized allowlist and default select only closed catalog models and separate encrypted credential slots. Canonical admission creates an immutable model/template/context receipt before network access, retains existing teacher and quota rules, and prevents legacy workers from bypassing policy. Prompt variables use only the current canonical owner's name/timezone; absent gender/location remain explicit. Replay is free and deletion erases profile/template snapshots. Search domain filtering is server-side, block-first and suffix-safe; private search instructions are frozen with evidence and excluded from public projection.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: AI-GENERATION-POLICY-001
+    applies_to: [generation_policy, system_prompt, model_allowlist, search_domain_policy]
+    forbid: [client_model_authority, arbitrary_model_id, automatic_paid_retry, cross_owner_profile_context, invented_user_location, raw_crm_prompt_context, legacy_policy_bypass]
+
   - id: AI-WEB-SEARCH-001
     statement: Free server retrieval uses only internal SearxNG, bounded manual city geocoding and attributed MET Norway forecasts. Immutable owner admission precedes network access; UUID replay and variants reuse stored evidence. Typed raster previews require owner-bound same-origin closed-CDN proxy, actual byte validation and bounded global concurrency. Arbitrary Markdown images remain forbidden. No paid search keys or subscriptions exist.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: Бесплатный серверный интернет-поиск
+        section: AI-WEB-SEARCH-001
     applies_to: [internet_search, internet_evidence, weather_forecast, search_image_proxy]
     forbid: [paid_search_provider, arbitrary_image_fetch, fresh_search_on_replay, cross_owner_evidence, unbounded_geocoding, invented_weather]
 
@@ -16,23 +32,21 @@ invariants:
     statement: Cloud provider keys remain separate encrypted server-only slots. Provider/model admission uses the closed server and SQL catalog, current configuration revision and shared paid quota; cloud Ollama uses only the fixed HTTPS ollama.com endpoint without redirects. Official-site sign-in/key creation is not an ASA OAuth grant. Adding, switching or clearing one provider preserves other keys and history.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 11.2. Ollama Cloud
+        section: AI-CLOUD-CREDENTIAL-001
     applies_to: [cloud_provider_config, cloud_provider_transport, cloud_provider_test]
     forbid: [browser_stored_provider_key, arbitrary_cloud_endpoint, redirected_cloud_key, automatic_paid_test, unofficial_oauth, cross_provider_key_deletion]
   - id: AI-USAGE-001
     statement: Every new admitted chat operation has one durable immutable-owner usage row before provider generation. Provider-only counts and actual model remain NULL when unknown. Crashes remain pending, exact terminal retries are idempotent, conflicts fail, deletion does not erase usage, and replay never calls a provider. Safe operational projections contain no owner identity, prompts, content, keys or endpoint URLs; telemetry failure preserves paid answers and primary errors.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: Закрытый журнал использования ИИ
+        section: AI-USAGE-001
     applies_to: [ai_usage_admission, ai_usage_finalize, provider_usage, usage_projection]
     forbid: [estimated_tokens_as_actual, unknown_as_zero, historical_usage_guess, usage_erased_on_chat_delete, replayed_provider_operation, raw_usage_logging]
   - id: AI-ATTACHMENT-OWNER-001
     statement: Each private attachment belongs to the same immutable canonical Account or Seat principal as chat history. Every HTTP read or mutation proves that owner; teacher permission never exposes private bytes. Exact AI routes use existing-only Seat identity even after the shared mutation budget saturates; proof caches follow resolver policy and the actual credential while all rate-budget keys and limits remain unchanged.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 5.3. Серверная основа приватных вложений
-      - document: AI-ASSISTANT-SPEC
-        section: 12. Privacy и безопасность
+        section: AI-ATTACHMENT-OWNER-001
     applies_to:
       [attachment_authorization, attachment_download, attachment_scope, mutation_proof_cache]
     forbid:
@@ -48,7 +62,7 @@ invariants:
     statement: A dedicated AI vendor stream is captured privately and bounded by actual bytes, immutable size and SHA-256 before any conditional S3 write. PNG/JPEG/WebP container structure and dimensions, or strict allowlisted UTF-8 text, must validate. Native input cancellation closes capture before unlink; excess bytes receive a typed early error without waiting for EOF, retaining the permit through native response termination under the original input deadline. Validated capture clears that deadline before the separate storage budget. Existing ASA object storage uses a private AI prefix; authenticated no-store downloads verify size and full digest in one bounded buffer and keep their transfer permit through native finish, close or error, without late sends to a closed response. Storage readiness alone advertises no visible file, PDF or Vision capability.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 5.3. Серверная основа приватных вложений
+        section: AI-ATTACHMENT-BYTES-001
     applies_to:
       [
         attachment_capture,
@@ -71,9 +85,7 @@ invariants:
     statement: One durable attempt owns each immutable upload UUID. Unknown PUT outcomes retain the receipt and owner reservation, and a later missing-object read never proves that no write can arrive. Unsent removal and expiry retain recoverable deletion until confirmed absence. Message binding atomically creates the exact source, ordered file manifest and both existing paid ledgers; free replay and regeneration preserve the original source files. Archive preserves bytes, while source deletion queues cleanup without refunding paid history.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 5.3. Серверная основа приватных вложений
-      - document: AI-ASSISTANT-SPEC
-        section: 13. Поведение при ошибках
+        section: AI-ATTACHMENT-LIFETIME-001
     applies_to:
       [
         attachment_reservation,
@@ -99,34 +111,28 @@ invariants:
     statement: Search covers the selected canonical owner's entire title and message history, with literal case-insensitive terms and precise microsecond keyset pages. Archive and restore preserve every message and paid ledger, deny fresh archived generation and retain read/replay access. Independent list request versions preserve the current conversation and draft.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 4. Диалоги и история
+        section: AI-HISTORY-001
     applies_to: [history_search, history_cursor, archive, restore, list_request_lifetime]
     forbid: [loaded_page_only_search, milliseconds_only_cursor, archive_as_delete, archived_paid_generation, stale_filter_response, lost_draft_on_search]
   - id: AI-VARIANT-001
     statement: A fresh answer is a new paid UUID linked to the immutable original user message, source ordinal and digest. Its context ends at that original question and excludes later messages or variants. Original answers and owner quota tombstones survive; exact receipt replay and uncertain-result GET never create another provider operation.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 4. Диалоги и история
-      - document: AI-ASSISTANT-SPEC
-        section: 13. Поведение при ошибках
+        section: AI-VARIANT-001
     applies_to: [answer_regeneration, immutable_source_receipt, generation_context, saved_request_read]
     forbid: [synthetic_user_turn, overwritten_original_answer, future_context_in_regeneration, replay_as_new_answer, source_mutation, automatic_paid_retry]
   - id: AI-CONTENT-001
     statement: Markdown and inline/block math render without raw HTML or automatic external images. Explicit typed retrieval image cards alone may use the owner-bound validated raster proxy governed by AI-WEB-SEARCH-001. HTTP(S) links and untrusted bounded KaTeX preserve safe display; a malformed formula or plugin error falls back to escaped content within its message and never crashes the conversation.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 4. Диалоги и история
-      - document: AI-ASSISTANT-SPEC
-        section: 12. Privacy и безопасность
+        section: AI-CONTENT-001
     applies_to: [message_markdown, message_math, streamed_partial_content]
     forbid: [trusted_model_html, trusted_math_commands, unsafe_url, formula_crashes_chat, unbounded_macro_expansion]
   - id: AI-OWNER-001
     statement: A conversation has one immutable Account or StudentSeat principal owner. School history stays with that Seat after Account linkage; personal Account history and quotas remain separate. The current signed session and canonical active linkage authorize each selected school scope, never a client principal or teacher role.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 4. Диалоги и история
-      - document: AI-ASSISTANT-SPEC
-        section: 12. Privacy и безопасность
+        section: AI-OWNER-001
       - document: IDENTITY-ACCESS-V22
         section: INV-07 / INV-11
     applies_to: [chat_history, chat_message, chat_request_quota, scope_selection, seat_account_link]
@@ -135,9 +141,7 @@ invariants:
     statement: School generation is denied by default. An exact-class owner or co-teacher chooses deny, allow or existing participant-rating threshold, with inherit/allow/deny Seat overrides. Inactive Seat/Class and global provider disable cannot be overridden. Teacher rules change admission only; they do not grant chat-content access or change safe-mode/game policies.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 11. Администрирование
-      - document: AI-ASSISTANT-SPEC
-        section: 12. Privacy и безопасность
+        section: AI-ADMISSION-001
       - document: IDENTITY-ACCESS-V22
         section: INV-11 / INV-12
     applies_to: [school_chat_create, school_chat_send, classroom_ai_settings, participant_rating]
@@ -146,9 +150,7 @@ invariants:
     statement: New generation rechecks teacher admission at the SQL boundary before shared paid reservation. A durable request ID is single-use per stable owner; replay returns the existing result without a provider call. Deletion, cancellation, linking and policy changes do not refund quota. Exact teacher writes use revision checks and immutable request receipts.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 13. Поведение при ошибках
-      - document: AI-ASSISTANT-SPEC
-        section: Проверяемое включение текстового чата
+        section: AI-REPLAY-001
       - document: IDENTITY-ACCESS-V22
         section: INV-11
     applies_to: [provider_admission, request_replay, quota, policy_write]
@@ -157,9 +159,7 @@ invariants:
     statement: AI resolves existing Seat principals through the same trusted session use case without initializing or repairing identity. Missing principals, invalid/expired/revoked sessions and wrong class lineage fail closed. Revoked AI permission preserves own history and Stop, but forbids new generation; an already admitted operation may finish.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 12. Privacy и безопасность
-      - document: AI-ASSISTANT-SPEC
-        section: 13. Поведение при ошибках
+        section: AI-SESSION-001
       - document: IDENTITY-ACCESS-V22
         section: INV-07 / INV-11
     applies_to: [seat_session, principal_resolution, account_verification_guard, ai_revocation, stream_stop]
@@ -168,11 +168,7 @@ invariants:
     statement: Changing personal/school chat scope replaces the conversation state, including draft, history cursors, request IDs and stream. The permission state remains actionable at supported widths; teacher settings expose admission and rating, never private messages.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 3. Пользовательская поверхность
-      - document: AI-ASSISTANT-SPEC
-        section: 4. Диалоги и история
-      - document: AI-ASSISTANT-SPEC
-        section: 13. Поведение при ошибках
+        section: AI-UI-SCOPE-001
       - document: IDENTITY-ACCESS-V22
         section: §31
     applies_to: [chat_scope_selector, chat_composer, classroom_ai_settings]

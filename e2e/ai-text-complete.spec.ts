@@ -626,7 +626,7 @@ test('AI checks an uncertain variant by reading its original request without ano
   await expect(page.locator('.chat-turn-assistant').last()).toContainText(
     'Вариант, сохранённый после обрыва',
   );
-  await expect(page.locator('.chat-turn-assistant').last()).toContainText('Ответ остановлен.');
+  await expect(page.locator('.chat-turn-assistant').last()).toContainText('Ответ не завершён.');
   await expect(check).toHaveCount(0);
   expect(f.regenerations).toHaveLength(1);
   expect(f.resultReads.every((id) => id === f.regenerations[0]!.requestId)).toBe(true);

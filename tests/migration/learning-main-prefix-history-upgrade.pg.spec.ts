@@ -186,7 +186,47 @@ const upgradeArtifacts = [
   ],
   [
     '0261',
-    '0261_public_scratch_player.sql',
+    '0261_ai_long_answers.sql',
+    'b675187ec818b7c26e2984ae76236ce5e6009571150320a5d11d0fa419b462b6',
+  ],
+  [
+    '0262',
+    '0262_ai_generation_lease.sql',
+    '3a1513d7a748a8d30458fb705e5887c9fd6159d5dd4465f62384a575fd5fae69',
+  ],
+  [
+    '0263',
+    '0263_ai_generation_policy.sql',
+    'db3b97a9b370b71ea7beb5867facb057a4faada53743711c59f0f949155d7bf2',
+  ],
+  [
+    '0264',
+    '0264_ai_local_image_generation.sql',
+    '31a461e8943133697ff575ff0146f813f03ec2aac06e6118e979795c4e41f58b',
+  ],
+  [
+    '0265',
+    '0265_ai_native_image_tools.sql',
+    '1f12daf30bc9f49fa9e6049873c97e574872a6395068f2ab5308041a695b1459',
+  ],
+  [
+    '0266',
+    '0266_ai_tool_policy.sql',
+    '526f22047a29335f096660d4a833063899a57d0eb71e2f45ebf751c977215d35',
+  ],
+  [
+    '0267',
+    '0267_learning_mixed_course_completion.sql',
+    '0b9a958ecd190cfd19f82fc5e6c9dabeeb9508f4d2de18214768b250f0c9bf38',
+  ],
+  [
+    '0268', // Additive read-only AI usage overview.
+    '0268_ai_usage_overview.sql',
+    '8676a797ac6abca8138320f2f90b2751b45bfb3e4bea7153c005243b26bf3441',
+  ],
+  [
+    '0269',
+    '0269_public_scratch_player.sql',
     'c52c18d59e636f33da852645786dec2e8a0aa2525736c650e7e088e0294a5ba7',
   ],
 ] as const;

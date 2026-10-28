@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
-import type { AiAdminConfig, AiProvider } from './ai-model-config';
+import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
+import { AdminAiUsageOverview } from './AdminAiUsageOverview';
+import type { AiAdminConfig } from './ai-model-config';
+import {
+  AI_ADMIN_SECTIONS as SECTIONS,
+  navigateAiAdmin,
+  readAiAdminNavigation,
+  rememberAiAdminNavigation,
+  type AiAdminNavigation,
+  type AiProviderChoice as ProviderChoice,
+} from './ai-admin-navigation';
 import { call } from './admin-api';
 import './ai-ollama.css';
 import './ai-admin.css';
-
-type ProviderChoice = AiProvider | 'ollama';
-type AiSection = 'connections' | 'comfyui' | 'internet';
 
 interface LocalState {
   enabled: boolean;
@@ -23,15 +30,83 @@ const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
 ];
 
-export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: () => void }) {
-  const [section, setSection] = useState<AiSection>('connections');
-  const [provider, setProvider] = useState<ProviderChoice>('ollama');
+export function AiAdminWorkspace({
+  principalId,
+  onAccessDenied,
+}: {
+  readonly principalId: string;
+  readonly onAccessDenied: () => void;
+}) {
+  return (
+    <AiAdminWorkspaceSession
+      key={principalId}
+      principalId={principalId}
+      onAccessDenied={onAccessDenied}
+    />
+  );
+}
+
+function AiAdminWorkspaceSession({
+  principalId,
+  onAccessDenied,
+}: {
+  readonly principalId: string;
+  readonly onAccessDenied: () => void;
+}) {
+  const [navigation, setNavigation] = useState(() => readAiAdminNavigation(principalId));
+  const { section, provider } = navigation;
+  const tabs = useRef<HTMLElement>(null);
   const [cloud, setCloud] = useState<AiAdminConfig | null>(null);
   const [local, setLocal] = useState<LocalState | null>(null);
   const [statusRevision, setStatusRevision] = useState(0);
   const refreshStatus = useCallback(() => setStatusRevision((v) => v + 1), []);
 
+  function navigate(value: AiAdminNavigation) {
+    setNavigation(value);
+    rememberAiAdminNavigation(principalId, value);
+    navigateAiAdmin(value);
+  }
+
   useEffect(() => {
+    const restore = () => setNavigation(readAiAdminNavigation(principalId));
+    window.addEventListener('hashchange', restore);
+    window.addEventListener('popstate', restore);
+    return () => {
+      window.removeEventListener('hashchange', restore);
+      window.removeEventListener('popstate', restore);
+    };
+  }, [principalId]);
+
+  useEffect(() => rememberAiAdminNavigation(principalId, navigation), [principalId, navigation]);
+
+  useEffect(() => {
+    const nav = tabs.current;
+    if (!nav) return;
+    const revealSelected = () => {
+      const selected = nav.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!selected) return;
+      const container = nav.getBoundingClientRect();
+      const button = selected.getBoundingClientRect();
+      // Scroll this one navigation row, leaving the page's vertical position alone.
+      if (button.left < container.left + 4) {
+        nav.scrollLeft -= container.left + 4 - button.left;
+      } else if (button.right > container.right - 4) {
+        nav.scrollLeft += button.right - container.right + 4;
+      }
+    };
+    revealSelected();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(revealSelected);
+    observer?.observe(nav);
+    window.addEventListener('resize', revealSelected);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', revealSelected);
+    };
+  }, [section]);
+
+  useEffect(() => {
+    if (section !== 'connections') return;
     let mounted = true;
     void Promise.all([
       call<AiAdminConfig>('/api/admin/v1/ai'),
@@ -50,7 +125,7 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
     return () => {
       mounted = false;
     };
-  }, [onAccessDenied, statusRevision]);
+  }, [onAccessDenied, statusRevision, section]);
 
   function providerStatus(value: ProviderChoice): string {
     if (value === 'ollama')
@@ -63,42 +138,45 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
 
   return (
     <div className="asa-ai-admin-workspace">
-      <nav className="asa-ai-admin-tabs" role="tablist" aria-label="Разделы ИИ">
-        <button
-          id="ai-tab-connections"
-          type="button"
-          role="tab"
-          aria-selected={section === 'connections'}
-          aria-controls="ai-panel-connections"
-          className={section === 'connections' ? 'active' : ''}
-          onClick={() => setSection('connections')}
-        >
-          Подключения
-        </button>
-        <button
-          id="ai-tab-comfyui"
-          type="button"
-          role="tab"
-          aria-selected={section === 'comfyui'}
-          aria-controls="ai-panel-comfyui"
-          className={section === 'comfyui' ? 'active' : ''}
-          onClick={() => setSection('comfyui')}
-        >
-          ComfyUI · изображения
-        </button>
-        <button
-          type="button"
-          role="tab"
-          id="ai-tab-internet"
-          aria-selected={section === 'internet'}
-          aria-controls="ai-panel-internet"
-          className={section === 'internet' ? 'active' : ''}
-          onClick={() => setSection('internet')}
-        >
-          Интернет-поиск
-        </button>
+      <nav ref={tabs} className="asa-ai-admin-tabs" role="tablist" aria-label="Разделы ИИ">
+        {SECTIONS.map((item, index) => (
+          <button
+            key={item.id}
+            id={'ai-tab-' + item.id}
+            type="button"
+            role="tab"
+            tabIndex={section === item.id ? 0 : -1}
+            aria-selected={section === item.id}
+            aria-controls={'ai-panel-' + item.id}
+            className={section === item.id ? 'active' : ''}
+            onClick={() => navigate({ ...navigation, section: item.id })}
+            onKeyDown={(event) => {
+              const next =
+                event.key === 'ArrowRight'
+                  ? (index + 1) % SECTIONS.length
+                  : event.key === 'ArrowLeft'
+                    ? (index + SECTIONS.length - 1) % SECTIONS.length
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? SECTIONS.length - 1
+                        : null;
+              if (next === null) return;
+              event.preventDefault();
+              const id = SECTIONS[next]!.id;
+              navigate({ ...navigation, section: id });
+              document.getElementById('ai-tab-' + id)?.focus();
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
       </nav>
-      {section === 'connections' ? (
+      {section === 'overview' ? (
+        <div id="ai-panel-overview" role="tabpanel" aria-labelledby="ai-tab-overview">
+          <AdminAiUsageOverview onAccessDenied={onAccessDenied} />
+        </div>
+      ) : section === 'connections' ? (
         <section
           id="ai-panel-connections"
           role="tabpanel"
@@ -116,7 +194,7 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
                 type="button"
                 className={'asa-ai-provider-card' + (provider === option.id ? ' selected' : '')}
                 aria-pressed={provider === option.id}
-                onClick={() => setProvider(option.id)}
+                onClick={() => navigate({ ...navigation, provider: option.id })}
               >
                 <span className="asa-ai-provider-card-top">
                   <strong>{option.label}</strong>
@@ -150,6 +228,10 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
             />
           )}
         </section>
+      ) : section === 'prompt' || section === 'settings' ? (
+        <div id={'ai-panel-' + section} role="tabpanel" aria-labelledby={'ai-tab-' + section}>
+          <AdminAiGenerationPolicy section={section} onAccessDenied={onAccessDenied} />
+        </div>
       ) : section === 'internet' ? (
         <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">
           <AdminAiWebSearch onAccessDenied={onAccessDenied} />

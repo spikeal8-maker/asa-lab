@@ -1,0 +1,161 @@
+.asa-ai-tools {
+  display: grid;
+  gap: 17px;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid #dce5ec;
+}
+.asa-ai-tools-heading {
+  display: grid;
+  gap: 6px;
+}
+.asa-ai-tools-heading h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.asa-ai-tools-heading p {
+  margin: 0;
+  color: #52697b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.asa-ai-tools-refresh {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #12699c;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.asa-ai-tools form {
+  display: grid;
+  gap: 18px;
+}
+.asa-ai-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.asa-ai-tool-card {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid #d5e2eb;
+  border-radius: 11px;
+  background: #f9fcfe;
+  overflow-wrap: anywhere;
+}
+.asa-ai-tool-card-title {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.asa-ai-tool-card-title h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.asa-ai-tool-status {
+  padding: 3px 8px;
+  border-radius: 20px;
+  background: #e7edf2;
+  color: #485d6e;
+  font-size: 11px;
+  font-weight: 700;
+}
+.asa-ai-tool-status.ready {
+  background: #dff4e8;
+  color: #145b37;
+}
+.asa-ai-tool-reason,
+.asa-ai-tool-future p {
+  margin: 0;
+  color: #52697b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.asa-ai-tool-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.asa-ai-tool-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+.asa-ai-tool-card dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.asa-ai-tool-card dt {
+  margin-top: 5px;
+  font-weight: 700;
+}
+.asa-ai-tool-card dd {
+  min-width: 0;
+  margin: 0;
+  color: #52697b;
+}
+.asa-ai-tool-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.asa-ai-tool-instructions {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.asa-ai-tool-instructions textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84px;
+  padding: 9px;
+  border: 1px solid #b9c9d6;
+  border-radius: 7px;
+  background: #fff;
+  color: #16344b;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1.5;
+  resize: vertical;
+}
+.asa-ai-tool-instructions small {
+  color: #607586;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.asa-ai-tools-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.asa-ai-tools :is(input, textarea, button):focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+@media (max-width: 680px) {
+  .asa-ai-tools-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-ai-tool-card {
+    padding: 14px;
+  }
+  .asa-ai-tools-actions .asa-cloud-apply {
+    width: 100%;
+  }
+}

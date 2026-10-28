@@ -93,3 +93,63 @@ it('does not expose an editable form when the platform scope is denied', async (
   expect(denied).toHaveBeenCalledOnce();
   expect(host.querySelector('form')).toBeNull();
 });
+
+async function enterArea(name: string, value: string) {
+  const field = host.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${name}"]`)!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      field,
+      value,
+    );
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+async function renderWithFilters() {
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: {
+      ...config,
+      allowedDomains: [],
+      blockedDomains: [],
+      searchInstructions: '',
+    },
+  });
+  await act(async () => root.render(createElement(AdminAiWebSearch, { onAccessDenied: denied })));
+}
+it('saves domain filters and search instructions with the unchanged weather policy', async () => {
+  await renderWithFilters();
+  await enterArea('Разрешённые сайты', 'example.org\nнаука.рф');
+  await enterArea('Исключённые сайты', 'ads.example.org');
+  await enterArea('Инструкции для ответов с интернет-поиском', 'Кратко сравни первоисточники.');
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: {
+      ...config,
+      configurationVersion: 5,
+      allowedDomains: ['example.org', 'xn--80aa3ak5a.xn--p1ai'],
+      blockedDomains: ['ads.example.org'],
+      searchInstructions: 'Кратко сравни первоисточники.',
+    },
+  });
+  await submit();
+  expect(JSON.parse(String(vi.mocked(call).mock.calls[1]?.[1]?.body))).toEqual({
+    enabled: true,
+    weatherEnabled: true,
+    operationsPerHour: 100,
+    configurationVersion: 4,
+    allowedDomains: ['example.org', 'наука.рф'],
+    blockedDomains: ['ads.example.org'],
+    searchInstructions: 'Кратко сравни первоисточники.',
+  });
+});
+it('does not send arbitrary URLs, ports or wildcard domain masks', async () => {
+  await renderWithFilters();
+  for (const domain of ['https://example.org/path', '*.example.org', 'example.org:443']) {
+    await enterArea('Разрешённые сайты', domain);
+    expect(host.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+    await submit();
+  }
+  expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
+});

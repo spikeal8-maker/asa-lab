@@ -6,22 +6,29 @@
 }
 .asa-ai-admin-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scroll-padding-inline: 4px;
+  scrollbar-width: thin;
   border-bottom: 1px solid var(--border, #dce5ec);
-  padding: 0 0 7px;
+  padding: 4px 4px 7px;
 }
 .asa-ai-admin-tabs > button {
+  flex: 0 0 auto;
   border: 1px solid transparent;
   border-radius: 8px;
-  min-height: 38px;
+  min-height: 44px;
   padding: 7px 14px;
   background: transparent;
   color: var(--ink-muted, #456172);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
   cursor: pointer;
+  white-space: nowrap;
 }
 .asa-ai-admin-tabs > button.active {
   background: var(--surface, #fff);

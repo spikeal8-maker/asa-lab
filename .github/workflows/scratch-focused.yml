@@ -125,7 +125,7 @@ jobs:
   runtime-image:
     name: Standalone host image and health smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 55
     services:
       public-player-postgres:
         image: docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854

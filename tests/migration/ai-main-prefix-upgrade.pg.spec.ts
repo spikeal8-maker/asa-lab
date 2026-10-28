@@ -40,7 +40,15 @@ const expectedPending = [
   '0258', // Immutable Public Projects publication pins.
   '0259', // Private immutable-revision report intake.
   '0260', // Exact immutable Electronics public display.
-  '0261', // Exact public Scratch player and version-scoped asset reads.
+  '0261', // Complete AI answers preserve installed data and SQL signatures.
+  '0262', // Local owner-bound 30-minute generation lease.
+  '0263', // Governed generation policy and retrieval.
+  '0264', // Private image generation and GPU admission.
+  '0265', // Native tool provenance.
+  '0266', // Administrative tool-policy controls.
+  '0267', // Additive frozen Courses completion repair, no data rewrite.
+  '0268', // Additive read-only AI usage overview.
+  '0269', // Exact public Scratch player and version-scoped asset reads.
 ];
 
 interface Identity {
