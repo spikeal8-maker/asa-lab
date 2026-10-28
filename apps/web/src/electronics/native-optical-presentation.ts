@@ -96,9 +96,11 @@ export class NativeOpticalPresentation {
     const frame = snapshot.observation?.frame;
     if (
       frame &&
-      [...snapshot.observation!.ledAssets.keys(), ...frame.arduinoLStates.keys()].some(
-        (id) => this.layouts.get(id) !== snapshot,
-      )
+      [
+        ...snapshot.observation!.ledAssets.keys(),
+        ...frame.arduinoLStates.keys(),
+        ...(frame.sevenSegmentBrightness?.keys() ?? []),
+      ].some((id) => this.layouts.get(id) !== snapshot)
     )
       return;
     this.barrier?.(snapshot);

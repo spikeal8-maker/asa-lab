@@ -236,7 +236,12 @@ const upgradeArtifacts = [
   ],
   [
     '0272',
-    '0272_student_project_distribution.sql',
+    '0272_ai_ollama_cloud_key_pool.sql',
+    '3c12c7ec70cf62f4ef070d3b08b2be1b99998fa9407e02de6b14c7645312b21d',
+  ],
+  [
+    '0273',
+    '0273_student_project_distribution.sql',
     '955f2846087151970dd713110b7de94b938a42cb43047cd186a9bbea280eafec',
   ],
 ] as const;

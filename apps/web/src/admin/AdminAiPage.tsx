@@ -1,4 +1,4 @@
-import { OllamaCloudStatus } from './OllamaCloudStatus';
+import { OllamaCloudKeys } from './OllamaCloudKeys';
 import type { AiOllamaCloudModel } from '@asa-lab/contracts';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
@@ -55,6 +55,7 @@ export function AiAdminPage({
   }, []);
   const [keyInput, setKeyInput] = useState('');
   const [clearKey, setClearKey] = useState(false);
+  const [cloudKeysDirty, setCloudKeysDirty] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [quota, setQuota] = useState('0');
   const [confirmPaid, setConfirmPaid] = useState(false);
@@ -64,6 +65,10 @@ export function AiAdminPage({
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const inFlight = useRef(false);
+  const cloudKeysSaved = useCallback(() => {
+    setReload((value) => value + 1);
+    onUpdated?.();
+  }, [onUpdated]);
 
   useEffect(() => {
     let live = true;
@@ -144,6 +149,7 @@ export function AiAdminPage({
     (!enabled || (Number(quota) > 0 && confirmPaid)) &&
     (config.encryptionReady || (!enabled && mustClear && !keyInput.trim())) &&
     !loading &&
+    !(providerChoice === 'ollama-cloud' && cloudKeysDirty) &&
     !busy,
   );
   const keyLink =
@@ -274,7 +280,11 @@ export function AiAdminPage({
             <div>
               <h2>{providerName(providerChoice)}</h2>
               <span>
-                {slot?.apiKeyConfigured ? 'Ключ сохранён на сервере' : 'Требуется API-ключ'}
+                {providerChoice === 'ollama-cloud'
+                  ? 'Ключи и доступ к моделям — ниже'
+                  : slot?.apiKeyConfigured
+                    ? 'Ключ сохранён на сервере'
+                    : 'Требуется API-ключ'}
               </span>
             </div>
             <label className="asa-cloud-enabled">
@@ -291,16 +301,6 @@ export function AiAdminPage({
               {enabled ? 'Включено' : 'Выключено'}
             </label>
           </div>
-
-          {providerChoice === 'ollama-cloud' ? (
-            <OllamaCloudStatus
-              version={config.configurationVersion}
-              draftKey={keyInput}
-              disabled={clearKey}
-              onModels={acceptCloudModels}
-              onAccessDenied={onAccessDenied}
-            />
-          ) : null}
 
           <div className="asa-cloud-fields">
             <label className="asa-cloud-field">
@@ -322,24 +322,26 @@ export function AiAdminPage({
                 ))}
               </select>
             </label>
-            <label className="asa-cloud-field">
-              <span>API-ключ {slot?.apiKeyConfigured ? '· замена' : ''}</span>
-              <input
-                aria-label="Новый API-ключ"
-                type="password"
-                value={keyInput}
-                autoComplete="new-password"
-                spellCheck={false}
-                placeholder={slot?.apiKeyConfigured ? 'Ключ уже сохранён' : 'Вставьте API-ключ'}
-                onChange={(event) => {
-                  setKeyInput(event.target.value);
-                  setClearKey(false);
-                  setNotice('');
-                }}
-                disabled={!!busy || !config.encryptionReady || clearKey}
-                maxLength={2048}
-              />
-            </label>
+            {providerChoice !== 'ollama-cloud' ? (
+              <label className="asa-cloud-field">
+                <span>API-ключ {slot?.apiKeyConfigured ? '· замена' : ''}</span>
+                <input
+                  aria-label="Новый API-ключ"
+                  type="password"
+                  value={keyInput}
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  placeholder={slot?.apiKeyConfigured ? 'Ключ уже сохранён' : 'Вставьте API-ключ'}
+                  onChange={(event) => {
+                    setKeyInput(event.target.value);
+                    setClearKey(false);
+                    setNotice('');
+                  }}
+                  disabled={!!busy || !config.encryptionReady || clearKey}
+                  maxLength={2048}
+                />
+              </label>
+            ) : null}
           </div>
           <div className="asa-cloud-underfields">
             <label className="asa-cloud-limit">
@@ -383,6 +385,9 @@ export function AiAdminPage({
               Разрешаю один платный запрос для проверки
             </label>
           ) : null}
+          {providerChoice === 'ollama-cloud' && cloudKeysDirty ? (
+            <p className="asa-cloud-note">Сначала сохраните ключи и порядок ниже.</p>
+          ) : null}
           {enabled && Number(quota) === 0 ? (
             <p className="asa-cloud-note">
               Чтобы включить облачную модель, задайте лимит больше нуля.
@@ -412,7 +417,7 @@ export function AiAdminPage({
           </div>
           <details className="asa-cloud-more">
             <summary>Дополнительно</summary>
-            {slot?.apiKeyConfigured ? (
+            {slot?.apiKeyConfigured && providerChoice !== 'ollama-cloud' ? (
               <label className="asa-cloud-consent">
                 <input
                   type="checkbox"
@@ -433,6 +438,16 @@ export function AiAdminPage({
             </p>
           </details>
         </form>
+      ) : null}
+      {config && providerChoice === 'ollama-cloud' ? (
+        <OllamaCloudKeys
+          version={config.configurationVersion}
+          encryptionReady={config.encryptionReady}
+          onModels={acceptCloudModels}
+          onAccessDenied={onAccessDenied}
+          onSaved={cloudKeysSaved}
+          onDirtyChange={setCloudKeysDirty}
+        />
       ) : null}
     </section>
   );

@@ -599,6 +599,31 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-MODELS-ACCESS-A
+          issue: 373
+          scope: independent provider enablement preserving model admission and legacy compatibility
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R21, R22]
+          acceptance_checks: [C17, C20, C25]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner explicitly requests model/access settings on 2026-10-28: independently enabled
+            providers, catalog eligibility separate from user visibility, global default/order,
+            and both global and per-user per-model monthly token budgets. First bounded source
+            vertical replaces singleton-only provider enablement with independent persisted
+            states, truthful admin cards and matching runtime admission/status. Preserve keys,
+            CAS/idempotency/audit, legacy compatibility, paid operation ceilings, local resource
+            protection and no automatic paid fallback. Do not change live settings or call paid
+            providers. Independent review and focused SQL/API/UI regressions required. Subsequent
+            selected verticals cover global model selection/order and atomic UTC-month token
+            reserve/settle for both global and user scopes; do not claim cosmetic fields enforce
+            budgets. Existing Draft PR816 and candidates822/828/830 remain separate and preserved.
         - id: ASAI-19A
           issue: 807
           scope: truthful search outcomes and explicit administrator diagnostic
@@ -12712,7 +12737,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point2_electrical_cutoff_verified_optical_repair_selected
+      checkpoint: remaining20_point2_physical_multiplex_verified_user_helpers_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -12723,7 +12748,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-SEVEN-SEGMENT-OPTICAL-001
+      current_slice: TASK-ELECTRONICS-ARDUINO-VOID-FUNCTIONS-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -12732,7 +12757,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Directpupil815verified. Electrical819candidate9c265independentAPPROVE199tests plusFIRSTcanonical2381tests71freshNxallcapsPASS,1to4NPNclocksREADY. Optical821selectednext. Userfunctions/performance/fullmatrixremainpending. GeneralCIseparate; no wholepoint2orinstalledacceptanceclaim. Foreignfields/serveruntouched, no parallelheavytests.
+      execution_coordination: Electrical819andoptical821verified. 821candidate652f independent234tests16nativecases320physicalmeanszeroerrorplus815regressionPASS; canonical2404tests71freshNxallcapsPASS. Preserveforeignc621typeonlyAIcontracts/testscript;8sourceblobsidentical andadditional7freshWebtasksallcapsPASS9bed. Helpers824selectednext; counters/performance/fullmatrixremainpending. No server/foreignchanges orparallelheavytests; no wholepoint2orinstalledclaim.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -14114,11 +14139,17 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_explicit_opt_in_physical_segment_history_and_native_projection
+      checkpoint: independently_verified_1to4_multiplex_optical_projection_ready_for_main
+      accepted_candidate_sha: 652f4f9ba167f2d8b5e2c64f514cd2176b822cf8
+      independent_review: APPROVE_exact652f_234tests16native320physicalchannelmeans_maxError0_plus815directbuttons
+      accepted_evidence: docs/product/electronics/evidence/seven-segment-optical-821/README.md
+      source_gate_evidence: Finalcanonical2404tests71freshNxallcacheSkipped allcaps169815of222000_1999997of2000000_initial554728of600000. 4fedraftcancelledafterthermalreviewbug; corrected8cpassedoldgraph; onefinala9composition652fpassedcanonical. No cadence/physicalstate/oldrawbyteschange.
+      integration_evidence: Unrelatedc621AItypeonlyexportsandtestscriptpreserved. Eightproductionblobsidentical652f; additional7freshWebbuildtasksandALLcapsPASSon9bed3640. RootstaledependenciesunifiedfailureclassD, no product/dependencyrepair. No newfullcanonicalclaimfrombudgetcheck.
+      residual_boundary: Userfunctions_counters_sustainedthroughput_realtime_installedSavepending. Opticalquarterdutyproven, observed25msmodelhundredsmswallnotrealtime. MainCIpendingnotPASSclaim.
       owner_acceptance: pending
       execution_role: bounded_optical_executor_then_new_independent_review
       owner_authorization: Ownerrequestsfunctional1to4Arduinoindicators. Actual817fourdisplayelectricalscansshowonlyinstantaneousdigit. After819verifiedelectricalrepair, extendexistingcanonicalopticalpipelinewithphysicalperbranchhistoryandacknowledgedprojection. No runtimefunctionsorquality/cadence/thermalchanges.
@@ -14145,6 +14176,49 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-28T11:39:49Z'
       observation_note: Fresh fetch main before each edit. Source819candidate9c265exactfocusedandindependentPASS. Optical821executesonlyafterthatcoupledelectricalsourceisinmain. PreserveoldobserveLedTemporalrawgoldenbyteswithnewoptin; runtimefunctions/performance separate. No server/foreignchanges.
+
+  - id: electronics-arduino-void-functions
+    parent_lane: electronics
+    worktree_id: electronics-arduino-void-functions
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-VOID-FUNCTIONS-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-VOID-FUNCTIONS-001
+      issue: 824
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_real_nonrecursive_void_helpers_legacy_oracle_first
+      owner_acceptance: pending
+      execution_role: bounded_runtime_executor_then_new_independent_review
+      owner_authorization: OwnerexplicitlyrequestsArduino1to4indicatorslinearBlockly_lineartext_and_functions. Actual817showDigit_intcompilefailure. Implementgenuineordinaryvoidhelpersscalarparams_nesting_lexicalscope_waits_JSON_asnecessarydisplaydependency. No macromasquerade, returnvalue_arrays_overload_recursionextensions or allCplusplusclaim.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-VOID-FUNCTIONS-001.md
+        - docs/product/electronics/evidence/seven-segment-optical-821/README.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: c621592f30bf8637da10466fbac50e03a8f742d3
+      convergence_baseline_sha: c621592f30bf8637da10466fbac50e03a8f742d3
+      head_sha: null
+      observed_at: '2026-10-28T13:18:19Z'
+      observation_note: Fresh fetch main before each edit. Helpers824onlyafterelectrical819andoptical821sourcesareinmain. Actual1to4text_Blocklyoptics652fverified; sourcefunctionsstillcompileFAIL. Capturefulllegacycompiled_state_action_event_diagnosticbytesBEFOREedits, preservev7oldstatesandstrictframevalidation. No sourceguard/capraise/server/foreignchanges.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
