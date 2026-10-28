@@ -771,6 +771,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       ).toEqual([
         {
           provider: 'deepseek',
+          enabled: false,
+          revision: '1',
           model: 'deepseek-flash',
           api_key_ciphertext: config.api_key_ciphertext,
           api_key_iv: config.api_key_iv,
@@ -780,6 +782,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         },
         {
           provider: 'ollama-cloud',
+          enabled: false,
+          revision: '1',
           model: 'gemma4:31b',
           api_key_ciphertext: null,
           api_key_iv: null,
@@ -789,6 +793,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         },
         {
           provider: 'openai',
+          enabled: false,
+          revision: '1',
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,

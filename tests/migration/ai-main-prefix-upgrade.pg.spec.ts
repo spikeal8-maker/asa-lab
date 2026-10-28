@@ -790,6 +790,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       ).toEqual([
         {
           provider: 'deepseek',
+          enabled: false,
+          revision: 1,
           model: 'deepseek-flash',
           api_key_ciphertext: configBefore.api_key_ciphertext,
           api_key_iv: configBefore.api_key_iv,
@@ -799,6 +801,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         },
         {
           provider: 'ollama-cloud',
+          enabled: false,
+          revision: 1,
           model: 'gemma4:31b',
           api_key_ciphertext: null,
           api_key_iv: null,
@@ -808,6 +812,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         },
         {
           provider: 'openai',
+          enabled: false,
+          revision: 1,
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,

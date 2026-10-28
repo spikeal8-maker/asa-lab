@@ -1,3 +1,4 @@
+import { withLocalFixtureAdmissions } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { beforeAll, afterAll, it, expect } from 'vitest';
@@ -144,7 +145,9 @@ async function fixture(options: { linkedSecondClass?: boolean } = {}) {
   }
   const call = async (options: Record<string, unknown> = {}) =>
     (
-      await runtime.query<{ value: CatalogPage }>(
+      await ((options.connection as Pick<pg.Pool, 'query'> | undefined) ?? runtime).query<{
+        value: CatalogPage;
+      }>(
         'SELECT admin_user_catalog_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12) AS value',
         [
           options.actor ?? actor.principal_id,
@@ -380,21 +383,25 @@ it('includes retained legacy AI admissions, deduplicates journal overlap and kee
     account = f.accounts[0]!,
     legacy = randomUUID(),
     both = randomUUID();
-  await admin.query(
-    'INSERT INTO ai_assistant_request_quota(owner_principal_id,account_id,request_id) VALUES($1,$2,$3),($1,$2,$4)',
-    [account.principal, account.id, legacy, both],
-  );
-  await admin.query('DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2', [
+  await withLocalFixtureAdmissions(
+    admin,
+    f.actor.principal_id,
     account.principal,
-    legacy,
-  ]);
-  const page = await f.call({ limit: 100 });
-  const row = page.items.find(
-    (i) => i.kind === 'account' && i.id === account.id,
-  ) as unknown as Record<string, unknown>;
-  expect(page.analytics.aiRequests).toBe(2);
-  expect(row.aiRequests).toBe(2);
-  expect(row.aiLegacyRequests).toBe(1);
-  expect(row.aiTokenCovered).toBe(0);
-  expect(row.aiInputTokens).toBeNull();
+    [legacy, both],
+    async (client) => {
+      await client.query(
+        'DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2',
+        [account.principal, legacy],
+      );
+      const page = await f.call({ limit: 100, connection: client });
+      const row = page.items.find(
+        (i) => i.kind === 'account' && i.id === account.id,
+      ) as unknown as Record<string, unknown>;
+      expect(page.analytics.aiRequests).toBe(2);
+      expect(row.aiRequests).toBe(2);
+      expect(row.aiLegacyRequests).toBe(1);
+      expect(row.aiTokenCovered).toBe(0);
+      expect(row.aiInputTokens).toBeNull();
+    },
+  );
 });

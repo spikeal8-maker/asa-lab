@@ -1,3 +1,4 @@
+import { publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -109,6 +110,7 @@ suite('free web lookup on independent PostgreSQL backends', () => {
       },
       randomUUID(),
     );
+    await publishFixtureModels(first, actor, ['deepseek-flash']);
     await first.saveWebSearch(
       actor,
       { enabled: true, weatherEnabled: true, operationsPerHour: 100, configurationVersion: 1 },

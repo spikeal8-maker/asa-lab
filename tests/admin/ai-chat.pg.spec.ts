@@ -1,3 +1,4 @@
+import { fixtureChatSql, publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
@@ -160,8 +161,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       },
       randomUUID(),
     );
-    expect(saved.enabled).toBe(true);
-    expect(saved.apiKeyConfigured).toBe(true);
+    await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna']);
+    expect(saved.providerConfigurations.find((slot) => slot.provider === 'openai')).toMatchObject({
+      enabled: true,
+      apiKeyConfigured: true,
+    });
     expect(JSON.stringify(saved)).not.toContain('sk-ai-private-integration-key-001');
 
     const raw = await admin.query<{ api_key_ciphertext: string }>(
@@ -209,26 +213,18 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const thread = (await service.threads(owner.principalId))[0]!;
     const other = await service.createThread(owner.principalId);
     const operation = randomUUID();
-    const admitted = await runtime.query<{ admitted: boolean }>(
-      'SELECT ai_chat_begin($1,$2,$3,$4::varchar) AS admitted',
-      [owner.principalId, other.id, operation, 'Один запрос'],
-    );
+    const admitted = await runtime.query<{ admitted: boolean }>(fixtureChatSql, [
+      owner.principalId,
+      other.id,
+      operation,
+      'Один запрос',
+    ]);
     expect(admitted.rows[0]!.admitted).toBe(true);
     await expect(
-      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-        owner.principalId,
-        other.id,
-        operation,
-        'Другой текст',
-      ]),
+      runtime.query(fixtureChatSql, [owner.principalId, other.id, operation, 'Другой текст']),
     ).rejects.toMatchObject({ code: '22023' });
     await expect(
-      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-        owner.principalId,
-        thread.id,
-        operation,
-        'Один запрос',
-      ]),
+      runtime.query(fixtureChatSql, [owner.principalId, thread.id, operation, 'Один запрос']),
     ).rejects.toMatchObject({ code: '22023' });
   });
 
@@ -249,12 +245,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const deletedRequest = randomUUID();
     // Failed admission must roll back without consuming quota.
     await expect(
-      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-        actor.principalId,
-        randomUUID(),
-        randomUUID(),
-        text,
-      ]),
+      runtime.query(fixtureChatSql, [actor.principalId, randomUUID(), randomUUID(), text]),
     ).rejects.toMatchObject({ message: 'AI_THREAD_BUSY_OR_MISSING' });
     for (let n = 0; n < 29; n += 1) {
       const thread = await adapter.createThread(actor.principalId);
@@ -882,6 +873,9 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         },
         randomUUID(),
       );
+      await publishFixtureModels(service, platformAdmin.principalId, [
+        provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
+      ]);
       try {
         const thread = await service.createThread(actor.principalId);
         const operation = randomUUID();
@@ -952,6 +946,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
           },
           randomUUID(),
         );
+        await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna']);
       }
     },
   );

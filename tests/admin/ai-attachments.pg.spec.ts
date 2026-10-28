@@ -1,3 +1,4 @@
+import { fixtureAttachmentSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -80,7 +81,7 @@ function observe<T extends pg.QueryResultRow>(work: Promise<pg.QueryResult<T>>) 
   );
 }
 const RESERVE = 'SELECT ai_attachment_reserve($1,$2,$3,$4,$5,$6,$7,$8) AS value';
-const BIND = 'SELECT ai_attachment_begin_message($1,$2,$3,$4,$5,$6::uuid[]) AS admitted';
+const BIND = fixtureAttachmentSql;
 function reserveParams(owner: string, descriptor: ReturnType<typeof attachmentDescriptor>) {
   const file = describeAiAttachmentFile(descriptor.fileName);
   return [

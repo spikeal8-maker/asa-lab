@@ -1,3 +1,4 @@
+import { fixtureGenerationSql, publishFixturePolicy } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -84,6 +85,7 @@ beforeAll(async () => {
       'quota-fixture-setup')`,
     [platformAdmin],
   );
+  await publishFixturePolicy(first, platformAdmin, 'gpt-6-luna');
   owners = [await identity(), await identity()];
 }, 60000);
 
@@ -107,7 +109,7 @@ afterAll(async () => {
     if (originalProviders) {
       await admin.query(
         `UPDATE ai_provider_settings p SET
-          model = saved.model, api_key_ciphertext = saved.api_key_ciphertext,
+          enabled = saved.enabled, revision = saved.revision, model = saved.model, api_key_ciphertext = saved.api_key_ciphertext,
           api_key_iv = saved.api_key_iv, api_key_auth_tag = saved.api_key_auth_tag,
           key_fingerprint = saved.key_fingerprint, updated_at = saved.updated_at
          FROM json_populate_recordset(NULL::ai_provider_settings, $1::json) saved
@@ -140,10 +142,11 @@ describe('platform quota under independent PostgreSQL connections', () => {
       Array.from({ length: 24 }, (_, i) => {
         const pool = i % 2 ? first : second;
         return i < 16
-          ? pool.query("SELECT ai_chat_begin_paid($1,$2,$3,'Hello',$4::bigint)", [
+          ? pool.query(fixtureGenerationSql, [
               owners[i % 2],
               threads[i],
               randomUUID(),
+              'Hello',
               version,
             ])
           : pool.query('SELECT ai_admin_test_begin($1,$2::bigint)', [platformAdmin, version]);
@@ -165,10 +168,13 @@ describe('platform quota under independent PostgreSQL connections', () => {
     const request = randomUUID();
     const results = await Promise.all(
       Array.from({ length: 12 }, (_, i) =>
-        (i % 2 ? first : second).query<{ admitted: boolean }>(
-          "SELECT ai_chat_begin_paid($1,$2,$3,'Hello',$4::bigint) AS admitted",
-          [owners[0], id, request, version],
-        ),
+        (i % 2 ? first : second).query<{ admitted: boolean }>(fixtureGenerationSql, [
+          owners[0],
+          id,
+          request,
+          'Hello',
+          version,
+        ]),
       ),
     );
     expect(results.filter((r) => r.rows[0]!.admitted)).toHaveLength(1);
@@ -176,10 +182,13 @@ describe('platform quota under independent PostgreSQL connections', () => {
     await first.query('SELECT ai_chat_abort($1,$2,$3)', [owners[0], id, request]);
     expect(
       (
-        await second.query<{ admitted: boolean }>(
-          "SELECT ai_chat_begin_paid($1,$2,$3,'Hello',$4::bigint) AS admitted",
-          [owners[0], id, request, version],
-        )
+        await second.query<{ admitted: boolean }>(fixtureGenerationSql, [
+          owners[0],
+          id,
+          request,
+          'Hello',
+          version,
+        ])
       ).rows[0]!.admitted,
     ).toBe(false);
     expect(await used()).toBe(baseline + 1);
