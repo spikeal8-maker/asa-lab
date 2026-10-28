@@ -81,6 +81,105 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: classroom-access-budget
+    worktree_id: classroom-access-budget-820
+    owned_paths:
+      - tools/testing/ai-access-baseline.mjs
+      - tools/testing/ai-access-baseline.test.mjs
+      - playwright.access-a.config.ts
+    task:
+      id: TASK-CLASSROOM-ACCESS-BUDGET-820
+      issue: 820
+      programme_issue: 715
+      branch: main
+      base_branch: main
+      pr: 823
+      pr_draft: true
+      status: blocked
+      kind: maintenance
+      change_class: L3_CRITICAL
+      checkpoint: runner_candidate_blocked_external_electronics_data_817
+      owner_acceptance: pending
+      implementation_complete: true
+      candidate_sha: 0e3e2043e0c0e626d6730031bc692aa75fc51c06
+      candidate_receipt:
+        source_paths_changed: 3
+        source_review: no_findings
+        integration_review: request_changes_required_general_data
+        classification: C_external_baseline
+        classroom_run: 40683006891
+        classroom_conclusion: success
+        access_a_cases: 22
+        strict_batches: 20_journeys_plus_1_participants_plus_1_whole_nat
+        general_run: 40683006912
+        general_conclusion: failure
+        governance_code_access: success
+        data_job: 122802449505
+        data_failed_step: 12
+        data_passed: 8266
+        data_failed: 8
+        data_skipped: 43
+        data_failure: ENOENT_in_unchanged_arduino_seven_segment_matrix_output_directory
+        cause_limit: Exact directory deletion or race cause remains unproved.
+        external_owner_issue: 817
+        external_handoff: https://github.com/spikeal8-maker/asa-lab/issues/817#issuecomment-6468696170
+        main_integration: not_merged
+        technical_acceptance: blocked
+      normative_refs:
+        - document: IDENTITY-ACCESS-V22
+          revision: '2.2'
+      owner_authorization: >-
+        Owner commissioned the full Classes programme and separate bounded
+        baseline repairs required by its gates. Issue820 selects test-runner
+        isolation only; production authorization and rate budgets remain intact.
+        This controller metadata and Surface Map prerequisite permits no runtime
+        authoring until accepted main selection and fresh broad scoped preflight.
+      scope: >-
+        Extend the existing sequential Access A launcher to discovery, ordinary
+        journeys, complete participants and complete NAT invocations with fresh
+        normal API processes. Preserve every discovered case exactly once,
+        currently22 total, strict identity and batch membership, whole NAT,
+        zero skips/retries, failure/interruption propagation, raw receipts and
+        later evidence after earlier failure. Explicit CLI overrides pass once.
+      constraints:
+        - Sole runtime authoring paths are the three owned_paths; no product/API/Auth/SQL/limiter, workflow, package, timeout/retry or participant/card test edits.
+        - Preserve production guards and normal webServer startup with reuseExistingServer false, synthetic *_test data and existing loopback entry; no spoofed IP or bypass.
+        - Require launcher negative coverage/process tests, complete real Access A aggregate, exact General/Classroom success and separate independent L3 review before integration.
+        - PR818 remains Draft and unaccepted; compose accepted baseline separately, then rerun its final-source gates and independent review before UI755 integration or B2.
+        - B/C attribution of the observed QR429 is unproved; isolation is a proposed test-fixture repair, not proof of a product defect or passing result.
+        - Use broad --scope classroom-access-budget to recover the actual task; targeted identity Surface Map supplies invariants through existing admin-auth document routing only and grants no task selection or write authority.
+        - No local Docker/runtime, live database, deployment, host/network changes or unrelated lane work.
+      context_hints:
+        - https://github.com/spikeal8-maker/asa-lab/issues/820
+        - docs/agent/contracts/identity.yaml
+        - docs/agent/surfaces/identity.yaml
+      path_coordination: >-
+        Fresh checks found the three existing tools unchanged since4da9cf1c,
+        no dirty overlap in registered worktrees and no identified active writer.
+        Recheck remote refs, all exact paths and current ownership before authoring.
+        Keep the existing admin-auth task and compact-document route unchanged.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6b5f624f583d8ab08786d3d1a857db94fe093875
+      head_sha: null
+      observed_at: '2026-10-28T12:19:16Z'
+      main:
+        branch: main
+        sha: 6b5f624f583d8ab08786d3d1a857db94fe093875
+      observation_note: Dated exact PR823 candidate receipt; fetch main and exact-SHA CI before writes. Classroom and General Access passed, but required General Data failed outside this source scope. No technical acceptance, integration, UI755 acceptance or deployment is claimed.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:access-a-launcher
+      browser:
+        workflow: Classroom Owner Real Scenarios
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: deployment-legacy-809
     worktree_id: deployment-legacy-809
     owned_paths:
@@ -477,7 +576,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asai_15_selected_product_and_delivery_parallel
+      checkpoint: asai_15_candidate_and_806_own_quality_parallel
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -500,6 +599,39 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-01B-OWN
+          issue: 806
+          scope: last ten own personal Account operations with a separate explicit content-read grant
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/OWNER_REFINEMENTS_2026-10-27.md
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R20, R24, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: true
+          implementation_complete: true
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_pr: 828
+          candidate_sha: db02acc2f6bb9c0dec8dcf494c47f35edd7318ba
+          independent_review: approved_source
+          ci_status: pending_exact_candidate
+          content_scope: own_personal_only
+          selection: >-
+            The owner programme explicitly permits own or controlled conversations before a
+            global content-review policy exists. Select a complete own-personal vertical:
+            platform Account plus a separate explicit verified quality-review grant, exact
+            owner/request/source/regeneration joins, bounded last-ten preview and detail,
+            metadata-only read audit, no-store and tested revocation. Never inherit content
+            permission automatically from the default platform-admin permission array.
+            Browser cannot choose another owner. Foreign personal, school and Seat content
+            remain denied; global issue806 acceptance and its broader privacy-policy decision
+            remain pending. Grant opt-in/revocation is an explicit own-only administrator action,
+            not an automatic migration grant. Isolated fixtures may grant synthetic actors.
+            Preserve compact overview and immutable receipts; do not copy all conversation text
+            into another journal. Keep ASAI-15 streaming and D2R2 delivery evidence separate.
+            Author works in a separate non-mounted checkout; coordinate migration expectations
+            after the streaming candidate, reserve additive 0271 and never edit published SQL.
         - id: ASAI-15
           issue: 373
           scope: real user-facing streaming when local model tools are offered but unused or called
@@ -509,10 +641,16 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R03, R31]
           acceptance_checks: [C03, C28]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_pr: 822
+          candidate_sha: 0a2e43a937f805396bfedf6abeefbd3fa22af00e
+          independent_review: approved_code_harness_and_isolated_visual
+          ci_status: focused_pass_general_blocked_unrelated_electronics_817
+          isolated_demo_run: 40687387257
+          general_gate_run: 40687387378
           source_baseline: c0b673b7e39c5fab3beaede55bfba6ad4565b87f
           selection: >-
             Owner selected the whole programme on 2026-10-28. Issue806 needs a separate explicit
@@ -3219,18 +3357,19 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: ready
-      checkpoint: ui05_b1b_technical_accepted_b1c_selected
+      checkpoint: ui05_b2_upload_metadata_implementation_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner's 2026-10-28 full Classes programme instruction authorizes sequential
-        bounded development, independent review and ordinary protected GitHub
-        integration under #715/#755. It supersedes the earlier governance-only
-        proposal restriction. UI-04 remains accepted. Only the selected B1c
-        test-only evidence slice below is authorized for the next product author;
-        B2-B6 require subsequent controller selection. No deployment or live data.
+        Owner's direct 2026-10-28 sequencing update selects the next real product
+        stage before returning to testing and 800-series integration. Issue755
+        comment6468906347 authorizes independent bounded B2 avatar implementation
+        first, then focused regression and required final-source gates/review.
+        This supersedes B1c acceptance as a development prerequisite only; B1c
+        remains unaccepted, red General is not waived for integration or release,
+        and deployment/live data and foreign-module edits remain unauthorized.
       b1b_integration_receipt:
         source_pr: 810
         source_sha: afb648b02c36afde227624f491ae6aaf40f99cc8
@@ -3251,21 +3390,46 @@ parallel_lanes:
         owner_acceptance: pending
         deployment: not_run
       selected_slice:
-        id: UI05-B1c
+        id: UI05-B2-upload-metadata
         status: ready
         change_class: L3_CRITICAL
-        kind: test_only_evidence
+        kind: bounded_ui_implementation
         write_paths:
-          - e2e/classroom-participants.spec.ts
-        start_requires: B1b exact merge General success, accepted main selection and fresh targeted SAFE_TO_START.
+          - apps/web/src/components/ClassroomParticipantPanels.tsx
+          - apps/web/src/components/testing/classroom-profile-completion.spec.ts
+        start_requires: Accepted main B2 selection and fresh scoped SAFE_TO_START with exact-path overlap checks.
+        sequencing: Implement the functional avatar fix first, then add focused regression verification and return to pending 800-series integration.
+        implementation: >-
+          Reuse existing avatar contracts and fix the observed upload metadata
+          defects. File preparation currently snapshots a title that later edits
+          do not update in the visible pending upload. Retry reuses requestId but
+          reads current secret/unlock options, which can change the payload after
+          an ambiguous committed response and cause idempotency_conflict. Keep
+          pending preview/title/options coherent until first submit; then freeze
+          the complete per-request payload and preserve exact safe retries.
+          Explicit cancellation and class/learner changes clear scoped pending
+          state without submitting or retrying another learner's upload.
         acceptance: >-
-          Extend the existing real Web/API/PostgreSQL custom-merit journey to
-          prove grant/revoke receipt and direct persisted read agreement, own
-          learner merit visibility after F5 and fresh login, peer isolation and
-          action-specific grant AND revoke HTTP negative ACL with immediate
-          unchanged target reads. Preserve existing builtin-award/secret-avatar
-          assertions and all scenarios, retries and timeouts. Require exact-SHA
-          Classroom Owner and General success plus independent L3 review.
+          Prove edited title reaches preview and actual upload payload, and
+          secret/unlock edits cannot change an already submitted requestId's
+          payload after lost/ambiguous response. Cover safe retry and cancellation/
+          context switch. Preserve ordinary/class/secret avatar selection,
+          entitlement, read-only/student consumers and existing server contracts.
+          Run focused regression after implementation, then required exact-source
+          General/Classroom gates and independent L3 review before integration.
+      b1c_candidate:
+        source_pr: 818
+        source_sha: 1bfc6863e33aba5e39b3537df4a68d12f363daa0
+        participant_journey: passed_on_exact_classroom_artifact
+        classroom_run: 40679110703
+        general_run: 40679110829
+        required_gates: not_accepted
+        independent_source_review: no_source_findings
+        integration_review: request_changes_required_gate
+        baseline_dependency: TASK-CLASSROOM-ACCESS-BUDGET-820
+        attribution: B_or_C_unproved
+        status: awaiting_separate_baseline_then_final_composition_gates_and_review
+        main_integration: not_merged
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
@@ -3275,27 +3439,30 @@ parallel_lanes:
         - https://github.com/spikeal8-maker/asa-lab/issues/734
         - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
         - https://github.com/spikeal8-maker/asa-lab/issues/755
+        - https://github.com/spikeal8-maker/asa-lab/issues/755#issuecomment-6468906347
       scope: >-
-        UI-05/B1c (#755) only: close the independently identified custom-merit
-        evidence gaps in the existing classroom-participants browser journey.
-        Existing PG grant/revoke and UI secret-avatar effects are not complete
-        B1 receipt/reload/isolation/ACL evidence. No product defect is assumed;
-        any demonstrated product/API/SQL defect requires separate selection.
+        UI05/B2 upload metadata and retry identity only, in the existing shared
+        participant panel and its focused regression spec. Implement the two
+        reproduced UI gaps; do not replace the avatar system, change backend/
+        API/SQL/Auth or create artwork. No E2E, harness, Issue753, map/registry
+        or B3+ edits. Preserve B1b acceptance and B1c/820 integration blockers.
       coordinated_paths:
         - e2e/classroom-participants.spec.ts
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
       path_coordination: >-
-        Existing owned_paths and other lane selections are preserved as historical
-        context, not current write scope. Only selected_slice.write_paths may be
-        edited for B1c after fresh overlap checks; no tooling or Surface Map edit.
-        The existing sensitive Surface Map already maps this E2E as L3_CRITICAL.
+        Existing owned/coordinated paths remain historical context, not this
+        slice's write scope. Only the two selected_slice.write_paths may change.
+        Fresh registered-worktree checks found neither product path dirty.
+        The shared panel has teacher and student consumers; preserve both and
+        recheck active writers and exact paths before the sole author starts.
       constraints:
-        - This controller-only selection must be accepted on GitHub main before the separate B1c author inherits it; no product or test edits occur in this state update.
-        - B1b exact merge General passed; B1c authoring still requires accepted main selection and fresh targeted SAFE_TO_START. B2-B6 and full B1 acceptance remain pending.
+        - Main must accept this B2 selection before the separate product author starts; this controller change edits no product code.
+        - Independent B2 source development is authorized despite pending B1c/820 acceptance; no merge, release, full B1 or UI05 acceptance waiver is granted.
+        - Implement functional behavior first, then focused regression and final-source verification before returning to 800-series integration.
         - Issue #753 owns existing ten-tab navigation baseline tests; do not edit its two test files without explicit coordination.
         - Preserve every existing lane selection; one product writer per path, independent read-only exact-final-SHA reviewer and separate controller.
-        - Stage only selected_slice.write_paths for B1c; never include another writer's changes or protected assets/backups.
+        - Stage only selected_slice.write_paths for B2; never include another writer's changes or protected assets/backups.
         - No API, SQL, Auth/permissions, grade semantics or shared component expansion without a separate audited slice.
         - ClassroomParticipantPanels.tsx is shared with student self-results; preserve existing consumers and require regression evidence for any teacher variant.
         - Cross-class grades BLOCKED pending a separate canonical learner identity/API authorization slice with denied, unlinked, revoked and cross-tenant tests; helperClasses is not that contract.
@@ -3303,7 +3470,7 @@ parallel_lanes:
         - Awaiting filter covers loaded works only; do not claim all-page review-status filtering or global sorting without a separately audited server contract.
         - No deployment, Docker/runtime, live database, users, ports or network changes are authorized.
         - Required browser evidence on the exact final SHA uses isolated CI/synthetic data and real built pages; preserve accepted classroom navigation and student consumers.
-        - New profile tests and browser workflow paths are bounded authoring scope, not existing executable evidence; wire and verify them before claiming UI completion.
+        - No E2E, harness, workflow, Issue753, map/registry or B3+ paths are authorized in this B2 slice; the focused regression follows functional implementation.
         - Additional canonical tooling/Surface Map selector, if required, needs separate authorization; do not modify tooling in this slice or claim targeted routing exists.
     revisions:
       kind: observed_snapshot
@@ -3325,7 +3492,7 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:code
-          - pnpm test apps/web/src/components/testing/classroom-student-navigation.spec.ts
+          - pnpm test apps/web/src/components/testing/classroom-profile-completion.spec.ts
       browser:
         workflow: Classroom Owner Real Scenarios
         commands:
@@ -6809,59 +6976,58 @@ parallel_lanes:
         owner_acceptance: pending
         deployment: not_run
         evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
+      - task_id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
+        issue: 211
+        pr: 814
+        accepted_candidate_sha: 22d0cdcbfdb85166a5aaaec12dc6040a348a5a4d
+        integrated_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+        independent_review: approved
+        exact_candidate_focused_run: 40679082270
+        exact_candidate_general_run: 40679082222
+        exact_candidate_public_projects_run: 40679082362
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
     task:
-      id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
+      id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-scratch-viewer-20261026
+      candidate_branch: codex/student-publication-policy-20261028
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: official_scratch_player_publication_integration_selected
+      checkpoint: class_and_seat_publication_download_policy_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Owner authorized completion of the full Public Projects program #211,
-        including actual Electronics/Scratch/3D viewing, downloads, publication
-        editing and administration. Prioritize the core visible workflow before
-        complaints and likes per DEC117 and latest visual-feedback request.
-        DEC118: class download/publish defaults false, separate per-Seat
-        inherit/allow/deny overrides, audited server enforcement; active students
-        may view eligible public works and like independently of these flags.
-        DEC119: do not change Games. Parked module-guard f41afd4c and complaint
-        UI DraftPR779/e1572fd5 are not selected or integrated; preserve their code.
-        Owner explicitly permits separate independent agent Code/Security reviews
-        instead of an unavailable external human, but not fabricated GitHub
-        approvals or protection bypass. Ordinary ready/merge follows actual
-        required exact-SHA evidence. No force push, production deployment or
-        working database changes. Electronics viewer is accepted in PR785/Main
-        28055932 with exact focused/General success and actual visual evidence.
-        Owner now explicitly requests the official existing Scratch player for
-        publications. Activate one bounded Scratch publication/player/assets
-        integration under PROJ-SCRATCH-PUBLIC-VIEWER.md, preserving pinned upstream,
-        parent/iframe capability boundary and immutable published version authority.
-        Reuse native isPlayerOnly/run/stop/fullscreen, not a second VM/interpreter.
-        This selection activates the needed player/publication asset boundary
-        previously deferred in Scratch M2; it does not activate cross-tenant remix,
-        reactions or exports. Use scratch-www as UX reference for later likes and
-        downloads without copying its backend calls or bypassing DEC118.
-        One author, focused checks, independent Code/Security/structural review,
-        real pinned-player browser/screenshots and General before Main integration.
+        Owner commissioned three ordered results: finish official Scratch player and Main,
+        finish likes/downloads with class and individual StudentSeat permissions, then update
+        the existing site and verify save/reopen. Step one is accepted in PR814/Main06df71f2.
+        Select one bounded prerequisite for step two under PROJ-STUDENT-PUBLICATION-POLICY.md:
+        audited teacher-managed class download/publish flags (default false), independent
+        per-Seat inherit/allow/deny overrides, effective server admission and actual safe
+        Seat publishing through the current immutable publication writer. Reuse existing
+        Account/StudentSeat/class and teacher authority; do not create accounts for pupils.
+        Owner explicitly chose on 2026-10-28 that disabling publishing prevents new publish
+        and republish but leaves existing publications available. Viewing and future likes
+        do not depend on these toggles. Preserve protected Learning/assignment sources,
+        personal Account independence, current moderation/revoke/read boundaries and Games.
+        This slice does not implement export archives or reactions; the controller continues
+        those dependent slices after acceptance. Preserve the compact page accepted in PR814.
+        One author, independent Code/Security review, exact real PG/API/browser and General
+        before ordinary Main integration. No working database or deployment in this slice.
+        The owner separately authorized the final guarded production update after all steps;
+        that authorization is not revoked by this source-only slice boundary.
       context_hints:
-        - docs/product/projects/tasks/PROJ-SCRATCH-PUBLIC-VIEWER.md
-        - docs/product/projects/tasks/PROJ-R7-04C-BLOCKS.md
-        - docs/product/visual-programming/components/gallery-learning.yaml
-        - docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
-        - docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        - docs/product/projects/tasks/PROJ-R7-03A-ARTIFACT-ENVELOPE.md
-        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
-        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
+        - docs/product/projects/tasks/PROJ-STUDENT-PUBLICATION-POLICY.md
         - docs/product/projects/DECISION_LEDGER.md
-        - docs/product/projects/IMPLEMENTATION_MICRO_ITERATIONS.md
-        - docs/product/ASA_PROJECTS_IMPLEMENTATION_SPEC.md
+        - docs/agent/contracts/identity.yaml
+        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
+        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
       - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
         status: in_progress
@@ -7675,20 +7841,18 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
+      convergence_baseline_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
       head_sha: null
-      observed_at: '2026-10-20T22:15:00Z'
+      observed_at: '2026-10-28T12:10:13Z'
       main:
         branch: main
-        sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
-      observation_note: Require fresh fetch main before publication. Owner explicitly resumes the complete programme with a visible next result. PR613 is merged
-        at13ab3635587a201bc2cc78e88b9a9f66fce72102 and its post-main publication PG/browser workflow39494756801 passed.
-        Select only Stage3 exact immutable-publication copy into an independent private Project. Source integration
-        of Stage1 is not full release acceptance. Shared dependency and AI/Courses/Portal migration topology remain
-        separately owned; no earlier migrations, package/lock or unrelated modules may be rewritten in this slice.
-        Reserve new forward0235 after unchanged0234; validate actual reservations before publication. Workstation
-        authoring/lightweight checks only; real PG/browser evidence in disposable GitHub CI. No production deployment
-        or working database operation.
+        sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+      observation_note: >-
+        PR814 merged after exact source independent reviews and all required candidate gates.
+        Scratch run40679082270 attempt2 passed all three jobs; attempt1 PowerShell startup
+        timeout was infrastructure D, not bypassed. General40679082222 and Public Projects
+        40679082362 passed. Fetch main before writes. Select only the next audited class/Seat
+        permission and publishing slice; exports/reactions and final deployment are subsequent.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -7697,14 +7861,13 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Public Projects Publication
         commands:
-          - pnpm test:project-slice
-          - pnpm test:creator-portal
+          - pnpm gate:projects-publication
       browser:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Public Projects Publication
         commands:
-          - pnpm e2e:creator-portal
+          - pnpm gate:projects-publication:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -14045,6 +14208,44 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: CLASSROOM-820-EXTERNAL-ELECTRONICS-DATA-817
+    kind: acceptance_blocker
+    lane: classroom-access-budget
+    task_id: TASK-CLASSROOM-ACCESS-BUDGET-820
+    blocks:
+      - source_integration
+      - integration
+      - technical_acceptance
+      - release_claim
+      - owner_acceptance
+      - close_issue
+    allows:
+      - documentation_update
+      - readonly_diagnostics
+      - separately_authorized_baseline_composition
+      - focused_verification
+      - independent_source_review
+    reason: >-
+      Exact PR823 0e3e2043e0c0e626d6730031bc692aa75fc51c06 changes only
+      three Access A launcher/config paths. Classroom40683006891 passed all
+      22 strict journeys and settings/layout; General40683006912 governance,
+      code and Access passed, but Data job122802449505 step12 failed eight
+      ENOENT cases in unchanged Electronics arduino-seven-segment-matrix.spec.ts
+      creating/opening test-results/arduino-seven-segment-matrix. Summary
+      8266 passed, 8 failed, 43 skipped. Independent L3 source has no findings,
+      but integration REQUEST_CHANGES classifies an external category C baseline.
+      Exact directory deletion/race cause remains unproved; no foreign repair
+      or acceptance waiver is authorized inside820. Dependent UI755/PR818
+      remains awaiting accepted820. Independent B2 source authoring is separately
+      authorized; B1/UI05 acceptance and release remain pending.
+    unblock_requires: >-
+      Electronics owner must separately verify and integrate its own bounded
+      baseline fix under817. Compose that accepted baseline with PR823 only
+      after separate authorization, obtain fresh final-source General and
+      Classroom success, and obtain new independent review on that exact SHA.
+      A text exception, partial gate, unchanged-source rerun or source-only
+      approval cannot close this blocker.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/817#issuecomment-6468696170
   - id: ASAI-01-D2R2-LEGACY-ADOPTION-809
     kind: deployment_blocker
     lane: ai-assistant
@@ -14061,7 +14262,10 @@ blocking:
       - release_publication
     reason: >-
       The bounded legacy adapter is published in Draft PR811 at manager
-      260826ecd5385206053eaf9d85f66fc4790e8e92. Read-only D2R2 qualification
+      c8e4339ba0ba70ed752453098eaeed9f449029f5. Exact Windows code review approved;
+      the single authorized 2026-10-28 diagnostic remains BLOCKED with AUTHOR10,
+      EXCLUDED157 and UNKNOWN475 (metadata denial, command ambiguity and churn).
+      Read-only D2R2 qualification
       supports the actual review identity, mount shape and preserved WIP.
       Author attestation returns LEGACY_AUTHORS because required process
       owner metadata cannot be verified in the available operator context.

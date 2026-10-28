@@ -207,6 +207,8 @@ if (browser) {
     'tests/portal/public-projects.pg.spec.ts',
     'tests/portal/public-project-artifact.http.pg.spec.ts',
     'apps/api/src/public-project-artifact.spec.ts',
+    'apps/api/src/public-scratch-player.spec.ts',
+    'tests/portal/public-scratch-player.pg.spec.ts',
     'tests/portal/public-project-copy.pg.spec.ts',
     'tests/portal/public-project-moderation.pg.spec.ts',
     'tests/portal/public-project-pinning.pg.spec.ts',

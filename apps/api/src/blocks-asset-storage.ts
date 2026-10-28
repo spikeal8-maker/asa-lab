@@ -36,11 +36,14 @@ export interface BlocksBlobStorePort {
     readonly sizeBytes: number;
     readonly sourcePath: string;
   }): Promise<{ readonly objectKey: string; readonly created: boolean }>;
-  open(input: {
-    readonly tenantId: string;
-    readonly sha256: string;
-    readonly dataFormat: BlocksAssetFormat;
-  }): Promise<BlocksBlobReadable | null>;
+  open(
+    input: {
+      readonly tenantId: string;
+      readonly sha256: string;
+      readonly dataFormat: BlocksAssetFormat;
+    },
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<BlocksBlobReadable | null>;
   exists(input: {
     readonly tenantId: string;
     readonly sha256: string;
@@ -49,7 +52,16 @@ export interface BlocksBlobStorePort {
 }
 
 interface S3Sender {
-  send(command: HeadObjectCommand | GetObjectCommand | PutObjectCommand): Promise<unknown>;
+  send(
+    command: HeadObjectCommand | GetObjectCommand | PutObjectCommand,
+    options?: { abortSignal?: AbortSignal },
+  ): Promise<unknown>;
+}
+/** Close an unopened/late SDK body too; a wrapper that was never iterated is insufficient. */
+export function disposeBlocksBlobBody(body: BlocksBlobReadable): void {
+  const destroy = (body as BlocksBlobReadable & { destroy?: () => void }).destroy;
+  if (typeof destroy === 'function') destroy.call(body);
+  else void Promise.resolve(body[Symbol.asyncIterator]().return?.()).catch(() => undefined);
 }
 function requireEnv(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]?.trim();
@@ -253,18 +265,26 @@ export class S3BlocksBlobStore implements BlocksBlobStorePort {
     }
     return { objectKey, created: true };
   }
-  async open(input: {
-    tenantId: string;
-    sha256: string;
-    dataFormat: BlocksAssetFormat;
-  }): Promise<BlocksBlobReadable | null> {
+  async open(
+    input: {
+      tenantId: string;
+      sha256: string;
+      dataFormat: BlocksAssetFormat;
+    },
+    options: { readonly signal?: AbortSignal } = {},
+  ): Promise<BlocksBlobReadable | null> {
     const Key = blocksObjectKey(input);
     try {
       const result = (await this.client.send(
         new GetObjectCommand({ Bucket: this.config.bucket, Key }),
+        options.signal ? { abortSignal: options.signal } : undefined,
       )) as { Body?: unknown };
       if (!isAsyncBytes(result.Body)) {
         throw new Error('Blocks object store returned an unreadable body.');
+      }
+      if (options.signal?.aborted) {
+        disposeBlocksBlobBody(result.Body);
+        throw new Error('blocks_object_read_aborted');
       }
       return result.Body;
     } catch (problem) {

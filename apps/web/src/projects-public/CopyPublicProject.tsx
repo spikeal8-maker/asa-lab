@@ -34,7 +34,7 @@ export function CopyPublicProject({
   publication,
 }: {
   readonly publication: PublicProject;
-}): JSX.Element {
+}): JSX.Element | null {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
@@ -117,29 +117,22 @@ export function CopyPublicProject({
     }
   }
 
+  if (!eligible) return null;
   return (
     <section className="public-project-copy" aria-label="Личная копия проекта" aria-busy={busy}>
-      <details className="public-project-copy-policy">
-        <summary>Условия копирования</summary>
-        <p id="public-project-copy-help">
-          {eligible
-            ? 'Личная копия появится в «Моих проектах». Изменяйте её в редакторе — оригинал автора сохранится.'
-            : 'Копирование недоступно для этой публикации. Копировать можно разрешённые проекты 3D и электроники с лицензией «Общественное достояние». Другие лицензии и модули пока не поддерживаются.'}
-        </p>
-      </details>
       {href ? (
         <>
           <p role="status">Приватная копия создана. Откройте её в редакторе.</p>
-          <PortalLink className="btn-primary" href={href}>
+          <PortalLink className="btn-secondary" href={href}>
             Открыть мою копию
           </PortalLink>
         </>
       ) : (
         <button
           type="button"
-          className="btn-primary"
+          className="btn-secondary"
           disabled={!eligible || busy || blocked}
-          aria-describedby="public-project-copy-help"
+          title="Личная копия появится в Моих проектах. Оригинал автора сохранится."
           onClick={() => void createCopy()}
         >
           {busy ? 'Создаём копию…' : 'Создать свою копию'}

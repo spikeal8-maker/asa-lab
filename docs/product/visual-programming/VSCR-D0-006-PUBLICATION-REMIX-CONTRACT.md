@@ -165,6 +165,32 @@ referenced asset GET authority for that version
 
 No draft-write capability is issued from a Gallery route.
 
+### Public Projects player namespace
+
+The selected Public Projects Scratch viewer uses the existing official host in
+`player` mode with explicit `assetScope: publication`. In this namespace only,
+the bridge's `projectId` is the public publication UUID and `versionId` is its
+public revision UUID. These aliases are never passed to the editor authorizer
+or Project Core version lookup. The server freshly resolves the canonical
+immutable ProjectVersion and source tenant through the current readable revision.
+
+The separate public capability contains only publication/revision identity,
+runtime origin, player mode, issuer/audience, nonce and ten-minute lifetime.
+It has a distinct audience/type from editor capabilities, no principal or tenant
+claims and no write grants. Bootstrap is no-store; token/nonce stay in memory.
+The storage adapter derives one fixed publication/revision asset GET path;
+editor, upload and draft paths are unchanged. Refresh and each asset request
+recheck current publication readability before returning bytes, including cache hits.
+
+Known native built-in extensions retain upstream execution. Arbitrary custom
+extension URLs and URL-bearing extension configuration are not public executable
+input. Public playback never receives ASA account/cloud authority or automatic
+camera/microphone/device permissions; integrations requiring external services or
+equipment are identified in the viewing UI. This does not alter editor extensions.
+Native scheduling is retained; no arbitrary two-minute active-play cutoff or
+new interpreter is introduced. Bounds on document/assets, active work, request
+maps, authentication expiry and complete teardown are distinct from CPU guarantees.
+
 ---
 
 ## 5. Blocks asset read for published versions
