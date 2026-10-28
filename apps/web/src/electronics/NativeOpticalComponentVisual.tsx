@@ -34,7 +34,8 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
   const nativeKind = ['led-5mm', 'arduino-uno', 'servo-motor', 'seven-segment-display'].indexOf(
     props.entry.key,
   );
-  const opticalPort = props.simulationRunning && nativeKind >= 0 ? port : null;
+  const committedOnly = nativeKind === 2 || props.entry.familyId === 'piezo';
+  const opticalPort = props.simulationRunning && (nativeKind >= 0 || committedOnly) ? port : null;
   const snapshot = useSyncExternalStore(
     opticalPort?.subscribe ?? idleSubscribe,
     opticalPort?.getSnapshot ?? idleSnapshot,
@@ -48,7 +49,7 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
   // Servo and raw display follow committed physics without waiting for an editor render.
   // Proposed optical frames still belong to the LED/native-asset commit barrier.
   const observation =
-    nativeKind === 2 ||
+    committedOnly ||
     (nativeKind === 3 && !snapshot.observation?.frame.sevenSegmentBrightness?.has(componentId))
       ? snapshot.committed
       : snapshot.observation;
