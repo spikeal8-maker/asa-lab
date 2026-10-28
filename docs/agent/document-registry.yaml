@@ -336,6 +336,7 @@ documents:
     scope: identity
     lanes:
     - admin-auth
+    - classroom-access-budget
     - learning
     kind: target
     status: canonical

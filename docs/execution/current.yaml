@@ -81,6 +81,79 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: classroom-access-budget
+    worktree_id: classroom-access-budget-820
+    owned_paths:
+      - tools/testing/ai-access-baseline.mjs
+      - tools/testing/ai-access-baseline.test.mjs
+      - playwright.access-a.config.ts
+    task:
+      id: TASK-CLASSROOM-ACCESS-BUDGET-820
+      issue: 820
+      programme_issue: 715
+      branch: main
+      base_branch: main
+      pr: null
+      status: ready
+      kind: maintenance
+      change_class: L3_CRITICAL
+      checkpoint: participant_process_isolation_selected_authoring_not_started
+      owner_acceptance: pending
+      normative_refs:
+        - document: IDENTITY-ACCESS-V22
+          revision: '2.2'
+      owner_authorization: >-
+        Owner commissioned the full Classes programme and separate bounded
+        baseline repairs required by its gates. Issue820 selects test-runner
+        isolation only; production authorization and rate budgets remain intact.
+        This controller metadata and Surface Map prerequisite permits no runtime
+        authoring until accepted main selection and fresh broad scoped preflight.
+      scope: >-
+        Extend the existing sequential Access A launcher to discovery, ordinary
+        journeys, complete participants and complete NAT invocations with fresh
+        normal API processes. Preserve every discovered case exactly once,
+        currently22 total, strict identity and batch membership, whole NAT,
+        zero skips/retries, failure/interruption propagation, raw receipts and
+        later evidence after earlier failure. Explicit CLI overrides pass once.
+      constraints:
+        - Sole runtime authoring paths are the three owned_paths; no product/API/Auth/SQL/limiter, workflow, package, timeout/retry or participant/card test edits.
+        - Preserve production guards and normal webServer startup with reuseExistingServer false, synthetic *_test data and existing loopback entry; no spoofed IP or bypass.
+        - Require launcher negative coverage/process tests, complete real Access A aggregate, exact General/Classroom success and separate independent L3 review before integration.
+        - PR818 remains Draft and unaccepted; compose accepted baseline separately, then rerun its final-source gates and independent review before UI755 integration or B2.
+        - B/C attribution of the observed QR429 is unproved; isolation is a proposed test-fixture repair, not proof of a product defect or passing result.
+        - Use broad --scope classroom-access-budget to recover the actual task; targeted identity Surface Map supplies invariants through existing admin-auth document routing only and grants no task selection or write authority.
+        - No local Docker/runtime, live database, deployment, host/network changes or unrelated lane work.
+      context_hints:
+        - https://github.com/spikeal8-maker/asa-lab/issues/820
+        - docs/agent/contracts/identity.yaml
+        - docs/agent/surfaces/identity.yaml
+      path_coordination: >-
+        Fresh checks found the three existing tools unchanged since4da9cf1c,
+        no dirty overlap in registered worktrees and no identified active writer.
+        Recheck remote refs, all exact paths and current ownership before authoring.
+        Keep the existing admin-auth task and compact-document route unchanged.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7f47c9e791b2858bffadab2ef6dd066e161d7662
+      head_sha: null
+      observed_at: '2026-10-28T11:30:00Z'
+      main:
+        branch: main
+        sha: 7f47c9e791b2858bffadab2ef6dd066e161d7662
+      observation_note: Dated metadata selection only; fetch main and exact-SHA CI before writes. No runner implementation, gate success, PR818 acceptance or deployment is claimed.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:access-a-launcher
+      browser:
+        workflow: Classroom Owner Real Scenarios
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: deployment-legacy-809
     worktree_id: deployment-legacy-809
     owned_paths:
@@ -3218,8 +3291,8 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: ready
-      checkpoint: ui05_b1b_technical_accepted_b1c_selected
+      status: blocked
+      checkpoint: ui05_b1c_candidate_awaiting_access_budget_baseline_820
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
@@ -3252,7 +3325,7 @@ parallel_lanes:
         deployment: not_run
       selected_slice:
         id: UI05-B1c
-        status: ready
+        status: awaiting_separate_baseline_820
         change_class: L3_CRITICAL
         kind: test_only_evidence
         write_paths:
@@ -3266,6 +3339,19 @@ parallel_lanes:
           unchanged target reads. Preserve existing builtin-award/secret-avatar
           assertions and all scenarios, retries and timeouts. Require exact-SHA
           Classroom Owner and General success plus independent L3 review.
+      b1c_candidate:
+        source_pr: 818
+        source_sha: 1bfc6863e33aba5e39b3537df4a68d12f363daa0
+        participant_journey: passed_on_exact_classroom_artifact
+        classroom_run: 40679110703
+        general_run: 40679110829
+        required_gates: not_accepted
+        independent_source_review: no_source_findings
+        integration_review: request_changes_required_gate
+        baseline_dependency: TASK-CLASSROOM-ACCESS-BUDGET-820
+        attribution: B_or_C_unproved
+        status: awaiting_separate_baseline_then_final_composition_gates_and_review
+        main_integration: not_merged
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153

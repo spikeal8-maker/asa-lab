@@ -737,3 +737,24 @@ surfaces:
     files: [apps/api/src/email.controller.ts, apps/api/src/email.service.ts, migrations/0248_verified_email_smtp.sql, apps/web/src/admin/AdminEmailSettings.tsx, apps/web/src/admin/CrmEmailChange.tsx, apps/web/src/components/EmailVerification.tsx, apps/web/src/pages/EmailConfirmationPage.tsx]
     invariants: [IDA-AUTH-001, IDA-SCOPE-001, IDA-CTX-001, IDA-SEAT-001, IDA-REV-001]
     tests: [TST-EMAIL-PROOF-UNIT-001, TST-EMAIL-PROOF-PG-001, TST-ACCOUNT-CONFIRMATION-UI-001]
+
+- id: SURF-ACCESS-A-TEST-LAUNCHER
+  routes: ['runner:pnpm-e2e-access-a']
+  implementation:
+    files:
+    - tools/testing/ai-access-baseline.mjs
+    - tools/testing/ai-access-baseline.test.mjs
+    - playwright.access-a.config.ts
+  invariants: [IDA-AUTH-001, IDA-SEAT-001, IDA-SEAT-002, IDA-REV-001]
+  tests: [TST-ASA-ACCESS-A-E2E-001, TST-ASA-ACCESS-A-REPOSITORY-001]
+  controls:
+  - id: CTRL-ACCESS-A-EXACT-ONCE-TEST-BATCHES
+    label: Real API test-process isolation and fail-closed exact-once discovery aggregation preserve production authorization and admission guards
+    change_class: L3_CRITICAL
+    files:
+    - tools/testing/ai-access-baseline.mjs
+    - tools/testing/ai-access-baseline.test.mjs
+    - playwright.access-a.config.ts
+    commands: []
+    invariants: [IDA-AUTH-001, IDA-SEAT-001, IDA-SEAT-002, IDA-REV-001]
+    tests: [TST-ASA-ACCESS-A-E2E-001, TST-ASA-ACCESS-A-REPOSITORY-001]
