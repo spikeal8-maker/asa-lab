@@ -1,0 +1,4739 @@
+{
+  "schemaVersion": 4,
+  "components": [
+    {
+      "id": "battery",
+      "kind": "source",
+      "componentTypeId": "battery-holder-aa-2",
+      "variantId": "battery-holder-aa-2",
+      "electricalModelId": "ideal-dc-source",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-battery-pack-aa-2",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 60,
+        "y": 540
+      },
+      "value": 3,
+      "stateProperties": {
+        "cells": 2
+      },
+      "pinIds": [
+        "BAT+",
+        "BAT-"
+      ]
+    },
+    {
+      "id": "display",
+      "kind": "seven-segment",
+      "componentTypeId": "seven-segment-display",
+      "variantId": "seven-segment-display",
+      "electricalModelId": "seven-segment",
+      "electricalModelVersion": 1,
+      "modelProfileId": "single-digit-seven-segment-10pin",
+      "modelProfileVersion": 2,
+      "position": {
+        "x": 80,
+        "y": 70
+      },
+      "value": 0,
+      "stateProperties": {
+        "commonMode": "common-cathode",
+        "segmentColor": "red"
+      },
+      "pinIds": [
+        "top-1",
+        "top-2",
+        "top-3",
+        "top-4",
+        "top-5",
+        "bottom-1",
+        "bottom-2",
+        "bottom-3",
+        "bottom-4",
+        "bottom-5"
+      ],
+      "internalConnections": [
+        [
+          "top-3",
+          "bottom-3"
+        ]
+      ]
+    },
+    {
+      "id": "bus-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 80
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "bus-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 160
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "bus-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 240
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "bus-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 320
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "bus-e",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 400
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "bus-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 480
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "bus-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 210,
+        "y": 560
+      },
+      "value": 100,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-0",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 700
+      },
+      "value": 0,
+      "name": "0",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-0-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-0-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 405,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-0-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-0-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 405,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-0-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-0-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 405,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-0-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-0-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 405,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-0-e",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 400
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-0-e",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 405,
+        "y": 400
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-0-f",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 340,
+        "y": 480
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-0-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 405,
+        "y": 480
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-1",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 520,
+        "y": 700
+      },
+      "value": 0,
+      "name": "1",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-1-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 520,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-1-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 585,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-1-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 520,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-1-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 585,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-2",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 700,
+        "y": 700
+      },
+      "value": 0,
+      "name": "2",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-2-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 700,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-2-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 765,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-2-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 700,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-2-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 765,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-2-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 700,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-2-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 765,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-2-e",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 700,
+        "y": 400
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-2-e",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 765,
+        "y": 400
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-2-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 700,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-2-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 765,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-3",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 880,
+        "y": 700
+      },
+      "value": 0,
+      "name": "3",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-3-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 880,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-3-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 945,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-3-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 880,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-3-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 945,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-3-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 880,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-3-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 945,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-3-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 880,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-3-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 945,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-3-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 880,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-3-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 945,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-4",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1060,
+        "y": 700
+      },
+      "value": 0,
+      "name": "4",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-4-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1060,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-4-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1125,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-4-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1060,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-4-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1125,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-4-f",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1060,
+        "y": 480
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-4-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1125,
+        "y": 480
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-4-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1060,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-4-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1125,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-5",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1240,
+        "y": 700
+      },
+      "value": 0,
+      "name": "5",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-5-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1240,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-5-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1305,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-5-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1240,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-5-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1305,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-5-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1240,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-5-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1305,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-5-f",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1240,
+        "y": 480
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-5-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1305,
+        "y": 480
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-5-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1240,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-5-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1305,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-6",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 700
+      },
+      "value": 0,
+      "name": "6",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-6-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-6-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1485,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-6-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-6-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1485,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-6-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-6-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1485,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-6-e",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 400
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-6-e",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1485,
+        "y": 400
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-6-f",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 480
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-6-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1485,
+        "y": 480
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-6-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1420,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-6-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1485,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-7",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1600,
+        "y": 700
+      },
+      "value": 0,
+      "name": "7",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-7-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1600,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-7-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1665,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-7-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1600,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-7-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1665,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-7-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1600,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-7-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1665,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-8",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 700
+      },
+      "value": 0,
+      "name": "8",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-8-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-8-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-8-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-8-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-8-e",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 400
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-e",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 400
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-8-f",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 480
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 480
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-8-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1780,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-8-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1845,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "button-9",
+      "kind": "button",
+      "componentTypeId": "button-tactile-6mm",
+      "variantId": "button-tactile-6mm",
+      "electricalModelId": "momentary-button",
+      "electricalModelVersion": 1,
+      "modelProfileId": "tactile-button-6mm",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 700
+      },
+      "value": 0,
+      "name": "9",
+      "state": false,
+      "stateProperties": {
+        "contactState": "released"
+      },
+      "pinIds": [
+        "SW-A1",
+        "SW-A2",
+        "SW-B1",
+        "SW-B2"
+      ],
+      "internalConnections": [
+        [
+          "SW-A1",
+          "SW-A2"
+        ],
+        [
+          "SW-B1",
+          "SW-B2"
+        ]
+      ]
+    },
+    {
+      "id": "diode-9-a",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 80
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-9-a",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 2025,
+        "y": 80
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-9-b",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 160
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-9-b",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 2025,
+        "y": 160
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-9-c",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 240
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-9-c",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 2025,
+        "y": 240
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-9-d",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 320
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-9-d",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 2025,
+        "y": 320
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-9-f",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 480
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-9-f",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 2025,
+        "y": 480
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    },
+    {
+      "id": "diode-9-g",
+      "kind": "diode",
+      "componentTypeId": "diode-do35",
+      "variantId": "diode-do35",
+      "electricalModelId": "diode",
+      "electricalModelVersion": 1,
+      "modelProfileId": "generic-signal-diode-do35",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 1960,
+        "y": 560
+      },
+      "value": 0.7,
+      "stateProperties": {},
+      "pinIds": [
+        "anode",
+        "cathode"
+      ]
+    },
+    {
+      "id": "resistor-9-g",
+      "kind": "resistor",
+      "componentTypeId": "resistor-axial",
+      "variantId": "resistor-axial",
+      "electricalModelId": "resistor",
+      "electricalModelVersion": 1,
+      "modelProfileId": "axial-resistor",
+      "modelProfileVersion": 1,
+      "position": {
+        "x": 2025,
+        "y": 560
+      },
+      "value": 220,
+      "stateProperties": {
+        "tolerancePercent": 5,
+        "resistanceUnit": "Ω",
+        "powerRatingWatt": 0.25
+      },
+      "pinIds": [
+        "lead-1",
+        "lead-2"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "common-ground",
+      "from": {
+        "componentId": "display",
+        "terminal": "top-3"
+      },
+      "to": {
+        "componentId": "battery",
+        "terminal": "BAT-"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-a",
+      "from": {
+        "componentId": "bus-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-4"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-b",
+      "from": {
+        "componentId": "bus-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-5"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-c",
+      "from": {
+        "componentId": "bus-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-4"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-d",
+      "from": {
+        "componentId": "bus-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-2"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-e",
+      "from": {
+        "componentId": "bus-e",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "bottom-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-f",
+      "from": {
+        "componentId": "bus-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-2"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "segment-g",
+      "from": {
+        "componentId": "bus-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "display",
+        "terminal": "top-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-0",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-0",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-0-a",
+      "from": {
+        "componentId": "button-0",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-0-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-0-a",
+      "from": {
+        "componentId": "diode-0-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-0-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-0-a",
+      "from": {
+        "componentId": "resistor-0-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-0-b",
+      "from": {
+        "componentId": "button-0",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-0-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-0-b",
+      "from": {
+        "componentId": "diode-0-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-0-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-0-b",
+      "from": {
+        "componentId": "resistor-0-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-0-c",
+      "from": {
+        "componentId": "button-0",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-0-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-0-c",
+      "from": {
+        "componentId": "diode-0-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-0-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-0-c",
+      "from": {
+        "componentId": "resistor-0-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-0-d",
+      "from": {
+        "componentId": "button-0",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-0-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-0-d",
+      "from": {
+        "componentId": "diode-0-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-0-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-0-d",
+      "from": {
+        "componentId": "resistor-0-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-0-e",
+      "from": {
+        "componentId": "button-0",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-0-e",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-0-e",
+      "from": {
+        "componentId": "diode-0-e",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-0-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-0-e",
+      "from": {
+        "componentId": "resistor-0-e",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-0-f",
+      "from": {
+        "componentId": "button-0",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-0-f",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-0-f",
+      "from": {
+        "componentId": "diode-0-f",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-0-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-0-f",
+      "from": {
+        "componentId": "resistor-0-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-1",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-1",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-1-b",
+      "from": {
+        "componentId": "button-1",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-1-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-1-b",
+      "from": {
+        "componentId": "diode-1-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-1-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-1-b",
+      "from": {
+        "componentId": "resistor-1-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-1-c",
+      "from": {
+        "componentId": "button-1",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-1-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-1-c",
+      "from": {
+        "componentId": "diode-1-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-1-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-1-c",
+      "from": {
+        "componentId": "resistor-1-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-2",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-2",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-2-a",
+      "from": {
+        "componentId": "button-2",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-2-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-2-a",
+      "from": {
+        "componentId": "diode-2-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-2-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-2-a",
+      "from": {
+        "componentId": "resistor-2-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-2-b",
+      "from": {
+        "componentId": "button-2",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-2-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-2-b",
+      "from": {
+        "componentId": "diode-2-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-2-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-2-b",
+      "from": {
+        "componentId": "resistor-2-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-2-d",
+      "from": {
+        "componentId": "button-2",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-2-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-2-d",
+      "from": {
+        "componentId": "diode-2-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-2-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-2-d",
+      "from": {
+        "componentId": "resistor-2-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-2-e",
+      "from": {
+        "componentId": "button-2",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-2-e",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-2-e",
+      "from": {
+        "componentId": "diode-2-e",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-2-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-2-e",
+      "from": {
+        "componentId": "resistor-2-e",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-2-g",
+      "from": {
+        "componentId": "button-2",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-2-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-2-g",
+      "from": {
+        "componentId": "diode-2-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-2-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-2-g",
+      "from": {
+        "componentId": "resistor-2-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-3",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-3",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-3-a",
+      "from": {
+        "componentId": "button-3",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-3-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-3-a",
+      "from": {
+        "componentId": "diode-3-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-3-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-3-a",
+      "from": {
+        "componentId": "resistor-3-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-3-b",
+      "from": {
+        "componentId": "button-3",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-3-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-3-b",
+      "from": {
+        "componentId": "diode-3-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-3-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-3-b",
+      "from": {
+        "componentId": "resistor-3-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-3-c",
+      "from": {
+        "componentId": "button-3",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-3-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-3-c",
+      "from": {
+        "componentId": "diode-3-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-3-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-3-c",
+      "from": {
+        "componentId": "resistor-3-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-3-d",
+      "from": {
+        "componentId": "button-3",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-3-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-3-d",
+      "from": {
+        "componentId": "diode-3-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-3-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-3-d",
+      "from": {
+        "componentId": "resistor-3-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-3-g",
+      "from": {
+        "componentId": "button-3",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-3-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-3-g",
+      "from": {
+        "componentId": "diode-3-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-3-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-3-g",
+      "from": {
+        "componentId": "resistor-3-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-4",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-4",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-4-b",
+      "from": {
+        "componentId": "button-4",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-4-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-4-b",
+      "from": {
+        "componentId": "diode-4-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-4-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-4-b",
+      "from": {
+        "componentId": "resistor-4-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-4-c",
+      "from": {
+        "componentId": "button-4",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-4-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-4-c",
+      "from": {
+        "componentId": "diode-4-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-4-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-4-c",
+      "from": {
+        "componentId": "resistor-4-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-4-f",
+      "from": {
+        "componentId": "button-4",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-4-f",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-4-f",
+      "from": {
+        "componentId": "diode-4-f",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-4-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-4-f",
+      "from": {
+        "componentId": "resistor-4-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-4-g",
+      "from": {
+        "componentId": "button-4",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-4-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-4-g",
+      "from": {
+        "componentId": "diode-4-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-4-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-4-g",
+      "from": {
+        "componentId": "resistor-4-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-5",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-5",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-5-a",
+      "from": {
+        "componentId": "button-5",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-5-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-5-a",
+      "from": {
+        "componentId": "diode-5-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-5-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-5-a",
+      "from": {
+        "componentId": "resistor-5-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-5-c",
+      "from": {
+        "componentId": "button-5",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-5-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-5-c",
+      "from": {
+        "componentId": "diode-5-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-5-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-5-c",
+      "from": {
+        "componentId": "resistor-5-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-5-d",
+      "from": {
+        "componentId": "button-5",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-5-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-5-d",
+      "from": {
+        "componentId": "diode-5-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-5-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-5-d",
+      "from": {
+        "componentId": "resistor-5-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-5-f",
+      "from": {
+        "componentId": "button-5",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-5-f",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-5-f",
+      "from": {
+        "componentId": "diode-5-f",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-5-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-5-f",
+      "from": {
+        "componentId": "resistor-5-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-5-g",
+      "from": {
+        "componentId": "button-5",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-5-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-5-g",
+      "from": {
+        "componentId": "diode-5-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-5-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-5-g",
+      "from": {
+        "componentId": "resistor-5-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-6",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-6",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-6-a",
+      "from": {
+        "componentId": "button-6",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-6-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-6-a",
+      "from": {
+        "componentId": "diode-6-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-6-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-6-a",
+      "from": {
+        "componentId": "resistor-6-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-6-c",
+      "from": {
+        "componentId": "button-6",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-6-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-6-c",
+      "from": {
+        "componentId": "diode-6-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-6-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-6-c",
+      "from": {
+        "componentId": "resistor-6-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-6-d",
+      "from": {
+        "componentId": "button-6",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-6-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-6-d",
+      "from": {
+        "componentId": "diode-6-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-6-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-6-d",
+      "from": {
+        "componentId": "resistor-6-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-6-e",
+      "from": {
+        "componentId": "button-6",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-6-e",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-6-e",
+      "from": {
+        "componentId": "diode-6-e",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-6-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-6-e",
+      "from": {
+        "componentId": "resistor-6-e",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-6-f",
+      "from": {
+        "componentId": "button-6",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-6-f",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-6-f",
+      "from": {
+        "componentId": "diode-6-f",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-6-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-6-f",
+      "from": {
+        "componentId": "resistor-6-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-6-g",
+      "from": {
+        "componentId": "button-6",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-6-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-6-g",
+      "from": {
+        "componentId": "diode-6-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-6-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-6-g",
+      "from": {
+        "componentId": "resistor-6-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-7",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-7",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-7-a",
+      "from": {
+        "componentId": "button-7",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-7-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-7-a",
+      "from": {
+        "componentId": "diode-7-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-7-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-7-a",
+      "from": {
+        "componentId": "resistor-7-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-7-b",
+      "from": {
+        "componentId": "button-7",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-7-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-7-b",
+      "from": {
+        "componentId": "diode-7-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-7-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-7-b",
+      "from": {
+        "componentId": "resistor-7-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-7-c",
+      "from": {
+        "componentId": "button-7",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-7-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-7-c",
+      "from": {
+        "componentId": "diode-7-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-7-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-7-c",
+      "from": {
+        "componentId": "resistor-7-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-8",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-8",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-a",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-a",
+      "from": {
+        "componentId": "diode-8-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-a",
+      "from": {
+        "componentId": "resistor-8-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-b",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-b",
+      "from": {
+        "componentId": "diode-8-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-b",
+      "from": {
+        "componentId": "resistor-8-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-c",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-c",
+      "from": {
+        "componentId": "diode-8-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-c",
+      "from": {
+        "componentId": "resistor-8-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-d",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-d",
+      "from": {
+        "componentId": "diode-8-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-d",
+      "from": {
+        "componentId": "resistor-8-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-e",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-e",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-e",
+      "from": {
+        "componentId": "diode-8-e",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-e",
+      "from": {
+        "componentId": "resistor-8-e",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-e",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-f",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-f",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-f",
+      "from": {
+        "componentId": "diode-8-f",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-f",
+      "from": {
+        "componentId": "resistor-8-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-8-g",
+      "from": {
+        "componentId": "button-8",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-8-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-8-g",
+      "from": {
+        "componentId": "diode-8-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-8-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-8-g",
+      "from": {
+        "componentId": "resistor-8-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "supply-9",
+      "from": {
+        "componentId": "battery",
+        "terminal": "BAT+"
+      },
+      "to": {
+        "componentId": "button-9",
+        "terminal": "SW-A1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-9-a",
+      "from": {
+        "componentId": "button-9",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-9-a",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-9-a",
+      "from": {
+        "componentId": "diode-9-a",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-9-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-9-a",
+      "from": {
+        "componentId": "resistor-9-a",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-a",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-9-b",
+      "from": {
+        "componentId": "button-9",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-9-b",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-9-b",
+      "from": {
+        "componentId": "diode-9-b",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-9-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-9-b",
+      "from": {
+        "componentId": "resistor-9-b",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-b",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-9-c",
+      "from": {
+        "componentId": "button-9",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-9-c",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-9-c",
+      "from": {
+        "componentId": "diode-9-c",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-9-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-9-c",
+      "from": {
+        "componentId": "resistor-9-c",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-c",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-9-d",
+      "from": {
+        "componentId": "button-9",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-9-d",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-9-d",
+      "from": {
+        "componentId": "diode-9-d",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-9-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-9-d",
+      "from": {
+        "componentId": "resistor-9-d",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-d",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-9-f",
+      "from": {
+        "componentId": "button-9",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-9-f",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-9-f",
+      "from": {
+        "componentId": "diode-9-f",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-9-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-9-f",
+      "from": {
+        "componentId": "resistor-9-f",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-f",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "button-diode-9-g",
+      "from": {
+        "componentId": "button-9",
+        "terminal": "SW-B1"
+      },
+      "to": {
+        "componentId": "diode-9-g",
+        "terminal": "anode"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "diode-resistor-9-g",
+      "from": {
+        "componentId": "diode-9-g",
+        "terminal": "cathode"
+      },
+      "to": {
+        "componentId": "resistor-9-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    },
+    {
+      "id": "resistor-bus-9-g",
+      "from": {
+        "componentId": "resistor-9-g",
+        "terminal": "lead-2"
+      },
+      "to": {
+        "componentId": "bus-g",
+        "terminal": "lead-1"
+      },
+      "color": "#e3212b"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.6
+  },
+  "simulation": {
+    "running": false,
+    "maxIterations": 24
+  }
+}

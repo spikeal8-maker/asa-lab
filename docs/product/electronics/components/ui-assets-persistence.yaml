@@ -49,6 +49,7 @@ components:
     - apps/web/src/electronics/ProductionComponentVisual.tsx
     - apps/web/src/electronics/WorkbenchSidebars.tsx
     - apps/web/src/electronics/WorkbenchHeader.tsx
+    - apps/web/src/electronics/WorkbenchTooltip.tsx
     - apps/web/src/electronics/workbench-geometry.ts
     - apps/web/src/electronics/workbench-drag-preview.ts
     - apps/web/src/electronics/component-hit-testing.ts
@@ -67,6 +68,8 @@ components:
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
+    - apps/web/src/electronics/testing/workbench-tooltips.browser.mjs
+    - apps/web/src/electronics/testing/servo-runtime.browser.mjs
     - apps/web/src/electronics/testing/workbench-geometry.spec.ts
     - apps/web/src/electronics/testing/workbench-drag-preview.spec.ts
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
@@ -86,6 +89,7 @@ components:
     - warmProductionAsset
     - SchematicEditor
     - WorkbenchSidebars
+    - WorkbenchTooltip
   electronics.ui.catalog:
     ownership: asa
     risk: medium
