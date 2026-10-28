@@ -164,12 +164,47 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     // Five iterations of this real program would otherwise change the value.
     await guest.waitForTimeout(300);
     expect(Number(await counter.innerText())).toBe(stopped);
+    const assertStageFits = async () => {
+      await expect
+        .poll(async () =>
+          frame
+            .locator('canvas')
+            .first()
+            .evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              return (
+                rect.x >= 0 &&
+                rect.y >= 0 &&
+                rect.right <= innerWidth + 1 &&
+                rect.bottom <= innerHeight + 1 &&
+                Math.abs(rect.width / rect.height - 4 / 3) < 0.01
+              );
+            }),
+        )
+        .toBe(true);
+      await expect
+        .poll(async () =>
+          counter.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return (
+              rect.x >= 0 &&
+              rect.y >= 0 &&
+              rect.right <= innerWidth + 1 &&
+              rect.bottom <= innerHeight + 1
+            );
+          }),
+        )
+        .toBe(true);
+      await expect(frame.getByRole('button', { name: 'Start project', exact: true })).toBeVisible();
+      await expect(frame.getByRole('button', { name: 'Stop project', exact: true })).toBeVisible();
+    };
     for (const width of [1440, 1024, 390, 320]) {
       await guest.setViewportSize({ width, height: 900 });
       await expect
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         .toBe(true);
       await expect(frame.getByRole('button', { name: 'Start project', exact: true })).toBeVisible();
+      await assertStageFits();
       await guest.screenshot({ path: `${EVIDENCE}/native-${width}.png`, fullPage: true });
     }
     await guest.setViewportSize({ width: 1440, height: 900 });
@@ -180,6 +215,7 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     await expect
       .poll(async () => (await guest.getByTestId('public-scratch-player').boundingBox())!.width)
       .toBe(1440);
+    await assertStageFits();
     await guest.screenshot({ path: `${EVIDENCE}/fullscreen.png` });
     await guest.getByTestId('public-scratch-fullscreen').click();
     await expect.poll(() => guest.evaluate(() => document.fullscreenElement === null)).toBe(true);
@@ -222,10 +258,14 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
             ? 'application/vnd.asa.blocks-draft+json'
             : 'image/svg+xml',
         },
-        data: path.endsWith('/draft') ? {} : f.bytes,
+        data: path.endsWith('/draft')
+          ? { document: f.document, baseRevision: draft.revision, mutationId: randomUUID() }
+          : f.bytes,
       });
-      expect([401, 403, 404]).toContain(denied.status());
+      expect(denied.status()).toBe(401);
+      expect((await denied.json()).error.code).toBe('invalid_token');
     }
+    expect(await frozen()).toEqual(before);
     // A real active StudentSeat, without an Account, has the same read-only player.
     const teacher = await seedTeacher(admin, 'public-scratch-seat');
     const teacherContext = await browser.newContext();

@@ -77,6 +77,7 @@
     onThumbnailReady,
     onHomeRequest,
   }) {
+    let disposePlayerFit = () => {};
     let state = null;
     let vm = null;
     let root = null;
@@ -187,6 +188,7 @@
     const dispose = () => {
       if (disposePromise) return disposePromise;
       disposed = true;
+      disposePlayerFit();
       for (const type of inputTypes) globalThis.window?.removeEventListener(type, noteInput, true);
       loaded = false;
       upstreamProjectSaver = null;
@@ -333,6 +335,37 @@
           await storage.prepareProjectAssets();
         }
         if (disposed) return;
+
+        if (session.mode === 'player' && session.assetScope === 'publication') {
+          // Fit pinned native stage DOM without restarting the VM on resize.
+          // One scale maps its 480x360 monitor coordinates; controls remain unscaled.
+          shell.dataset.publicPlayer = 'true';
+          let fittedScale = 0;
+          const fit = () => {
+            if (disposed || !shell.style) return;
+            const width = Math.max(0, shell.clientWidth - 8);
+            const height = Math.max(0, shell.clientHeight - 64);
+            if (!width || !height) return;
+            const scale = Math.min(width / 480, height / 360);
+            if (scale === fittedScale) return;
+            fittedScale = scale;
+            shell.style.setProperty('--asa-player-width', `${480 * scale}px`);
+            shell.style.setProperty('--asa-player-height', `${360 * scale}px`);
+            shell.style.setProperty('--asa-player-scale', String(scale));
+            // Native mouse/touch coordinate caches listen to this standard event.
+            // The unchanged-scale guard prevents a recursive fit/resize cycle.
+            globalThis.window?.dispatchEvent?.(new Event('resize'));
+          };
+          const observer = globalThis.ResizeObserver ? new globalThis.ResizeObserver(fit) : null;
+          observer?.observe(shell);
+          globalThis.window?.addEventListener('resize', fit);
+          fit();
+          disposePlayerFit = () => {
+            observer?.disconnect();
+            globalThis.window?.removeEventListener('resize', fit);
+            delete shell.dataset.publicPlayer;
+          };
+        }
 
         state = new standalone.EditorState(
           {

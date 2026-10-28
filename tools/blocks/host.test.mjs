@@ -485,8 +485,9 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
       },
     }),
   };
-  const shell = { dataset: {} };
+  const shell = options.shell ?? { dataset: {} };
   const api = loadHost('editor', {
+    ...options.hostGlobals,
     ...(options.crypto ? { crypto: options.crypto } : {}),
     AsaBlocksStorage: {
       createReadOnlyStorage: () => storage,
@@ -573,6 +574,64 @@ test('public publication uses the pinned official embedded preset without save, 
   assert.deepEqual(f.localCheckpoints, []);
   await f.editor.dispose();
   assert.equal(f.counts().quits, 1);
+});
+
+test('only publication players fit native 4:3 coordinates on resize and disconnect on teardown', async () => {
+  const values = new Map(),
+    listeners = new Map();
+  let callback,
+    observed,
+    disconnects = 0;
+  const shell = {
+    dataset: {},
+    clientWidth: 390,
+    clientHeight: 360,
+    style: { setProperty: (key, value) => values.set(key, value) },
+  };
+  const hostGlobals = {
+    ResizeObserver: class {
+      constructor(fn) {
+        callback = fn;
+      }
+      observe(element) {
+        observed = element;
+      }
+      disconnect() {
+        disconnects++;
+      }
+    },
+    window: {
+      addEventListener: (type, fn) => listeners.set(type, fn),
+      removeEventListener: (type, fn) => {
+        if (listeners.get(type) === fn) listeners.delete(type);
+      },
+    },
+  };
+  const f = await editorFixture(true, 'player', { publicPublication: true, shell, hostGlobals });
+  assert.equal(observed, shell);
+  assert.equal(shell.dataset.publicPlayer, 'true');
+  assert.equal(
+    Number.parseFloat(values.get('--asa-player-width')) /
+      Number.parseFloat(values.get('--asa-player-height')),
+    4 / 3,
+  );
+  assert.ok(Number.parseFloat(values.get('--asa-player-width')) <= 390);
+  shell.clientWidth = 320;
+  callback();
+  assert.ok(Number.parseFloat(values.get('--asa-player-width')) <= 320);
+  assert.equal(
+    Number(values.get('--asa-player-scale')),
+    Number.parseFloat(values.get('--asa-player-width')) / 480,
+  );
+  await f.editor.dispose();
+  assert.equal(disconnects, 1);
+  assert.equal(listeners.has('resize'), false);
+  assert.equal(shell.dataset.publicPlayer, undefined);
+  observed = undefined;
+  const editor = await editorFixture(true, 'editor', { shell, hostGlobals });
+  assert.equal(observed, undefined);
+  assert.equal(shell.dataset.publicPlayer, undefined);
+  await editor.editor.dispose();
 });
 
 test('new project mount uses Scratch default project and preserves native editor events', async () => {
