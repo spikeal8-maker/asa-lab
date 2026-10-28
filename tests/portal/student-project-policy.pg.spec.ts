@@ -9,8 +9,8 @@ let admin: pg.Pool;
 let runtime: pg.Pool;
 let app: NestApp;
 const projectIds: string[] = [];
-async function fixture() {
-  const f = await studentProjectPolicyFixture(admin, runtime);
+async function fixture(scope: 'personal' | 'classroom' = 'personal') {
+  const f = await studentProjectPolicyFixture(admin, runtime, scope);
   projectIds.push(f.projectId);
   return f;
 }
@@ -28,94 +28,102 @@ afterAll(async () => {
   await Promise.all([admin?.end(), app?.close()]);
 });
 describe('StudentSeat actual immutable publication and audited permissions', () => {
-  it('defaults OFF, independent overrides/inherit, no Account, frozen public read survives disable, revoke closes it', async () => {
-    const f = await fixture();
-    expect(await f.read()).toEqual({ publish: false, download: false, version: 0 });
-    await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
-    expect(await f.write({ publish: true, download: false, expectedVersion: 0 })).toMatchObject({
-      version: 1,
-    });
-    expect(
-      await f.write(
-        { publishOverride: 'deny', downloadOverride: 'allow', expectedVersion: 1 },
-        f.seatId,
-      ),
-    ).toMatchObject({ version: 2 });
-    await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
-    expect(
-      await f.write(
-        { publishOverride: 'inherit', downloadOverride: 'allow', expectedVersion: 2 },
-        f.seatId,
-      ),
-    ).toMatchObject({ version: 3 });
-    const published = await f.publish();
-    const publicationId = published.publication.publicationId;
-    expect(published.canPublish).toBe(true);
-    const current = await admin.query(
-      'SELECT document_json FROM project_versions WHERE id=(SELECT project_version_id FROM project_publication_revisions WHERE id=$1)',
-      [published.publication.revisionId],
-    );
-    await admin.query(
-      `UPDATE project_drafts SET document_json='{"private":"v2"}'::jsonb,revision=2 WHERE project_id=$1`,
-      [f.projectId],
-    );
-    await f.write({ publish: false, download: false, expectedVersion: 3 });
-    await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
-    const read = await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
-      publicationId,
-    ]);
-    expect(read.rows).toHaveLength(1);
-    expect(read.rows[0].author_label).toBe('Автор проекта');
-    const frozen = await admin.query(
-      'SELECT document_json FROM project_versions WHERE id=(SELECT project_version_id FROM project_publication_revisions WHERE id=$1)',
-      [published.publication.revisionId],
-    );
-    expect(frozen.rows).toEqual(current.rows);
-    expect(
-      (await runtime.query('SELECT * FROM gallery_work($1,$2)', [f.principal, f.projectId])).rows,
-    ).toEqual([]);
-    expect(
-      (await runtime.query("SELECT * FROM gallery_list($1,'recent',NULL,20,0)", [f.principal]))
-        .rows,
-    ).toEqual([]);
-    expect(
-      (
-        await runtime.query('SELECT project_publication_status($1,$2) data', [
-          f.principal,
-          f.projectId,
-        ])
-      ).rows[0].data,
-    ).toMatchObject({
-      canPublish: false,
-      publication: { publicPath: `#/public-projects/${publicationId}` },
-    });
-    expect(
-      (
-        await runtime.query("SELECT project_distribution_seat_lock($1,$2,$3,'download') allowed", [
-          f.principal,
-          f.projectId,
-          f.hash,
-        ])
-      ).rows[0].allowed,
-    ).toBe(true);
-    await runtime.query('SELECT project_publication_revoke($1,$2)', [f.principal, f.projectId]);
-    expect(
-      (await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [publicationId]))
-        .rows,
-    ).toHaveLength(0);
-    const audit = await admin.query(
-      "SELECT payload_json FROM audit_events WHERE entity_id=$1 AND action='classroom.projects.policy'",
-      [f.classroomId],
-    );
-    expect(audit.rows).toHaveLength(4);
-    for (const row of audit.rows)
-      expect(row.payload_json).toMatchObject({
-        actorId: f.actor,
-        requestId: expect.any(String),
-        before: expect.any(Object),
-        after: expect.any(Object),
+  it.each([
+    { scope: 'personal', label: 'normal Seat-owned personal Project Core flow' },
+    { scope: 'classroom', label: 'synthetic teacher-created class source assigned to Seat' },
+  ] as const)(
+    '$label: defaults OFF, independent overrides/inherit, no Account, frozen public read survives disable, revoke closes it',
+    async ({ scope }) => {
+      const f = await fixture(scope);
+      expect(await f.read()).toEqual({ publish: false, download: false, version: 0 });
+      await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
+      expect(await f.write({ publish: true, download: false, expectedVersion: 0 })).toMatchObject({
+        version: 1,
       });
-  });
+      expect(
+        await f.write(
+          { publishOverride: 'deny', downloadOverride: 'allow', expectedVersion: 1 },
+          f.seatId,
+        ),
+      ).toMatchObject({ version: 2 });
+      await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
+      expect(
+        await f.write(
+          { publishOverride: 'inherit', downloadOverride: 'allow', expectedVersion: 2 },
+          f.seatId,
+        ),
+      ).toMatchObject({ version: 3 });
+      const published = await f.publish();
+      const publicationId = published.publication.publicationId;
+      expect(published.canPublish).toBe(true);
+      const current = await admin.query(
+        'SELECT document_json FROM project_versions WHERE id=(SELECT project_version_id FROM project_publication_revisions WHERE id=$1)',
+        [published.publication.revisionId],
+      );
+      await admin.query(
+        `UPDATE project_drafts SET document_json='{"private":"v2"}'::jsonb,revision=2 WHERE project_id=$1`,
+        [f.projectId],
+      );
+      await f.write({ publish: false, download: false, expectedVersion: 3 });
+      await expect(f.publish()).rejects.toMatchObject({ code: 'P5P01' });
+      const read = await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+        publicationId,
+      ]);
+      expect(read.rows).toHaveLength(1);
+      expect(read.rows[0].author_label).toBe('Автор проекта');
+      const frozen = await admin.query(
+        'SELECT document_json FROM project_versions WHERE id=(SELECT project_version_id FROM project_publication_revisions WHERE id=$1)',
+        [published.publication.revisionId],
+      );
+      expect(frozen.rows).toEqual(current.rows);
+      expect(
+        (await runtime.query('SELECT * FROM gallery_work($1,$2)', [f.principal, f.projectId])).rows,
+      ).toEqual([]);
+      expect(
+        (await runtime.query("SELECT * FROM gallery_list($1,'recent',NULL,20,0)", [f.principal]))
+          .rows,
+      ).toEqual([]);
+      expect(
+        (
+          await runtime.query('SELECT project_publication_status($1,$2) data', [
+            f.principal,
+            f.projectId,
+          ])
+        ).rows[0].data,
+      ).toMatchObject({
+        canPublish: false,
+        publication: { publicPath: `#/public-projects/${publicationId}` },
+      });
+      expect(
+        (
+          await runtime.query(
+            "SELECT project_distribution_seat_lock($1,$2,$3,'download') allowed",
+            [f.principal, f.projectId, f.hash],
+          )
+        ).rows[0].allowed,
+      ).toBe(true);
+      await runtime.query('SELECT project_publication_revoke($1,$2)', [f.principal, f.projectId]);
+      expect(
+        (
+          await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+            publicationId,
+          ])
+        ).rows,
+      ).toHaveLength(0);
+      const audit = await admin.query(
+        "SELECT payload_json FROM audit_events WHERE entity_id=$1 AND action='classroom.projects.policy'",
+        [f.classroomId],
+      );
+      expect(audit.rows).toHaveLength(4);
+      for (const row of audit.rows)
+        expect(row.payload_json).toMatchObject({
+          actorId: f.actor,
+          requestId: expect.any(String),
+          before: expect.any(Object),
+          after: expect.any(Object),
+        });
+    },
+  );
   it.each(['suspended', 'removed'])(
     'blocks inactive Seat %s, cross-scope teacher and stale CAS',
     async (status) => {

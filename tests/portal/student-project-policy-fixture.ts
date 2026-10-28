@@ -3,7 +3,12 @@ import type pg from 'pg';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { expect } from 'vitest';
 import { seedTeacher } from './helpers';
-export async function studentProjectPolicyFixture(admin: pg.Pool, runtime: pg.Pool) {
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+export async function studentProjectPolicyFixture(
+  admin: pg.Pool,
+  runtime: pg.Pool,
+  scope: 'personal' | 'classroom' = 'personal',
+) {
   const teacher = await seedTeacher(admin as pg.Pool, `distribution-${randomUUID().slice(0, 8)}`);
   const identity = (
     await admin.query(
@@ -69,20 +74,61 @@ export async function studentProjectPolicyFixture(admin: pg.Pool, runtime: pg.Po
     [seatId, hash],
   );
 
-  const projectId = randomUUID();
-  await admin.query(
-    `INSERT INTO projects(id,tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id,created_by_principal_id)
- VALUES($1,$2,'personal',NULL,'electronics','Seat frozen project',$3,$3)`,
-    [projectId, teacher.tenantId, principal],
-  );
-  await admin.query(
-    `INSERT INTO project_drafts(project_id,tenant_id,document_json,updated_by_principal_id) VALUES($1,$2,'{"schemaVersion":1,"components":[],"connections":[]}'::jsonb,$3)`,
-    [projectId, teacher.tenantId, principal],
-  );
-  await admin.query(
-    `INSERT INTO project_snapshots(project_id,tenant_id,source_revision,image,content_type,width,height,captured_by_principal_id) VALUES($1,$2,1,$3,'image/png',16,16,$4)`,
-    [projectId, teacher.tenantId, Buffer.alloc(64, 17), principal],
-  );
+  const repo = new PgProjectRepository(runtime);
+  // Classroom Project Core creation belongs to the exact authorized teacher;
+  // Seat creation does not gain a new classroom authoring capability here.
+  const projectActor =
+    scope === 'classroom'
+      ? { principalId: actor, userId: teacher.teacherId }
+      : { principalId: principal, userId: null };
+  const created = await repo.createWithDraft({
+    tenantId: teacher.tenantId,
+    scope,
+    classroomId: scope === 'classroom' ? classroomId : null,
+    actor: projectActor,
+    moduleKey: 'electronics',
+    title: 'Seat frozen project',
+    idempotencyKey: randomUUID(),
+    requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
+    initialDocument: { schemaVersion: 1, components: [], connections: [] },
+    initialPreview: null,
+  });
+  if (created.kind !== 'created')
+    throw new Error(`Project Core fixture creation failed: ${created.kind}`);
+  const projectId = created.project.id;
+  expect(created.project).toMatchObject({
+    scope,
+    classroomId: scope === 'classroom' ? classroomId : null,
+  });
+  expect(
+    await repo.saveSnapshot({
+      tenantId: teacher.tenantId,
+      actor: projectActor,
+      projectId,
+      sourceRevision: 1,
+      image: { bytes: Buffer.alloc(64, 17), contentType: 'image/png', width: 16, height: 16 },
+    }),
+  ).not.toBeNull();
+  if (scope === 'classroom') {
+    // Synthetic ownership setup, not an additional product command or grant.
+    // Keep the repository-created exact class, draft and frozen preview intact.
+    await admin.query('UPDATE projects SET owner_principal_id=$2 WHERE id=$1', [
+      projectId,
+      principal,
+    ]);
+  }
+  expect(
+    (
+      await admin.query(
+        'SELECT project_scope,classroom_id,owner_principal_id FROM projects WHERE id=$1',
+        [projectId],
+      )
+    ).rows[0],
+  ).toEqual({
+    project_scope: scope,
+    classroom_id: scope === 'classroom' ? classroomId : null,
+    owner_principal_id: principal,
+  });
   const read = async (seat: string | null = null) =>
     (
       await runtime.query('SELECT classroom_project_policy_read($1,$2,$3,$4) data', [
