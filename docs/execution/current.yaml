@@ -12798,7 +12798,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-ARDUINO-VOID-FUNCTIONS-001
+      current_slice: TASK-ELECTRONICS-NPN-REUSE-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -14272,6 +14272,49 @@ parallel_lanes:
       source_candidate_sha: 4c50c4e20dc177efa40f6fe2c2fff6fae99ac0de
       evidence_candidate_sha: 7da57bd8016b70aa08633825373b89b7976020e7
       independent_review: approved_exact_source_45_tests_and_native_one_four_helper_carry
+
+  - id: electronics-npn-operating-point-reuse
+    parent_lane: electronics
+    worktree_id: electronics-npn-operating-point-reuse
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NPN-REUSE-001.md
+    task:
+      id: TASK-ELECTRONICS-NPN-REUSE-001
+      issue: 833
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'no'
+      checkpoint: selected_measured_exact_npn_algebra_reuse_after_verified_helpers
+      owner_acceptance: pending
+      execution_role: new_bounded_solver_executor_then_new_independent_review
+      owner_authorization: Ownerrequestsfullyworking1to4Arduinoindicators_withoutproblematicdelays. Helpers824integrated242d401f_correct24nativecases_but1.55to6.62swall_for100to125msmodel. Selectsolveronly_exactalgebrareuse_with_beforeafterfullparity_and_boundedmeasurement; no physics_cadence_quality_thermalchanges_or_wholeCplusplusclaim.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NPN-REUSE-001.md
+        - docs/product/electronics/evidence/arduino-void-functions-824/README.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 242d401f988c88b0975556ffa878891e40fde80e
+      convergence_baseline_sha: 242d401f988c88b0975556ffa878891e40fde80e
+      head_sha: null
+      observed_at: '2026-10-28T14:54:00Z'
+      observation_note: Main242d401f_published_helpers824; General40710169237_inprogress_notPASS. Independenthelper45tests_native1and4PASS; canonical2441tests71freshNxallcapsPASS. ExistingcacheexcludesNPN_hypothesis_for_measuredlag. Authoroneboundedsolverfile_plusmeaningfultests_androuting_thenSTOP; independentnewreview_required. ForeignProjects_baselinereport_task_and_allforeignfields_preserved.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
