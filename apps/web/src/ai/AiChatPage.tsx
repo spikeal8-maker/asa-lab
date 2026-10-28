@@ -686,6 +686,40 @@ export function AiChatPage({
     }
   }, [messages, busy, streamedText]);
 
+  const refreshModelChoices = useCallback(async () => {
+    if (requestBusy.current) return;
+    const version = selectedVersion.current;
+    const reply = await call<AiStatus>('/api/ai/status').catch(() => null);
+    if (
+      version !== selectedVersion.current ||
+      requestBusy.current ||
+      !reply ||
+      !reply.ok ||
+      !Array.isArray(reply.data.availableModels)
+    )
+      return;
+    setStatus(reply.data);
+    setSelectedModel((previous) =>
+      reply.data.availableModels!.includes(previous) ? previous : reply.data.model,
+    );
+  }, [call]);
+  const wasGenerating = useRef(false);
+  useEffect(() => {
+    if (wasGenerating.current && !busy) void refreshModelChoices();
+    wasGenerating.current = busy;
+  }, [busy, refreshModelChoices]);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'hidden') void refreshModelChoices();
+    };
+    const timer = window.setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshModelChoices]);
+
   async function refreshAdmission() {
     const version = selectedVersion.current;
     const result = await call<AiStatus>('/api/ai/status');
@@ -2291,6 +2325,7 @@ export function AiChatPage({
                           className="asa-ai-model-picker"
                           aria-label="Модель ИИ"
                           title="Выбрать модель"
+                          onFocus={() => void refreshModelChoices()}
                           value={selectedModel || status?.model}
                           onChange={(event) => setSelectedModel(event.target.value)}
                           disabled={interactionBusy || !status?.enabled}

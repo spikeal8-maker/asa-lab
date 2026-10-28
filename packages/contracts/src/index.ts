@@ -64,4 +64,7 @@ export type {
   AiOllamaCloudModel,
   AiOllamaCloudAccount,
   AiOllamaCloudInspection,
+  AiOllamaCloudKey,
+  AiOllamaCloudPool,
+  AiOllamaCloudKeyUpdate,
 } from './ai-ollama-cloud.js';

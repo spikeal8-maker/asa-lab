@@ -31,3 +31,31 @@ export interface AiOllamaCloudInspection {
   readonly catalogCheckedAt: string | null;
   readonly catalogError: 'catalog_unavailable' | null;
 }
+
+export interface AiOllamaCloudKey {
+  readonly slot: number;
+  readonly label: string;
+  readonly priority: number;
+  readonly enabled: boolean;
+  readonly configured: boolean;
+  readonly fingerprint: string | null;
+  readonly models: readonly string[];
+  readonly account: AiOllamaCloudAccount | null;
+  readonly blockedUntil: string | null;
+  readonly unavailableModels: readonly string[];
+}
+export interface AiOllamaCloudPool {
+  readonly configurationVersion: number;
+  readonly managed: boolean;
+  readonly models: readonly AiOllamaCloudModel[];
+  readonly keys: readonly AiOllamaCloudKey[];
+}
+export interface AiOllamaCloudKeyUpdate {
+  readonly slot: number;
+  readonly label: string;
+  readonly priority: number;
+  readonly enabled: boolean;
+  readonly models: readonly string[];
+  readonly apiKey?: string;
+  readonly clearApiKey?: boolean;
+}
