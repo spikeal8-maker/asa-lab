@@ -143,10 +143,9 @@ class AuthorInventoryTests(AuthorFixture, unittest.TestCase):
         records, owners = self.fixtures()
         owners[1]["sid"] = None
         report = self.observe(records, owners)
-        self.assertFalse(report.unknown)
-        excluded = self.observation(report, 30)
-        self.assertTrue(all(item["state"] == "EXCLUDED" for item in excluded))
-        self.assertTrue(all(item.get("reason") for item in excluded))
+        self.assertEqual([item["pid"] for item in report.unknown], [30])
+        self.assertEqual(report.unknown[0]["stage"], "WTS.OwnerSid")
+        self.assertEqual(report.unknown[0]["reason"], "owner_sid_unavailable")
         for missing in ("command", "cwd", "identity"):
             current = [dict(item) for item in records]
             kwargs = {}
@@ -355,6 +354,38 @@ class ProductionEntrypointTests(AuthorFixture, unittest.TestCase):
                 report = self.scan(records, probe)
                 self.assertTrue(any(item.get("pid") == 30 for item in report.unknown) or
                                 any(item["pid"] == 30 for item in report.authors))
+
+    def test_slash_rooted_filename_with_equals_never_becomes_an_unrelated_option(self):
+        for sid in (self.sid, None):
+            records, owners = self.background()
+            records.append(self.record(30, "python.exe", r"python.exe /Users/operator/ASA-lab/watcher=1.py"))
+            owners.append({"pid": 30, "name": "python.exe", "sid": sid})
+            probe = self.probe(owners)
+            probe.cwd.return_value = r"C:\outside"
+            with self.subTest(sid_available=sid is not None), self.assertRaises(WindowsAuthorBlocked) as failure:
+                self.scan(records, probe, enforce=True)
+            self.assertEqual([item["pid"] for item in failure.exception.report.unknown], [30])
+            self.assertEqual(failure.exception.report.unknown[0]["reason"], "command_path_context_ambiguous")
+
+    def test_missing_owner_with_only_lexical_outside_paths_remains_unknown(self):
+        # A potential junction target is not observable in this fixture. There
+        # is no canonical filesystem proof authorizing a new missing-SID exclusion.
+        records, owners = self.background()
+        records.append(self.record(30, "notepad.exe", r"notepad.exe C:\work\asa-link\draft.txt"))
+        owners.append({"pid": 30, "name": "notepad.exe", "sid": None})
+        probe = self.probe(owners)
+        probe.cwd.return_value = r"C:\outside"
+        with self.assertRaises(WindowsAuthorBlocked) as failure:
+            self.scan(records, probe, enforce=True)
+        self.assertEqual([item["pid"] for item in failure.exception.report.unknown], [30])
+        self.assertEqual(failure.exception.report.unknown[0]["stage"], "WTS.OwnerSid")
+        def exited(pid, created):
+            if pid == 30:
+                raise ProcessLookupError()
+        probe.identity.side_effect = exited
+        report = self.scan(records, probe)
+        self.assertFalse(report.unknown)
+        self.assertEqual(self.observation(report, 30)[0]["reason"], "confirmed_exited")
 
     def test_native_system_image_cannot_hide_relative_author_arguments(self):
         records, owners = self.background()

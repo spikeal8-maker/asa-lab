@@ -237,7 +237,12 @@ def _command_paths(command, name):
     for index, argument in enumerate(arguments):
         if index == 0 and not any(char in argument for char in "\\/:"):
             continue  # An executable basename is resolved by Windows, not cwd alone.
-        if argument.startswith(("-", "/")) and "=" in argument:
+        if argument.startswith("/") and "=" in argument:
+            # /Users/.../watcher=1.py can be a root-relative Windows filename,
+            # not an option. Preserve its prefix; unknown option semantics
+            # cannot establish that this process is unrelated to the root.
+            ambiguous = True
+        elif argument.startswith("-") and "=" in argument:
             argument = argument.split("=", 1)[1]
         elif argument.startswith("-"):
             ambiguous |= any(char in argument for char in "\\/:")
@@ -370,9 +375,15 @@ def observe_windows_authors(root, records, owners, exempt, read_cwd, *, current_
             _unknown(item, stage="CIM.CommandLine", reason="command_path_context_ambiguous")
         elif any(_within_root(ntpath.join(cwd, path), protected) for path in paths):
             item.update(state="AUTHOR", reason="protected_resolved_command_path")
+        elif not isinstance(sid, str) or not sid:
+            # Keep the previous missing-owner boundary for negative results.
+            # Lexical path checks do not establish filesystem referents through
+            # junctions, and must not expand EXCLUDED to previously unknown owners.
+            _unknown(item, stage="WTS.OwnerSid", reason="owner_sid_unavailable")
         else:
-            # A negative proof combines a real cwd, resolved simple arguments
-            # and creation-checked identity. Ambiguous command syntax cannot pass.
+            # Retain the existing known-owner scope, with observed cwd, resolved
+            # simple arguments and creation-checked identity. This is not a
+            # canonical filesystem proof for every possible command-path alias.
             item.update(state="EXCLUDED", reason="verified_unrelated_command_and_cwd")
     return report
 
