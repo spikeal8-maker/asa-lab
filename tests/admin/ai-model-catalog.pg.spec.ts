@@ -356,7 +356,15 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
         changedProvider,
         changedSlot.revision,
       ),
-    ).rejects.toMatchObject({ code: 'ai_disabled' });
+    ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
+    await expect(
+      admin.query('SELECT * FROM ai_admin_test_provider_begin($1,$2,$3,$4)', [
+        administrator,
+        current.configurationVersion,
+        changedProvider,
+        changedSlot.revision,
+      ]),
+    ).rejects.toThrow('AI_DISABLED');
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(await used()).toBe(baseline);
   });
@@ -400,7 +408,15 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
         'deepseek',
         cleared.providerConfigurations.find((slot) => slot.provider === 'deepseek')!.revision,
       ),
-    ).rejects.toMatchObject({ code: 'ai_disabled' });
+    ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
+    await expect(
+      admin.query('SELECT * FROM ai_admin_test_provider_begin($1,$2,$3,$4)', [
+        administrator,
+        cleared.configurationVersion,
+        'deepseek',
+        cleared.providerConfigurations.find((slot) => slot.provider === 'deepseek')!.revision,
+      ]),
+    ).rejects.toThrow('AI_DISABLED');
     expect(fetchImpl).toHaveBeenCalledTimes(calls + 2);
     const back = await save({
       provider: 'openai',

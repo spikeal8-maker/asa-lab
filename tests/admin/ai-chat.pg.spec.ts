@@ -161,7 +161,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       },
       randomUUID(),
     );
-    await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna']);
+    await publishFixtureModels(service, platformAdmin.principalId, ['gpt-6-luna', 'gpt-4.1-mini']);
     expect(saved.providerConfigurations.find((slot) => slot.provider === 'openai')).toMatchObject({
       enabled: true,
       apiKeyConfigured: true,
@@ -722,6 +722,9 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         state: 'stopped',
       }),
     );
+    const quotaBeforeReplay = await admin.query(
+      'SELECT count(*)::integer AS count FROM ai_paid_operation_quota',
+    );
     const again = await adapter.sendStream(
       owner.principalId,
       thread.id,
@@ -731,8 +734,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       new AbortController().signal,
     );
     expect(again.replayed).toBe(true);
-    // Replay acknowledges stored state; it is not another live stop operation.
-    expect(again.stopped).toBe(false);
+    // Replay reports the immutable stored stopped state without another admission.
+    expect(again.stopped).toBe(true);
+    expect(
+      (await admin.query('SELECT count(*)::integer AS count FROM ai_paid_operation_quota')).rows,
+    ).toEqual(quotaBeforeReplay.rows);
     expect(again.messages).toContainEqual(
       expect.objectContaining({ requestId: request, role: 'assistant', state: 'stopped' }),
     );
