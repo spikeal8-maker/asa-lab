@@ -608,10 +608,13 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R06, R07]
           acceptance_checks: [C01, C02, C06]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_pr: 830
+          candidate_sha: 08038a3600d40d85831e7c4e30631f4dc37a9bc2
+          ci_status: pending_exact_candidate
           selection: >-
             Continue the owner-authorized programme independently of blocked D2R2 delivery
             and unrelated Electronics integration gate. Distinguish validated upstream zero,
@@ -636,7 +639,7 @@ parallel_lanes:
           owner_acceptance: pending
           demo_status: NOT_RUN
           source_pr: 828
-          candidate_sha: 6f876b16050957bcb81a1d47483109526d67bf18
+          candidate_sha: d4e5f995c9b3de56a109d10370773e483fee3722
           independent_review: approved_source
           ci_status: pending_exact_candidate
           content_scope: own_personal_only
