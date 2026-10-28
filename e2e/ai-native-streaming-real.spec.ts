@@ -299,9 +299,14 @@ test('built AI chat streams real API deltas before upstream done with offered to
         );
       const count = active.calls;
       await page.reload();
+      await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toBeVisible();
       const history = page.getByRole('dialog', { name: 'История диалогов' });
-      if (!(await history.isVisible()))
-        await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
+      const historyOpener = page.getByRole('button', { name: 'Открыть историю диалогов' });
+      await expect
+        .poll(async () => (await history.isVisible()) || (await historyOpener.isVisible()))
+        .toBe(true);
+      if (!(await history.isVisible())) await historyOpener.click();
+      await expect(history).toBeVisible();
       await history.getByRole('button', { name: question, exact: true }).click();
       await expectRenderedAnswer(
         page.locator('.chat-turn-assistant').last().locator('.asa-ai-rich-text'),
