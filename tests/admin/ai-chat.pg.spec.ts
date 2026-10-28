@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import {
   AiChatService,
+  type AiAdminConfig,
   type AiCursor,
   type AiMessage,
   type AiPage,
@@ -506,18 +507,28 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       });
       expect(unauthorizedTest.statusCode).toBe(403);
       expect(mockFetch).toHaveBeenCalledTimes(2);
+      const verificationProvider = (
+        allowedAdmin.json() as AiAdminConfig
+      ).providerConfigurations.find((slot) => slot.provider === 'openai')!;
+      expect(verificationProvider).toMatchObject({ enabled: true, apiKeyConfigured: true });
       const verification = await inject(app, {
         method: 'POST',
         url: '/api/admin/v1/ai/test',
         headers: { host, 'content-type': 'application/json' },
         cookies: { asa_session: adminToken },
-        payload: { configurationVersion, acknowledgePaidRequest: true },
+        payload: {
+          configurationVersion,
+          acknowledgePaidRequest: true,
+          provider: verificationProvider.provider,
+          providerConfigurationVersion: verificationProvider.revision,
+        },
       });
       expect(verification.statusCode).toBe(200);
       expect(verification.json()).toMatchObject({
         provider: 'openai',
         model: 'gpt-6-luna',
         configurationVersion,
+        providerConfigurationVersion: verificationProvider.revision,
       });
       expect(verification.body).not.toContain('sk-ai-private-integration-key-001');
       expect(mockFetch).toHaveBeenCalledTimes(3);
