@@ -1,0 +1,47 @@
+import { build } from '../../node_modules/.pnpm/esbuild@0.25.12/node_modules/esbuild/lib/main.js';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+const label = process.argv[2] ?? 'before';
+const root = process.cwd().replaceAll('\\', '/');
+const dir = `${root}/test-results/npn-reuse-833`;
+await mkdir(dir, { recursive: true });
+await build({
+  stdin: { contents: `
+import { createOwnedArduinoCircuitClockRequest } from './contexts/electronics/domain/arduino-circuit-scheduler.ts';
+import { arduinoSevenSegmentMatrix } from './contexts/electronics/testing/fixtures/arduino-seven-segment-matrix.ts';
+import { helperDisplayCounterSource } from './contexts/electronics/testing/fixtures/arduino-helper-display-counter.ts';
+export function run(){
+ const doc=arduinoSevenSegmentMatrix(4,helperDisplayCounterSource(4));
+ const owned=createOwnedArduinoCircuitClockRequest(doc,{});
+ const req=owned.create(25000,undefined,{inputs:[],maxClockEvents:256},true,true);
+ const frames=[]; let current;
+ do { current=req.step(); frames.push(current); if(frames.length>50)throw Error('budget'); }
+ while(current.advanced.executionStatus==='yielded');
+ req.dispose(); return frames;
+}`, resolveDir: root, sourcefile: 'npn-probe.ts', loader: 'ts' },
+  outfile: `${dir}/${label}.mjs`, bundle: true, platform: 'node', format: 'esm',
+  plugins: [{ name: 'private-counters', setup(b) {
+    b.onLoad({filter: /solver\.ts$/}, async a => {
+      let contents=await readFile(a.path,'utf8');
+      contents=contents.replace('const reusedPoint = pointSlot?.point;', `const reusedPoint = pointSlot?.point;
+globalThis.__npnProbe.calls++; if(reusedPoint)globalThis.__npnProbe.hits++;`);
+      return {contents,loader:'ts'};
+    });
+  }}],
+});
+const module=await import(pathToFileURL(`${dir}/${label}.mjs`).href);
+const encode=v=>JSON.stringify(v,(_,x)=>x instanceof Map?{map:[...x]}:x instanceof Set?{set:[...x]}:x);
+globalThis.__npnProbe={calls:0,hits:0}; module.run();
+const times=[]; let raw;
+for(let i=0;i<2;i++){
+ globalThis.__npnProbe={calls:0,hits:0}; const start=performance.now(); const frames=module.run();
+ const elapsed=performance.now()-start; const text=encode(frames);
+ if(raw&&raw!==text)throw Error('nondeterministic'); raw=text;
+ times.push({elapsedMs:elapsed,...globalThis.__npnProbe,steps:frames.length,status:frames.at(-1).advanced.executionStatus});
+}
+await writeFile(`${dir}/${label}.json.gz`,gzipSync(raw));
+const receipt={label,bytes:Buffer.byteLength(raw),sha256:createHash('sha256').update(raw).digest('hex'),times};
+await writeFile(`${dir}/${label}-receipt.json`,JSON.stringify(receipt,null,2));
+console.log(JSON.stringify(receipt));

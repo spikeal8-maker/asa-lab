@@ -1,0 +1,10 @@
+{
+  "status": "ARCHIVED_NOT_ACTIVE",
+  "candidate_sha": "4b9e845489e769b2b31d2935ee07af255609b604",
+  "baseline_sha": "1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66",
+  "raw_patch_bytes": 7541,
+  "raw_patch_sha256": "fe3ae6bc2421d38cd0348d6a34e619f97298012708677725ce24286469b1a3f4",
+  "gzip_sha256": "83a8503272020346d63ab989d107e82db8f58beff328b074e16dc5770ce6f4c8",
+  "performance": "7.6 percent slower in bounded ABBA; no runtime activation",
+  "evidence": "../../evidence/npn-reuse-833/README.md"
+}

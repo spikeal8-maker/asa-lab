@@ -14363,7 +14363,11 @@ parallel_lanes:
       kind: implementation
       risk: high
       semantic_change: 'no'
-      checkpoint: selected_measured_exact_npn_algebra_reuse_after_verified_helpers
+      checkpoint: experiment_preserved_notready_7percent_slower_archive_only_no_runtime_activation
+      preserved_candidate_sha: 4b9e845489e769b2b31d2935ee07af255609b604
+      preservation_path: docs/product/electronics/candidates/npn-reuse-833/README.md
+      preservation_authorization: Ownerrequestsallcurrentworkinmain_includingworkinglag. Activehelpers242d401falreadymain. Thiscacheexperimentaddsno_userfeature_and_is7.6percentslower_so_sourcepatch_and_completeevidence_archivedinmain_withoutactivation. Fullperformanceacceptance_remainsopen.
+      next_requested_design: docs/product/electronics/tasks/TASK-ELECTRONICS-SIMULATION-SPEED-001.md
       owner_acceptance: pending
       execution_role: new_bounded_solver_executor_then_new_independent_review
       owner_authorization: Ownerrequestsfullyworking1to4Arduinoindicators_withoutproblematicdelays. Helpers824integrated242d401f_correct24nativecases_but1.55to6.62swall_for100to125msmodel. Selectsolveronly_exactalgebrareuse_with_beforeafterfullparity_and_boundedmeasurement; no physics_cadence_quality_thermalchanges_or_wholeCplusplusclaim.
