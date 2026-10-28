@@ -46,6 +46,7 @@ import {ProductionComponentVisual as DirectVisual} from './src/electronics/Produ
 import {WorkbenchStage} from './src/electronics/WorkbenchStage';
 import {rawDisplayCircuit,rawDisplaySource,OWNER_HIGH_WRITES,RAW_DISPLAY_PINS} from '../../contexts/electronics/testing/fixtures/raw-seven-segment';
 import {sevenSegmentDiodeMatrix} from '../../contexts/electronics/testing/fixtures/seven-segment-diode-matrix';
+import {outputCommonMatrix,gpioCommonMatrix,outputCommonCommands} from '../../contexts/electronics/testing/fixtures/arduino-seven-segment-matrix';
 import {configureProductionLibrary} from './src/electronics/production-manifest-adapter';
 import {catalogEntry} from './src/electronics/component-catalog';
 import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
@@ -96,6 +97,7 @@ load(a,blocks=false){current=circuit(a);if(blocks)current.components[0].statePro
 pendingStop:()=>new Promise(resolve=>{window.probe.stopOnAdvance=request=>{const before=window.fixture.potSnapshot();wb.toggleSimulation();resolve({requestId:request.requestId,requestGeneration:request.generationId,projectSessionId:request.projectSessionId,beforeGeneration:before.lastResponse?.generationId,requestedWhileAdvanceInFlight:true});};}),
 loadMulti(){current=multiCircuit();isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 loadButtons(saved){current=saved??sevenSegmentDiodeMatrix();isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,projectSessionId:'servo-project-'+epoch};},
+loadMatrix(count,blocks){let blockTypes=[];if(blocks){registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{const loop=w.newBlock('asa_loop');let previous=null;for(const command of outputCommonCommands(count)){let next;if('waitMs' in command){next=w.newBlock('asa_wait');next.setFieldValue('MILLISECONDS','UNIT');const n=w.newBlock('asa_number');n.setFieldValue(String(command.waitMs),'VALUE');next.getInput('TIME').connection.connect(n.outputConnection);}else{next=w.newBlock('asa_digital_write');const pin=w.newBlock('asa_pin'),level=w.newBlock('asa_level');pin.setFieldValue(String(command.pin),'VALUE');level.setFieldValue(command.high?'HIGH':'LOW','LEVEL');next.getInput('PIN').connection.connect(pin.outputConnection);next.getInput('LEVEL').connection.connect(level.outputConnection);}if(previous)previous.nextConnection.connect(next.previousConnection);else loop.getInput('DO').connection.connect(next.previousConnection);previous=next;}blockTypes=w.getAllBlocks(false).map(b=>b.type).sort();current=outputCommonMatrix(count,generateArduinoCode(w));}finally{w.dispose();Blocks.Events.enable();}}else current=gpioCommonMatrix(count);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,blockTypes,projectSessionId:'servo-project-'+epoch};},
 async multiReplay({saved,document}){const doc=JSON.parse(JSON.stringify(document));const generation=client.beginGeneration('multi-replay');async function through(state,horizon){let result;do{result=await client.advance(generation,doc,JSON.parse(JSON.stringify(state)),horizon);state=result.state;}while(result.executionStatus==='yielded');if(result.executionStatus!=='ready')throw new Error('Short replay fault: '+JSON.stringify(result));return result;}const target=200000;const restored=await through(saved,target);const fresh=await through(resetElectronicsTimedState(),target);return {serializedByteEqual:JSON.stringify(restored.state)===JSON.stringify(fresh.state),restored:restored.state,fresh:fresh.state,target};},
 loadPot(blocks){current=potCircuit(blocks);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 potSnapshot:()=>{const committed=wb.nativeOpticalPresentation.getSnapshot().committed;const session='servo-project-'+epoch;const activeGeneration=Math.max(0,...window.probe.responses.filter(r=>r.projectSessionId===session).map(r=>r.generationId));const lastResponse=window.probe.responses.findLast(r=>r.projectSessionId===session&&r.generationId===activeGeneration&&r.advance?.executionStatus==='ready'&&r.metrics?.simulationInputDigest===committed?.result?.simulationInputDigest&&r.advance?.committedHorizonMicroseconds===committed?.frame?.atMicroseconds);return {document:wb.document,result:committed?.result,committedAtMicroseconds:committed?.frame?.atMicroseconds,lastResponse};},
@@ -763,6 +765,105 @@ async function checkSevenParity(page, width) {
   }
   return { width, samples };
 }
+async function checkArduinoMatrixPilot(page, width) {
+  const samples = [];
+  for (const [count, blocks] of [
+    [1, false],
+    [4, false],
+    [4, true],
+  ]) {
+    const loaded = await page.evaluate(
+      ([count, blocks]) => window.fixture.loadMatrix(count, blocks),
+      [count, blocks],
+    );
+    await page.waitForFunction(() => window.fixture.status() === 'ready');
+    const started = Date.now();
+    await page.evaluate(() => window.fixture.start());
+    await page.waitForFunction(
+      ({ session }) => {
+        const s = window.fixture.potSnapshot();
+        return s.lastResponse?.projectSessionId === session && s.committedAtMicroseconds >= 20000;
+      },
+      { session: loaded.projectSessionId, blocks },
+      { timeout: 30000 },
+    );
+    const wallMs = Date.now() - started;
+    const snapshot = await page.evaluate(() => ({
+      ...window.fixture.potSnapshot(),
+      responses: window.probe.responses,
+      state: window.fixture.state(),
+      dom: [...document.querySelectorAll('[data-component-id^="display-"] .workbench-part')].map(
+        (e) => ({
+          id: e.closest('[data-component-id]').getAttribute('data-component-id'),
+          segments: [...e.querySelectorAll('[data-segment]')].map((s) => ({
+            segment: s.getAttribute('data-segment'),
+            opacity: Number(s.getAttribute('opacity')),
+          })),
+        }),
+      ),
+    }));
+    const responses = snapshot.responses.filter(
+      (r) => r.projectSessionId === loaded.projectSessionId,
+    );
+    if (blocks) {
+      assert.ok(
+        loaded.blockTypes.includes('asa_loop') &&
+          loaded.blockTypes.includes('asa_digital_write') &&
+          loaded.blockTypes.includes('asa_wait'),
+      );
+    }
+    {
+      assert.equal(snapshot.dom.length, count);
+      assert.ok(snapshot.result.solved && snapshot.result.quality.passed);
+      assert.equal(
+        snapshot.lastResponse.metrics.simulationInputDigest,
+        snapshot.result.simulationInputDigest,
+      );
+      assert.equal(
+        snapshot.lastResponse.advance.committedHorizonMicroseconds,
+        snapshot.committedAtMicroseconds,
+      );
+      for (const d of snapshot.dom) {
+        const calculated = snapshot.result.components.find((c) => c.componentId === d.id);
+        assert.equal(d.segments.length, 8);
+        for (const s of d.segments)
+          assert.equal(s.opacity, calculated.branchBrightness[s.segment] / 100);
+      }
+    }
+    const visible = snapshot.dom.filter((d) => d.segments.some((s) => s.opacity > 0));
+    const status =
+      count === 4 && visible.length < 4
+        ? 'BLOCKED_multiplex_instantaneous_optics'
+        : 'single_display_first_frame_only';
+    await page.screenshot({
+      path: resolve(output, `arduino-matrix-${count}-${blocks ? 'blocks' : 'text'}-${width}.png`),
+    });
+    samples.push({
+      count,
+      blocks,
+      status,
+      wallMs,
+      document: loaded.document,
+      blockTypes: loaded.blockTypes,
+      modelMicroseconds: snapshot.committedAtMicroseconds,
+      visibleDisplayIds: visible.map((d) => d.id),
+      dom: snapshot.dom,
+      result: snapshot.result,
+      frame: snapshot.lastResponse?.advance?.frame,
+      responses: responses.map((r) => ({
+        kind: r.kind,
+        generationId: r.generationId,
+        projectSessionId: r.projectSessionId,
+        advance: r.advance,
+        metrics: r.metrics,
+      })),
+      state: snapshot.state,
+    });
+    if (snapshot.state.running) await page.evaluate(() => window.fixture.stop());
+  }
+  return { width, qualification: 'BLOCKED_NOT_FULL_MATRIX_PASS', samples };
+}
+
 async function checkSevenButtons(page, width) {
   const started = Date.now();
   const loaded = await page.evaluate(() => window.fixture.loadButtons());
@@ -977,6 +1078,12 @@ try {
         (await readFile('apps/web/src/electronics/workbench.css', 'utf8')) +
         '\n#app{--wb-library-width:0px}.workbench-stage{position:relative;height:700px;width:100%}',
     });
+    if (process.argv.includes('--arduino-seven-segment-pilot-only')) {
+      all.push(await checkArduinoMatrixPilot(page, width));
+      assert.deepEqual(errors, []);
+      await page.close();
+      break;
+    }
     if (process.argv.includes('--seven-segment-buttons-only')) {
       all.push(await checkSevenButtons(page, width));
       assert.deepEqual(errors, []);
@@ -1135,32 +1242,36 @@ try {
     });
     await page.close();
   }
-  const receiptName = process.argv.includes('--seven-segment-buttons-only')
-    ? 'seven-segment-diode-matrix-815.json'
-    : process.argv.includes('--seven-segment-parity-only')
-      ? 'seven-segment-parity-788' +
-        (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
-        '.json'
-      : process.argv.includes('--multi-servo-sustained-only')
-        ? 'servo-multi-sustained-786.json'
-        : process.argv.includes('--potentiometer-only')
-          ? 'servo-potentiometer-784.json'
-          : process.argv.includes('--horn-clip-only')
-            ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
-            : 'receipts.json';
+  const receiptName = process.argv.includes('--arduino-seven-segment-pilot-only')
+    ? 'arduino-seven-segment-pilot-817.json'
+    : process.argv.includes('--seven-segment-buttons-only')
+      ? 'seven-segment-diode-matrix-815.json'
+      : process.argv.includes('--seven-segment-parity-only')
+        ? 'seven-segment-parity-788' +
+          (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
+          '.json'
+        : process.argv.includes('--multi-servo-sustained-only')
+          ? 'servo-multi-sustained-786.json'
+          : process.argv.includes('--potentiometer-only')
+            ? 'servo-potentiometer-784.json'
+            : process.argv.includes('--horn-clip-only')
+              ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
+              : 'receipts.json';
   await writeFile(resolve(output, receiptName), JSON.stringify(all, null, 2));
   console.log(
-    process.argv.includes('--seven-segment-buttons-only')
-      ? 'PASS physical 2AA ten-button diode matrix: 0–9 press/release and saved circuit reopen, real Worker/Stage desktop/mobile; no Arduino.'
-      : process.argv.includes('--seven-segment-parity-only')
-        ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
-        : process.argv.includes('--multi-servo-sustained-only')
-          ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
-          : process.argv.includes('--potentiometer-only')
-            ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
-            : process.argv.includes('--horn-clip-only')
-              ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
-              : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
+    process.argv.includes('--arduino-seven-segment-pilot-only')
+      ? 'BLOCKED Arduino display qualification: unsupported user functions, NPN/LED quality fault, and instantaneous multiplex optics require separate repairs. Pilot is not a full matrix PASS.'
+      : process.argv.includes('--seven-segment-buttons-only')
+        ? 'PASS physical 2AA ten-button diode matrix: 0–9 press/release and saved circuit reopen, real Worker/Stage desktop/mobile; no Arduino.'
+        : process.argv.includes('--seven-segment-parity-only')
+          ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
+          : process.argv.includes('--multi-servo-sustained-only')
+            ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
+            : process.argv.includes('--potentiometer-only')
+              ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
+              : process.argv.includes('--horn-clip-only')
+                ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
+                : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
   );
 } finally {
   await browser.close();

@@ -19,6 +19,8 @@ components:
     - contexts/electronics/testing/arduino-values.spec.ts
     - contexts/electronics/testing/arduino-random.spec.ts
     - contexts/electronics/testing/arduino-servo-runtime.spec.ts
+    - contexts/electronics/testing/arduino-seven-segment-matrix.spec.ts
+    - contexts/electronics/testing/fixtures/arduino-seven-segment-matrix.ts
     dependencies:
     - electronics.clock.canonical
     notes: Educational deterministic subset; not arbitrary AVR/Uno emulation.

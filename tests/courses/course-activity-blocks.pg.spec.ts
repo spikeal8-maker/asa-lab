@@ -593,7 +593,23 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
           )
         ).rows[0].count,
       );
-    const sweep = async () => admin.query('SELECT learning_notification_sweep()');
+    // The sweeper uses a non-blocking global advisory lock and may legitimately
+    // skip a call while another test worker sweeps. Hold that same lock on our
+    // connection so this fixture's sweep cannot silently skip its transition.
+    const sweep = async () => {
+      const client = await admin.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(1122,1)');
+        await client.query('SELECT learning_notification_sweep()');
+        await client.query('COMMIT');
+      } catch (failure) {
+        await client.query('ROLLBACK');
+        throw failure;
+      } finally {
+        client.release();
+      }
+    };
 
     expect(await completion()).toMatchObject({
       completed: false,
