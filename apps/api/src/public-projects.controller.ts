@@ -20,7 +20,9 @@ import { isValidProjectTitle } from '@asa-lab/projects';
 import { copyPublicProject, readPublicCopyAdmission } from './public-project-copy.js';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
-import { STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { hashSessionToken } from '@asa-lab/identity';
+import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 import { PublicArtifactService } from './public-project-artifact.js';
 import { publicationError, throwPublicationError } from './public-projects.errors.js';
@@ -274,18 +276,22 @@ export class ProjectPublicationController {
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    @Inject(TOKENS.seatContextUseCase) private readonly seats?: SeatContextUseCase,
   ) {}
 
   private async requireOwnerSession(request: FastifyRequest): Promise<string> {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      const seat = await this.seats?.resolveExisting(request.cookies[STUDENT_SESSION_COOKIE]);
+      if (!seat) throw publicationError('unauthorized', 'Войдите в класс заново.', 401);
+      noteAuthoritativeMutationSession(
+        request,
+        'seat-existing',
+        request.cookies[STUDENT_SESSION_COOKIE],
+      );
+      return seat.principalId;
+    }
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (context) return context.principalId;
-    if (request.cookies[STUDENT_SESSION_COOKIE]) {
-      throw publicationError(
-        'publication_forbidden',
-        'Публикация доступна владельцу личного проекта с аккаунтом.',
-        403,
-      );
-    }
     throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
   }
 
@@ -354,11 +360,19 @@ export class ProjectPublicationController {
     try {
       const result = await requirePool(this.pool).query<{
         result: OwnerPublicationStatus;
-      }>('SELECT project_publication_publish($1, $2, $3::jsonb) AS result', [
-        principalId,
-        projectId,
-        JSON.stringify(metadata),
-      ]);
+      }>(
+        request.cookies[STUDENT_SESSION_COOKIE]
+          ? 'SELECT project_publication_publish_seat($1, $2, $3::jsonb, $4) AS result'
+          : 'SELECT project_publication_publish($1, $2, $3::jsonb) AS result',
+        [
+          principalId,
+          projectId,
+          JSON.stringify(metadata),
+          ...(request.cookies[STUDENT_SESSION_COOKIE]
+            ? [hashSessionToken(request.cookies[STUDENT_SESSION_COOKIE]!)]
+            : []),
+        ],
+      );
       const status = result.rows[0]?.result;
       if (!status) throw publicationError('not_available', 'Проект недоступен.', 404);
       return status;
@@ -373,8 +387,16 @@ export class ProjectPublicationController {
     const principalId = await this.requireOwnerSession(request);
     requireUuid(projectId);
     const result = await requirePool(this.pool).query<{ ok: boolean }>(
-      'SELECT project_publication_revoke($1, $2) AS ok',
-      [principalId, projectId],
+      request.cookies[STUDENT_SESSION_COOKIE]
+        ? 'SELECT project_publication_revoke_seat($1, $2, $3) AS ok'
+        : 'SELECT project_publication_revoke($1, $2) AS ok',
+      [
+        principalId,
+        projectId,
+        ...(request.cookies[STUDENT_SESSION_COOKIE]
+          ? [hashSessionToken(request.cookies[STUDENT_SESSION_COOKIE]!)]
+          : []),
+      ],
     );
     if (result.rows[0]?.ok !== true) {
       throw publicationError('not_available', 'Проект недоступен.', 404);

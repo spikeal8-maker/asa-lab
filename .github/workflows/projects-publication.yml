@@ -11,6 +11,7 @@ on:
       - 'apps/web/src/**'
       - 'migrations/**'
       - 'tests/portal/**'
+      - 'e2e/student-project-policy.spec.ts'
       - 'e2e/public-projects.spec.ts'
       - 'e2e/public-project-copy.spec.ts'
       - 'e2e/public-project-admin-moderation.spec.ts'
@@ -29,6 +30,7 @@ on:
       - 'apps/web/src/**'
       - 'migrations/**'
       - 'tests/portal/**'
+      - 'e2e/student-project-policy.spec.ts'
       - 'e2e/public-projects.spec.ts'
       - 'e2e/public-project-copy.spec.ts'
       - 'e2e/public-project-admin-moderation.spec.ts'
@@ -119,6 +121,7 @@ jobs:
             e2e/artifacts/public-projects-copy
             e2e/artifacts/public-project-admin-moderation
             e2e/artifacts/public-projects
+            e2e/artifacts/student-project-policy
             e2e/artifacts/owner-preview/home-workspace/lifecycle
             reports/playwright/projects-publication
             apps/web/dist/build-metadata.json

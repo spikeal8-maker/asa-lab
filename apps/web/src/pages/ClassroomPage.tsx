@@ -21,6 +21,7 @@ import {
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { ClassroomGradebook } from '../components/ClassroomGradebook';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
+import { ClassroomProjectSettings } from '../components/ClassroomProjectSettings';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
@@ -1053,6 +1054,10 @@ function ClassroomPageContent({
                     <i aria-hidden="true" />
                   </label>
                 </fieldset>
+                <ClassroomProjectSettings
+                  classroomId={classroomId}
+                  readOnly={archived || Boolean(busy)}
+                />
                 <ClassroomGamesSettings
                   classroomId={classroomId}
                   readOnly={archived || Boolean(busy)}
