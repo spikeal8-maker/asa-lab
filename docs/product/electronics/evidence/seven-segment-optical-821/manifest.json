@@ -1,0 +1,13 @@
+{
+  "baseline": "3c48799ab367177423d208105b2020a3c3cad075",
+  "receipt": {
+    "rawBytes": 106137,
+    "rawSha256": "403d91713e097d748831ffb02218cf8f707713930a94d9701ce54332265a9773",
+    "gzipBytes": 4165,
+    "gzipSha256": "b79d218a93f0cfc3c3e9474d369f576a97f07f76b045c1ad5331740f0dd87378"
+  },
+  "images": {
+    "desktop.png": "b1506991b6b3833f66376ece502844f7eabb8e605d1766e63147c27ec102a14a",
+    "mobile.png": "c606e600b55eb63094bfbeaf0cb7c86e8eeb0cf469630f70e0fd715687f1614e"
+  }
+}

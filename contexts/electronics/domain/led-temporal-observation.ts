@@ -30,6 +30,12 @@ export interface ElectronicsArduinoIndicatorTemporal {
   readonly truncated: boolean;
 }
 
+export interface ElectronicsSevenSegmentTemporal {
+  readonly componentId: string;
+  /** Branch componentId is its canonical a..g/dp channel, not a circuit component. */
+  readonly branches: readonly ElectronicsLedTemporalComponent[];
+}
+
 /** Presentation metadata only. It is neither physical state nor a resumable continuation. */
 export interface ElectronicsLedTemporalObservation {
   readonly profile: 'ordinary-led-held-v1';
@@ -38,6 +44,7 @@ export interface ElectronicsLedTemporalObservation {
   readonly components: readonly ElectronicsLedTemporalComponent[];
   /** L indicators share the optical cursor, independently of any external LED. */
   readonly arduinoIndicators?: readonly ElectronicsArduinoIndicatorTemporal[];
+  readonly sevenSegments?: readonly ElectronicsSevenSegmentTemporal[];
 }
 
 export type LedElectricalObserver = (
@@ -81,7 +88,17 @@ export function createLedTemporalObservation(
   componentIds: readonly string[],
   fromMicroseconds: number,
   arduinoComponentIds: readonly string[] = [],
-) {
+  sevenSegmentComponentIds: readonly string[] = [],
+): {
+  observe: LedElectricalObserver;
+  finish(toMicroseconds: number): ElectronicsLedTemporalObservation | null;
+  invalidate(): void;
+} {
+  const segments = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
+  const displays = sevenSegmentComponentIds.map((componentId) => ({
+    componentId,
+    collector: createLedTemporalObservation(segments, fromMicroseconds),
+  }));
   const histories: LedHistory[] = componentIds.map((componentId) => ({
     componentId,
     samples: [],
@@ -98,7 +115,7 @@ export function createLedTemporalObservation(
     truncated: false,
   }));
   let at: number | null = null;
-  const ids = [...componentIds, ...arduinoComponentIds];
+  const ids = [...componentIds, ...arduinoComponentIds, ...sevenSegmentComponentIds];
   let valid = ids.length > 0 && new Set(ids).size === ids.length;
 
   const observe: LedElectricalObserver = (sampleTime, components) => {
@@ -180,17 +197,45 @@ export function createLedTemporalObservation(
         }
       }
     }
+    for (const display of displays) {
+      const result = components.find((entry) => entry.componentId === display.componentId);
+      if (!result) {
+        valid = false;
+        return;
+      }
+      display.collector.observe(
+        time,
+        segments.map((segment) => ({
+          componentId: segment,
+          voltageDrop: result.voltageDrop,
+          terminalVoltages: result.terminalVoltages,
+          brightness: result.branchBrightness?.[segment] ?? Number.NaN,
+          current: result.branchCurrents?.[segment] ?? Number.NaN,
+          lit: (result.branchBrightness?.[segment] ?? 0) > 0,
+        })),
+      );
+    }
     at = time;
   };
 
   return {
     observe,
+    invalidate: () => {
+      valid = false;
+    },
     finish(toMicroseconds: number): ElectronicsLedTemporalObservation | null {
       if (!valid || at !== toMicroseconds || toMicroseconds < fromMicroseconds) return null;
+      const sevenSegments: ElectronicsSevenSegmentTemporal[] = [];
+      for (const display of displays) {
+        const observation = display.collector.finish(toMicroseconds);
+        if (!observation) return null;
+        sevenSegments.push({ componentId: display.componentId, branches: observation.components });
+      }
       return {
         profile: 'ordinary-led-held-v1',
         fromMicroseconds,
         toMicroseconds,
+        ...(sevenSegments.length ? { sevenSegments } : {}),
         ...(indicators.length
           ? {
               arduinoIndicators: indicators.map((indicator) => {

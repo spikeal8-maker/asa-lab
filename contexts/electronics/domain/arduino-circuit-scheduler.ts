@@ -439,6 +439,9 @@ interface ClockPreparation {
   failureTime?: number;
   readonly operatingPoint: ReturnType<typeof createArduinoOperatingPointReuse>;
   readonly observeLedState?: LedElectricalObserver;
+  readonly observeRawDisplayState?: LedElectricalObserver;
+  readonly invalidateRawDisplayState?: () => void;
+  rawDisplayInitialObserved?: boolean;
 }
 type OwnedClockRequest = {
   readonly validatedDigest?: string;
@@ -613,6 +616,7 @@ export function createOwnedArduinoCircuitClockRequest(
         readonly maxClockEvents?: number;
       },
       observeLedTemporal: boolean,
+      observeSevenSegmentTemporal = false,
     ) =>
       createArduinoCircuitClockRequest(
         document,
@@ -622,6 +626,7 @@ export function createOwnedArduinoCircuitClockRequest(
         observeLedTemporal,
         check,
         validatedDigest,
+        observeSevenSegmentTemporal,
       ),
   };
 }
@@ -637,22 +642,40 @@ function createArduinoCircuitClockRequest(
   observeLedTemporal: boolean,
   stillOwned: () => boolean,
   validatedDigest?: string,
+  observeSevenSegmentTemporal = false,
 ) {
-  let collector = observeLedTemporal
-    ? createLedTemporalObservation(
-        document.components
-          .filter((component) => component.kind === 'led')
-          .map((component) => component.id),
-        initial?.reachedMicroseconds ?? 0,
-        document.components
-          .filter((component) => isArduinoUno(component) && component.pinIds?.includes('d13'))
-          .map((component) => component.id),
-      )
-    : null;
+  let collector =
+    observeLedTemporal || observeSevenSegmentTemporal
+      ? createLedTemporalObservation(
+          document.components
+            .filter((component) => observeLedTemporal && component.kind === 'led')
+            .map((component) => component.id),
+          initial?.reachedMicroseconds ?? 0,
+          document.components
+            .filter(
+              (component) =>
+                observeLedTemporal && isArduinoUno(component) && component.pinIds?.includes('d13'),
+            )
+            .map((component) => component.id),
+          observeSevenSegmentTemporal
+            ? document.components
+                .filter((component) => component.kind === 'seven-segment')
+                .map((component) => component.id)
+            : [],
+        )
+      : null;
   let preparation: ClockPreparation | undefined = {
     sourceSupport: new Map(),
     operatingPoint: createArduinoOperatingPointReuse(),
     ...(collector ? { observeLedState: collector.observe } : {}),
+    ...(collector &&
+    observeSevenSegmentTemporal &&
+    document.components.some((component) => component.kind === 'seven-segment')
+      ? {
+          observeRawDisplayState: collector.observe,
+          invalidateRawDisplayState: collector.invalidate,
+        }
+      : {}),
   };
   const ownership: OwnedClockRequest = {
     continued: false,
@@ -1464,6 +1487,18 @@ export function advanceArduinoCircuitClock(
         ownedPreparation?.observeLedState?.(checkpointTime, frame.components);
     }
   }
+  if (
+    !eventPhysics &&
+    ownedPreparation?.observeRawDisplayState &&
+    !ownedPreparation.rawDisplayInitialObserved
+  ) {
+    const from = previous?.reachedMicroseconds ?? 0;
+    const frame = sample(from);
+    if (frame.solved && frame.quality.passed)
+      ownedPreparation.observeRawDisplayState(from, frame.components);
+    else ownedPreparation.invalidateRawDisplayState?.();
+    ownedPreparation.rawDisplayInitialObserved = true;
+  }
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
   while (nextTime() <= targetMicroseconds && clockEvents < budget) {
@@ -1646,6 +1681,7 @@ export function advanceArduinoCircuitClock(
     if (!lazyPhysicsObservation) {
       const observed = observe();
       if (observationFault) return observationFault;
+      if (!eventPhysics) ownedPreparation?.observeRawDisplayState?.(time, observed.components);
       sensorOutputChanged ||= observeSensors(observed, time);
     }
     const updates: [string, ArduinoRuntimeState, string][] = [];
@@ -1803,6 +1839,14 @@ export function advanceArduinoCircuitClock(
       if (!commitPhysics(time))
         return fault('physical_advance_failed', 'Electrical settle failed.');
     }
+    if (!eventPhysics && electricalStateChanged && ownedPreparation?.observeRawDisplayState) {
+      // An optical read is a zero-duration observation, never a physical checkpoint.
+      // Record the settled held state after all same-time GPIO updates are committed.
+      const settled = sample(time);
+      if (settled.solved && settled.quality.passed)
+        ownedPreparation.observeRawDisplayState(time, settled.components);
+      else ownedPreparation.invalidateRawDisplayState?.();
+    }
     reachedMicroseconds = time;
     clockEvents++;
   }
@@ -1888,6 +1932,8 @@ export function advanceArduinoCircuitClock(
       );
     if (eventPhysics && frame.solved && frame.quality.passed)
       ownedPreparation?.observeLedState?.(targetMicroseconds, frame.components);
+    if (!eventPhysics && frame.solved && frame.quality.passed)
+      ownedPreparation?.observeRawDisplayState?.(targetMicroseconds, frame.components);
     // The public controller observation contains ordinary stable data fields.
     // Reading these private projections once materializes their detached values.
     if (ownership?.runtime)
