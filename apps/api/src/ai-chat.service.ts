@@ -49,6 +49,9 @@ import {
   validOllamaModel,
   discoverOllama,
   describeOllamaModel,
+  inspectOllamaModel,
+  validOllamaOptions,
+  resolveOllamaThinking,
   streamOllamaText,
   type OllamaModel,
   type OllamaSettings,
@@ -169,6 +172,8 @@ interface RuntimeRow {
 }
 
 interface OllamaRow {
+  readonly thinking?: string | undefined;
+  readonly context_tokens?: number;
   readonly enabled: boolean;
   readonly base_url: string;
   readonly model: string;
@@ -380,7 +385,7 @@ export class AiChatService {
   }
 
   private async ollamaRuntime(): Promise<OllamaRow> {
-    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_runtime()');
+    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_runtime_v2()');
     const row = result.rows[0];
     // A missing or incompatible optional connection must never activate local
     // inference or change the behavior of existing paid-provider fixtures.
@@ -407,7 +412,7 @@ export class AiChatService {
   }
 
   async ollamaSettings(principalId: string): Promise<OllamaSettings> {
-    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_admin_get($1)', [
+    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_admin_get_v2($1)', [
       principalId,
     ]);
     const row = result.rows[0];
@@ -419,6 +424,8 @@ export class AiChatService {
       model: row.model,
       revision: Number(row.revision),
       updatedAt: iso(row.updated_at ?? null),
+      thinking: row.thinking ?? 'default',
+      contextTokens: row.context_tokens ?? 65536,
     };
   }
 
@@ -429,21 +436,43 @@ export class AiChatService {
       baseUrl: string;
       model: string;
       revision: number;
+      thinking?: string | undefined;
+      contextTokens?: number | undefined;
     },
     requestId: string,
   ): Promise<OllamaSettings> {
     const baseUrl = ollamaBaseUrl(input.baseUrl);
     if (
+      !validOllamaOptions(input.thinking, input.contextTokens) ||
       !validOllamaModel(input.model) ||
       !Number.isSafeInteger(input.revision) ||
       input.revision < 1
     ) {
       throw new AiServiceError('ai_ollama_config_invalid', 400, 'Неверные настройки Ollama.');
     }
+    if (input.enabled && (input.thinking !== undefined || input.contextTokens !== undefined)) {
+      const detail = await inspectOllamaModel(baseUrl, input.model, this.fetchImpl);
+      resolveOllamaThinking(input.thinking ?? 'default', detail);
+      if (detail.contextMax !== null && (input.contextTokens ?? 65536) > detail.contextMax)
+        throw new AiServiceError(
+          'ai_ollama_context_invalid',
+          400,
+          'Контекст превышает возможности модели.',
+        );
+    }
     try {
       await this.pool.query(
-        'SELECT ai_ollama_admin_set($1,$2,$3::varchar,$4::varchar,$5::bigint,$6::varchar)',
-        [principalId, input.enabled, baseUrl, input.model, input.revision, requestId],
+        'SELECT ai_ollama_admin_set_v2($1,$2,$3::varchar,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::integer)',
+        [
+          principalId,
+          input.enabled,
+          baseUrl,
+          input.model,
+          input.revision,
+          requestId,
+          input.thinking ?? 'default',
+          input.contextTokens ?? 65536,
+        ],
       );
     } catch (problem) {
       if ((problem as Error).message.includes('AI_OLLAMA_CONFIG_CHANGED')) {
@@ -466,7 +495,17 @@ export class AiChatService {
     return discoverOllama(endpoint, this.fetchImpl);
   }
 
-  private async probeOllama(baseUrl: string, model: string): Promise<number> {
+  async ollamaModelDetail(principalId: string, baseUrl: string, model: string) {
+    await this.ollamaSettings(principalId);
+    return inspectOllamaModel(baseUrl, model, this.fetchImpl);
+  }
+
+  private async probeOllama(
+    baseUrl: string,
+    model: string,
+    thinking?: string,
+    contextTokens?: number,
+  ): Promise<number> {
     const models = await discoverOllama(baseUrl, this.fetchImpl);
     if (!models.some((item) => item.name === model)) {
       throw new AiServiceError(
@@ -479,6 +518,8 @@ export class AiChatService {
     await streamOllamaText({
       baseUrl,
       model,
+      thinking,
+      contextTokens,
       context: [{ role: 'user', content: 'Ответь кратко: OK' }],
       instructions: 'Проверка соединения. Ответь одним словом.',
       signal: new AbortController().signal,
@@ -493,7 +534,14 @@ export class AiChatService {
    */
   async applyOllamaSettings(
     principalId: string,
-    input: { enabled: boolean; baseUrl: string; model: string; revision: number },
+    input: {
+      enabled: boolean;
+      baseUrl: string;
+      model: string;
+      revision: number;
+      thinking?: string | undefined;
+      contextTokens?: number | undefined;
+    },
     requestId: string,
   ): Promise<{
     config: OllamaSettings;
@@ -509,14 +557,32 @@ export class AiChatService {
       );
     }
     const baseUrl = ollamaBaseUrl(input.baseUrl);
-    if (!validOllamaModel(input.model) || typeof input.enabled !== 'boolean') {
+    if (
+      !validOllamaOptions(input.thinking, input.contextTokens) ||
+      !validOllamaModel(input.model) ||
+      typeof input.enabled !== 'boolean'
+    ) {
       throw new AiServiceError('ai_ollama_config_invalid', 400, 'Проверьте настройки Ollama.');
     }
-    const elapsedMs = input.enabled ? await this.probeOllama(baseUrl, input.model) : null;
+    if (input.enabled && (input.thinking !== undefined || input.contextTokens !== undefined)) {
+      const detail = await inspectOllamaModel(baseUrl, input.model, this.fetchImpl);
+      resolveOllamaThinking(input.thinking ?? 'default', detail);
+      if (detail.contextMax !== null && (input.contextTokens ?? 65536) > detail.contextMax)
+        throw new AiServiceError(
+          'ai_ollama_context_invalid',
+          400,
+          'Контекст превышает возможности модели.',
+        );
+    }
+    const elapsedMs = input.enabled
+      ? await this.probeOllama(baseUrl, input.model, input.thinking, input.contextTokens)
+      : null;
     const dirty =
       current.enabled !== input.enabled ||
       current.baseUrl !== baseUrl ||
-      current.model !== input.model;
+      current.model !== input.model ||
+      (current.thinking ?? 'default') !== (input.thinking ?? 'default') ||
+      (current.contextTokens ?? 65536) !== (input.contextTokens ?? 65536);
     const config = dirty
       ? await this.saveOllamaSettings(principalId, { ...input, baseUrl }, requestId)
       : await this.ollamaSettings(principalId);
@@ -527,7 +593,9 @@ export class AiChatService {
       (config.revision !== input.revision ||
         config.enabled !== input.enabled ||
         config.baseUrl !== baseUrl ||
-        config.model !== input.model)
+        config.model !== input.model ||
+        (config.thinking ?? 'default') !== (input.thinking ?? 'default') ||
+        (config.contextTokens ?? 65536) !== (input.contextTokens ?? 65536))
     ) {
       throw new AiServiceError(
         'ai_ollama_config_changed',
@@ -570,6 +638,8 @@ export class AiChatService {
     await streamOllamaText({
       baseUrl: config.baseUrl,
       model: config.model,
+      thinking: config.thinking,
+      contextTokens: config.contextTokens,
       context: [{ role: 'user', content: 'Ответь кратко: OK' }],
       instructions: 'Проверка соединения. Ответь одним словом.',
       signal: new AbortController().signal,
@@ -1121,6 +1191,8 @@ export class AiChatService {
         ? await streamOllamaText({
             baseUrl: local!.base_url,
             model: local!.model,
+            thinking: local!.thinking,
+            contextTokens: local!.context_tokens,
             context,
             instructions,
             signal: new AbortController().signal,
@@ -1757,6 +1829,8 @@ export class AiChatService {
         ? await streamOllamaText({
             baseUrl: local!.base_url,
             model: local!.model,
+            thinking: local!.thinking,
+            contextTokens: local!.context_tokens,
             context,
             ...(files?.images.length ? { images: files.images } : {}),
             instructions:
@@ -1912,6 +1986,8 @@ export class AiChatService {
         const followup = await streamOllamaText({
           baseUrl: local!.base_url,
           model: local!.model,
+          thinking: local!.thinking,
+          contextTokens: local!.context_tokens,
           context,
           ...(files?.images.length ? { images: files.images } : {}),
           instructions:

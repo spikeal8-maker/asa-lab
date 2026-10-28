@@ -229,6 +229,8 @@ export class AiAdminController {
           baseUrl: value['baseUrl'] as string,
           model: value['model'] as string,
           revision: value['revision'] as number,
+          thinking: value['thinking'] as string | undefined,
+          contextTokens: value['contextTokens'] as number | undefined,
         },
         request.id,
       ),
@@ -260,6 +262,8 @@ export class AiAdminController {
           baseUrl: input['baseUrl'] as string,
           model: input['model'] as string,
           revision: input['revision'] as number,
+          thinking: input['thinking'] as string | undefined,
+          contextTokens: input['contextTokens'] as number | undefined,
         },
         request.id,
       ),
@@ -285,6 +289,19 @@ export class AiAdminController {
       return reject('ai_ollama_config_invalid', 'Неверный адрес Ollama.', 400);
     }
     return this.safe(async () => ({ models: await this.ai.ollamaModels(principalId, baseUrl) }));
+  }
+
+  @Post('ollama/model-detail')
+  @HttpCode(200)
+  async ollamaModelDetail(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const input = raw as { baseUrl?: unknown; model?: unknown } | null;
+    if (typeof input?.baseUrl !== 'string' || typeof input.model !== 'string')
+      return reject('ai_ollama_config_invalid', 'Неверная модель Ollama.', 400);
+    return this.safe(() =>
+      this.ai.ollamaModelDetail(principalId, input.baseUrl as string, input.model as string),
+    );
   }
 
   @Post('ollama/test')
