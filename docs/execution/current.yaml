@@ -87,10 +87,10 @@ parallel_lanes:
       - docs/deployment/tasks/TASK-DEPLOYMENT-RUNTIME-SEARCH-PREBACKUP-001.md
     task:
       id: TASK-DEPLOYMENT-RUNTIME-SEARCH-PREBACKUP-001
-      issue: null
-      branch: codex/manager-runtime-search-prebackup-20261029
+      issue: 843
+      branch: main
       base_branch: main
-      pr: null
+      pr: 842
       pr_draft: false
       status: in_progress
       checkpoint: prebackup_runtime_target_search_separation
@@ -101,6 +101,24 @@ parallel_lanes:
         - No live database changes, production update, backup bypass, release bypass, Electronics edits or legacy809 work in this source repair.
         - Require regression coverage for legacy runtime without search and existing runtime with search, plus independent review and exact CI before integration.
       execution_coordination: Direct-main shared deployment source repair authorized by owner; legacy809 remains unchanged and its D2R2 installation blockers do not grant or remove authority for this distinct asa-lab source task.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 4ddc3a26db3f8bfddc8f0e3932bfacd984aae5c1
+      head_sha: null
+      observed_at: '2026-10-28T22:13:00Z'
+      main:
+        branch: main
+        sha: 4ddc3a26db3f8bfddc8f0e3932bfacd984aae5c1
+      observation_note: Dated source candidate 6c025550 under independent review and exact CI in PR842; fetch main before writes. No production update or Main integration claimed.
+    gates:
+      focused:
+        workflow: ASA Portable Release
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: classroom-access-budget
     worktree_id: classroom-access-budget-820
     owned_paths:
