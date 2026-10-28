@@ -53,6 +53,7 @@ const expectedPending = [
   '0272', // Accepted Ollama Cloud key pool migration.
   '0273', // Accepted ComfyUI endpoint migration.
   '0274', // Audited class/Seat distribution and immutable publication admission.
+  '0275', // Global and author acquisition controls.
 ];
 
 interface Identity {
@@ -116,7 +117,9 @@ async function legacySnapshot(db: pg.Pool) {
     project_versions: [],
     project_snapshots: [],
     project_publications: [],
-    project_publication_state: [],
+    // 0275 adds only these default-OFF consent columns. Keep every old field
+    // (and any unrecognized future field) in the strict preserved-data comparison.
+    project_publication_state: ['acquisition_allowed', 'acquisition_version'],
     project_publication_revisions: [
       'module_key',
       'author_label',
@@ -693,6 +696,25 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       const upgrade = await db.connect();
       try {
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedPending.length);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT enabled,version FROM publication_acquisition_settings WHERE singleton_key',
+            )
+          ).rows,
+        ).toEqual([{ enabled: false, version: 0 }]);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+            )
+          ).rows,
+        ).toEqual(
+          before.project_publication_state!.map(() => ({
+            acquisition_allowed: false,
+            acquisition_version: 0,
+          })),
+        );
       } finally {
         upgrade.release();
       }

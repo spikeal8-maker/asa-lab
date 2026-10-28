@@ -144,6 +144,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0272', // Accepted Ollama Cloud key pool migration.
         '0273', // Accepted ComfyUI endpoint migration.
         '0274', // Audited class/Seat distribution and immutable publication admission.
+        '0275', // Global and author acquisition controls.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -447,6 +448,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0272', // Accepted Ollama Cloud key pool migration.
           '0273', // Accepted ComfyUI endpoint migration.
           '0274', // Audited class/Seat distribution and immutable publication admission.
+          '0275', // Global and author acquisition controls.
         ]);
         expect(
           await applyIsolatedTestPlan(

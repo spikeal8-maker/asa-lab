@@ -1375,3 +1375,34 @@ tests:
     timeout_seconds: 300
     owner: identity
     artifacts: [playwright-report, student-project-policy-screenshots]
+
+  - id: TST-PROJECT-ACQUISITION-UNIT-001
+    title: Verified global acquisition CAS and canonical Seat copy transport
+    suite: authorization
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/public-project-copy.spec.ts apps/api/src/admin-public-projects.controller.spec.ts apps/web/src/admin/testing/publication-acquisition.spec.ts apps/web/src/projects-public/CopyPublicProject.spec.ts
+    timeout_seconds: 120
+    owner: projects
+    artifacts: [vitest-report]
+  - id: TST-PROJECT-ACQUISITION-PG-001
+    title: Real Account and Seat immutable copy, global and author OFF, CAS and concurrency
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/portal/public-project-copy.pg.spec.ts tests/portal/public-project-moderation.pg.spec.ts
+    timeout_seconds: 300
+    owner: projects
+    artifacts: [vitest-report]
+  - id: TST-PROJECT-ACQUISITION-E2E-001
+    title: Account and Seat public V1 copy, real 3D and Electronics edit save reopen
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/public-project-copy.spec.ts --workers=1
+    timeout_seconds: 900
+    owner: projects
+    artifacts: [playwright-report, public-projects-copy-screenshots]

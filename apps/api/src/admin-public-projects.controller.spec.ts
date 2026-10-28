@@ -37,6 +37,13 @@ describe('administrative publication transport', () => {
       const { controller, query } = fixture(auth);
       const status = auth === 'anonymous' ? 401 : 403;
       for (const call of [
+        () => controller.acquisition(request()),
+        () =>
+          controller.setAcquisition(request(), {
+            enabled: true,
+            expectedVersion: 0,
+            reason: 'Enable',
+          }),
         () => controller.list(request()),
         () => controller.image(request(), ID, {} as FastifyReply),
         () =>
@@ -310,5 +317,30 @@ describe('administrative publication transport', () => {
       'SELECT public.admin_publication_pin_set($1,$2,$3,$4,$5,$6,$7,$8) AS result',
       [ID, ID, true, 'request-1', 2, ID, 3, 4],
     );
+  });
+});
+
+describe('global publication acquisition transport', () => {
+  it('uses verified actor, bounded CAS, reason and request id', async () => {
+    const { controller, query } = fixture();
+    await controller.setAcquisition(request(), {
+      enabled: true,
+      expectedVersion: 0,
+      reason: ' Explicit enable ',
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      'SELECT admin_publication_acquisition_write($1,$2,$3,$4,$5) AS result',
+      [ID, true, 0, 'Explicit enable', 'request-1'],
+    );
+  });
+  it.each([
+    { enabled: true, expectedVersion: 0, reason: '' },
+    { enabled: 'true', expectedVersion: 0, reason: 'Enable' },
+    { enabled: true, expectedVersion: 2147483647, reason: 'Enable' },
+    { enabled: true, expectedVersion: 0, reason: 'Enable', actorId: ID },
+  ])('rejects malformed settings %j', async (body) => {
+    const { controller, query } = fixture();
+    await expect(controller.setAcquisition(request(), body)).rejects.toMatchObject({ status: 400 });
+    expect(query).not.toHaveBeenCalled();
   });
 });
