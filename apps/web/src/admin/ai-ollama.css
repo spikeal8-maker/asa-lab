@@ -1,4 +1,65 @@
 /* Compact AI administration: providers, concise settings, one apply action. */
+.asa-comfy-connection {
+  min-width: 0;
+}
+.asa-comfy-url {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+.asa-comfy-url input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 7px;
+  font: inherit;
+}
+.asa-comfy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.asa-comfy-actions button {
+  min-height: 36px;
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.asa-comfy-actions span,
+.asa-comfy-help,
+.asa-comfy-devices {
+  overflow-wrap: anywhere;
+}
+.asa-comfy-help {
+  font-size: 12px;
+}
+.asa-comfy-help summary,
+.asa-comfy-connection > details > summary {
+  cursor: pointer;
+}
+.asa-comfy-help code {
+  overflow-wrap: anywhere;
+}
+.asa-comfy-help a {
+  color: inherit;
+  text-decoration: underline;
+}
+.asa-comfy-connection .asa-ai-comfy-model {
+  color: #17344a;
+}
+.asa-comfy-devices {
+  display: grid;
+  gap: 4px;
+}
+@media (max-width: 660px) {
+  .asa-comfy-actions button {
+    min-height: 44px;
+  }
+}
 .asa-ai-admin-workspace {
   display: grid;
   gap: 12px;

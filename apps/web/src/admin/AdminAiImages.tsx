@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AiImageGenerationAdminConfig, AiImageSize } from '@asa-lab/contracts';
 import { call } from './admin-api';
+import { newClientId } from '../client-id';
 import './ai-generation-policy.css';
 
 export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }) {
@@ -63,7 +64,7 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
     };
     const signature = JSON.stringify(update);
     if (attempt.current?.signature !== signature)
-      attempt.current = { signature, id: crypto.randomUUID() };
+      attempt.current = { signature, id: newClientId() };
     try {
       const result = await call<AiImageGenerationAdminConfig>('/api/admin/v1/ai/images', {
         method: 'PUT',

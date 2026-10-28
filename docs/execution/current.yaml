@@ -599,9 +599,9 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
-        - id: ASAI-MODELS-ACCESS-A
+        - id: ASAI-MODELS-ACCESS-B
           issue: 373
-          scope: independent provider enablement preserving model admission and legacy compatibility
+          scope: provider catalog eligibility and global visible model order and default
           status: in_progress
           selected_at: '2026-10-28'
           task_card: docs/product/ai/PROGRAM_DEFINITION.json
@@ -612,6 +612,40 @@ parallel_lanes:
           implementation_complete: false
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_dependency: 081ac0be6386b5ed921d1b866ba127d42383f1c5
+          selection: >-
+            Continue the explicit owner settings request on the reviewed provider-A candidate
+            as a stacked source vertical; this is not a main/deployment/owner-acceptance claim.
+            Separate bounded catalog observations and adapter compatibility, provider eligibility,
+            global user visibility, numeric provider/model ordering and explicit default.
+            Integrate metadata-only OpenAI/DeepSeek discovery with fixed endpoints and honest
+            source/time/stale/unknown status; preserve existing Cloud catalog/key pool and one
+            active local alias. New discoveries never auto-grant visibility; missing models keep
+            history identity. Server computes and admission rechecks effective eligibility; reject
+            spoofed/disabled/unavailable choices without silent paid fallback. User labels omit
+            provider names. Preserve current permissions, class/Seat admission and paid ceilings.
+            No live key/provider calls, Docker or configuration mutation in implementation.
+            Subsequent budget vertical implements both global/model and user/model UTC-month
+            soft admission caps: owner explicitly permits admitted replies to complete fully,
+            including overage; block new starts afterward, retain uncertain usage holds, never
+            truncate local unbounded output merely for monthly caps.
+        - id: ASAI-MODELS-ACCESS-A
+          issue: 373
+          scope: independent provider enablement preserving model admission and legacy compatibility
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R21, R22]
+          acceptance_checks: [C17, C20, C25]
+          implementation_started: true
+          implementation_complete: true
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_branch: codex/asai-independent-providers-20261028
+          candidate_sha: 081ac0be6386b5ed921d1b866ba127d42383f1c5
+          independent_review: approved_source_after_pool_convergence
+          ci_status: focused_171_pass_remote_pending
           selection: >-
             Owner explicitly requests model/access settings on 2026-10-28: independently enabled
             providers, catalog eligibility separate from user visibility, global default/order,

@@ -48,4 +48,31 @@ describe('ComfyUI private read-only detection', () => {
       false,
     );
   });
+  it('detects a remote private GPU without following redirects or running a graph', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(
+      async (url) => new Response(JSON.stringify(data[new URL(String(url)).pathname])),
+    );
+    const result = await discoverComfyUi('http://192.168.10.20:8188', fetchImpl);
+    expect(result.baseUrl).toBe('http://192.168.10.20:8188');
+    expect(fetchImpl.mock.calls).toHaveLength(4);
+  });
+  it('does not accept a redirected success or a JSON service without ComfyUI identity', async () => {
+    const redirected = () => {
+      const response = new Response('{}');
+      Object.defineProperty(response, 'redirected', { value: true });
+      return response;
+    };
+    await expect(
+      discoverComfyUi(
+        'http://192.168.1.20:8188',
+        vi.fn(async () => redirected()),
+      ),
+    ).rejects.toBeInstanceOf(ComfyUiError);
+    await expect(
+      discoverComfyUi(
+        'http://192.168.1.20:8188',
+        vi.fn(async () => new Response('[]')),
+      ),
+    ).rejects.toMatchObject({ code: 'ai_comfy_invalid' });
+  });
 });

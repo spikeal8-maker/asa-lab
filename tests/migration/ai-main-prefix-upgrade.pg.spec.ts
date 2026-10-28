@@ -51,7 +51,8 @@ const expectedPending = [
   '0269', // Exact public Scratch player and version-scoped asset reads.
   '0271', // Accepted Ollama Cloud catalog migration.
   '0272', // Accepted Ollama Cloud key pool migration.
-  '0273', // Audited class/Seat distribution and immutable publication admission.
+  '0273', // Accepted ComfyUI endpoint migration.
+  '0274', // Audited class/Seat distribution and immutable publication admission.
 ];
 
 interface Identity {

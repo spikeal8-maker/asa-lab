@@ -11,7 +11,7 @@ surfaces:
         - apps/api/src/project-distribution.controller.ts
         - apps/api/src/public-projects.controller.ts
         - apps/web/src/components/ClassroomProjectSettings.tsx
-        - migrations/0273_student_project_distribution.sql
+        - migrations/0274_student_project_distribution.sql
     invariants: [IDA-AUTH-001, IDA-SEAT-PUBLIC-001, IDA-SEAT-PROJECT-001, IDA-REV-001, IDA-CTX-001]
     tests: [TST-STUDENT-PROJECT-POLICY-UNIT-001, TST-STUDENT-PROJECT-POLICY-PG-001, TST-STUDENT-PROJECT-POLICY-E2E-001]
     controls:
@@ -22,7 +22,7 @@ surfaces:
           - apps/api/src/project-distribution.controller.ts
           - apps/api/src/public-projects.controller.ts
           - apps/web/src/components/ClassroomProjectSettings.tsx
-          - migrations/0273_student_project_distribution.sql
+          - migrations/0274_student_project_distribution.sql
         commands: [classroom_project_policy_read, classroom_project_policy_write, project_publication_publish_seat, project_distribution_seat_lock, classroom_project_admission_lock]
         invariants: [IDA-AUTH-001, IDA-SEAT-PUBLIC-001, IDA-SEAT-PROJECT-001, IDA-REV-001]
         tests: [TST-STUDENT-PROJECT-POLICY-UNIT-001, TST-STUDENT-PROJECT-POLICY-PG-001, TST-STUDENT-PROJECT-POLICY-E2E-001]
