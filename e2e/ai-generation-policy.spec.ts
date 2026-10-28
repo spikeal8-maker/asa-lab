@@ -113,6 +113,9 @@ async function adminFixture(page: Page) {
         fluxKlein4bFound: true,
         checkedAt: '2026-10-26T09:00:00Z',
       });
+    if (path === '/api/admin/v1/ai/generation-policy/catalog') return json(policy);
+    if (path === '/api/admin/v1/ai/token-budgets')
+      return json({ configurationVersion: 1, resetAt: '2026-11-01T00:00:00.000Z', models: [] });
     if (path === '/api/admin/v1/ai/generation-policy') {
       if (request.method() === 'PUT') {
         const body = request.postDataJSON();
@@ -124,6 +127,8 @@ async function adminFixture(page: Page) {
           systemPrompt: body.systemPrompt,
           defaultModel: body.defaultModel,
           allowedModels: body.allowedModels,
+          modelPreferences: body.modelPreferences,
+          providerOrder: body.providerOrder,
           configurationVersion: policy.configurationVersion + 1,
         };
       }
@@ -208,9 +213,25 @@ for (const width of [1440, 1024, 390, 320]) {
     await normalView(page);
     await page.screenshot({ path: testInfo.outputPath(`prompt-${width}.png`), fullPage: true });
     await page.getByRole('tab', { name: 'Настройки', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'Gemma 4 31B · Ollama Cloud' }).check();
+    const cloudEligibility = page.getByRole('checkbox', {
+      name: 'Разрешить у провайдера Gemma 4 31B · Ollama Cloud',
+      exact: true,
+    });
+    const cloudVisibility = page.getByRole('checkbox', {
+      name: 'Показывать пользователям: Gemma 4 31B · Ollama Cloud',
+      exact: true,
+    });
+    await expect(cloudEligibility).toBeChecked();
+    await expect(cloudVisibility).not.toBeChecked();
+    await cloudVisibility.check();
+    await expect(cloudEligibility).toBeChecked();
     await page.getByRole('combobox', { name: 'Модель по умолчанию' }).selectOption('gemma4:31b');
-    await page.getByRole('checkbox', { name: 'DeepSeek Flash' }).uncheck();
+    await page
+      .getByRole('checkbox', { name: 'Показывать пользователям: DeepSeek Flash', exact: true })
+      .uncheck();
+    await expect(
+      page.getByRole('checkbox', { name: 'Разрешить у провайдера DeepSeek Flash', exact: true }),
+    ).toBeChecked();
     await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
