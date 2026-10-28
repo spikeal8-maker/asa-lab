@@ -40,6 +40,7 @@ for (const path of browser
       'apps/api/src/public-projects.spec.ts',
       'apps/api/src/public-project-copy.spec.ts',
       'apps/api/src/admin-public-projects.controller.spec.ts',
+      'apps/web/src/admin/testing/publication-acquisition.spec.ts',
     ]) {
   if (!existsSync(path)) {
     console.error(`BLOCKED: required publication evidence file is missing: ${path}`);
@@ -231,6 +232,7 @@ if (browser) {
     'apps/api/src/public-project-copy.spec.ts',
     'apps/api/src/admin-public-projects.controller.spec.ts',
     'apps/web/src/admin/testing/admin-publications.spec.ts',
+    'apps/web/src/admin/testing/publication-acquisition.spec.ts',
     'apps/web/src/admin/testing/admin-navigation.spec.ts',
     'apps/web/src/projects-public',
     '--maxWorkers=2',

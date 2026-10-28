@@ -114,3 +114,25 @@
   color: var(--text-primary, #28415c);
   font-weight: 700;
 }
+
+.publication-acquisition-settings {
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-color, #d5d9df);
+  border-radius: 0.5rem;
+}
+.publication-acquisition-settings label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.publication-acquisition-settings input {
+  max-width: 100%;
+  min-width: 0;
+}
+.publication-acquisition-settings button {
+  max-width: 100%;
+  white-space: normal;
+}

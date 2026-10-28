@@ -8,12 +8,17 @@ import { buildTestApp, inject, type NestApp } from './app';
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
+let policyFixtureLock: pg.PoolClient;
 let app: NestApp;
 let repo: PgProjectRepository;
 const projects: string[] = [];
 
 beforeAll(async () => {
   admin = testAdminPool();
+  policyFixtureLock = await admin.connect();
+  await policyFixtureLock.query(
+    "SELECT pg_advisory_lock(hashtextextended('test-public-acquisition-policy',0))",
+  );
   runtime = testAppPool();
   repo = new PgProjectRepository(runtime);
   app = await buildTestApp(runtime);
@@ -29,6 +34,10 @@ afterAll(async () => {
   } finally {
     // buildTestApp owns the runtime pool and closes it with Nest shutdown.
     await app?.close();
+    await policyFixtureLock?.query(
+      "SELECT pg_advisory_unlock(hashtextextended('test-public-acquisition-policy',0))",
+    );
+    policyFixtureLock?.release();
     await admin?.end();
   }
 });
@@ -113,6 +122,11 @@ async function publication() {
       ])
     ).rows[0].result;
   const status = await publish();
+  await admin.query('UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key');
+  await admin.query(
+    'UPDATE project_publication_state SET acquisition_allowed=true WHERE project_id=$1',
+    [projectId],
+  );
   return {
     owner,
     projectId,

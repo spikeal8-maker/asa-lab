@@ -8,6 +8,12 @@ export function publicationError(code: string, message: string, status: number):
 export function throwPublicationError(cause: unknown): never {
   const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : null;
   switch (code) {
+    case 'P5C03':
+      throw publicationError(
+        'acquisition_disabled',
+        'Администратор платформы запретил получение публичных проектов.',
+        403,
+      );
     case 'P5C01':
       throw publicationError('copy_forbidden', 'Копирование этой публикации недоступно.', 403);
     case 'P5C02':

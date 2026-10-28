@@ -11,6 +11,9 @@ import {
 } from '../admin-navigation';
 
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
+vi.mock('../PublicationAcquisitionSettings', () => ({
+  PublicationAcquisitionSettings: () => null,
+}));
 
 const publication = {
   publicationId: 'publication-1',

@@ -78,6 +78,52 @@ export class AdminPublicProjectsController {
     }
   }
 
+  @Get('acquisition')
+  @Header('Cache-Control', 'no-store')
+  async acquisition(@Req() request: FastifyRequest) {
+    const actor = await this.actor(request);
+    return (
+      await this.query<{ result: unknown }>(
+        'SELECT admin_publication_acquisition_read($1) AS result',
+        [actor],
+      )
+    ).rows[0].result;
+  }
+
+  @Post('acquisition')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async setAcquisition(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const actor = await this.actor(request);
+    const shape = checkBodyShape(body, ['enabled', 'expectedVersion', 'reason']);
+    if (
+      !shape.ok ||
+      typeof shape.body['enabled'] !== 'boolean' ||
+      !Number.isInteger(shape.body['expectedVersion']) ||
+      Number(shape.body['expectedVersion']) < 0 ||
+      Number(shape.body['expectedVersion']) > 2147483646 ||
+      typeof shape.body['reason'] !== 'string' ||
+      !shape.body['reason'].trim() ||
+      shape.body['reason'].trim().length > 500 ||
+      typeof request.id !== 'string' ||
+      !request.id.trim() ||
+      request.id.length > 128
+    )
+      throw new BadRequestException();
+    return (
+      await this.query<{ result: unknown }>(
+        'SELECT admin_publication_acquisition_write($1,$2,$3,$4,$5) AS result',
+        [
+          actor,
+          shape.body['enabled'],
+          shape.body['expectedVersion'],
+          shape.body['reason'].trim(),
+          request.id,
+        ],
+      )
+    ).rows[0].result;
+  }
+
   @Get()
   @Header('Cache-Control', 'no-store')
   async list(

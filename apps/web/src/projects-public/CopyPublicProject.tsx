@@ -20,10 +20,13 @@ export function copiedProjectHref(copy: PublicProjectCopy): string | null {
       });
 }
 
-export function copyError(status: number): string {
-  if (status === 401) return 'Войдите в свой аккаунт, затем снова нажмите «Создать свою копию».';
+export function copyError(status: number, code?: string): string {
+  if (status === 401)
+    return 'Войдите в свой аккаунт или класс, затем снова нажмите «Добавить в мои проекты».';
+  if (status === 403 && code === 'acquisition_disabled')
+    return 'Администратор платформы запретил получение публичных проектов. Разрешение класса или ученика не отменяет общий запрет.';
   if (status === 403)
-    return 'Копирование недоступно для текущего профиля, модуля или лицензии. Нужен личный аккаунт с разрешённым доступом.';
+    return 'Получение запрещено настройками платформы, автора или класса либо не поддерживается для этого проекта.';
   if (status === 404 || status === 410) return 'Публикация больше недоступна для копирования.';
   if (status === 409)
     return 'Версия публикации изменилась или запрос конфликтует с предыдущим. Обновите страницу проекта перед копированием.';
@@ -58,7 +61,9 @@ export function CopyPublicProject({
       setBusy(false);
       setBlocked(true);
       setSignIn(true);
-      setError('Контекст входа изменился. Откройте публикацию заново в нужном аккаунте.');
+      setError(
+        'Контекст входа изменился. Откройте публикацию заново в нужном аккаунте или классе.',
+      );
     };
     // This is only a fence against late effects; the server proves identity and permissions.
     const unsubscribeContext = subscribeTelemetry((context) => {
@@ -94,7 +99,7 @@ export function CopyPublicProject({
       );
       if (!active.current || retired.current || telemetryContext().continuity !== expected) return;
       if (!result.ok) {
-        setError(copyError(result.status));
+        setError(copyError(result.status, result.error.code));
         setSignIn(result.status === 401);
         setBlocked([403, 404, 409, 410].includes(result.status));
         return;
@@ -135,7 +140,7 @@ export function CopyPublicProject({
           title="Личная копия появится в Моих проектах. Оригинал автора сохранится."
           onClick={() => void createCopy()}
         >
-          {busy ? 'Создаём копию…' : 'Создать свою копию'}
+          {busy ? 'Создаём копию…' : 'Добавить в мои проекты'}
         </button>
       )}
       {busy ? <p role="status">Создаём личный проект. Дождитесь результата…</p> : null}

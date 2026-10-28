@@ -53,6 +53,7 @@ const expectedPending = [
   '0272', // Accepted Ollama Cloud key pool migration.
   '0273', // Accepted ComfyUI endpoint migration.
   '0274', // Audited class/Seat distribution and immutable publication admission.
+  '0275', // Global and author acquisition controls.
 ];
 
 interface Identity {
@@ -693,6 +694,20 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       const upgrade = await db.connect();
       try {
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedPending.length);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT enabled,version FROM publication_acquisition_settings WHERE singleton_key',
+            )
+          ).rows,
+        ).toEqual([{ enabled: false, version: 0 }]);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT count(*)::int n FROM project_publication_state WHERE acquisition_allowed OR acquisition_version<>0',
+            )
+          ).rows[0].n,
+        ).toBe(0);
       } finally {
         upgrade.release();
       }

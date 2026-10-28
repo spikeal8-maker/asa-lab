@@ -33,6 +33,7 @@ export interface PublicProject {
 }
 
 export interface ProjectPublicationStatus {
+  readonly acquisition?: { readonly allowed: boolean; readonly version: number } | null;
   readonly publication: {
     readonly publicationId: string;
     readonly revisionId: string;
@@ -114,6 +115,19 @@ export const publicProjectsApi = {
       method: 'POST',
       body: JSON.stringify(metadata),
     }),
+  setAcquisition: (
+    projectId: string,
+    allowed: boolean,
+    expectedVersion: number,
+    expectedRevisionId: string,
+  ) =>
+    call<ProjectPublicationStatus>(
+      `/api/projects/${encodeURIComponent(projectId)}/publication/acquisition`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ allowed, expectedVersion, expectedRevisionId }),
+      },
+    ),
   revoke: (projectId: string) =>
     call<ProjectPublicationStatus>(`/api/projects/${encodeURIComponent(projectId)}/publication`, {
       method: 'DELETE',
