@@ -7143,6 +7143,22 @@ parallel_lanes:
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
+      - id: TASK-PROJ-ELECTRONICS-REPORT-BASELINE-001
+        status: in_progress
+        branch: codex/publication-electronics-gate-baseline-20261028
+        issue: 817
+        scope:
+          - contexts/electronics/testing/arduino-seven-segment-matrix.spec.ts
+          - related_test_report_directory_contract
+        selection: >-
+          Controller selects a separate bounded category C baseline repair under AGENTS section7.
+          Public policy exact7bcccbaa General40706739645 Data job122886468256 failed eight
+          unchanged Arduino matrix tests with ENOENT creating/writing relative test-results.
+          8387 tests passed; no product defect is established. Determine the actual directory
+          lifecycle/race cause and isolate report output without skipping tests, swallowing
+          errors, weakening assertions or changing Electronics runtime. Preserve PR826.
+          Independent exact-source review and actual General CI are required before Main.
+          Task: docs/product/projects/tasks/PROJ-ELECTRONICS-REPORT-BASELINE.md.
       - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
         status: in_progress
         branch: codex/projects-build-baseline
