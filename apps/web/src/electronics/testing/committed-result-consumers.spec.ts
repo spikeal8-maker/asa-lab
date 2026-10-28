@@ -102,17 +102,19 @@ function Probe({
     createElement(
       'svg',
       null,
-      ...document.components.map((component) =>
-        createElement(ProductionComponentVisual, {
+      ...document.components.map((component) => {
+        const entry = catalogEntry(component);
+        if (!entry) throw new Error(`Missing fixture catalog entry: ${component.componentTypeId}`);
+        return createElement(ProductionComponentVisual, {
           key: component.id,
           component,
-          entry: catalogEntry(component),
+          entry,
           width: 80,
           height: 80,
           visualState: 'default',
           simulationRunning: running,
-        }),
-      ),
+        });
+      }),
     ),
   );
 }
