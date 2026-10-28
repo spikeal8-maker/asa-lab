@@ -5,7 +5,11 @@ import {
   classifyProviderHttpFailure,
   classifyProviderTransportFailure,
 } from './ai-provider-errors.js';
-import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
+import {
+  buildAiTextRequest,
+  isModelForProvider,
+  isKnownOllamaCloudModel,
+} from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud';
 
@@ -167,7 +171,7 @@ export async function streamProviderText({
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
   if (signal.aborted) return { text: '', stopped: true };
-  if (!isModelForProvider(provider, model)) {
+  if (!(isModelForProvider(provider, model) || isKnownOllamaCloudModel(provider, model))) {
     throw new ProviderStreamError('ai_model_invalid', 400, 'Выберите поддерживаемую модель.');
   }
   const request = buildAiTextRequest(provider, model, context, instructions, true);

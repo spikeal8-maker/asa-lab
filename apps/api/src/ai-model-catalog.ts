@@ -1,3 +1,4 @@
+import type { AiOllamaCloudModel } from '@asa-lab/contracts';
 import { AI_MAX_OUTPUT_TOKENS } from './ai-generation-limits.js';
 /** Server-owned text model catalog. The browser consumes this metadata, never an allowlist.
  * Official sources checked 2026-10-19:
@@ -78,7 +79,60 @@ const MODELS = [
 ] as const;
 
 export type AiProvider = (typeof MODELS)[number]['provider'];
-export type AiModel = (typeof MODELS)[number]['id'];
+export type AiModel = (typeof MODELS)[number]['id'] | (string & {});
+
+/** Populated only from the private, server-owned SQL catalogue. Never from browser JSON. */
+let cloudModels: {
+  id: string;
+  upstream: string;
+  provider: 'ollama-cloud';
+  label: string;
+  vision: boolean;
+  shutdownDate: null;
+  reasoning: null;
+  active: boolean;
+}[] = MODELS.filter((m) => m.provider === 'ollama-cloud').map((m) => ({
+  ...m,
+  id: String(m.id),
+  upstream: String(m.id),
+  active: true,
+}));
+let cloudRevision: string | null = null;
+export function installOllamaCloudCatalog(
+  rows: readonly AiOllamaCloudModel[],
+  checkedAt: string | null,
+): void {
+  if (!rows.length || rows.length > 600) throw new Error('AI_CLOUD_CATALOG_INVALID');
+  const next = rows.map((row) => {
+    const old = MODELS.find((m) => m.provider === 'ollama-cloud' && m.id === row.model);
+    if (
+      typeof row.model !== 'string' ||
+      !/^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,79}$/.test(row.model) ||
+      row.id !== (old ? row.model : 'ollama-cloud/' + row.model) ||
+      typeof row.active !== 'boolean' ||
+      !Array.isArray(row.capabilities) ||
+      !row.capabilities.includes('completion')
+    )
+      throw new Error('AI_CLOUD_CATALOG_INVALID');
+    return {
+      id: row.id,
+      upstream: row.model,
+      provider: 'ollama-cloud' as const,
+      label: old?.label ?? row.model + ' · Ollama Cloud',
+      vision: row.capabilities.includes('vision'),
+      shutdownDate: null,
+      reasoning: null,
+      active: row.active,
+    };
+  });
+  if (new Set(next.map((m) => m.id)).size !== next.length)
+    throw new Error('AI_CLOUD_CATALOG_INVALID');
+  cloudModels = next;
+  cloudRevision = checkedAt;
+}
+function modelEntries() {
+  return [...MODELS.filter((m) => m.provider !== 'ollama-cloud'), ...cloudModels];
+}
 
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI (GPT)', defaultModel: 'gpt-6-luna' },
@@ -100,9 +154,10 @@ export function isAiProvider(value: unknown): value is AiProvider {
 }
 
 export function isAiModel(value: unknown, now = Date.now()): value is AiModel {
-  return MODELS.some(
+  return modelEntries().some(
     (model) =>
       model.id === value &&
+      (!('active' in model) || model.active) &&
       (model.shutdownDate === null || now < Date.parse(model.shutdownDate + 'T00:00:00Z')),
   );
 }
@@ -114,15 +169,30 @@ export function isModelForProvider(
 ): model is AiModel {
   return (
     isAiModel(model, now) &&
-    MODELS.some((candidate) => candidate.id === model && candidate.provider === provider)
+    modelEntries().some((candidate) => candidate.id === model && candidate.provider === provider)
   );
+}
+
+/** Admission remains active-only in SQL/service. Already admitted requests may finish after a catalogue refresh retires their model. */
+export function isKnownOllamaCloudModel(provider: unknown, model: unknown): boolean {
+  return provider === 'ollama-cloud' && cloudModels.some((m) => m.id === model);
 }
 
 export function getAiModelCatalog(now = Date.now()) {
   return {
-    revision: '2026-10-19',
-    providers: PROVIDERS,
-    models: MODELS.map((model) => ({
+    revision: cloudRevision ? '2026-10-19+cloud:' + cloudRevision : '2026-10-19',
+    providers: PROVIDERS.map((p) =>
+      p.id === 'ollama-cloud'
+        ? {
+            ...p,
+            defaultModel:
+              cloudModels.find((m) => m.active && m.id === p.defaultModel)?.id ??
+              cloudModels.find((m) => m.active)?.id ??
+              p.defaultModel,
+          }
+        : p,
+    ),
+    models: modelEntries().map((model) => ({
       id: model.id,
       provider: model.provider,
       label: model.label,
@@ -152,8 +222,11 @@ export function buildAiTextRequest(
   instructions: string,
   stream: boolean,
 ): { url: string; body: Record<string, unknown> } {
-  const descriptor = MODELS.find((candidate) => candidate.id === model);
-  if (!descriptor || !isModelForProvider(provider, model)) {
+  const descriptor = modelEntries().find((candidate) => candidate.id === model);
+  if (
+    !descriptor ||
+    !(isModelForProvider(provider, model) || isKnownOllamaCloudModel(provider, model))
+  ) {
     throw new Error('AI_MODEL_UNAVAILABLE');
   }
   return provider === 'openai'
@@ -178,7 +251,8 @@ export function buildAiTextRequest(
             : 'https://api.deepseek.com/chat/completions',
         body: {
           ...(stream ? { stream_options: { include_usage: true } } : {}),
-          model,
+          model:
+            provider === 'ollama-cloud' && 'upstream' in descriptor ? descriptor.upstream : model,
           messages: [{ role: 'system', content: instructions }, ...context],
           max_tokens: AI_MAX_OUTPUT_TOKENS,
           ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),

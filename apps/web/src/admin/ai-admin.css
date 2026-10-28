@@ -298,3 +298,49 @@
     min-height: 0;
   }
 }
+
+/* Only the Ollama Cloud card gains metadata; other provider layouts are unchanged. */
+.asa-cloud-connection.is-ollama-cloud .asa-cloud-form {
+  gap: 10px;
+}
+.is-ollama-cloud .asa-cloud-fields > label:first-child {
+  order: 2;
+}
+.asa-cloud-metadata {
+  min-width: 0;
+  font-size: 12px;
+  border: 1px solid var(--border, #dce5ec);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.asa-cloud-metadata-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+.asa-cloud-metadata-line button {
+  margin-left: auto;
+  padding: 4px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.asa-cloud-metadata-details {
+  margin-top: 5px;
+  color: var(--ink-muted, #607684);
+}
+.asa-cloud-metadata-details summary {
+  cursor: pointer;
+}
+.asa-cloud-metadata-details > div {
+  display: grid;
+  gap: 5px;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .asa-cloud-metadata-line button {
+    min-height: 44px;
+  }
+}
