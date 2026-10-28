@@ -16,6 +16,7 @@ import type {
   AiImageSize,
 } from '@asa-lab/contracts';
 import { ComfyImageTransport, imageWorkflowDigest } from './ai-image-comfyui.js';
+import { comfyUiRuntimeOrigin } from './ai-comfyui-settings.js';
 import { readBlocksObjectStorageConfig } from './blocks-asset-storage.js';
 import {
   AiAttachmentStorageError,
@@ -162,7 +163,7 @@ export function imageJob(j: ImageJobRow): AiImageGenerationJob {
 /** One dispatch CAS, one provider POST, one immutable object PUT. Recovery only reads. */
 export class AiImageService implements OnModuleInit, OnModuleDestroy {
   private readonly toolPolicy: AiToolPolicyService;
-  private readonly transport: AiImageServiceOptions['transport'] & {};
+  private readonly transport: AiImageServiceOptions['transport'];
   private blobsValue: AiAttachmentBlobStore | undefined;
   private readonly env: NodeJS.ProcessEnv;
   private timer: ReturnType<typeof setInterval> | undefined;
@@ -173,7 +174,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     private readonly options: AiImageServiceOptions = {},
   ) {
     this.toolPolicy = new AiToolPolicyService(pool);
-    this.transport = options.transport ?? new ComfyImageTransport();
+    this.transport = options.transport;
     this.blobsValue = options.blobs;
     this.env = options.env ?? process.env;
   }
@@ -230,10 +231,16 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   private async readiness() {
     try {
       this.blobs();
-      return await this.transport.readiness();
+      return await (await this.provider()).readiness();
     } catch {
       return { ready: false, reason: 'Приватное хранилище изображений недоступно.' };
     }
+  }
+  private async provider() {
+    return (
+      this.transport ??
+      new ComfyImageTransport({ baseUrl: await comfyUiRuntimeOrigin(this.pool, this.env) })
+    );
   }
   async status(owner: string): Promise<AiImageGenerationStatus> {
     const c = await this.value<ImageConfig>('SELECT ai_image_status($1) AS value', [owner]);
@@ -317,7 +324,9 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       if (claimed) {
         // An uncertain CAS response never reaches this branch; this POST is never retried.
         try {
-          await this.transport.dispatch(j.provider_id, j.prompt!, j.size, Number(j.seed), j.marker);
+          await (
+            await this.provider()
+          ).dispatch(j.provider_id, j.prompt!, j.size, Number(j.seed), j.marker);
         } catch {
           /* durable submitting is reconciled by known UUID only */
         }
@@ -498,7 +507,9 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         else await this.transition(j, lease, 'storing');
         return;
       }
-      const result = await this.transport.recover(j.provider_id, j.marker, j.size, j.graph_digest);
+      const result = await (
+        await this.provider()
+      ).recover(j.provider_id, j.marker, j.size, j.graph_digest);
       if (result.state === 'missing') {
         await this.transition(j, lease, 'unknown');
         return;

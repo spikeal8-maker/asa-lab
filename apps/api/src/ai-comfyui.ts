@@ -12,6 +12,7 @@ export interface ComfyUiStatus {
   readonly vaeModels: readonly string[];
   readonly fluxKlein4bFound: boolean;
   readonly checkedAt: string;
+  readonly devices: readonly { name: string; vramTotalBytes: number | null }[];
 }
 
 export class ComfyUiError extends Error {
@@ -41,7 +42,7 @@ async function privateJson(
   } catch {
     throw new ComfyUiError('ai_comfy_unreachable', 503, 'Нет соединения с ComfyUI.');
   }
-  if (!response.ok) {
+  if (!response.ok || response.redirected) {
     throw new ComfyUiError('ai_comfy_unavailable', 503, 'ComfyUI не ответил на запрос.');
   }
   if (!response.body) throw new ComfyUiError('ai_comfy_invalid', 503, 'Ответ ComfyUI пустой.');
@@ -111,6 +112,25 @@ export async function discoverComfyUi(
     typeof system?.comfyui_version === 'string' && system.comfyui_version.length <= 40
       ? system.comfyui_version
       : 'неизвестна';
+  if (version === 'неизвестна')
+    throw new ComfyUiError(
+      'ai_comfy_invalid',
+      503,
+      'Адрес не подтвердил ComfyUI: версия сервера отсутствует.',
+    );
+  const rawDevices = (systemInfo as { devices?: unknown }).devices;
+  const devices = Array.isArray(rawDevices)
+    ? rawDevices
+        .slice(0, 8)
+        .filter((v) => v && typeof v.name === 'string' && v.name.length <= 160)
+        .map((v) => ({
+          name: v.name as string,
+          vramTotalBytes:
+            typeof v.vram_total === 'number' && Number.isFinite(v.vram_total) && v.vram_total > 0
+              ? v.vram_total
+              : null,
+        }))
+    : [];
   const diffusionModels = modelNames(diffusion);
   const textEncoders = modelNames(text);
   const vaeModels = modelNames(vae);
@@ -127,5 +147,6 @@ export async function discoverComfyUi(
     vaeModels,
     fluxKlein4bFound,
     checkedAt: new Date().toISOString(),
+    devices,
   };
 }
