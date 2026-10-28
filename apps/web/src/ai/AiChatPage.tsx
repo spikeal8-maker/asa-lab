@@ -175,7 +175,6 @@ export function AiChatPage({
   const [imageStatus, setImageStatus] = useState<AiImageGenerationStatus | null>(null);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [tokenBudgets, setTokenBudgets] = useState<AiTokenBudgetsOwn | null>(null);
-  const [budgetRefresh, setBudgetRefresh] = useState(0);
   const [selectedModel, setSelectedModel] = useState('');
   const [webSearchStatus, setWebSearchStatus] = useState<AiWebSearchStatus | null>(null);
   const [webSearchMode, setWebSearchMode] = useState<AiWebSearchMode>('auto');
@@ -259,7 +258,7 @@ export function AiChatPage({
     return () => {
       active = false;
     };
-  }, [call, busy, budgetRefresh]);
+  }, [call, busy]);
   const selectedBudget = tokenBudgets?.models?.find(
     (row) => row.model === (selectedModel || status?.model),
   );
@@ -1980,29 +1979,11 @@ export function AiChatPage({
               </div>
             </div>
           )}
-          {selectedBudget && !imageMode ? (
+          {!imageMode && selectedBudget?.available === false ? (
             <p className="chat-runtime-note" role="status">
-              Подтверждено токенов модели за месяц: {selectedBudget.used} · Резерв:{' '}
-              {selectedBudget.held} · Остаток личного бюджета:{' '}
-              {selectedBudget.remaining ?? 'без лимита'}.
-              {selectedBudget.pendingUnknown
-                ? ' Часть расхода неизвестна; резерв сохранён без срока истечения.'
-                : ''}
               {selectedBudget.reason === 'ai_budget_pending'
-                ? ' Новые ответы временно недоступны: токены зарезервированы или расход не подтверждён.'
-                : selectedBudget.reason === 'ai_budget_exhausted'
-                  ? ' Новые ответы недоступны: месячный бюджет модели исчерпан.'
-                  : ''}{' '}
-              Новый период:{' '}
-              {new Date(tokenBudgets!.resetAt).toLocaleString('ru-RU', { timeZone: 'UTC' })} UTC.
-              Начатый ответ завершается полностью.
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setBudgetRefresh((value) => value + 1)}
-              >
-                Проверить остаток
-              </button>
+                ? 'Новые ответы временно недоступны: расход ожидает подтверждения.'
+                : 'Новые ответы недоступны: месячный бюджет модели исчерпан.'}
             </p>
           ) : null}
           {visibleError || schoolAdmission || archived || (!busy && pendingRegeneration) ? (

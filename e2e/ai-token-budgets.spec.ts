@@ -175,7 +175,32 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
         ).not.toBe(backgrounds[0]);
       }
     }
+    async function checkChatAccountingHidden(exhausted = false) {
+      const loaded = page.waitForResponse(
+        (response) => response.url().endsWith('/api/ai/token-budgets') && response.status() === 200,
+      );
+      await page.goto('/#/ai');
+      await loaded;
+      const chat = page.locator('.asa-ai-layout');
+      await expect(chat).toBeVisible();
+      await expect(chat).not.toContainText(
+        /Подтверждено токенов|Резерв:|Остаток личного бюджета|Новый период:/,
+      );
+      await expect(chat.getByRole('button', { name: 'Проверить остаток' })).toHaveCount(0);
+      if (exhausted) {
+        await expect(
+          chat.getByRole('status').filter({ hasText: 'месячный бюджет модели исчерпан' }),
+        ).toBeVisible();
+        await chat.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Новый ответ');
+        await expect(
+          chat.getByRole('button', { name: 'Отправить сообщение', exact: true }),
+        ).toBeDisabled();
+      }
+      await page.goto('/#/admin/ai?section=settings');
+      await expect(row).toBeVisible();
+    }
     await capture('before-limits');
+    await checkChatAccountingHidden();
     await row.getByLabel('Общий лимит в месяц', { exact: true }).fill('');
     await row.getByLabel('Лимит каждого пользователя в месяц', { exact: true }).fill('1');
     await budgets.getByRole('button', { name: 'Сохранить лимиты токенов' }).click();
@@ -199,6 +224,7 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       await page.reload();
       await expect(row).toContainText('Резерв: ' + pending.models[0].held);
       await capture('pending-admitted-answer', [390]);
+      await checkChatAccountingHidden();
     } finally {
       releaseAnswer();
     }
@@ -240,6 +266,8 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     });
     await expect(row).toContainText('Подтверждено токенов всего: 12');
     await capture('after-limits');
+    await checkChatAccountingHidden(true);
+    expect(calls).toHaveLength(1);
     // Leaving Settings removes the shell opt-in; Prompt retains its own layout.
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.getByRole('tab', { name: 'Системный промпт', exact: true }).click();

@@ -2169,11 +2169,41 @@ test('AI theme is explicitly light by default and respects the chosen appearance
   expect(
     await root.evaluate((node) => getComputedStyle(node).getPropertyValue('--ai-danger').trim()),
   ).toBe('#ff9c98');
+  async function checkMenu(theme: 'light' | 'dark') {
+    // Deliberately oppose the OS preference: the chat toggle owns this menu.
+    await page.emulateMedia({ colorScheme: theme === 'dark' ? 'light' : 'dark' });
+    const tools = root.locator('.chat-tools-menu');
+    await tools.locator('summary').click();
+    const popup = tools.locator('.chat-tools-popup');
+    await page.mouse.move(0, 0);
+    const surface = theme === 'dark' ? 'rgb(29, 29, 31)' : 'rgb(255, 255, 255)';
+    const text = theme === 'dark' ? 'rgb(245, 245, 245)' : 'rgb(32, 33, 35)';
+    await expect(popup).toHaveCSS('background-color', surface);
+    await expect(popup).toHaveCSS('color', text);
+    await expect(popup).toHaveCSS('color-scheme', theme);
+    await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
+    const select = tools.getByRole('combobox', { name: 'Генерация изображений' });
+    await expect(select).toHaveCSS('background-color', surface);
+    await expect(select).toHaveCSS('color', text);
+    await expect(select.locator('option').first()).toHaveCSS('background-color', surface);
+    await select.focus();
+    await expect(select).toHaveCSS('outline-width', '2px');
+    await select.hover();
+    await expect(select).toHaveCSS(
+      'background-color',
+      theme === 'dark' ? 'rgb(50, 50, 53)' : 'rgb(234, 234, 234)',
+    );
+    await select.selectOption('auto');
+    await expect(select).toHaveValue('auto');
+    await tools.locator('summary').click();
+  }
+  await checkMenu('dark');
   await page.reload();
   await expect(root).toHaveAttribute('data-chat-theme', 'dark');
   await page.getByRole('button', { name: 'Светлая тема чата' }).click();
   await expect(root).toHaveAttribute('data-chat-theme', 'light');
   await expect(root).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await checkMenu('light');
 });
 
 for (const width of [320, 390, 1024, 1440]) {
