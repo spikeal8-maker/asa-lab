@@ -26,7 +26,12 @@ afterEach(async () => {
 });
 async function render(classroomId = 'class-a', seatId?: string) {
   await act(async () => {
-    root.render(createElement(ClassroomProjectSettings, { classroomId, seatId }));
+    root.render(
+      createElement(ClassroomProjectSettings, {
+        classroomId,
+        ...(seatId === undefined ? {} : { seatId }),
+      }),
+    );
   });
 }
 async function click(element: Element) {

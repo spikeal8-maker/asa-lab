@@ -49,6 +49,7 @@ const expectedPending = [
   '0267', // Additive frozen Courses completion repair, no data rewrite.
   '0268', // Additive read-only AI usage overview.
   '0269', // Exact public Scratch player and version-scoped asset reads.
+  '0270', // Audited class/Seat distribution and immutable publication admission.
 ];
 
 interface Identity {

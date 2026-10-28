@@ -503,3 +503,36 @@ AFTER UPDATE OF status ON public.classrooms FOR EACH ROW
 WHEN(OLD.status IS DISTINCT FROM NEW.status)
 EXECUTE FUNCTION public.project_publication_editorial_seat_policy_bump();
 REVOKE ALL ON FUNCTION public.project_publication_editorial_seat_policy_bump() FROM PUBLIC,asalab_app;
+
+-- Learner/link eligibility is also part of Seat publication readability. A
+-- disable/restore cycle must not revive editorial or pin decisions made before
+-- that loss of authority. Immutable link lineage supplies the exact Seat set.
+CREATE FUNCTION public.project_publication_editorial_learner_policy_bump()
+RETURNS trigger LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_seats uuid[];
+BEGIN
+ IF TG_TABLE_NAME='learner_identities' THEN
+   SELECT array_agg(link.seat_id) INTO v_seats FROM public.learner_identity_links link
+   WHERE link.learner_identity_id=NEW.id AND link.link_kind='student_seat'
+     AND link.tenant_id=NEW.tenant_id AND link.school_id=NEW.school_id;
+ ELSE
+   v_seats:=ARRAY[NEW.seat_id];
+ END IF;
+ INSERT INTO public.project_publication_editorial_lifecycle AS epoch(publication_id,lifecycle_version)
+ SELECT state.id,1 FROM public.project_publication_state state
+ JOIN public.principals actor ON actor.id=state.owner_principal_id AND actor.kind='student_seat'
+ WHERE state.tenant_id=NEW.tenant_id AND actor.seat_id=ANY(v_seats)
+ ORDER BY state.id
+ ON CONFLICT(publication_id) DO UPDATE SET lifecycle_version=epoch.lifecycle_version+1;
+ RETURN NEW;
+END; $$;
+CREATE TRIGGER project_publication_editorial_learner_state_update
+AFTER UPDATE OF state ON public.learner_identities FOR EACH ROW
+WHEN(OLD.state IS DISTINCT FROM NEW.state)
+EXECUTE FUNCTION public.project_publication_editorial_learner_policy_bump();
+CREATE TRIGGER project_publication_editorial_learner_link_update
+AFTER UPDATE OF status,disabled_at ON public.learner_identity_links FOR EACH ROW
+WHEN(NEW.link_kind='student_seat' AND
+ (OLD.status IS DISTINCT FROM NEW.status OR OLD.disabled_at IS DISTINCT FROM NEW.disabled_at))
+EXECUTE FUNCTION public.project_publication_editorial_learner_policy_bump();
+REVOKE ALL ON FUNCTION public.project_publication_editorial_learner_policy_bump() FROM PUBLIC,asalab_app;

@@ -229,6 +229,11 @@ const upgradeArtifacts = [
     '0269_public_scratch_player.sql',
     'c52c18d59e636f33da852645786dec2e8a0aa2525736c650e7e088e0294a5ba7',
   ],
+  [
+    '0270',
+    '0270_student_project_distribution.sql',
+    '955f2846087151970dd713110b7de94b938a42cb43047cd186a9bbea280eafec',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

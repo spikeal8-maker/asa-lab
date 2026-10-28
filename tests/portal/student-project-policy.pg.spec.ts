@@ -354,4 +354,123 @@ describe('StudentSeat actual immutable publication and audited permissions', () 
       ).rows[0].data,
     ).toBeNull();
   });
+  it.each(['learner', 'link'] as const)(
+    'retires both featured and pinned decisions after %s disable and restore',
+    async (target) => {
+      const f = await fixture();
+      await f.write({ publish: true, download: false, expectedVersion: 0 });
+      const publication = (await f.publish()).publication;
+      const identity = (
+        await admin.query(
+          "SELECT id,learner_identity_id FROM learner_identity_links WHERE seat_id=$1 AND link_kind='student_seat'",
+          [f.seatId],
+        )
+      ).rows[0];
+      const epoch = async () =>
+        (
+          await admin.query(
+            'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+            [publication.publicationId],
+          )
+        ).rows[0].lifecycle_version as number;
+      const flags = async () =>
+        (
+          await runtime.query(
+            'SELECT project_publication_featured($1,$2) featured,project_publication_pinned($1,$2) pinned',
+            [publication.publicationId, publication.revisionId],
+          )
+        ).rows[0];
+      const initialEpoch = await epoch();
+      await admin.query(
+        `INSERT INTO project_publication_editorial(publication_id,revision_id,featured,editorial_version,moderation_version,lifecycle_version,actor_principal_id)
+      VALUES($1,$2,true,1,0,$3,$4)`,
+        [publication.publicationId, publication.revisionId, initialEpoch, f.actor],
+      );
+      await admin.query(
+        `INSERT INTO project_publication_pin(publication_id,revision_id,pinned,pin_version,moderation_version,lifecycle_version,actor_principal_id)
+      VALUES($1,$2,true,1,0,$3,$4)`,
+        [publication.publicationId, publication.revisionId, initialEpoch, f.actor],
+      );
+      expect(await flags()).toEqual({ featured: true, pinned: true });
+      // Ordinary metadata and no-op updates of dependency columns do not retire decisions.
+      await admin.query('UPDATE learner_identities SET updated_at=now(),state=state WHERE id=$1', [
+        identity.learner_identity_id,
+      ]);
+      await admin.query(
+        "UPDATE learner_identity_links SET created_at=created_at+interval '1 second',status=status,disabled_at=disabled_at WHERE id=$1",
+        [identity.id],
+      );
+      expect(await epoch()).toBe(initialEpoch);
+      await f.write({ publish: false, download: true, expectedVersion: 1 });
+      expect(await epoch()).toBe(initialEpoch);
+      expect(await flags()).toEqual({ featured: true, pinned: true });
+      expect(
+        (
+          await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+            publication.publicationId,
+          ])
+        ).rows,
+      ).toHaveLength(1);
+      if (target === 'learner') {
+        await admin.query("UPDATE learner_identities SET state='inactive' WHERE id=$1", [
+          identity.learner_identity_id,
+        ]);
+      } else {
+        await admin.query(
+          "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE id=$1",
+          [identity.id],
+        );
+      }
+      expect(await epoch()).toBe(initialEpoch + 1);
+      expect(await flags()).toEqual({ featured: false, pinned: false });
+      expect(
+        (
+          await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+            publication.publicationId,
+          ])
+        ).rows,
+      ).toHaveLength(0);
+      if (target === 'learner') {
+        await admin.query("UPDATE learner_identities SET state='active' WHERE id=$1", [
+          identity.learner_identity_id,
+        ]);
+      } else {
+        // disabled_at itself is an eligibility dependency, even when status is unchanged.
+        await admin.query(
+          "UPDATE learner_identity_links SET disabled_at=disabled_at+interval '1 second' WHERE id=$1",
+          [identity.id],
+        );
+        expect(await epoch()).toBe(initialEpoch + 2);
+        await admin.query(
+          "UPDATE learner_identity_links SET status='active',disabled_at=NULL WHERE id=$1",
+          [identity.id],
+        );
+      }
+      expect(await epoch()).toBe(initialEpoch + (target === 'learner' ? 2 : 3));
+      expect(
+        (
+          await runtime.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+            publication.publicationId,
+          ])
+        ).rows,
+      ).toHaveLength(1);
+      expect(await flags()).toEqual({ featured: false, pinned: false });
+      expect(
+        (
+          await admin.query(
+            'SELECT featured,lifecycle_version FROM project_publication_editorial WHERE publication_id=$1',
+            [publication.publicationId],
+          )
+        ).rows[0],
+      ).toEqual({ featured: true, lifecycle_version: initialEpoch });
+      expect(
+        (
+          await admin.query(
+            'SELECT pinned,lifecycle_version FROM project_publication_pin WHERE publication_id=$1',
+            [publication.publicationId],
+          )
+        ).rows[0],
+      ).toEqual({ pinned: true, lifecycle_version: initialEpoch });
+    },
+  );
 });
