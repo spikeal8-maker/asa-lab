@@ -1,3 +1,4 @@
+import { reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
 import type pg from 'pg';
 import type {
   AiGenerationPolicy,
@@ -270,6 +271,7 @@ export class AiGenerationPolicyStore {
     const row = await this.row(actor);
     if (!row)
       throw new AiPolicyError('ai_policy_unavailable', 503, 'Настройки генерации недоступны.');
+    await reloadOllamaCloudCatalog(this.pool);
     const catalog = getAiModelCatalog();
     return {
       schemaVersion: 1,
@@ -299,6 +301,7 @@ export class AiGenerationPolicyStore {
     };
   }
   async save(actor: string, input: unknown, encryptionReady: boolean) {
+    await reloadOllamaCloudCatalog(this.pool);
     const v = validPolicyInput(input);
     try {
       await this.pool.query('SELECT ai_generation_policy_set($1,$2::jsonb,$3::uuid)', [

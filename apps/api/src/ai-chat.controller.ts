@@ -393,7 +393,16 @@ export class AiChatController {
     if (body['webSearchMode'] !== undefined || body['weatherCity'] !== undefined)
       return reject('ai_request_id_reused', 'Вариант использует источники исходного вопроса.', 409);
     const model = body['model'];
-    if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
+    if (
+      model !== undefined &&
+      model !== OLLAMA_SELECTION &&
+      !isAiModel(model) &&
+      !(
+        typeof model === 'string' &&
+        model.startsWith('ollama-cloud/') &&
+        (await this.ai.isDiscoveredCloudModel(model))
+      )
+    ) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
     return this.streamResponse(
@@ -432,7 +441,16 @@ export class AiChatController {
     const message = body['message'] as string;
     const requestId = (body['requestId'] as string).toLowerCase();
     const model = body['model'];
-    if (model !== undefined && model !== OLLAMA_SELECTION && !isAiModel(model)) {
+    if (
+      model !== undefined &&
+      model !== OLLAMA_SELECTION &&
+      !isAiModel(model) &&
+      !(
+        typeof model === 'string' &&
+        model.startsWith('ollama-cloud/') &&
+        (await this.ai.isDiscoveredCloudModel(model))
+      )
+    ) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
 

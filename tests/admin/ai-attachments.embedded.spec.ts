@@ -21,8 +21,28 @@ let prior: {
 
 beforeAll(async () => {
   db = new PGlite();
+  let historicalBootstrap = true;
   const adapter = {
     query: async (sql: string, params?: unknown[]) => {
+      // This test deliberately prepares pre-0229 OpenAI history with today's service.
+      // The unrelated read-only Cloud catalogue did not exist in that schema.
+      if (historicalBootstrap && sql === 'SELECT ai_ollama_cloud_catalog_runtime() AS value')
+        return {
+          rows: [
+            {
+              value: {
+                checkedAt: null,
+                models: ['gemma4:31b', 'gpt-oss:120b', 'gpt-oss:20b'].map((model) => ({
+                  id: model,
+                  model,
+                  active: true,
+                  capabilities: ['completion'],
+                })),
+              },
+            },
+          ],
+        };
+
       if (params?.length) return db.query(sql, params);
       const results = await db.exec(sql);
       return { rows: results.at(-1)?.rows ?? [] };
@@ -108,6 +128,7 @@ beforeAll(async () => {
     ).rows,
   };
   await applyPlan(adapter, plan);
+  historicalBootstrap = false;
   expect(f.upstream).not.toHaveBeenCalled();
 }, 30000);
 
