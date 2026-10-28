@@ -3186,19 +3186,53 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: ready
-      checkpoint: ui05_real_functional_verification_pending
+      checkpoint: ui05_b1b_technical_accepted_b1c_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
           revision: '1.0'
       owner_authorization: >-
-        Owner Issue #755 and the 2026-10-27 handoff authorize only this bounded
-        UI-05 governance selection proposal. UI-04 (#734 / PR #736) remains
-        integrated and recorded in accepted_slices. This Draft proposal does not
-        authorize B1-B6, product or test file edits, main merge, deployment, or
-        any school/production data action. A separate controller-accepted main
-        selection and fresh scoped preflight are required before a product author
-        may begin UI-05 verification.
+        Owner's 2026-10-28 full Classes programme instruction authorizes sequential
+        bounded development, independent review and ordinary protected GitHub
+        integration under #715/#755. It supersedes the earlier governance-only
+        proposal restriction. UI-04 remains accepted. Only the selected B1c
+        test-only evidence slice below is authorized for the next product author;
+        B2-B6 require subsequent controller selection. No deployment or live data.
+      b1b_integration_receipt:
+        source_pr: 810
+        source_sha: afb648b02c36afde227624f491ae6aaf40f99cc8
+        integrated_sha: 38c95393ff49b7036fc46be3a42d1902135c7816
+        scope: builtin_award_browser_receipt_reload_and_negative_acl_evidence
+        independent_review: approved
+        review_url: https://github.com/spikeal8-maker/asa-lab/pull/810#issuecomment-6466405655
+        exact_source_general_run: 40634277849
+        exact_source_classroom_run: 40634277847
+        exact_source_ci: success
+        post_merge_general_run: 40671271382
+        post_merge_ci: cancelled
+        exact_merge_evidence_ref: codex/ui05-b1b-merge-evidence-38c95393
+        exact_merge_general_run: 40672285681
+        exact_merge_ci: success
+        status: technical_accepted_builtin_evidence_only
+        complete_b1_acceptance: pending_custom_merit_evidence
+        owner_acceptance: pending
+        deployment: not_run
+      selected_slice:
+        id: UI05-B1c
+        status: ready
+        change_class: L3_CRITICAL
+        kind: test_only_evidence
+        write_paths:
+          - e2e/classroom-participants.spec.ts
+        start_requires: B1b exact merge General success, accepted main selection and fresh targeted SAFE_TO_START.
+        acceptance: >-
+          Extend the existing real Web/API/PostgreSQL custom-merit journey to
+          prove grant/revoke receipt and direct persisted read agreement, own
+          learner merit visibility after F5 and fresh login, peer isolation and
+          action-specific grant AND revoke HTTP negative ACL with immediate
+          unchanged target reads. Preserve existing builtin-award/secret-avatar
+          assertions and all scenarios, retries and timeouts. Require exact-SHA
+          Classroom Owner and General success plus independent L3 review.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
         - https://github.com/spikeal8-maker/asa-lab/issues/589#issuecomment-6247088153
@@ -3209,28 +3243,26 @@ parallel_lanes:
         - https://github.com/spikeal8-maker/asa-lab/issues/734#issuecomment-6387720711
         - https://github.com/spikeal8-maker/asa-lab/issues/755
       scope: >-
-        UI-05 (#755): verify preservation of existing real student-profile actions
-        after accepted UI-04 (#734 / PR #736): merits and awards, ordinary/class/
-        secret avatars, helperClasses, Student Code/access cards, role-based ACL,
-        ten profile tabs and responsive keyboard/mobile navigation. Any subsequent
-        repair is bounded to proven UI-05 regressions with real API/browser and
-        negative authorization evidence. This governance-only change makes no
-        product or test edits; UI-04 remains accepted, and independent controller
-        acceptance of this proposal in main is required before verification.
+        UI-05/B1c (#755) only: close the independently identified custom-merit
+        evidence gaps in the existing classroom-participants browser journey.
+        Existing PG grant/revoke and UI secret-avatar effects are not complete
+        B1 receipt/reload/isolation/ACL evidence. No product defect is assumed;
+        any demonstrated product/API/SQL defect requires separate selection.
       coordinated_paths:
+        - e2e/classroom-participants.spec.ts
         - apps/web/src/pages/ClassroomStudentPage.tsx
         - .github/workflows/teacher-student-profile-ui.yml
       path_coordination: >-
-        Existing Learning owned_paths and integration.shared_paths remain unchanged.
-        The two coordinated paths are within this bounded UI task but are not claimed twice;
-        controller must coordinate a single writer with Learning/integration before edits.
-        owned_paths plus coordinated_paths are the complete permitted path set; no tooling changes.
+        Existing owned_paths and other lane selections are preserved as historical
+        context, not current write scope. Only selected_slice.write_paths may be
+        edited for B1c after fresh overlap checks; no tooling or Surface Map edit.
+        The existing sensitive Surface Map already maps this E2E as L3_CRITICAL.
       constraints:
-        - Selection must be accepted on GitHub main before the separate product author inherits it and starts edits; this governance branch authorizes no product writes.
-        - This UI-05 governance proposal changes only docs/execution/current.yaml; B1-B6, React, CSS, API, SQL, E2E, and deployment are excluded until separately authorized after main acceptance.
+        - This controller-only selection must be accepted on GitHub main before the separate B1c author inherits it; no product or test edits occur in this state update.
+        - B1b exact merge General passed; B1c authoring still requires accepted main selection and fresh targeted SAFE_TO_START. B2-B6 and full B1 acceptance remain pending.
         - Issue #753 owns existing ten-tab navigation baseline tests; do not edit its two test files without explicit coordination.
         - Preserve every existing lane selection; one product writer per path, independent read-only exact-final-SHA reviewer and separate controller.
-        - Stage only explicitly reviewed bounded owned/coordinated paths; never include another writer's changes or protected assets/backups.
+        - Stage only selected_slice.write_paths for B1c; never include another writer's changes or protected assets/backups.
         - No API, SQL, Auth/permissions, grade semantics or shared component expansion without a separate audited slice.
         - ClassroomParticipantPanels.tsx is shared with student self-results; preserve existing consumers and require regression evidence for any teacher variant.
         - Cross-class grades BLOCKED pending a separate canonical learner identity/API authorization slice with denied, unlinked, revoked and cross-tenant tests; helperClasses is not that contract.
@@ -3242,13 +3274,13 @@ parallel_lanes:
         - Additional canonical tooling/Surface Map selector, if required, needs separate authorization; do not modify tooling in this slice or claim targeted routing exists.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1c41341a492f0318cec49b5ab8d32eb622c6e54d
+      convergence_baseline_sha: 38c95393ff49b7036fc46be3a42d1902135c7816
       head_sha: null
-      observed_at: '2026-10-27T10:38:40Z'
+      observed_at: '2026-10-28T10:19:58Z'
       main:
         branch: main
-        sha: 4957352d412fb532afae1830ebc9812b609a1497
-      observation_note: Dated main snapshot for the UI-05 governance proposal only; fetch main before writes. Draft selection is not effective until controller-approved integration in main; no UI, CI success, owner acceptance or deployment is claimed.
+        sha: 38c95393ff49b7036fc46be3a42d1902135c7816
+      observation_note: Dated B1b receipt; source CI and independent review passed; initial main General was cancelled by a concurrent push, then the identical merge SHA passed all four General jobs on its immutable evidence ref. Fetch main and refresh exact-SHA CI before writes. Only builtin evidence is technically accepted; complete B1, UI-05, deployment and owner visual acceptance remain pending.
     execution_lease:
       executor_id: teacher-student-profile-ui-589
       holder: unassigned
@@ -3262,10 +3294,9 @@ parallel_lanes:
           - pnpm gate:code
           - pnpm test apps/web/src/components/testing/classroom-student-navigation.spec.ts
       browser:
-        # Planned workflow/test: product author must implement and run them before acceptance.
-        workflow: Teacher Student Profile UI
+        workflow: Classroom Owner Real Scenarios
         commands:
-          - pnpm e2e:access-a e2e/classroom-student-profile.spec.ts --config=playwright.config.ts --workers=1 --reporter=list
+          - pnpm e2e:access-a
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
