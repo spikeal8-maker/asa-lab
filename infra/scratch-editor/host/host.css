@@ -54,6 +54,8 @@ body {
 }
 [data-public-player='true'] [class*='stage-header_stage-menu-wrapper_'] {
   width: var(--asa-player-width) !important;
+  box-sizing: border-box;
+  padding-inline-end: 44px;
   max-width: 100%;
   margin-inline: auto;
 }

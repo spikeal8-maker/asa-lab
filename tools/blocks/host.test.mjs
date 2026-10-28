@@ -598,6 +598,10 @@ test('publication fit CSS matches pinned native stage and header inline sizing',
     /stage-header_stage-menu-wrapper_'\] \{\s*width: var\(--asa-player-width\) !important;/,
   );
   assert.equal(css.includes('stage-wrapper_stage-menu-wrapper_'), false);
+  assert.match(
+    css,
+    /stage-header_stage-menu-wrapper_'\] \{[^}]*box-sizing: border-box;[^}]*padding-inline-end: 44px;/,
+  );
 });
 
 test('only publication players fit native 4:3 coordinates on resize and disconnect on teardown', async () => {

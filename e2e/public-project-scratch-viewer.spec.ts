@@ -173,6 +173,22 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     await guest.waitForTimeout(300);
     expect(Number(await counter.innerText())).toBe(stopped);
     const assertStageFits = async () => {
+      const logo = frame.getByRole('img', { name: 'Scratch', exact: true });
+      await expect(logo).toBeVisible();
+      await expect
+        .poll(async () => {
+          const brand = await logo.boundingBox();
+          const expand = await guest.getByTestId('public-scratch-fullscreen').boundingBox();
+          return Boolean(
+            brand &&
+            expand &&
+            (brand.x + brand.width <= expand.x ||
+              expand.x + expand.width <= brand.x ||
+              brand.y + brand.height <= expand.y ||
+              expand.y + expand.height <= brand.y),
+          );
+        })
+        .toBe(true);
       await expect
         .poll(async () =>
           frame.locator('[class*="stage-header_stage-menu-wrapper_"]').evaluate((element) => {
