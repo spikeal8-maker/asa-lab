@@ -169,9 +169,16 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       context: string,
       targetClassId = classId,
       targetSeatId = seatId,
+      watched: ReadonlyArray<readonly [string, string]> = [[classId, seatId]],
     ) => {
-      const before = await readAwards();
+      const snapshot = () =>
+        Promise.all(
+          watched.map(([watchedClassId, watchedSeatId]) =>
+            readAwards(watchedClassId, watchedSeatId),
+          ),
+        );
       for (const granted of [true, false]) {
+        const before = await snapshot();
         const denied = await requester.post(writePath(targetClassId), {
           headers: { origin },
           data: {
@@ -186,7 +193,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
           denied.status(),
           `${context}: ${granted ? 'grant' : 'revoke'}: ${await denied.text()}`,
         ).toBe(expectedStatus);
-        expect(await readAwards()).toEqual(before);
+        expect(await snapshot()).toEqual(before);
       }
     };
     const awardGrid = page.getByTestId('seat-award-grid');
@@ -240,12 +247,31 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     expect(grantReceipt.rows[0]!.result).toEqual(savedAwards);
     const savedBadge = savedAwards.items.find((item) => item.awardKey === awardKey);
     expect(savedBadge).toMatchObject({ awardKey, note: awardNote });
-    expect(savedBadge!.awardedBy.length).toBeGreaterThan(0);
+    expect(savedBadge!.awardedBy).toBe('Педагог participants');
     expect(Number.isFinite(Date.parse(savedBadge!.createdAt))).toBe(true);
+    const teacherSessionResponse = await page.request.get('/api/auth/me');
+    expect(teacherSessionResponse.status(), await teacherSessionResponse.text()).toBe(200);
+    const storedTeacherZone = ((await teacherSessionResponse.json()) as { timeZone: string | null })
+      .timeZone;
+    const schoolZone =
+      storedTeacherZone ??
+      (await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'));
+    const expectedBadgeDate = await page.evaluate(
+      ({ createdAt, timeZone }) =>
+        new Intl.DateTimeFormat('ru-RU', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          timeZone,
+        }).format(new Date(createdAt)),
+      { createdAt: savedBadge!.createdAt, timeZone: schoolZone },
+    );
     await expect(badgeButton).toHaveAttribute('aria-pressed', 'true');
     await expect(badgeButton).toContainText(awardNote);
     await expect(badgeButton.locator('em')).toContainText(savedBadge!.awardedBy);
-    expect(await badgeButton.locator('em').innerText()).toMatch(/\d/);
+    await expect(badgeButton.locator('em')).toHaveText(
+      `${savedBadge!.awardedBy} · ${expectedBadgeDate}`,
+    );
     await page.screenshot({ path: `${evidence}/builtin-teacher-granted.png`, fullPage: true });
 
     // The learner sees the same server record but never receives teacher controls.
@@ -345,8 +371,26 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       }
     ).student.id;
     expect((await readAwards(otherClassId, otherSeatId)).items).toEqual([]);
-    await expectDenied(page.request, 403, 'wrong class for seat', otherClassId, seatId);
-    await expectDenied(page.request, 403, 'foreign seat for class', classId, otherSeatId);
+    const watchedSeats: ReadonlyArray<readonly [string, string]> = [
+      [classId, seatId],
+      [otherClassId, otherSeatId],
+    ];
+    await expectDenied(
+      page.request,
+      403,
+      'wrong class for seat',
+      otherClassId,
+      seatId,
+      watchedSeats,
+    );
+    await expectDenied(
+      page.request,
+      403,
+      'foreign seat for class',
+      classId,
+      otherSeatId,
+      watchedSeats,
+    );
     expect((await readAwards(otherClassId, otherSeatId)).items).toEqual([]);
 
     // An educator in the same tenant cannot mutate a class without membership.
@@ -414,7 +458,9 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       data: { status: 'archived' },
     });
     expect(archivedResponse.status(), await archivedResponse.text()).toBe(201);
-    await expectDenied(page.request, 409, 'archived classroom', otherClassId, otherSeatId);
+    await expectDenied(page.request, 409, 'archived classroom', otherClassId, otherSeatId, [
+      [otherClassId, otherSeatId],
+    ]);
     expect((await readAwards(otherClassId, otherSeatId)).items).toEqual([]);
 
     await page.getByLabel('Название заслуги').fill('Мастер класса');
@@ -525,7 +571,20 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       .getByRole('button', { name: /^Данные и роль/ });
     await identity.click();
     const role = page.getByRole('combobox', { name: 'Роль ученика в настройках' });
+    const roleResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith(`/api/classrooms/${classId}/participants/actions/role`),
+    );
     await role.selectOption('helper');
+    const changedRole = await roleResponse;
+    expect(changedRole.ok(), await changedRole.text()).toBe(true);
+    const savedRoleResponse = await page.request.get(
+      `/api/classrooms/${classId}/participants/${seatId}/profile`,
+    );
+    expect(savedRoleResponse.status(), await savedRoleResponse.text()).toBe(200);
+    const savedRole = (await savedRoleResponse.json()) as { metrics: { role: string } };
+    expect(savedRole.metrics.role).toBe('helper');
     await expect(role).toHaveValue('helper');
     await expectDenied(student.request, 401, 'learner helper without educator capability');
     await page
