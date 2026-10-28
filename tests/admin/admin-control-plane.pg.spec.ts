@@ -677,7 +677,20 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
         auditEvents24h: expect.any(Number),
       },
     });
-    expect(JSON.stringify(body)).not.toMatch(/password|token|databaseUrl|ipAddress/i);
+    // This exact public migration identifier contains "token" but is not a credential.
+    // Keep scanning every field and every other value, including migration metadata.
+    const migration = body['migration'] as Record<string, unknown>;
+    const publicMetadataBody = {
+      ...body,
+      migration: {
+        ...migration,
+        name:
+          migration['name'] === 'ai_monthly_token_budgets'
+            ? '[public migration name]'
+            : migration['name'],
+      },
+    };
+    expect(JSON.stringify(publicMetadataBody)).not.toMatch(/password|token|databaseUrl|ipAddress/i);
     const audit = await admin.query<{ count: string }>(
       `SELECT count(*)::text AS count
          FROM administrative_audit_events

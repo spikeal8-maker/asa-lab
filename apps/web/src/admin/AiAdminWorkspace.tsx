@@ -4,6 +4,7 @@ import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
+import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
 import { AdminAiUsageOverview } from './AdminAiUsageOverview';
 import type { AiAdminConfig } from './ai-model-config';
 import {
@@ -17,6 +18,7 @@ import {
 import { call } from './admin-api';
 import './ai-ollama.css';
 import './ai-admin.css';
+import './ai-settings.css';
 
 interface LocalState {
   enabled: boolean;
@@ -133,7 +135,7 @@ function AiAdminWorkspaceSession({
     if (!cloud) return 'Проверяем';
     const slot = cloud.providerConfigurations.find((entry) => entry.provider === value);
     if (!slot?.apiKeyConfigured) return 'Нет ключа';
-    return cloud.enabled && cloud.provider === value ? 'Включён' : 'Ключ сохранён';
+    return slot.enabled ? 'Включён' : 'Ключ сохранён';
   }
 
   return (
@@ -229,8 +231,14 @@ function AiAdminWorkspaceSession({
           )}
         </section>
       ) : section === 'prompt' || section === 'settings' ? (
-        <div id={'ai-panel-' + section} role="tabpanel" aria-labelledby={'ai-tab-' + section}>
+        <div
+          id={'ai-panel-' + section}
+          role="tabpanel"
+          aria-labelledby={'ai-tab-' + section}
+          className={section === 'settings' ? 'asa-ai-settings' : undefined}
+        >
           <AdminAiGenerationPolicy section={section} onAccessDenied={onAccessDenied} />
+          {section === 'settings' ? <AdminAiTokenBudgets onAccessDenied={onAccessDenied} /> : null}
         </div>
       ) : section === 'internet' ? (
         <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">

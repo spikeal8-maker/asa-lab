@@ -324,7 +324,7 @@
 }
 .asa-cloud-key-row {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 62px;
+  grid-template-columns: 18px minmax(0, 1fr) 92px;
   gap: 6px;
   align-items: start;
   padding: 8px 0;
@@ -368,10 +368,10 @@
   padding-top: 3px;
 }
 .asa-cloud-key-order button {
-  min-width: 28px;
+  min-width: 44px;
 }
 .asa-cloud-key-pool button {
-  min-height: 32px;
+  min-height: 44px;
   cursor: pointer;
   font: inherit;
 }
@@ -400,8 +400,22 @@
   gap: 6px;
   align-items: start;
 }
+/* Opt native checkboxes out of the global full-width input rule. Each flex
+ * label owns a 17px control and a wrapping text slot, not a full-width input. */
 .asa-cloud-key-editor input[type='checkbox'] {
-  flex: 0 0 auto;
+  flex: 0 0 17px;
+  width: 17px;
+  height: 17px;
+  margin: 2px 0 0;
+  padding: 0;
+}
+.asa-cloud-key-editor .asa-cloud-key-check,
+.asa-cloud-key-models label {
+  min-height: 44px;
+}
+.asa-cloud-key-models label > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .asa-cloud-key-editor fieldset {
   min-width: 0;

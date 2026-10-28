@@ -223,6 +223,14 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
           keyFingerprint: hasKey ? 'abcdef123456' : null,
           configurationVersion: hasKey ? 2 : 1,
           updatedAt: NOW,
+          providerConfigurations: aiAdminFixture({
+            enabled,
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            apiKeyConfigured: hasKey,
+          }).providerConfigurations.map((slot) =>
+            slot.provider === 'openai' ? { ...slot, revision: hasKey ? 2 : 1 } : slot,
+          ),
         }),
       );
     }
@@ -1853,6 +1861,7 @@ for (const width of [1440, 600, 390, 320]) {
           elapsedMs: 120,
           testedAt: NOW,
           configurationVersion: 2,
+          providerConfigurationVersion: 2,
         },
       });
     });
@@ -1869,7 +1878,14 @@ for (const width of [1440, 600, 390, 320]) {
     await page.getByLabel('Разрешаю один платный запрос для проверки').check();
     await apply.click();
     await expect(page.getByText(/Подключено · OpenAI/)).toBeVisible();
-    expect(tests).toEqual([{ acknowledgePaidRequest: true, configurationVersion: 2 }]);
+    expect(tests).toEqual([
+      {
+        acknowledgePaidRequest: true,
+        configurationVersion: 2,
+        provider: 'openai',
+        providerConfigurationVersion: 2,
+      },
+    ]);
     await expect(page.getByLabel('Разрешаю один платный запрос для проверки')).not.toBeChecked();
     await expect(apply).toBeDisabled();
     await page.getByLabel('Модель', { exact: true }).selectOption('gpt-4.1-mini');

@@ -251,3 +251,23 @@
     width: 100%;
   }
 }
+
+.asa-ai-policy-model-row {
+  display: grid;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color, #8884);
+}
+.asa-ai-policy-model-row input[type='number'],
+.asa-ai-policy-models fieldset > label input {
+  width: 7em;
+  max-width: 100%;
+}
+.asa-ai-catalog-observation {
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.asa-ai-catalog-observation button {
+  justify-self: start;
+}

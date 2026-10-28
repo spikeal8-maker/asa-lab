@@ -54,6 +54,10 @@ const expectedPending = [
   '0273', // Accepted ComfyUI endpoint migration.
   '0274', // Audited class/Seat distribution and immutable publication admission.
   '0275', // Global and author acquisition controls.
+  '0276', // Independent providers.
+  '0277', // Cloud pool provider projection.
+  '0278', // Model selection policy.
+  '0279', // Soft monthly token budgets.
 ];
 
 interface Identity {
@@ -811,6 +815,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       ).toEqual([
         {
           provider: 'deepseek',
+          enabled: false,
+          revision: 1,
           model: 'deepseek-flash',
           api_key_ciphertext: configBefore.api_key_ciphertext,
           api_key_iv: configBefore.api_key_iv,
@@ -820,6 +826,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         },
         {
           provider: 'ollama-cloud',
+          enabled: false,
+          revision: 1,
           model: 'gemma4:31b',
           api_key_ciphertext: null,
           api_key_iv: null,
@@ -829,6 +837,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         },
         {
           provider: 'openai',
+          enabled: false,
+          revision: 1,
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,

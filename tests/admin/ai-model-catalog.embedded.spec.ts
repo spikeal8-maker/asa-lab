@@ -163,14 +163,11 @@ describe('0227 forward upgrade from the published configuration', () => {
         code: 'ai_config_changed',
       });
       expect(await used(upgrade)).toBe(1);
-      const checked = await service.testConnection(administrator, 8);
-      expect(checked).toMatchObject({
-        provider: 'deepseek',
-        model: 'deepseek-flash',
-        configurationVersion: 8,
+      await expect(service.testConnection(administrator, 8)).rejects.toMatchObject({
+        code: 'ai_disabled',
       });
-      expect(fetchImpl).toHaveBeenCalledTimes(1);
-      expect(await used(upgrade)).toBe(2);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      expect(await used(upgrade)).toBe(1);
       expect(await service.status()).toMatchObject({ enabled: false });
       expect(await applyPlan(client(upgrade), plan)).toBe(0);
       expect((await service.adminConfig(administrator)).configurationVersion).toBe(8);
@@ -307,6 +304,14 @@ describe('0227 credential isolation and persistence guards', () => {
           )
         ).rows,
       ).toEqual(previous);
+      const policy = await service.generationPolicy(administrator);
+      await service.saveGenerationPolicy(administrator, {
+        configurationVersion: policy.configurationVersion,
+        systemPrompt: policy.systemPrompt,
+        allowedModels: ['gemma4:31b'],
+        defaultModel: 'gemma4:31b',
+        requestId: randomUUID(),
+      });
       const owner = await identity(db),
         foreign = await identity(db);
       const thread = await service.createThread(owner);
@@ -522,18 +527,32 @@ describe('0227 credential isolation and persistence guards', () => {
       apiKey: credentials.openai,
       enabled: false,
     });
+    await expect(
+      service.testConnection(administrator, openai.configurationVersion),
+    ).rejects.toMatchObject({ code: 'ai_disabled' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    const readyOpenai = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: true });
+    await expect(
+      service.testConnection(
+        administrator,
+        readyOpenai.configurationVersion,
+        'openai',
+        readyOpenai.providerConfigurations.find((s) => s.provider === 'openai')!.revision,
+      ),
+    ).rejects.toMatchObject({ code: 'ai_platform_quota_exhausted' });
+    const disabledOpenai = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: false });
     const storedOpenai = (
       await db.query("SELECT * FROM ai_provider_settings WHERE provider = 'openai'")
     ).rows[0];
     await expect(
-      service.testConnection(administrator, openai.configurationVersion),
-    ).rejects.toMatchObject({ code: 'ai_platform_quota_exhausted' });
+      service.testConnection(administrator, disabledOpenai.configurationVersion),
+    ).rejects.toMatchObject({ code: 'ai_disabled' });
     expect(fetchImpl).not.toHaveBeenCalled();
     const deepseek = await save({
       provider: 'deepseek',
       model: 'deepseek-v4-pro',
       apiKey: credentials.deepseek,
-      enabled: false,
+      enabled: true,
       paidOperationsPerHour: 4,
     });
     const storedDeepseek = (
@@ -552,9 +571,19 @@ describe('0227 credential isolation and persistence guards', () => {
         ?.apiKeyConfigured,
     ).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
-    await service.testConnection(administrator, deepseek.configurationVersion);
-    const switched = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: false });
-    await service.testConnection(administrator, switched.configurationVersion);
+    await service.testConnection(
+      administrator,
+      deepseek.configurationVersion,
+      'deepseek',
+      deepseek.providerConfigurations.find((s) => s.provider === 'deepseek')!.revision,
+    );
+    const switched = await save({ provider: 'openai', model: 'gpt-6-luna', enabled: true });
+    await service.testConnection(
+      administrator,
+      switched.configurationVersion,
+      'openai',
+      switched.providerConfigurations.find((s) => s.provider === 'openai')!.revision,
+    );
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(
       (await db.query("SELECT * FROM ai_provider_settings WHERE provider = 'deepseek'")).rows[0],
@@ -596,7 +625,7 @@ describe('0227 credential isolation and persistence guards', () => {
       key_fingerprint: null,
     });
     const back = await save({ provider: 'deepseek', model: 'deepseek-v4-pro', enabled: false });
-    expect(back).toMatchObject({
+    expect(back.providerConfigurations.find((slot) => slot.provider === 'deepseek')).toMatchObject({
       model: 'deepseek-v4-pro',
       apiKeyConfigured: true,
       keyFingerprint: storedDeepseek!['key_fingerprint'],
@@ -609,7 +638,7 @@ describe('0227 credential isolation and persistence guards', () => {
         "SELECT * FROM administrative_audit_events WHERE action = 'administration.ai_configuration.update'",
       )
     ).rows;
-    expect(audit).toHaveLength(5);
+    expect(audit).toHaveLength(7);
     expect(JSON.stringify(audit)).not.toContain(credentials.openai);
     expect(JSON.stringify(audit)).not.toContain(storedDeepseek!['api_key_ciphertext'] as string);
   });

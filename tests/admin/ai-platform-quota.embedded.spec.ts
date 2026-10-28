@@ -1,3 +1,8 @@
+import {
+  publishFixtureModels,
+  publishFixturePolicy,
+  fixtureGenerationSql,
+} from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
@@ -40,12 +45,14 @@ async function runtime<T>(sql: string, params: unknown[] = []) {
 }
 
 async function setLimit(limit: number | null, principal = platformAdmin) {
-  return runtime<{ ai_admin_set_config: string }>(
+  const result = await runtime<{ ai_admin_set_config: string }>(
     `SELECT ai_admin_set_config($1, true, 'openai', 'gpt-6-luna', 'replace',
        'quota-test-ciphertext', 'quota-test-iv', 'quota-test-auth-tag', 'quota-hash',
        'quota-test', $2::integer)`,
     [principal, limit],
   );
+  await publishFixturePolicy({ query: runtime } as unknown as pg.Pool, platformAdmin, 'gpt-6-luna');
+  return result;
 }
 
 async function createThread(principal = owner): Promise<string> {
@@ -57,10 +64,13 @@ async function begin(principal: string, thread: string, request = randomUUID(), 
   const current = await runtime<{ configuration_version: string }>(
     'SELECT * FROM ai_runtime_config()',
   );
-  return runtime<{ admitted: boolean }>(
-    "SELECT ai_chat_begin_paid($1,$2,$3,'Hello',$4::bigint) AS admitted",
-    [principal, thread, request, version ?? Number(current.rows[0]!.configuration_version)],
-  );
+  return runtime<{ admitted: boolean }>(fixtureGenerationSql, [
+    principal,
+    thread,
+    request,
+    'Hello',
+    version ?? Number(current.rows[0]!.configuration_version),
+  ]);
 }
 
 async function providerTest(principal = platformAdmin, version?: number) {
@@ -238,6 +248,7 @@ describe('chat runtime configuration changes before durable admission', () => {
           fetchImpl,
         });
         await service.saveAdminConfig(platformAdmin, settings, randomUUID());
+        await publishFixtureModels(service, platformAdmin, ['gpt-6-luna']);
         const thread = await createThread();
         const baseline = await count();
         changeAfterRead = true;
@@ -273,14 +284,14 @@ describe('chat runtime configuration changes before durable admission', () => {
     const baseline = await count();
     await runtime('SELECT ai_chat_abort($1,$2,$3)', [owner, thread, request]);
     await db.exec(
-      'UPDATE ai_assistant_config SET enabled = false, configuration_version = configuration_version + 1',
+      "UPDATE ai_provider_settings SET enabled=false WHERE provider='openai'; UPDATE ai_assistant_config SET enabled = false, configuration_version = configuration_version + 1",
     );
     expect((await begin(owner, thread, request, version)).rows[0]!.admitted).toBe(false);
-    await expect(begin(owner, await createThread())).rejects.toThrow('AI_DISABLED');
+    await expect(begin(owner, await createThread())).rejects.toThrow('AI_CONFIG_CHANGED');
     await db.exec(
-      'UPDATE ai_assistant_config SET api_key_ciphertext = NULL, api_key_iv = NULL, api_key_auth_tag = NULL, key_fingerprint = NULL',
+      "UPDATE ai_provider_settings SET api_key_ciphertext=NULL,api_key_iv=NULL,api_key_auth_tag=NULL,key_fingerprint=NULL WHERE provider='openai'; UPDATE ai_assistant_config SET api_key_ciphertext = NULL, api_key_iv = NULL, api_key_auth_tag = NULL, key_fingerprint = NULL",
     );
-    await expect(begin(owner, await createThread())).rejects.toThrow('AI_DISABLED');
+    await expect(begin(owner, await createThread())).rejects.toThrow('AI_CONFIG_CHANGED');
     expect(await count()).toBe(baseline);
   });
 });

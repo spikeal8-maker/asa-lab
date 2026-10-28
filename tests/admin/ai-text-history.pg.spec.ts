@@ -1,3 +1,4 @@
+import { fixtureRegenerationSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -51,16 +52,13 @@ it('serializes 16 competing repeats of one variant across independent backends i
     expect(pids[0]!.rows[0].pid).not.toBe(pids[1]!.rows[0].pid);
     const results = await Promise.all(
       Array.from({ length: 16 }, (_, index) =>
-        (index % 2 ? first : second).query<{ admitted: boolean }>(
-          'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5) AS admitted',
-          [
-            f.owner.principal_id,
-            f.thread.id,
-            index % 2 ? request.toUpperCase() : request,
-            question.sourceId,
-            version,
-          ],
-        ),
+        (index % 2 ? first : second).query<{ admitted: boolean }>(fixtureRegenerationSql, [
+          f.owner.principal_id,
+          f.thread.id,
+          index % 2 ? request.toUpperCase() : request,
+          question.sourceId,
+          version,
+        ]),
       ),
     );
     expect(results.filter((result) => result.rows[0]!.admitted)).toHaveLength(1);
@@ -72,10 +70,13 @@ it('serializes 16 competing repeats of one variant across independent backends i
     ]);
     expect(
       (
-        await second.query<{ admitted: boolean }>(
-          'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5) AS admitted',
-          [f.owner.principal_id, f.thread.id, request, question.sourceId, version],
-        )
+        await second.query<{ admitted: boolean }>(fixtureRegenerationSql, [
+          f.owner.principal_id,
+          f.thread.id,
+          request,
+          question.sourceId,
+          version,
+        ])
       ).rows[0]!.admitted,
     ).toBe(false);
     expect(await f.ledgers()).toEqual({ global: before.global + 1, owner: before.owner + 1 });
@@ -102,7 +103,7 @@ it('waits for a concurrent archive and rolls back fresh admission when that arch
     const pid = (await generator.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!
       .pid;
     pending = generator
-      .query('SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5)', [
+      .query(fixtureRegenerationSql, [
         f.owner.principal_id,
         f.thread.id,
         randomUUID(),

@@ -1,3 +1,4 @@
+import { publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
@@ -143,6 +144,7 @@ it('freezes the admitted parent policy and blocks disabled manual web lookup bef
     },
     randomUUID(),
   );
+  await publishFixtureModels(chat, admin, ['deepseek-flash']);
   const thread = await chat.createThread(owner),
     request = randomUUID();
   await chat.sendStream(

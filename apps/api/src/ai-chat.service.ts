@@ -1,3 +1,6 @@
+import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
+import { AiTokenBudgetStore } from './ai-token-budgets.js';
+import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
 import { ComfyUiSettings } from './ai-comfyui-settings.js';
 import {
@@ -68,6 +71,7 @@ import {
   buildAiTextRequest,
   getAiModelCatalog,
   isModelForProvider,
+  isKnownModelForProvider,
   type AiModel,
   type AiModelCatalog,
   type AiProvider,
@@ -91,6 +95,8 @@ export interface AiNativeImageOptions {
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
   readonly model: AiModel;
+  readonly enabled: boolean;
+  readonly revision: number;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
   readonly updatedAt: string | null;
@@ -114,6 +120,7 @@ export interface AiAdminConfig {
 
 export interface AiAdminUpdate {
   readonly enabled: boolean;
+  readonly providerConfigurationVersion?: number;
   readonly paidOperationsPerHour?: number;
   readonly provider: AiProvider;
   readonly model: AiModel;
@@ -260,6 +267,36 @@ export class AiChatService {
     this.policy = new AiGenerationPolicyStore(pool);
   }
 
+  async refreshProviderCatalog(actor: string, provider: 'openai' | 'deepseek') {
+    const policy = await this.policy.row(actor);
+    const observation = policy?.observations?.find((o) => o.provider === provider);
+    if (
+      observation?.checkedAt &&
+      !observation.failed &&
+      Date.now() - Date.parse(observation.checkedAt) < 300000
+    )
+      return this.generationPolicy(actor);
+    const result = await this.pool.query<RuntimeRow & { revision: number }>(
+      'SELECT * FROM ai_provider_catalog_credentials($1,$2)',
+      [actor, provider],
+    );
+    const credentials = result.rows[0];
+    const key = credentials ? this.decrypt(credentials) : null;
+    if (!key)
+      throw new AiServiceError(
+        'ai_catalog_key_required',
+        409,
+        'Настройте ключ провайдера перед обновлением каталога.',
+      );
+    let ids: string[] | null = null;
+    try {
+      ids = await discoverProviderModels(provider, key, this.fetchImpl);
+    } catch {
+      /* Preserve the last successful observation; never log upstream bodies or keys. */
+    }
+    await applyCatalogObservation(this.pool, actor, provider, Number(credentials!.revision), ids);
+    return this.generationPolicy(actor);
+  }
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
   }
@@ -277,6 +314,15 @@ export class AiChatService {
   }
   usageOverview(actor: string) {
     return this.usage.overview(actor);
+  }
+  tokenBudgetsAdmin(actor: string) {
+    return new AiTokenBudgetStore(this.pool).admin(actor);
+  }
+  tokenBudgetsOwn(owner: string) {
+    return new AiTokenBudgetStore(this.pool).own(owner);
+  }
+  saveTokenBudgets(actor: string, input: unknown) {
+    return new AiTokenBudgetStore(this.pool).save(actor, input);
   }
   saveGenerationPolicy(actor: string, input: AiGenerationPolicyUpdate) {
     return this.policy.save(actor, input, this.key !== null);
@@ -322,6 +368,12 @@ export class AiChatService {
       const row = (
         await this.pool.query<RuntimeRow>('SELECT * FROM ai_generation_runtime($1)', [selected])
       ).rows[0];
+      if (row && Number(row.configuration_version) !== Number(runtime.configuration_version))
+        throw new AiServiceError(
+          'ai_config_changed',
+          409,
+          'Настройки изменились до начала запроса. Повторите выбор модели.',
+        );
       if (row?.provider === 'ollama-cloud') await reloadOllamaCloudCatalog(this.pool);
       if (!row)
         throw new AiServiceError(
@@ -639,6 +691,8 @@ export class AiChatService {
       providerConfigurations: row.provider_configurations.map((slot) => ({
         provider: slot.provider,
         model: slot.model,
+        enabled: slot.enabled,
+        revision: Number(slot.revision),
         apiKeyConfigured: slot.apiKeyConfigured,
         keyFingerprint: slot.keyFingerprint,
         updatedAt: iso(slot.updatedAt),
@@ -674,7 +728,7 @@ export class AiChatService {
       );
     }
     if (!(
-      isModelForProvider(input.provider, input.model) ||
+      isKnownModelForProvider(input.provider, input.model) ||
       (input.provider === 'ollama-cloud' && (await this.isDiscoveredCloudModel(input.model)))
     )) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
@@ -703,6 +757,18 @@ export class AiChatService {
       );
     }
     const target = before.providerConfigurations.find((slot) => slot.provider === input.provider);
+    const expectedProviderVersion = input.providerConfigurationVersion ?? target?.revision;
+    if (
+      !Number.isSafeInteger(expectedProviderVersion) ||
+      Number(expectedProviderVersion) < 1 ||
+      expectedProviderVersion !== target?.revision
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Подключение изменилось. Обновите страницу.',
+      );
+    }
     const candidate = input.apiKey?.trim() ?? '';
     if (
       input.apiKey !== undefined &&
@@ -718,7 +784,12 @@ export class AiChatService {
         'Нельзя заменить и очистить ключ одновременно.',
       );
     }
-    if (before.provider !== input.provider && !candidate && !target?.apiKeyConfigured) {
+    if (
+      input.enabled &&
+      before.provider !== input.provider &&
+      !candidate &&
+      !target?.apiKeyConfigured
+    ) {
       throw new AiServiceError(
         'ai_key_required',
         409,
@@ -740,7 +811,7 @@ export class AiChatService {
     const action = input.clearApiKey ? 'clear' : encrypted ? 'replace' : 'keep';
     try {
       await this.pool.query(
-        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint)',
+        'SELECT ai_admin_set_provider_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint,$13::bigint)',
         [
           principalId,
           input.enabled,
@@ -754,6 +825,7 @@ export class AiChatService {
           requestId,
           input.paidOperationsPerHour ?? null,
           expectedVersion,
+          expectedProviderVersion,
         ],
       );
     } catch (problem) {
@@ -780,12 +852,15 @@ export class AiChatService {
   async testConnection(
     principalId: string,
     expectedVersion: number,
+    requestedProvider?: AiProvider,
+    expectedProviderVersion?: number,
   ): Promise<{
     provider: AiProvider;
     model: AiModel;
     testedAt: string;
     elapsedMs: number;
     configurationVersion: number;
+    providerConfigurationVersion: number;
   }> {
     const config = await this.adminConfig(principalId);
     if (config.configurationVersion !== expectedVersion) {
@@ -795,24 +870,55 @@ export class AiChatService {
         'Настройки изменились. Перезагрузите страницу.',
       );
     }
-    const runtime = await this.runtime();
-    this.requireSupportedModel(runtime);
-    const key = this.requireProviderKey(runtime);
+    const provider = requestedProvider ?? config.provider;
+    const slot = config.providerConfigurations.find((item) => item.provider === provider);
+    const slotVersion = expectedProviderVersion ?? slot?.revision;
+    if (
+      requestedProvider &&
+      (!slot ||
+        !slot.enabled ||
+        !Number.isSafeInteger(slotVersion) ||
+        slotVersion !== slot.revision)
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Подключение изменилось. Обновите страницу.',
+      );
+    }
+    const legacyRuntime = requestedProvider ? null : await this.runtime();
+    if (legacyRuntime) {
+      this.requireSupportedModel(legacyRuntime);
+      this.requireProviderKey(legacyRuntime);
+    }
     const started = Date.now();
     try {
       // SQL rechecks the real platform-admin role and configuration version,
       // then durably reserves from the same quota used by chat admission.
-      const admission = await this.pool.query<{ admitted: boolean }>(
-        'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
-        [principalId, expectedVersion],
-      );
-      if (admission.rows[0]?.admitted !== true) {
+      const admission = requestedProvider
+        ? await this.pool.query<RuntimeRow & { provider_revision: string | number }>(
+            'SELECT * FROM ai_admin_test_provider_begin($1,$2::bigint,$3,$4::bigint)',
+            [principalId, expectedVersion, provider, slotVersion],
+          )
+        : await this.pool.query<{ admitted: boolean }>(
+            'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
+            [principalId, expectedVersion],
+          );
+      if (
+        !requestedProvider &&
+        (admission.rows[0] as { admitted?: boolean } | undefined)?.admitted !== true
+      ) {
         throw new AiServiceError(
           'ai_admission_unavailable',
           503,
           'Допуск платной операции не подтверждён.',
         );
       }
+      const runtime = requestedProvider ? (admission.rows[0] as RuntimeRow) : legacyRuntime!;
+      if (requestedProvider && (!runtime || !runtime.enabled))
+        throw new AiServiceError('ai_admission_unavailable', 503, 'Подключение недоступно.');
+      this.requireSupportedModel(runtime);
+      const key = this.requireProviderKey(runtime);
       const result = await streamProviderText({
         fetchImpl: this.fetchImpl,
         provider: runtime.provider,
@@ -838,15 +944,21 @@ export class AiChatService {
       throw problem;
     }
     const after = await this.adminConfig(principalId);
-    if (after.configurationVersion !== expectedVersion) {
+    if (
+      after.configurationVersion !== expectedVersion ||
+      (requestedProvider &&
+        after.providerConfigurations.find((item) => item.provider === provider)?.revision !==
+          slotVersion)
+    ) {
       throw new AiServiceError('ai_config_changed', 409, 'Во время проверки настройки изменились.');
     }
     return {
-      provider: config.provider,
-      model: config.model,
+      provider,
+      model: requestedProvider ? slot!.model : config.model,
       testedAt: new Date().toISOString(),
       elapsedMs: Date.now() - started,
       configurationVersion: expectedVersion,
+      providerConfigurationVersion: slotVersion ?? 1,
     };
   }
 
@@ -855,22 +967,24 @@ export class AiChatService {
     provider: AiProvider | 'ollama';
     model: AiChatModel;
     availableModels: readonly AiChatModel[];
+    modelChoices?: readonly { id: string; label: string }[];
     modelCatalog: AiModelCatalog;
     productFeatures: typeof AI_PRODUCT_FEATURES;
     ollamaModel: string | null;
     nativeImageTools: readonly string[];
   }> {
     const [config, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
-    const modelCatalog = getAiModelCatalog();
     const policy = await this.policy.row();
+    installProviderObservations(policy?.observations ?? []);
+    const modelCatalog = getAiModelCatalog();
     const nativeImageTools = (await this.nativeImageReady(local)) ? [OLLAMA_SELECTION] : [];
     if (policy?.customized) {
       const available: AiChatModel[] = modelCatalog.models
         .filter(
           (m) =>
-            config.enabled &&
             this.key !== null &&
             policy.allowedModels.includes(m.id) &&
+            (policy.modelPreferences?.find((p) => p.id === m.id)?.eligible ?? true) &&
             m.selectable &&
             policy.providerReady?.[m.provider],
         )
@@ -878,13 +992,26 @@ export class AiChatService {
       if (
         local.enabled &&
         validOllamaModel(local.model) &&
-        policy.allowedModels.includes(OLLAMA_SELECTION)
+        policy.allowedModels.includes(OLLAMA_SELECTION) &&
+        (policy.modelPreferences?.find((p) => p.id === OLLAMA_SELECTION)?.eligible ?? true)
       )
         available.push(OLLAMA_SELECTION);
+      const providerOf = (id: string) =>
+        id === OLLAMA_SELECTION
+          ? 'ollama'
+          : (modelCatalog.models.find((m) => m.id === id)?.provider ?? '');
+      available.sort(
+        (left, right) =>
+          (policy.providerOrder?.[providerOf(left)] ?? 0) -
+            (policy.providerOrder?.[providerOf(right)] ?? 0) ||
+          (policy.modelPreferences?.find((p) => p.id === left)?.order ?? 0) -
+            (policy.modelPreferences?.find((p) => p.id === right)?.order ?? 0) ||
+          (left < right ? -1 : left > right ? 1 : 0),
+      );
       const model = (
         available.includes(policy.defaultModel as AiChatModel)
           ? policy.defaultModel
-          : (available[0] ?? policy.defaultModel ?? config.model)
+          : (policy.defaultModel ?? config.model)
       ) as AiChatModel;
       const provider =
         model === OLLAMA_SELECTION
@@ -895,6 +1022,13 @@ export class AiChatService {
         provider,
         model,
         availableModels: available,
+        modelChoices: available.map((id) => ({
+          id,
+          label:
+            id === OLLAMA_SELECTION
+              ? local.model
+              : (modelCatalog.models.find((m) => m.id === id)?.label ?? id),
+        })),
         modelCatalog,
         productFeatures: AI_PRODUCT_FEATURES,
         ollamaModel: local.enabled ? local.model : null,
@@ -913,12 +1047,7 @@ export class AiChatService {
     return {
       enabled: externalReady || localReady,
       provider: !externalReady && localReady ? 'ollama' : config.provider,
-      model:
-        !externalReady && localReady
-          ? OLLAMA_SELECTION
-          : availableExternalModels.includes(config.model)
-            ? config.model
-            : (availableExternalModels[0] ?? config.model),
+      model: !externalReady && localReady ? OLLAMA_SELECTION : config.model,
       availableModels: [
         ...(externalReady
           ? modelCatalog.models
@@ -2373,6 +2502,19 @@ export class AiChatService {
   }
 
   private rethrowAdmissionError(problem: unknown): void {
+    const budgetMessage = (problem as Error)?.message ?? '';
+    if (budgetMessage.includes('AI_BUDGET_PENDING'))
+      throw new AiServiceError(
+        'ai_budget_pending',
+        429,
+        'Токены зарезервированы выполняющимися ответами или расход пока не подтверждён. Проверьте остаток позже.',
+      );
+    if (budgetMessage.includes('AI_BUDGET_EXHAUSTED'))
+      throw new AiServiceError(
+        'ai_budget_exhausted',
+        429,
+        'Месячный бюджет этой модели исчерпан. Уже начатый ответ завершается полностью. Новый период начинается 1 числа в 00:00 UTC.',
+      );
     const message = problem instanceof Error ? problem.message : '';
     if (problem instanceof AiPolicyError)
       throw new AiServiceError(problem.code, problem.status, problem.message);

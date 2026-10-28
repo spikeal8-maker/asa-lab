@@ -1,0 +1,79 @@
+.asa-ai-budgets {
+  margin-top: 1.5rem;
+  color: var(--text);
+  background: var(--surface);
+}
+.asa-ai-budgets h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.asa-ai-budgets p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.asa-ai-budgets form {
+  display: grid;
+  gap: 1rem;
+}
+.asa-ai-budgets button {
+  min-height: 44px;
+  justify-self: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  color: var(--text);
+  background: var(--surface);
+  font: inherit;
+}
+.asa-ai-budgets button:disabled {
+  opacity: 0.65;
+}
+.asa-ai-budgets input {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+}
+.asa-ai-budget-rows label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.asa-ai-budget-rows {
+  display: grid;
+  gap: 1rem;
+}
+.asa-ai-budget-rows fieldset {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+}
+.asa-ai-budget-rows legend {
+  overflow-wrap: anywhere;
+  padding: 0 0.3rem;
+}
+.asa-ai-budget-rows label {
+  display: grid;
+  gap: 0.4rem;
+}
+.asa-ai-budget-rows input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.asa-ai-budget-rows p {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .asa-ai-budget-rows fieldset {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

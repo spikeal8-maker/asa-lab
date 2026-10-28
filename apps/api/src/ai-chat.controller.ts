@@ -7,6 +7,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpException,
   Inject,
@@ -204,6 +205,13 @@ export class AiChatController {
         reason: runtime.enabled ? admission.reason : 'ai_disabled',
       };
     });
+  }
+
+  @Get('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async tokenBudgets(@Req() request: FastifyRequest) {
+    const owner = await this.requireOwner(request);
+    return this.safe(() => this.ai.tokenBudgetsOwn(owner.principalId));
   }
 
   @Get('threads')

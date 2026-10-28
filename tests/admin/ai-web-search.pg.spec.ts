@@ -1,3 +1,4 @@
+import { publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -109,6 +110,7 @@ suite('free web lookup on independent PostgreSQL backends', () => {
       },
       randomUUID(),
     );
+    await publishFixtureModels(first, actor, ['deepseek-flash']);
     await first.saveWebSearch(
       actor,
       { enabled: true, weatherEnabled: true, operationsPerHour: 100, configurationVersion: 1 },
@@ -132,8 +134,37 @@ suite('free web lookup on independent PostgreSQL backends', () => {
     expect(
       fetchImpl.mock.calls.filter((c) => new URL(String(c[0])).hostname === 'api.deepseek.com'),
     ).toHaveLength(1);
+    const winningMode = outcomes[0]!.status === 'fulfilled' ? 'web' : 'images';
     const beforeReplay = fetchImpl.mock.calls.length;
-    expect((await second.send(owner, thread.id, 'Найди факт', request)).replayed).toBe(true);
+    const quotaBeforeReplay = (
+      await admin.query('SELECT count(*)::integer AS count FROM ai_paid_operation_quota')
+    ).rows;
+    expect((await second.send(owner, thread.id, 'Найди факт', request, winningMode)).replayed).toBe(
+      true,
+    );
+    await expect(second.send(owner, thread.id, 'Найди факт', request, 'off')).rejects.toMatchObject(
+      {
+        code: 'ai_request_id_reused',
+        status: 409,
+      },
+    );
+    await expect(
+      second.sendStream(
+        owner,
+        thread.id,
+        'Найди факт',
+        request,
+        () => undefined,
+        new AbortController().signal,
+        undefined,
+        undefined,
+        [],
+        'off',
+      ),
+    ).rejects.toMatchObject({ code: 'ai_request_id_reused', status: 409 });
+    expect(
+      (await admin.query('SELECT count(*)::integer AS count FROM ai_paid_operation_quota')).rows,
+    ).toEqual(quotaBeforeReplay);
     expect(fetchImpl).toHaveBeenCalledTimes(beforeReplay);
     expect(
       await new AiWebSearchService(runtime(b), fetchImpl).evidence(stranger, thread.id, request),

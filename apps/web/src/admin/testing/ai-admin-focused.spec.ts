@@ -2,6 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isAiAdminConfig } from '../ai-model-config';
 import { AiAdminPage } from '../AdminAiPage';
 import { call } from '../admin-api';
 import { aiAdminFixture } from './ai-admin-config.fixture';
@@ -144,12 +145,18 @@ describe('Compact cloud provider connections', () => {
         elapsedMs: 1200,
         testedAt: '2026-10-24T00:01:00Z',
         configurationVersion: 7,
+        providerConfigurationVersion: 1,
       },
     });
     await submit();
     expect(call).toHaveBeenLastCalledWith('/api/admin/v1/ai/test', {
       method: 'POST',
-      body: JSON.stringify({ acknowledgePaidRequest: true, configurationVersion: 7 }),
+      body: JSON.stringify({
+        acknowledgePaidRequest: true,
+        configurationVersion: 7,
+        provider: 'deepseek',
+        providerConfigurationVersion: 1,
+      }),
     });
     expect(host.textContent).toContain('Подключено · DeepSeek · 1.2 с');
     expect(checkbox('Разрешаю один платный запрос').checked).toBe(false);
@@ -172,6 +179,7 @@ describe('Compact cloud provider connections', () => {
         provider: 'deepseek',
         model: 'deepseek-flash',
         configurationVersion: 8,
+        providerConfigurationVersion: 1,
         elapsedMs: 975,
         testedAt: '2026-10-24T00:01:00Z',
       },
@@ -272,4 +280,34 @@ describe('Compact cloud provider connections', () => {
     expect(JSON.parse(String(body))).toMatchObject({ clearApiKey: true, enabled: false });
     expect(call).toHaveBeenCalledTimes(2);
   });
+});
+
+it('B accepts explicitly unproven nonselectable catalog metadata without inventing modalities', () => {
+  const base = aiAdminFixture();
+  const metadata = {
+    id: 'catalog:openai:future',
+    provider: 'openai',
+    label: 'future',
+    adapterCompatible: false,
+    inputModalities: [],
+    outputModalities: [],
+    streaming: false,
+    shutdownDate: null,
+    selectable: false,
+    lifecycle: 'active',
+  };
+  const candidate = {
+    ...base,
+    modelCatalog: { ...base.modelCatalog, models: [...base.modelCatalog.models, metadata] },
+  };
+  expect(isAiAdminConfig(candidate)).toBe(true);
+  expect(
+    isAiAdminConfig({
+      ...candidate,
+      modelCatalog: {
+        ...candidate.modelCatalog,
+        models: [...base.modelCatalog.models, { ...metadata, selectable: true }],
+      },
+    }),
+  ).toBe(false);
 });

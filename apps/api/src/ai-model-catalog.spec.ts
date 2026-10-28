@@ -15,6 +15,7 @@ import {
   buildAiTextRequest,
   getAiModelCatalog,
   isAiModel,
+  installProviderObservations,
   isModelForProvider,
 } from './ai-model-catalog';
 
@@ -22,7 +23,10 @@ const OBSERVED_AT = Date.parse('2026-10-19T12:00:00Z');
 const PRINCIPAL = '11111111-1111-4111-8111-111111111111';
 
 beforeEach(() => vi.spyOn(Date, 'now').mockReturnValue(OBSERVED_AT));
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  installProviderObservations([]);
+  vi.restoreAllMocks();
+});
 
 function row(config: AiAdminConfig) {
   return {
@@ -148,6 +152,121 @@ describe('server-owned catalog and provider request policy', () => {
 });
 
 describe('catalog/config API boundaries', () => {
+  it.each(
+    (['openai', 'deepseek'] as const).flatMap((provider) =>
+      [false, true].flatMap((credentialChanged) =>
+        (['replace', 'clear', 'disable'] as const).map((action) => ({
+          provider,
+          credentialChanged,
+          action,
+        })),
+      ),
+    ),
+  )(
+    'allows $provider $action maintenance with credentialChanged=$credentialChanged and an unavailable observation',
+    async ({ provider, credentialChanged, action }) => {
+      const model = provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash';
+      installProviderObservations([
+        {
+          provider,
+          source: 'https://fixture.invalid/models',
+          checkedAt: '2026-10-19T12:00:00Z',
+          failed: credentialChanged,
+          credentialChanged,
+          models: [],
+        },
+      ]);
+      expect(isModelForProvider(provider, model)).toBe(false);
+      const before = aiAdminFixture({ provider, model, enabled: true, apiKeyConfigured: true });
+      const after = aiAdminFixture({
+        ...before,
+        configurationVersion: 2,
+        providerConfigurations: before.providerConfigurations.map((slot) =>
+          slot.provider === provider
+            ? { ...slot, revision: 2, enabled: action === 'replace' }
+            : slot,
+        ),
+      });
+      const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+        if (sql.includes('ai_admin_get_config')) return { rows: [row(saved ? after : before)] };
+        if (sql.includes('ai_admin_set_provider_config')) {
+          expect(params).toHaveLength(13);
+          saved = true;
+          return { rows: [] };
+        }
+        return { rows: [] };
+      });
+      let saved = false;
+      const fetchImpl = vi.fn<typeof fetch>();
+      const service = new AiChatService({ query } as unknown as pg.Pool, {
+        encryptionKey: '4c'.repeat(32),
+        fetchImpl,
+      });
+      const controller = new AiAdminController(
+        {
+          resolve: vi.fn(async () => ({ principalId: PRINCIPAL })),
+        } as unknown as ActiveContextUseCase,
+        {
+          resolveAccess: vi.fn(async () => ({
+            scopes: [{ kind: 'platform', role: 'platform_admin' }],
+          })),
+        } as unknown as AdminControlPlaneService,
+        service,
+      );
+      const request = {
+        cookies: {},
+        id: 'unavailable-maintenance',
+        headers: {
+          origin: 'https://asa.example.test',
+          host: 'asa.example.test',
+          'content-type': 'application/json',
+        },
+      } as unknown as FastifyRequest;
+      const input = {
+        provider,
+        model,
+        enabled: action === 'replace',
+        configurationVersion: 1,
+        providerConfigurationVersion: 1,
+        ...(action === 'replace' ? { apiKey: 'private-replacement-test-key' } : {}),
+        ...(action === 'clear' ? { clearApiKey: true } : {}),
+      };
+      await controller.update(request, input);
+      const writes = query.mock.calls.filter(([sql]) =>
+        sql.includes('ai_admin_set_provider_config'),
+      );
+      expect(writes).toHaveLength(1);
+      expect(writes[0]![1][4]).toBe(action === 'disable' ? 'keep' : action);
+      expect(writes[0]![1].slice(11)).toEqual([1, 1]);
+      expect(JSON.stringify(writes)).not.toContain('private-replacement-test-key');
+      expect(isModelForProvider(provider, model)).toBe(false);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      await expect(
+        controller.update(request, {
+          ...input,
+          provider: provider === 'openai' ? 'deepseek' : 'openai',
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(
+        service.saveAdminConfig(
+          PRINCIPAL,
+          { ...input, provider: provider === 'openai' ? 'deepseek' : 'openai' },
+          'wrong-provider',
+        ),
+      ).rejects.toMatchObject({ code: 'ai_model_invalid' });
+      await expect(
+        service.saveAdminConfig(
+          PRINCIPAL,
+          { ...input, model: 'catalog:openai:unproven' },
+          'invalid',
+        ),
+      ).rejects.toMatchObject({ code: 'ai_model_invalid' });
+      expect(
+        query.mock.calls.filter(([sql]) => sql.includes('ai_admin_set_provider_config')),
+      ).toHaveLength(1);
+    },
+  );
+
   it.each([
     ['deepseek', 'deepseek-flash', true],
     ['deepseek', 'deepseek-v4-pro', true],
@@ -204,6 +323,8 @@ describe('catalog/config API boundaries', () => {
       {
         provider: 'openai' as const,
         model: 'gpt-6-luna' as const,
+        enabled: false,
+        revision: 1,
         apiKeyConfigured: true,
         keyFingerprint: 'openai-hash',
         updatedAt: null,
@@ -211,6 +332,8 @@ describe('catalog/config API boundaries', () => {
       {
         provider: 'deepseek' as const,
         model: 'deepseek-v4-pro' as const,
+        enabled: false,
+        revision: 1,
         apiKeyConfigured: true,
         keyFingerprint: 'deepseek-hash',
         updatedAt: null,
@@ -223,16 +346,16 @@ describe('catalog/config API boundaries', () => {
     });
     const after = aiAdminFixture({
       ...before,
-      provider: 'deepseek',
-      model: 'deepseek-v4-pro',
-      keyFingerprint: 'deepseek-hash',
+      providerConfigurations: slots.map((slot) =>
+        slot.provider === 'deepseek' ? { ...slot, revision: 2 } : slot,
+      ),
       configurationVersion: 2,
     });
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [row(before)] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ ai_admin_set_config: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ ai_admin_set_provider_config: 2 }] })
       .mockResolvedValueOnce({ rows: [row(after)] })
       .mockResolvedValueOnce({ rows: [] });
     const fetchImpl = vi.fn<typeof fetch>();
@@ -258,6 +381,7 @@ describe('catalog/config API boundaries', () => {
       null,
       'switch-back',
       null,
+      1,
       1,
     ]);
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -289,7 +413,7 @@ describe('catalog/config API boundaries', () => {
       .fn()
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture())] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ ai_admin_set_config: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ ai_admin_set_provider_config: 2 }] })
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture({ configurationVersion: 3 }))] })
       .mockResolvedValueOnce({ rows: [] });
     const service = new AiChatService({ query } as unknown as pg.Pool);

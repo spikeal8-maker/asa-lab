@@ -21,6 +21,8 @@ export type {
 export type {
   AiPromptVariable,
   AiGenerationModel,
+  AiModelPreference,
+  AiCatalogObservation,
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';
@@ -68,3 +70,9 @@ export type {
   AiOllamaCloudPool,
   AiOllamaCloudKeyUpdate,
 } from './ai-ollama-cloud.js';
+export type {
+  AiTokenBudgetLimit,
+  AiTokenBudgetAdmin,
+  AiTokenBudgetUpdate,
+  AiTokenBudgetsOwn,
+} from './ai-token-budgets.js';

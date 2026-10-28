@@ -145,6 +145,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0273', // Accepted ComfyUI endpoint migration.
         '0274', // Audited class/Seat distribution and immutable publication admission.
         '0275', // Global and author acquisition controls.
+        '0276', // Independent providers.
+        '0277', // Cloud pool provider projection.
+        '0278', // Model selection policy.
+        '0279', // Soft monthly token budgets.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -449,6 +453,10 @@ describe('Course Builder structure forward upgrade', () => {
           '0273', // Accepted ComfyUI endpoint migration.
           '0274', // Audited class/Seat distribution and immutable publication admission.
           '0275', // Global and author acquisition controls.
+          '0276', // Independent providers.
+          '0277', // Cloud pool provider projection.
+          '0278', // Model selection policy.
+          '0279', // Soft monthly token budgets.
         ]);
         expect(
           await applyIsolatedTestPlan(

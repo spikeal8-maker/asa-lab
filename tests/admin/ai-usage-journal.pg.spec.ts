@@ -1,3 +1,4 @@
+import { fixtureGenerationSql } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -110,7 +111,7 @@ it('durably records owner/provider/request facts with NULL unknowns; replay and 
 it('keeps crashes before/after provider begin visibly pending; exact terminal retries are immutable and conflicting NULL/status/count retries fail', async () => {
   const f = await aiTextFixture(admin, runtime),
     request = randomUUID();
-  await runtime.query('SELECT ai_text_begin_paid($1,$2,$3,$4,$5)', [
+  await runtime.query(fixtureGenerationSql, [
     f.owner.principal_id,
     f.thread.id,
     request,

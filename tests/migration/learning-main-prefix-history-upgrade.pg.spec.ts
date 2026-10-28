@@ -254,6 +254,26 @@ const upgradeArtifacts = [
     '0275_public_project_acquisition.sql',
     'b3c546ec4d3f04f0333c1df325eddfaafa77a3a0cde90c5758c0507deaa911ee',
   ],
+  [
+    '0276',
+    '0276_ai_independent_provider_enablement.sql',
+    '14f0a27095f4372a702cebf2e66ea19e8d38745f4a639c3e081dc18a7f052413',
+  ],
+  [
+    '0277',
+    '0277_ai_cloud_pool_provider_projection.sql',
+    '3fc2ca05414a843e1974349ad01dfe0dea4af27b9bdff628727d354325c97dc4',
+  ],
+  [
+    '0278',
+    '0278_ai_model_selection_policy.sql',
+    '3da30d000979d74b04b296df3fd942f46ad556dcfceade4c9033b147d97d73f0',
+  ],
+  [
+    '0279',
+    '0279_ai_monthly_token_budgets.sql',
+    '12bf74c83cfffe55898a3793f9b3a4b0d6b4824d1454fb8f84fe0bcd59b1baae',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -797,6 +817,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       ).toEqual([
         {
           provider: 'deepseek',
+          enabled: false,
+          revision: '1',
           model: 'deepseek-flash',
           api_key_ciphertext: config.api_key_ciphertext,
           api_key_iv: config.api_key_iv,
@@ -806,6 +828,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         },
         {
           provider: 'ollama-cloud',
+          enabled: false,
+          revision: '1',
           model: 'gemma4:31b',
           api_key_ciphertext: null,
           api_key_iv: null,
@@ -815,6 +839,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         },
         {
           provider: 'openai',
+          enabled: false,
+          revision: '1',
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,

@@ -26,6 +26,37 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-TOKEN-BUDGETS-CORE-001
+    title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-token-budgets.spec.ts apps/web/src/admin/testing/ai-token-budgets.spec.ts tests/admin/ai-token-budgets.embedded.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [test-report]
+  - id: TST-AI-TOKEN-BUDGETS-PG-001
+    title: Independent PostgreSQL global and principal admission concurrency in an exclusively owned disposable database
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-token-budgets.pg.spec.ts
+    timeout_seconds: 120
+    owner: ai-assistant
+    artifacts: [test-report]
+  - id: TST-AI-TOKEN-BUDGETS-E2E-001
+    title: Built Web and real API per-user budget save, complete overage, pre-dispatch exhaustion, replay and responsive Settings evidence
+    suite: authorization
+    level: e2e
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-token-budgets
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [playwright-report, screenshots]
+
   - id: TST-AI-USAGE-OVERVIEW-CORE-001
     title: AI overview finite loading, honest token completeness, exact decimal sums and administrator-specific navigation
     suite: integration

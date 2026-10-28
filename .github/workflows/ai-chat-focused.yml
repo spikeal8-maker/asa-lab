@@ -36,6 +36,10 @@ name: ASA AI Chat Focused
       - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
       - 'playwright.ai-usage-overview.config.ts'
+      - 'playwright.ai-token-budgets.config.ts'
+      - 'apps/web/src/admin/AdminAiTokenBudgets.tsx'
+      - 'apps/web/src/admin/ai-token-budgets.css'
+      - 'packages/contracts/src/ai-token-budgets.ts'
       - 'packages/contracts/src/ai-usage-overview.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -73,6 +77,10 @@ name: ASA AI Chat Focused
       - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
       - 'playwright.ai-usage-overview.config.ts'
+      - 'playwright.ai-token-budgets.config.ts'
+      - 'apps/web/src/admin/AdminAiTokenBudgets.tsx'
+      - 'apps/web/src/admin/ai-token-budgets.css'
+      - 'packages/contracts/src/ai-token-budgets.ts'
       - 'packages/contracts/src/ai-usage-overview.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -295,6 +303,16 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Real overview metrics, states, navigation and responsive screenshots
         run: pnpm exec playwright test --config playwright.ai-usage-overview.config.ts
+      - name: Real monthly budget save, complete answer, exhaustion and responsive screenshots
+        run: pnpm e2e:ai-token-budgets
+      - name: Preserve safe monthly budget evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-token-budgets-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/playwright/ai-token-budgets/
+          if-no-files-found: error
+          retention-days: 14
       - name: Preserve safe exact-SHA overview evidence
         if: always()
         uses: actions/upload-artifact@v4

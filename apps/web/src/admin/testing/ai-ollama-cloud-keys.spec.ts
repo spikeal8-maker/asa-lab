@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -129,4 +130,38 @@ it('keeps edits when another administrator changed the version', async () => {
   expect(host.textContent).toContain('ваши правки не сохранены');
   expect(host.querySelector('.asa-cloud-key-card strong')?.textContent).toBe('Key 2');
   expect(saved).not.toHaveBeenCalled();
+});
+
+it('keeps native checkbox slots compact under the actual global full-width input styles', async () => {
+  const style = document.createElement('style');
+  style.textContent =
+    readFileSync('apps/web/src/styles.css', 'utf8') +
+    '\n' +
+    readFileSync('apps/web/src/admin/ai-admin.css', 'utf8');
+  document.head.append(style);
+  try {
+    vi.mocked(call).mockResolvedValue({ ok: true, status: 200, data });
+    await render();
+    const card = host.querySelector<HTMLDetailsElement>('.asa-cloud-key-card')!;
+    card.open = true;
+    const controls = [...card.querySelectorAll<HTMLInputElement>('input[type=checkbox]')];
+    expect(controls).toHaveLength(3);
+    for (const control of controls) {
+      const computed = getComputedStyle(control);
+      expect(computed.width).toBe('17px');
+      expect(computed.height).toBe('17px');
+      expect(computed.flexBasis).toBe('17px');
+      expect(computed.padding).toBe('0px');
+      expect(getComputedStyle(control.parentElement!).minHeight).toBe('44px');
+    }
+    expect(
+      getComputedStyle(card.querySelector('.asa-cloud-key-models label > span')!).overflowWrap,
+    ).toBe('anywhere');
+    const order = host.querySelector('.asa-cloud-key-order button')!;
+    expect(getComputedStyle(order).minWidth).toBe('44px');
+    expect(getComputedStyle(order).minHeight).toBe('44px');
+    expect(card.querySelector<HTMLInputElement>('input[type=password]')!.value).toBe('');
+  } finally {
+    style.remove();
+  }
 });

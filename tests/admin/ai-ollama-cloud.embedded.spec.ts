@@ -45,6 +45,22 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => db?.close());
 
+async function publishModels(
+  service: AiChatService,
+  admin: string,
+  models: string[],
+  defaultModel = models[0]!,
+) {
+  const policy = await service.generationPolicy(admin);
+  await service.saveGenerationPolicy(admin, {
+    configurationVersion: policy.configurationVersion,
+    systemPrompt: policy.systemPrompt,
+    allowedModels: models,
+    defaultModel,
+    requestId: randomUUID(),
+  });
+}
+
 it('refreshes only the server catalogue with an authorized key and routes a discovered model through ordinary SQL admission', async () => {
   const admin = await identity(true),
     owner = await identity(),
@@ -131,6 +147,17 @@ it('refreshes only the server catalogue with an authorized key and routes a disc
     },
     randomUUID(),
   );
+  await db.query('SELECT ai_admin_set_config($1,true,$2,$3,$4,NULL,NULL,NULL,NULL,$5,$6,$7)', [
+    admin,
+    'ollama-cloud',
+    'ollama-cloud/future:27b',
+    'keep',
+    randomUUID(),
+    10,
+    enabled.configurationVersion,
+  ]);
+  expect((await service.status()).availableModels).toEqual([]); // Discovery never publishes models.
+  await publishModels(service, admin, ['ollama-cloud/future:27b']);
   const thread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [owner]))
     .rows[0]!.id;
   await service.send(owner, thread, 'Hello', randomUUID());
@@ -150,7 +177,7 @@ it('refreshes only the server catalogue with an authorized key and routes a disc
   await expect(
     pool.query('SELECT ai_ollama_cloud_catalog_apply($1,$2,$3::jsonb,$4::varchar)', [
       admin,
-      enabled.configurationVersion,
+      enabled.configurationVersion + 1,
       JSON.stringify(bad),
       'bad-catalog',
     ]),
@@ -274,6 +301,28 @@ it('routes five private slots in priority order, deduplicates availability, and 
   await expect(
     service.saveOllamaCloudPool(admin, start.configurationVersion, payload, randomUUID()),
   ).rejects.toMatchObject({ status: 409 });
+  const disabled = await service.saveAdminConfig(
+    admin,
+    {
+      provider: 'ollama-cloud',
+      model: a,
+      enabled: false,
+      configurationVersion: saved.configurationVersion,
+    },
+    randomUUID(),
+  );
+  expect((await service.status()).availableModels).not.toContain(a);
+  const disabledSlot = disabled.providerConfigurations.find(
+    (item) => item.provider === 'ollama-cloud',
+  )!;
+  await expect(
+    pool.query('SELECT * FROM ai_admin_test_provider_begin($1,$2,$3,$4)', [
+      admin,
+      disabled.configurationVersion,
+      'ollama-cloud',
+      disabledSlot.revision,
+    ]),
+  ).rejects.toThrow('AI_DISABLED');
   await service.saveAdminConfig(
     admin,
     {
@@ -281,10 +330,21 @@ it('routes five private slots in priority order, deduplicates availability, and 
       model: a,
       enabled: true,
       paidOperationsPerHour: 100,
-      configurationVersion: saved.configurationVersion,
+      configurationVersion: disabled.configurationVersion,
     },
     randomUUID(),
   );
+  const selected = await service.adminConfig(admin);
+  await db.query('SELECT ai_admin_set_config($1,true,$2,$3,$4,NULL,NULL,NULL,NULL,$5,$6,$7)', [
+    admin,
+    'ollama-cloud',
+    a,
+    'keep',
+    randomUUID(),
+    100,
+    selected.configurationVersion,
+  ]);
+  await publishModels(service, admin, [a, b]);
   expect((await service.status()).availableModels.sort()).toEqual([a, b].sort());
   const thread = await service.createThread(owner);
   const quota = async () =>
@@ -308,7 +368,7 @@ it('routes five private slots in priority order, deduplicates availability, and 
   expect(upstream.mock.calls).toHaveLength(3);
   const available = await service.status();
   expect(available.availableModels).toEqual([b]);
-  expect(available.model).toBe(b);
+  expect(available.model).toBe(a);
   const response = await service.sendStream(
     owner,
     thread.id,
@@ -419,4 +479,86 @@ it('refreshes separate balances without generation, and a positive balance does 
   expect(
     (await service.ollamaCloudPool(admin)).keys.find((k) => k.slot === 3)?.account?.status,
   ).toBe('credits_required');
+});
+
+it('keeps the selected Cloud switch aligned when pool keys are cleared and restored', async () => {
+  const admin = await identity(true);
+  const service = new AiChatService(pool, { encryptionKey: '12'.repeat(32) });
+  const initial = await service.adminConfig(admin);
+  expect(initial.provider).toBe('ollama-cloud');
+  expect(
+    initial.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud')?.enabled,
+  ).toBe(true);
+  const quota = async () =>
+    Number(
+      (await db.query<{ n: number }>('SELECT count(*)::int n FROM ai_paid_operation_quota'))
+        .rows[0]!.n,
+    );
+  const beforeQuota = await quota();
+  const start = await service.ollamaCloudPool(admin);
+  const cleared = await service.saveOllamaCloudPool(
+    admin,
+    start.configurationVersion,
+    start.keys.map((key) => ({
+      slot: key.slot,
+      label: key.label,
+      priority: key.priority,
+      enabled: false,
+      models: [],
+      clearApiKey: true,
+    })),
+    randomUUID(),
+  );
+  const afterClear = await service.adminConfig(admin);
+  expect(afterClear.enabled).toBe(false);
+  expect(
+    afterClear.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+  ).toMatchObject({ enabled: true, apiKeyConfigured: false });
+  expect((await service.status()).availableModels).toEqual([]);
+  const restored = await service.saveOllamaCloudPool(
+    admin,
+    cleared.configurationVersion,
+    cleared.keys.map((key) => ({
+      slot: key.slot,
+      label: key.label,
+      priority: key.priority,
+      enabled: key.slot === 1,
+      models: key.slot === 1 ? ['ollama-cloud/future:27b'] : [],
+      ...(key.slot === 1 ? { apiKey: 'pool-restored-private-key' } : {}),
+    })),
+    randomUUID(),
+  );
+  const afterRestore = await service.adminConfig(admin);
+  expect(afterRestore.enabled).toBe(true);
+  expect(
+    afterRestore.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+  ).toMatchObject({ enabled: true, apiKeyConfigured: true });
+  expect((await service.status()).availableModels).toContain('ollama-cloud/future:27b');
+  const off = await service.saveAdminConfig(
+    admin,
+    {
+      provider: 'ollama-cloud',
+      model: 'ollama-cloud/future:27b',
+      enabled: false,
+      configurationVersion: restored.configurationVersion,
+    },
+    randomUUID(),
+  );
+  const changed = await service.saveOllamaCloudPool(
+    admin,
+    off.configurationVersion,
+    restored.keys.map((key) => ({
+      slot: key.slot,
+      label: key.label,
+      priority: key.priority,
+      enabled: key.slot === 1,
+      models: key.slot === 1 ? ['ollama-cloud/future:27b'] : [],
+      ...(key.slot === 1 ? { apiKey: 'pool-new-private-key' } : {}),
+    })),
+    randomUUID(),
+  );
+  expect(changed.managed).toBe(true);
+  expect((await service.adminConfig(admin)).enabled).toBe(false);
+  expect((await service.status()).availableModels).toEqual([]);
+  expect(await quota()).toBe(beforeQuota);
 });

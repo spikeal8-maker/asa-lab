@@ -16,7 +16,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
-import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
+import { isAiProvider, isKnownModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
 import { ComfyUiError } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
@@ -107,6 +107,32 @@ export class AiAdminController {
     return this.safe(() => this.ai.generationPolicy(actor));
   }
 
+  @Get('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async tokenBudgets(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.tokenBudgetsAdmin(actor));
+  }
+
+  @Put('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async saveTokenBudgets(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.saveTokenBudgets(actor, raw));
+  }
+
+  @Post('generation-policy/catalog')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async refreshCatalog(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const provider = (raw as { provider?: unknown } | null)?.provider;
+    if (provider !== 'openai' && provider !== 'deepseek')
+      return reject('ai_catalog_invalid', 'Выберите провайдера.', 400);
+    return this.safe(() => this.ai.refreshProviderCatalog(actor, provider));
+  }
   @Put('generation-policy')
   async saveGenerationPolicy(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
@@ -174,12 +200,20 @@ export class AiAdminController {
   async test(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
     const principalId = await this.requirePlatformAdmin(request);
-    const body = raw as { acknowledgePaidRequest?: unknown; configurationVersion?: unknown } | null;
+    const body = raw as {
+      acknowledgePaidRequest?: unknown;
+      configurationVersion?: unknown;
+      provider?: unknown;
+      providerConfigurationVersion?: unknown;
+    } | null;
     if (
       !body ||
       body.acknowledgePaidRequest !== true ||
       !Number.isSafeInteger(body.configurationVersion) ||
-      Number(body.configurationVersion) < 1
+      Number(body.configurationVersion) < 1 ||
+      !['openai', 'deepseek', 'ollama-cloud'].includes(String(body.provider)) ||
+      !Number.isSafeInteger(body.providerConfigurationVersion) ||
+      Number(body.providerConfigurationVersion) < 1
     ) {
       return reject(
         'ai_test_confirmation_required',
@@ -187,7 +221,14 @@ export class AiAdminController {
         400,
       );
     }
-    return this.safe(() => this.ai.testConnection(principalId, Number(body.configurationVersion)));
+    return this.safe(() =>
+      this.ai.testConnection(
+        principalId,
+        Number(body.configurationVersion),
+        body.provider as AiProvider,
+        Number(body.providerConfigurationVersion),
+      ),
+    );
   }
 
   @Put()
@@ -206,10 +247,11 @@ export class AiAdminController {
     const apiKey = value['apiKey'];
     const paidOperationsPerHour = value['paidOperationsPerHour'];
     const configurationVersion = value['configurationVersion'];
+    const providerConfigurationVersion = value['providerConfigurationVersion'];
     if (
       !isAiProvider(provider) ||
       !(
-        isModelForProvider(provider, model) ||
+        isKnownModelForProvider(provider, model) ||
         (provider === 'ollama-cloud' &&
           typeof model === 'string' &&
           model.startsWith('ollama-cloud/') &&
@@ -223,7 +265,10 @@ export class AiAdminController {
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
       (apiKey !== undefined && typeof apiKey !== 'string') ||
       (configurationVersion !== undefined &&
-        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1))
+        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1)) ||
+      (providerConfigurationVersion !== undefined &&
+        (!Number.isSafeInteger(providerConfigurationVersion) ||
+          Number(providerConfigurationVersion) < 1))
     ) {
       return reject('ai_config_invalid', 'Неверные настройки ИИ.', 400);
     }
@@ -236,6 +281,9 @@ export class AiAdminController {
           enabled,
           ...(typeof paidOperationsPerHour === 'number' ? { paidOperationsPerHour } : {}),
           ...(typeof configurationVersion === 'number' ? { configurationVersion } : {}),
+          ...(typeof providerConfigurationVersion === 'number'
+            ? { providerConfigurationVersion }
+            : {}),
           ...(typeof apiKey === 'string' ? { apiKey } : {}),
           ...(typeof clearApiKey === 'boolean' ? { clearApiKey } : {}),
         },
