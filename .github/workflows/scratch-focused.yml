@@ -222,6 +222,7 @@ jobs:
           MIGRATION_CONFIRM: APPLY:asa_public_scratch_test
           NODE_ENV: test
           ASA_SEED_DEMO: 'false'
+          ASA_WEB_PORT: '4612'
           ASA_WEB_ORIGIN: http://127.0.0.1:4612
           ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
           ASA_BLOCKS_RUNTIME_SIGNING_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
