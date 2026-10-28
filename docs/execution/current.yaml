@@ -13816,10 +13816,13 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_negative_forward_companion_current_repair
+      checkpoint: phase2_selected_coupled_NPN_base_admission_after_bounded_STOP
+      preserved_partial_sha: 8f7027f797277eed427d8c12af89949d7c3e66e5
+      phase1_result: WIP_NOT_READY exactkneediodecorrectionfixesoriginalheldKCL3mAto2.5e-11 and18immutablegoldensPASS. FourclockcasesstillFAILafter2msdueNPNbasebelowkneeactivation. No partialproductionmerge.
+      phase2_authorization: ControllerselectsNEWboundedexecutorfornecessarycoupledNPNbaseadmissioninclassifyandsaturationlatch. IndependentcausalreviewconfirmsVBE0.693137below0.7stampnegative686uAobserved0. PreserveVCEsaturationmechanismandquality; no optics/functions/refactor/server.
       owner_acceptance: pending
       execution_role: bounded_solver_executor_then_new_independent_review
-      owner_authorization: OwnerrequestsfunctionalArduinoone_to_fourdisplayprogramme; actual817physicalKCLfailure independentlyconfirmed. Fixdiodeactive_set_stamp_reportconsistencyonly, no numericalqualityweakening/clampmask/NPNonlypatch/foreignrefactor.
+      owner_authorization: OwnerrequestsfunctionalArduinoone_to_fourdisplayprogramme; actual817physicalKCLfailure independentlyconfirmed. FixcoupleddiodeandNPNbaseactive_set_stamp_reportconsistencyonly, no numericalqualityweakening/clampmask/VCEmechanismrewrite/foreignrefactor.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-DIODE-ACTIVE-SET-001.md
         - docs/product/electronics/examples/arduino-seven-segment-matrix/README.md

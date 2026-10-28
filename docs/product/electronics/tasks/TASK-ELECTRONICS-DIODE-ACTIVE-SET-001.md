@@ -40,6 +40,30 @@ thermal model, dependencies, timeout/iteration changes or unrelated cleanup.
 If the minimal correction exposes a separate convergence issue, preserve the
 causal result and STOP rather than widening solver architecture.
 
+## Selected second bounded cycle: coupled NPN base admission
+
+The first executor stopped as required after the diode correction: the held
+failure is fixed and 18 immutable raw/golden tests pass, but clock shutdown at
+2.022ms exposes a second independently confirmed companion mismatch. NPN VBE
+0.693137254895V is below its 0.7V knee; both region classification and the
+saturation latch admit it through a 20mV margin. The base stamp then carries
+negative 686.27451 microamps while observation reports zero. This is not a
+convergence issue and not a reason to weaken quality.
+
+Controller selects a NEW executor for this necessary coupled correction under
+the same repair. In addition to the diode change, allow the smallest base-admission
+consistency change in `contexts/electronics/domain/models/npn-dc-model.ts`.
+Cover both region classification and the base eligibility of the saturation
+latch. Preserve the VCE saturation latch and region mechanism, device model
+version, source limits, collector/base observations and all numerical thresholds.
+Do not replace the fault with another current clamp or alter PNP/FET models.
+
+Add tests for below/exact/above base knee, saturated falling edge, configured
+base-voltage profiles, back-to-back scans and 1/2/3/4 real NPN display clocks.
+The partial first-cycle branch is NOT READY and must not be merged alone.
+Retain its exact before/after receipts. If this two-source correction encounters
+another independent failure, STOP with the new cause; do not expand architecture.
+
 ## Acceptance and validation
 
 1. Preserve exact BEFORE source/circuit/state and raw residual. Show the selected
