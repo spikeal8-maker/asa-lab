@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: urgent_owner_chat_composer_cleanup_selected
+      checkpoint: image_presets_adaptation_with_composer_ci_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,33 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-IMAGE-PRESETS-ADAPTATION
+          issue: 373
+          scope: adapt prepared PR825 six image presets and approved brain navigation icon
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R16, R19, R27, R31]
+          acceptance_checks: [C17, C20, C24, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_pr: 825
+          selection: >-
+            Owner explicitly repeated the missing tested six image resolutions and brain icon.
+            Adapt only preset/icon hunks from PR825 after integrated Connections and clean
+            composer source. Choices:768x768,1024x1024,1280x720,1536x864,720x1280,864x1536;
+            default1024 when allowed. Preserve saved ComfyUI URL from0273, authorization,
+            budgets, immutable receipts, square graph digests and historical512 jobs/recovery.
+            Append next unused migration above0279 (expected0280), adapt current config setter
+            rather than overwriting0273. Do not append old0270 out of order or revert current
+            image service/controller changes. Focused API/transport/UI/PGlite upgrade tests,
+            types and independent review precede source integration. Final programme browser
+            evidence stays pending until composed source is tested. Next followup is truthful
+            local/network ComfyUI connection and versioned compatibility for the existing0.19.3
+            GPU profile, followed by Settings order/visibility UX, PR816 context, PR830 search
+            and prompt readability. Do not weaken recipe/version checks in this preset slice.
+            No Docker/server/config update, model downloads, live GPU or paid requests.
         - id: ASAI-CHAT-COMPOSER-CLEANUP
           issue: 373
           scope: urgent removal of user token-accounting strip and correct composer menu theme
@@ -647,7 +674,13 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R23, R31]
           acceptance_checks: [C17, C20, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          candidate_sha: 4fac7ef6db5a401b468056446323bbc449f0e789
+          integrated_sha: 4fac7ef6db5a401b468056446323bbc449f0e789
+          independent_review: approved_exact_source
+          ci_status: unit_types_review_pass_browser_pending
+          focused_tests: 185_pass_no_nx_cache
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
