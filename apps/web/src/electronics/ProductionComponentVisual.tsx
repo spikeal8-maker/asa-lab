@@ -86,6 +86,7 @@ interface Props {
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
   readonly effectiveArduinoLActive?: boolean | undefined;
+  readonly effectiveSevenSegmentBrightness?: Readonly<Record<string, number>> | undefined;
   readonly preparedLedAsset?: LedAssetPreparation | undefined;
   readonly committedLedAsset?: LedAssetReadiness | undefined;
   readonly rollbackLedAsset?: LedAssetReadiness | undefined;
@@ -1767,6 +1768,7 @@ export function ProductionComponentVisual({
   height,
   visualState,
   effectiveBrightness,
+  effectiveSevenSegmentBrightness,
   effectiveArduinoLActive,
   preparedLedAsset,
   committedLedAsset,
@@ -2464,7 +2466,17 @@ export function ProductionComponentVisual({
           <g transform={`scale(${width / 12.7} ${height / 19.05})`}>
             {SEGMENT_IDS.map((segment) => {
               const brightness = simulationRunning
-                ? Math.min(100, Math.max(0, Number(result?.branchBrightness?.[segment] ?? 0)))
+                ? Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Number(
+                        effectiveSevenSegmentBrightness?.[segment] ??
+                          result?.branchBrightness?.[segment] ??
+                          0,
+                      ),
+                    ),
+                  )
                 : 0;
               const opacity = brightness / 100;
               return segment === 'dp' ? (

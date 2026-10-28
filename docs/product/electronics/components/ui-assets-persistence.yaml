@@ -49,6 +49,8 @@ components:
     - apps/web/src/electronics/ProductionComponentVisual.tsx
     - apps/web/src/electronics/WorkbenchSidebars.tsx
     - apps/web/src/electronics/WorkbenchHeader.tsx
+    - apps/web/src/electronics/NativeOpticalComponentVisual.tsx
+    - apps/web/src/electronics/native-optical-presentation.ts
     - apps/web/src/electronics/WorkbenchTooltip.tsx
     - apps/web/src/electronics/workbench-geometry.ts
     - apps/web/src/electronics/workbench-drag-preview.ts
@@ -68,6 +70,7 @@ components:
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
+    - apps/web/src/electronics/testing/seven-segment-optical.spec.ts
     - apps/web/src/electronics/testing/workbench-tooltips.browser.mjs
     - apps/web/src/electronics/testing/servo-runtime.browser.mjs
     - apps/web/src/electronics/testing/workbench-geometry.spec.ts

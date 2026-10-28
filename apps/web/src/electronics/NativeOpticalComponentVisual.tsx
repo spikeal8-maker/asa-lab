@@ -47,7 +47,11 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
   if (!opticalPort) return <OwnerVisual {...props} />;
   // Servo and raw display follow committed physics without waiting for an editor render.
   // Proposed optical frames still belong to the LED/native-asset commit barrier.
-  const observation = nativeKind > 1 ? snapshot.committed : snapshot.observation;
+  const observation =
+    nativeKind === 2 ||
+    (nativeKind === 3 && !snapshot.observation?.frame.sevenSegmentBrightness?.has(componentId))
+      ? snapshot.committed
+      : snapshot.observation;
   const result = opticalPort.resultMap(observation).get(componentId);
   const optical = observation?.frame.brightness.get(componentId);
   let visualState = props.visualState;
@@ -74,6 +78,7 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
       simulationTimeMs={(observation?.frame.atMicroseconds ?? 0) / 1000}
       effectiveBrightness={optical ?? result?.brightness ?? 0}
       effectiveArduinoLActive={observation?.frame.arduinoLStates.get(componentId)}
+      effectiveSevenSegmentBrightness={observation?.frame.sevenSegmentBrightness?.get(componentId)}
       preparedLedAsset={
         asset && snapshot.preparation ? { token: snapshot.preparation.token, asset } : undefined
       }

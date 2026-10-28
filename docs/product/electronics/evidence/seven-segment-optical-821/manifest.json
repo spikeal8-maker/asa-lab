@@ -1,0 +1,36 @@
+{
+  "baseline": "3c48799ab367177423d208105b2020a3c3cad075",
+  "receipt": {
+    "rawBytes": 106137,
+    "rawSha256": "403d91713e097d748831ffb02218cf8f707713930a94d9701ce54332265a9773",
+    "gzipBytes": 4165,
+    "gzipSha256": "b79d218a93f0cfc3c3e9474d369f576a97f07f76b045c1ad5331740f0dd87378"
+  },
+  "images": {
+    "desktop.png": "b1506991b6b3833f66376ece502844f7eabb8e605d1766e63147c27ec102a14a",
+    "mobile.png": "c606e600b55eb63094bfbeaf0cb7c86e8eeb0cf469630f70e0fd715687f1614e"
+  },
+  "independent": {
+    "candidate": "652f4f9ba167f2d8b5e2c64f514cd2176b822cf8",
+    "artifacts": [
+      {
+        "file": "independent-integrals.json.gz",
+        "rawBytes": 76926,
+        "rawSha256": "076ec3760a18c89feb0abcc19fd06f95731d6d67a8800cc61a437b49ef3ae71d",
+        "gzipSha256": "a35be040473e41f11249e31156afe4e64a707a68f59e79ef4a35b51d5c8e5fa3"
+      },
+      {
+        "file": "independent-native.json.gz",
+        "rawBytes": 995496,
+        "rawSha256": "c90401a8c3096028244fd5f88caf8e19551e3898f3d3fe2233f006ba0533f8b9",
+        "gzipSha256": "a65c70d9b71a550be3a0c56c9c21897bbbce21d4082b43738ed501e4552c2c1e"
+      },
+      {
+        "file": "independent-buttons.json.gz",
+        "rawBytes": 43703,
+        "rawSha256": "e86f23ba02e636ad131c41f8564981541f4be3690c7a0aa3c7bea6f1551ddf4c",
+        "gzipSha256": "d45fad4bb441e0463cc12e615a0a009efe237e26bd8e28204f5a26d99d07cfc2"
+      }
+    ]
+  }
+}
