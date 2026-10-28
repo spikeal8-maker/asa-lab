@@ -120,6 +120,13 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     await nativeHost(seatContext);
     const guest = await guestContext.newPage();
     const requests = receipts(guest);
+    const playerBootstrap = () =>
+      guest.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname ===
+          `/api/public-projects/${binding.publicationId}/scratch-player`,
+      );
+    const initialBootstrap = playerBootstrap();
     await guest.goto(route);
     const frame = guest.frameLocator('[data-testid="public-scratch-frame"]');
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
@@ -137,7 +144,15 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       if (stage.data[i]! > 180 && stage.data[i + 1]! < 140 && stage.data[i + 2]! < 130) red++;
     expect(red, 'native canvas renders the actual red SVG asset').toBeGreaterThan(50);
     const counter = frame.locator('[class*="monitor_value"]').first();
-    await expect(counter).toHaveText('0');
+    // Native player-only Scratch starts the VM (and monitor updates) on the
+    // green flag, so assert the loaded source before starting the real program.
+    const initialResponse = await initialBootstrap;
+    expect(initialResponse.status()).toBe(200);
+    expect((await initialResponse.json()).projectJson.targets[0].variables.counter[1]).toBe(0);
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-project-running',
+      'false',
+    );
     await frame.getByRole('button', { name: 'Start project', exact: true }).click();
     await expect.poll(async () => Number(await counter.innerText())).toBeGreaterThan(2);
     await frame.getByRole('button', { name: 'Stop project', exact: true }).click();
@@ -168,13 +183,20 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
     await guest.screenshot({ path: `${EVIDENCE}/fullscreen.png` });
     await guest.getByTestId('public-scratch-fullscreen').click();
     await expect.poll(() => guest.evaluate(() => document.fullscreenElement === null)).toBe(true);
+    const reopenedBootstrap = playerBootstrap();
     await guest.reload();
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-editor-state',
       'ready',
       { timeout: 45000 },
     );
-    await expect(counter).toHaveText('0');
+    const reopenedResponse = await reopenedBootstrap;
+    expect(reopenedResponse.status()).toBe(200);
+    expect((await reopenedResponse.json()).projectJson.targets[0].variables.counter[1]).toBe(0);
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-project-running',
+      'false',
+    );
     expect(await frozen()).toEqual(before);
     const bootstrap = await guest.request.get(
       `/api/public-projects/${binding.publicationId}/scratch-player?revisionId=${binding.revisionId}`,
