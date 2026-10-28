@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 import { writeFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { e2eAdminPool } from './seed';
 
 const ORIGIN = 'http://127.0.0.1:4612';
@@ -13,6 +13,16 @@ const INTERNAL_REASONING = 'INTERNAL_REASONING_7F2';
 const INTERNAL_ARGUMENT = 'ARG_ONLY_7F2';
 type Mode = 'off' | 'unused' | 'called' | 'stop';
 type Mark = { stage: string; atMs: number; mode: Mode };
+
+function normalizedVisibleText(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+async function expectRenderedAnswer(answer: Locator, rawAnswer: string) {
+  await expect
+    .poll(async () => normalizedVisibleText(await answer.innerText()))
+    .toBe(normalizedVisibleText(rawAnswer));
+}
 
 function deferred() {
   let resolve!: () => void;
@@ -182,6 +192,7 @@ test('built AI chat streams real API deltas before upstream done with offered to
     expect(status.model).toBe('ollama-local');
 
     for (const mode of (BASELINE ? ['unused'] : ['off', 'unused', 'called', 'stop']) as Mode[]) {
+      const question = 'Учебный пример для проверки потока: ' + mode;
       active = {
         mode,
         first: deferred(),
@@ -195,9 +206,7 @@ test('built AI chat streams real API deltas before upstream done with offered to
       await page.locator('details.chat-tools-menu summary').click();
       const search = page.getByRole('combobox', { name: 'Режим интернет-поиска' });
       await search.selectOption(mode === 'off' ? 'off' : 'auto');
-      await page
-        .getByRole('textbox', { name: 'Сообщение ИИ' })
-        .fill('Объясни коротко учебный пример.');
+      await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill(question);
       await page.getByRole('button', { name: 'Отправить сообщение' }).click();
       await active.first.promise;
       expect(active.toolOffered).toBe(mode !== 'off');
@@ -256,11 +265,33 @@ test('built AI chat streams real API deltas before upstream done with offered to
         active.release.resolve();
       }
       const expectedAnswer =
-        mode === 'stop'
-          ? PIECES[0].trim()
-          : (mode === 'called' ? TOOL_PREFIX : '') + PIECES.join('');
+        mode === 'stop' ? PIECES[0] : (mode === 'called' ? TOOL_PREFIX : '') + PIECES.join('');
       const answer = page.locator('.chat-turn-assistant').last().locator('.asa-ai-rich-text');
-      await expect(answer).toHaveText(expectedAnswer.trim());
+      await expectRenderedAnswer(answer, expectedAnswer);
+      const threadsResponse = await page.request.get('/api/ai/threads');
+      expect(threadsResponse.ok()).toBe(true);
+      const threads = (await threadsResponse.json()) as {
+        items: { id: string; title: string }[];
+      };
+      const matchingThreads = threads.items.filter((thread) => thread.title === question);
+      expect(matchingThreads).toHaveLength(1);
+      const threadId = matchingThreads[0]!.id;
+      const expectOwnedHistory = async () => {
+        const messagesResponse = await page.request.get(`/api/ai/threads/${threadId}/messages`);
+        expect(messagesResponse.ok()).toBe(true);
+        const messages = (await messagesResponse.json()) as {
+          items: { role: string; content: string; state: string }[];
+        };
+        const assistants = messages.items.filter((message) => message.role === 'assistant');
+        expect(assistants).toHaveLength(1);
+        expect(assistants[0]).toEqual(
+          expect.objectContaining({
+            content: expectedAnswer,
+            state: mode === 'stop' ? 'stopped' : 'complete',
+          }),
+        );
+      };
+      await expectOwnedHistory();
       expect(active.calls).toBe(mode === 'called' ? 2 : 1);
       if (mode === 'called')
         expect(marks.some((item) => item.mode === mode && item.stage === 'search-request')).toBe(
@@ -268,9 +299,15 @@ test('built AI chat streams real API deltas before upstream done with offered to
         );
       const count = active.calls;
       await page.reload();
-      await expect(
+      const history = page.getByRole('dialog', { name: 'История диалогов' });
+      if (!(await history.isVisible()))
+        await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
+      await history.getByRole('button', { name: question, exact: true }).click();
+      await expectRenderedAnswer(
         page.locator('.chat-turn-assistant').last().locator('.asa-ai-rich-text'),
-      ).toHaveText(expectedAnswer.trim());
+        expectedAnswer,
+      );
+      await expectOwnedHistory();
       if (mode === 'stop')
         await expect(page.locator('.chat-turn-assistant').last().getByRole('status')).toContainText(
           'Ответ не завершён',
