@@ -364,7 +364,14 @@ async function preservedData(pool: pg.Pool) {
   const result: Record<string, unknown[]> = {};
   // Only this fixed list of test-owned table identifiers is interpolated.
   for (const table of preservedTables) {
-    const addedColumns = table === 'projects' ? [...copiedProjectOriginFields] : [];
+    // Normalize only known additive columns; all old and unknown future fields
+    // remain covered by the strict before/after equality below.
+    const addedColumns =
+      table === 'projects'
+        ? [...copiedProjectOriginFields]
+        : table === 'project_publication_state'
+          ? ['acquisition_allowed', 'acquisition_version']
+          : [];
     result[table] = (
       await pool.query(
         `SELECT to_jsonb(snapshot_row) - $1::text[] AS value
@@ -701,6 +708,25 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         afterLedger.map(({ version, name, checksum }) => ({ version, name, checksum })),
       ).toEqual(plan.map(({ version, name, checksum }) => ({ version, name, checksum })));
+      expect(
+        (
+          await pool.query(
+            'SELECT enabled,version FROM publication_acquisition_settings WHERE singleton_key',
+          )
+        ).rows,
+      ).toEqual([{ enabled: false, version: 0 }]);
+      expect(
+        (
+          await pool.query(
+            'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          acquisition_allowed: false,
+          acquisition_version: 0,
+        })),
+      );
       expect(await preservedData(pool)).toEqual(before);
       // New public-copy provenance columns must be NULL on every historical Project.
       expect(

@@ -117,7 +117,9 @@ async function legacySnapshot(db: pg.Pool) {
     project_versions: [],
     project_snapshots: [],
     project_publications: [],
-    project_publication_state: [],
+    // 0275 adds only these default-OFF consent columns. Keep every old field
+    // (and any unrecognized future field) in the strict preserved-data comparison.
+    project_publication_state: ['acquisition_allowed', 'acquisition_version'],
     project_publication_revisions: [
       'module_key',
       'author_label',
@@ -704,10 +706,15 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         expect(
           (
             await upgrade.query(
-              'SELECT count(*)::int n FROM project_publication_state WHERE acquisition_allowed OR acquisition_version<>0',
+              'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
             )
-          ).rows[0].n,
-        ).toBe(0);
+          ).rows,
+        ).toEqual(
+          before.project_publication_state!.map(() => ({
+            acquisition_allowed: false,
+            acquisition_version: 0,
+          })),
+        );
       } finally {
         upgrade.release();
       }
