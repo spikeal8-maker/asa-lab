@@ -140,6 +140,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0267', // Canonical frozen mixed Course completion, additive only.
         '0268', // Additive read-only AI usage overview.
         '0269', // Exact public Scratch player and version-scoped asset reads.
+        '0271', // Accepted Ollama Cloud catalog migration.
+        '0272', // Accepted Ollama Cloud key pool migration.
+        '0273', // Accepted ComfyUI endpoint migration.
+        '0274', // Audited class/Seat distribution and immutable publication admission.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -439,6 +443,10 @@ describe('Course Builder structure forward upgrade', () => {
           '0267', // Course completion formula from exact frozen lesson practices.
           '0268', // Additive read-only AI usage overview.
           '0269', // Exact public Scratch player and version-scoped asset reads.
+          '0271', // Accepted Ollama Cloud catalog migration.
+          '0272', // Accepted Ollama Cloud key pool migration.
+          '0273', // Accepted ComfyUI endpoint migration.
+          '0274', // Audited class/Seat distribution and immutable publication admission.
         ]);
         expect(
           await applyIsolatedTestPlan(

@@ -244,6 +244,11 @@ const upgradeArtifacts = [
     '0273_ai_comfyui_endpoint.sql',
     'be4d3096d7adace7d341a0a027d99e667cf027fa1f4841f384e759dafc5ff2b7',
   ],
+  [
+    '0274',
+    '0274_student_project_distribution.sql',
+    '955f2846087151970dd713110b7de94b938a42cb43047cd186a9bbea280eafec',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

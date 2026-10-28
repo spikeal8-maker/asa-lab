@@ -11,6 +11,7 @@ import pg from 'pg';
 const browser = process.argv.includes('--browser');
 for (const path of browser
   ? [
+      'e2e/student-project-policy.spec.ts',
       'e2e/public-projects.spec.ts',
       'e2e/public-project-electronics-viewer.spec.ts',
       'e2e/public-project-copy.spec.ts',
@@ -19,6 +20,9 @@ for (const path of browser
       'e2e/project-hub.spec.ts',
     ]
   : [
+      'tests/portal/student-project-policy.pg.spec.ts',
+      'apps/api/src/project-distribution.controller.spec.ts',
+      'apps/web/src/components/ClassroomProjectSettings.spec.ts',
       'tests/portal/public-projects.pg.spec.ts',
       'tests/portal/public-project-artifact.http.pg.spec.ts',
       'contexts/projects/testing/public-project-display-artifact.spec.ts',
@@ -157,6 +161,7 @@ if (browser) {
     'exec',
     'playwright',
     'test',
+    'e2e/student-project-policy.spec.ts',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-electronics-viewer.spec.ts',
     'e2e/public-project-copy.spec.ts',
@@ -190,6 +195,7 @@ if (browser) {
     '--types',
     'node',
     '--allowSyntheticDefaultImports',
+    'e2e/student-project-policy.spec.ts',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-electronics-viewer.spec.ts',
     'e2e/public-project-copy.spec.ts',
@@ -204,6 +210,9 @@ if (browser) {
     'tests/portal/projects-api.spec.ts',
     'tests/portal/project-transactions.spec.ts',
     'tests/portal/project-publication-revisions.pg.spec.ts',
+    'tests/portal/student-project-policy.pg.spec.ts',
+    'apps/api/src/project-distribution.controller.spec.ts',
+    'apps/web/src/components/ClassroomProjectSettings.spec.ts',
     'tests/portal/public-projects.pg.spec.ts',
     'tests/portal/public-project-artifact.http.pg.spec.ts',
     'apps/api/src/public-project-artifact.spec.ts',

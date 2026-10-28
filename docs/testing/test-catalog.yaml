@@ -1344,3 +1344,34 @@ tests:
     timeout_seconds: 300
     owner: ai-assistant
     artifacts: [test-report]
+
+  - id: TST-STUDENT-PROJECT-POLICY-UNIT-001
+    title: Exact-class authenticated policy commands and unforgeable authority
+    suite: authorization
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/project-distribution.controller.spec.ts apps/api/src/public-projects.spec.ts apps/web/src/components/ClassroomProjectSettings.spec.ts
+    timeout_seconds: 120
+    owner: identity
+    artifacts: [vitest-report]
+  - id: TST-STUDENT-PROJECT-POLICY-PG-001
+    title: Real Seat immutable publication, policy CAS races, protected origins and public Scratch authority
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/portal/student-project-policy.pg.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [vitest-report]
+  - id: TST-STUDENT-PROJECT-POLICY-E2E-001
+    title: Real teacher and Seat publication controls at 320, 390 and 1440 pixels
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/student-project-policy.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [playwright-report, student-project-policy-screenshots]

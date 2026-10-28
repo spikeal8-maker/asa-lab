@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { performance } from 'node:perf_hooks';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   analyseArduinoProgramSyntax,
   advanceClockedArduinoRuntime,
@@ -17,6 +18,14 @@ import {
 } from './fixtures/arduino-seven-segment-matrix.js';
 
 describe('Arduino raw display bounded feasibility before qualification', () => {
+  // The isolated runner mounts reports writable; its workspace root is read-only.
+  const reportDirectory = 'reports/arduino-seven-segment-matrix';
+  beforeAll(() => {
+    // Remove only this suite's stale diagnostics, leaving other reports intact.
+    rmSync(reportDirectory, { recursive: true, force: true });
+    mkdirSync(reportDirectory, { recursive: true });
+  });
+
   it('executes the exact formerly rejected user-function sketch after helper admission', () => {
     const syntax = analyseArduinoProgramSyntax(FUNCTION_PROBE_SOURCE);
     const actual = advanceClockedArduinoRuntime(FUNCTION_PROBE_SOURCE, {}, 10);
@@ -24,9 +33,8 @@ describe('Arduino raw display bounded feasibility before qualification', () => {
     expect(actual.diagnostics).toEqual([]);
     expect(actual.executionStatus).toBe('ready');
     expect(actual.state.outputVoltages.d2).toBe(5);
-    mkdirSync('test-results/arduino-seven-segment-matrix', { recursive: true });
     writeFileSync(
-      'test-results/arduino-seven-segment-matrix/functions-after.json',
+      join(reportDirectory, 'functions-after.json'),
       JSON.stringify(
         {
           status: 'PASS_scalar_void_helper_not_full_Cplusplus',
@@ -63,9 +71,8 @@ describe('Arduino raw display bounded feasibility before qualification', () => {
       const quality = verifyCircuitQuality(document, compileCircuit(document), held, {
         simulationTimeMs: 0,
       });
-      mkdirSync('test-results/arduino-seven-segment-matrix', { recursive: true });
       writeFileSync(
-        `test-results/arduino-seven-segment-matrix/domain-${count}.json`,
+        join(reportDirectory, `domain-${count}.json`),
         JSON.stringify(
           {
             count,
@@ -93,7 +100,7 @@ describe('Arduino raw display bounded feasibility before qualification', () => {
     const actual = run(20000),
       wallMs = performance.now() - started;
     writeFileSync(
-      `test-results/arduino-seven-segment-matrix/gpio-${count}.json`,
+      join(reportDirectory, `gpio-${count}.json`),
       JSON.stringify({ count, modelMs: 20, wallMs, document, actual }, null, 2),
     );
     expect(actual.executionStatus, JSON.stringify(actual.diagnostics)).toBe('ready');
@@ -105,7 +112,7 @@ describe('Arduino raw display bounded feasibility before qualification', () => {
     const actual = createArduinoCircuitClockExecutor(document)(20000),
       wallMs = performance.now() - started;
     writeFileSync(
-      'test-results/arduino-seven-segment-matrix/output-4.json',
+      join(reportDirectory, 'output-4.json'),
       JSON.stringify({ document, actual, modelMs: 20, wallMs }, null, 2),
     );
     expect(actual.executionStatus, JSON.stringify(actual.diagnostics)).toBe('ready');
