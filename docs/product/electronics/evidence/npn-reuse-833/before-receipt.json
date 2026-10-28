@@ -1,0 +1,21 @@
+{
+  "label": "before",
+  "bytes": 84612,
+  "sha256": "4eb3758a71405065b0bdf6eea0f1d2c32c3a9f22e3f0cf87d11eaf31f0aee2cd",
+  "times": [
+    {
+      "elapsedMs": 1472.8802999999998,
+      "calls": 1383,
+      "hits": 0,
+      "steps": 3,
+      "status": "ready"
+    },
+    {
+      "elapsedMs": 1242.6255999999994,
+      "calls": 1383,
+      "hits": 0,
+      "steps": 3,
+      "status": "ready"
+    }
+  ]
+}
