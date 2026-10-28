@@ -50,6 +50,7 @@ const expectedPending = [
   '0268', // Additive read-only AI usage overview.
   '0269', // Exact public Scratch player and version-scoped asset reads.
   '0270', // Atomic history for a visible native image-tool prefix.
+  '0271', // Explicit own-personal quality review.
 ];
 
 interface Identity {
