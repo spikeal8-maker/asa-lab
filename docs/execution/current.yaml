@@ -7004,6 +7004,28 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: electronics-report-baseline
+    parent_lane: electronics
+    task:
+      id: TASK-ELECTRONICS-REPORT-BASELINE-001
+      issue: 817
+      branch: codex/publication-electronics-gate-baseline-20261028
+      base_branch: main
+      status: in_progress
+      checkpoint: readonly_container_report_path_repair_selected
+      kind: maintenance
+      risk: medium
+      semantic_change: 'no'
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REPORT-BASELINE-001.md
+      owner_authorization: >-
+        Controller-selected independent integration dependency of the owner-authorized
+        publication programme. Preserve accepted Main Arduino helpers from242d401f.
+        Correct only matrix report output for read-only CI filesystem with writable reports.
+        No runtime, assertion, deployment or working database changes. Exact independent
+        review and General CI before Main; resume PR826 after accepted baseline.
+
   - id: projects
     worktree_id: projects-publication
     owned_paths:
@@ -7143,7 +7165,7 @@ parallel_lanes:
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
-      - id: TASK-PROJ-ELECTRONICS-REPORT-BASELINE-001
+      - id: TASK-ELECTRONICS-REPORT-BASELINE-001
         status: in_progress
         branch: codex/publication-electronics-gate-baseline-20261028
         issue: 817
