@@ -157,11 +157,22 @@ test('built AI chat streams real API deltas before upstream done with offered to
     await db.query(
       'UPDATE ai_web_search_settings SET enabled=true,revision=revision+1 WHERE singleton_key',
     );
+    const identity = await page.request.get('/api/auth/me');
+    expect(identity.status()).toBe(200);
+    const session = (await identity.json()) as {
+      authenticated: boolean;
+      verification?: { required: boolean };
+    };
+    expect(session.authenticated).toBe(true);
+    expect(session.verification?.required).toBe(false);
     expect(process.env.ASA_BUILD_REVISION).toBe(revision);
     expect(process.env.VITE_ASA_BUILD_REVISION).toBe(revision);
     expect((await (await page.request.get('/api/version')).json()).revision).toBe(revision);
     expect((await (await page.request.get('/build-metadata.json')).json()).revision).toBe(revision);
     await page.goto('/#/ai');
+    // Registration used the shared APIRequestContext after the SPA had already
+    // observed an anonymous session. Reload rehydrates App from the real cookie.
+    await page.reload();
     await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toBeVisible();
     const status = (await (await page.request.get('/api/ai/status')).json()) as {
       enabled: boolean;
