@@ -1,0 +1,650 @@
+"""Regression checks for the closed legacy-review identity adapter."""
+
+from copy import deepcopy
+import io
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+import urllib.error
+from unittest.mock import patch
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from deployment.contracts import Blocked
+from deployment.legacy_identity import (LegacyInstallation, REVIEW_FILES, REVIEW_SERVICES, REVIEW_WRITERS, SOURCE_BINDS,
+                                        actual_ports, assert_snapshot_equal, attest_foreign_mounts, attest_foreign_networks,
+                                        attest_legacy_storage, canonical_mounts, configured_ports, foreign_identity,
+                                        input_inventory, inspect_foreign_volumes, plain_input, validate_review_configuration)
+
+
+def review_fixture(root):
+    """Observed review shape, expressed independently of the production helper."""
+    project, revision = "asa-lab-dev", "a" * 40
+    services = {name: {"image": f"legacy-{name}:base", "security_opt": ["no-new-privileges:true"], "cap_drop": ["ALL"], "environment": {}}
+                for name in REVIEW_SERVICES}
+    for name, networks in {"postgres": ["database"], "migration": ["database"], "api": ["application", "database"],
+                           "web": ["application", "scratch-runtime"], "scratch": ["scratch-runtime"],
+                           "minio": ["application"], "minio-init": ["application"], "search": ["application"]}.items():
+        services[name]["networks"] = {network: None for network in networks}
+    services["postgres"]["volumes"] = [{"type": "volume", "source": "postgres-data", "target": "/var/lib/postgresql/data"}]
+    services["minio"]["volumes"] = [{"type": "volume", "source": "blocks-object-data", "target": "/data"}]
+    services["api"].update(build={"context": str(root), "dockerfile": "Dockerfile.api"}, user="node", read_only=True,
+                           environment={"ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610", "APP_DATABASE_URL": "postgres://app:private@postgres:5432/asalab"},
+                           ports=[{"target": 4611, "published": "4611", "host_ip": "127.0.0.1", "protocol": "tcp"}],
+                           volumes=[{"type": "volume", "source": "application-logs", "target": "/var/lib/asa-application-logs"},
+                                    {"type": "bind", "source": str(root / ".asa/diagnostics/store"), "target": "/var/lib/asa-logs", "read_only": True, "bind": {"create_host_path": True}}])
+    services["web"].update(build={"context": str(root), "dockerfile": "Dockerfile.web"}, user="65534:65534", read_only=True,
+                           ports=[{"target": 8080, "published": "4610", "host_ip": "127.0.0.1", "protocol": "tcp"}])
+    services["scratch"]["ports"] = [{"target": 8080, "published": "4613", "host_ip": "127.0.0.1", "protocol": "tcp"}]
+    base = {"name": project, "services": services,
+            "networks": {key: {"name": f"{project}_{key}"} for key in ("application", "database", "scratch-runtime")},
+            "volumes": {key: {"name": f"{project}_{key}"} for key in ("postgres-data", "blocks-object-data", "application-logs")}}
+    base["networks"]["database"]["internal"] = True
+    full = deepcopy(base)
+    for name, target in (("api", "http://127.0.0.1:4611/health/live"), ("web", "http://127.0.0.1:8080/")):
+        service = full["services"][name]
+        service.pop("build")
+        service.update(image="asa-lab-dev-workspace:ai-review-aaaaaaaa", working_dir="/workspace", user="0:0", read_only=False,
+                       entrypoint=["/bin/sh", "/workspace/.asa/local-review/api-watch.sh"] if name == "api" else ["node", "/workspace/node_modules/vite/bin/vite.js", "--config", "/workspace/.asa/local-review/vite.config.mts"],
+                       healthcheck={"test": ["CMD", "node", "-e", f"fetch('{target}').then(r=>{{if(!r.ok)process.exit(1)}}).catch(()=>process.exit(1))"],
+                                    "interval": "10s", "timeout": "5s", "retries": 12, "start_period": "45s" if name == "api" else "30s"})
+        service["environment"].update({"ASA_BUILD_REVISION": revision, "NODE_EXTRA_CA_CERTS": "/workspace/docker/certs/russian-trusted-root-ca.pem",
+                                       "ASA_COMFYUI_BASE_URL": "http://host.docker.internal:8188", "TSC_WATCHFILE": "FixedPollingInterval",
+                                       "TSC_WATCHDIRECTORY": "DynamicPriorityPolling"} if name == "api" else
+                                      {"VITE_ASA_BUILD_REVISION": revision, "VITE_ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610"})
+        for (owner, destination), source in SOURCE_BINDS.items():
+            if owner == name:
+                service.setdefault("volumes", []).append({"type": "bind", "source": str(root / source), "target": destination,
+                                                          "read_only": True, "bind": {"create_host_path": True}})
+    return base, full
+
+
+class ReviewPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.base, self.full = review_fixture(self.root)
+
+    def test_observed_api_watcher_and_vite_shape_is_accepted(self):
+        self.assertIs(validate_review_configuration(self.root, self.base, self.full), self.full)
+
+    def test_d2_compose_omits_false_and_bind_shorthand_defaults(self):
+        for name in ("api", "web"):
+            service = self.full["services"][name]
+            service.pop("read_only")
+            for mount in service["volumes"]:
+                if (name, mount.get("target")) in SOURCE_BINDS:
+                    mount["bind"].pop("create_host_path")
+        validate_review_configuration(self.root, self.base, self.full)
+        self.full["services"]["api"]["volumes"][-1]["bind"]["propagation"] = "rshared"
+        with self.assertRaises(Blocked):
+            validate_review_configuration(self.root, self.base, self.full)
+
+    def test_unknown_environment_process_security_and_health_override_are_rejected(self):
+        changes = [lambda service: service.update(command=["sh", "-c", "foreign"]),
+                   lambda service: service.update(entrypoint=["node", "foreign.js"]),
+                   lambda service: service["environment"].update(UNKNOWN_SETTING="private"),
+                   lambda service: service["environment"].update(APP_DATABASE_URL="postgres://foreign/other"),
+                   lambda service: service.update(working_dir="/other"),
+                   lambda service: service.update(cap_add=["SYS_ADMIN"]),
+                   lambda service: service["healthcheck"].update(test=["CMD", "true"]),
+                   lambda service: service.update(image="arbitrary:tag")]
+        for change in changes:
+            full = deepcopy(self.full)
+            change(full["services"]["api"])
+            with self.subTest(change=change), self.assertRaises(Blocked):
+                validate_review_configuration(self.root, self.base, full)
+
+    def test_unknown_overlay_service_and_foreign_root_mount_fail_closed(self):
+        cases = [lambda full: full["services"].update(unknown={"image": "busybox"}),
+                 lambda full: full["services"]["minio"].update(command=["foreign"]),
+                 lambda full: full["services"]["api"]["volumes"][-1].update(source=str(self.root.parent / "foreign")),
+                 lambda full: full["services"]["api"]["volumes"][-1].update(read_only=False),
+                 lambda full: full["services"]["api"]["volumes"].append({"type": "bind", "source": str(self.root), "target": "/unknown", "read_only": True})]
+        for change in cases:
+            full = deepcopy(self.full)
+            change(full)
+            with self.subTest(change=change), self.assertRaises(Blocked):
+                validate_review_configuration(self.root, self.base, full)
+
+    def test_foreign_volume_is_refused_even_if_base_was_already_redirected(self):
+        self.base["volumes"]["postgres-data"]["name"] = "foreign_postgres-data"
+        self.full["volumes"]["postgres-data"]["name"] = "foreign_postgres-data"
+        with self.assertRaises(Blocked) as failure:
+            validate_review_configuration(self.root, self.base, self.full)
+        self.assertEqual(failure.exception.code, "LEGACY_VOLUME")
+
+    def test_volume_order_is_irrelevant_but_modes_and_paths_are_exact(self):
+        self.full["services"]["api"]["volumes"].reverse()
+        validate_review_configuration(self.root, self.base, self.full)
+
+    def test_private_credential_change_never_appears_in_blocked_output(self):
+        self.full["services"]["api"]["environment"]["APP_DATABASE_URL"] = "postgres://admin:private-sensitive-value@foreign/production"
+        with self.assertRaises(Blocked) as failure:
+            validate_review_configuration(self.root, self.base, self.full)
+        self.assertNotIn("private-sensitive-value", str(failure.exception))
+
+
+class InputTests(unittest.TestCase):
+    def test_nested_overlay_and_binary_runtime_bytes_are_inventoried(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / ".asa/local-review").mkdir(parents=True)
+            (root / ".asa/local-review/compose.review.yaml").write_bytes(b"services:\r\n  api: {}\r\n")
+            (root / ".asa/local-review/runtime.bin").write_bytes(b"\x00\xff\x10")
+            inventory = input_inventory(root, [".asa/local-review"])
+            self.assertEqual(set(inventory), {".asa/local-review/compose.review.yaml", ".asa/local-review/runtime.bin"})
+            before = inventory[".asa/local-review/compose.review.yaml"]
+            (root / ".asa/local-review/compose.review.yaml").write_bytes(b"services:\n  api: {}\n")
+            self.assertNotEqual(before, input_inventory(root, [".asa/local-review"])[".asa/local-review/compose.review.yaml"])
+
+    def test_outside_absolute_and_noncanonical_paths_are_rejected(self):
+        with tempfile.TemporaryDirectory() as root:
+            for path in ("../outside", "/etc/passwd", "a/../../x", "C:/outside", "a\\b"):
+                with self.subTest(path=path), self.assertRaises(Blocked):
+                    plain_input(root, path)
+
+    def test_symlink_and_hardlink_inputs_fail_closed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "original").write_text("private")
+            os.link(root / "original", root / "hardlink")
+            with self.assertRaises(Blocked):
+                input_inventory(root, ["hardlink"])
+            (root / "hardlink").unlink()
+            try:
+                (root / "redirected").symlink_to(root / "original")
+            except OSError:
+                return  # Windows runner may not permit symlink creation.
+            with self.assertRaises(Blocked):
+                input_inventory(root, ["redirected"])
+
+    def test_source_change_during_hashing_is_not_a_plan(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "source").write_text("before")
+            def moving_file(path):
+                path.write_text("changed length")
+                return "a" * 64
+            with patch("deployment.legacy_identity.file_hash", side_effect=moving_file), self.assertRaises(Blocked) as failure:
+                input_inventory(root, ["source"])
+            self.assertEqual(failure.exception.code, "LEGACY_DRIFT")
+
+    def test_windows_reparse_points_are_rejected_even_if_not_symlinks(self):
+        with tempfile.TemporaryDirectory() as root:
+            with patch("deployment.legacy_identity.plain_paths", side_effect=ValueError("junction")), self.assertRaises(Blocked) as failure:
+                plain_input(root, "source")
+            self.assertEqual(failure.exception.code, "LEGACY_PATH")
+
+
+class SnapshotTests(unittest.TestCase):
+    def snapshot(self):
+        return {"root": "/owned", "project": "asa-lab-dev", "inputs": {"file": {"sha256": "a", "bytes": 1}},
+                "git": {"indexHash": "index", "head": "source"},
+                "containers": {name: {"id": name, "running": name not in ("migration", "minio-init"), "imageId": "sha256:a", "mounts": []}
+                               for name in REVIEW_SERVICES}, "foreignSha256": "foreign"}
+
+    def stopped_snapshot(self, expected):
+        observed = deepcopy(expected)
+        for name in REVIEW_WRITERS:
+            observed["containers"][name]["running"] = False
+        return observed
+
+    def test_only_writer_running_state_can_differ_during_controlled_backup(self):
+        expected = self.snapshot()
+        observed = self.stopped_snapshot(expected)
+        assert_snapshot_equal(expected, observed, allow_stopped=True)
+        with self.assertRaises(Blocked):
+            assert_snapshot_equal(expected, observed)
+        observed["containers"]["postgres"]["running"] = False
+        with self.assertRaises(Blocked):
+            assert_snapshot_equal(expected, observed, allow_stopped=True)
+
+    def test_resumed_writers_started_auxiliaries_and_changed_search_are_rejected(self):
+        expected = self.snapshot()
+        for name in ("api", "minio", "web", "scratch", "migration", "minio-init", "search"):
+            observed = self.stopped_snapshot(expected)
+            observed["containers"][name]["running"] = name != "search"
+            with self.subTest(service=name), self.assertRaises(Blocked):
+                assert_snapshot_equal(expected, observed, allow_stopped=True)
+
+    def test_source_index_container_mount_and_foreign_drift_block(self):
+        expected = self.snapshot()
+        changes = [lambda value: value["inputs"]["file"].update(sha256="changed"),
+                   lambda value: value["git"].update(indexHash="changed"),
+                   lambda value: value["containers"]["api"].update(imageId="sha256:b"),
+                   lambda value: value["containers"]["api"].update(id="replacement"),
+                   lambda value: value["containers"]["api"].update(mounts=["foreign"]),
+                   lambda value: value.update(foreignSha256="changed")]
+        for change in changes:
+            observed = self.stopped_snapshot(expected)
+            change(observed)
+            with self.subTest(change=change), self.assertRaises(Blocked) as failure:
+                assert_snapshot_equal(expected, observed, allow_stopped=True)
+            self.assertEqual(failure.exception.code, "LEGACY_DRIFT")
+
+    def test_compare_does_not_mutate_the_sealed_plan(self):
+        expected = self.snapshot()
+        original = deepcopy(expected)
+        assert_snapshot_equal(expected, self.stopped_snapshot(expected), allow_stopped=True)
+        self.assertEqual(expected, original)
+
+
+class PortTests(unittest.TestCase):
+    def test_exact_loopback_bindings_match(self):
+        configured = {"ports": [{"target": 8080, "published": "4610", "host_ip": "127.0.0.1", "protocol": "tcp"}]}
+        record = {"ports": {"8080/tcp": [{"HostIp": "127.0.0.1", "HostPort": "4610"}]}}
+        self.assertEqual(configured_ports(configured), actual_ports(record))
+
+    def test_implicit_public_or_dynamic_port_is_rejected(self):
+        for port in ({"target": 8080, "published": "4610"},
+                     {"target": 8080, "published": "4610", "host_ip": "0.0.0.0"},
+                     {"target": 8080, "published": "4610-4620", "host_ip": "127.0.0.1"}):
+            with self.subTest(port=port), self.assertRaises(Blocked):
+                configured_ports({"ports": [port]})
+
+
+class StorageIsolationTests(unittest.TestCase):
+    def foreign_volume(self, name="foreign_data", **changes):
+        return {"Name": name, "Driver": "local", "Scope": "local", "Options": None,
+                "CreatedAt": "2026-10-01T00:00:00Z", "Mountpoint": f"/var/lib/docker/volumes/{name}/_data",
+                "Labels": {"com.docker.compose.project": "unrelated"}, **changes}
+
+    def foreign_record(self, volume):
+        return {"id": "c" * 64, "labels": {"com.docker.compose.project": "unrelated"},
+                "mounts": [{"Type": "volume", "Name": volume["Name"], "Driver": "local",
+                            "Source": volume["Mountpoint"], "Destination": "/data", "RW": True}],
+                "volumeIdentity": [deepcopy(volume)]}
+
+    def test_mount_map_order_is_not_identity_but_every_mount_property_is(self):
+        mounts = [{"Type": "bind", "Source": "/owned/a", "Destination": "/a", "RW": False, "Propagation": "rprivate"},
+                  {"Type": "volume", "Name": "owned-data", "Destination": "/data", "RW": True, "Driver": "local"}]
+        original = deepcopy(mounts)
+        reversed_mounts = list(reversed(mounts))
+        self.assertEqual(canonical_mounts(mounts), canonical_mounts(reversed_mounts))
+        self.assertEqual(foreign_identity({"mounts": mounts}), foreign_identity({"mounts": reversed_mounts}))
+        for key, value in (("Source", "/foreign"), ("RW", True), ("Propagation", "rshared")):
+            changed = deepcopy(mounts)
+            changed[0][key] = value
+            with self.subTest(property=key):
+                self.assertNotEqual(canonical_mounts(mounts), canonical_mounts(changed))
+                self.assertNotEqual(foreign_identity({"mounts": mounts}), foreign_identity({"mounts": changed}))
+        self.assertEqual(mounts, original)
+
+    def test_foreign_network_writer_is_rejected_and_network_drift_is_fingerprinted(self):
+        config = {"networks": {"database": {"name": "asa-lab-dev_database"}}}
+        foreign = {"id": "a" * 64, "name": "/foreign", "networks": {}, "networkMode": "bridge"}
+        first = foreign_identity(foreign)
+        attest_foreign_networks(config, [first], {})
+        foreign["networks"] = {"asa-lab-dev_database": {"IPAddress": "172.30.0.7"}}
+        observed = foreign_identity(foreign)
+        self.assertNotEqual(first, observed)
+        with self.assertRaises(Blocked) as failure:
+            attest_foreign_networks(config, [observed], {})
+        self.assertEqual(failure.exception.code, "LEGACY_SHARED_NETWORK")
+
+    def test_foreign_shared_network_namespace_cannot_hide_without_own_endpoints(self):
+        config = {"networks": {"database": {"name": "asa-lab-dev_database"}}}
+        owned = {"postgres": {"id": "b" * 64, "name": "/asa-postgres", "networks": ["asa-lab-dev_database"]}}
+        for target in ("b" * 64, "b" * 12, "asa-postgres", "unknown"):
+            foreign = {"id": "a" * 64, "name": "/foreign", "networks": [], "networkMode": "container:" + target}
+            with self.subTest(target=target), self.assertRaises(Blocked):
+                attest_foreign_networks(config, [foreign], owned)
+        separate = {"id": "c" * 64, "name": "/separate", "networks": ["other-network"], "networkMode": "other-network"}
+        foreign["networkMode"] = "container:" + separate["id"]
+        attest_foreign_networks(config, [foreign, separate], owned)
+        separate.update(networkMode="host", networks=[])
+        with self.assertRaises(Blocked):
+            attest_foreign_networks(config, [separate], owned)
+        with self.assertRaises(Blocked):
+            attest_foreign_networks(config, [foreign, separate], owned)
+
+    def test_foreign_bind_to_daemon_volume_path_blocks_even_with_windows_source_root(self):
+        config = {"volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}}}
+        location = "/var/lib/docker/volumes/asa-lab-dev_postgres-data/_data"
+        volumes = [{"Mountpoint": location}]
+        for source in (location, location + "/base", "/var/lib/docker/volumes", "/", location + "/../_data"):
+            with self.subTest(source=source), self.assertRaises(Blocked) as failure:
+                attest_foreign_mounts(r"C:\Users\owner\ASA", config,
+                                     [{"mounts": [{"Type": "bind", "Source": source, "RW": True}]}], volumes)
+            self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+        attest_foreign_mounts(r"C:\Users\owner\ASA", config,
+                             [{"mounts": [{"Type": "bind", "Source": "/var/lib/docker/volumes/another/_data"}]}], volumes)
+
+    def test_foreign_container_cannot_share_owned_volume_or_source_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "owned"
+            root.mkdir()
+            config = {"volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"},
+                                  "blocks-object-data": {"name": "asa-lab-dev_blocks-object-data"}}}
+            mounts = [{"Type": "volume", "Name": value["name"]} for value in config["volumes"].values()]
+            mounts += [{"Type": "bind", "Source": str(path)} for path in (root, root.parent, root / "apps/api")]
+            for mount in mounts:
+                with self.subTest(mount=mount), self.assertRaises(Blocked) as failure:
+                    attest_foreign_mounts(root, config, [{"mounts": [mount]}])
+                self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+            foreign = self.foreign_record(self.foreign_volume())
+            foreign["mounts"].append({"Type": "bind", "Source": str(root.parent / "neighbour")})
+            attest_foreign_mounts(root, config, [foreign])
+
+    def test_foreign_named_volume_redirects_fail_closed_including_desktop_and_symlink_paths(self):
+        devices = ("/var/lib/docker/volumes/asa-lab-dev_postgres-data/_data",
+                   "/var/lib/docker/volumes/asa-lab-dev_blocks-object-data/_data",
+                   r"C:\Users\owner\ASA", "/run/desktop/mnt/host/c/Users/owner/ASA",
+                   "/host_mnt/c/Users/owner/ASA", "/unverified-symlink-to-ASA", "/unrelated")
+        for device in devices:
+            for flags in ("bind", "rbind", "bind,ro"):
+                volume = self.foreign_volume(Options={"type": "none", "o": flags, "device": device})
+                with self.subTest(device=device, flags=flags), \
+                        patch("deployment.legacy_identity.run", return_value=json.dumps([volume])), self.assertRaises(Blocked) as failure:
+                    inspect_foreign_volumes([self.foreign_record(volume)])
+                self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+                self.assertNotIn(device, str(failure.exception))
+
+    def test_missing_duplicate_and_unknown_foreign_volume_metadata_are_rejected(self):
+        volume = self.foreign_volume()
+        cases = [[], [volume, volume], [{**volume, "Name": "different"}], [{**volume, "Name": None}],
+                 [{**volume, "Driver": "nfs"}], [{**volume, "Scope": "global"}],
+                 [{**volume, "CreatedAt": None}], [{**volume, "Mountpoint": "relative"}],
+                 [{**volume, "Options": {"device": "/unknown"}}], [{**volume, "Labels": []}], {}]
+        for observed in cases:
+            with self.subTest(observed=observed), patch("deployment.legacy_identity.run", return_value=json.dumps(observed)), self.assertRaises(Blocked):
+                inspect_foreign_volumes([self.foreign_record(volume)])
+        with patch("deployment.legacy_identity.run", return_value="not-json"), self.assertRaises(Blocked):
+            inspect_foreign_volumes([self.foreign_record(volume)])
+
+    def test_foreign_mount_must_match_inspected_driver_and_actual_source(self):
+        volume = self.foreign_volume()
+        for change in ({"Source": "/another/source"}, {"Source": ""}, {"Driver": "other"}, {"Name": "--help"}):
+            record = self.foreign_record(volume)
+            record["mounts"][0].update(change)
+            with self.subTest(change=change), patch("deployment.legacy_identity.run", return_value=json.dumps([volume])), self.assertRaises(Blocked):
+                inspect_foreign_volumes([record])
+
+    def test_raw_foreign_name_without_backing_metadata_is_never_accepted(self):
+        record = self.foreign_record(self.foreign_volume())
+        record.pop("volumeIdentity")
+        with self.assertRaises(Blocked) as failure:
+            attest_foreign_mounts("/owned", {"volumes": {}}, [record])
+        self.assertEqual(failure.exception.code, "LEGACY_SHARED_STORAGE")
+
+    def test_plain_foreign_volume_mountpoint_cannot_overlap_owned_data(self):
+        owned = "/var/lib/docker/volumes/asa-lab-dev_postgres-data/_data"
+        for source in (owned, owned + "/base", "/var/lib/docker/volumes", "/"):
+            volume = self.foreign_volume(Mountpoint=source)
+            with self.subTest(source=source), self.assertRaises(Blocked):
+                attest_foreign_mounts(r"C:\Users\owner\ASA", {"volumes": {}},
+                                     [self.foreign_record(volume)], [{"Mountpoint": owned}])
+
+    def test_foreign_metadata_is_reobserved_and_sealed_for_neighbour_verification(self):
+        from deployment.legacy import json_hash, verify_neighbours
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+            install = LegacyInstallation(root)
+            first, second = self.foreign_volume("other_a"), self.foreign_volume("other_b")
+            record = self.foreign_record(first)
+            record["mounts"].append(self.foreign_record(second)["mounts"][0])
+            record.pop("volumeIdentity")
+            changed = {**first, "CreatedAt": "2026-10-28T00:00:00Z"}
+            replies = [record["id"], json.dumps(record), json.dumps([second, first]),
+                       record["id"], json.dumps(record), json.dumps([changed, second])]
+            with patch("deployment.legacy_identity.run", side_effect=replies) as command:
+                before = install.containers()
+                observed = foreign_identity(before[0])
+                self.assertEqual([item["Name"] for item in observed["volumeIdentity"]], ["other_a", "other_b"])
+                snapshot = {"foreignSha256": json_hash([observed])}
+                with self.assertRaises(Blocked) as failure:
+                    verify_neighbours(install, snapshot)
+                self.assertEqual(failure.exception.code, "LEGACY_NEIGHBOUR_DRIFT")
+                volume_reads = [call.args[0] for call in command.call_args_list if call.args[0][:3] == ["docker", "volume", "inspect"]]
+                self.assertEqual(volume_reads, [["docker", "volume", "inspect", "other_a", "other_b"]] * 2)
+
+    def test_plain_foreign_volume_metadata_is_exact_without_mutating_input(self):
+        volume = self.foreign_volume()
+        record = self.foreign_record(volume)
+        original = deepcopy(record)
+        with patch("deployment.legacy_identity.run", return_value=json.dumps([volume])) as command:
+            self.assertEqual(inspect_foreign_volumes([record, record]), {volume["Name"]: volume})
+            command.assert_called_once_with(["docker", "volume", "inspect", volume["Name"]], capture=True)
+        self.assertEqual(record, original)
+        for key, value in (("CreatedAt", "later"), ("Options", {}), ("Mountpoint", "/different"),
+                           ("Labels", {"owner": "changed"}), ("Driver", "other")):
+            changed = deepcopy(record)
+            changed["volumeIdentity"][0][key] = value
+            with self.subTest(field=key):
+                self.assertNotEqual(foreign_identity(record), foreign_identity(changed))
+
+    def test_volume_labels_driver_and_options_are_attested_and_creation_is_pinned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+            install = LegacyInstallation(root)
+            config = {"volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}}}
+            volume = {"Name": "asa-lab-dev_postgres-data", "Driver": "local", "Scope": "local", "Options": None,
+                      "CreatedAt": "2026-10-01T00:00:00Z", "Mountpoint": "/var/lib/docker/volumes/owned/_data",
+                      "Labels": {"com.docker.compose.project": "asa-lab-dev", "com.docker.compose.volume": "postgres-data"}}
+            with patch("deployment.legacy_identity.run", return_value=json.dumps([volume])):
+                self.assertEqual(install.attest_volume_ownership(config)[0]["CreatedAt"], volume["CreatedAt"])
+            for change in ({"Driver": "nfs"}, {"Options": {"device": "/foreign"}}, {"Labels": {}}, {"CreatedAt": None}):
+                with self.subTest(change=change), patch("deployment.legacy_identity.run", return_value=json.dumps([{**volume, **change}])), self.assertRaises(Blocked):
+                    install.attest_volume_ownership(config)
+
+
+class ActualContainerTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        (self.root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+        self.install = LegacyInstallation(self.root)
+        self.record = {"id": "container", "image": "local-review:old", "imageId": "sha256:" + "a" * 64}
+        self.config = {"image": "local-review:old", "command": ["node", "review.js"], "user": "node",
+                       "read_only": True, "environment": {"A_PRIVATE_KEY": "do-not-print-this"},
+                       "cap_drop": ["ALL"], "tmpfs": ["/tmp"], "security_opt": ["no-new-privileges:true"]}
+        self.raw = {"Config": {"Cmd": ["node", "review.js"], "Entrypoint": None, "WorkingDir": "/app", "User": "node",
+                               "Env": ["A_PRIVATE_KEY=do-not-print-this"]},
+                    "HostConfig": {"ReadonlyRootfs": True, "CapDrop": ["ALL"], "Tmpfs": {"/tmp": ""},
+                                   "SecurityOpt": ["no-new-privileges:true"]}}
+        self.image = {"Id": self.record["imageId"], "Config": {"WorkingDir": "/app"}}
+
+    def test_actual_image_process_keys_and_mount_policy_are_attested(self):
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]):
+            self.install._attest_container_config("api", self.record, self.config)
+        self.assertEqual(len(self.record["configurationSha256"]), 64)
+        self.assertNotIn("do-not-print", json.dumps(self.record))
+
+    def test_mutable_old_tag_move_is_rejected(self):
+        self.image["Id"] = "sha256:" + "b" * 64
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked) as failure:
+            self.install._attest_container_config("api", self.record, self.config)
+        self.assertEqual(failure.exception.code, "LEGACY_IMAGE")
+
+    def test_explicit_entrypoint_discards_image_cmd_without_allowing_arbitrary_actual_command(self):
+        self.config.pop("command")
+        self.config["entrypoint"] = ["/bin/sh", "/workspace/.asa/local-review/api-watch.sh"]
+        self.image["Config"]["Cmd"] = ["node"]
+        self.raw["Config"].update(Entrypoint=self.config["entrypoint"], Cmd=None)
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]):
+            self.install._attest_container_config("api", self.record, self.config)
+        self.raw["Config"]["Cmd"] = ["unapproved-command"]
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
+            self.install._attest_container_config("api", self.record, self.config)
+
+    def test_actual_secret_mismatch_blocks_without_printing_either_value(self):
+        self.raw["Config"]["Env"] = ["A_PRIVATE_KEY=another-private-key"]
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked) as failure:
+            self.install._attest_container_config("api", self.record, self.config)
+        self.assertEqual(failure.exception.code, "LEGACY_ENV")
+        self.assertNotIn("private-key", str(failure.exception))
+        self.assertNotIn("do-not-print", str(failure.exception))
+
+    def test_unknown_actual_commands_privileges_and_tmpfs_fail_closed(self):
+        mutations = [lambda raw: raw["Config"].update(Cmd=["sh", "-c", "foreign"]),
+                     lambda raw: raw["HostConfig"].update(Privileged=True),
+                     lambda raw: raw["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
+                     lambda raw: raw["HostConfig"].update(SecurityOpt=[]),
+                     lambda raw: raw["HostConfig"].update(Devices=[{"PathOnHost": "/dev/sda"}]),
+                     lambda raw: raw["HostConfig"].update(Tmpfs={"/tmp": "", "/app": ""})]
+        for mutation in mutations:
+            raw = deepcopy(self.raw)
+            mutation(raw)
+            with self.subTest(mutation=mutation), patch("deployment.legacy_identity.run", side_effect=[json.dumps([raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
+                self.install._attest_container_config("api", deepcopy(self.record), self.config)
+
+    def test_null_process_fields_inherit_the_exact_image_defaults(self):
+        for field in ("command", "entrypoint", "working_dir", "user"):
+            self.config[field] = None
+        self.image["Config"].update(Entrypoint=["docker-entrypoint.sh"], Cmd=["server", "$$IMAGE_LITERAL"], User="node")
+        self.raw["Config"].update(self.image["Config"])
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+        self.raw["Config"]["Entrypoint"] = ["foreign-entrypoint"]
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+
+    def test_compose_serialized_dollars_and_null_command_match_actual_runtime(self):
+        self.config.update(entrypoint=["sh", "-c", 'tool "$$PRIVATE_KEY"'], command=None)
+        self.raw["Config"].update(Entrypoint=["sh", "-c", 'tool "$PRIVATE_KEY"'], Cmd=None)
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+        self.raw["Config"]["Entrypoint"] = ["sh", "-c", 'foreign "$PRIVATE_KEY"']
+        with patch("deployment.legacy_identity.run", side_effect=[json.dumps([self.raw]), json.dumps([self.image])]), self.assertRaises(Blocked):
+            self.install._attest_container_config("api", deepcopy(self.record), self.config)
+
+    def test_foreign_named_volume_and_extra_mount_are_rejected(self):
+        config = {"services": {"postgres": {"volumes": [{"type": "volume", "source": "postgres-data", "target": "/var/lib/postgresql/data"}]}},
+                  "volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}}}
+        record = {"mounts": [{"Type": "volume", "Name": "foreign_postgres-data", "Destination": "/var/lib/postgresql/data", "RW": True}]}
+        with self.assertRaises(Blocked) as failure:
+            self.install._attest_mounts("postgres", record, config)
+        self.assertEqual(failure.exception.code, "LEGACY_MOUNT")
+        record["mounts"][0]["Name"] = "asa-lab-dev_postgres-data"
+        self.install._attest_mounts("postgres", record, config)
+        record["mounts"].append({"Type": "bind", "Source": str(self.root), "Destination": "/foreign", "RW": False})
+        with self.assertRaises(Blocked):
+            self.install._attest_mounts("postgres", record, config)
+
+    def test_private_storage_keys_are_exact_not_regenerated_or_taken_from_overlay(self):
+        env = {"ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000", "ASA_OBJECT_STORAGE_ACCESS_KEY": "old-access",
+               "ASA_OBJECT_STORAGE_SECRET_KEY": "old-secret", "ASA_OBJECT_STORAGE_BUCKET": "old-bucket"}
+        config = {"services": {"api": {"environment": dict(env)},
+                               "minio-init": {"environment": dict(env)},
+                               "minio": {"environment": {"MINIO_ROOT_USER": "old-access", "MINIO_ROOT_PASSWORD": "old-secret"}}}}
+        attest_legacy_storage(config, env)
+        for name, key in (("api", "ASA_OBJECT_STORAGE_SECRET_KEY"), ("minio", "MINIO_ROOT_PASSWORD"), ("minio-init", "ASA_OBJECT_STORAGE_BUCKET")):
+            changed = deepcopy(config)
+            changed["services"][name]["environment"][key] = "foreign-secret"
+            with self.subTest(name=name), self.assertRaises(Blocked) as failure:
+                attest_legacy_storage(changed, env)
+            self.assertNotIn("foreign-secret", str(failure.exception))
+
+
+class LegacyMetadataTests(unittest.TestCase):
+    def installation(self, root):
+        (root / ".env").write_text("ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4610\nASA_BLOCKS_RUNTIME_ORIGIN=http://127.0.0.1:4610\n")
+        return LegacyInstallation(root)
+
+    def responses(self, web=None, schema=261):
+        api = {"revision": "a" * 40, "schemaVersion": schema, "expectedSchemaVersion": schema, "synchronized": True}
+        return {"/api/version": ("application/json", json.dumps(api).encode()),
+                "/build-metadata.json": ("text/html", b"<html>legacy portal</html>") if web is None else ("application/json", json.dumps({"revision": web}).encode()),
+                "/": ("text/html", b"<html>portal</html>")}
+
+    def fetcher(self, responses):
+        def fetch(url, **kwargs):
+            value, body = responses[url.removeprefix("http://127.0.0.1:4610")]
+            stream = io.BytesIO(body)
+            stream.status = 200
+            stream.headers = {"Content-Type": value}
+            stream.geturl = lambda: url
+            return stream
+        return fetch
+
+    def test_html_web_metadata_stays_unknown_and_never_uses_api_sha(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            install = self.installation(root)
+            with patch("deployment.legacy_identity.urllib.request.urlopen", side_effect=self.fetcher(self.responses())), patch.object(install, "compose", side_effect=["261", "b" * 40]):
+                runtime = install.legacy_readiness("http://127.0.0.1:4610")
+            self.assertEqual(runtime["kind"], "legacy-review")
+            self.assertEqual(runtime["api"]["revision"], "a" * 40)
+            self.assertIsNone(runtime["web"]["revision"])
+            self.assertEqual(runtime["web"]["status"], "unverified")
+            self.assertEqual(runtime["scratch"]["revision"], "b" * 40)
+            self.assertFalse((root / ".asa/installed-release.json").exists())
+
+    def test_actual_database_schema_must_match_api(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = self.installation(Path(directory))
+            with patch("deployment.legacy_identity.urllib.request.urlopen", side_effect=self.fetcher(self.responses())), patch.object(install, "compose", return_value="260"), self.assertRaises(Blocked) as failure:
+                install.legacy_readiness("http://127.0.0.1:4610")
+            self.assertEqual(failure.exception.code, "LEGACY_HEALTH")
+
+    def test_missing_web_metadata_is_unknown_but_unexpected_http_failure_blocks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = self.installation(Path(directory))
+            normal = self.fetcher(self.responses())
+            for status in (404, 500):
+                def fetch(url, **kwargs):
+                    if url.endswith("/build-metadata.json"):
+                        raise urllib.error.HTTPError(url, status, "unavailable", {}, None)
+                    return normal(url, **kwargs)
+                with self.subTest(status=status), patch("deployment.legacy_identity.urllib.request.urlopen", side_effect=fetch), patch.object(install, "compose", side_effect=["261", "b" * 40]):
+                    if status == 404:
+                        self.assertEqual(install.legacy_readiness("http://127.0.0.1:4610")["web"]["reason"], "metadata_endpoint_absent")
+                    else:
+                        with self.assertRaises(Blocked):
+                            install.legacy_readiness("http://127.0.0.1:4610")
+
+    def test_existing_saved_entry_cannot_be_overridden(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = self.installation(Path(directory))
+            install.env["ASA_UPDATE_ENTRY_ORIGIN"] = "http://127.0.0.1:9999"
+            with patch("deployment.legacy_identity.urllib.request.urlopen") as fetch, self.assertRaises(Blocked):
+                install.legacy_readiness("http://127.0.0.1:4610")
+            fetch.assert_not_called()
+
+    def test_official_receipt_refuses_re_adoption(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+            (root / ".asa").mkdir()
+            (root / ".asa/installed-release.json").write_text("{}")
+            # Re-adoption must never turn malformed official metadata into legacy.
+            with self.assertRaises(Blocked):
+                LegacyInstallation(root)
+
+
+class AuthorTests(unittest.TestCase):
+    def test_active_author_blocks_before_snapshot_or_service_operations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+            git = root / ".git"
+            git.mkdir()
+            install = LegacyInstallation(root)
+            with patch.object(install, "git", return_value=str(git)), patch.object(install, "active_authors", return_value=[{"pid": 123, "name": "editor"}]), patch.object(install, "identity") as identity, self.assertRaises(Blocked) as failure:
+                install.snapshot("http://127.0.0.1:4610")
+            self.assertEqual(failure.exception.code, "LEGACY_AUTHOR")
+            identity.assert_not_called()
+
+    def test_common_git_lock_blocks_even_with_inactive_editor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".env").write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\n")
+            git = root / ".git"
+            git.mkdir()
+            (git / "index.lock").write_text("")
+            install = LegacyInstallation(root)
+            with patch.object(install, "git", return_value=str(git)), patch.object(install, "active_authors", return_value=[]), self.assertRaises(Blocked) as failure:
+                install.assert_inactive()
+            self.assertEqual(failure.exception.code, "LEGACY_AUTHOR")
+
+
+if __name__ == "__main__":
+    unittest.main()
