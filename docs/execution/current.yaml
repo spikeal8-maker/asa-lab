@@ -7006,9 +7006,12 @@ parallel_lanes:
 
   - id: electronics-report-baseline
     parent_lane: electronics
+    worktree_id: electronics-report-baseline
+    owned_paths:
+      - contexts/electronics/testing/arduino-seven-segment-matrix.spec.ts
     task:
       id: TASK-ELECTRONICS-REPORT-BASELINE-001
-      issue: 817
+      issue: 834
       branch: codex/publication-electronics-gate-baseline-20261028
       base_branch: main
       status: in_progress
@@ -7025,6 +7028,18 @@ parallel_lanes:
         Correct only matrix report output for read-only CI filesystem with writable reports.
         No runtime, assertion, deployment or working database changes. Exact independent
         review and General CI before Main; resume PR826 after accepted baseline.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:data
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      convergence_baseline_sha: 1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66
+      head_sha: fc9407e68da4557200b2217585797360d3550c8e
 
   - id: projects
     worktree_id: projects-publication
@@ -14290,7 +14305,8 @@ parallel_lanes:
       convergence_baseline_sha: c621592f30bf8637da10466fbac50e03a8f742d3
       head_sha: null
       observed_at: '2026-10-28T13:18:19Z'
-      observation_note: Source4c50c4e20dc177efa40f6fe2c2fff6fae99ac0de independentlyAPPROVED45focusedtests_and_native1and4helpercarry. Canonical2441tests71freshNxPASS_withoutcache_after_single_verified_classD_asset_timeout_retry. All8capsPASS_Editor169815_Arduino1999997. Finalcomposition_a3ecf1e8815fc2e0cc11f208170ee6c94bfa7325_with_main7133a66f_preserves3productblobs_and_foreignAI; additional7freshWebtasks_all8capsPASS_notanotherfullgate. 24nativecases72counterstates_1to4_displays_threecodeforms_two_widthsPASS; original20legacyoracle467942B_ce74_and_supplemental5numericmacros53008B_61cee_byteequal. Performance1.55to6.62swall_for100to125msmodel_NOT_realtime; broaderCplusplus_0to9effects_sustained_lifecycle_installedSave_owneracceptance_remainopen. Evidence_docs/product/electronics/evidence/arduino-void-functions-824/README.md. No server_Docker_DB_foreignchanges_guard_or_capraise.
+      observation_note: Source4c50c4e20dc177efa40f6fe2c2fff6fae99ac0de independentlyAPPROVED45focusedtests_and_native1and4helpercarry. Canonical2441tests71freshNxPASS_withoutcache_after_single_verified_classD_asset_timeout_retry. All8capsPASS_Editor169815_Arduino1999997. Finalcomposition_a3ecf1e8815fc2e0cc11f208170ee6c94bfa7325_with_main7133a66f_preserves3productblobs_and_foreignAI; additional7freshWebtasks_all8capsPASS_notanotherfullgate. 24nativecases72counterstates_1to4_displays_threecodeforms_two_widthsPASS; original20legacyoracle467942B_ce74_and_supplemental5numericmacros53008B_61cee_byteequal. Performance1.55to6.62swall_for100to125msmodel_NOT_realtime; broaderCplusplus_0to9effects_sustained_lifecycle_installedSave_owneracceptance_remainopen. Evidence_docs/product/electronics/evidence/arduino-void-functions-824/README.md. No server_Docker_DB_foreignchanges_guard_or_capraise. Fresh fetch main is required before integration.
+    source_review_evidence:
       source_candidate_sha: 4c50c4e20dc177efa40f6fe2c2fff6fae99ac0de
       evidence_candidate_sha: 7da57bd8016b70aa08633825373b89b7976020e7
       independent_review: approved_exact_source_45_tests_and_native_one_four_helper_carry
@@ -14336,7 +14352,7 @@ parallel_lanes:
       convergence_baseline_sha: 242d401f988c88b0975556ffa878891e40fde80e
       head_sha: null
       observed_at: '2026-10-28T14:54:00Z'
-      observation_note: Main242d401f_published_helpers824; General40710169237_inprogress_notPASS. Independenthelper45tests_native1and4PASS; canonical2441tests71freshNxallcapsPASS. ExistingcacheexcludesNPN_hypothesis_for_measuredlag. Authoroneboundedsolverfile_plusmeaningfultests_androuting_thenSTOP; independentnewreview_required. ForeignProjects_baselinereport_task_and_allforeignfields_preserved.
+      observation_note: Main242d401f_published_helpers824; General40710169237_inprogress_notPASS. Independenthelper45tests_native1and4PASS; canonical2441tests71freshNxallcapsPASS. ExistingcacheexcludesNPN_hypothesis_for_measuredlag. Authoroneboundedsolverfile_plusmeaningfultests_androuting_thenSTOP; independentnewreview_required. ForeignProjects_baselinereport_task_and_allforeignfields_preserved. Fresh fetch main is required before integration.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
