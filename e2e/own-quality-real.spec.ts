@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Locator } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool } from './seed';
 import { openAiUsageNativeZoom } from './ai-usage-native-zoom';
@@ -90,6 +90,14 @@ async function geometry(page: Page) {
     };
   });
 }
+async function captureTarget(page: Page, target: Locator, filename: string) {
+  await target.evaluate((element) =>
+    element.scrollIntoView({ block: 'center', inline: 'nearest' }),
+  );
+  await expect(target).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: test.info().outputPath(filename) });
+}
+
 test('own-only quality: real sessions, exact saved pairs, compact four-width views, revoke and reload', async ({
   page,
 }) => {
@@ -117,13 +125,15 @@ test('own-only quality: real sessions, exact saved pairs, compact four-width vie
     await expect(
       section.getByRole('button', { name: 'Разрешить просмотр моих диалогов' }),
     ).toBeVisible();
-    for (const width of [1440, 390])
+    for (const width of [1440, 390, 320])
       for (const colorScheme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
         await page.emulateMedia({ colorScheme });
-        await page.screenshot({
-          path: test.info().outputPath(`before-optin-${width}-${colorScheme}.png`),
-        });
+        await captureTarget(
+          page,
+          section.getByRole('button', { name: 'Разрешить просмотр моих диалогов' }),
+          `before-optin-${width}-${colorScheme}.png`,
+        );
       }
     await section.getByRole('button', { name: 'Разрешить просмотр моих диалогов' }).click();
     await expect(section.locator('.asa-ai-own-row')).toHaveCount(10);
@@ -149,6 +159,20 @@ test('own-only quality: real sessions, exact saved pairs, compact four-width vie
         await page.screenshot({
           path: test.info().outputPath(`after-own-${width}-${colorScheme}.png`),
         });
+        await captureTarget(
+          page,
+          section.locator('.asa-ai-own-row').first(),
+          `own-rows-${width}-${colorScheme}.png`,
+        );
+        if (width === 390 || width === 320) {
+          const first = section.locator('.asa-ai-own-row').first();
+          await first.click();
+          const detail = section.locator('.asa-ai-own-detail');
+          const answer = detail.getByText('Соответствующий ответ 11', { exact: true });
+          await expect(answer).toBeVisible();
+          await captureTarget(page, answer, `own-detail-${width}-${colorScheme}.png`);
+          await first.click();
+        }
       }
     for (const n of [11, 10]) {
       const row = section.getByRole('button').filter({ hasText: `Контрольный вопрос ${n}` });
@@ -175,7 +199,21 @@ test('own-only quality: real sessions, exact saved pairs, compact four-width vie
         expect((await zoom.setZoom(2)).factor).toBe(2);
         const g = await geometry(zoom.page);
         expect(g.scroll).toBeLessThanOrEqual(g.width);
-        await zoom.page.screenshot({ path: test.info().outputPath('own-quality-native-200.png') });
+        const zoomSection = zoom.page.getByTestId('ai-own-quality');
+        await captureTarget(
+          zoom.page,
+          zoomSection.locator('.asa-ai-own-row').first(),
+          'own-quality-native-200.png',
+        );
+        const completed = zoomSection
+          .getByRole('button')
+          .filter({ hasText: 'Контрольный вопрос 11' });
+        await completed.click();
+        const answer = zoomSection
+          .locator('.asa-ai-own-detail')
+          .getByText('Соответствующий ответ 11', { exact: true });
+        await expect(answer).toBeVisible();
+        await captureTarget(zoom.page, answer, 'own-quality-detail-native-200.png');
       } finally {
         await zoom.close();
       }
