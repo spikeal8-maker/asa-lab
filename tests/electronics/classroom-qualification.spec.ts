@@ -2238,7 +2238,7 @@ describe('v3 preserves real functional publication and native observations', () 
       new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
     );
     expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
-      'abd5b83637f1e45b1f5755737a11b67530fe70e90666890028ab693499cffff5',
+      'd57a2e224764c7fa466d0c56ec1a3b363dce1dbe9d573e1ed50dae78ea658136',
     );
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
@@ -3753,12 +3753,43 @@ function nativeFixture() {
     generationId: 5,
     requestedGenerationId: 5,
     projectSessionId: expected.projectSessionId,
+    committedUs: 100000,
+    requestedUs: 100000,
+    continuationUs: 100000,
+    d13Voltage: 0 as number | null,
+    components: [
+      {
+        componentId: 'led0',
+        voltageDrop: 0,
+        current: 0,
+        brightness: 0,
+        terminalVoltages: {} as Record<string, number>,
+      },
+      {
+        componentId: 'uno',
+        voltageDrop: 0,
+        current: 0,
+        terminalVoltages: { d13: 0 } as Record<string, number>,
+      },
+    ],
+  };
+  const highFrame = {
+    ...frame,
+    at: 260,
+    committedUs: 200000,
+    requestedUs: 200000,
+    continuationUs: 200000,
+    d13Voltage: 5,
+    components: [
+      { ...frame.components[0]!, current: 0.01, brightness: 100 },
+      { ...frame.components[1]!, terminalVoltages: { d13: 5 } },
+    ],
   };
   const capture = {
     epoch: 3,
     source: expected.source,
     capturedAt: 400,
-    frames: [frame],
+    frames: [frame, highFrame],
     paints: [
       { ...paint, at: 160, previousAt: 140, ledLit: false, lActive: false },
       { ...paint, at: 300, previousAt: 280 },
@@ -3849,6 +3880,12 @@ describe('native photographed phase qualification', () => {
     expect(
       await oracle.samples(page, 'only-high', { ...f.capture, frames: f.capture.frames }),
     ).toEqual(['native image never captured an unambiguous LOW phase']);
+    // LOW pixels and LOW DOM still cannot qualify when every electrical receipt is HIGH.
+    f.capture.frames[0] = { ...f.capture.frames[1]!, at: 120 };
+    shots = 0;
+    expect(
+      await oracle.samples(page, 'runtime-only-high', { ...f.capture, frames: f.capture.frames }),
+    ).toEqual(['native image never captured an unambiguous LOW phase']);
   });
   it.each(['UNKNOWN', 'MISMATCH'])('rejects %s regardless of stable DOM witnesses', (phase) => {
     const f = nativeFixture();
@@ -3879,11 +3916,43 @@ describe('native photographed phase qualification', () => {
     'observer error',
     'new action',
     'geometry',
+    'opposite runtime phase',
+    'missing LED',
+    'missing Uno',
+    'missing runtime D13',
+    'missing board D13',
+    'missing brightness',
+    'invalid forward current',
+    'incomplete model horizon',
   ])('rejects invalid evidence: %s', (defect) => {
     const f = nativeFixture();
     const low = f.capture.paints[0]!;
     const frame = f.capture.frames[0]!;
     switch (defect) {
+      case 'opposite runtime phase':
+        f.capture.frames[0] = { ...f.capture.frames[1]!, at: frame.at };
+        break;
+      case 'missing LED':
+        frame.components = frame.components.filter((component) => component.componentId !== 'led0');
+        break;
+      case 'missing Uno':
+        frame.components = frame.components.filter((component) => component.componentId !== 'uno');
+        break;
+      case 'missing runtime D13':
+        frame.d13Voltage = null;
+        break;
+      case 'missing board D13':
+        frame.components[1]!.terminalVoltages = {};
+        break;
+      case 'missing brightness':
+        delete frame.components[0]!.brightness;
+        break;
+      case 'invalid forward current':
+        frame.components[0]!.current = 0.01;
+        break;
+      case 'incomplete model horizon':
+        frame.continuationUs--;
+        break;
       case 'missing LOW witness':
         low.ledLit = true;
         break;

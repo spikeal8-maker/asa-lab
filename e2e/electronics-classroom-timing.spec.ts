@@ -2008,6 +2008,11 @@ function qualifyNativeObservedPhase(
         | 'generationId'
         | 'requestedGenerationId'
         | 'projectSessionId'
+        | 'components'
+        | 'd13Voltage'
+        | 'committedUs'
+        | 'requestedUs'
+        | 'continuationUs'
       >
     >;
   },
@@ -2041,7 +2046,11 @@ function qualifyNativeObservedPhase(
         frame.generationId === expected.generationId &&
         frame.requestedGenerationId === expected.generationId &&
         frame.projectSessionId === expected.projectSessionId &&
-        expected.projectSessionId.length > 0,
+        expected.projectSessionId.length > 0 &&
+        Number.isFinite(frame.committedUs) &&
+        frame.committedUs >= 0 &&
+        frame.committedUs === frame.requestedUs &&
+        frame.continuationUs === frame.committedUs,
     ) &&
     capture.errors.length === 0 &&
     capture.observerErrors.length === 0 &&
@@ -2057,7 +2066,32 @@ function qualifyNativeObservedPhase(
       paint.ledLit === active &&
       paint.lActive === active,
   );
-  return fixedGeometry && sameRun && coherentWitness ? observedPhase : null;
+  // Reuse the electrical LED/current and D13 phase contracts, from one ready
+  // receipt inside the capture interval. DOM agreement alone cannot prove it.
+  const electricalWitness = capture.frames.some((frame) => {
+    const led = frame.components?.find((component) => component.componentId === 'led0');
+    const uno = frame.components?.find((component) => component.componentId === 'uno');
+    const boardD13 = uno?.terminalVoltages?.d13;
+    const brightness = led?.brightness,
+      current = led?.current;
+    return (
+      typeof brightness === 'number' &&
+      Number.isFinite(brightness) &&
+      brightness >= 0 &&
+      brightness <= 100 &&
+      typeof current === 'number' &&
+      Number.isFinite(current) &&
+      (brightness > 0 ? current > 0.001 && current < 0.02 : Math.abs(current) < 0.000001) &&
+      brightness > 0 === active &&
+      typeof boardD13 === 'number' &&
+      Number.isFinite(boardD13) &&
+      boardD13 >= 2.5 === active &&
+      typeof frame.d13Voltage === 'number' &&
+      Number.isFinite(frame.d13Voltage) &&
+      frame.d13Voltage >= 2.5 === active
+    );
+  });
+  return fixedGeometry && sameRun && coherentWitness && electricalWitness ? observedPhase : null;
 }
 async function nativeSamples(page: Page, label: string, raw: Probe): Promise<string[]> {
   const findings: string[] = [];
@@ -2103,7 +2137,7 @@ async function nativeSamples(page: Page, label: string, raw: Probe): Promise<str
             epoch: probe.epoch,
             source: probe.source,
             capturedAt,
-            // Browser receipts are encoded once; return only identity/quality fields,
+            // Browser receipts are encoded once; return only identity/quality/phase fields,
             // never growing runtime event history through the screenshot trace.
             frames: probe.frames
               .slice(frameOffset)
@@ -2120,6 +2154,11 @@ async function nativeSamples(page: Page, label: string, raw: Probe): Promise<str
                 generationId: frame.generationId,
                 requestedGenerationId: frame.requestedGenerationId,
                 projectSessionId: frame.projectSessionId,
+                components: frame.components,
+                d13Voltage: frame.d13Voltage,
+                committedUs: frame.committedUs,
+                requestedUs: frame.requestedUs,
+                continuationUs: frame.continuationUs,
               })),
             paints: probe.paints.filter((paint) => paint.at >= start && paint.at <= capturedAt),
             errors: probe.errors.filter((error) => error.at >= start && error.at <= capturedAt),
