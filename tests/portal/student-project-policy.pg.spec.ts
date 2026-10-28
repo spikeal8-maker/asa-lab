@@ -189,14 +189,39 @@ describe('StudentSeat actual immutable publication and audited permissions', () 
       revoker.release();
     }
   });
-  it('assembled HTTP selects Seat before Account and rejects forged policy/owner input', async () => {
+  it('assembled HTTP rejects conflicting sessions and authorizes Seat-only publication commands', async () => {
     const f = await fixture();
+    for (const options of [
+      { method: 'GET' as const, url: `/api/projects/${f.projectId}/publication` },
+      { method: 'POST' as const, url: `/api/projects/${f.projectId}/publication`, payload: {} },
+      {
+        method: 'PUT' as const,
+        url: `/api/project-distribution/classrooms/${f.classroomId}/policy`,
+        payload: { publish: true, download: true, expectedVersion: 0 },
+      },
+    ]) {
+      const conflict = await inject(app, {
+        ...options,
+        cookies: { asa_student_session: f.token, asa_session: 'unrelated-account-token' },
+      });
+      expect(conflict.statusCode, conflict.body).toBe(409);
+      expect(conflict.json()).toMatchObject({ error: { code: 'session_conflict' } });
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM project_publication_state WHERE project_id=$1',
+          [f.projectId],
+        )
+      ).rows[0].n,
+    ).toBe(0);
+    expect(await f.read()).toEqual({ publish: false, download: false, version: 0 });
     const request = (method: 'GET' | 'POST' | 'PUT', url: string, payload?: unknown) =>
       inject(app, {
         method,
         url,
         payload,
-        cookies: { asa_student_session: f.token, asa_session: 'unrelated-account-token' },
+        cookies: { asa_student_session: f.token },
       });
     const status = await request('GET', `/api/projects/${f.projectId}/publication`);
     expect(status.statusCode, status.body).toBe(200);
