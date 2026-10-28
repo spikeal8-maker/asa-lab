@@ -59,3 +59,9 @@ export type {
   PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';
 export type { PublicScratchPlayerBootstrap } from './public-scratch-player';
+
+export type {
+  AiOllamaCloudModel,
+  AiOllamaCloudAccount,
+  AiOllamaCloudInspection,
+} from './ai-ollama-cloud.js';

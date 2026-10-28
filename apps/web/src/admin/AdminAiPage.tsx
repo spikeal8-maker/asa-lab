@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { OllamaCloudStatus } from './OllamaCloudStatus';
+import type { AiOllamaCloudModel } from '@asa-lab/contracts';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { aiDiagnosticMessage } from './ai-error-message';
 import { isAiAdminConfig, type AiAdminConfig, type AiProvider } from './ai-model-config';
@@ -43,6 +45,14 @@ export function AiAdminPage({
 }) {
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
   const [model, setModel] = useState('');
+  const [cloudModels, setCloudModels] = useState<readonly AiOllamaCloudModel[] | null>(null);
+  const acceptCloudModels = useCallback((rows: readonly AiOllamaCloudModel[]) => {
+    const active = rows.filter((row) => row.active);
+    setCloudModels(active);
+    setModel((previous) =>
+      active.some((row) => row.id === previous) ? previous : (active[0]?.id ?? previous),
+    );
+  }, []);
   const [keyInput, setKeyInput] = useState('');
   const [clearKey, setClearKey] = useState(false);
   const [enabled, setEnabled] = useState(false);
@@ -106,9 +116,11 @@ export function AiAdminPage({
 
   const slot = config?.providerConfigurations.find((row) => row.provider === providerChoice);
   const options =
-    config?.modelCatalog.models.filter(
-      (row) => row.provider === providerChoice && row.selectable,
-    ) ?? [];
+    providerChoice === 'ollama-cloud' && cloudModels !== null
+      ? cloudModels.map((row) => ({ id: row.id, label: row.model }))
+      : (config?.modelCatalog.models.filter(
+          (row) => row.provider === providerChoice && row.selectable,
+        ) ?? []);
   const keyReady = Boolean(keyInput.trim()) || Boolean(slot?.apiKeyConfigured && !clearKey);
   const validQuota =
     /^\d+$/.test(quota) &&
@@ -233,7 +245,9 @@ export function AiAdminPage({
 
   return (
     <section
-      className="asa-cloud-connection"
+      className={
+        'asa-cloud-connection' + (providerChoice === 'ollama-cloud' ? ' is-ollama-cloud' : '')
+      }
       aria-label={'Настройки ' + providerName(providerChoice)}
     >
       {loading ? (
@@ -277,6 +291,16 @@ export function AiAdminPage({
               {enabled ? 'Включено' : 'Выключено'}
             </label>
           </div>
+
+          {providerChoice === 'ollama-cloud' ? (
+            <OllamaCloudStatus
+              version={config.configurationVersion}
+              draftKey={keyInput}
+              disabled={clearKey}
+              onModels={acceptCloudModels}
+              onAccessDenied={onAccessDenied}
+            />
+          ) : null}
 
           <div className="asa-cloud-fields">
             <label className="asa-cloud-field">

@@ -599,6 +599,29 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-19A
+          issue: 807
+          scope: truthful search outcomes and explicit administrator diagnostic
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R06, R07]
+          acceptance_checks: [C01, C02, C06]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Continue the owner-authorized programme independently of blocked D2R2 delivery
+            and unrelated Electronics integration gate. Distinguish validated upstream zero,
+            domain-policy filtering and provider failure using bounded truthful metadata.
+            Add an explicit administrator-only neutral probe of the existing fixed search
+            endpoint with time and result; no automatic probe, inference, credential or
+            live-configuration mutation. Preserve SafeSearch, quotas, domain/network guards
+            and fixed engine configuration. Test synthetic upstream outcomes and admin UI.
+            Full issue807 and installed real external-search acceptance remain pending;
+            empty results never establish that a service does not exist.
         - id: ASAI-01B-OWN
           issue: 806
           scope: last ten own personal Account operations with a separate explicit content-read grant
@@ -608,10 +631,14 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R20, R24, R31]
           acceptance_checks: [C17, C20, C28]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_pr: 828
+          candidate_sha: 6f876b16050957bcb81a1d47483109526d67bf18
+          independent_review: approved_source
+          ci_status: pending_exact_candidate
           content_scope: own_personal_only
           selection: >-
             The owner programme explicitly permits own or controlled conversations before a
@@ -642,9 +669,11 @@ parallel_lanes:
           owner_acceptance: pending
           demo_status: NOT_RUN
           source_pr: 822
-          candidate_sha: 9dd0e4e79f070182ca87700c3eebd1f7081bd58c
-          independent_review: approved_code_and_harness
-          ci_status: pending_exact_candidate
+          candidate_sha: 0a2e43a937f805396bfedf6abeefbd3fa22af00e
+          independent_review: approved_code_harness_and_isolated_visual
+          ci_status: focused_pass_general_blocked_unrelated_electronics_817
+          isolated_demo_run: 40687387257
+          general_gate_run: 40687387378
           source_baseline: c0b673b7e39c5fab3beaede55bfba6ad4565b87f
           selection: >-
             Owner selected the whole programme on 2026-10-28. Issue806 needs a separate explicit
@@ -3351,7 +3380,7 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: ready
-      checkpoint: ui05_b2_upload_metadata_implementation_selected
+      checkpoint: ui05_b2_functional_candidate_browser_verification_selected
       owner_acceptance: pending
       normative_refs:
         - document: TEACHER-STUDENT-PROFILE-UI-589
@@ -3388,11 +3417,21 @@ parallel_lanes:
         status: ready
         change_class: L3_CRITICAL
         kind: bounded_ui_implementation
+        phase: verification
+        functional_candidate_pr: 827
+        functional_candidate_sha: 88be92f9cece25e3a41abce5dbaaf6ab98992f7d
+        implementation_complete: true
+        independent_source_review: approved
+        teacher_workflow_run: 40691157684
+        teacher_workflow_conclusion: success
+        validation_status: pending_queued_upload_browser_evidence
+        technical_acceptance: pending
         write_paths:
           - apps/web/src/components/ClassroomParticipantPanels.tsx
           - apps/web/src/components/testing/classroom-profile-completion.spec.ts
-        start_requires: Accepted main B2 selection and fresh scoped SAFE_TO_START with exact-path overlap checks.
-        sequencing: Implement the functional avatar fix first, then add focused regression verification and return to pending 800-series integration.
+          - e2e/classroom-student-profile.spec.ts
+        start_requires: Accepted main B2 verification extension and fresh scoped SAFE_TO_START with exact-path overlap checks.
+        sequencing: Functional implementation is published in Draft PR827; verify its queued-upload states now, then return to pending 800-series integration.
         implementation: >-
           Reuse existing avatar contracts and fix the observed upload metadata
           defects. File preparation currently snapshots a title that later edits
@@ -3411,6 +3450,20 @@ parallel_lanes:
           entitlement, read-only/student consumers and existing server contracts.
           Run focused regression after implementation, then required exact-source
           General/Classroom gates and independent L3 review before integration.
+        browser_verification: >-
+          Extend only the existing built Teacher profile browser spec, preserving
+          every prior test/assertion. Exercise actual queued draft/submitted/error/
+          disabled upload metadata DOM at1440/1024/390/320, with screenshots,
+          no page overflow, 44px targets, focus, long metadata, cancellation and
+          class/learner scope. Assert post-prepare edits and exact-payload retry
+          through the existing intercepted API fixture. Existing empty-avatar
+          coverage alone is insufficient. No new harness/controller, backend,
+          config/workflow, timeout/retry/skip change is authorized.
+        browser_path_ownership: >-
+          Issue753 owns components/testing/classroom-student-profile.spec.ts and
+          e2e/classroom-profile-completion.spec.ts, not this distinct
+          e2e/classroom-student-profile.spec.ts. Both753 paths remain excluded.
+          Fresh registered-worktree checks found the added browser path clean.
       b1c_candidate:
         source_pr: 818
         source_sha: 1bfc6863e33aba5e39b3537df4a68d12f363daa0
@@ -3438,7 +3491,8 @@ parallel_lanes:
         UI05/B2 upload metadata and retry identity only, in the existing shared
         participant panel and its focused regression spec. Implement the two
         reproduced UI gaps; do not replace the avatar system, change backend/
-        API/SQL/Auth or create artwork. No E2E, harness, Issue753, map/registry
+        API/SQL/Auth or create artwork. Verification now permits only the exact
+        added Teacher browser spec; no other E2E, harness, Issue753, map/registry
         or B3+ edits. Preserve B1b acceptance and B1c/820 integration blockers.
       coordinated_paths:
         - e2e/classroom-participants.spec.ts
@@ -3446,7 +3500,7 @@ parallel_lanes:
         - .github/workflows/teacher-student-profile-ui.yml
       path_coordination: >-
         Existing owned/coordinated paths remain historical context, not this
-        slice's write scope. Only the two selected_slice.write_paths may change.
+        slice's write scope. Only the three selected_slice.write_paths may change.
         Fresh registered-worktree checks found neither product path dirty.
         The shared panel has teacher and student consumers; preserve both and
         recheck active writers and exact paths before the sole author starts.
@@ -3464,7 +3518,7 @@ parallel_lanes:
         - Awaiting filter covers loaded works only; do not claim all-page review-status filtering or global sorting without a separately audited server contract.
         - No deployment, Docker/runtime, live database, users, ports or network changes are authorized.
         - Required browser evidence on the exact final SHA uses isolated CI/synthetic data and real built pages; preserve accepted classroom navigation and student consumers.
-        - No E2E, harness, workflow, Issue753, map/registry or B3+ paths are authorized in this B2 slice; the focused regression follows functional implementation.
+        - Only e2e/classroom-student-profile.spec.ts extends browser coverage in B2 verification; no other E2E, harness, workflow/config, Issue753, map/registry or B3+ paths are authorized.
         - Additional canonical tooling/Surface Map selector, if required, needs separate authorization; do not modify tooling in this slice or claim targeted routing exists.
     revisions:
       kind: observed_snapshot
@@ -3491,6 +3545,10 @@ parallel_lanes:
         workflow: Classroom Owner Real Scenarios
         commands:
           - pnpm e2e:access-a
+      teacher_browser:
+        workflow: Teacher Student Profile UI
+        commands:
+          - pnpm e2e:access-a e2e/classroom-student-profile.spec.ts --config=playwright.config.ts --workers=1 --reporter=list
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:

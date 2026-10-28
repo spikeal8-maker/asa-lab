@@ -231,8 +231,10 @@ describe('catalog/config API boundaries', () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [row(before)] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ ai_admin_set_config: 2 }] })
-      .mockResolvedValueOnce({ rows: [row(after)] });
+      .mockResolvedValueOnce({ rows: [row(after)] })
+      .mockResolvedValueOnce({ rows: [] });
     const fetchImpl = vi.fn<typeof fetch>();
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: '4c'.repeat(32),
@@ -244,7 +246,7 @@ describe('catalog/config API boundaries', () => {
       'switch-back',
     );
     expect(saved).toEqual(after);
-    expect(query.mock.calls[1]![1]).toEqual([
+    expect(query.mock.calls[2]![1]).toEqual([
       PRINCIPAL,
       false,
       'deepseek',
@@ -278,7 +280,7 @@ describe('catalog/config API boundaries', () => {
         'stale',
       ),
     ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
-    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledTimes(2);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -286,8 +288,10 @@ describe('catalog/config API boundaries', () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture())] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ ai_admin_set_config: 2 }] })
-      .mockResolvedValueOnce({ rows: [row(aiAdminFixture({ configurationVersion: 3 }))] });
+      .mockResolvedValueOnce({ rows: [row(aiAdminFixture({ configurationVersion: 3 }))] })
+      .mockResolvedValueOnce({ rows: [] });
     const service = new AiChatService({ query } as unknown as pg.Pool);
     await expect(
       service.saveAdminConfig(
@@ -302,6 +306,7 @@ describe('catalog/config API boundaries', () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture())] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockRejectedValueOnce(new Error('AI_CONFIG_CHANGED'));
     const service = new AiChatService({ query } as unknown as pg.Pool);
     await expect(
@@ -311,7 +316,7 @@ describe('catalog/config API boundaries', () => {
         'race',
       ),
     ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(3);
   });
 
   it('copies only approved metadata even if a database row accidentally contains extra secret fields', async () => {
