@@ -68,6 +68,18 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     await db.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
       account,
     ]);
+    const authenticated = await page.request.get('/api/auth/me');
+    expect(authenticated.status()).toBe(200);
+    const session = await authenticated.json();
+    expect(session.authenticated).toBe(true);
+    expect(session.user.id).toBe(account);
+    expect(session.capabilities).toContainEqual({
+      capability: 'platform_admin',
+      state: 'verified',
+    });
+    // Registration happened through APIRequestContext after the SPA mounted
+    // anonymously. Reload so its mounted auth state reads the real session.
+    await page.reload();
     const local = await (await page.request.get('/api/admin/v1/ai/ollama')).json();
     expect(
       (
