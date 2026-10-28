@@ -446,3 +446,12 @@
 .asa-ai-ollama-model-card .asa-ai-ollama-inference {
   margin-top: 6px;
 }
+
+.asa-ai-ollama-context {
+  flex-wrap: wrap;
+}
+.asa-ai-ollama-context-limit {
+  flex-basis: 100%;
+  color: var(--ink-muted, #607684);
+  font-size: 11px;
+}

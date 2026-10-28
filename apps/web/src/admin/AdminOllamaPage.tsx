@@ -284,6 +284,7 @@ export function AdminOllamaPage({
           type="number"
           list="asa-ollama-context-presets"
           aria-label="Контекст Ollama"
+          aria-describedby="asa-ollama-context-limit"
           min={2048}
           max={Math.min(detail?.contextMax ?? 1048576, 1048576)}
           step={1}
@@ -295,6 +296,16 @@ export function AdminOllamaPage({
             setFeedback('');
           }}
         />
+        <small id="asa-ollama-context-limit" className="asa-ai-ollama-context-limit">
+          {detailLoading
+            ? 'Определяем максимум…'
+            : detail?.contextMax
+              ? 'Максимум модели: ' +
+                detail.contextMax.toLocaleString('ru-RU') +
+                ' токенов' +
+                (detail.contextMax > 1048576 ? ' · предел ASA Lab: 1 048 576' : '')
+              : 'Максимум модели неизвестен · предел ASA Lab: 1 048 576 токенов'}
+        </small>
         <datalist id="asa-ollama-context-presets">
           {[8192, 16384, 32768, 65536, 120000, 131072]
             .filter((v) => v <= (detail?.contextMax ?? 1048576))
