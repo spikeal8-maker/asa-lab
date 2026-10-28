@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useCommittedWorkbenchPresentation } from './committed-result-presentation';
+import {
+  useCommittedWorkbenchPresentation,
+  type WorkbenchInspectorController,
+} from './committed-result-presentation';
 import {
   INCANDESCENT_LAMP_PROFILE,
   ledForwardVoltageAtCurrent,
@@ -704,7 +707,7 @@ export function WorkbenchSidebars({
 export function WorkbenchInspector({
   controller,
 }: {
-  controller: ElectronicsWorkbenchController;
+  controller: WorkbenchInspectorController;
 }): JSX.Element {
   const c = useCommittedWorkbenchPresentation(controller);
   const [helpOpen, setHelpOpen] = useState(false);

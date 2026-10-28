@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import type { SolveResult } from '../api';
 import type { NativeOpticalPresentation } from './native-optical-presentation';
 import { diagnosticsGroupedByComponent } from './diagnostic-presentation';
@@ -34,10 +34,6 @@ function projectResult(result: SolveResult | null) {
 // shares the same maps rather than rebuilding the circuit once per component.
 const projections = new WeakMap<SolveResult, ReturnType<typeof projectResult>>();
 const emptyProjection = projectResult(null);
-const controllers = new WeakMap<
-  ElectronicsWorkbenchController,
-  WeakMap<ReturnType<typeof projectResult>, ElectronicsWorkbenchController>
->();
 export function committedResultProjection(result: SolveResult | null) {
   if (!result) return emptyProjection;
   let projection = projections.get(result);
@@ -48,21 +44,99 @@ export function committedResultProjection(result: SolveResult | null) {
   return projection;
 }
 
-export function useCommittedWorkbenchPresentation(controller: ElectronicsWorkbenchController) {
+export type CommittedPresentationController = Pick<
+  ElectronicsWorkbenchController,
+  | 'nativeOpticalPresentation'
+  | 'simulationRunning'
+  | 'resultByComponent'
+  | 'runtimePresentationResultByComponent'
+  | 'diagnosticsByComponent'
+  | 'errorDiagnosticComponentIds'
+>;
+
+export function useCommittedWorkbenchPresentation<T extends CommittedPresentationController>(
+  controller: T,
+): T {
   const observation = useCommittedObservation(
     controller.simulationRunning ? controller.nativeOpticalPresentation : null,
   );
-  if (!controller.simulationRunning || !controller.nativeOpticalPresentation) return controller;
   const projection = committedResultProjection(observation?.result ?? null);
-  let views = controllers.get(controller);
-  if (!views) {
-    views = new WeakMap();
-    controllers.set(controller, views);
-  }
-  let view = views.get(projection);
-  if (!view) {
-    view = { ...controller, ...projection };
-    views.set(projection, view);
-  }
-  return view;
+  return useMemo(
+    () =>
+      !controller.simulationRunning || !controller.nativeOpticalPresentation
+        ? controller
+        : { ...controller, ...projection },
+    [controller, projection],
+  );
 }
+
+export type WorkbenchDiagnosticIndicatorsController = CommittedPresentationController &
+  Pick<
+    ElectronicsWorkbenchController,
+    | 'diagnosticsByComponent'
+    | 'errorDiagnosticComponentIds'
+    | 'runtimePresentationResultByComponent'
+    | 'selectComponent'
+    | 'simulationRunning'
+    | 'viewport'
+  >;
+
+export type WorkbenchComponentBodyController = CommittedPresentationController &
+  Pick<
+    ElectronicsWorkbenchController,
+    | 'committedComponentLedAsset'
+    | 'componentArduinoLActive'
+    | 'componentLedBrightness'
+    | 'componentVisualState'
+    | 'diagnosticsByComponent'
+    | 'document'
+    | 'errorDiagnosticComponentIds'
+    | 'onLedAssetReadiness'
+    | 'preparedComponentLedAsset'
+    | 'resetArduinoRuntime'
+    | 'rollbackComponentLedAsset'
+    | 'runtimePresentationResultByComponent'
+    | 'selectComponent'
+    | 'selection'
+    | 'setMultimeterMeasurementMode'
+    | 'setRegulatedPowerSupplyControls'
+    | 'setSelectedProperties'
+    | 'setSignalGeneratorControls'
+    | 'simulationRunning'
+    | 'simulationTimeMs'
+    | 'startComponentDrag'
+    | 'startPotentiometerControl'
+    | 'toggleComponentState'
+    | 'viewport'
+  >;
+
+export type WorkbenchInspectorController = CommittedPresentationController &
+  Pick<
+    ElectronicsWorkbenchController,
+    | 'beginReconnect'
+    | 'diagnosticsByComponent'
+    | 'libraryOpen'
+    | 'removeSelection'
+    | 'removeWireBends'
+    | 'resetArduinoRuntime'
+    | 'resultByComponent'
+    | 'selectedComponent'
+    | 'selectedEntry'
+    | 'selectedFamily'
+    | 'selectedWire'
+    | 'selection'
+    | 'setRegulatedPowerSupplyControls'
+    | 'setSelectedMotorShaftLocked'
+    | 'setSelectedProperties'
+    | 'setSelectedState'
+    | 'setSelectedVariant'
+    | 'setSelectedWiper'
+    | 'setSignalGeneratorControls'
+    | 'setWireColor'
+    | 'simulationRunning'
+    | 'terminalConnectionCount'
+    | 'terminalConnectionLabel'
+    | 'updateSelectedName'
+    | 'updateSelectedResistanceValue'
+    | 'updateSelectedValue'
+  >;

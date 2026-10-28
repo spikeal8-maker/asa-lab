@@ -22,7 +22,11 @@ import {
   terminalPosition,
 } from './component-catalog';
 import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
-import { useCommittedWorkbenchPresentation } from './committed-result-presentation';
+import {
+  useCommittedWorkbenchPresentation,
+  type WorkbenchDiagnosticIndicatorsController,
+  type WorkbenchComponentBodyController,
+} from './committed-result-presentation';
 import {
   paintedComponentBounds,
   paintedComponentPoint,
@@ -279,6 +283,48 @@ function tooltipPlacement(
   return { x: centre - point.x - half, y, width, textY: y + 15 / zoom };
 }
 
+function componentBodyContainsClientPoint(
+  part: SVGGElement,
+  clientX: number,
+  clientY: number,
+  entry: NonNullable<ReturnType<typeof catalogEntry>>,
+  size: { readonly width: number; readonly height: number },
+): boolean {
+  // SPST is a derived runtime shape, never the three-pin reference alpha mask.
+  if (entry.key === SPST_COMPONENT_TYPE)
+    return Boolean(
+      part
+        .querySelector('.workbench-tinkercad-switch')
+        ?.contains(window.document.elementFromPoint(clientX, clientY)),
+    );
+  const matrix = part.getScreenCTM();
+  const canvas = part.ownerSVGElement;
+  if (!matrix || !canvas) return false;
+  const point = canvas.createSVGPoint();
+  point.x = clientX;
+  point.y = clientY;
+  const local = point.matrixTransform(matrix.inverse());
+  return componentAssetContainsPoint(entry, size.width, size.height, local);
+}
+
+function isVisibleComponentBody(
+  event: {
+    readonly currentTarget: SVGGElement;
+    readonly clientX: number;
+    readonly clientY: number;
+  },
+  entry: NonNullable<ReturnType<typeof catalogEntry>>,
+  size: { readonly width: number; readonly height: number },
+): boolean {
+  return componentBodyContainsClientPoint(
+    event.currentTarget,
+    event.clientX,
+    event.clientY,
+    entry,
+    size,
+  );
+}
+
 function MotorReadouts({
   controller,
   components: orderedComponents,
@@ -347,7 +393,7 @@ export function WorkbenchDiagnosticIndicators({
   controller,
   components: orderedComponents,
 }: {
-  controller: ElectronicsWorkbenchController;
+  controller: WorkbenchDiagnosticIndicatorsController;
   components: readonly SchematicComponent[];
 }): JSX.Element {
   const c = useCommittedWorkbenchPresentation(controller);
@@ -477,7 +523,7 @@ export function WorkbenchComponentBody({
   controller,
   component,
 }: {
-  controller: ElectronicsWorkbenchController;
+  controller: WorkbenchComponentBodyController;
   component: SchematicComponent;
 }): JSX.Element | null {
   const c = useCommittedWorkbenchPresentation(controller);
@@ -965,48 +1011,6 @@ export function WorkbenchStage({
       window.document.removeEventListener('visibilitychange', retryWhenVisible);
     };
   }, [document.components]);
-
-  function componentBodyContainsClientPoint(
-    part: SVGGElement,
-    clientX: number,
-    clientY: number,
-    entry: NonNullable<ReturnType<typeof catalogEntry>>,
-    size: { readonly width: number; readonly height: number },
-  ): boolean {
-    // SPST is a derived runtime shape, never the three-pin reference alpha mask.
-    if (entry.key === SPST_COMPONENT_TYPE)
-      return Boolean(
-        part
-          .querySelector('.workbench-tinkercad-switch')
-          ?.contains(window.document.elementFromPoint(clientX, clientY)),
-      );
-    const matrix = part.getScreenCTM();
-    const canvas = part.ownerSVGElement;
-    if (!matrix || !canvas) return false;
-    const point = canvas.createSVGPoint();
-    point.x = clientX;
-    point.y = clientY;
-    const local = point.matrixTransform(matrix.inverse());
-    return componentAssetContainsPoint(entry, size.width, size.height, local);
-  }
-
-  function isVisibleComponentBody(
-    event: {
-      readonly currentTarget: SVGGElement;
-      readonly clientX: number;
-      readonly clientY: number;
-    },
-    entry: NonNullable<ReturnType<typeof catalogEntry>>,
-    size: { readonly width: number; readonly height: number },
-  ): boolean {
-    return componentBodyContainsClientPoint(
-      event.currentTarget,
-      event.clientX,
-      event.clientY,
-      entry,
-      size,
-    );
-  }
 
   function componentAtClientPoint(clientX: number, clientY: number) {
     const stage = c.stageRef.current;

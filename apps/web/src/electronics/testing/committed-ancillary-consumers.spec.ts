@@ -16,9 +16,18 @@ import {
 } from '../committed-result-presentation';
 import { configureProductionLibrary } from '../production-manifest-adapter';
 import { catalogEntry, familyForVariant } from '../component-catalog';
+import * as hitTesting from '../component-hit-testing';
 import { WorkbenchComponentBody, WorkbenchDiagnosticIndicators } from '../WorkbenchStage';
 import { WorkbenchInspector } from '../WorkbenchSidebars';
-import type { ElectronicsWorkbenchController } from '../use-electronics-workbench';
+import type {
+  CommittedPresentationController,
+  WorkbenchComponentBodyController,
+  WorkbenchDiagnosticIndicatorsController,
+  WorkbenchInspectorController,
+} from '../committed-result-presentation';
+type FixtureController = WorkbenchComponentBodyController &
+  WorkbenchDiagnosticIndicatorsController &
+  WorkbenchInspectorController;
 
 // Module registration is unrelated to presentation; retain all real electrical
 // domain exports without requiring a generated module-SDK build locally.
@@ -50,6 +59,8 @@ function observation(failed = true): NativeOpticalObservation {
       current: 0,
       nodes: [],
       iterations: 1,
+      numericalResidual: 0,
+      numericalTolerance: 1e-9,
       components: schematic.components.map((component) => ({
         componentId: component.id,
         current: 0.2,
@@ -73,7 +84,7 @@ function observation(failed = true): NativeOpticalObservation {
             },
           ]
         : [],
-    } as SolveResult,
+    } satisfies SolveResult,
     frame: {
       token: String(failed),
       atMicroseconds: 10_396_700,
@@ -86,10 +97,10 @@ function observation(failed = true): NativeOpticalObservation {
 let port: NativeOpticalPresentation;
 let root: Root;
 let host: HTMLDivElement;
-let controller: ElectronicsWorkbenchController;
+let controller: FixtureController;
 let parentRenders: number;
 let projectionRenders: number;
-const seenProjections: Array<ReturnType<typeof committedResultProjection>> = [];
+const seenProjections: CommittedPresentationController[] = [];
 function ProjectionProbe() {
   const projection = useCommittedWorkbenchPresentation(controller);
   projectionRenders++;
@@ -151,10 +162,10 @@ beforeEach(() => {
     document: schematic,
     simulationRunning: true,
     simulationTimeMs: 0,
-    selectedComponent: schematic.components[0],
+    selectedComponent: schematic.components[0]!,
     selectedEntry: catalogEntry(schematic.components[0]!),
     selectedFamily: familyForVariant('led-5mm'),
-    selection: { kind: 'component', ids: ['led'] },
+    selection: { kind: 'component', id: 'led', ids: ['led'] },
     viewport: schematic.viewport,
     resultByComponent: new Map(),
     runtimePresentationResultByComponent: new Map(),
@@ -168,7 +179,30 @@ beforeEach(() => {
     rollbackComponentLedAsset: () => undefined,
     terminalConnectionCount: () => 0,
     terminalConnectionLabel: () => 'Свободен',
-  } as ElectronicsWorkbenchController;
+    selectedWire: null,
+    libraryOpen: true,
+    onLedAssetReadiness: vi.fn(),
+    selectComponent: vi.fn(),
+    startComponentDrag: vi.fn(),
+    startPotentiometerControl: vi.fn(),
+    resetArduinoRuntime: vi.fn(),
+    toggleComponentState: vi.fn(),
+    setMultimeterMeasurementMode: vi.fn(),
+    setRegulatedPowerSupplyControls: vi.fn(),
+    setSelectedProperties: vi.fn(),
+    setSignalGeneratorControls: vi.fn(),
+    beginReconnect: vi.fn(),
+    removeSelection: vi.fn(),
+    removeWireBends: vi.fn(),
+    setSelectedMotorShaftLocked: vi.fn(),
+    setSelectedState: vi.fn(),
+    setSelectedVariant: vi.fn(),
+    setSelectedWiper: vi.fn(),
+    setWireColor: vi.fn(),
+    updateSelectedName: vi.fn(),
+    updateSelectedResistanceValue: vi.fn(),
+    updateSelectedValue: vi.fn(),
+  };
   host = document.body.appendChild(document.createElement('div'));
   root = createRoot(host);
 });
@@ -178,6 +212,45 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 describe('committed ancillary result consumers', () => {
+  it('routes real body pointer-down and click through the owner alpha hit check', async () => {
+    await act(async () => root.render(createElement(Probe)));
+    const body = host.querySelector<SVGGElement>('.workbench-part');
+    const canvas = body?.ownerSVGElement;
+    expect(body).not.toBeNull();
+    expect(canvas).not.toBeNull();
+    Object.defineProperty(body, 'getScreenCTM', { value: () => ({ inverse: () => ({}) }) });
+    Object.defineProperty(canvas, 'createSVGPoint', {
+      value: () => ({ x: 0, y: 0, matrixTransform: () => ({ x: 12, y: 14 }) }),
+    });
+    const hit = vi.spyOn(hitTesting, 'componentAssetContainsPoint').mockReturnValue(false);
+    const pointerDown = () =>
+      body!.dispatchEvent(
+        new MouseEvent('pointerdown', { bubbles: true, clientX: 30, clientY: 40 }),
+      );
+    const click = () =>
+      body!.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, clientX: 30, clientY: 40, shiftKey: true }),
+      );
+    await act(async () => {
+      pointerDown();
+      click();
+    });
+    expect(controller.startComponentDrag).not.toHaveBeenCalled();
+    expect(controller.selectComponent).not.toHaveBeenCalled();
+    hit.mockReturnValue(true);
+    await act(async () => {
+      pointerDown();
+      click();
+    });
+    expect(hit).toHaveBeenCalledTimes(4);
+    expect(hit.mock.calls[0]?.[3]).toEqual({ x: 12, y: 14 });
+    expect(controller.startComponentDrag).toHaveBeenCalledWith(
+      expect.anything(),
+      schematic.components[0],
+    );
+    expect(controller.selectComponent).toHaveBeenCalledWith('led', true);
+  });
+
   it('updates real ancestor diagnostics, visible explosion, inspector measurements and ordinary visuals without a parent render', async () => {
     await act(async () => root.render(createElement(Probe)));
     const button = host.querySelector<HTMLButtonElement>(
@@ -213,7 +286,9 @@ describe('committed ancillary result consumers', () => {
     expect(
       host.querySelector('[data-rgb-runtime-state]')?.getAttribute('data-rgb-runtime-state'),
     ).toBe('burned');
-    expect(seenProjections.at(-1)).toBe(seenProjections.at(-2));
+    expect(seenProjections.at(-1)!.resultByComponent).toBe(
+      seenProjections.at(-2)!.resultByComponent,
+    );
     expect(seenProjections.at(-1)!.resultByComponent).toBe(
       committedResultProjection(next.result).resultByComponent,
     );
@@ -290,7 +365,7 @@ describe('committed ancillary result consumers', () => {
       selectedComponent: schematic.components[1]!,
       selectedEntry: catalogEntry(schematic.components[1]!),
       selectedFamily: familyForVariant('rgb-led'),
-      selection: { kind: 'component', ids: ['rgb'] },
+      selection: { kind: 'component', id: 'rgb', ids: ['rgb'] },
     };
     await act(async () => root.render(createElement(Probe)));
     const button = host.querySelector<HTMLButtonElement>(
