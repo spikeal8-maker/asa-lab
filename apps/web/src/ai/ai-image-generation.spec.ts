@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -17,7 +18,7 @@ const status = {
   enabled: true,
   ready: true,
   reason: null,
-  sizes: [512],
+  sizes: [768],
   dailyLimit: 10,
   remainingToday: 10,
 };
@@ -356,4 +357,18 @@ it('a failed image is not presented as complete and never creates a text request
   expect(host.textContent).toContain('Не удалось создать изображение.');
   expect(complete).not.toHaveBeenCalled();
   expect(vi.mocked(call).mock.calls.every(([, init]) => !init?.method)).toBe(true);
+});
+
+it('shows the same six exact dimensions in the image composer', async () => {
+  vi.mocked(call).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { ...status, sizes: AI_IMAGE_PRESETS.map((p) => p.id) },
+  });
+  await render();
+  const sizes = host.querySelector<HTMLSelectElement>('select[aria-label="Размер изображения"]')!;
+  expect(Array.from(sizes.options).map((o) => o.textContent?.trim())).toEqual(
+    AI_IMAGE_PRESETS.map((p) => p.label),
+  );
+  expect(sizes.textContent).not.toContain('512');
 });

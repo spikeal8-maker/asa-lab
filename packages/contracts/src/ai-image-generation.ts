@@ -1,5 +1,38 @@
 /** Local GPU images are independent of text-provider credentials and token budgets. */
-export type AiImageSize = 512 | 768 | 1024;
+/** Stable preset IDs, not a square side length. Existing square IDs remain unchanged. */
+export const AI_IMAGE_PRESETS = [
+  { id: 768, width: 768, height: 768, label: 'Квадрат · Стандартный · 768 × 768', aspect: '1:1' },
+  { id: 1024, width: 1024, height: 1024, label: 'Квадрат · Большой · 1024 × 1024', aspect: '1:1' },
+  { id: 1280, width: 1280, height: 720, label: 'Широкий · HD · 1280 × 720', aspect: '16:9' },
+  { id: 1536, width: 1536, height: 864, label: 'Широкий · Большой · 1536 × 864', aspect: '16:9' },
+  { id: 720, width: 720, height: 1280, label: 'Вертикальный · HD · 720 × 1280', aspect: '9:16' },
+  {
+    id: 864,
+    width: 864,
+    height: 1536,
+    label: 'Вертикальный · Большой · 864 × 1536',
+    aspect: '9:16',
+  },
+] as const;
+export type AiImageSize = (typeof AI_IMAGE_PRESETS)[number]['id'];
+/** Old jobs and their immutable receipts remain recoverable; 512 is not offered for new work. */
+export type AiImageStoredSize = AiImageSize | 512;
+export function aiImagePreset(size: unknown) {
+  return AI_IMAGE_PRESETS.find((p) => p.id === size);
+}
+export function isAiImageSize(size: unknown): size is AiImageSize {
+  return aiImagePreset(size) !== undefined;
+}
+export function aiImageDimensions(size: AiImageStoredSize): { width: number; height: number } {
+  if (size === 512) return { width: 512, height: 512 };
+  const preset = aiImagePreset(size);
+  if (!preset) throw new Error('AI_IMAGE_SIZE_INVALID');
+  return { width: preset.width, height: preset.height };
+}
+export function aiImageSizeLabel(size: AiImageSize): string {
+  return aiImagePreset(size)?.label ?? 'Неизвестный размер';
+}
+
 export type AiImageJobState =
   | 'admitted'
   | 'submitting'

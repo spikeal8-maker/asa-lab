@@ -1,3 +1,4 @@
+import { isAiImageSize } from '@asa-lab/contracts';
 import type { AiWebSearchMode } from '@asa-lab/contracts';
 import { AiPolicyError } from './ai-generation-policy.js';
 import { AiToolPolicyError } from './ai-tool-policy.js';
@@ -48,7 +49,7 @@ export class AiChatController {
     if (
       Object.keys(value).sort().join(',') !== 'mode,size' ||
       !['off', 'auto'].includes(value['mode'] as string) ||
-      ![512, 768, 1024].includes(value['size'] as number)
+      !isAiImageSize(value['size'])
     )
       return reject('ai_input_invalid', 'Неверные настройки изображения.', 400);
     return value as unknown as AiNativeImageOptions;

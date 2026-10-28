@@ -1,3 +1,9 @@
+import {
+  AI_IMAGE_PRESETS,
+  aiImageDimensions,
+  isAiImageSize,
+  type AiImageStoredSize,
+} from '@asa-lab/contracts';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -43,7 +49,7 @@ export interface ImageJobRow {
   marker: string;
   seed: number;
   prompt: string | null;
-  size: AiImageSize;
+  size: AiImageStoredSize;
   state: AiImageJobState;
   created_at: string;
   cancel_requested: boolean;
@@ -80,7 +86,7 @@ export function imageInput(raw: unknown): AiImageGenerationRequest {
     p.prompt.trim().length < 1 ||
     p.prompt.length > 3000 ||
     /[\p{Cc}]/u.test(p.prompt) ||
-    ![512, 768, 1024].includes(Number(p.size)) ||
+    !isAiImageSize(p.size) ||
     typeof p.size !== 'number'
   )
     throw new AiImageError(
@@ -108,9 +114,9 @@ export function imageAdminInput(raw: unknown): AiImageGenerationAdminUpdate {
     p.globalConcurrency > 2 ||
     !Array.isArray(p.sizes) ||
     p.sizes.length < 1 ||
-    p.sizes.length > 3 ||
+    p.sizes.length > AI_IMAGE_PRESETS.length ||
     new Set(p.sizes).size !== p.sizes.length ||
-    p.sizes.some((v) => ![512, 768, 1024].includes(v))
+    p.sizes.some((v) => !isAiImageSize(v))
   )
     throw new AiImageError(
       'ai_image_config_invalid',
@@ -140,8 +146,7 @@ function descriptor(j: ImageJobRow): AiAttachmentObject {
 function image(j: ImageJobRow): AiGeneratedImage {
   return {
     requestId: j.request_id,
-    width: j.size,
-    height: j.size,
+    ...aiImageDimensions(j.size),
     mimeType: 'image/png',
     sizeBytes: j.size_bytes!,
     downloadUrl: `/api/ai/threads/${j.thread_id}/image-generations/${j.request_id}/image`,

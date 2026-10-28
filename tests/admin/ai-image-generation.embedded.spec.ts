@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
@@ -60,7 +61,7 @@ function service() {
 }
 async function config(enabled = true) {
   const c = await service().admin(admin);
-  return service().saveAdmin(admin, { ...c, requestId: randomUUID(), enabled });
+  return service().saveAdmin(admin, { ...c, requestId: randomUUID(), enabled, sizes: [768] });
 }
 async function createThread() {
   return (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [owner])).rows[0]!.id;
@@ -84,7 +85,7 @@ afterAll(async () => {
 });
 it('defaults disabled; validates bounded admin/prompt payloads', async () => {
   expect((await service().admin(admin)).enabled).toBe(false);
-  expect(() => imageInput({ requestId: randomUUID(), prompt: '', size: 512 })).toThrow();
+  expect(() => imageInput({ requestId: randomUUID(), prompt: '', size: 768 })).toThrow();
   expect(() =>
     imageAdminInput({
       requestId: randomUUID(),
@@ -92,7 +93,7 @@ it('defaults disabled; validates bounded admin/prompt payloads', async () => {
       enabled: true,
       dailyLimit: 101,
       globalConcurrency: 1,
-      sizes: [512],
+      sizes: [768],
     }),
   ).toThrow();
   await expect(service().admin(stranger)).rejects.toThrow();
@@ -102,16 +103,16 @@ it('admits local image without any text keys, dispatches once, unknown keeps glo
   const id = randomUUID();
   transport.dispatch.mockRejectedValueOnce(new Error('timeout'));
   const s = service();
-  const job = await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 512 });
+  const job = await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 768 });
   expect(job.state).toBe('submitting');
-  await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 512 });
+  await s.create(owner, thread, { requestId: id, prompt: 'A blue cube', size: 768 });
   expect(transport.dispatch).toHaveBeenCalledTimes(1);
   await expect(
-    s.create(owner, thread, { requestId: id, prompt: 'different', size: 512 }),
+    s.create(owner, thread, { requestId: id, prompt: 'different', size: 768 }),
   ).rejects.toThrow();
   await expect(s.get(stranger, thread, id)).rejects.toThrow();
   await expect(
-    s.create(owner, thread, { requestId: randomUUID(), prompt: 'other', size: 512 }),
+    s.create(owner, thread, { requestId: randomUUID(), prompt: 'other', size: 768 }),
   ).rejects.toThrow();
   await s.sweep();
   expect((await s.get(owner, thread, id)).state).toBe('unknown');
@@ -146,7 +147,7 @@ it('cancellation never interrupts or refunds unknown; deleted receipt denies UUI
     service().create(owner, thread, {
       requestId: row.request_id,
       prompt: 'A blue cube',
-      size: 512,
+      size: 768,
     }),
   ).rejects.toThrow();
 });
@@ -167,7 +168,7 @@ it('unknown immutable PUT is never retried; verified image persists in history a
   const id = randomUUID();
   const png = Buffer.from('sanitized output from trusted transport');
   const s = service();
-  await s.create(owner, thread, { requestId: id, prompt: 'A green cube', size: 512 });
+  await s.create(owner, thread, { requestId: id, prompt: 'A green cube', size: 768 });
   transport.recover.mockResolvedValueOnce({ state: 'complete', png });
   blobs.putImmutable.mockRejectedValueOnce(new AiAttachmentStorageError('unknown'));
   await s.sweep();
@@ -207,7 +208,7 @@ it('disabled image settings and archived threads fail before another dispatch; a
   const t = await createThread();
   const before = transport.dispatch.mock.calls.length;
   await expect(
-    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 512 }),
+    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
   ).rejects.toThrow();
   const c = await service().admin(admin);
   const input = { ...c, requestId: randomUUID(), enabled: true };
@@ -216,7 +217,7 @@ it('disabled image settings and archived threads fail before another dispatch; a
   await expect(service().saveAdmin(admin, { ...input, dailyLimit: 11 })).rejects.toThrow();
   await pool.query('SELECT * FROM ai_text_archive($1,$2,true)', [owner, t]);
   await expect(
-    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 512 }),
+    service().create(owner, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
   ).rejects.toThrow();
   expect(transport.dispatch).toHaveBeenCalledTimes(before);
 });
@@ -232,7 +233,7 @@ it('school deny remains authoritative for image admission independent of local m
   );
   const before = transport.dispatch.mock.calls.length;
   await expect(
-    service().create(f.principalId, t, { requestId: randomUUID(), prompt: 'x', size: 512 }),
+    service().create(f.principalId, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
   ).rejects.toThrow();
   expect(transport.dispatch).toHaveBeenCalledTimes(before);
 });
@@ -284,10 +285,10 @@ it('lost dispatch-CAS response is reconciled without ever posting the provider j
   const id = randomUUID();
   const before = transport.dispatch.mock.calls.length;
   await expect(
-    s.create(other, t, { requestId: id, prompt: 'One exact image', size: 512 }),
+    s.create(other, t, { requestId: id, prompt: 'One exact image', size: 768 }),
   ).rejects.toThrow();
   expect(
-    (await s.create(other, t, { requestId: id, prompt: 'One exact image', size: 512 })).state,
+    (await s.create(other, t, { requestId: id, prompt: 'One exact image', size: 768 })).state,
   ).toBe('submitting');
   expect(transport.dispatch).toHaveBeenCalledTimes(before);
 });
@@ -297,7 +298,7 @@ it('labels definite pre-admission size rejection distinctly from generic post-co
   const t = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh])).rows[0]!
     .id;
   await expect(
-    service().create(fresh, t, { requestId: randomUUID(), prompt: 'x', size: 768 }),
+    service().create(fresh, t, { requestId: randomUUID(), prompt: 'x', size: 1024 }),
   ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 400 });
   const row = (
     await db.query<{
@@ -319,7 +320,7 @@ it('labels definite pre-admission size rejection distinctly from generic post-co
     new AiImageService(afterCommitPool, { transport, blobs, maintenance: false }).create(
       row.owner_principal_id,
       row.thread_id,
-      { requestId: row.request_id, prompt: row.prompt, size: 512 },
+      { requestId: row.request_id, prompt: row.prompt, size: 768 },
     ),
   ).rejects.toMatchObject({ code: 'ai_image_denied', status: 403 });
 });
@@ -334,7 +335,7 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
   const requestId = randomUUID();
   transport.readiness.mockResolvedValueOnce({ ready: false, reason: null });
   await expect(
-    s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 512 }),
+    s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 768 }),
   ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 503 });
   expect(
     (await db.query('SELECT * FROM ai_image_jobs WHERE request_id=$1', [requestId])).rows,
@@ -344,7 +345,7 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
       .rows,
   ).toHaveLength(0);
   expect(
-    (await s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 512 })).state,
+    (await s.create(fresh, t, { requestId, prompt: 'Local readiness race', size: 768 })).state,
   ).toBe('submitting');
   const afterCommitPool = {
     query: async (sql: string, params: unknown[]) => {
@@ -356,7 +357,7 @@ it('confirmed readiness rejection creates no receipt and permits the same UUID a
     new AiImageService(afterCommitPool, { transport, blobs, maintenance: false }).create(fresh, t, {
       requestId,
       prompt: 'Local readiness race',
-      size: 512,
+      size: 768,
     }),
   ).rejects.toMatchObject({ code: 'ai_image_unavailable', status: 503 });
 });
@@ -372,7 +373,7 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
   await s.create(fresh, t, {
     requestId,
     prompt: 'GPU finished before unknown object write',
-    size: 512,
+    size: 768,
   });
   transport.recover.mockResolvedValueOnce({
     state: 'complete',
@@ -436,7 +437,7 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
       await s.create(fresh, nextThread, {
         requestId: nextId,
         prompt: 'A second local image',
-        size: 512,
+        size: 768,
       })
     ).state,
   ).toBe('submitting');
@@ -500,7 +501,7 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
     s.create(fresh, thirdThread, {
       requestId: randomUUID(),
       prompt: 'Must wait for known terminal GPU result',
-      size: 512,
+      size: 768,
     }),
   ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 429 });
 });
@@ -565,7 +566,7 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   ).toBe(true);
   const options = {
     text: 'Нарисуй красивый лес и деревню',
-    nativeImage: { mode: 'auto', size: 512 },
+    nativeImage: { mode: 'auto', size: 768 },
   };
   await pool.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
     actor,
@@ -580,7 +581,7 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     chat,
     parent,
     childPrompt,
-    512,
+    768,
     new AbortController().signal,
   );
   expect(
@@ -589,7 +590,7 @@ it('atomically turns an admitted local text request into one owner-scoped image 
         job.requestId,
       ])
     ).rows[0]?.size,
-  ).toBe(512);
+  ).toBe(768);
   expect(transport.dispatch.mock.calls.length).toBe(before + 1);
   expect((await service().replayTool(actor, chat, parent))?.requestId).toBe(job.requestId);
   expect(
@@ -663,7 +664,7 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   const manual = await service().create(actor, manualThread, {
     requestId: randomUUID(),
     prompt: 'Manual landscape',
-    size: 512,
+    size: 768,
   });
   const manualLease = randomUUID();
   await db.query(
@@ -682,4 +683,62 @@ it('atomically turns an admitted local text request into one owner-scoped image 
   expect(manualHistory.filter((item) => item.role === 'assistant')).toHaveLength(1);
   expect(manualHistory[1]?.generatedImages?.[0]?.requestId).toBe(manual.requestId);
   await expect(service().replayTool(stranger, chat, parent)).rejects.toThrow();
+});
+
+it('uses the six preset dimensions in durable owner history and rejects new 512 jobs', async () => {
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  const settings = await service().admin(admin);
+  const ids = AI_IMAGE_PRESETS.map((p) => p.id);
+  await service().saveAdmin(admin, {
+    ...settings,
+    requestId: randomUUID(),
+    enabled: true,
+    sizes: ids,
+  });
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  expect((await service().status(actor)).sizes).toEqual(ids);
+  for (const preset of AI_IMAGE_PRESETS) {
+    const id = randomUUID();
+    await service().create(actor, chat, {
+      requestId: id,
+      prompt: 'Test dimensions',
+      size: preset.id,
+    });
+    await db.query(
+      "UPDATE ai_image_jobs SET state='complete',sha256=$2,size_bytes=10,put_started=true,put_uncertain=false WHERE request_id=$1",
+      [id, 'a'.repeat(64)],
+    );
+    const visible = await service().get(actor, chat, id);
+    expect(visible.image).toMatchObject({ width: preset.width, height: preset.height });
+    const stored = (
+      await pool.query<{ value: { width: number; height: number }[] }>(
+        'SELECT ai_image_history($1,$2,$3) AS value',
+        [actor, chat, id],
+      )
+    ).rows[0]!.value;
+    expect(stored[0]).toMatchObject({ width: preset.width, height: preset.height });
+    expect(
+      (
+        await pool.query<{ value: unknown[] }>('SELECT ai_image_history($1,$2,$3) AS value', [
+          stranger,
+          chat,
+          id,
+        ])
+      ).rows[0]!.value,
+    ).toEqual([]);
+  }
+  expect(() =>
+    imageInput({ requestId: randomUUID(), prompt: 'New small image', size: 512 }),
+  ).toThrow();
+  await expect(
+    service().saveAdmin(admin, {
+      ...(await service().admin(admin)),
+      requestId: randomUUID(),
+      sizes: [512],
+    }),
+  ).rejects.toThrow();
 });

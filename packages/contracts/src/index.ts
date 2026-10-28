@@ -58,3 +58,12 @@ export type {
   PublicDisplayComponentKind,
   PublicDisplayVisualProperties,
 } from './public-project-display-artifact.js';
+
+export {
+  AI_IMAGE_PRESETS,
+  aiImagePreset,
+  aiImageDimensions,
+  isAiImageSize,
+  aiImageSizeLabel,
+} from './ai-image-generation.js';
+export type { AiImageStoredSize } from './ai-image-generation.js';

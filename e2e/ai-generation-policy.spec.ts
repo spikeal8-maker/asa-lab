@@ -97,7 +97,7 @@ async function adminFixture(page: Page) {
         enabled: false,
         dailyLimit: 10,
         globalConcurrency: 1,
-        sizes: [512],
+        sizes: [768],
         ready: false,
         reason: 'disabled',
         recipe: 'flux2-klein-4b-v1',
