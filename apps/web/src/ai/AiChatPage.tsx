@@ -12,6 +12,7 @@ import {
 import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
+import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
 import {
   AiImageGeneration,
@@ -173,6 +174,8 @@ export function AiChatPage({
   }, []);
   const [imageStatus, setImageStatus] = useState<AiImageGenerationStatus | null>(null);
   const [status, setStatus] = useState<AiStatus | null>(null);
+  const [tokenBudgets, setTokenBudgets] = useState<AiTokenBudgetsOwn | null>(null);
+  const [budgetRefresh, setBudgetRefresh] = useState(0);
   const [selectedModel, setSelectedModel] = useState('');
   const [webSearchStatus, setWebSearchStatus] = useState<AiWebSearchStatus | null>(null);
   const [webSearchMode, setWebSearchMode] = useState<AiWebSearchMode>('auto');
@@ -243,6 +246,23 @@ export function AiChatPage({
     loaded: Set<string>;
   }>({ threadId: null, loaded: new Set<string>() });
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (busy) return;
+    let active = true;
+    void call<AiTokenBudgetsOwn>('/api/ai/token-budgets')
+      .then((reply) => {
+        if (active) setTokenBudgets(reply.ok ? reply.data : null);
+      })
+      .catch(() => {
+        if (active) setTokenBudgets(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [call, busy, budgetRefresh]);
+  const selectedBudget = tokenBudgets?.models?.find(
+    (row) => row.model === (selectedModel || status?.model),
+  );
   const [creatingChat, setCreatingChat] = useState(false);
   // Serialize creation and sending before React renders disabled controls.
   const requestBusy = useRef(false);
@@ -1960,6 +1980,30 @@ export function AiChatPage({
               </div>
             </div>
           )}
+          {selectedBudget && !imageMode ? (
+            <p className="chat-runtime-note" role="status">
+              Токены модели за месяц: {selectedBudget.used} · Резерв: {selectedBudget.held} ·
+              Остаток личного бюджета: {selectedBudget.remaining ?? 'без лимита'}.
+              {selectedBudget.pendingUnknown
+                ? ' Часть расхода неизвестна; резерв сохранён без срока истечения.'
+                : ''}
+              {selectedBudget.reason === 'ai_budget_pending'
+                ? ' Новые ответы временно недоступны: токены зарезервированы или расход не подтверждён.'
+                : selectedBudget.reason === 'ai_budget_exhausted'
+                  ? ' Новые ответы недоступны: месячный бюджет модели исчерпан.'
+                  : ''}{' '}
+              Новый период:{' '}
+              {new Date(tokenBudgets!.resetAt).toLocaleString('ru-RU', { timeZone: 'UTC' })} UTC.
+              Начатый ответ завершается полностью.
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setBudgetRefresh((value) => value + 1)}
+              >
+                Проверить остаток
+              </button>
+            </p>
+          ) : null}
           {visibleError || schoolAdmission || archived || (!busy && pendingRegeneration) ? (
             <div
               className={'asa-ai-error' + (visibleError ? '' : ' chat-history-notice')}
@@ -2338,11 +2382,24 @@ export function AiChatPage({
                             </option>
                           ) : null}
                           {status?.availableModels?.map((name) => (
-                            <option key={name} value={name}>
+                            <option
+                              key={name}
+                              value={name}
+                              disabled={tokenBudgets?.models?.some(
+                                (row) => row.model === name && !row.available,
+                              )}
+                            >
                               {status.modelChoices?.find((m) => m.id === name)?.label ??
                                 (name === 'ollama-local'
                                   ? status.ollamaModel || 'Локальная модель'
                                   : name)}
+                              {tokenBudgets?.models?.find((row) => row.model === name)?.reason ===
+                              'ai_budget_pending'
+                                ? ' · расход ожидает подтверждения'
+                                : tokenBudgets?.models?.find((row) => row.model === name)
+                                      ?.reason === 'ai_budget_exhausted'
+                                  ? ' · бюджет исчерпан'
+                                  : ''}
                             </option>
                           ))}
                         </select>
@@ -2386,6 +2443,7 @@ export function AiChatPage({
                       disabled={
                         (imageUi.busy && !imageUi.canCancel) ||
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
+                        (!composerBusy && !imageMode && selectedBudget?.available === false) ||
                         (!composerBusy && ((!status?.enabled && !imageMode) || archived)) ||
                         creatingChat ||
                         threadActionBusy ||

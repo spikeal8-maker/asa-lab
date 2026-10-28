@@ -70,3 +70,9 @@ export type {
   AiOllamaCloudPool,
   AiOllamaCloudKeyUpdate,
 } from './ai-ollama-cloud.js';
+export type {
+  AiTokenBudgetLimit,
+  AiTokenBudgetAdmin,
+  AiTokenBudgetUpdate,
+  AiTokenBudgetsOwn,
+} from './ai-token-budgets.js';

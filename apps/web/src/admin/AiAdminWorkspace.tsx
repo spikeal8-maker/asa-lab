@@ -4,6 +4,7 @@ import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
+import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
 import { AdminAiUsageOverview } from './AdminAiUsageOverview';
 import type { AiAdminConfig } from './ai-model-config';
 import {
@@ -231,6 +232,7 @@ function AiAdminWorkspaceSession({
       ) : section === 'prompt' || section === 'settings' ? (
         <div id={'ai-panel-' + section} role="tabpanel" aria-labelledby={'ai-tab-' + section}>
           <AdminAiGenerationPolicy section={section} onAccessDenied={onAccessDenied} />
+          {section === 'settings' ? <AdminAiTokenBudgets onAccessDenied={onAccessDenied} /> : null}
         </div>
       ) : section === 'internet' ? (
         <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">

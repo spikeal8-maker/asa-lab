@@ -1,4 +1,5 @@
 import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
+import { AiTokenBudgetStore } from './ai-token-budgets.js';
 import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
 import {
@@ -297,6 +298,15 @@ export class AiChatService {
   }
   usageOverview(actor: string) {
     return this.usage.overview(actor);
+  }
+  tokenBudgetsAdmin(actor: string) {
+    return new AiTokenBudgetStore(this.pool).admin(actor);
+  }
+  tokenBudgetsOwn(owner: string) {
+    return new AiTokenBudgetStore(this.pool).own(owner);
+  }
+  saveTokenBudgets(actor: string, input: unknown) {
+    return new AiTokenBudgetStore(this.pool).save(actor, input);
   }
   saveGenerationPolicy(actor: string, input: AiGenerationPolicyUpdate) {
     return this.policy.save(actor, input, this.key !== null);
@@ -2476,6 +2486,19 @@ export class AiChatService {
   }
 
   private rethrowAdmissionError(problem: unknown): void {
+    const budgetMessage = (problem as Error)?.message ?? '';
+    if (budgetMessage.includes('AI_BUDGET_PENDING'))
+      throw new AiServiceError(
+        'ai_budget_pending',
+        429,
+        'Токены зарезервированы выполняющимися ответами или расход пока не подтверждён. Проверьте остаток позже.',
+      );
+    if (budgetMessage.includes('AI_BUDGET_EXHAUSTED'))
+      throw new AiServiceError(
+        'ai_budget_exhausted',
+        429,
+        'Месячный бюджет этой модели исчерпан. Уже начатый ответ завершается полностью. Новый период начинается 1 числа в 00:00 UTC.',
+      );
     const message = problem instanceof Error ? problem.message : '';
     if (problem instanceof AiPolicyError)
       throw new AiServiceError(problem.code, problem.status, problem.message);

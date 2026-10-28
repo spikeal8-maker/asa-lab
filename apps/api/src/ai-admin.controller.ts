@@ -107,6 +107,21 @@ export class AiAdminController {
     return this.safe(() => this.ai.generationPolicy(actor));
   }
 
+  @Get('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async tokenBudgets(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.tokenBudgetsAdmin(actor));
+  }
+
+  @Put('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async saveTokenBudgets(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.saveTokenBudgets(actor, raw));
+  }
+
   @Post('generation-policy/catalog')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
