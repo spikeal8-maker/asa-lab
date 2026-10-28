@@ -39,10 +39,12 @@ export function AiAdminPage({
   onAccessDenied,
   providerChoice = 'openai',
   onUpdated,
+  onDirtyChange,
 }: {
   readonly onAccessDenied: () => void;
   readonly providerChoice?: AiProvider;
   readonly onUpdated?: () => void;
+  readonly onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
   const [model, setModel] = useState('');
@@ -50,9 +52,7 @@ export function AiAdminPage({
   const acceptCloudModels = useCallback((rows: readonly AiOllamaCloudModel[]) => {
     const active = rows.filter((row) => row.active);
     setCloudModels(active);
-    setModel((previous) =>
-      active.some((row) => row.id === previous) ? previous : (active[0]?.id ?? previous),
-    );
+    setModel((previous) => previous || active[0]?.id || '');
   }, []);
   const [keyInput, setKeyInput] = useState('');
   const [clearKey, setClearKey] = useState(false);
@@ -66,7 +66,10 @@ export function AiAdminPage({
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
   const inFlight = useRef(false);
+  const preserveDraftOnReload = useRef(false);
   const cloudKeysSaved = useCallback(() => {
+    preserveDraftOnReload.current = true;
+    setConfirmPaid(false);
     setReload((value) => value + 1);
     onUpdated?.();
   }, [onUpdated]);
@@ -101,13 +104,14 @@ export function AiAdminPage({
   // Changing providers must not expose or copy another provider's key.
   useEffect(() => {
     if (!config) return;
+    if (preserveDraftOnReload.current) {
+      preserveDraftOnReload.current = false;
+      return;
+    }
     const slot = config.providerConfigurations.find((row) => row.provider === providerChoice);
     const catalog = config.modelCatalog.providers.find((row) => row.id === providerChoice);
     const storedModel = slot?.model;
-    const selectable = config.modelCatalog.models.some(
-      (row) => row.provider === providerChoice && row.id === storedModel && row.selectable,
-    );
-    setModel(selectable ? storedModel! : (catalog?.defaultModel ?? ''));
+    setModel(storedModel || catalog?.defaultModel || '');
     setKeyInput('');
     setClearKey(false);
     setEnabled(slot?.enabled ?? false);
@@ -140,6 +144,9 @@ export function AiAdminPage({
       Number(config!.paidOperationsPerHour) !== Number(quota) ||
       Boolean(keyInput.trim()) ||
       clearKey);
+  useEffect(() => {
+    onDirtyChange?.(dirty || cloudKeysDirty);
+  }, [dirty, cloudKeysDirty, onDirtyChange]);
   const mustClear = Boolean(clearKey && slot?.apiKeyConfigured);
   const canSubmit = Boolean(
     config &&
@@ -310,6 +317,12 @@ export function AiAdminPage({
             </label>
           </div>
 
+          <p role="status" className="asa-connection-state">
+            Сохранено на сервере: {slot?.enabled ? 'включено' : 'выключено'}.
+            {dirty
+              ? ' Есть несохранённые изменения; переключатель ещё не применён.'
+              : ' Изменений нет.'}
+          </p>
           <div className="asa-cloud-fields">
             <label className="asa-cloud-field">
               <span>Модель</span>
@@ -323,6 +336,11 @@ export function AiAdminPage({
                 }}
                 disabled={!!busy}
               >
+                {model && !options.some((row) => row.id === model) ? (
+                  <option value={model} disabled>
+                    Сохранённая модель недоступна: {model}
+                  </option>
+                ) : null}
                 {options.map((row) => (
                   <option value={row.id} key={row.id}>
                     {row.label}

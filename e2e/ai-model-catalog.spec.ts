@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
 import type { AiAdminConfig, AiProvider } from '../apps/web/src/admin/ai-model-config';
+import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
@@ -259,6 +260,25 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
         json: { ...pool, configurationVersion: config.configurationVersion },
       });
     }
+    if (
+      path === '/api/admin/v1/ai/generation-policy' ||
+      path === '/api/admin/v1/ai/generation-policy/catalog'
+    ) {
+      const policy = generationPolicyFixture();
+      const selected = new Set(
+        pool.keys.filter((key) => key.enabled && key.configured).flatMap((key) => key.models),
+      );
+      return route.fulfill({
+        json: {
+          ...policy,
+          models: policy.models.map((model) => ({
+            ...model,
+            connectionSelected:
+              model.provider !== 'ollama-cloud' || !pool.managed || selected.has(model.id),
+          })),
+        },
+      });
+    }
     if (path === '/api/admin/v1/ai/test') {
       const body = request.postDataJSON();
       const slot = config.providerConfigurations.find((item) => item.provider === body.provider);
@@ -504,84 +524,87 @@ test('Cloud save-and-verify uses exactly one consented paid request and refreshe
 });
 
 for (const width of [1440, 1024, 390, 320]) {
-  test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 900 });
-    const fake = await adminFixture(page);
-    await openAdmin(page);
-    await selectProvider(page, 'ollama-cloud');
-    await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
-    ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
-    await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gemma4:31b');
-    const keyCard = page.locator('details.asa-cloud-key-card').filter({
-      has: page.getByLabel('API-ключ 1', { exact: true }),
-    });
-    await keyCard.locator('summary').click();
-    await keyCard.getByLabel('API-ключ 1', { exact: true }).fill('test-ollama-cloud-key-only');
-    await keyCard.getByRole('checkbox', { name: 'Использовать ключ', exact: true }).check();
-    await keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }).check();
-    expect(fake.paidTests).toHaveLength(0);
-    await page.getByRole('button', { name: 'Сохранить ключи и порядок', exact: true }).click();
-    await expect(page.getByText('Ключи и порядок сохранены', { exact: true })).toBeVisible();
-    await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
-    await expect(page.getByLabel('Выключено', { exact: true })).not.toBeChecked();
-    expect(fake.poolWrites).toHaveLength(1);
-    expect(fake.poolWrites[0]).toMatchObject({
-      configurationVersion: 1,
-      keys: expect.arrayContaining([
-        {
-          slot: 1,
-          label: 'Ключ 1',
-          priority: 1,
-          enabled: true,
-          models: ['gemma4:31b'],
-          apiKey: 'test-ollama-cloud-key-only',
-        },
-      ]),
-    });
-    expect(
-      fake.current().providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
-    ).toMatchObject({ enabled: false, apiKeyConfigured: true, revision: 1 });
-    expect(fake.paidTests).toHaveLength(0);
-    await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
-    await page.getByLabel('Выключено', { exact: true }).check();
-    await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
-    expect(fake.paidTests).toHaveLength(0);
-    await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-    await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
-    await expect(page.getByText(/Подключено · Ollama Cloud/)).toBeVisible();
-    expect(fake.writes).toHaveLength(1);
-    expect(fake.writes[0]).toMatchObject({
-      provider: 'ollama-cloud',
-      model: 'gemma4:31b',
-      enabled: true,
-      configurationVersion: 2,
-      providerConfigurationVersion: 1,
-    });
-    expect(fake.writes[0]).not.toHaveProperty('apiKey');
-    expect(fake.paidTests).toEqual([
-      {
-        acknowledgePaidRequest: true,
-        configurationVersion: 3,
+  for (const theme of ['light', 'dark']) {
+    test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width} ${theme}`, async ({
+      page,
+    }) => {
+      await page.addInitScript((value) => localStorage.setItem('asa-ai-chat-theme', value), theme);
+      await page.setViewportSize({ width, height: 900 });
+      const fake = await adminFixture(page);
+      await openAdmin(page);
+      await selectProvider(page, 'ollama-cloud');
+      await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
+      await expect(
+        page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
+      ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
+      await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gemma4:31b');
+      const keyCard = page.locator('details.asa-cloud-key-card').filter({
+        has: page.getByLabel('API-ключ 1', { exact: true }),
+      });
+      await page.getByRole('button', { name: 'Открыть ключ 1', exact: true }).click();
+      await keyCard.getByLabel('API-ключ 1', { exact: true }).fill('test-ollama-cloud-key-only');
+      await keyCard.getByRole('checkbox', { name: 'Использовать ключ', exact: true }).check();
+      await keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }).check();
+      expect(fake.paidTests).toHaveLength(0);
+      await page.getByRole('button', { name: 'Сохранить ключи и порядок', exact: true }).click();
+      await expect(page.getByText('Ключи и порядок сохранены', { exact: true })).toBeVisible();
+      await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
+      await expect(page.getByLabel('Выключено', { exact: true })).not.toBeChecked();
+      expect(fake.poolWrites).toHaveLength(1);
+      expect(fake.poolWrites[0]).toMatchObject({
+        configurationVersion: 1,
+        keys: expect.arrayContaining([
+          {
+            slot: 1,
+            label: 'Ключ 1',
+            priority: 1,
+            enabled: true,
+            models: ['gemma4:31b'],
+            apiKey: 'test-ollama-cloud-key-only',
+          },
+        ]),
+      });
+      expect(
+        fake.current().providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+      ).toMatchObject({ enabled: false, apiKeyConfigured: true, revision: 1 });
+      expect(fake.paidTests).toHaveLength(0);
+      await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
+      await page.getByLabel('Выключено', { exact: true }).check();
+      await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
+      expect(fake.paidTests).toHaveLength(0);
+      await page.getByLabel('Разрешаю один платный запрос для проверки').check();
+      await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+      await expect(page.getByText(/Подключено · Ollama Cloud/)).toBeVisible();
+      expect(fake.writes).toHaveLength(1);
+      expect(fake.writes[0]).toMatchObject({
         provider: 'ollama-cloud',
-        providerConfigurationVersion: 2,
-      },
-    ]);
-    await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
-    expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true,
-    );
-    await page.getByRole('region', { name: 'Настройки Ollama Cloud' }).scrollIntoViewIfNeeded();
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+        model: 'gemma4:31b',
+        enabled: true,
+        configurationVersion: 2,
+        providerConfigurationVersion: 1,
+      });
+      expect(fake.writes[0]).not.toHaveProperty('apiKey');
+      expect(fake.paidTests).toEqual([
+        {
+          acknowledgePaidRequest: true,
+          configurationVersion: 3,
+          provider: 'ollama-cloud',
+          providerConfigurationVersion: 2,
+        },
+      ]);
+      await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
+      expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.getByRole('region', { name: 'Настройки Ollama Cloud' }).scrollIntoViewIfNeeded();
+      await page.evaluate(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
+      await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}-${theme}.png`) });
+      expect(fake.pageErrors).toEqual([]);
     });
-    await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}.png`) });
-    expect(fake.pageErrors).toEqual([]);
-  });
+  }
 }
 
 test('Stale cloud save cannot start a paid request or claim success', async ({ page }) => {

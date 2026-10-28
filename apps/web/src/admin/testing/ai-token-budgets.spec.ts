@@ -86,3 +86,24 @@ it('distinguishes blank unlimited from zero and rejects invalid server data', ()
     false,
   );
 });
+
+it('omits ineligible model rows while preserving their stored limits in the full CAS save', async () => {
+  vi.mocked(call).mockResolvedValue({ ok: true, status: 200, data: config });
+  await act(async () =>
+    root.render(
+      createElement(AdminAiTokenBudgets, {
+        onAccessDenied: vi.fn(),
+        eligibleModels: [],
+      }),
+    ),
+  );
+  expect(host.querySelector('fieldset')).toBeNull();
+  await act(async () =>
+    host
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  );
+  const payload = JSON.parse(String(vi.mocked(call).mock.calls[1]![1]?.body));
+  expect(payload.configurationVersion).toBe(3);
+  expect(payload.models).toEqual([{ model: 'ollama-local', globalLimit: '12', userLimit: null }]);
+});

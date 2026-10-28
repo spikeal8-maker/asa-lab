@@ -73,6 +73,7 @@ export function OllamaCloudKeys({
   onModels: (models: readonly AiOllamaCloudModel[]) => void;
   onAccessDenied: () => void;
 }) {
+  const [selectedSlot, setSelectedSlot] = useState(1);
   const [pool, setPool] = useState<AiOllamaCloudPool | null>(null);
   const [rows, setRows] = useState<Draft[]>([]);
   const [busy, setBusy] = useState(false),
@@ -199,14 +200,41 @@ export function OllamaCloudKeys({
         Первым используется доступный ключ с наивысшим приоритетом для выбранной модели.
         Пользователь видит общий список без дублей.
       </p>
+      <div
+        className="asa-cloud-slot-picker"
+        role="group"
+        aria-label="Аккаунты и ключи Ollama Cloud"
+      >
+        {[...rows]
+          .sort((a, b) => a.priority - b.priority)
+          .map((key) => (
+            <button
+              type="button"
+              key={key.slot}
+              aria-label={'Открыть ключ ' + key.slot}
+              aria-pressed={selectedSlot === key.slot}
+              onClick={() => setSelectedSlot(key.slot)}
+            >
+              <strong>{key.label}</strong>
+              <span>{status(key)}</span>
+              <small>
+                Приоритет {key.priority} · моделей: {key.models.length}
+              </small>
+            </button>
+          ))}
+      </div>
+      <p className="asa-cloud-pool-note">
+        Каждый слот может хранить ключ отдельного аккаунта. Выберите карточку для изменения ключа и
+        его моделей.
+      </p>
       {[...rows]
         .sort((a, b) => a.priority - b.priority)
         .map((k, index) => (
-          <div className="asa-cloud-key-row" key={k.slot}>
+          <div className="asa-cloud-key-row" key={k.slot} hidden={k.slot !== selectedSlot}>
             <span className="asa-cloud-key-rank" aria-label={'Приоритет ' + k.priority}>
               {k.priority}
             </span>
-            <details className="asa-cloud-key-card">
+            <details className="asa-cloud-key-card" open>
               <summary>
                 <span>
                   <strong>{k.label}</strong>
@@ -285,7 +313,7 @@ export function OllamaCloudKeys({
                   </label>
                 ) : null}
                 <fieldset>
-                  <legend>Модели для пользователей</legend>
+                  <legend>Модели этого ключа</legend>
                   <div className="asa-cloud-key-models">
                     {pool?.models
                       .filter((m) => m.active)

@@ -2,6 +2,7 @@ import { reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
 import type pg from 'pg';
 import type {
   AiGenerationPolicy,
+  AiOllamaCloudPool,
   AiModelPreference,
   AiCatalogObservation,
   AiGenerationPolicyUpdate,
@@ -10,6 +11,7 @@ import type {
 } from '@asa-lab/contracts';
 import {
   getAiModelCatalog,
+  isOllamaCloudPoolManaged,
   installProviderObservations,
   isKnownAiModel,
 } from './ai-model-catalog.js';
@@ -317,6 +319,25 @@ export class AiGenerationPolicyStore {
     await reloadOllamaCloudCatalog(this.pool);
     installProviderObservations(row.observations ?? []);
     const catalog = getAiModelCatalog();
+    const managed = isOllamaCloudPoolManaged();
+    let selectedCloudModels: Set<string> | null = null;
+    if (managed) {
+      const pool = (
+        await this.pool.query<{ value: AiOllamaCloudPool }>(
+          'SELECT ai_ollama_cloud_pool_admin($1) AS value',
+          [actor],
+        )
+      ).rows[0]?.value;
+      if (!pool || !Array.isArray(pool.keys))
+        throw new AiPolicyError(
+          'ai_policy_unavailable',
+          503,
+          'Не удалось подтвердить модели ключей.',
+        );
+      selectedCloudModels = new Set(
+        pool.keys.filter((key) => key.enabled && key.configured).flatMap((key) => key.models),
+      );
+    }
     return {
       schemaVersion: 1,
       configurationVersion: Number(row.revision),
@@ -335,6 +356,10 @@ export class AiGenerationPolicyStore {
           selectable: m.selectable,
           ready: encryptionReady && !!row.providerReady?.[m.provider],
           allowed: row.allowedModels.includes(m.id),
+          connectionSelected:
+            m.provider !== 'ollama-cloud' ||
+            selectedCloudModels === null ||
+            selectedCloudModels.has(m.id),
           eligible:
             m.adapterCompatible &&
             (row.modelPreferences?.find((p) => p.id === m.id)?.eligible ?? true),

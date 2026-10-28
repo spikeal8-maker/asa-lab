@@ -36,6 +36,8 @@ export interface AiGenerationModel {
   readonly selectable: boolean;
   readonly allowed: boolean;
   readonly eligible?: boolean;
+  /** Selected by at least one enabled configured Cloud key, independent of temporary availability. */
+  readonly connectionSelected?: boolean;
   readonly order?: number;
   readonly adapterCompatible?: boolean;
   readonly unavailableReason?: string | null;

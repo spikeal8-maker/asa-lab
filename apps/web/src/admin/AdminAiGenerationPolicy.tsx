@@ -32,7 +32,8 @@ function policyShape(value: unknown): value is AiGenerationPolicy {
         PROVIDERS.some((provider) => provider.id === model.provider) &&
         typeof model.ready === 'boolean' &&
         typeof model.selectable === 'boolean' &&
-        typeof model.allowed === 'boolean',
+        typeof model.allowed === 'boolean' &&
+        (model.connectionSelected === undefined || typeof model.connectionSelected === 'boolean'),
     ) &&
     Array.isArray(data.variables) &&
     data.variables.length <= 20 &&
@@ -50,8 +51,14 @@ function policyShape(value: unknown): value is AiGenerationPolicy {
 export function AdminAiGenerationPolicy({
   section,
   onAccessDenied,
+  provider,
+  onDirtyChange,
+  onEligibleModels,
 }: {
-  readonly section: 'prompt' | 'settings';
+  readonly section: 'prompt' | 'settings' | 'connections';
+  readonly provider?: string;
+  readonly onDirtyChange?: (dirty: boolean) => void;
+  readonly onEligibleModels?: (ids: readonly string[]) => void;
   readonly onAccessDenied: () => void;
 }) {
   const [config, setConfig] = useState<AiGenerationPolicy | null>(null);
@@ -131,6 +138,16 @@ export function AdminAiGenerationPolicy({
     }
   }, [config, section, busy]);
 
+  const dirty =
+    !!config &&
+    (systemPrompt !== config.systemPrompt ||
+      defaultModel !== config.defaultModel ||
+      JSON.stringify(allowedModels) !== JSON.stringify(config.allowedModels) ||
+      JSON.stringify(modelPreferences) !== JSON.stringify(config.modelPreferences ?? []) ||
+      JSON.stringify(providerOrder) !== JSON.stringify(config.providerOrder ?? {}));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const unknownVariables = [
     ...new Set(
       [...systemPrompt.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)]
@@ -145,9 +162,10 @@ export function AdminAiGenerationPolicy({
       config?.models.some(
         (model) =>
           model.id === defaultModel &&
+          model.connectionSelected !== false &&
           model.ready &&
           model.selectable &&
-          (modelPreferences.find((p) => p.id === model.id)?.eligible ?? true),
+          (modelPreferences.find((p) => p.id === model.id)?.eligible ?? model.eligible ?? true),
       ));
   const valid =
     systemPrompt.trim().length > 0 &&
@@ -221,9 +239,25 @@ export function AdminAiGenerationPolicy({
   const preference = (id: string) =>
     modelPreferences.find((p) => p.id === id) ?? {
       id,
-      eligible: config?.models.find((m) => m.id === id)?.adapterCompatible !== false,
+      eligible:
+        config?.models.find((m) => m.id === id)?.eligible ??
+        config?.models.find((m) => m.id === id)?.adapterCompatible !== false,
       order: 0,
     };
+  useEffect(() => {
+    if (config)
+      onEligibleModels?.(
+        config.models
+          .filter(
+            (m) =>
+              m.connectionSelected !== false &&
+              (modelPreferences.find((p) => p.id === m.id)?.eligible ??
+                m.eligible ??
+                m.adapterCompatible !== false),
+          )
+          .map((m) => m.id),
+      );
+  }, [config, modelPreferences, onEligibleModels]);
   const changePreference = (id: string, patch: Partial<{ eligible: boolean; order: number }>) => {
     setModelPreferences((previous) => [
       ...previous.filter((p) => p.id !== id),
@@ -274,7 +308,13 @@ export function AdminAiGenerationPolicy({
   return (
     <section
       className="asa-ai-policy asa-cloud-connection"
-      aria-label={section === 'prompt' ? 'Системный промпт' : 'Настройки моделей'}
+      aria-label={
+        section === 'prompt'
+          ? 'Системный промпт'
+          : section === 'connections'
+            ? 'Модели подключения'
+            : 'Настройки моделей'
+      }
     >
       {loading ? <p role="status">Загружаем настройки ответов…</p> : null}
       {error ? (
@@ -404,47 +444,69 @@ export function AdminAiGenerationPolicy({
           ) : (
             <>
               <div className="asa-ai-policy-heading">
-                <h2>Модели для пользователей</h2>
+                <h2>
+                  {section === 'connections' ? 'Модели подключения' : 'Модели для пользователей'}
+                </h2>
                 <p>
                   Сначала разрешите модель у провайдера, затем включите её показ пользователям и
                   выберите модель по умолчанию. Ключи и подключения настраиваются во вкладке
-                  «Подключения».
+                  «Подключения». Для Ollama Cloud список берётся из моделей включённых ключей;
+                  допуск ASA — дополнительное ограничение, а показ пользователям задаётся отдельно.
                 </p>
               </div>
-              <label className="asa-cloud-field asa-ai-policy-default">
-                <span>Модель по умолчанию</span>
-                <select
-                  aria-label="Модель по умолчанию"
-                  value={defaultModel ?? ''}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setDefaultModel(event.target.value || null);
-                    setNotice('');
-                  }}
-                >
-                  <option value="">Не выбрана</option>
-                  {config.models
-                    .filter((model) => allowedModels.includes(model.id))
-                    .map((model) => (
-                      <option
-                        key={model.id}
-                        value={model.id}
-                        disabled={
-                          !model.ready || !model.selectable || !preference(model.id).eligible
-                        }
-                      >
-                        {model.label}
-                        {!model.ready
-                          ? ' · подключение не готово'
-                          : !model.selectable
-                            ? ' · недоступна'
-                            : ''}
+              {section !== 'connections' ? (
+                <label className="asa-cloud-field asa-ai-policy-default">
+                  <span>Модель по умолчанию</span>
+                  <select
+                    aria-label="Модель по умолчанию"
+                    value={defaultModel ?? ''}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setDefaultModel(event.target.value || null);
+                      setNotice('');
+                    }}
+                  >
+                    <option value="">Не выбрана</option>
+                    {defaultModel &&
+                    !config.models.some(
+                      (m) =>
+                        m.id === defaultModel &&
+                        m.connectionSelected !== false &&
+                        preference(m.id).eligible,
+                    ) ? (
+                      <option value={defaultModel} disabled>
+                        Сохранённая модель недоступна: {defaultModel}
                       </option>
-                    ))}
-                </select>
-              </label>
+                    ) : null}
+                    {config.models
+                      .filter(
+                        (model) =>
+                          allowedModels.includes(model.id) &&
+                          preference(model.id).eligible &&
+                          model.connectionSelected !== false,
+                      )
+                      .map((model) => (
+                        <option
+                          key={model.id}
+                          value={model.id}
+                          disabled={
+                            !model.ready || !model.selectable || !preference(model.id).eligible
+                          }
+                        >
+                          {model.label}
+                          {!model.ready
+                            ? ' · подключение не готово'
+                            : !model.selectable
+                              ? ' · недоступна'
+                              : ''}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              ) : null}
               <div className="asa-ai-policy-models">
                 {[...PROVIDERS]
+                  .filter((item) => section !== 'connections' || item.id === provider)
                   .sort(
                     (a, b) =>
                       (providerOrder[a.id] ?? 0) - (providerOrder[b.id] ?? 0) ||
@@ -452,7 +514,12 @@ export function AdminAiGenerationPolicy({
                   )
                   .map((provider) => {
                     const models = config.models
-                      .filter((model) => model.provider === provider.id)
+                      .filter(
+                        (model) =>
+                          model.provider === provider.id &&
+                          model.connectionSelected !== false &&
+                          (section === 'connections' || preference(model.id).eligible),
+                      )
                       .sort(
                         (a, b) =>
                           preference(a.id).order - preference(b.id).order ||
@@ -465,23 +532,25 @@ export function AdminAiGenerationPolicy({
                     return (
                       <fieldset key={provider.id}>
                         <legend>{provider.label}</legend>
-                        <label>
-                          Порядок провайдера{' '}
-                          <input
-                            type="number"
-                            aria-label={'Порядок провайдера ' + provider.label}
-                            min={-1000000}
-                            max={1000000}
-                            value={providerOrder[provider.id] ?? 0}
-                            disabled={busy}
-                            onChange={(e) =>
-                              setProviderOrder((previous) => ({
-                                ...previous,
-                                [provider.id]: Number(e.target.value),
-                              }))
-                            }
-                          />
-                        </label>
+                        {section !== 'connections' ? (
+                          <label>
+                            Порядок провайдера{' '}
+                            <input
+                              type="number"
+                              aria-label={'Порядок провайдера ' + provider.label}
+                              min={-1000000}
+                              max={1000000}
+                              value={providerOrder[provider.id] ?? 0}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setProviderOrder((previous) => ({
+                                  ...previous,
+                                  [provider.id]: Number(e.target.value),
+                                }))
+                              }
+                            />
+                          </label>
+                        ) : null}
                         {provider.id === 'openai' || provider.id === 'deepseek' ? (
                           <div className="asa-ai-catalog-observation">
                             <p>
@@ -520,68 +589,84 @@ export function AdminAiGenerationPolicy({
                         ) : null}
                         {models.map((model) => (
                           <div className="asa-ai-policy-model-row" key={model.id}>
-                            <label>
-                              <input
-                                type="checkbox"
-                                aria-label={'Разрешить у провайдера ' + model.label}
-                                checked={preference(model.id).eligible}
-                                disabled={busy || model.adapterCompatible === false}
-                                onChange={(e) =>
-                                  changePreference(model.id, { eligible: e.target.checked })
-                                }
-                              />
-                              Разрешена у провайдера
-                            </label>
-                            <label>
-                              Порядок модели{' '}
-                              <input
-                                type="number"
-                                aria-label={'Порядок модели ' + model.label}
-                                min={-1000000}
-                                max={1000000}
-                                value={preference(model.id).order}
-                                disabled={busy}
-                                onChange={(e) =>
-                                  changePreference(model.id, { order: Number(e.target.value) })
-                                }
-                              />
-                            </label>
-                            <label className="asa-ai-policy-model">
-                              <input
-                                type="checkbox"
-                                aria-label={'Показывать пользователям: ' + model.label}
-                                checked={allowedModels.includes(model.id)}
-                                disabled={
-                                  busy ||
-                                  ((!model.selectable || !preference(model.id).eligible) &&
-                                    !allowedModels.includes(model.id))
-                                }
-                                onChange={(event) => {
-                                  const checked = event.target.checked;
-                                  setAllowedModels((previous) =>
-                                    checked
-                                      ? [...previous, model.id]
-                                      : previous.filter((id) => id !== model.id),
-                                  );
-                                  if (!checked && defaultModel === model.id) setDefaultModel(null);
-                                  setNotice('');
-                                }}
-                              />
-                              <span>
-                                <strong>{model.label}</strong>
-                                <small>{model.id} · Показывать пользователям</small>
-                                <small>
-                                  {(!preference(model.id).eligible
-                                    ? 'Запрещена у провайдера'
-                                    : model.unavailableReason) ??
-                                    (!model.selectable
-                                      ? 'Модель недоступна'
-                                      : model.ready
-                                        ? 'Подключение готово'
-                                        : 'Сначала настройте подключение')}
-                                </small>
-                              </span>
-                            </label>
+                            {section === 'connections' ? (
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  aria-label={'Разрешить у провайдера ' + model.label}
+                                  checked={preference(model.id).eligible}
+                                  disabled={
+                                    busy ||
+                                    model.adapterCompatible === false ||
+                                    model.id === defaultModel
+                                  }
+                                  onChange={(e) =>
+                                    changePreference(model.id, { eligible: e.target.checked })
+                                  }
+                                />
+                                Использовать в настройках ASA
+                                {model.id === defaultModel ? (
+                                  <small>
+                                    Сначала выберите другую модель по умолчанию в Настройках.
+                                  </small>
+                                ) : null}
+                              </label>
+                            ) : null}
+                            {section !== 'connections' ? (
+                              <>
+                                <label>
+                                  Порядок модели{' '}
+                                  <input
+                                    type="number"
+                                    aria-label={'Порядок модели ' + model.label}
+                                    min={-1000000}
+                                    max={1000000}
+                                    value={preference(model.id).order}
+                                    disabled={busy}
+                                    onChange={(e) =>
+                                      changePreference(model.id, { order: Number(e.target.value) })
+                                    }
+                                  />
+                                </label>
+                                <label className="asa-ai-policy-model">
+                                  <input
+                                    type="checkbox"
+                                    aria-label={'Показывать пользователям: ' + model.label}
+                                    checked={allowedModels.includes(model.id)}
+                                    disabled={
+                                      busy ||
+                                      ((!model.selectable || !preference(model.id).eligible) &&
+                                        !allowedModels.includes(model.id))
+                                    }
+                                    onChange={(event) => {
+                                      const checked = event.target.checked;
+                                      setAllowedModels((previous) =>
+                                        checked
+                                          ? [...previous, model.id]
+                                          : previous.filter((id) => id !== model.id),
+                                      );
+                                      if (!checked && defaultModel === model.id)
+                                        setDefaultModel(null);
+                                      setNotice('');
+                                    }}
+                                  />
+                                  <span>
+                                    <strong>{model.label}</strong>
+                                    <small>{model.id} · Показывать пользователям</small>
+                                    <small>
+                                      {(!preference(model.id).eligible
+                                        ? 'Запрещена у провайдера'
+                                        : model.unavailableReason) ??
+                                        (!model.selectable
+                                          ? 'Модель недоступна'
+                                          : model.ready
+                                            ? 'Подключение готово'
+                                            : 'Сначала настройте подключение')}
+                                    </small>
+                                  </span>
+                                </label>
+                              </>
+                            ) : null}
                           </div>
                         ))}
                       </fieldset>
@@ -598,7 +683,10 @@ export function AdminAiGenerationPolicy({
               Выберите разрешённую подключённую модель по умолчанию во вкладке «Настройки».
             </p>
           ) : null}
-          <p className="asa-ai-policy-save-note">Промпт и выбор моделей сохраняются вместе.</p>
+          <p className="asa-ai-policy-save-note">
+            {dirty ? 'Есть несохранённые изменения. ' : ''}Подключения определяют список моделей;
+            Настройки — их показ пользователям.
+          </p>
           <div className="asa-cloud-bottom">
             <button
               type="submit"
@@ -609,7 +697,9 @@ export function AdminAiGenerationPolicy({
                 ? 'Сохраняем…'
                 : section === 'prompt'
                   ? 'Сохранить промпт'
-                  : 'Сохранить настройки'}
+                  : section === 'connections'
+                    ? 'Сохранить модели подключения'
+                    : 'Сохранить настройки'}
             </button>
             {notice ? (
               <span role="status" className="asa-cloud-confirmed">

@@ -35,11 +35,28 @@ export function budgetAdminShape(raw: unknown): raw is AiTokenBudgetAdmin {
     )
   );
 }
-export function AdminAiTokenBudgets({ onAccessDenied }: { readonly onAccessDenied: () => void }) {
+export function AdminAiTokenBudgets({
+  onAccessDenied,
+  eligibleModels,
+  onDirtyChange,
+}: {
+  readonly onAccessDenied: () => void;
+  readonly eligibleModels?: readonly string[];
+  readonly onDirtyChange?: (dirty: boolean) => void;
+}) {
   const [config, setConfig] = useState<AiTokenBudgetAdmin | null>(null);
   const [draft, setDraft] = useState<readonly AiTokenBudgetLimit[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  const dirty =
+    !!config &&
+    draft.some((row) => {
+      const saved = config.models.find((model) => model.model === row.model);
+      return row.globalLimit !== saved?.globalLimit || row.userLimit !== saved?.userLimit;
+    });
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const denied = useRef(onAccessDenied);
   useEffect(() => {
     denied.current = onAccessDenied;
@@ -132,6 +149,8 @@ export function AdminAiTokenBudgets({ onAccessDenied }: { readonly onAccessDenie
           </p>
           <div className="asa-ai-budget-rows">
             {draft.map((m, index) => {
+              if (eligibleModels && m.model !== '*' && !eligibleModels.includes(m.model))
+                return null;
               const usage = config.models.find((row) => row.model === m.model)!;
               return (
                 <fieldset key={m.model} disabled={busy}>

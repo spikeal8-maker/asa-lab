@@ -311,3 +311,116 @@ it('B accepts explicitly unproven nonselectable catalog metadata without inventi
     }),
   ).toBe(false);
 });
+
+it('distinguishes the pending switch from confirmed saved state and preserves it after a rejected save', async () => {
+  await renderCloud(READY, 'deepseek');
+  expect(host.textContent).toContain('Сохранено на сервере: включено');
+  await toggle(checkbox('Включено'));
+  expect(host.textContent).toContain('Сохранено на сервере: включено');
+  expect(host.textContent).toContain('Есть несохранённые изменения');
+  expect(call).toHaveBeenCalledTimes(1);
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: false,
+    status: 409,
+    error: { code: 'ai_config_changed', message: 'Changed' },
+  });
+  await submit();
+  expect(host.textContent).toContain('Сохранено на сервере: включено');
+  expect(checkbox('Выключено').checked).toBe(false);
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: {
+      ...READY,
+      enabled: false,
+      configurationVersion: 8,
+      providerConfigurations: READY.providerConfigurations.map((slot) =>
+        slot.provider === 'deepseek'
+          ? { ...slot, enabled: false, revision: slot.revision + 1 }
+          : slot,
+      ),
+    },
+  });
+  await submit();
+  expect(host.textContent).toContain('Сохранено на сервере: выключено');
+  expect(host.textContent).not.toContain('Есть несохранённые изменения');
+  expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
+});
+
+it('preserves an unsaved provider switch when the independent Cloud key save reloads configuration', async () => {
+  const initial = aiAdminFixture({
+    provider: 'ollama-cloud',
+    model: 'gemma4:31b',
+    enabled: true,
+    apiKeyConfigured: true,
+    paidOperationsPerHour: 5,
+    configurationVersion: 7,
+  });
+  let version = 7;
+  const pool = () => ({
+    configurationVersion: version,
+    managed: true,
+    models: [{ id: 'gemma4:31b', model: 'gemma4:31b', active: true, capabilities: ['completion'] }],
+    keys: [1, 2, 3, 4, 5].map((slot) => ({
+      slot,
+      label: 'Key ' + slot,
+      priority: slot,
+      enabled: slot === 1,
+      configured: slot === 1,
+      fingerprint: null,
+      models: slot === 1 ? ['gemma4:31b'] : [],
+      account: null,
+      blockedUntil: null,
+      unavailableModels: [],
+    })),
+  });
+  vi.mocked(call).mockImplementation(async (url, init) => {
+    if (url.endsWith('/keys')) {
+      if (init?.method === 'PUT') version++;
+      return { ok: true, status: 200, data: pool() };
+    }
+    return { ok: true, status: 200, data: { ...initial, configurationVersion: version } };
+  });
+  await act(async () =>
+    root.render(
+      createElement(AiAdminPage, { providerChoice: 'ollama-cloud', onAccessDenied: denied }),
+    ),
+  );
+  await toggle(checkbox('Включено'));
+  await enter(control<HTMLInputElement>('[aria-label="API-ключ 1"]'), 'private-key-only-test');
+  await act(async () => button('Сохранить ключи и порядок').click());
+  expect(version).toBe(8);
+  expect(checkbox('Выключено').checked).toBe(false);
+  expect(host.textContent).toContain('Есть несохранённые изменения');
+  expect(host.textContent).toContain('Сохранено на сервере: включено');
+  expect(
+    vi
+      .mocked(call)
+      .mock.calls.filter(([, init]) => init?.method === 'PUT')
+      .map(([url]) => url),
+  ).toEqual(['/api/admin/v1/ai/ollama-cloud/keys']);
+  expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
+});
+
+it('keeps an unavailable configured model explicit instead of silently changing the saved selection', async () => {
+  const base = aiAdminFixture({
+    provider: 'openai',
+    model: 'gpt-4.1-mini',
+    enabled: false,
+    apiKeyConfigured: true,
+  });
+  await renderCloud({
+    ...base,
+    modelCatalog: {
+      ...base.modelCatalog,
+      models: base.modelCatalog.models.map((m) =>
+        m.id === 'gpt-4.1-mini' ? { ...m, selectable: false } : m,
+      ),
+    },
+  });
+  const select = control<HTMLSelectElement>('select[aria-label="Модель"]');
+  expect(select.value).toBe('gpt-4.1-mini');
+  expect(select.selectedOptions[0]!.textContent).toContain('Сохранённая модель недоступна');
+  expect(host.textContent).not.toContain('Есть несохранённые изменения');
+  expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+});

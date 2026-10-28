@@ -165,3 +165,20 @@ it('keeps native checkbox slots compact under the actual global full-width input
     style.remove();
   }
 });
+
+it('makes five account slots discoverable and keeps edits while selecting another compact card', async () => {
+  vi.mocked(call).mockResolvedValue({ ok: true, status: 200, data });
+  await render();
+  expect(host.querySelectorAll('.asa-cloud-slot-picker button')).toHaveLength(5);
+  expect(host.querySelectorAll('.asa-cloud-key-row:not([hidden])')).toHaveLength(1);
+  await click('Поднять ключ 2');
+  await click('Открыть ключ 5');
+  expect(
+    host.querySelector('.asa-cloud-key-row:not([hidden]) input[aria-label="API-ключ 5"]'),
+  ).not.toBeNull();
+  await click('Открыть ключ 2');
+  await click('Сохранить ключи и порядок');
+  const input = JSON.parse(String(vi.mocked(call).mock.calls[1]![1]?.body));
+  expect(input.keys.find((key: { slot: number }) => key.slot === 2).priority).toBe(1);
+  expect(input.keys).toHaveLength(5);
+});

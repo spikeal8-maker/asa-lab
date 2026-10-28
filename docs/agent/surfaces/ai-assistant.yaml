@@ -88,7 +88,7 @@ surfaces:
   - id: SURF-AI-CLOUD-PROVIDERS
     routes: [/api/admin/v1/ai, /api/admin/v1/ai/test, /api/ai/status]
     implementation:
-      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-model-catalog.ts, apps/api/src/ai-provider-stream.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/web/src/admin/AdminAiPage.tsx, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/ai-admin.css, apps/web/src/admin/ai-model-config.ts, migrations/0252_ai_ollama_cloud.sql]
+      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-model-catalog.ts, apps/api/src/ai-provider-stream.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/web/src/admin/AdminAiPage.tsx, apps/web/src/admin/OllamaCloudKeys.tsx, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/ai-admin.css, apps/web/src/admin/ai-model-config.ts, migrations/0252_ai_ollama_cloud.sql]
     invariants: [AI-CLOUD-CREDENTIAL-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
     tests: [TST-AI-TEXT-CORE-001, TST-AI-CLOUD-PG-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
     controls:

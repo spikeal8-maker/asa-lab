@@ -63,14 +63,31 @@ function AiAdminWorkspaceSession({
   const [statusRevision, setStatusRevision] = useState(0);
   const refreshStatus = useCallback(() => setStatusRevision((v) => v + 1), []);
 
+  const [connectionDirty, setConnectionDirty] = useState(false);
+  const [policyDirty, setPolicyDirty] = useState(false);
+  const [budgetDirty, setBudgetDirty] = useState(false);
+  const [eligibleModels, setEligibleModels] = useState<readonly string[]>([]);
   function navigate(value: AiAdminNavigation) {
+    if (value.section === navigation.section && value.provider === navigation.provider) return;
+    if (
+      (connectionDirty || policyDirty || budgetDirty) &&
+      !window.confirm('Изменения не сохранены. Перейти и отменить их?')
+    ) {
+      navigateAiAdmin(navigation);
+      return;
+    }
+    setConnectionDirty(false);
+    setPolicyDirty(false);
+    setBudgetDirty(false);
     setNavigation(value);
     rememberAiAdminNavigation(principalId, value);
     navigateAiAdmin(value);
   }
 
+  const navigationAction = useRef(navigate);
+  navigationAction.current = navigate;
   useEffect(() => {
-    const restore = () => setNavigation(readAiAdminNavigation(principalId));
+    const restore = () => navigationAction.current(readAiAdminNavigation(principalId));
     window.addEventListener('hashchange', restore);
     window.addEventListener('popstate', restore);
     return () => {
@@ -80,6 +97,16 @@ function AiAdminWorkspaceSession({
   }, [principalId]);
 
   useEffect(() => rememberAiAdminNavigation(principalId, navigation), [principalId, navigation]);
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (connectionDirty || policyDirty || budgetDirty) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [connectionDirty, policyDirty, budgetDirty]);
 
   useEffect(() => {
     const nav = tabs.current;
@@ -135,7 +162,7 @@ function AiAdminWorkspaceSession({
     if (!cloud) return 'Проверяем';
     const slot = cloud.providerConfigurations.find((entry) => entry.provider === value);
     if (!slot?.apiKeyConfigured) return 'Нет ключа';
-    return slot.enabled ? 'Включён' : 'Ключ сохранён';
+    return slot.enabled ? 'Включён' : 'Выключен · ключ сохранён';
   }
 
   return (
@@ -227,8 +254,17 @@ function AiAdminWorkspaceSession({
               onAccessDenied={onAccessDenied}
               providerChoice={provider}
               onUpdated={refreshStatus}
+              onDirtyChange={setConnectionDirty}
             />
           )}
+          <AdminAiGenerationPolicy
+            key={'policy-' + provider}
+            section="connections"
+            provider={provider}
+            onAccessDenied={onAccessDenied}
+            onDirtyChange={setPolicyDirty}
+            onEligibleModels={setEligibleModels}
+          />
         </section>
       ) : section === 'prompt' || section === 'settings' ? (
         <div
@@ -237,8 +273,19 @@ function AiAdminWorkspaceSession({
           aria-labelledby={'ai-tab-' + section}
           className={section === 'settings' ? 'asa-ai-settings' : undefined}
         >
-          <AdminAiGenerationPolicy section={section} onAccessDenied={onAccessDenied} />
-          {section === 'settings' ? <AdminAiTokenBudgets onAccessDenied={onAccessDenied} /> : null}
+          <AdminAiGenerationPolicy
+            section={section}
+            onAccessDenied={onAccessDenied}
+            onDirtyChange={setPolicyDirty}
+            onEligibleModels={setEligibleModels}
+          />
+          {section === 'settings' ? (
+            <AdminAiTokenBudgets
+              onAccessDenied={onAccessDenied}
+              eligibleModels={eligibleModels}
+              onDirtyChange={setBudgetDirty}
+            />
+          ) : null}
         </div>
       ) : section === 'internet' ? (
         <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">

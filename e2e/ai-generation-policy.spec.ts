@@ -221,17 +221,17 @@ for (const width of [1440, 1024, 390, 320]) {
       name: 'Показывать пользователям: Gemma 4 31B · Ollama Cloud',
       exact: true,
     });
-    await expect(cloudEligibility).toBeChecked();
+    await expect(cloudEligibility).toHaveCount(0);
     await expect(cloudVisibility).not.toBeChecked();
     await cloudVisibility.check();
-    await expect(cloudEligibility).toBeChecked();
+    await expect(cloudEligibility).toHaveCount(0);
     await page.getByRole('combobox', { name: 'Модель по умолчанию' }).selectOption('gemma4:31b');
     await page
       .getByRole('checkbox', { name: 'Показывать пользователям: DeepSeek Flash', exact: true })
       .uncheck();
     await expect(
       page.getByRole('checkbox', { name: 'Разрешить у провайдера DeepSeek Flash', exact: true }),
-    ).toBeChecked();
+    ).toHaveCount(0);
     await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Запрос к модели не выполнялся.'),
