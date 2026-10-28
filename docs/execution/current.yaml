@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_admin_connections_repair_selected
+      checkpoint: urgent_owner_chat_composer_cleanup_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,28 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-CHAT-COMPOSER-CLEANUP
+          issue: 373
+          scope: urgent removal of user token-accounting strip and correct composer menu theme
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R23, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner urgently rejects the monthly confirmed/reserved/remaining-token strip in
+            every user chat. Remove this accounting presentation and refresh action for all
+            Account/Seat users, preserving authoritative server budgets and concise exhausted
+            or pending availability feedback. Usage/accounting stays in administration only.
+            Fix the white plus-menu/select appearance under the actual chat dark theme, with
+            focus/hover/readable states and no app-wide theme mutation. Test composer absence,
+            continued budget rejection, menu light/dark behavior and preserve attachments/tools.
+            Keep this urgent slice separate from prepared PR825 presets/brain and Settings
+            order/visibility readability, PR816 context, PR830 search and ComfyUI compatibility.
+            Those remain programme followups. No server/Docker/live configuration update.
         - id: ASAI-ADMIN-CONNECTIONS-REPAIR
           issue: 373
           scope: owner-requested connection status, five-key layout and model eligibility hierarchy
@@ -647,7 +669,14 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R20, R31]
           acceptance_checks: [C17, C20, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          candidate_sha: 9a21460cd1ceb46b11aa224c1eb3a87b7c234b8e
+          integrated_sha: a0338242b853ad555e52baa852e799fe19af88d0
+          focused_ci_run: 40782582986
+          ci_status: focused_pass
+          independent_review: approved_source_composition_and_actual_visuals
+          isolated_ci_demo: passed_cloud_1440_1024_390_320_light_dark
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
