@@ -7173,11 +7173,11 @@ parallel_lanes:
       candidate_branch: codex/electronics-committed-result-consumers-20261028
       base_branch: main
       pr: 839
-      status: in_review
+      status: in_progress
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: f14_candidate_reviewed_native_qualification_running
+      checkpoint: piezo_native_pass_shared_ancillary_repair_selected
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001.md
