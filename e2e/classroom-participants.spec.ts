@@ -519,7 +519,15 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     };
     const studentMeritPage = await studentContext.newPage();
     const expectMeritAfterReloadAndLogin = async (hasMerit: boolean) => {
+      // Re-enter from a new document: the same hash URL can retain the pre-revoke DOM.
+      await studentMeritPage.goto('about:blank');
+      const browserProfile = studentMeritPage.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().endsWith('/api/class-join/participants/me'),
+      );
       await studentMeritPage.goto('/#/learning?view=results');
+      expect((await browserProfile).status()).toBe(200);
       await expectLearnerMerit(studentMeritPage, hasMerit);
       await studentMeritPage.reload();
       await expectLearnerMerit(studentMeritPage, hasMerit);
