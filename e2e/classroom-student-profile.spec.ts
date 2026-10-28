@@ -641,7 +641,11 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(secret).not.toBeChecked();
     await expect(upload.getByRole('status')).toHaveCount(0);
     await expect(region.getByRole('alert')).toHaveCount(0);
-    await expect(upload).toBeDisabled();
+    await expect(upload).toHaveAttribute('disabled', '');
+    await expect(files).toBeDisabled();
+    await expect(title).toBeDisabled();
+    await expect(secret).toBeDisabled();
+    await expect(upload.getByRole('button', { name: /^Загрузить \d+$/ })).toHaveCount(0);
     await expect(
       region.getByRole('button', { name: `Выбрать ${expectedTitle} 1`, exact: true }),
     ).toBeVisible();
