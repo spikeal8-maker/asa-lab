@@ -7172,12 +7172,12 @@ parallel_lanes:
       branch: main
       candidate_branch: codex/electronics-committed-result-consumers-20261028
       base_branch: main
-      pr: null
-      status: in_progress
+      pr: 839
+      status: in_review
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: confirmed_native_piezo_result_subscription_gap_selected
+      checkpoint: f14_candidate_reviewed_native_qualification_running
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001.md
@@ -7188,6 +7188,15 @@ parallel_lanes:
         rendering. Preserve accepted acquisition controls, solver/time/budgets and all foreign
         WIP. One new source author, independent exact Code/Security review, real native browser
         and General before ordinary Main integration. No working database/deployment in slice.
+    integration_dependencies:
+      - id: TASK-ELECTRONICS-NATIVE-OBSERVED-PHASE-001
+        issue: 840
+        status: in_progress
+        selection: >-
+          Separate proven qualification baseline: exact canonical LOW photo is discarded
+          because capture requested HIGH. Correct observed-phase evidence accounting without
+          relaxing pixels/witness/run/geometry criteria; compose final independently reviewed
+          source and obtain actual native/General evidence before Main.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -7206,6 +7215,55 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-28T17:48:10Z'
       observation_note: Fresh fetch main is required before integration; source snapshot is not CI or deployment acceptance.
+
+  - id: electronics-native-observed-phase
+    parent_lane: electronics
+    worktree_id: electronics-native-observed-phase
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-OBSERVED-PHASE-001.md
+      - tests/electronics/native-observed-phase.spec.ts
+    execution_coordination: >-
+      Shared existing e2e timing/qualification helpers are nonexclusive under direct_main;
+      task card restricts this author to evidence accounting and meaningful regression.
+    task:
+      id: TASK-ELECTRONICS-NATIVE-OBSERVED-PHASE-001
+      issue: 840
+      branch: main
+      candidate_branch: codex/electronics-native-observed-phase-20261028
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: verified_observed_LOW_discarded_under_HIGH_request
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-OBSERVED-PHASE-001.md
+      owner_authorization: >-
+        Controller selects a separate baseline repair under AGENTS section7 for the
+        owner-authorized programme qualification. Credit native observed phases only
+        after unchanged strict validation; no runtime patch, timeouts, owner assets or
+        test weakening. Independent exact evidence-integrity review, final composition
+        with PR839 and actual combined native/General before Main. Source-only slice.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 6e0b678da0d0ffced291da5b8c75d1e548253d54
+      convergence_baseline_sha: 6e0b678da0d0ffced291da5b8c75d1e548253d54
+      head_sha: null
+      observed_at: '2026-10-28T18:27:54Z'
+      observation_note: Fresh fetch main is required before integration; native qualification belongs to the final composed source.
 
   - id: projects
     worktree_id: projects-publication
