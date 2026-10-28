@@ -914,6 +914,24 @@ describe('global and author acquisition controls', () => {
       const source = await fixture();
       const writer = await admin.connect();
       let pending: ReturnType<typeof copy> | undefined;
+      const finishCopy = async () => {
+        if (!pending) throw new Error('Copy request was not started');
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([
+            pending,
+            new Promise<never>((_, reject) => {
+              timeout = setTimeout(
+                () =>
+                  reject(new Error('OFF/copy request did not finish within the bounded deadline')),
+                3_000,
+              );
+            }),
+          ]);
+        } finally {
+          clearTimeout(timeout);
+        }
+      };
       try {
         await writer.query('BEGIN');
         if (kind === 'global')
@@ -927,9 +945,42 @@ describe('global and author acquisition controls', () => {
             [source.id],
           );
         }
+        const lockerPid = (await writer.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+          .rows[0].pid;
         pending = copy(source);
+        // Observe the actual HTTP command's runtime backend waiting on this
+        // exact OFF transaction. Starting a Promise alone is not contention proof.
+        const deadline = Date.now() + 3_000;
+        let blockedCopyPid: number | undefined;
+        while (Date.now() < deadline) {
+          const blocked = await admin.query<{ pid: number }>(
+            `SELECT activity.pid FROM pg_stat_activity activity
+             WHERE activity.datname=current_database() AND activity.usename='asalab_app'
+               AND activity.state='active' AND activity.wait_event_type='Lock'
+               AND activity.query='SELECT * FROM public_project_copy_source($1,$2,$3)'
+               AND $1::integer=ANY(pg_blocking_pids(activity.pid))`,
+            [lockerPid],
+          );
+          if (blocked.rows.length === 1) {
+            blockedCopyPid = blocked.rows[0].pid;
+            break;
+          }
+        }
+        expect(
+          blockedCopyPid,
+          `${kind} OFF must block the actual copy source query before commit`,
+        ).toBeTypeOf('number');
+        // No Project writer may have run while admission is blocked.
+        expect(
+          (
+            await admin.query(
+              'SELECT count(*)::int n FROM projects WHERE copied_from_project_id=$1',
+              [source.id],
+            )
+          ).rows[0].n,
+        ).toBe(0);
         await writer.query('COMMIT');
-        expect((await pending).statusCode).toBe(403);
+        expect((await finishCopy()).statusCode).toBe(403);
         expect(
           (
             await admin.query(
@@ -939,9 +990,14 @@ describe('global and author acquisition controls', () => {
           ).rows[0].n,
         ).toBe(0);
       } finally {
-        await writer.query('ROLLBACK');
-        writer.release();
-        await pending;
+        // Release the known blocker even if barrier/assertions fail. Drain the
+        // HTTP request with a finite deadline rather than leaving a pending lock.
+        try {
+          await writer.query('ROLLBACK');
+        } finally {
+          writer.release();
+        }
+        if (pending) await finishCopy();
       }
     },
   );
