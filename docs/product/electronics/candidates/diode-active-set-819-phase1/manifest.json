@@ -1,0 +1,73 @@
+{
+  "status": "WIP_NOT_READY",
+  "baseline_sha": "c0b673b7e39c5fab3beaede55bfba6ad4565b87f",
+  "branch": "codex/diode-active-set-819",
+  "production_paths": [
+    "contexts/electronics/domain/solver.ts"
+  ],
+  "test_paths": [
+    "contexts/electronics/testing/arduino-seven-segment-matrix.spec.ts"
+  ],
+  "artifacts": {
+    "npn-1-before.json": {
+      "raw_sha256": "e32ec5cabf716e200a6ebd54a354ecc270614ddc7230ade56a08ef8156c8d775",
+      "gzip_sha256": "58e3e82210a8b22a51b1c1dddf223532140b1ecfadc8368b34e3b4c106020f2c",
+      "raw_bytes": 34624,
+      "gzip_bytes": 3760
+    },
+    "npn-1-after-held.json": {
+      "raw_sha256": "aaa6202b47fdef2792eef3dd89ca571f6cec56c7be46a35c9e9db0f47f60c64c",
+      "gzip_sha256": "508ffd08c2617e884aa552c95d930ef36be011655a75ad8a1d484c109bca3953",
+      "raw_bytes": 34225,
+      "gzip_bytes": 3808
+    },
+    "rc-fault-1.json": {
+      "raw_sha256": "bd86120462be50923fe229a8255e1417559c42632460dcc7cd7bf5106d5cc469",
+      "gzip_sha256": "33b89713f55dbe881e2978b39d7aa7fa62b74f276d9c2a6071916eee8d8a5b92",
+      "raw_bytes": 62931,
+      "gzip_bytes": 4926
+    },
+    "npn-4-before.json": {
+      "raw_sha256": "1d5fb01ac852a4afdfec643c5663f039ca8fec35aceda3b56b672efbd6328823",
+      "gzip_sha256": "d6385eda81804dd4524fcb54fc2d691f40dbd1ccf1d7028bb13f6f8c9c8f32e5",
+      "raw_bytes": 62276,
+      "gzip_bytes": 4810
+    },
+    "npn-4-after-held.json": {
+      "raw_sha256": "3725dbe48d6a747dacad35898864507b9197d79749cc71260c1bcd7dfa0f918a",
+      "gzip_sha256": "6bc1b2e594b635ae950a24bf46407f0b7ac40cc510e450421cc3628b2f545682",
+      "raw_bytes": 63118,
+      "gzip_bytes": 4878
+    },
+    "rc-fault-4.json": {
+      "raw_sha256": "ceb81e0d0f5358a563d2177231ea8edc49c6c2920ebcb1e668ae3bf72a63f397",
+      "gzip_sha256": "2ecbd444bec6a79237a1bfa9dce696b8a121987782168ac1d564ca720acf17af",
+      "raw_bytes": 118277,
+      "gzip_bytes": 7505
+    },
+    "before.log": {
+      "raw_sha256": "cc54ac25de4c06d6f713b14652148602fcb951afcafc5748d59231b9300f30b0",
+      "gzip_sha256": "a803f6287f232aa1042f13ea08b56dd557218ff476c7efc0926114f8f6f3149f",
+      "raw_bytes": 546,
+      "gzip_bytes": 392
+    },
+    "first.log": {
+      "raw_sha256": "7f0ec5fc8ca3692a4c76bf83581ca5f46f8c0732bd757ae2fb47fc98428e353d",
+      "gzip_sha256": "5f5476bb0a5fa002c0d338e6dcebbf9bf3d5c59223c42ac678805ca3589ba29d",
+      "raw_bytes": 5706,
+      "gzip_bytes": 1142
+    },
+    "probe.log": {
+      "raw_sha256": "9d6497bc9a54b2bc06013eb5d32f5c759b238f54305c97fa8693fda4f93e281e",
+      "gzip_sha256": "918dab122d934b8a81af1d9834aa9b355daf4af7bd5c4d20e9c75e5149e6e870",
+      "raw_bytes": 351,
+      "gzip_bytes": 277
+    }
+  },
+  "probe_source": {
+    "path": "diode-active-set-819-probe.spec.ts.txt",
+    "sha256": "37c21fbd97e36ba1bb41b2c7aa5cde004d9bfde738cd74dda22ceb7919f62563",
+    "bytes": 1455,
+    "note": "Moved without byte changes; not a discovered test or product source."
+  }
+}
