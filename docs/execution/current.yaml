@@ -599,6 +599,35 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-MODELS-ACCESS-D
+          issue: 373
+          scope: Settings theme parity and truthful viewport visual evidence
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R31]
+          acceptance_checks: [C28]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_dependency: 2b1906682514661c4f4e1e64aed71f8bb9eea415
+          fixture_dependency: 4880d96f421e9464fc828523865f665cafd39741
+          selection: >-
+            Independent visual review found Settings has no real dark theme: six nominal dark
+            screenshots are byte-identical to light because Overview media styles are scoped
+            only to the mounted Overview. Select a bounded Settings-only product theme repair
+            using the existing Overview OS-preference palette and opt-in scoped selectors.
+            Cover model settings and token budget controls, preserve other tabs and restore
+            the normal shell when leaving Settings; no app-wide theme redesign or budget SQL
+            changes. Capture actual target-scrolled viewport controls at1440/390/320 both themes
+            and assert dark computed style differs, without injecting fake screenshot colors.
+            Controlled upstream may hold one real admitted reply to demonstrate pending state
+            before releasing it. No local browser/Docker/live-provider calls. Root composes the
+            approved five-case PostgreSQL fixture repair before final CI; product budget
+            accounting remains the independently reviewed C implementation. C28/installed/owner
+            acceptance stay pending until actual evidence exists.
         - id: ASAI-MODELS-ACCESS-C
           issue: 373
           scope: global and per-principal per-model soft monthly token admission budgets
@@ -615,8 +644,10 @@ parallel_lanes:
           source_pr: 838
           candidate_sha: 2b1906682514661c4f4e1e64aed71f8bb9eea415
           independent_review: approved_exact_source_and_harness
-          ci_status: pending_exact_candidate
+          ci_status: unit_types_s3_built_budget_browser_pass_five_pg_fixture_failures
           isolated_ci_run: 40732021261
+          isolated_demo: per_user_soft_cap_pass_light_only
+          pg_fixture_repair_sha: 4880d96f421e9464fc828523865f665cafd39741
           integration_blocker:
             kind: acceptance_blocker
             lane: ai-assistant
