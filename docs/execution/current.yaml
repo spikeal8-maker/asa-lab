@@ -599,6 +599,30 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-MERGE-BASELINE
+          issue: 373
+          scope: owner-approved separate CI baseline repair for AI main integration
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R31]
+          acceptance_checks: [C20]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          selection: >-
+            Owner explicitly approved a separate baseline PR before merging AI838: fix only
+            tests/games-admission/http-contract.ts stale prepared-SQL lock marker and
+            reviewer-gallery-game-copy.ts expectations for the retired Gallery route, preserving
+            real lock/revocation ordering, distinct actors, cookie conflicts and no-copy guards.
+            Transfer the independently reviewed CI-only test-runner repair84cb6256 as a separate
+            commit: forward CI identity with empty defaults and dedicated diagnostic tmpfs;
+            retain read_only, user, capabilities, networks, volumes and ports. No Games product,
+            SQL, ownership, global/author or Seat permission changes; no Docker/runtime actions.
+            Proposal was independently approved before owner consent. Branch from current main,
+            run focused/static checks, independent exact review and General CI; merge this
+            baseline only after success, then converge it once into PR838 and rerun final AI CI.
+            This separate dependency does not waive AI838 gates or installed owner acceptance.
         - id: ASAI-MODELS-ACCESS-INTEGRATION
           issue: 373
           scope: approved final convergence of PR838 model settings and monthly budgets
