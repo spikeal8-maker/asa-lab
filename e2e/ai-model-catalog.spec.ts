@@ -113,6 +113,27 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
         },
       });
     }
+    if (path === '/api/admin/v1/ai/comfyui/settings' && request.method() === 'GET')
+      return route.fulfill({
+        json: {
+          configurationVersion: 1,
+          baseUrl: 'http://host.docker.internal:8188',
+          source: 'saved',
+        },
+      });
+    if (path === '/api/admin/v1/ai/images' && request.method() === 'GET')
+      return route.fulfill({
+        json: {
+          configurationVersion: 1,
+          enabled: false,
+          dailyLimit: 10,
+          globalConcurrency: 1,
+          sizes: [512],
+          ready: false,
+          reason: 'disabled',
+          recipe: 'flux2-klein-4b-v1',
+        },
+      });
     if (path === '/api/admin/v1/ai/comfyui/status') {
       return route.fulfill({
         json: {
@@ -123,6 +144,7 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
           textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
           vaeModels: ['flux2-vae.safetensors'],
           fluxKlein4bFound: true,
+          devices: [],
           checkedAt: NOW,
         },
       });
@@ -674,10 +696,18 @@ for (const width of [1440, 390]) {
     expect(fake.ollamaWrites).toHaveLength(1);
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
-    const technicalState = page.locator('details.asa-ai-comfy');
+    const comfyConnection = page.getByRole('region', { name: 'Подключение ComfyUI', exact: true });
+    await expect(comfyConnection.getByRole('textbox', { name: 'Адрес ComfyUI' })).toHaveValue(
+      'http://host.docker.internal:8188',
+    );
+    const technicalState = comfyConnection.locator('details').filter({
+      has: page.getByText('Техническое состояние ComfyUI', { exact: true }),
+    });
     await technicalState.getByText('Техническое состояние ComfyUI', { exact: true }).click();
     await expect(technicalState.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
-    await expect(technicalState.getByText('Граф генерации ещё не проверен')).toBeVisible();
+    await expect(
+      technicalState.getByText('Workflow ASA ещё не проверен', { exact: true }),
+    ).toBeVisible();
     await page.getByRole('tab', { name: 'Подключения' }).click();
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');
