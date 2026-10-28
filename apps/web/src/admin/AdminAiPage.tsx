@@ -12,6 +12,7 @@ interface TestReceipt {
   readonly elapsedMs: number;
   readonly testedAt: string;
   readonly configurationVersion: number;
+  readonly providerConfigurationVersion: number;
 }
 
 function errorMessage(status: number, code: string): string {
@@ -104,7 +105,7 @@ export function AiAdminPage({
     setModel(selectable ? storedModel! : (catalog?.defaultModel ?? ''));
     setKeyInput('');
     setClearKey(false);
-    setEnabled(config.enabled && config.provider === providerChoice);
+    setEnabled(slot?.enabled ?? false);
     setQuota(String(config.paidOperationsPerHour));
     setConfirmPaid(false);
   }, [providerChoice, config]);
@@ -129,9 +130,8 @@ export function AiAdminPage({
     Number(quota) <= 2147483647;
   const dirty =
     Boolean(config) &&
-    (config!.provider !== providerChoice ||
-      config!.model !== model ||
-      config!.enabled !== enabled ||
+    (slot?.model !== model ||
+      slot?.enabled !== enabled ||
       Number(config!.paidOperationsPerHour) !== Number(quota) ||
       Boolean(keyInput.trim()) ||
       clearKey);
@@ -139,7 +139,8 @@ export function AiAdminPage({
   const canSubmit = Boolean(
     config &&
     model &&
-    (keyReady || (!enabled && clearKey)) &&
+    (dirty || enabled) &&
+    (keyReady || !enabled) &&
     validQuota &&
     (!enabled || (Number(quota) > 0 && confirmPaid)) &&
     (config.encryptionReady || (!enabled && mustClear && !keyInput.trim())) &&
@@ -172,6 +173,7 @@ export function AiAdminPage({
             provider: providerChoice,
             model,
             configurationVersion: config.configurationVersion,
+            providerConfigurationVersion: slot?.revision,
             ...(keyInput.trim() ? { apiKey: keyInput.trim() } : {}),
             ...(mustClear ? { clearApiKey: true } : {}),
           }),
@@ -208,6 +210,10 @@ export function AiAdminPage({
         body: JSON.stringify({
           acknowledgePaidRequest: true,
           configurationVersion: next.configurationVersion,
+          provider: providerChoice,
+          providerConfigurationVersion: next.providerConfigurations.find(
+            (row) => row.provider === providerChoice,
+          )?.revision,
         }),
       });
       if (!tested.ok) {
@@ -222,7 +228,9 @@ export function AiAdminPage({
       if (
         tested.data.provider !== providerChoice ||
         tested.data.model !== model ||
-        tested.data.configurationVersion !== next.configurationVersion
+        tested.data.configurationVersion !== next.configurationVersion ||
+        tested.data.providerConfigurationVersion !==
+          next.providerConfigurations.find((row) => row.provider === providerChoice)?.revision
       ) {
         setError('Ответ проверки не соответствует текущим настройкам.');
         return;

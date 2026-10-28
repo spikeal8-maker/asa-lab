@@ -40,7 +40,7 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
     }
     if (sql.includes('ai_text_generation_context'))
       return { rows: [{ role: 'user', content: 'Hello' }] };
-    if (sql.includes('ai_admin_set_config')) {
+    if (sql.includes('ai_admin_set_provider_config')) {
       config.configuration_version += 1;
       return { rows: [{ ai_admin_set_config: config.configuration_version }] };
     }
@@ -292,7 +292,9 @@ describe('platform-wide paid operation admission at every upstream path', () => 
         },
         'settings',
       );
-      const write = f.query.mock.calls.find(([sql]) => sql.includes('ai_admin_set_config'));
+      const write = f.query.mock.calls.find(([sql]) =>
+        sql.includes('ai_admin_set_provider_config'),
+      );
       expect(write?.[1]?.[10]).toBe(limit);
       expect(f.fetchImpl).not.toHaveBeenCalled();
     },

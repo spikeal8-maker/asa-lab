@@ -15,6 +15,8 @@ export interface AiModelOption {
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
   readonly model: string;
+  readonly enabled: boolean;
+  readonly revision: number;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
   readonly updatedAt: string | null;
@@ -131,6 +133,9 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         record(item) &&
         provider(item['provider']) &&
         hasModel(item['model'], item['provider']) &&
+        typeof item['enabled'] === 'boolean' &&
+        Number.isSafeInteger(item['revision']) &&
+        Number(item['revision']) > 0 &&
         typeof item['apiKeyConfigured'] === 'boolean' &&
         nullableText(item['keyFingerprint']) &&
         nullableText(item['updatedAt']),

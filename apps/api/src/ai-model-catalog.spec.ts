@@ -204,6 +204,8 @@ describe('catalog/config API boundaries', () => {
       {
         provider: 'openai' as const,
         model: 'gpt-6-luna' as const,
+        enabled: false,
+        revision: 1,
         apiKeyConfigured: true,
         keyFingerprint: 'openai-hash',
         updatedAt: null,
@@ -211,6 +213,8 @@ describe('catalog/config API boundaries', () => {
       {
         provider: 'deepseek' as const,
         model: 'deepseek-v4-pro' as const,
+        enabled: false,
+        revision: 1,
         apiKeyConfigured: true,
         keyFingerprint: 'deepseek-hash',
         updatedAt: null,
@@ -223,16 +227,16 @@ describe('catalog/config API boundaries', () => {
     });
     const after = aiAdminFixture({
       ...before,
-      provider: 'deepseek',
-      model: 'deepseek-v4-pro',
-      keyFingerprint: 'deepseek-hash',
+      providerConfigurations: slots.map((slot) =>
+        slot.provider === 'deepseek' ? { ...slot, revision: 2 } : slot,
+      ),
       configurationVersion: 2,
     });
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [row(before)] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ ai_admin_set_config: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ ai_admin_set_provider_config: 2 }] })
       .mockResolvedValueOnce({ rows: [row(after)] })
       .mockResolvedValueOnce({ rows: [] });
     const fetchImpl = vi.fn<typeof fetch>();
@@ -258,6 +262,7 @@ describe('catalog/config API boundaries', () => {
       null,
       'switch-back',
       null,
+      1,
       1,
     ]);
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -289,7 +294,7 @@ describe('catalog/config API boundaries', () => {
       .fn()
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture())] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ ai_admin_set_config: 2 }] })
+      .mockResolvedValueOnce({ rows: [{ ai_admin_set_provider_config: 2 }] })
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture({ configurationVersion: 3 }))] })
       .mockResolvedValueOnce({ rows: [] });
     const service = new AiChatService({ query } as unknown as pg.Pool);

@@ -134,12 +134,20 @@ export class AiAdminController {
   async test(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
     const principalId = await this.requirePlatformAdmin(request);
-    const body = raw as { acknowledgePaidRequest?: unknown; configurationVersion?: unknown } | null;
+    const body = raw as {
+      acknowledgePaidRequest?: unknown;
+      configurationVersion?: unknown;
+      provider?: unknown;
+      providerConfigurationVersion?: unknown;
+    } | null;
     if (
       !body ||
       body.acknowledgePaidRequest !== true ||
       !Number.isSafeInteger(body.configurationVersion) ||
-      Number(body.configurationVersion) < 1
+      Number(body.configurationVersion) < 1 ||
+      !['openai', 'deepseek', 'ollama-cloud'].includes(String(body.provider)) ||
+      !Number.isSafeInteger(body.providerConfigurationVersion) ||
+      Number(body.providerConfigurationVersion) < 1
     ) {
       return reject(
         'ai_test_confirmation_required',
@@ -147,7 +155,14 @@ export class AiAdminController {
         400,
       );
     }
-    return this.safe(() => this.ai.testConnection(principalId, Number(body.configurationVersion)));
+    return this.safe(() =>
+      this.ai.testConnection(
+        principalId,
+        Number(body.configurationVersion),
+        body.provider as AiProvider,
+        Number(body.providerConfigurationVersion),
+      ),
+    );
   }
 
   @Put()
@@ -166,6 +181,7 @@ export class AiAdminController {
     const apiKey = value['apiKey'];
     const paidOperationsPerHour = value['paidOperationsPerHour'];
     const configurationVersion = value['configurationVersion'];
+    const providerConfigurationVersion = value['providerConfigurationVersion'];
     if (
       !isAiProvider(provider) ||
       !(
@@ -183,7 +199,10 @@ export class AiAdminController {
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
       (apiKey !== undefined && typeof apiKey !== 'string') ||
       (configurationVersion !== undefined &&
-        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1))
+        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1)) ||
+      (providerConfigurationVersion !== undefined &&
+        (!Number.isSafeInteger(providerConfigurationVersion) ||
+          Number(providerConfigurationVersion) < 1))
     ) {
       return reject('ai_config_invalid', 'Неверные настройки ИИ.', 400);
     }
@@ -196,6 +215,9 @@ export class AiAdminController {
           enabled,
           ...(typeof paidOperationsPerHour === 'number' ? { paidOperationsPerHour } : {}),
           ...(typeof configurationVersion === 'number' ? { configurationVersion } : {}),
+          ...(typeof providerConfigurationVersion === 'number'
+            ? { providerConfigurationVersion }
+            : {}),
           ...(typeof apiKey === 'string' ? { apiKey } : {}),
           ...(typeof clearApiKey === 'boolean' ? { clearApiKey } : {}),
         },

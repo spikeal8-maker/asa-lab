@@ -83,6 +83,8 @@ export interface AiNativeImageOptions {
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
   readonly model: AiModel;
+  readonly enabled: boolean;
+  readonly revision: number;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
   readonly updatedAt: string | null;
@@ -106,6 +108,7 @@ export interface AiAdminConfig {
 
 export interface AiAdminUpdate {
   readonly enabled: boolean;
+  readonly providerConfigurationVersion?: number;
   readonly paidOperationsPerHour?: number;
   readonly provider: AiProvider;
   readonly model: AiModel;
@@ -610,6 +613,8 @@ export class AiChatService {
       providerConfigurations: row.provider_configurations.map((slot) => ({
         provider: slot.provider,
         model: slot.model,
+        enabled: slot.enabled,
+        revision: Number(slot.revision),
         apiKeyConfigured: slot.apiKeyConfigured,
         keyFingerprint: slot.keyFingerprint,
         updatedAt: iso(slot.updatedAt),
@@ -664,6 +669,18 @@ export class AiChatService {
       );
     }
     const target = before.providerConfigurations.find((slot) => slot.provider === input.provider);
+    const expectedProviderVersion = input.providerConfigurationVersion ?? target?.revision;
+    if (
+      !Number.isSafeInteger(expectedProviderVersion) ||
+      Number(expectedProviderVersion) < 1 ||
+      expectedProviderVersion !== target?.revision
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Подключение изменилось. Обновите страницу.',
+      );
+    }
     const candidate = input.apiKey?.trim() ?? '';
     if (
       input.apiKey !== undefined &&
@@ -679,7 +696,12 @@ export class AiChatService {
         'Нельзя заменить и очистить ключ одновременно.',
       );
     }
-    if (before.provider !== input.provider && !candidate && !target?.apiKeyConfigured) {
+    if (
+      input.enabled &&
+      before.provider !== input.provider &&
+      !candidate &&
+      !target?.apiKeyConfigured
+    ) {
       throw new AiServiceError(
         'ai_key_required',
         409,
@@ -701,7 +723,7 @@ export class AiChatService {
     const action = input.clearApiKey ? 'clear' : encrypted ? 'replace' : 'keep';
     try {
       await this.pool.query(
-        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint)',
+        'SELECT ai_admin_set_provider_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint,$13::bigint)',
         [
           principalId,
           input.enabled,
@@ -715,6 +737,7 @@ export class AiChatService {
           requestId,
           input.paidOperationsPerHour ?? null,
           expectedVersion,
+          expectedProviderVersion,
         ],
       );
     } catch (problem) {
@@ -741,12 +764,15 @@ export class AiChatService {
   async testConnection(
     principalId: string,
     expectedVersion: number,
+    requestedProvider?: AiProvider,
+    expectedProviderVersion?: number,
   ): Promise<{
     provider: AiProvider;
     model: AiModel;
     testedAt: string;
     elapsedMs: number;
     configurationVersion: number;
+    providerConfigurationVersion: number;
   }> {
     const config = await this.adminConfig(principalId);
     if (config.configurationVersion !== expectedVersion) {
@@ -756,24 +782,55 @@ export class AiChatService {
         'Настройки изменились. Перезагрузите страницу.',
       );
     }
-    const runtime = await this.runtime();
-    this.requireSupportedModel(runtime);
-    const key = this.requireProviderKey(runtime);
+    const provider = requestedProvider ?? config.provider;
+    const slot = config.providerConfigurations.find((item) => item.provider === provider);
+    const slotVersion = expectedProviderVersion ?? slot?.revision;
+    if (
+      requestedProvider &&
+      (!slot ||
+        !slot.enabled ||
+        !Number.isSafeInteger(slotVersion) ||
+        slotVersion !== slot.revision)
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Подключение изменилось. Обновите страницу.',
+      );
+    }
+    const legacyRuntime = requestedProvider ? null : await this.runtime();
+    if (legacyRuntime) {
+      this.requireSupportedModel(legacyRuntime);
+      this.requireProviderKey(legacyRuntime);
+    }
     const started = Date.now();
     try {
       // SQL rechecks the real platform-admin role and configuration version,
       // then durably reserves from the same quota used by chat admission.
-      const admission = await this.pool.query<{ admitted: boolean }>(
-        'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
-        [principalId, expectedVersion],
-      );
-      if (admission.rows[0]?.admitted !== true) {
+      const admission = requestedProvider
+        ? await this.pool.query<RuntimeRow & { provider_revision: string | number }>(
+            'SELECT * FROM ai_admin_test_provider_begin($1,$2::bigint,$3,$4::bigint)',
+            [principalId, expectedVersion, provider, slotVersion],
+          )
+        : await this.pool.query<{ admitted: boolean }>(
+            'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
+            [principalId, expectedVersion],
+          );
+      if (
+        !requestedProvider &&
+        (admission.rows[0] as { admitted?: boolean } | undefined)?.admitted !== true
+      ) {
         throw new AiServiceError(
           'ai_admission_unavailable',
           503,
           'Допуск платной операции не подтверждён.',
         );
       }
+      const runtime = requestedProvider ? (admission.rows[0] as RuntimeRow) : legacyRuntime!;
+      if (requestedProvider && (!runtime || !runtime.enabled))
+        throw new AiServiceError('ai_admission_unavailable', 503, 'Подключение недоступно.');
+      this.requireSupportedModel(runtime);
+      const key = this.requireProviderKey(runtime);
       const result = await streamProviderText({
         fetchImpl: this.fetchImpl,
         provider: runtime.provider,
@@ -799,15 +856,21 @@ export class AiChatService {
       throw problem;
     }
     const after = await this.adminConfig(principalId);
-    if (after.configurationVersion !== expectedVersion) {
+    if (
+      after.configurationVersion !== expectedVersion ||
+      (requestedProvider &&
+        after.providerConfigurations.find((item) => item.provider === provider)?.revision !==
+          slotVersion)
+    ) {
       throw new AiServiceError('ai_config_changed', 409, 'Во время проверки настройки изменились.');
     }
     return {
-      provider: config.provider,
-      model: config.model,
+      provider,
+      model: requestedProvider ? slot!.model : config.model,
       testedAt: new Date().toISOString(),
       elapsedMs: Date.now() - started,
       configurationVersion: expectedVersion,
+      providerConfigurationVersion: slotVersion ?? 1,
     };
   }
 
@@ -829,7 +892,6 @@ export class AiChatService {
       const available: AiChatModel[] = modelCatalog.models
         .filter(
           (m) =>
-            config.enabled &&
             this.key !== null &&
             policy.allowedModels.includes(m.id) &&
             m.selectable &&
@@ -845,7 +907,7 @@ export class AiChatService {
       const model = (
         available.includes(policy.defaultModel as AiChatModel)
           ? policy.defaultModel
-          : (available[0] ?? policy.defaultModel ?? config.model)
+          : (policy.defaultModel ?? config.model)
       ) as AiChatModel;
       const provider =
         model === OLLAMA_SELECTION

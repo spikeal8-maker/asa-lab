@@ -144,12 +144,18 @@ describe('Compact cloud provider connections', () => {
         elapsedMs: 1200,
         testedAt: '2026-10-24T00:01:00Z',
         configurationVersion: 7,
+        providerConfigurationVersion: 1,
       },
     });
     await submit();
     expect(call).toHaveBeenLastCalledWith('/api/admin/v1/ai/test', {
       method: 'POST',
-      body: JSON.stringify({ acknowledgePaidRequest: true, configurationVersion: 7 }),
+      body: JSON.stringify({
+        acknowledgePaidRequest: true,
+        configurationVersion: 7,
+        provider: 'deepseek',
+        providerConfigurationVersion: 1,
+      }),
     });
     expect(host.textContent).toContain('Подключено · DeepSeek · 1.2 с');
     expect(checkbox('Разрешаю один платный запрос').checked).toBe(false);
@@ -172,6 +178,7 @@ describe('Compact cloud provider connections', () => {
         provider: 'deepseek',
         model: 'deepseek-flash',
         configurationVersion: 8,
+        providerConfigurationVersion: 1,
         elapsedMs: 975,
         testedAt: '2026-10-24T00:01:00Z',
       },

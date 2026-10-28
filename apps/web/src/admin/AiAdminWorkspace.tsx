@@ -133,7 +133,7 @@ function AiAdminWorkspaceSession({
     if (!cloud) return 'Проверяем';
     const slot = cloud.providerConfigurations.find((entry) => entry.provider === value);
     if (!slot?.apiKeyConfigured) return 'Нет ключа';
-    return cloud.enabled && cloud.provider === value ? 'Включён' : 'Ключ сохранён';
+    return slot.enabled ? 'Включён' : 'Ключ сохранён';
   }
 
   return (

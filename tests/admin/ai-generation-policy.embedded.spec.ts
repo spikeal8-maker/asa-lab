@@ -132,6 +132,16 @@ beforeAll(async () => {
     },
     randomUUID(),
   );
+  const selected = await chat().adminConfig(admin);
+  await db.query('SELECT ai_admin_set_config($1,true,$2,$3,$4,NULL,NULL,NULL,NULL,$5,$6,$7)', [
+    admin,
+    'ollama-cloud',
+    'gemma4:31b',
+    'keep',
+    randomUUID(),
+    100,
+    selected.configurationVersion,
+  ]);
 }, 30000);
 afterAll(async () => db?.close());
 it('allows the one configured local Ollama model without a cloud key or paid quota', async () => {
@@ -458,10 +468,20 @@ it('replays after provider disable without calling it and rejects fresh operatio
     randomUUID(),
   );
   expect((await service.send(owner, thread.id, 'Сохрани', request)).replayed).toBe(true);
-  await expect(service.send(owner, thread.id, 'Новый', randomUUID())).rejects.toMatchObject({
-    code: 'ai_disabled',
-  });
-  expect(fetchImpl).not.toHaveBeenCalled();
+  await service.send(owner, thread.id, 'Новый', randomUUID());
+  expect(String(fetchImpl.mock.calls[0]![0])).toContain('api.deepseek.com');
+  await expect(
+    service.sendStream(
+      owner,
+      thread.id,
+      'Cloud disabled',
+      randomUUID(),
+      () => undefined,
+      new AbortController().signal,
+      'gemma4:31b',
+    ),
+  ).rejects.toMatchObject({ code: 'ai_disabled' });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
   await service.saveAdminConfig(
     admin,
     {
@@ -515,4 +535,96 @@ it('erases private prompt/profile snapshots on thread deletion without removing 
       )
     ).rows,
   ).toHaveLength(1);
+});
+it('keeps the selected default while changing another provider and rejects stale or disabled card tests', async () => {
+  const service = chat();
+  const before = await service.adminConfig(admin);
+  const cloud = before.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud')!;
+  const deepseek = before.providerConfigurations.find((slot) => slot.provider === 'deepseek')!;
+  const saved = await service.saveAdminConfig(
+    admin,
+    {
+      enabled: false,
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      clearApiKey: true,
+      configurationVersion: before.configurationVersion,
+      providerConfigurationVersion: deepseek.revision,
+    },
+    randomUUID(),
+  );
+  expect(saved.provider).toBe(before.provider);
+  expect(saved.enabled).toBe(before.enabled);
+  expect(
+    saved.providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+  ).toMatchObject({
+    enabled: cloud.enabled,
+    revision: cloud.revision,
+  });
+  expect(saved.providerConfigurations.find((slot) => slot.provider === 'deepseek')).toMatchObject({
+    enabled: false,
+    apiKeyConfigured: false,
+    revision: deepseek.revision + 1,
+  });
+  await expect(
+    service.saveAdminConfig(
+      admin,
+      {
+        enabled: true,
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        apiKey: 'deepseek-private-test-key',
+        configurationVersion: saved.configurationVersion,
+        providerConfigurationVersion: deepseek.revision,
+      },
+      randomUUID(),
+    ),
+  ).rejects.toMatchObject({ code: 'ai_config_changed', status: 409 });
+  const quotaBefore = Number(
+    (await db.query<{ n: string }>('SELECT count(*) n FROM ai_paid_operation_quota')).rows[0]!.n,
+  );
+  await expect(
+    db.query('SELECT * FROM ai_admin_test_provider_begin($1,$2,$3,$4)', [
+      admin,
+      saved.configurationVersion,
+      'deepseek',
+      deepseek.revision + 1,
+    ]),
+  ).rejects.toThrow('AI_DISABLED');
+  expect(
+    Number(
+      (await db.query<{ n: string }>('SELECT count(*) n FROM ai_paid_operation_quota')).rows[0]!.n,
+    ),
+  ).toBe(quotaBefore);
+  await expect(
+    service.saveGenerationPolicy(admin, {
+      configurationVersion: (await service.generationPolicy(admin)).configurationVersion,
+      systemPrompt: 'Тест',
+      allowedModels: ['deepseek-flash'],
+      defaultModel: 'deepseek-flash',
+      requestId: randomUUID(),
+    }),
+  ).rejects.toThrow();
+  const enabled = await service.saveAdminConfig(
+    admin,
+    {
+      enabled: true,
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      apiKey: 'deepseek-private-test-key',
+      configurationVersion: saved.configurationVersion,
+      providerConfigurationVersion: deepseek.revision + 1,
+    },
+    randomUUID(),
+  );
+  fetchImpl.mockClear();
+  const receipt = await service.testConnection(
+    admin,
+    enabled.configurationVersion,
+    'deepseek',
+    deepseek.revision + 2,
+  );
+  expect(receipt).toMatchObject({ provider: 'deepseek', model: 'deepseek-flash' });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  expect(String(fetchImpl.mock.calls[0]![0])).toContain('api.deepseek.com');
 });
