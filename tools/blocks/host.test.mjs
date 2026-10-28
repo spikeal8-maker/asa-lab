@@ -581,7 +581,8 @@ test('only publication players fit native 4:3 coordinates on resize and disconne
     listeners = new Map();
   let callback,
     observed,
-    disconnects = 0;
+    disconnects = 0,
+    resizeEvents = 0;
   const shell = {
     dataset: {},
     clientWidth: 390,
@@ -589,6 +590,11 @@ test('only publication players fit native 4:3 coordinates on resize and disconne
     style: { setProperty: (key, value) => values.set(key, value) },
   };
   const hostGlobals = {
+    Event: class {
+      constructor(type) {
+        this.type = type;
+      }
+    },
     ResizeObserver: class {
       constructor(fn) {
         callback = fn;
@@ -601,6 +607,10 @@ test('only publication players fit native 4:3 coordinates on resize and disconne
       }
     },
     window: {
+      dispatchEvent(event) {
+        resizeEvents++;
+        listeners.get(event.type)?.();
+      },
       addEventListener: (type, fn) => listeners.set(type, fn),
       removeEventListener: (type, fn) => {
         if (listeners.get(type) === fn) listeners.delete(type);
@@ -623,6 +633,9 @@ test('only publication players fit native 4:3 coordinates on resize and disconne
     Number(values.get('--asa-player-scale')),
     Number.parseFloat(values.get('--asa-player-width')) / 480,
   );
+  assert.equal(resizeEvents, 2);
+  callback();
+  assert.equal(resizeEvents, 2, 'unchanged observer notifications do not loop');
   await f.editor.dispose();
   assert.equal(disconnects, 1);
   assert.equal(listeners.has('resize'), false);
