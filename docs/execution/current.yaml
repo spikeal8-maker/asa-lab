@@ -576,7 +576,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: models_access_focused_pass_waiting_baseline_841
+      checkpoint: models_access_merged_main_installed_acceptance_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,11 +639,12 @@ parallel_lanes:
           requirements: [R19, R20, R21, R22, R23, R31]
           acceptance_checks: [C17, C20, C25, C28]
           source_pr: 838
-          candidate_sha: 96593a3d4613d7a9ad97c2634d86fb0fab67e09b
-          independent_review: approved_exact_composition
-          focused_ci_run: 40762382615
-          ci_status: final_composition_ci_pending
-          general_ci_run: 40762382474
+          candidate_sha: 73da111d2316dbd112175e87159ba959f1afc587
+          independent_review: approved_exact_composition_and_config_maintenance_repair
+          focused_ci_run: 40768324350
+          ci_status: focused_and_general_pass
+          integrated_sha: 05bda4f4135f5ac80bdbb8bd6fc4192e8e211224
+          general_ci_run: 40768324399
           baseline_merge_sha: 1a6b2b7446d67156b52a33c6003e9243c2d346b4
           source_dependency: da8c27b3f2a48f2915f329e0a0317371fc076512
           implementation_started: true
@@ -708,11 +709,12 @@ parallel_lanes:
           owner_acceptance: pending
           demo_status: NOT_RUN
           source_pr: 838
+          integrated_sha: 05bda4f4135f5ac80bdbb8bd6fc4192e8e211224
           candidate_sha: 2b1906682514661c4f4e1e64aed71f8bb9eea415
           independent_review: approved_exact_source_and_harness
-          ci_status: unit_types_s3_built_budget_browser_pass_five_pg_fixture_failures
-          isolated_ci_run: 40732021261
-          isolated_demo: per_user_soft_cap_pass_light_only
+          ci_status: final_composition_focused_and_general_pass
+          isolated_ci_run: 40768324350
+          isolated_demo: soft_cap_pass_real_light_and_dark_viewports
           pg_fixture_repair_sha: 4880d96f421e9464fc828523865f665cafd39741
           integration_blocker:
             kind: acceptance_blocker
