@@ -8,11 +8,22 @@ it('keeps Qwen xhigh, shared context and complete code past the old output cap',
   );
   // Include all remaining bytes, then an explicit upstream completion.
   events.push(JSON.stringify({ message: { content: answer.slice(38000) }, done: true }));
-  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(events.join('\n') + '\n'));
+  const fetchImpl = vi.fn<typeof fetch>(async (url) =>
+    String(url).endsWith('/api/show')
+      ? new Response(
+          JSON.stringify({
+            capabilities: ['completion', 'thinking'],
+            thinking: { values: [false, 'medium', 'xhigh'], default: 'medium' },
+          }),
+        )
+      : new Response(events.join('\n') + '\n'),
+  );
   const deltas: string[] = [];
   const result = await streamOllamaText({
     baseUrl: 'http://127.0.0.1:11434',
     model: 'qwen3.8:27b',
+    thinking: 'xhigh',
+    contextTokens: 120000,
     context: [{ role: 'user', content: 'Write complete code' }],
     instructions: '',
     signal: new AbortController().signal,
@@ -22,7 +33,7 @@ it('keeps Qwen xhigh, shared context and complete code past the old output cap',
   expect(result.text).toBe(answer);
   expect(deltas.join('')).toBe(answer);
   expect(result.stopped).toBe(false);
-  expect(JSON.parse(String(fetchImpl.mock.calls[0]![1]?.body))).toMatchObject({
+  expect(JSON.parse(String(fetchImpl.mock.calls.at(-1)![1]?.body))).toMatchObject({
     think: 'xhigh',
     keep_alive: -1,
     options: { num_ctx: 120000, num_predict: -1 },

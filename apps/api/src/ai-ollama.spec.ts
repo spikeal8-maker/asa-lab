@@ -34,9 +34,8 @@ describe('Ollama private network boundary', () => {
     expect(result).toEqual({ text: code, stopped: reason === 'length' });
     expect(deltas.join('')).toBe(code);
     expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({
-      think: false,
       keep_alive: -1,
-      options: { num_ctx: 120000, num_predict: -1 },
+      options: { num_ctx: 65536, num_predict: -1 },
     });
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
@@ -155,7 +154,6 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
     expect(JSON.parse(String(options?.body))).toMatchObject({
       model: 'gemma4:12b',
       stream: true,
-      think: false,
       messages: [
         { role: 'system', content: 'Ответь на русском.' },
         { role: 'user', content: 'Привет' },

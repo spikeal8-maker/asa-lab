@@ -135,15 +135,21 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => db?.close());
 it('allows the one configured local Ollama model without a cloud key or paid quota', async () => {
-  const localFetch = vi.fn<typeof fetch>(
-    async () =>
-      new Response(
-        JSON.stringify({
-          message: { content: 'Локальный ответ' },
-          done: true,
-          done_reason: 'stop',
-        }) + '\n',
-      ),
+  const localFetch = vi.fn<typeof fetch>(async (url) =>
+    String(url).endsWith('/api/show')
+      ? new Response(
+          JSON.stringify({
+            capabilities: ['completion', 'thinking'],
+            thinking: { values: [false, true], default: true },
+          }),
+        )
+      : new Response(
+          JSON.stringify({
+            message: { content: 'Локальный ответ' },
+            done: true,
+            done_reason: 'stop',
+          }) + '\n',
+        ),
   );
   const service = new AiChatService(pool, { fetchImpl: localFetch });
   const settings = await service.ollamaSettings(admin);
@@ -170,7 +176,7 @@ it('allows the one configured local Ollama model without a cloud key or paid quo
   );
   const thread = await service.createThread(owner);
   await service.send(owner, thread.id, 'Локально', randomUUID());
-  expect(JSON.parse(String(localFetch.mock.calls[0]![1]?.body)).model).toBe('qwen3:4b');
+  expect(JSON.parse(String(localFetch.mock.calls.at(-1)![1]?.body)).model).toBe('qwen3:4b');
   expect(
     Number(
       (await db.query<{ n: string }>('SELECT count(*) n FROM ai_paid_operation_quota')).rows[0]!.n,
