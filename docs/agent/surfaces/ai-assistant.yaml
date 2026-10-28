@@ -1,6 +1,20 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-OWN-QUALITY
+    routes: [/api/admin/v1/ai/own-quality, /api/admin/v1/ai/own-quality/grant, '#/admin/ai']
+    implementation:
+      files: [apps/api/src/ai-own-quality.ts, apps/api/src/ai-own-quality.controller.ts, packages/contracts/src/ai-own-quality.ts, packages/authz/src/index.ts, migrations/0271_ai_own_quality_review.sql, apps/web/src/admin/AdminAiOwnQuality.tsx, apps/web/src/admin/ai-own-quality.css]
+    invariants: [AI-OWN-QUALITY-001, AI-OWNER-001, AI-USAGE-001]
+    tests: [TST-AI-OWN-QUALITY-CORE-001, TST-AI-OWN-QUALITY-PG-001, TST-AI-OWN-QUALITY-E2E-001]
+    controls:
+      - id: CTRL-AI-OWN-QUALITY
+        label: Explicitly enable or revoke bounded last-ten review of the authenticated administrator's own personal operations
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-own-quality.ts, apps/api/src/ai-own-quality.controller.ts, migrations/0271_ai_own_quality_review.sql, apps/web/src/admin/AdminAiOwnQuality.tsx]
+        invariants: [AI-OWN-QUALITY-001, AI-OWNER-001]
+        tests: [TST-AI-OWN-QUALITY-CORE-001, TST-AI-OWN-QUALITY-PG-001, TST-AI-OWN-QUALITY-E2E-001]
+
   - id: SURF-AI-USAGE-OVERVIEW
     routes: ['#/admin/ai', /api/admin/v1/ai/usage-overview]
     implementation:
