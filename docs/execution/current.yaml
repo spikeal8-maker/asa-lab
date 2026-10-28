@@ -6899,59 +6899,58 @@ parallel_lanes:
         owner_acceptance: pending
         deployment: not_run
         evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
+      - task_id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
+        issue: 211
+        pr: 814
+        accepted_candidate_sha: 22d0cdcbfdb85166a5aaaec12dc6040a348a5a4d
+        integrated_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+        independent_review: approved
+        exact_candidate_focused_run: 40679082270
+        exact_candidate_general_run: 40679082222
+        exact_candidate_public_projects_run: 40679082362
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+        evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
     task:
-      id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
+      id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-scratch-viewer-20261026
+      candidate_branch: codex/student-publication-policy-20261028
       base_branch: main
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: official_scratch_player_publication_integration_selected
+      checkpoint: class_and_seat_publication_download_policy_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Owner authorized completion of the full Public Projects program #211,
-        including actual Electronics/Scratch/3D viewing, downloads, publication
-        editing and administration. Prioritize the core visible workflow before
-        complaints and likes per DEC117 and latest visual-feedback request.
-        DEC118: class download/publish defaults false, separate per-Seat
-        inherit/allow/deny overrides, audited server enforcement; active students
-        may view eligible public works and like independently of these flags.
-        DEC119: do not change Games. Parked module-guard f41afd4c and complaint
-        UI DraftPR779/e1572fd5 are not selected or integrated; preserve their code.
-        Owner explicitly permits separate independent agent Code/Security reviews
-        instead of an unavailable external human, but not fabricated GitHub
-        approvals or protection bypass. Ordinary ready/merge follows actual
-        required exact-SHA evidence. No force push, production deployment or
-        working database changes. Electronics viewer is accepted in PR785/Main
-        28055932 with exact focused/General success and actual visual evidence.
-        Owner now explicitly requests the official existing Scratch player for
-        publications. Activate one bounded Scratch publication/player/assets
-        integration under PROJ-SCRATCH-PUBLIC-VIEWER.md, preserving pinned upstream,
-        parent/iframe capability boundary and immutable published version authority.
-        Reuse native isPlayerOnly/run/stop/fullscreen, not a second VM/interpreter.
-        This selection activates the needed player/publication asset boundary
-        previously deferred in Scratch M2; it does not activate cross-tenant remix,
-        reactions or exports. Use scratch-www as UX reference for later likes and
-        downloads without copying its backend calls or bypassing DEC118.
-        One author, focused checks, independent Code/Security/structural review,
-        real pinned-player browser/screenshots and General before Main integration.
+        Owner commissioned three ordered results: finish official Scratch player and Main,
+        finish likes/downloads with class and individual StudentSeat permissions, then update
+        the existing site and verify save/reopen. Step one is accepted in PR814/Main06df71f2.
+        Select one bounded prerequisite for step two under PROJ-STUDENT-PUBLICATION-POLICY.md:
+        audited teacher-managed class download/publish flags (default false), independent
+        per-Seat inherit/allow/deny overrides, effective server admission and actual safe
+        Seat publishing through the current immutable publication writer. Reuse existing
+        Account/StudentSeat/class and teacher authority; do not create accounts for pupils.
+        Owner explicitly chose on 2026-10-28 that disabling publishing prevents new publish
+        and republish but leaves existing publications available. Viewing and future likes
+        do not depend on these toggles. Preserve protected Learning/assignment sources,
+        personal Account independence, current moderation/revoke/read boundaries and Games.
+        This slice does not implement export archives or reactions; the controller continues
+        those dependent slices after acceptance. Preserve the compact page accepted in PR814.
+        One author, independent Code/Security review, exact real PG/API/browser and General
+        before ordinary Main integration. No working database or deployment in this slice.
+        The owner separately authorized the final guarded production update after all steps;
+        that authorization is not revoked by this source-only slice boundary.
       context_hints:
-        - docs/product/projects/tasks/PROJ-SCRATCH-PUBLIC-VIEWER.md
-        - docs/product/projects/tasks/PROJ-R7-04C-BLOCKS.md
-        - docs/product/visual-programming/components/gallery-learning.yaml
-        - docs/product/visual-programming/VSCR-D0-006-PUBLICATION-REMIX-CONTRACT.md
-        - docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
-        - docs/product/projects/tasks/PROJ-R7-03A-ARTIFACT-ENVELOPE.md
-        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
-        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
+        - docs/product/projects/tasks/PROJ-STUDENT-PUBLICATION-POLICY.md
         - docs/product/projects/DECISION_LEDGER.md
-        - docs/product/projects/IMPLEMENTATION_MICRO_ITERATIONS.md
-        - docs/product/ASA_PROJECTS_IMPLEMENTATION_SPEC.md
+        - docs/agent/contracts/identity.yaml
+        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
+        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
     integration_dependencies:
       - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
         status: in_progress
@@ -7765,20 +7764,18 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
+      convergence_baseline_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
       head_sha: null
-      observed_at: '2026-10-20T22:15:00Z'
+      observed_at: '2026-10-28T12:10:13Z'
       main:
         branch: main
-        sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
-      observation_note: Require fresh fetch main before publication. Owner explicitly resumes the complete programme with a visible next result. PR613 is merged
-        at13ab3635587a201bc2cc78e88b9a9f66fce72102 and its post-main publication PG/browser workflow39494756801 passed.
-        Select only Stage3 exact immutable-publication copy into an independent private Project. Source integration
-        of Stage1 is not full release acceptance. Shared dependency and AI/Courses/Portal migration topology remain
-        separately owned; no earlier migrations, package/lock or unrelated modules may be rewritten in this slice.
-        Reserve new forward0235 after unchanged0234; validate actual reservations before publication. Workstation
-        authoring/lightweight checks only; real PG/browser evidence in disposable GitHub CI. No production deployment
-        or working database operation.
+        sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+      observation_note: >-
+        PR814 merged after exact source independent reviews and all required candidate gates.
+        Scratch run40679082270 attempt2 passed all three jobs; attempt1 PowerShell startup
+        timeout was infrastructure D, not bypassed. General40679082222 and Public Projects
+        40679082362 passed. Fetch main before writes. Select only the next audited class/Seat
+        permission and publishing slice; exports/reactions and final deployment are subsequent.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -7787,14 +7784,13 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Public Projects Publication
         commands:
-          - pnpm test:project-slice
-          - pnpm test:creator-portal
+          - pnpm gate:projects-publication
       browser:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Public Projects Publication
         commands:
-          - pnpm e2e:creator-portal
+          - pnpm gate:projects-publication:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
