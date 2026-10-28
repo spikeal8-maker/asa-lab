@@ -599,6 +599,39 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-MODELS-ACCESS-C
+          issue: 373
+          scope: global and per-principal per-model soft monthly token admission budgets
+          status: in_progress
+          selected_at: '2026-10-28'
+          task_card: docs/product/ai/PROGRAM_DEFINITION.json
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R23, R20]
+          acceptance_checks: [C20]
+          implementation_started: false
+          implementation_complete: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_dependency: ecbd9fc5eed6aa46f642e26623640d180299d043
+          selection: >-
+            Owner explicitly chose BOTH global/model and user/model monthly budgets and
+            completing an already admitted reply before blocking subsequent starts. Implement
+            soft UTC-month admission, never a claimed hard per-reply cap. Preserve local
+            num_predict=-1 and paid output behavior; no new truncation for monthly budgets.
+            Reserve a transparent bounded concurrency hold atomically with real request
+            admission, check both scopes, settle actual input/output across the admitted logical
+            reply and bounded tool continuation, retain unknown usage as pending, disclose
+            overage and deny new starts after exhaustion. Replay never redispatches or charges.
+            Pin holds to admission month; late settlement stays in that month. Account and Seat
+            principals remain isolated. Reuse the existing usage journal and do not copy content.
+            Cap edits are CAS/idempotent/audited, affect future starts and never erase usage or
+            cancel admitted replies; null means unlimited and zero denies new starts. Show real
+            used/pending/reset and availability reasons; global spend is admin-only. Preserve
+            hourly operation limits, ownership, class/Seat and provider eligibility guards.
+            Explicit admin provider tests stay outside chat token budgets and retain paid-test
+            permission/hourly quota. No live calls, Docker or working database changes. Stack
+            on reviewed B without chasing new overlapping main/ComfyUI revisions; preserve
+            candidates and defer final integration to a coordinated window.
         - id: ASAI-MODELS-ACCESS-B
           issue: 373
           scope: provider catalog eligibility and global visible model order and default
@@ -608,10 +641,14 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R21, R22]
           acceptance_checks: [C17, C20, C25]
-          implementation_started: false
-          implementation_complete: false
+          implementation_started: true
+          implementation_complete: true
           owner_acceptance: pending
           demo_status: NOT_RUN
+          source_branch: codex/asai-model-selection-20261028
+          candidate_sha: ecbd9fc5eed6aa46f642e26623640d180299d043
+          independent_review: approved_source
+          ci_status: focused_65_pass_canonical_windows_native_baseline_red
           source_dependency: 081ac0be6386b5ed921d1b866ba127d42383f1c5
           selection: >-
             Continue the explicit owner settings request on the reviewed provider-A candidate
