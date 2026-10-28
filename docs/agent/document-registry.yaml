@@ -405,6 +405,16 @@ documents:
     context_role: task
     read_when: [account_confirmation, authentication_provider, provider_availability, admin_confirmation_policy]
 
+  - id: COMFYUI-LOCAL-IMAGE-RUNBOOK
+    path: docs/deployment/COMFYUI_LOCAL_IMAGES.md
+    scope: ai-assistant
+    lanes: [ai-assistant]
+    kind: runbook
+    status: supporting
+    authority: none
+    context_role: task
+    read_when: [comfyui, image_generation, gpu, deployment, host_migration]
+
   - id: ACCOUNT-CONFIRMATION-READINESS
     path: docs/deployment/ACCOUNT_CONFIRMATION_READINESS.md
     scope: identity

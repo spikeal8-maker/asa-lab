@@ -107,6 +107,7 @@ import { createRuntimeMetrics, type RuntimeMetrics } from '@asa-lab/observabilit
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { ProjectDistributionController } from './project-distribution.controller.js';
 import { GamesAccessController } from './games-access.controller.js';
 import { gamesProjectGuard } from './games-project-guard.js';
 import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
@@ -265,6 +266,7 @@ export class AppModule {
         ModulesController,
         ProjectsController,
         GamesAccessController,
+        ProjectDistributionController,
         BlocksRuntimeSessionController,
         BlocksRuntimeController,
         CheckersClassroomController,

@@ -2,6 +2,7 @@ import { discoverProviderModels, applyCatalogObservation } from './ai-provider-c
 import { AiTokenBudgetStore } from './ai-token-budgets.js';
 import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
+import { ComfyUiSettings } from './ai-comfyui-settings.js';
 import {
   cloudPoolFetch,
   accountBlockUntil,
@@ -241,6 +242,7 @@ export class AiChatService {
   private readonly usage: AiUsageJournal;
   private readonly web: AiWebSearchService;
   private readonly toolPolicy: AiToolPolicyService;
+  private readonly comfySettings: ComfyUiSettings;
   private readonly activeStreams = new Map<
     string,
     { principalId: string; threadId: string; abort: AbortController }
@@ -259,6 +261,7 @@ export class AiChatService {
     this.images = options.images;
     this.usage = new AiUsageJournal(pool);
     this.web = new AiWebSearchService(pool, this.fetchImpl);
+    this.comfySettings = new ComfyUiSettings(pool, this.fetchImpl);
     this.toolPolicy = new AiToolPolicyService(pool);
     this.policy = new AiGenerationPolicyStore(pool);
   }
@@ -295,6 +298,18 @@ export class AiChatService {
   }
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
+  }
+  comfyUiConfig(actor: string) {
+    return this.comfySettings.config(actor);
+  }
+  comfyUiStatus(actor: string) {
+    return this.comfySettings.status(actor);
+  }
+  probeComfyUi(actor: string, url: unknown) {
+    return this.comfySettings.probe(actor, url);
+  }
+  saveComfyUi(actor: string, raw: unknown) {
+    return this.comfySettings.save(actor, raw);
   }
   usageOverview(actor: string) {
     return this.usage.overview(actor);

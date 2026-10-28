@@ -18,7 +18,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
 import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
-import { ComfyUiError, discoverComfyUi } from './ai-comfyui.js';
+import { ComfyUiError } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AiUsageUnavailable } from './ai-usage-journal.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -385,9 +385,33 @@ export class AiAdminController {
   }
 
   @Get('comfyui/status')
+  @Header('Cache-Control', 'private, no-store')
   async comfyUiStatus(@Req() request: FastifyRequest) {
-    await this.requirePlatformAdmin(request);
-    return this.safe(() => discoverComfyUi());
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.comfyUiStatus(actor));
+  }
+  @Get('comfyui/settings')
+  @Header('Cache-Control', 'private, no-store')
+  async comfyUiSettings(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.comfyUiConfig(actor));
+  }
+  @Post('comfyui/probe')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async comfyUiProbe(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() =>
+      this.ai.probeComfyUi(actor, (raw as { baseUrl?: unknown } | null)?.baseUrl),
+    );
+  }
+  @Put('comfyui/settings')
+  @Header('Cache-Control', 'private, no-store')
+  async comfyUiSave(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.saveComfyUi(actor, raw));
   }
 
   @Post('ollama/models')

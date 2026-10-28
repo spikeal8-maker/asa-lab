@@ -29,6 +29,7 @@ import { ParticipantAssignmentsList } from '../components/ParticipantAssignments
 import type { ClassroomStudentNavigation } from '../components/classroom-student-navigation';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
+import { ClassroomProjectSettings } from '../components/ClassroomProjectSettings';
 import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
 import { CrmUserCard } from '../admin/CrmUserCard';
 import { registerAuxiliarySettingsDraft } from '../components/settings-navigation';
@@ -77,7 +78,7 @@ const TABS = [
   { key: 'settings', label: 'Настройки', module: null },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
-type SettingsCategory = 'identity' | 'access' | 'safety' | 'games';
+type SettingsCategory = 'identity' | 'access' | 'safety' | 'games' | 'projects';
 
 export function ClassroomStudentPage({
   classroomId,
@@ -811,6 +812,7 @@ export function ClassroomStudentPage({
                 ['access', 'Коды и доступ'],
                 ['safety', 'Защита ученика'],
                 ['games', 'Игровые разрешения'],
+                ['projects', 'Публикация и скачивание'],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -964,6 +966,14 @@ export function ClassroomStudentPage({
                     Это настройка ученика. Классная защита и доступ к играм управляются отдельно.
                   </p>
                 </>
+              ) : null}
+              {settingsCategory === 'projects' ? (
+                <ClassroomProjectSettings
+                  classroomId={classroomId}
+                  seatId={seatId}
+                  readOnly={settingsLocked || controlsBusy}
+                  onDirtyChange={gamesChanged}
+                />
               ) : null}
               {settingsCategory === 'games' ? (
                 <ClassroomGamesSettings

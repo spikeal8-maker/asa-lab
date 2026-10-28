@@ -1,0 +1,117 @@
+{
+  "observedAt": "2026-10-28",
+  "kind": "Historical measurements, not a new benchmark or universal GPU guarantee",
+  "workflow": "izo-fp8-diagnostic-workflow.json",
+  "measurements": [
+    {
+      "width": 1536,
+      "height": 864,
+      "status": "success",
+      "seconds": 10.35,
+      "peakGpuMiB": 11605,
+      "peakRamGiB": 1.923,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 864,
+      "height": 1536,
+      "status": "success",
+      "seconds": 9.9,
+      "peakGpuMiB": 11605,
+      "peakRamGiB": 1.923,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 1664,
+      "height": 960,
+      "status": "stopped_at_safety_limit",
+      "seconds": 12.95,
+      "peakGpuMiB": 12085,
+      "peakRamGiB": 2.142,
+      "peakSharedMiB": 304,
+      "reason": "shared_gpu_memory"
+    },
+    {
+      "width": 1632,
+      "height": 928,
+      "status": "success",
+      "seconds": 11.83,
+      "peakGpuMiB": 12085,
+      "peakRamGiB": 1.944,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 928,
+      "height": 1632,
+      "status": "success",
+      "seconds": 11.05,
+      "peakGpuMiB": 12085,
+      "peakRamGiB": 1.944,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 1632,
+      "height": 928,
+      "status": "success",
+      "seconds": 11.04,
+      "peakGpuMiB": 12085,
+      "peakRamGiB": 1.944,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 928,
+      "height": 1632,
+      "status": "success",
+      "seconds": 11.07,
+      "peakGpuMiB": 11765,
+      "peakRamGiB": 1.944,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 1536,
+      "height": 864,
+      "status": "success",
+      "seconds": 9.93,
+      "peakGpuMiB": 11605,
+      "peakRamGiB": 1.944,
+      "peakSharedMiB": 80,
+      "reason": ""
+    },
+    {
+      "width": 864,
+      "height": 1536,
+      "status": "success",
+      "seconds": 9.93,
+      "peakGpuMiB": 11605,
+      "peakRamGiB": 1.944,
+      "peakSharedMiB": 80,
+      "reason": ""
+    }
+  ],
+  "square1024": {
+    "coldTest": {
+      "status": "success",
+      "elapsedSeconds": 15.76,
+      "peakRamGiB": 4.391,
+      "peakPrivateGiB": 13.855
+    },
+    "repeatTest": {
+      "status": "success",
+      "elapsedSeconds": 10.26,
+      "peakRamGiB": 1.89,
+      "peakPrivateGiB": 13.886
+    }
+  },
+  "idle": {
+    "idleSeconds": 37.0,
+    "idleRamGiB": 1.89,
+    "videoTask": "Disabled",
+    "videoListener": false
+  }
+}

@@ -9,6 +9,9 @@ real application readiness endpoint.
 
 Operator references:
 
+- [`COMFYUI_LOCAL_IMAGES.md`](COMFYUI_LOCAL_IMAGES.md) — local image GPU, RTX 3060 12 GB,
+  exact models/hashes, measured workflow and private LAN/VPN connection from ASA.
+
 - [`../delivery/AGENT_CHANGE_WORKFLOW.md`](../delivery/AGENT_CHANGE_WORKFLOW.md) —
   agent path from a focused change through GitHub, CI and an explicitly requested deploy;
 - [`LINUX_DOCKER_DEPLOYMENT.md`](LINUX_DOCKER_DEPLOYMENT.md) — Linux production,

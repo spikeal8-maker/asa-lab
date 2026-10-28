@@ -1,0 +1,24 @@
+{
+  "baseline": "00301affb4a66e2e19ee706cdb25b91294b987be",
+  "legacyBeforeRawSha256": "ce74d3a60b5897782a081a0da2f4b2998d204795dfd899a1dfb3e23d4a2924e2",
+  "artifacts": [
+    {
+      "file": "native-matrix.json.gz",
+      "rawBytes": 1923515,
+      "rawSha256": "4b3b47ff57c74117f7f26189e5545d65369845a42dfb0cd65f2d4612d62fa741",
+      "gzipSha256": "5cf449a553f6858c767f4e0f997ce799f9eb00a1a6118f30807463e67cb72151"
+    },
+    {
+      "file": "legacy-after.json.gz",
+      "rawBytes": 467942,
+      "rawSha256": "ce74d3a60b5897782a081a0da2f4b2998d204795dfd899a1dfb3e23d4a2924e2",
+      "gzipSha256": "8334b056082e853a1e4e063ec05da17e5002cb4a3c72c67d8a351bd8374e8658"
+    }
+  ],
+  "numericMacroSupplement": {
+    "provenance": "Retrospective git show immutable baseline00301 after implementation; original20 unchanged",
+    "cases": 5,
+    "rawBytes": 53008,
+    "sha256": "61cee0b30726309bfacc5bd8f7b26101a37309c156456c97ad059e6fde0cb7ae"
+  }
+}

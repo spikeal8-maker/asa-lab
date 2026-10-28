@@ -2,7 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CopyPublicProject, copiedProjectHref } from './CopyPublicProject';
+import { CopyPublicProject, copiedProjectHref, copyError } from './CopyPublicProject';
 import { publicProjectsApi, type PublicProject, type PublicProjectCopy } from './api';
 import type { ApiResult } from '../api-call';
 import { setTelemetryContext } from '../telemetry-context';
@@ -163,4 +163,9 @@ describe('published private copy UI', () => {
     );
     expect(copiedProjectHref({ projectId: 'copy', moduleKey: 'blocks', created: true })).toBeNull();
   });
+});
+
+it('explains platform master OFF overrides class or individual allowance', () => {
+  expect(copyError(403, 'acquisition_disabled')).toContain('Администратор платформы');
+  expect(copyError(403, 'acquisition_disabled')).toContain('не отменяет общий запрет');
 });

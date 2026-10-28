@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import './admin-publications.css';
+import { PublicationAcquisitionSettings } from './PublicationAcquisitionSettings';
 
 interface Publication {
   readonly schemaVersion?: number;
@@ -326,6 +327,7 @@ export function AdminPublicationsPage({
       aria-labelledby="admin-publications-title"
       aria-busy={loading || saving}
     >
+      <PublicationAcquisitionSettings onAccessDenied={onAccessDenied} />
       <div className="admin-section-heading">
         <div>
           <h2 id="admin-publications-title">Публикации</h2>

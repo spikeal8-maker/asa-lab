@@ -241,22 +241,37 @@ const upgradeArtifacts = [
   ],
   [
     '0273',
-    '0273_ai_independent_provider_enablement.sql',
-    '14f0a27095f4372a702cebf2e66ea19e8d38745f4a639c3e081dc18a7f052413',
+    '0273_ai_comfyui_endpoint.sql',
+    'be4d3096d7adace7d341a0a027d99e667cf027fa1f4841f384e759dafc5ff2b7',
   ],
   [
     '0274',
-    '0274_ai_cloud_pool_provider_projection.sql',
-    '3fc2ca05414a843e1974349ad01dfe0dea4af27b9bdff628727d354325c97dc4',
+    '0274_student_project_distribution.sql',
+    '955f2846087151970dd713110b7de94b938a42cb43047cd186a9bbea280eafec',
   ],
   [
     '0275',
-    '0275_ai_model_selection_policy.sql',
-    '3da30d000979d74b04b296df3fd942f46ad556dcfceade4c9033b147d97d73f0',
+    '0275_public_project_acquisition.sql',
+    'b3c546ec4d3f04f0333c1df325eddfaafa77a3a0cde90c5758c0507deaa911ee',
   ],
   [
     '0276',
-    '0276_ai_monthly_token_budgets.sql',
+    '0276_ai_independent_provider_enablement.sql',
+    '14f0a27095f4372a702cebf2e66ea19e8d38745f4a639c3e081dc18a7f052413',
+  ],
+  [
+    '0277',
+    '0277_ai_cloud_pool_provider_projection.sql',
+    '3fc2ca05414a843e1974349ad01dfe0dea4af27b9bdff628727d354325c97dc4',
+  ],
+  [
+    '0278',
+    '0278_ai_model_selection_policy.sql',
+    '3da30d000979d74b04b296df3fd942f46ad556dcfceade4c9033b147d97d73f0',
+  ],
+  [
+    '0279',
+    '0279_ai_monthly_token_budgets.sql',
     '12bf74c83cfffe55898a3793f9b3a4b0d6b4824d1454fb8f84fe0bcd59b1baae',
   ],
 ] as const;
@@ -369,7 +384,14 @@ async function preservedData(pool: pg.Pool) {
   const result: Record<string, unknown[]> = {};
   // Only this fixed list of test-owned table identifiers is interpolated.
   for (const table of preservedTables) {
-    const addedColumns = table === 'projects' ? [...copiedProjectOriginFields] : [];
+    // Normalize only known additive columns; all old and unknown future fields
+    // remain covered by the strict before/after equality below.
+    const addedColumns =
+      table === 'projects'
+        ? [...copiedProjectOriginFields]
+        : table === 'project_publication_state'
+          ? ['acquisition_allowed', 'acquisition_version']
+          : [];
     result[table] = (
       await pool.query(
         `SELECT to_jsonb(snapshot_row) - $1::text[] AS value
@@ -706,6 +728,25 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         afterLedger.map(({ version, name, checksum }) => ({ version, name, checksum })),
       ).toEqual(plan.map(({ version, name, checksum }) => ({ version, name, checksum })));
+      expect(
+        (
+          await pool.query(
+            'SELECT enabled,version FROM publication_acquisition_settings WHERE singleton_key',
+          )
+        ).rows,
+      ).toEqual([{ enabled: false, version: 0 }]);
+      expect(
+        (
+          await pool.query(
+            'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          acquisition_allowed: false,
+          acquisition_version: 0,
+        })),
+      );
       expect(await preservedData(pool)).toEqual(before);
       // New public-copy provenance columns must be NULL on every historical Project.
       expect(

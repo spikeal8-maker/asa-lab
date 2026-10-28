@@ -68,8 +68,14 @@ async function save(page: Page, id: string, document: unknown, baseRevision: num
   return (await response.json()).draft;
 }
 
-for (const width of [1440, 390, 320]) {
-  test(`Account B copies published 3D V1, edits and cookies-only reopens at ${width}px`, async ({
+for (const { width, seat } of [
+  { width: 1440, seat: false },
+  { width: 1024, seat: false },
+  { width: 390, seat: false },
+  { width: 320, seat: false },
+  { width: 390, seat: true },
+]) {
+  test(`${seat ? 'StudentSeat' : 'Account B'} copies published 3D V1, edits and cookies-only reopens at ${width}px`, async ({
     browser,
   }) => {
     test.setTimeout(180_000);
@@ -87,9 +93,14 @@ for (const width of [1440, 390, 320]) {
       mkdirSync(EVIDENCE, { recursive: true });
       const metadata = JSON.parse(readFileSync('apps/web/dist/build-metadata.json', 'utf8'));
       expect(metadata.revision).toBe(process.env.ASA_BUILD_REVISION);
-      writeFileSync(`${EVIDENCE}/${width}-build.json`, JSON.stringify(metadata, null, 2), 'utf8');
+      writeFileSync(
+        `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-build.json`,
+        JSON.stringify(metadata, null, 2),
+        'utf8',
+      );
       await register(author, 'Независимый автор A');
-      await register(reader, 'Независимый автор B');
+      if (seat) await registerAllowedSeat(browser, reader);
+      else await register(reader, 'Независимый автор B');
       const headers = { origin: new URL(author.url()).origin };
       const created = await author.request.post('/api/projects', {
         headers: { ...headers, 'idempotency-key': randomUUID() },
@@ -113,6 +124,14 @@ for (const width of [1440, 390, 320]) {
       });
       expect(published.status()).toBe(200);
       const publication = (await published.json()).publication;
+      await admin.query(
+        'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+      );
+      const consent = await author.request.post(`/api/projects/${id}/publication/acquisition`, {
+        headers,
+        data: { allowed: true, expectedVersion: 0, expectedRevisionId: publication.revisionId },
+      });
+      expect(consent.status()).toBe(200);
       await save(author, id, scene(83), v1.revision);
       const before = await opened(author, id);
       const frozen = async () =>
@@ -124,12 +143,15 @@ for (const width of [1440, 390, 320]) {
         ).rows;
       const immutableBefore = await frozen();
       await reader.goto(`/#/public-projects/${publication.publicationId}`);
-      const button = reader.getByRole('button', { name: 'Создать свою копию', exact: true });
+      const button = reader.getByRole('button', { name: 'Добавить в мои проекты', exact: true });
       await expect(button).toBeVisible();
       expect(await reader.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
-      await reader.screenshot({ path: `${EVIDENCE}/${width}-public.png`, fullPage: true });
+      await reader.screenshot({
+        path: `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-public.png`,
+        fullPage: true,
+      });
       const detailResponse = await reader.request.get(
         `/api/public-projects/${publication.publicationId}`,
       );
@@ -160,7 +182,10 @@ for (const width of [1440, 390, 320]) {
       await expect(reader).toHaveURL(new RegExp(`#/3d/${target.projectId}(?:[?]|$)`));
       await expectPrimitiveRender(reader, ['published-box']);
       expect((await opened(reader, target.projectId)).draft.document).toEqual(v1.document);
-      await reader.screenshot({ path: `${EVIDENCE}/${width}-copied-v1.png`, fullPage: true });
+      await reader.screenshot({
+        path: `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-copied-v1.png`,
+        fullPage: true,
+      });
       const library = reader.getByRole('button', { name: 'Добавить фигуру', exact: true });
       if (await library.isVisible()) await library.click();
       const savedResponse = reader.waitForResponse(
@@ -192,7 +217,10 @@ for (const width of [1440, 390, 320]) {
           intended.nodes.map((node: { id: string }) => node.id),
         );
         expect((await opened(reopened, target.projectId)).draft.document).toEqual(intended);
-        await reopened.screenshot({ path: `${EVIDENCE}/${width}-reopened.png`, fullPage: true });
+        await reopened.screenshot({
+          path: `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-reopened.png`,
+          fullPage: true,
+        });
         reopenFailures.assertEmpty();
       } finally {
         await reopenedContext.close();
@@ -304,185 +332,207 @@ function electronicsCircuit(resistance: number) {
   return parsed.document;
 }
 
-test('Account B copies packaged Electronics V1, changes resistance in editor and cookies-only reopens exact saved circuit', async ({
-  browser,
-}) => {
-  test.setTimeout(180_000);
-  const admin = e2eAdminPool();
-  const a = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  const b = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  const author = await a.newPage();
-  const reader = await b.newPage();
-  const failures = collectBrowserFailures(reader, {
-    allowAnonymousSessionProbe: true,
-    allowAdminAccessProbe: true,
-  });
-  let sourceId: string | undefined;
-  try {
-    mkdirSync(EVIDENCE, { recursive: true });
-    const metadata = JSON.parse(readFileSync('apps/web/dist/build-metadata.json', 'utf8'));
-    expect(metadata.revision).toBe(process.env.ASA_BUILD_REVISION);
-    writeFileSync(`${EVIDENCE}/electronics-build.json`, JSON.stringify(metadata, null, 2), 'utf8');
-    await register(author, 'Автор схемы A');
-    await register(reader, 'Автор схемы B');
-    const headers = { origin: new URL(author.url()).origin };
-    const created = await author.request.post('/api/projects', {
-      headers: { ...headers, 'idempotency-key': randomUUID() },
-      data: { scope: 'personal', module: 'electronics', title: `Packaged circuit ${randomUUID()}` },
+for (const seat of [false, true]) {
+  test(`${seat ? 'StudentSeat' : 'Account B'} copies packaged Electronics V1, changes resistance in editor and cookies-only reopens exact saved circuit`, async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const admin = e2eAdminPool();
+    const a = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const b = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    const author = await a.newPage();
+    const reader = await b.newPage();
+    const failures = collectBrowserFailures(reader, {
+      allowAnonymousSessionProbe: true,
+      allowAdminAccessProbe: true,
     });
-    expect(created.status()).toBe(201);
-    const id = (await created.json()).project.id as string;
-    sourceId = id;
-    const v1 = await save(author, id, electronicsCircuit(220), 1);
-    expect(v1.document).toEqual(electronicsCircuit(220));
-    expect(
-      (
-        await author.request.put(`/api/projects/${id}/snapshot`, {
-          headers,
-          data: { sourceRevision: v1.revision, imageDataUrl: snapshotFixture() },
-        })
-      ).status(),
-    ).toBe(200);
-    const published = await author.request.post(`/api/projects/${id}/publication`, {
-      headers,
-      data: { license: 'public-domain' },
-    });
-    expect(published.status()).toBe(200);
-    const publication = (await published.json()).publication;
-    await save(author, id, electronicsCircuit(470), v1.revision);
-    const before = await opened(author, id);
-    expect(before.draft.document).toEqual(electronicsCircuit(470));
-    const immutable = async () =>
-      (
-        await admin.query(
-          `SELECT to_jsonb(r) revision,to_jsonb(v) version
+    let sourceId: string | undefined;
+    try {
+      mkdirSync(EVIDENCE, { recursive: true });
+      const metadata = JSON.parse(readFileSync('apps/web/dist/build-metadata.json', 'utf8'));
+      expect(metadata.revision).toBe(process.env.ASA_BUILD_REVISION);
+      writeFileSync(
+        `${EVIDENCE}/${seat ? 'seat-' : ''}electronics-build.json`,
+        JSON.stringify(metadata, null, 2),
+        'utf8',
+      );
+      await register(author, 'Автор схемы A');
+      if (seat) await registerAllowedSeat(browser, reader);
+      else await register(reader, 'Автор схемы B');
+      const headers = { origin: new URL(author.url()).origin };
+      const created = await author.request.post('/api/projects', {
+        headers: { ...headers, 'idempotency-key': randomUUID() },
+        data: {
+          scope: 'personal',
+          module: 'electronics',
+          title: `Packaged circuit ${randomUUID()}`,
+        },
+      });
+      expect(created.status()).toBe(201);
+      const id = (await created.json()).project.id as string;
+      sourceId = id;
+      const v1 = await save(author, id, electronicsCircuit(220), 1);
+      expect(v1.document).toEqual(electronicsCircuit(220));
+      expect(
+        (
+          await author.request.put(`/api/projects/${id}/snapshot`, {
+            headers,
+            data: { sourceRevision: v1.revision, imageDataUrl: snapshotFixture() },
+          })
+        ).status(),
+      ).toBe(200);
+      const published = await author.request.post(`/api/projects/${id}/publication`, {
+        headers,
+        data: { license: 'public-domain' },
+      });
+      expect(published.status()).toBe(200);
+      const publication = (await published.json()).publication;
+      await admin.query(
+        'UPDATE publication_acquisition_settings SET enabled=true WHERE singleton_key',
+      );
+      const consent = await author.request.post(`/api/projects/${id}/publication/acquisition`, {
+        headers,
+        data: { allowed: true, expectedVersion: 0, expectedRevisionId: publication.revisionId },
+      });
+      expect(consent.status()).toBe(200);
+      await save(author, id, electronicsCircuit(470), v1.revision);
+      const before = await opened(author, id);
+      expect(before.draft.document).toEqual(electronicsCircuit(470));
+      const immutable = async () =>
+        (
+          await admin.query(
+            `SELECT to_jsonb(r) revision,to_jsonb(v) version
       FROM project_publication_revisions r JOIN project_versions v ON v.id=r.project_version_id
       WHERE r.project_id=$1 ORDER BY r.revision_no`,
-          [id],
+            [id],
+          )
+        ).rows;
+      const immutableBefore = await immutable();
+      await reader.goto(`/#/public-projects/${publication.publicationId}`);
+      const detailResponse = await reader.request.get(
+        `/api/public-projects/${publication.publicationId}`,
+      );
+      expect(detailResponse.status()).toBe(200);
+      const publicDetail = (await detailResponse.json()).publication;
+      const requests: string[] = [];
+      reader.on('request', (request) => {
+        if (
+          request.method() === 'POST' &&
+          new URL(request.url()).pathname.endsWith(`/${publication.publicationId}/copy`)
         )
-      ).rows;
-    const immutableBefore = await immutable();
-    await reader.goto(`/#/public-projects/${publication.publicationId}`);
-    const detailResponse = await reader.request.get(
-      `/api/public-projects/${publication.publicationId}`,
-    );
-    expect(detailResponse.status()).toBe(200);
-    const publicDetail = (await detailResponse.json()).publication;
-    const requests: string[] = [];
-    reader.on('request', (request) => {
-      if (
-        request.method() === 'POST' &&
-        new URL(request.url()).pathname.endsWith(`/${publication.publicationId}/copy`)
-      )
-        requests.push(request.postData() ?? '');
-    });
-    const copiedResponse = reader.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' &&
-        new URL(response.url()).pathname.endsWith(`/${publication.publicationId}/copy`),
-    );
-    await reader.getByRole('button', { name: 'Создать свою копию', exact: true }).click();
-    const copied = await copiedResponse;
-    expect([200, 201]).toContain(copied.status());
-    const target = await copied.json();
-    expect(target).toMatchObject({ moduleKey: 'electronics', created: true });
-    expect(target.projectId).not.toBe(id);
-    const openAction = reader.getByRole('link', { name: 'Открыть мою копию', exact: true });
-    await expect(openAction).toBeVisible();
-    await openAction.click();
-    await expect(reader).toHaveURL(
-      new RegExp(`/projects/${target.projectId}/electronics/edit(?:[?]|$)`),
-    );
-    await expect(reader.locator('.workbench-stage')).toBeVisible();
-    await expect(reader.getByTestId('schematic-component')).toHaveCount(3);
-    expect((await opened(reader, target.projectId)).draft.document).toEqual(v1.document);
-    const resistor = reader.locator(
-      '[data-testid="schematic-component"][data-component-type="resistor-axial"] .workbench-part',
-    );
-    await resistor.press('Enter');
-    const resistance = reader
-      .locator('.workbench-inspector label')
-      .filter({ hasText: 'Сопротивление' })
-      .locator('input[type="number"]');
-    await expect(resistance).toHaveValue('220');
-    await reader.screenshot({ path: `${EVIDENCE}/electronics-copied-v1.png`, fullPage: true });
-    const intended = {
-      ...v1.document,
-      components: v1.document.components.map((part: { id: string }) =>
-        part.id === 'resistor' ? { ...part, value: 330 } : part,
-      ),
-    };
-    const savedResponse = reader.waitForResponse(
-      (response) =>
-        response.request().method() === 'PUT' &&
-        new URL(response.url()).pathname === `/api/projects/${target.projectId}/draft`,
-    );
-    await resistance.fill('330');
-    await reader.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-    const saved = await savedResponse;
-    expect(saved.status()).toBe(200);
-    expect(saved.request().postDataJSON().document).toEqual(intended);
-    expect((await saved.json()).draft.document).toEqual(intended);
-    await expect(reader.locator('.workbench-main')).toHaveAttribute(
-      'data-project-save-status',
-      'saved',
-    );
-    expect((await opened(reader, target.projectId)).draft.document).toEqual(intended);
-    const reopenedContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-    try {
-      await reopenedContext.addCookies(await b.cookies());
-      const reopened = await reopenedContext.newPage();
-      const reopenFailures = collectBrowserFailures(reopened, { allowAdminAccessProbe: true });
-      await reopened.goto(reader.url());
-      await expect(reopened.locator('.workbench-stage')).toBeVisible();
-      await expect(reopened.getByTestId('schematic-component')).toHaveCount(3);
-      expect((await opened(reopened, target.projectId)).draft.document).toEqual(intended);
-      await reopened
-        .locator(
-          '[data-testid="schematic-component"][data-component-type="resistor-axial"] .workbench-part',
-        )
-        .press('Enter');
-      await expect(
-        reopened
-          .locator('.workbench-inspector label')
-          .filter({ hasText: 'Сопротивление' })
-          .locator('input[type="number"]'),
-      ).toHaveValue('330');
-      await reopened.screenshot({
-        path: `${EVIDENCE}/electronics-reopened-330.png`,
+          requests.push(request.postData() ?? '');
+      });
+      const copiedResponse = reader.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname.endsWith(`/${publication.publicationId}/copy`),
+      );
+      await reader.getByRole('button', { name: 'Добавить в мои проекты', exact: true }).click();
+      const copied = await copiedResponse;
+      expect([200, 201]).toContain(copied.status());
+      const target = await copied.json();
+      expect(target).toMatchObject({ moduleKey: 'electronics', created: true });
+      expect(target.projectId).not.toBe(id);
+      const openAction = reader.getByRole('link', { name: 'Открыть мою копию', exact: true });
+      await expect(openAction).toBeVisible();
+      await openAction.click();
+      await expect(reader).toHaveURL(
+        new RegExp(`/projects/${target.projectId}/electronics/edit(?:[?]|$)`),
+      );
+      await expect(reader.locator('.workbench-stage')).toBeVisible();
+      await expect(reader.getByTestId('schematic-component')).toHaveCount(3);
+      expect((await opened(reader, target.projectId)).draft.document).toEqual(v1.document);
+      const resistor = reader.locator(
+        '[data-testid="schematic-component"][data-component-type="resistor-axial"] .workbench-part',
+      );
+      await resistor.press('Enter');
+      const resistance = reader
+        .locator('.workbench-inspector label')
+        .filter({ hasText: 'Сопротивление' })
+        .locator('input[type="number"]');
+      await expect(resistance).toHaveValue('220');
+      await reader.screenshot({
+        path: `${EVIDENCE}/${seat ? 'seat-' : ''}electronics-copied-v1.png`,
         fullPage: true,
       });
-      reopenFailures.assertEmpty();
-    } finally {
-      await reopenedContext.close();
-    }
-    expect(requests).toHaveLength(1);
-    expect((await opened(author, id)).draft).toEqual(before.draft);
-    expect(await immutable()).toEqual(immutableBefore);
-    await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
-    const lineage = await admin.query(
-      `SELECT copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license
-         FROM projects WHERE id=$1`,
-      [target.projectId],
-    );
-    expect(lineage.rows[0]).toMatchObject({
-      copied_from_publication_id: publication.publicationId,
-      copied_from_revision_id: publication.revisionId,
-      copied_from_version_id: immutableBefore[0].version.id,
-      copied_from_license: 'public-domain',
-    });
-    failures.assertEmpty();
-  } finally {
-    if (sourceId)
-      await admin.query(
-        `UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE project_id=$1 AND state IN ('public','unlisted')`,
-        [sourceId],
+      const intended = {
+        ...v1.document,
+        components: v1.document.components.map((part: { id: string }) =>
+          part.id === 'resistor' ? { ...part, value: 330 } : part,
+        ),
+      };
+      const savedResponse = reader.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          new URL(response.url()).pathname === `/api/projects/${target.projectId}/draft`,
       );
-    await a.close();
-    await b.close();
-    await admin.end();
-  }
-});
+      await resistance.fill('330');
+      await reader.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+      const saved = await savedResponse;
+      expect(saved.status()).toBe(200);
+      expect(saved.request().postDataJSON().document).toEqual(intended);
+      expect((await saved.json()).draft.document).toEqual(intended);
+      await expect(reader.locator('.workbench-main')).toHaveAttribute(
+        'data-project-save-status',
+        'saved',
+      );
+      expect((await opened(reader, target.projectId)).draft.document).toEqual(intended);
+      const reopenedContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+      try {
+        await reopenedContext.addCookies(await b.cookies());
+        const reopened = await reopenedContext.newPage();
+        const reopenFailures = collectBrowserFailures(reopened, { allowAdminAccessProbe: true });
+        await reopened.goto(reader.url());
+        await expect(reopened.locator('.workbench-stage')).toBeVisible();
+        await expect(reopened.getByTestId('schematic-component')).toHaveCount(3);
+        expect((await opened(reopened, target.projectId)).draft.document).toEqual(intended);
+        await reopened
+          .locator(
+            '[data-testid="schematic-component"][data-component-type="resistor-axial"] .workbench-part',
+          )
+          .press('Enter');
+        await expect(
+          reopened
+            .locator('.workbench-inspector label')
+            .filter({ hasText: 'Сопротивление' })
+            .locator('input[type="number"]'),
+        ).toHaveValue('330');
+        await reopened.screenshot({
+          path: `${EVIDENCE}/${seat ? 'seat-' : ''}electronics-reopened-330.png`,
+          fullPage: true,
+        });
+        reopenFailures.assertEmpty();
+      } finally {
+        await reopenedContext.close();
+      }
+      expect(requests).toHaveLength(1);
+      expect((await opened(author, id)).draft).toEqual(before.draft);
+      expect(await immutable()).toEqual(immutableBefore);
+      await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
+      const lineage = await admin.query(
+        `SELECT copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license
+         FROM projects WHERE id=$1`,
+        [target.projectId],
+      );
+      expect(lineage.rows[0]).toMatchObject({
+        copied_from_publication_id: publication.publicationId,
+        copied_from_revision_id: publication.revisionId,
+        copied_from_version_id: immutableBefore[0].version.id,
+        copied_from_license: 'public-domain',
+      });
+      failures.assertEmpty();
+    } finally {
+      if (sourceId)
+        await admin.query(
+          `UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE project_id=$1 AND state IN ('public','unlisted')`,
+          [sourceId],
+        );
+      await a.close();
+      await b.close();
+      await admin.end();
+    }
+  });
+}
 
 async function assertPrivateCopy(
   admin: pg.Pool,
@@ -587,5 +637,47 @@ async function expectPrimitiveRender(page: Page, expectedNodeIds: readonly strin
   for (const handle of handles.handles) {
     expect(Number.isFinite(handle.x)).toBe(true);
     expect(Number.isFinite(handle.y)).toBe(true);
+  }
+}
+
+async function registerAllowedSeat(browser: Browser, learner: Page) {
+  const context = await browser.newContext();
+  const teacher = await context.newPage();
+  try {
+    await register(teacher, 'Учитель получателя');
+    const headers = { origin: new URL(teacher.url()).origin };
+    expect(
+      (
+        await teacher.request.post('/api/capabilities/educator/self-attest', { headers, data: {} })
+      ).status(),
+    ).toBe(201);
+    const classroom = await teacher.request.post('/api/classrooms', {
+      headers: { ...headers, 'idempotency-key': randomUUID() },
+      data: { title: 'Получение копий', ageBand: 'mixed', topicKeys: [], safeModeDefault: true },
+    });
+    expect(classroom.status()).toBe(201);
+    const id = (await classroom.json()).classroom.id;
+    const detail = await teacher.request.get(`/api/classrooms/${id}`);
+    const classCode = (await detail.json()).classroom.joinCode;
+    const created = await teacher.request.post(`/api/classrooms/${id}/seats`, {
+      headers,
+      data: { displayLabel: 'Ученик получатель', safeMode: true },
+    });
+    expect(created.status()).toBe(201);
+    const student = (await created.json()).student;
+    const policy = await teacher.request.put(`/api/project-distribution/classrooms/${id}/policy`, {
+      headers,
+      data: { publish: false, download: true, expectedVersion: 0 },
+    });
+    expect(policy.status()).toBe(200);
+    await learner.goto('/#/explore');
+    const joined = await learner.request.post('/api/class-join/studentseat', {
+      headers,
+      data: { code: classCode, studentCode: student.studentCode },
+    });
+    expect(joined.status()).toBe(200);
+    await learner.reload();
+  } finally {
+    await context.close();
   }
 }

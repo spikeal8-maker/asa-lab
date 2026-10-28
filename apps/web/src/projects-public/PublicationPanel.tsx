@@ -24,7 +24,7 @@ export function PublicationPanel({
 }): JSX.Element {
   const [status, setStatus] = useState<ProjectPublicationStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState<'publish' | 'revoke' | null>(null);
+  const [busy, setBusy] = useState<'publish' | 'revoke' | 'consent' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
@@ -103,6 +103,49 @@ export function PublicationPanel({
     );
   }
 
+  async function consent(allowed: boolean): Promise<void> {
+    if (inFlight.current || disabled || loading || !status?.publication || !status.acquisition)
+      return;
+    inFlight.current = true;
+    const current = ++request.current;
+    setBusy('consent');
+    onBusyChange(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await publicProjectsApi.setAcquisition(
+        projectId,
+        allowed,
+        status.acquisition.version,
+        status.publication.revisionId,
+      );
+      if (current !== request.current) return;
+      if (!result.ok) {
+        setError(
+          result.status === 409
+            ? 'Разрешение или публикация изменились. Проверьте состояние.'
+            : publicationError(result, 'Не удалось изменить разрешение.'),
+        );
+        return;
+      }
+      setStatus(result.data);
+      setNotice(
+        allowed
+          ? 'Получение разрешено автором. Общие ограничения платформы и класса продолжают действовать.'
+          : 'Получение новых копий запрещено.',
+      );
+    } catch {
+      if (current === request.current)
+        setError('Не удалось подтвердить разрешение. Проверьте состояние.');
+    } finally {
+      inFlight.current = false;
+      if (current === request.current) {
+        setBusy(null);
+        onBusyChange(false);
+      }
+    }
+  }
+
   const publication = status?.publication;
   const live = publication?.state === 'public';
   const publicAccess = live && Boolean(publication.publicPath);
@@ -166,6 +209,23 @@ export function PublicationPanel({
             <p className="publication-permission" data-testid="publication-permission">
               {reason}
             </p>
+          ) : null}
+          {publication && status.acquisition ? (
+            <label className="publication-permission">
+              <input
+                type="checkbox"
+                checked={status.acquisition.allowed}
+                disabled={blocked}
+                onChange={(event) => void consent(event.currentTarget.checked)}
+              />
+              Разрешить получение проекта
+              <small>
+                {' '}
+                Для поддерживаемых типов и лицензий другие пользователи смогут добавить
+                опубликованную версию в свои проекты с разрешения платформы и класса. Личный
+                черновик останется приватным.
+              </small>
+            </label>
           ) : null}
           <div className="publication-panel-actions">
             <button
