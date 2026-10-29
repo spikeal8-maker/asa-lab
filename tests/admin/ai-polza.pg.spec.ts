@@ -70,14 +70,12 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     if (admin && owner) {
-      await admin.query(
-        'DELETE FROM public.ai_polza_stt_attempts WHERE owner_principal_id=$1',
-        [owner.principal_id],
-      );
-      await admin.query(
-        'DELETE FROM public.ai_polza_daily_usage WHERE owner_principal_id=$1',
-        [owner.principal_id],
-      );
+      await admin.query('DELETE FROM public.ai_polza_stt_attempts WHERE owner_principal_id=$1', [
+        owner.principal_id,
+      ]);
+      await admin.query('DELETE FROM public.ai_polza_daily_usage WHERE owner_principal_id=$1', [
+        owner.principal_id,
+      ]);
     }
     if (admin && original) {
       await admin.query(
@@ -87,11 +85,17 @@ afterAll(async () => {
          api_key_ciphertext=$7, api_key_iv=$8, api_key_auth_tag=$9,
          key_fingerprint=$10, updated_at=$11 WHERE singleton_key`,
         [
-          original['enabled'], original['transcription_enabled'],
-          original['daily_seconds_limit'], original['global_daily_seconds_limit'],
-          original['max_audio_seconds'], original['revision'],
-          original['api_key_ciphertext'], original['api_key_iv'],
-          original['api_key_auth_tag'], original['key_fingerprint'], original['updated_at'],
+          original['enabled'],
+          original['transcription_enabled'],
+          original['daily_seconds_limit'],
+          original['global_daily_seconds_limit'],
+          original['max_audio_seconds'],
+          original['revision'],
+          original['api_key_ciphertext'],
+          original['api_key_iv'],
+          original['api_key_auth_tag'],
+          original['key_fingerprint'],
+          original['updated_at'],
         ],
       );
     }
@@ -121,19 +125,21 @@ it('isolates the encrypted key and rejects non-admin and direct runtime table re
 it('enforces global speech budget atomically across real PostgreSQL connections', async () => {
   const attempts = await Promise.allSettled(
     Array.from({ length: 22 }, (_, i) =>
-      (i % 2 ? first : second).query(
-        'SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid)',
-        [owner.principal_id, randomUUID()],
-      ),
+      (i % 2 ? first : second).query('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid)', [
+        owner.principal_id,
+        randomUUID(),
+      ]),
     ),
   );
   const admitted = attempts.filter((item) => item.status === 'fulfilled');
   const denied = attempts.filter((item) => item.status === 'rejected');
   expect(admitted).toHaveLength(20);
   expect(denied).toHaveLength(2);
-  expect(denied.every((item) =>
-    item.status === 'rejected' && item.reason.message.includes('AI_STT_DAILY_LIMIT'),
-  )).toBe(true);
+  expect(
+    denied.every(
+      (item) => item.status === 'rejected' && item.reason.message.includes('AI_STT_DAILY_LIMIT'),
+    ),
+  ).toBe(true);
   const usage = await admin.query<{ reserved_seconds: number }>(
     'SELECT reserved_seconds FROM public.ai_polza_daily_usage WHERE owner_principal_id=$1',
     [owner.principal_id],
