@@ -121,15 +121,24 @@ async function imageFixture(page: Page) {
         revision: 1,
         updatedAt: null,
       });
+    if (path === '/api/admin/v1/ai/comfyui/settings')
+      return json({
+        configurationVersion: 2,
+        baseUrl: 'http://192.168.1.112:8188',
+        source: 'saved',
+      });
     if (path === '/api/admin/v1/ai/comfyui/status')
       return json({
         connected: true,
-        baseUrl: 'http://127.0.0.1:8188',
-        version: '0.42.1',
+        baseUrl: 'http://192.168.1.112:8188',
+        version: '0.19.3',
         diffusionModels: ['flux-2-klein-4b-fp8.safetensors'],
         textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
         vaeModels: ['flux2-vae.safetensors'],
         fluxKlein4bFound: true,
+        recipe: 'flux2-klein-4b-v1',
+        recipeReady: true,
+        recipeReason: null,
         checkedAt: '2026-10-26T09:00:00Z',
       });
     if (path === '/api/admin/v1/ai/generation-policy') {
@@ -272,6 +281,48 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+test('admin image workbench keeps GPU settings compact and creates only one explicit preview', async ({
+  page,
+}) => {
+  const fixture = await imageFixture(page);
+  await page.goto('/#/admin/ai?section=comfyui');
+
+  const local = page.getByRole('tab', { name: 'Локальный ComfyUI' });
+  const api = page.getByRole('tab', { name: 'API-провайдеры' });
+  await expect(local).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Пробная генерация' })).toBeVisible();
+  await expect(page.getByText('RTX 3060', { exact: false })).toBeVisible();
+
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 850 });
+    await expect(page.getByRole('heading', { name: 'Локальная генерация' })).toBeVisible();
+    const collapsed = page.locator('.asa-image-connection-detail');
+    await expect(collapsed).toHaveCount(2);
+    expect(await collapsed.evaluateAll((elements) => elements.every((el) => !el.hasAttribute('open'))))
+      .toBe(true);
+    await noOverflow(page);
+  }
+
+  await api.click();
+  await expect(api).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Polza AI' })).toBeVisible();
+  await expect(page.getByText('Не подключён')).toBeVisible();
+  expect(fixture.imagePosts).toHaveLength(0);
+
+  await local.click();
+  await page.getByRole('textbox', { name: 'Описание тестового изображения' }).fill(
+    'Школьный робот на светлом фоне',
+  );
+  await page.getByRole('button', { name: 'Создать тестовое изображение' }).click();
+  await expect.poll(() => fixture.imagePosts.length).toBe(1);
+  expect(fixture.imagePosts[0]).toMatchObject({ prompt: 'Школьный робот на светлом фоне', size: 1024 });
+  fixture.complete();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
+    timeout: 18000,
+  });
+  await noOverflow(page);
+});
+
 test('image intent is a removable token in the same input and preserves the draft', async ({
   page,
 }) => {
