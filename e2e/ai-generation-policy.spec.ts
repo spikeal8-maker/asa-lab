@@ -212,6 +212,8 @@ for (const width of [1440, 1024, 390, 320]) {
       'Системный промпт',
       'Интернет-поиск',
       'Изображения',
+      'Видео',
+      'Транскрибация',
     ]);
     await page.getByRole('tab', { name: 'Системный промпт', exact: true }).click();
     const guideLink = page.getByRole('button', {
@@ -379,14 +381,14 @@ test('AI section tabs support arrow, Home and End keyboard navigation', async ({
   const connections = page.getByRole('tab', { name: 'Подключения', exact: true });
   await connections.focus();
   await connections.press('End');
-  const images = page.getByRole('tab', { name: 'Изображения', exact: true });
-  await expect(images).toBeFocused();
-  await expect(images).toHaveAttribute('aria-selected', 'true');
-  await images.press('ArrowLeft');
-  const internet = page.getByRole('tab', { name: 'Интернет-поиск', exact: true });
-  await expect(internet).toBeFocused();
-  await expect(internet).toHaveAttribute('aria-selected', 'true');
-  await internet.press('Home');
+  const transcription = page.getByRole('tab', { name: 'Транскрибация', exact: true });
+  await expect(transcription).toBeFocused();
+  await expect(transcription).toHaveAttribute('aria-selected', 'true');
+  await transcription.press('ArrowLeft');
+  const video = page.getByRole('tab', { name: 'Видео', exact: true });
+  await expect(video).toBeFocused();
+  await expect(video).toHaveAttribute('aria-selected', 'true');
+  await video.press('Home');
   const overview = page.getByRole('tab', { name: 'Обзор', exact: true });
   await expect(overview).toBeFocused();
   await expect(overview).toHaveAttribute('aria-selected', 'true');
