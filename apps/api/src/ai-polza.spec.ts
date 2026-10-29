@@ -259,5 +259,4 @@ describe('STT admission and request isolation', () => {
     await Promise.all([first, second]);
     expect(admitted).toHaveLength(2);
   });
-
 });

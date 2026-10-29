@@ -105,8 +105,7 @@ async function adminFixture(page: Page) {
           paidOperationsPerHour: 5,
         }),
       );
-    if (path === '/api/admin/v1/ai/polza' && request.method() === 'GET')
-      return json(polza);
+    if (path === '/api/admin/v1/ai/polza' && request.method() === 'GET') return json(polza);
     if (path === '/api/admin/v1/ai/polza' && request.method() === 'PUT') {
       const input = request.postDataJSON() as Record<string, unknown>;
       polzaWrites.push(input);
@@ -437,7 +436,6 @@ test('AI section tabs support arrow, Home and End keyboard navigation', async ({
   await expect(overview).toBeFocused();
   await expect(overview).toHaveAttribute('aria-selected', 'true');
 });
-
 
 test('Polza admin connection and transcription stay compact on desktop and mobile', async ({
   page,

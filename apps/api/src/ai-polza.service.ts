@@ -320,8 +320,7 @@ export class AiPolzaService {
   }
 
   private async acquire(signal?: AbortSignal): Promise<() => void> {
-    const cancelled = () =>
-      new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+    const cancelled = () => new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
     if (signal?.aborted) throw cancelled();
     const release = () => {
       // Transfer the occupied slot directly to the next waiter; never admit a third
@@ -365,7 +364,11 @@ export class AiPolzaService {
     return release;
   }
 
-  async transcribe(owner: string, raw: unknown, signal?: AbortSignal): Promise<{ text: string; model: string }> {
+  async transcribe(
+    owner: string,
+    raw: unknown,
+    signal?: AbortSignal,
+  ): Promise<{ text: string; model: string }> {
     const state = await this.runtime();
     if (!state.enabled || !state.transcription_enabled || !state.api_key_ciphertext)
       throw new AiPolzaError('ai_stt_disabled', 503, 'Голосовой ввод пока не настроен.');
@@ -403,7 +406,9 @@ export class AiPolzaService {
           headers: { authorization: 'Bearer ' + key },
           body,
           redirect: 'error',
-          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(35000)]) : AbortSignal.timeout(35000),
+          signal: signal
+            ? AbortSignal.any([signal, AbortSignal.timeout(35000)])
+            : AbortSignal.timeout(35000),
         });
       } catch {
         throw new AiPolzaError(
