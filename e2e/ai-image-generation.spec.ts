@@ -1,4 +1,4 @@
-import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
+import { AI_IMAGE_PRESETS } from '../packages/contracts/src/ai-image-generation';
 import { expect, test, type Page } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
