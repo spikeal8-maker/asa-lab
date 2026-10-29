@@ -123,12 +123,13 @@ it('isolates the encrypted key and rejects non-admin and direct runtime table re
 });
 
 it('enforces global speech budget atomically across real PostgreSQL connections', async () => {
+  const revision = (await service.admin(platform.principal_id)).configurationVersion;
   const attempts = await Promise.allSettled(
     Array.from({ length: 22 }, (_, i) =>
-      (i % 2 ? first : second).query('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid)', [
-        owner.principal_id,
-        randomUUID(),
-      ]),
+      (i % 2 ? first : second).query(
+        'SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid,$3::bigint)',
+        [owner.principal_id, randomUUID(), revision],
+      ),
     ),
   );
   const admitted = attempts.filter((item) => item.status === 'fulfilled');
@@ -145,6 +146,32 @@ it('enforces global speech budget atomically across real PostgreSQL connections'
     [owner.principal_id],
   );
   expect(usage.rows[0]?.reserved_seconds).toBe(600);
+});
+
+it('fails closed if the administrator changes duration settings between validation and reservation', async () => {
+  const previous = await service.admin(platform.principal_id);
+  const baseline = (await admin.query<{ seconds: number }>(
+    'SELECT COALESCE(SUM(reserved_seconds),0)::integer AS seconds FROM public.ai_polza_daily_usage',
+  )).rows[0]!.seconds;
+
+  const latest = await service.save(platform.principal_id, {
+    configurationVersion: previous.configurationVersion,
+    enabled: true,
+    transcriptionEnabled: true,
+    dailySecondsLimit: 3600,
+    globalDailySecondsLimit: 600,
+    maxAudioSeconds: 5,
+  });
+  expect(latest.configurationVersion).toBeGreaterThan(previous.configurationVersion);
+  await expect(
+    second.query('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid,$3::bigint)', [
+      owner.principal_id, randomUUID(), previous.configurationVersion,
+    ]),
+  ).rejects.toThrow(/AI_CONFIG_CHANGED/);
+  const after = (await admin.query<{ seconds: number }>(
+    'SELECT COALESCE(SUM(reserved_seconds),0)::integer AS seconds FROM public.ai_polza_daily_usage',
+  )).rows[0]!.seconds;
+  expect(after).toBe(baseline);
 });
 
 it('prevents paid replay and retains one API call on uncertain duplicate UUID', async () => {

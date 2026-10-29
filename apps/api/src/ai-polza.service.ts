@@ -475,10 +475,10 @@ export class AiPolzaService {
       // A corrupt/restored key must fail before quota is consumed.
       const key = this.decrypt(state);
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.
-      await this.sqlValue<number>('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid) AS value', [
-        owner,
-        audio.requestId,
-      ]);
+      await this.sqlValue<number>(
+        'SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid,$3::bigint) AS value',
+        [owner, audio.requestId, state.revision],
+      );
       if (signal?.aborted)
         throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
       const extension =

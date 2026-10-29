@@ -161,6 +161,31 @@ describe('STT admission and request isolation', () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 
+  it('does not dispatch a queued request if an administrator changed the config revision', async () => {
+    const { pool, query } = fakePool((sql, values) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      if (sql.includes('ai_polza_stt_admit')) {
+        expect(values[2]).toBe(1);
+        throw new Error('AI_CONFIG_CHANGED');
+      }
+      throw new Error('Unexpected SQL');
+    });
+    const upstream = vi.fn();
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: upstream as typeof fetch,
+      inspectDuration: async () => 5,
+    });
+    await expect(service.transcribe(actor, {
+      requestId: randomUUID(),
+      audioBase64: sampleAudio,
+      mimeType: 'audio/webm',
+      durationSeconds: 5,
+    })).rejects.toMatchObject({ code: 'ai_polza_conflict', status: 409 });
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
   it('rejects a forged short-duration claim before quota or network dispatch', async () => {
     const source = runtime();
     const { pool, query } = fakePool((sql) => {

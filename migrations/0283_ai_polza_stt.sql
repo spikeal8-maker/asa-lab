@@ -151,7 +151,7 @@ $$;
 REVOKE ALL ON FUNCTION public.ai_polza_runtime() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ai_polza_runtime() TO asalab_app;
 
-CREATE FUNCTION public.ai_polza_stt_admit(p_owner uuid, p_request uuid)
+CREATE FUNCTION public.ai_polza_stt_admit(p_owner uuid, p_request uuid, p_expected_revision bigint)
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
   cfg public.ai_polza_settings%ROWTYPE;
@@ -163,6 +163,11 @@ BEGIN
   END IF;
   -- Exclusive lock serializes the global daily budget across all app replicas.
   SELECT * INTO STRICT cfg FROM public.ai_polza_settings WHERE singleton_key FOR UPDATE;
+  -- Bind duration validation and reserved budget to the exact runtime settings
+  -- inspected before queueing. A concurrent admin change must not undercharge STT.
+  IF cfg.revision IS DISTINCT FROM p_expected_revision THEN
+    RAISE EXCEPTION 'AI_CONFIG_CHANGED' USING ERRCODE = '40001';
+  END IF;
   IF NOT cfg.enabled OR NOT cfg.transcription_enabled OR cfg.api_key_ciphertext IS NULL THEN
     RAISE EXCEPTION 'AI_STT_DISABLED' USING ERRCODE = '55000';
   END IF;
@@ -189,5 +194,5 @@ BEGIN
   RETURN cfg.max_audio_seconds;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.ai_polza_stt_admit(uuid,uuid) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.ai_polza_stt_admit(uuid,uuid) TO asalab_app;
+REVOKE ALL ON FUNCTION public.ai_polza_stt_admit(uuid,uuid,bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ai_polza_stt_admit(uuid,uuid,bigint) TO asalab_app;

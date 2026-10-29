@@ -1,0 +1,34 @@
+name: One-time PR853 P2 formatting
+on:
+  push:
+    branches:
+      - feature/asa-polza-transcription-admin-20261029
+    paths:
+      - .github/workflows/pr853-p2-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format only P2 touched files
+        run: pnpm exec prettier --write apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.spec.ts apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/ai-voice-input.spec.tsx tests/admin/ai-polza.pg.spec.ts tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+      - name: Publish exact formatting to same PR
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.spec.ts apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/ai-voice-input.spec.tsx tests/admin/ai-polza.pg.spec.ts tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+          if ! git diff --cached --quiet; then
+            git commit -m 'style(ai-polza): canonical P2 formatting'
+            git push origin 'HEAD:refs/heads/feature/asa-polza-transcription-admin-20261029'
+          fi

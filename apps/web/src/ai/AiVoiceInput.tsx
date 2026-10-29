@@ -13,7 +13,7 @@ interface Transcript {
   readonly model: string;
 }
 type ScopedCall = <T>(path: string, init?: RequestInit) => Promise<ApiResult<T>>;
-type RecordingMode = 'idle' | 'confirm' | 'recording' | 'transcribing';
+type RecordingMode = 'idle' | 'confirm' | 'acquiring' | 'recording' | 'transcribing';
 
 function selectMime(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -41,6 +41,8 @@ export function AiVoiceInput({
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
+  const acquisitionSerial = useRef(0);
+  const acquiring = useRef(false);
   const mounted = useRef(true);
   const microphoneButton = useRef<HTMLButtonElement>(null);
   const consentButton = useRef<HTMLButtonElement>(null);
@@ -62,10 +64,17 @@ export function AiVoiceInput({
       active = false;
       mounted.current = false;
       cancelled.current = true;
+      acquisitionSerial.current += 1;
+      acquiring.current = false;
       if (timeout.current) clearTimeout(timeout.current);
+      timeout.current = null;
       pending.current?.abort();
-      if (recorder.current?.state === 'recording') recorder.current.stop();
-      stream.current?.getTracks().forEach((track) => track.stop());
+      const currentRecorder = recorder.current;
+      const currentStream = stream.current;
+      recorder.current = null;
+      stream.current = null;
+      if (currentRecorder?.state === 'recording') currentRecorder.stop();
+      currentStream?.getTracks().forEach((track) => track.stop());
     };
   }, [call]);
 
@@ -73,14 +82,18 @@ export function AiVoiceInput({
   useEffect(() => {
     if (!disabled) return;
     cancelled.current = true;
+    acquisitionSerial.current += 1;
+    acquiring.current = false;
     pending.current?.abort();
     pending.current = null;
-    if (recorder.current?.state === 'recording') recorder.current.stop();
     if (timeout.current) clearTimeout(timeout.current);
     timeout.current = null;
-    stream.current?.getTracks().forEach((track) => track.stop());
-    stream.current = null;
+    const currentRecorder = recorder.current;
+    const currentStream = stream.current;
     recorder.current = null;
+    stream.current = null;
+    if (currentRecorder?.state === 'recording') currentRecorder.stop();
+    currentStream?.getTracks().forEach((track) => track.stop());
     setMode('idle');
     setMessage('');
   }, [disabled]);
@@ -95,27 +108,37 @@ export function AiVoiceInput({
     return () => clearInterval(clock);
   }, [mode]);
 
-  function cleanup() {
-    if (timeout.current) clearTimeout(timeout.current);
-    timeout.current = null;
-    stream.current?.getTracks().forEach((track) => track.stop());
-    stream.current = null;
-    recorder.current = null;
+  function releaseOwned(media: MediaRecorder, ownedStream: MediaStream, serial: number) {
+    ownedStream.getTracks().forEach((track) => track.stop());
+    if (recorder.current === media) recorder.current = null;
+    if (stream.current === ownedStream) stream.current = null;
+    if (serial === acquisitionSerial.current) {
+      if (timeout.current) clearTimeout(timeout.current);
+      timeout.current = null;
+    }
   }
 
   function cancel() {
     cancelled.current = true;
+    acquisitionSerial.current += 1;
+    acquiring.current = false;
     pending.current?.abort();
     pending.current = null;
-    if (recorder.current?.state === 'recording') recorder.current.stop();
-    cleanup();
+    if (timeout.current) clearTimeout(timeout.current);
+    timeout.current = null;
+    const currentRecorder = recorder.current;
+    const currentStream = stream.current;
+    recorder.current = null;
+    stream.current = null;
+    if (currentRecorder?.state === 'recording') currentRecorder.stop();
+    currentStream?.getTracks().forEach((track) => track.stop());
     setMode('idle');
     setSeconds(0);
     setMessage(mode === 'confirm' ? '' : 'Запись отменена');
     if (mode === 'confirm') microphoneButton.current?.focus();
   }
 
-  async function transcribe(blob: Blob, durationSeconds: number, mimeType: string) {
+  async function transcribe(blob: Blob, durationSeconds: number, mimeType: string, serial: number) {
     setMode('transcribing');
     if (!blob.size || blob.size > 512_000) {
       setMessage('Слишком большой аудиофайл. Запишите более короткий вопрос.');
@@ -137,7 +160,7 @@ export function AiVoiceInput({
       }
       return;
     }
-    if (cancelled.current || !mounted.current) return;
+    if (cancelled.current || !mounted.current || serial !== acquisitionSerial.current) return;
     const controller = new AbortController();
     pending.current = controller;
     const result = await call<Transcript>('/api/ai/stt/transcribe', {
@@ -150,7 +173,7 @@ export function AiVoiceInput({
         durationSeconds,
       }),
     });
-    if (!mounted.current || cancelled.current) return;
+    if (!mounted.current || cancelled.current || serial !== acquisitionSerial.current) return;
     pending.current = null;
     setMode('idle');
     if (result.ok && result.data.text) {
@@ -162,8 +185,20 @@ export function AiVoiceInput({
   }
 
   async function start() {
-    if (disabled || !status?.enabled || !navigator.mediaDevices?.getUserMedia) return;
+    if (
+      acquiring.current ||
+      mode !== 'confirm' ||
+      disabled ||
+      !status?.enabled ||
+      !navigator.mediaDevices?.getUserMedia
+    ) return;
+
+    // The guard must change synchronously, before getUserMedia can resolve.
+    // A state update alone would still allow a second click in the same tick.
+    acquiring.current = true;
+    const serial = ++acquisitionSerial.current;
     cancelled.current = false;
+    setMode('acquiring');
     setMessage('');
     let opened: MediaStream;
     try {
@@ -172,16 +207,26 @@ export function AiVoiceInput({
         video: false,
       });
     } catch {
-      if (mounted.current) setMessage('Нет доступа к микрофону. Проверьте разрешения браузера.');
+      if (serial === acquisitionSerial.current) {
+        acquiring.current = false;
+        if (mounted.current) {
+          setMode('idle');
+          setMessage('Нет доступа к микрофону. Проверьте разрешения браузера.');
+        }
+      }
       return;
     }
-    if (!mounted.current || cancelled.current) {
+    const stale = () =>
+      !mounted.current || cancelled.current || serial !== acquisitionSerial.current || disabled;
+    if (stale()) {
       opened.getTracks().forEach((track) => track.stop());
       return;
     }
     const mime = selectMime();
     if (!mime) {
       opened.getTracks().forEach((track) => track.stop());
+      acquiring.current = false;
+      setMode('idle');
       setMessage('Браузер не поддерживает запись для распознавания.');
       return;
     }
@@ -190,6 +235,8 @@ export function AiVoiceInput({
       media = new MediaRecorder(opened, { mimeType: mime, audioBitsPerSecond: 64_000 });
     } catch {
       opened.getTracks().forEach((track) => track.stop());
+      acquiring.current = false;
+      setMode('idle');
       setMessage('Не удалось начать запись.');
       return;
     }
@@ -199,30 +246,49 @@ export function AiVoiceInput({
       if (event.data.size) chunks.push(event.data);
     };
     media.onstop = () => {
+      const valid = serial === acquisitionSerial.current && !cancelled.current && mounted.current;
       const elapsed = Math.min(
         status.maxAudioSeconds,
         Math.max(0.1, (Date.now() - startAt) / 1000),
       );
       const blob = new Blob(chunks, { type: mime });
-      cleanup();
-      if (!cancelled.current && mounted.current)
-        void transcribe(blob, elapsed, mime.split(';')[0]!);
+      // Stop ONLY this recorder's own stream, never a newer recording's stream.
+      releaseOwned(media, opened, serial);
+      if (valid) void transcribe(blob, elapsed, mime.split(';')[0]!, serial);
     };
     media.onerror = () => {
-      cancelled.current = true;
-      cleanup();
-      if (mounted.current) {
+      const current = serial === acquisitionSerial.current && mounted.current;
+      if (current) cancelled.current = true;
+      if (media.state === 'recording') {
+        try {
+          media.stop();
+        } catch {
+          // Track shutdown below is authoritative, even if MediaRecorder failed.
+        }
+      }
+      releaseOwned(media, opened, serial);
+      if (current) {
+        acquiring.current = false;
         setMode('idle');
         setMessage('Ошибка записи микрофона.');
       }
     };
     stream.current = opened;
     recorder.current = media;
-    media.start(250);
+    try {
+      media.start(250);
+    } catch {
+      releaseOwned(media, opened, serial);
+      acquiring.current = false;
+      setMode('idle');
+      setMessage('Не удалось начать запись.');
+      return;
+    }
+    acquiring.current = false;
     setSeconds(0);
     setMode('recording');
     timeout.current = setTimeout(() => {
-      if (media.state === 'recording') media.stop();
+      if (serial === acquisitionSerial.current && media.state === 'recording') media.stop();
     }, status.maxAudioSeconds * 1000);
   }
 
@@ -243,7 +309,9 @@ export function AiVoiceInput({
       ? 'Остановить запись и распознать'
       : mode === 'confirm'
         ? 'Подтверждение записи'
-        : mode === 'transcribing'
+        : mode === 'acquiring'
+          ? 'Запрашиваем доступ к микрофону'
+          : mode === 'transcribing'
           ? 'Распознаём речь'
           : available
             ? 'Продиктовать сообщение'
@@ -262,7 +330,7 @@ export function AiVoiceInput({
         aria-label={label}
         aria-pressed={mode === 'recording'}
         title={label}
-        disabled={mode === 'transcribing' || (mode === 'idle' && (!available || disabled))}
+        disabled={mode === 'transcribing' || mode === 'acquiring' || (mode === 'idle' && (!available || disabled))}
         onClick={() => {
           if (mode === 'recording') stop();
           else if (mode === 'confirm') cancel();
@@ -299,7 +367,9 @@ export function AiVoiceInput({
               ? 'Запись будет отправлена в Polza AI для распознавания. ASA Lab не сохраняет аудио.'
               : mode === 'recording'
                 ? 'Запись ' + seconds + ' / ' + status?.maxAudioSeconds + ' сек'
-                : mode === 'transcribing'
+                : mode === 'acquiring'
+                  ? 'Ожидаем разрешения браузера на микрофон…'
+                  : mode === 'transcribing'
                   ? 'Распознаём речь…'
                   : message}
           </span>

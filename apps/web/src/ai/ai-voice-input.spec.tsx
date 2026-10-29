@@ -127,6 +127,58 @@ it('Escape dismisses the external audio transfer consent without microphone acce
   expect(document.activeElement).toBe(button('Продиктовать сообщение'));
 });
 
+it('serializes double consent clicks and stops a late microphone stream after cancel', async () => {
+  let resolvePermission!: (value: MediaStream) => void;
+  const permission = new Promise<MediaStream>((resolve) => {
+    resolvePermission = resolve;
+  });
+  acquire.mockImplementationOnce(() => permission);
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  const consent = button('Разрешить голосовой ввод');
+  await act(async () => {
+    consent.click();
+    consent.click();
+  });
+  expect(acquire).toHaveBeenCalledTimes(1);
+  expect(host.textContent).toContain('Ожидаем разрешения');
+  await act(async () => button('Отменить голосовой ввод').click());
+  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  const released = vi.fn();
+  await act(async () => {
+    resolvePermission({ getTracks: () => [{ stop: released }] } as unknown as MediaStream);
+    await permission;
+  });
+  await vi.waitFor(() => expect(released).toHaveBeenCalledTimes(1));
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
+  expect(transcript).not.toHaveBeenCalled();
+});
+
+it('ignores a stale first permission after a second recording is active', async () => {
+  let resolveFirst!: (value: MediaStream) => void;
+  const first = new Promise<MediaStream>((resolve) => {
+    resolveFirst = resolve;
+  });
+  acquire.mockImplementationOnce(() => first);
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => button('Разрешить голосовой ввод').click());
+  await act(async () => button('Отменить голосовой ввод').click());
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => button('Разрешить голосовой ввод').click());
+  expect(acquire).toHaveBeenCalledTimes(2);
+  const stopStale = vi.fn();
+  await act(async () => {
+    resolveFirst({ getTracks: () => [{ stop: stopStale }] } as unknown as MediaStream);
+    await first;
+  });
+  await vi.waitFor(() => expect(stopStale).toHaveBeenCalledTimes(1));
+  expect(stopTrack).not.toHaveBeenCalled();
+  await act(async () => button('Остановить запись и распознать').click());
+  await vi.waitFor(() => expect(transcript).toHaveBeenCalledTimes(1));
+  expect(stopTrack).toHaveBeenCalled();
+});
+
 it('stops and transcribes into a draft only, without sending a chat message', async () => {
   await render();
   await act(async () => button('Продиктовать сообщение').click());
