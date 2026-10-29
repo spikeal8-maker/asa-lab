@@ -29,6 +29,28 @@ def fixture(root):
 
 
 class CollectorLifecycleTests(unittest.TestCase):
+    def test_published_update_does_not_use_fresh_install_competing_stack_guard(self):
+        for published in (False, True):
+            with self.subTest(published=published), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve()
+                install = fixture(root)
+                if published:
+                    install.state.mkdir()
+                    (install.state / 'installed-release.json').write_text('{}')
+                observed = []
+
+                def verify_identity(*, existing):
+                    observed.append(existing)
+                    if not existing:
+                        raise Blocked('IDENTITY_EXISTING', 'Another ASA test stack exists.', 'Preserve independent stacks.')
+                    raise Blocked('ATTESTED', 'Existing project identity was checked.', 'Continue separately.')
+
+                with patch.object(install, 'identity', side_effect=verify_identity):
+                    with self.assertRaises(Blocked) as caught:
+                        lifecycle._prepare_host(install)
+                self.assertEqual(observed, [published])
+                self.assertEqual(caught.exception.code, 'ATTESTED' if published else 'IDENTITY_EXISTING')
+
     def native_config(self):
         return {'services': {'api': {'environment': {'ASA_APPLICATION_LOG_STORE': '/var/lib/asa-application-logs'},
             'volumes': [{'type': 'volume', 'source': 'application-logs', 'target': '/var/lib/asa-application-logs'}]}},
