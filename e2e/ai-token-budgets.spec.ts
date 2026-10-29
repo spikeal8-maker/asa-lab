@@ -146,7 +146,9 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
             await expect(globalInput).toHaveCSS('border-top-color', 'rgb(116, 116, 122)');
             await expect(globalInput).toHaveCSS('outline-color', 'rgb(124, 185, 230)');
           }
-          const userInput = row.getByRole('textbox', { name: 'Лимит на пользователя ollama-local' });
+          const userInput = row.getByRole('textbox', {
+            name: 'Лимит на пользователя ollama-local',
+          });
           await userInput.focus();
           await expect(userInput).toBeInViewport();
           await page.screenshot({
