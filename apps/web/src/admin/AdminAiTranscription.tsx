@@ -15,10 +15,22 @@ export function AdminAiTranscription() {
         <div>
           <h3>Планируемое подключение</h3>
           <dl className="asa-ai-integration-facts">
-            <div><dt>Провайдер</dt><dd>Polza AI</dd></div>
-            <div><dt>Русский язык</dt><dd>GigaAM-v3</dd></div>
-            <div><dt>Другие языки</dt><dd>Многоязычная модель — после сравнения качества</dd></div>
-            <div><dt>Результат</dt><dd>Текст в поле ввода чата, без автоотправки</dd></div>
+            <div>
+              <dt>Провайдер</dt>
+              <dd>Polza AI</dd>
+            </div>
+            <div>
+              <dt>Русский язык</dt>
+              <dd>GigaAM-v3</dd>
+            </div>
+            <div>
+              <dt>Другие языки</dt>
+              <dd>Многоязычная модель — после сравнения качества</dd>
+            </div>
+            <div>
+              <dt>Результат</dt>
+              <dd>Текст в поле ввода чата, без автоотправки</dd>
+            </div>
           </dl>
         </div>
         <div>
@@ -32,8 +44,7 @@ export function AdminAiTranscription() {
         </div>
       </div>
       <p className="asa-ai-integration-note" role="status">
-        Раздел подготовлен. Загрузка аудио и расшифровка ещё не доступны:
-        здесь не выполняются платные запросы и не сохраняются записи.
+        Загрузка аудио пока недоступна. Платные запросы не выполняются, записи не сохраняются.
       </p>
     </section>
   );
