@@ -85,11 +85,12 @@ beforeEach(() => {
   vi.mocked(adminCall).mockReset().mockImplementation(async (path) => ({
     ok: true,
     status: 200,
-    data: path === '/api/admin/v1/ai/images'
-      ? cfg
-      : path.endsWith('/settings')
-        ? { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' }
-        : status,
+    data:
+      path === '/api/admin/v1/ai/images'
+        ? cfg
+        : path.endsWith('/settings')
+          ? { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' }
+          : status,
   }));
   host = document.createElement('div');
   document.body.append(host);
@@ -103,7 +104,9 @@ afterEach(async () => {
   sessionStorage.clear();
 });
 
-it('shows a concise GPU summary and folds long connection/diagnostic content by default', async () => {
+it(
+  'shows a concise GPU summary and folds long connection/diagnostic content by default',
+  async () => {
   await act(async () =>
     root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })),
   );
@@ -117,9 +120,12 @@ it('shows a concise GPU summary and folds long connection/diagnostic content by 
   expect(sizes.hasAttribute('open')).toBe(false);
   expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2);
   expect(vi.mocked(adminCall).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
-});
+  },
+);
 
-it('keeps the API provider separate and does not ask for, send or expose an unimplemented key', async () => {
+it(
+  'keeps the API provider separate and does not ask for, send or expose an unimplemented key',
+  async () => {
   await act(async () =>
     root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })),
   );
@@ -133,7 +139,8 @@ it('keeps the API provider separate and does not ask for, send or expose an unim
   expect(host.querySelector('input[type=password]')).toBeNull();
   expect(host.querySelector('button[aria-label="Генерировать через Polza"]')).toBeNull();
   expect(vi.mocked(adminCall).mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true);
-});
+  },
+);
 
 it('requires an explicit user action before submitting the preview job', async () => {
   await act(async () =>
