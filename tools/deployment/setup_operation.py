@@ -318,6 +318,10 @@ class Runtime:
                 backup_workflow.CloudTransport(self.config["backup"]["cloud"], self.config["installationId"])
             except Blocked as error:
                 if error.code in ("BACKUP_COMMAND_FAILED", "BACKUP_TOOL"):
+                    if self.config["backup"]["policy"] == "best-effort":
+                        # Transport availability is optional; run_backup must still
+                        # create/verify the local snapshot and record cloud failure.
+                        return {"status": "WARNING", "reasonCode": "CLOUD_UNAVAILABLE"}
                     raise Blocked("CLOUD_PREPARATION", "Общий проверенный облачный транспорт пока не готов.",
                                   "Root supervisor проверит разрешённый transport; чужие контейнеры не заменяются.") from error
                 raise
