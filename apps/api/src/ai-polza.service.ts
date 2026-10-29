@@ -319,31 +319,53 @@ export class AiPolzaService {
     };
   }
 
-  private async acquire(): Promise<() => void> {
-    if (this.active >= MAX_ACTIVE) {
-      if (this.waiting.length >= MAX_QUEUED)
-        throw new AiPolzaError('ai_stt_busy', 429, 'Сервис распознавания занят. Повторите позже.');
-      await new Promise<void>((resolve, reject) => {
-        const onReady = () => {
-          clearTimeout(deadline);
-          resolve();
-        };
-        const deadline = setTimeout(() => {
-          const index = this.waiting.indexOf(onReady);
-          if (index !== -1) this.waiting.splice(index, 1);
-          reject(new AiPolzaError('ai_stt_busy', 429, 'Очередь распознавания переполнена.'));
-        }, 25000);
-        this.waiting.push(onReady);
-      });
-    }
-    this.active += 1;
-    return () => {
-      this.active -= 1;
-      this.waiting.shift()?.();
+  private async acquire(signal?: AbortSignal): Promise<() => void> {
+    const cancelled = () =>
+      new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+    if (signal?.aborted) throw cancelled();
+    const release = () => {
+      // Transfer the occupied slot directly to the next waiter; never admit a third
+      // concurrent request in the gap between wakeup and awaited resumption.
+      const next = this.waiting.shift();
+      if (next) next();
+      else this.active -= 1;
     };
+    if (this.active < MAX_ACTIVE) {
+      this.active += 1;
+      return release;
+    }
+    if (this.waiting.length >= MAX_QUEUED)
+      throw new AiPolzaError('ai_stt_busy', 429, 'Сервис распознавания занят. Повторите позже.');
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(deadline);
+        signal?.removeEventListener('abort', onAbort);
+      };
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
+      const onAbort = () => {
+        const index = this.waiting.indexOf(onReady);
+        if (index !== -1) this.waiting.splice(index, 1);
+        cleanup();
+        reject(cancelled());
+      };
+      const deadline = setTimeout(() => {
+        const index = this.waiting.indexOf(onReady);
+        if (index !== -1) this.waiting.splice(index, 1);
+        cleanup();
+        reject(new AiPolzaError('ai_stt_busy', 429, 'Очередь распознавания переполнена.'));
+      }, 25000);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      if (signal?.aborted) onAbort();
+      else this.waiting.push(onReady);
+    });
+    // The departing worker transferred its active slot; do not increment active.
+    return release;
   }
 
-  async transcribe(owner: string, raw: unknown): Promise<{ text: string; model: string }> {
+  async transcribe(owner: string, raw: unknown, signal?: AbortSignal): Promise<{ text: string; model: string }> {
     const state = await this.runtime();
     if (!state.enabled || !state.transcription_enabled || !state.api_key_ciphertext)
       throw new AiPolzaError('ai_stt_disabled', 503, 'Голосовой ввод пока не настроен.');
@@ -353,12 +375,16 @@ export class AiPolzaService {
     this.inFlightOwners.add(owner);
     let release: (() => void) | undefined;
     try {
-      release = await this.acquire();
+      release = await this.acquire(signal);
+      if (signal?.aborted)
+        throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.
       await this.sqlValue<number>('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid) AS value', [
         owner,
         audio.requestId,
       ]);
+      if (signal?.aborted)
+        throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
       const key = this.decrypt(state);
       const extension =
         audio.mime === 'audio/mp4' ? 'm4a' : audio.mime === 'audio/ogg' ? 'ogg' : 'webm';
@@ -377,7 +403,7 @@ export class AiPolzaService {
           headers: { authorization: 'Bearer ' + key },
           body,
           redirect: 'error',
-          signal: AbortSignal.timeout(35000),
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(35000)]) : AbortSignal.timeout(35000),
         });
       } catch {
         throw new AiPolzaError(

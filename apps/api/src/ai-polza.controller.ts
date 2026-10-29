@@ -9,8 +9,9 @@ import {
   Post,
   Put,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { SeatContextUseCase } from './seat-context.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -116,13 +117,24 @@ export class AiSttController {
   @Post('transcribe')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
-  transcribe(@Req() request: FastifyRequest, @Body() body: unknown) {
+  transcribe(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+    @Body() body: unknown,
+  ) {
     return safe(async () => {
       requireAiSameOrigin(request);
       const access = await this.owner(request);
       if (!access.allowed)
         throw new AiPolzaError('ai_stt_denied', 403, 'Голосовой ввод недоступен в этом чате.');
-      return this.polza.transcribe(access.owner, body);
+      const controller = new AbortController();
+      const onDisconnect = () => controller.abort();
+      reply.raw.once('close', onDisconnect);
+      try {
+        return await this.polza.transcribe(access.owner, body, controller.signal);
+      } finally {
+        reply.raw.off('close', onDisconnect);
+      }
     });
   }
 }

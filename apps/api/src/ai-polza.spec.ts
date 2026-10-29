@@ -180,4 +180,84 @@ describe('STT admission and request isolation', () => {
     ).rejects.toMatchObject({ code: 'ai_stt_request_reused', status: 409 });
     expect(provider).not.toHaveBeenCalled();
   });
+  it('never exceeds two active requests during a queued handoff', async () => {
+    const { pool } = fakePool((sql) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      if (sql.includes('ai_polza_stt_admit')) return 20;
+      throw new Error('Unexpected SQL');
+    });
+    let active = 0;
+    let peak = 0;
+    const pending: Array<() => void> = [];
+    const provider = vi.fn(async () => {
+      active += 1;
+      peak = Math.max(active, peak);
+      await new Promise<void>((resolve) => pending.push(resolve));
+      active -= 1;
+      return new Response(JSON.stringify({ text: 'Готово' }), { status: 200 });
+    });
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+    });
+    const tasks = [0, 1, 2].map(() =>
+      service.transcribe(randomUUID(), {
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
+      }),
+    );
+    await vi.waitFor(() => expect(provider).toHaveBeenCalledTimes(2));
+    expect(peak).toBe(2);
+    pending.shift()?.();
+    await vi.waitFor(() => expect(provider).toHaveBeenCalledTimes(3));
+    expect(peak).toBe(2);
+    pending.shift()?.();
+    pending.shift()?.();
+    await expect(Promise.all(tasks)).resolves.toHaveLength(3);
+    expect(active).toBe(0);
+  });
+
+  it('cancels queued work before SQL admission or a paid provider request', async () => {
+    const admitted: string[] = [];
+    const { pool } = fakePool((sql, params) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      if (sql.includes('ai_polza_stt_admit')) {
+        admitted.push(String(params[0]));
+        return 20;
+      }
+      throw new Error('Unexpected SQL');
+    });
+    const pending: Array<() => void> = [];
+    const provider = vi.fn(async () => {
+      await new Promise<void>((resolve) => pending.push(resolve));
+      return new Response(JSON.stringify({ text: 'Готово' }), { status: 200 });
+    });
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+    });
+    const makeInput = () => ({
+      requestId: randomUUID(),
+      audioBase64: sampleAudio,
+      mimeType: 'audio/webm',
+      durationSeconds: 5,
+    });
+    const first = service.transcribe(randomUUID(), makeInput());
+    const second = service.transcribe(randomUUID(), makeInput());
+    await vi.waitFor(() => expect(provider).toHaveBeenCalledTimes(2));
+    const abort = new AbortController();
+    const third = service.transcribe(randomUUID(), makeInput(), abort.signal);
+    const assertion = expect(third).rejects.toMatchObject({ code: 'ai_stt_cancelled' });
+    await vi.waitFor(() => expect(admitted).toHaveLength(2));
+    abort.abort();
+    await assertion;
+    expect(provider).toHaveBeenCalledTimes(2);
+    pending.shift()?.();
+    pending.shift()?.();
+    await Promise.all([first, second]);
+    expect(admitted).toHaveLength(2);
+  });
+
 });
