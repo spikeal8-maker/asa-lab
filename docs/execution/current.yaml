@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: comfy_capability_source_integrated_runtime_and_remaining_admin_pending
+      checkpoint: urgent_ollama_context_thinking_adaptation_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,31 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-OLLAMA-INFERENCE-ADAPTATION
+          issue: 373
+          scope: urgent adaptation of PR816 Ollama context and reasoning controls
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R31]
+          acceptance_checks: [C17, C20]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          source_pr: 816
+          selection: >-
+            Owner explicitly requires completing prepared context and thinking settings urgently.
+            Port only applicable PR816 hunks into current main, preserving provider independence,
+            model eligibility, token budgets, capability-based ComfyUI and clean composer.
+            Preserve unchanged Qwen120000 context/xhigh and num_predict=-1 defaults; no implicit
+            downgrade to65536/default. Model-specific metadata/capabilities determine supported
+            reasoning choices; unsupported values fail before dispatch. Persist admin choices
+            with auth, validation, CAS and exact runtime application for native/streaming paths.
+            Append next unused migration above0281, expected0282, without modifying published SQL.
+            Focused adapter/controller/UI/PGlite upgrade tests, types and independent review
+            precede source publication. No Docker/server/config updates, model downloads,
+            live GPU/paid inference or deployment. Existing LIVE legacy WIP is preserved and
+            not an active writer; only the explicitly coordinated author checkout may change.
         - id: ASAI-COMFY-CAPABILITY-COMPATIBILITY
           issue: 373
           scope: capability-based ComfyUI compatibility and versioned existing FP8 profile
