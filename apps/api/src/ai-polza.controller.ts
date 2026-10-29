@@ -30,7 +30,10 @@ async function safe<T>(work: () => Promise<T>): Promise<T> {
     return await work();
   } catch (error) {
     if (error instanceof AiPolzaError)
-      throw new HttpException({ error: { code: error.code, message: error.message } }, error.status);
+      throw new HttpException(
+        { error: { code: error.code, message: error.message } },
+        error.status,
+      );
     throw error;
   }
 }
@@ -45,11 +48,16 @@ export class AdminPolzaController {
 
   private async actor(request: FastifyRequest): Promise<string> {
     const context = await this.active.resolve(request.cookies[SESSION_COOKIE]);
-    if (!context)
-      throw new AiPolzaError('ai_session_required', 401, 'Войдите в аккаунт.');
+    if (!context) throw new AiPolzaError('ai_session_required', 401, 'Войдите в аккаунт.');
     const access = await this.control.resolveAccess(context);
-    if (!access.scopes.some((scope) => scope.kind === 'platform' && scope.role === 'platform_admin'))
-      throw new AiPolzaError('ai_polza_denied', 403, 'Настройки доступны администратору платформы.');
+    if (
+      !access.scopes.some((scope) => scope.kind === 'platform' && scope.role === 'platform_admin')
+    )
+      throw new AiPolzaError(
+        'ai_polza_denied',
+        403,
+        'Настройки доступны администратору платформы.',
+      );
     return context.principalId;
   }
 

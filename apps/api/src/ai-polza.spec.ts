@@ -76,12 +76,18 @@ describe('Polza encrypted connection and no-paid-check', () => {
   it('uses the no-charge model listing endpoint for a connection check', async () => {
     const source = runtime();
     const { pool } = fakePool((sql) => {
-      if (sql.includes('admin_config')) return {
-        configurationVersion: 1, enabled: true, transcriptionEnabled: true,
-        dailySecondsLimit: 600, globalDailySecondsLimit: 7200,
-        maxAudioSeconds: 20, apiKeyConfigured: true,
-        keyFingerprint: 'abc', updatedAt: '2026-10-29T00:00:00Z',
-      };
+      if (sql.includes('admin_config'))
+        return {
+          configurationVersion: 1,
+          enabled: true,
+          transcriptionEnabled: true,
+          dailySecondsLimit: 600,
+          globalDailySecondsLimit: 7200,
+          maxAudioSeconds: 20,
+          apiKeyConfigured: true,
+          keyFingerprint: 'abc',
+          updatedAt: '2026-10-29T00:00:00Z',
+        };
       if (sql.includes('ai_polza_runtime')) return [source];
       throw new Error('Unexpected SQL: ' + sql);
     });
@@ -142,12 +148,14 @@ describe('STT admission and request isolation', () => {
       encryptionKey,
       fetchImpl: provider as typeof fetch,
     });
-    await expect(service.transcribe(actor, {
-      requestId: randomUUID(),
-      audioBase64: Buffer.from('not-a-webm-container-file').toString('base64'),
-      mimeType: 'audio/webm',
-      durationSeconds: 5,
-    })).rejects.toMatchObject({ code: 'ai_stt_input_invalid' } satisfies Partial<AiPolzaError>);
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(),
+        audioBase64: Buffer.from('not-a-webm-container-file').toString('base64'),
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_stt_input_invalid' } satisfies Partial<AiPolzaError>);
     expect(provider).not.toHaveBeenCalled();
     expect(query).toHaveBeenCalledTimes(1);
   });
@@ -162,12 +170,14 @@ describe('STT admission and request isolation', () => {
       encryptionKey,
       fetchImpl: provider as typeof fetch,
     });
-    await expect(service.transcribe(actor, {
-      requestId: randomUUID(),
-      audioBase64: sampleAudio,
-      mimeType: 'audio/webm',
-      durationSeconds: 10,
-    })).rejects.toMatchObject({ code: 'ai_stt_request_reused', status: 409 });
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 10,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_stt_request_reused', status: 409 });
     expect(provider).not.toHaveBeenCalled();
   });
 });

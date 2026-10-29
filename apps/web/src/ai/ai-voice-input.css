@@ -67,8 +67,12 @@
   animation: asa-voice-spin 0.8s linear infinite;
 }
 @keyframes asa-voice-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .asa-ai-layout .ai-voice-spinner { animation: none; }
+  .asa-ai-layout .ai-voice-spinner {
+    animation: none;
+  }
 }

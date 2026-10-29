@@ -89,9 +89,9 @@ it('shows compact real credential controls and a separate STT budget, without sp
   await act(async () => transcription!.click());
   expect(host.querySelector('[aria-label="Настройки транскрибации"]')).not.toBeNull();
   expect(host.textContent).toContain('GigaAM-v3');
-  expect(host.querySelector<HTMLInputElement>('[aria-label="Дневной лимит платформы"]')?.value).toBe(
-    '7200',
-  );
+  expect(
+    host.querySelector<HTMLInputElement>('[aria-label="Дневной лимит платформы"]')?.value,
+  ).toBe('7200');
   expect(host.querySelector<HTMLButtonElement>('.asa-polza-primary')?.disabled).toBe(true);
   expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
 
@@ -128,9 +128,7 @@ it('refuses to expose or persist a key without the encrypted server endpoint', a
     error: { code: 'ai_polza_unavailable', message: 'Настройки недоступны.' },
   });
   await act(async () => {
-    button.closest('form')!.dispatchEvent(
-      new Event('submit', { bubbles: true, cancelable: true }),
-    );
+    button.closest('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
   expect(host.textContent).toContain('Настройки недоступны.');
   expect(host.textContent).not.toContain('pza_test_secret_for_ci_only');

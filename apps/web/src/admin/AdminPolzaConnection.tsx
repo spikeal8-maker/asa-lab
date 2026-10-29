@@ -52,9 +52,7 @@ export function AdminPolzaConnection({
     };
   }, [reload, onAccessDenied]);
 
-  const dirty =
-    !!config &&
-    (enabled !== config.enabled || !!keyInput || clearKey);
+  const dirty = !!config && (enabled !== config.enabled || !!keyInput || clearKey);
   useEffect(() => {
     onDirtyChange?.(dirty);
     return () => onDirtyChange?.(false);
@@ -164,7 +162,9 @@ export function AdminPolzaConnection({
                 maxLength={2048}
                 value={keyInput}
                 disabled={busy || clearKey || !config.encryptionReady}
-                placeholder={config.apiKeyConfigured ? 'Сохранён · введите новый для замены' : 'pza_…'}
+                placeholder={
+                  config.apiKeyConfigured ? 'Сохранён · введите новый для замены' : 'pza_…'
+                }
                 onChange={(event) => {
                   setKeyInput(event.target.value);
                   setMessage('');
@@ -199,7 +199,11 @@ export function AdminPolzaConnection({
             <a href="https://polza.ai/dashboard/api-keys" target="_blank" rel="noopener noreferrer">
               Получить ключ
             </a>
-            {message ? <span role="status" className="asa-polza-confirmed">{message}</span> : null}
+            {message ? (
+              <span role="status" className="asa-polza-confirmed">
+                {message}
+              </span>
+            ) : null}
           </div>
           {!config.encryptionReady ? (
             <p role="alert" className="asa-ai-integration-error">
@@ -209,8 +213,8 @@ export function AdminPolzaConnection({
           <details className="asa-polza-advanced">
             <summary>Дополнительно</summary>
             <p>
-              Ключ хранится только на сервере (AES-256-GCM). Проверка выполняет запрос
-              списка моделей, без платной транскрибации.
+              Ключ хранится только на сервере (AES-256-GCM). Проверка выполняет запрос списка
+              моделей, без платной транскрибации.
             </p>
             {config.apiKeyConfigured ? (
               <label className="asa-polza-switch">
@@ -233,8 +237,14 @@ export function AdminPolzaConnection({
         </form>
       ) : null}
       <div className="asa-polza-capabilities" aria-label="Направления Polza AI">
-        <div><strong>Текст</strong><span>Адаптер планируется</span></div>
-        <div><strong>Изображения</strong><span>Адаптер планируется</span></div>
+        <div>
+          <strong>Текст</strong>
+          <span>Адаптер планируется</span>
+        </div>
+        <div>
+          <strong>Изображения</strong>
+          <span>Адаптер планируется</span>
+        </div>
         <div>
           <strong>Транскрибация</strong>
           <span>{config?.transcriptionEnabled ? 'Включена' : 'Настраивается отдельно'}</span>

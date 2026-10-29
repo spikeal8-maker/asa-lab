@@ -68,7 +68,10 @@ function textRecord(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function validateAudio(input: unknown, maxSeconds: number): { bytes: Buffer; mime: PolzaSttInput['mimeType']; seconds: number; requestId: string } {
+function validateAudio(
+  input: unknown,
+  maxSeconds: number,
+): { bytes: Buffer; mime: PolzaSttInput['mimeType']; seconds: number; requestId: string } {
   const data = textRecord(input);
   const { audioBase64, durationSeconds, mimeType, requestId } = data;
   if (
@@ -82,19 +85,24 @@ function validateAudio(input: unknown, maxSeconds: number): { bytes: Buffer; mim
     !MIME.includes(mimeType as PolzaSttInput['mimeType']) ||
     typeof audioBase64 !== 'string' ||
     audioBase64.length < 16 ||
-    audioBase64.length > Math.ceil(POLZA_AUDIO_MAX_BYTES * 4 / 3) + 8 ||
+    audioBase64.length > Math.ceil((POLZA_AUDIO_MAX_BYTES * 4) / 3) + 8 ||
     !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(audioBase64)
   )
     throw new AiPolzaError('ai_stt_input_invalid', 400, 'Запись повреждена или превышает лимит.');
   const bytes = Buffer.from(audioBase64, 'base64');
-  if (bytes.length < 16 || bytes.length > POLZA_AUDIO_MAX_BYTES || bytes.toString('base64') !== audioBase64)
+  if (
+    bytes.length < 16 ||
+    bytes.length > POLZA_AUDIO_MAX_BYTES ||
+    bytes.toString('base64') !== audioBase64
+  )
     throw new AiPolzaError('ai_stt_input_invalid', 400, 'Недопустимый размер записи.');
   const type = mimeType as PolzaSttInput['mimeType'];
-  const validContainer = type === 'audio/webm'
-    ? bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
-    : type === 'audio/ogg'
-      ? bytes.toString('ascii', 0, 4) === 'OggS'
-      : bytes.toString('ascii', 4, 8) === 'ftyp';
+  const validContainer =
+    type === 'audio/webm'
+      ? bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+      : type === 'audio/ogg'
+        ? bytes.toString('ascii', 0, 4) === 'OggS'
+        : bytes.toString('ascii', 4, 8) === 'ftyp';
   if (!validContainer)
     throw new AiPolzaError('ai_stt_input_invalid', 400, 'Формат аудио не соответствует записи.');
   return { bytes, mime: type, seconds: durationSeconds, requestId: requestId.toLowerCase() };
@@ -113,7 +121,9 @@ export class AiPolzaService {
     private readonly pool: pg.Pool,
     options: { encryptionKey?: string; fetchImpl?: typeof fetch } = {},
   ) {
-    this.key = keyFromEnvironment(options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY']);
+    this.key = keyFromEnvironment(
+      options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY'],
+    );
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -129,9 +139,17 @@ export class AiPolzaService {
       if (message.includes('AI_ADMIN_DENIED'))
         throw new AiPolzaError('ai_polza_denied', 403, 'Доступ только администратору платформы.');
       if (message.includes('AI_CONFIG_CHANGED'))
-        throw new AiPolzaError('ai_polza_conflict', 409, 'Настройки изменились. Обновите страницу.');
+        throw new AiPolzaError(
+          'ai_polza_conflict',
+          409,
+          'Настройки изменились. Обновите страницу.',
+        );
       if (message.includes('AI_STT_REPLAY_BLOCKED'))
-        throw new AiPolzaError('ai_stt_request_reused', 409, 'Эта запись уже отправлялась. Не повторяем платный запрос.');
+        throw new AiPolzaError(
+          'ai_stt_request_reused',
+          409,
+          'Эта запись уже отправлялась. Не повторяем платный запрос.',
+        );
       if (message.includes('AI_STT_DAILY_LIMIT'))
         throw new AiPolzaError('ai_stt_limit', 429, 'Дневной лимит распознавания исчерпан.');
       if (message.includes('AI_STT_DISABLED'))
@@ -142,9 +160,18 @@ export class AiPolzaService {
     }
   }
 
-  private encrypt(secret: string): { ciphertext: string; iv: string; tag: string; fingerprint: string } {
+  private encrypt(secret: string): {
+    ciphertext: string;
+    iv: string;
+    tag: string;
+    fingerprint: string;
+  } {
     if (!this.key)
-      throw new AiPolzaError('ai_polza_encryption_unavailable', 503, 'Шифрование ключей на сервере недоступно.');
+      throw new AiPolzaError(
+        'ai_polza_encryption_unavailable',
+        503,
+        'Шифрование ключей на сервере недоступно.',
+      );
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.key, iv);
     const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
@@ -160,14 +187,22 @@ export class AiPolzaService {
     if (!this.key || !row.api_key_ciphertext || !row.api_key_iv || !row.api_key_auth_tag)
       throw new AiPolzaError('ai_polza_key_unavailable', 503, 'Ключ Polza AI не настроен.');
     try {
-      const decipher = createDecipheriv('aes-256-gcm', this.key, Buffer.from(row.api_key_iv, 'base64url'));
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        this.key,
+        Buffer.from(row.api_key_iv, 'base64url'),
+      );
       decipher.setAuthTag(Buffer.from(row.api_key_auth_tag, 'base64url'));
       return Buffer.concat([
         decipher.update(Buffer.from(row.api_key_ciphertext, 'base64url')),
         decipher.final(),
       ]).toString('utf8');
     } catch {
-      throw new AiPolzaError('ai_polza_key_invalid', 503, 'Не удалось прочитать сохранённый API-ключ.');
+      throw new AiPolzaError(
+        'ai_polza_key_invalid',
+        503,
+        'Не удалось прочитать сохранённый API-ключ.',
+      );
     }
   }
 
@@ -180,7 +215,8 @@ export class AiPolzaService {
 
   async admin(actor: string): Promise<PolzaAdminConfig> {
     const data = await this.sqlValue<Omit<PolzaAdminConfig, 'encryptionReady'>>(
-      'SELECT public.ai_polza_admin_config($1::uuid) AS value', [actor],
+      'SELECT public.ai_polza_admin_config($1::uuid) AS value',
+      [actor],
     );
     return { ...data, encryptionReady: this.key !== null };
   }
@@ -188,32 +224,57 @@ export class AiPolzaService {
   async save(actor: string, input: unknown): Promise<PolzaAdminConfig> {
     const body = textRecord(input);
     const {
-      configurationVersion, enabled, transcriptionEnabled,
-      dailySecondsLimit, globalDailySecondsLimit, maxAudioSeconds, apiKey, clearApiKey,
+      configurationVersion,
+      enabled,
+      transcriptionEnabled,
+      dailySecondsLimit,
+      globalDailySecondsLimit,
+      maxAudioSeconds,
+      apiKey,
+      clearApiKey,
     } = body;
     if (
-      !Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1 ||
-      typeof enabled !== 'boolean' || typeof transcriptionEnabled !== 'boolean' ||
+      !Number.isSafeInteger(configurationVersion) ||
+      Number(configurationVersion) < 1 ||
+      typeof enabled !== 'boolean' ||
+      typeof transcriptionEnabled !== 'boolean' ||
       (enabled === false && transcriptionEnabled) ||
-      !Number.isSafeInteger(dailySecondsLimit) || Number(dailySecondsLimit) < 60 || Number(dailySecondsLimit) > 3600 ||
-      !Number.isSafeInteger(globalDailySecondsLimit) || Number(globalDailySecondsLimit) < 600 || Number(globalDailySecondsLimit) > 86400 ||
-      !Number.isSafeInteger(maxAudioSeconds) || Number(maxAudioSeconds) < 5 || Number(maxAudioSeconds) > 30 ||
-      (apiKey !== undefined && (typeof apiKey !== 'string' || !/^pza_[A-Za-z0-9_-]{8,2040}$/.test(apiKey))) ||
+      !Number.isSafeInteger(dailySecondsLimit) ||
+      Number(dailySecondsLimit) < 60 ||
+      Number(dailySecondsLimit) > 3600 ||
+      !Number.isSafeInteger(globalDailySecondsLimit) ||
+      Number(globalDailySecondsLimit) < 600 ||
+      Number(globalDailySecondsLimit) > 86400 ||
+      !Number.isSafeInteger(maxAudioSeconds) ||
+      Number(maxAudioSeconds) < 5 ||
+      Number(maxAudioSeconds) > 30 ||
+      (apiKey !== undefined &&
+        (typeof apiKey !== 'string' || !/^pza_[A-Za-z0-9_-]{8,2040}$/.test(apiKey))) ||
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
       (clearApiKey === true && apiKey !== undefined)
-    ) throw new AiPolzaError('ai_polza_invalid', 400, 'Проверьте ключ, параметры и ограничения.');
+    )
+      throw new AiPolzaError('ai_polza_invalid', 400, 'Проверьте ключ, параметры и ограничения.');
     if (apiKey !== undefined && !this.key)
-      throw new AiPolzaError('ai_polza_encryption_unavailable', 503, 'Не настроено шифрование API-ключей.');
+      throw new AiPolzaError(
+        'ai_polza_encryption_unavailable',
+        503,
+        'Не настроено шифрование API-ключей.',
+      );
     const encrypted = typeof apiKey === 'string' ? this.encrypt(apiKey) : {};
-    await this.sqlValue<unknown>(
-      'SELECT public.ai_polza_admin_set($1::uuid,$2::jsonb) AS value',
-      [actor, JSON.stringify({
-        configurationVersion, enabled, transcriptionEnabled,
-        dailySecondsLimit, globalDailySecondsLimit, maxAudioSeconds, requestId: randomUUID(),
+    await this.sqlValue<unknown>('SELECT public.ai_polza_admin_set($1::uuid,$2::jsonb) AS value', [
+      actor,
+      JSON.stringify({
+        configurationVersion,
+        enabled,
+        transcriptionEnabled,
+        dailySecondsLimit,
+        globalDailySecondsLimit,
+        maxAudioSeconds,
+        requestId: randomUUID(),
         action: clearApiKey ? 'clear' : apiKey ? 'replace' : 'keep',
         ...encrypted,
-      })],
-    );
+      }),
+    ]);
     return this.admin(actor);
   }
 
@@ -229,22 +290,30 @@ export class AiPolzaService {
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
-      if (!response.ok) throw new AiPolzaError(
-        response.status === 401 ? 'ai_polza_auth_failed' : 'ai_polza_check_failed',
-        response.status === 401 ? 401 : 503,
-        response.status === 401 ? 'Polza AI отклонил API-ключ.' : 'Polza AI не подтвердил подключение.',
-      );
+      if (!response.ok)
+        throw new AiPolzaError(
+          response.status === 401 ? 'ai_polza_auth_failed' : 'ai_polza_check_failed',
+          response.status === 401 ? 401 : 503,
+          response.status === 401
+            ? 'Polza AI отклонил API-ключ.'
+            : 'Polza AI не подтвердил подключение.',
+        );
       return { ready: true, latencyMs: Date.now() - began, checkedAt: new Date().toISOString() };
     } catch (problem) {
       if (problem instanceof AiPolzaError) throw problem;
-      throw new AiPolzaError('ai_polza_unavailable', 503, 'Polza AI недоступен или не ответил вовремя.');
+      throw new AiPolzaError(
+        'ai_polza_unavailable',
+        503,
+        'Polza AI недоступен или не ответил вовремя.',
+      );
     }
   }
 
   async status(): Promise<{ enabled: boolean; model: string; maxAudioSeconds: number }> {
     const state = await this.runtime();
     return {
-      enabled: state.enabled && state.transcription_enabled && !!state.api_key_ciphertext && !!this.key,
+      enabled:
+        state.enabled && state.transcription_enabled && !!state.api_key_ciphertext && !!this.key,
       model: POLZA_STT_MODEL,
       maxAudioSeconds: state.max_audio_seconds,
     };
@@ -286,14 +355,19 @@ export class AiPolzaService {
     try {
       release = await this.acquire();
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.
-      await this.sqlValue<number>(
-        'SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid) AS value',
-        [owner, audio.requestId],
-      );
+      await this.sqlValue<number>('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid) AS value', [
+        owner,
+        audio.requestId,
+      ]);
       const key = this.decrypt(state);
-      const extension = audio.mime === 'audio/mp4' ? 'm4a' : audio.mime === 'audio/ogg' ? 'ogg' : 'webm';
+      const extension =
+        audio.mime === 'audio/mp4' ? 'm4a' : audio.mime === 'audio/ogg' ? 'ogg' : 'webm';
       const body = new FormData();
-      body.append('file', new Blob([new Uint8Array(audio.bytes)], { type: audio.mime }), 'speech.' + extension);
+      body.append(
+        'file',
+        new Blob([new Uint8Array(audio.bytes)], { type: audio.mime }),
+        'speech.' + extension,
+      );
       body.append('model', POLZA_STT_MODEL);
       body.append('language', 'ru');
       let response: Response;
@@ -306,24 +380,43 @@ export class AiPolzaService {
           signal: AbortSignal.timeout(35000),
         });
       } catch {
-        throw new AiPolzaError('ai_stt_uncertain', 503, 'Ответ Polza AI неизвестен. Автоповтора нет, проверьте баланс.');
+        throw new AiPolzaError(
+          'ai_stt_uncertain',
+          503,
+          'Ответ Polza AI неизвестен. Автоповтора нет, проверьте баланс.',
+        );
       }
       if (!response.ok) {
-        const code = response.status === 401 || response.status === 403
-          ? 'ai_stt_auth' : response.status === 402 ? 'ai_stt_balance'
-            : response.status === 429 ? 'ai_stt_rate' : 'ai_stt_upstream';
-        const message = response.status === 402 ? 'Недостаточно средств у провайдера.'
-          : response.status === 429 ? 'Polza AI ограничил частоту запросов.'
-            : response.status === 401 || response.status === 403 ? 'Проверьте API-ключ Polza AI.'
-              : 'Polza AI не смог распознать запись.';
+        const code =
+          response.status === 401 || response.status === 403
+            ? 'ai_stt_auth'
+            : response.status === 402
+              ? 'ai_stt_balance'
+              : response.status === 429
+                ? 'ai_stt_rate'
+                : 'ai_stt_upstream';
+        const message =
+          response.status === 402
+            ? 'Недостаточно средств у провайдера.'
+            : response.status === 429
+              ? 'Polza AI ограничил частоту запросов.'
+              : response.status === 401 || response.status === 403
+                ? 'Проверьте API-ключ Polza AI.'
+                : 'Polza AI не смог распознать запись.';
         throw new AiPolzaError(code, response.status === 429 ? 429 : 503, message);
       }
       const length = Number(response.headers.get('content-length'));
       if (Number.isFinite(length) && length > 16_384)
         throw new AiPolzaError('ai_stt_response_invalid', 502, 'Некорректный ответ распознавания.');
       let result: unknown;
-      try { result = await response.json(); } catch {
-        throw new AiPolzaError('ai_stt_response_invalid', 502, 'Не удалось прочитать ответ распознавания.');
+      try {
+        result = await response.json();
+      } catch {
+        throw new AiPolzaError(
+          'ai_stt_response_invalid',
+          502,
+          'Не удалось прочитать ответ распознавания.',
+        );
       }
       const text = (result as { text?: unknown } | null)?.text;
       if (typeof text !== 'string' || text.length > 6000)

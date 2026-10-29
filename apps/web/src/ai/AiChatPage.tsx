@@ -2397,7 +2397,11 @@ export function AiChatPage({
                     <AiVoiceInput
                       call={call}
                       disabled={
-                        interactionBusy || archived || schoolPolicyDenied || imageMode || !historyReady
+                        interactionBusy ||
+                        archived ||
+                        schoolPolicyDenied ||
+                        imageMode ||
+                        !historyReady
                       }
                       onTranscript={(text) => {
                         setDraft((previous) =>

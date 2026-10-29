@@ -464,7 +464,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0280', // Six image presets.
           '0281', // Versioned image profiles.
           '0282', // Local inference overrides preserve legacy defaults.
-        '0283', // Encrypted Polza credential and bounded STT admission.
+          '0283', // Encrypted Polza credential and bounded STT admission.
         ]);
         expect(
           await applyIsolatedTestPlan(

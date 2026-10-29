@@ -176,7 +176,10 @@ export function AiVoiceInput({
       if (event.data.size) chunks.push(event.data);
     };
     media.onstop = () => {
-      const elapsed = Math.min(status.maxAudioSeconds, Math.max(0.1, (Date.now() - startAt) / 1000));
+      const elapsed = Math.min(
+        status.maxAudioSeconds,
+        Math.max(0.1, (Date.now() - startAt) / 1000),
+      );
       const blob = new Blob(chunks, { type: mime });
       cleanup();
       if (!cancelled.current && mounted.current)
@@ -212,13 +215,14 @@ export function AiVoiceInput({
     !!navigator.mediaDevices?.getUserMedia &&
     !!selectMime();
   const available = !!status?.enabled && supported;
-  const label = mode === 'recording'
-    ? 'Остановить запись и распознать'
-    : mode === 'transcribing'
-      ? 'Распознаём речь'
-      : available
-        ? 'Продиктовать сообщение'
-        : 'Голосовой ввод не подключён';
+  const label =
+    mode === 'recording'
+      ? 'Остановить запись и распознать'
+      : mode === 'transcribing'
+        ? 'Распознаём речь'
+        : available
+          ? 'Продиктовать сообщение'
+          : 'Голосовой ввод не подключён';
 
   return (
     <div className="ai-voice-control">

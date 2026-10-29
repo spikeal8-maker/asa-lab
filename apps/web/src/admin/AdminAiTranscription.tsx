@@ -60,10 +60,15 @@ export function AdminAiTranscription({
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
   const valid =
-    duration >= 5 && duration <= 30 &&
-    daily >= 60 && daily <= 3600 &&
-    globalDaily >= 600 && globalDaily <= 86400 &&
-    Number.isInteger(duration) && Number.isInteger(daily) && Number.isInteger(globalDaily);
+    duration >= 5 &&
+    duration <= 30 &&
+    daily >= 60 &&
+    daily <= 3600 &&
+    globalDaily >= 600 &&
+    globalDaily <= 86400 &&
+    Number.isInteger(duration) &&
+    Number.isInteger(daily) &&
+    Number.isInteger(globalDaily);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -193,12 +198,16 @@ export function AdminAiTranscription({
             >
               {busy ? 'Сохраняем…' : 'Сохранить настройки'}
             </button>
-            {notice ? <span role="status" className="asa-polza-confirmed">{notice}</span> : null}
+            {notice ? (
+              <span role="status" className="asa-polza-confirmed">
+                {notice}
+              </span>
+            ) : null}
           </div>
           <p className="asa-ai-integration-note">
-            Секунды резервируются по максимальной длине каждого запроса; это защитный
-            бюджет, а не сумма фактических списаний Polza AI. Аудио не сохраняется.
-            Распознанный текст пользователь проверяет и отправляет самостоятельно.
+            Секунды резервируются по максимальной длине каждого запроса; это защитный бюджет, а не
+            сумма фактических списаний Polza AI. Аудио не сохраняется. Распознанный текст
+            пользователь проверяет и отправляет самостоятельно.
           </p>
         </form>
       ) : null}
