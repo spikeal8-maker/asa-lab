@@ -282,6 +282,35 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+test('image tab never widens the mobile viewport during keyboard navigation', async ({ page }) => {
+  await imageFixture(page);
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.goto('/#/admin/ai?section=overview');
+  await page.getByRole('tab', { name: 'Обзор', exact: true }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Изображения', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  const layout = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    offending: Array.from(document.querySelectorAll('body *'))
+      .filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.width > 1 && bounds.left < innerWidth && bounds.right > innerWidth + 1;
+      })
+      .slice(0, 12)
+      .map((element) => ({
+        tag: element.tagName,
+        className: typeof element.className === 'string' ? element.className : '',
+        right: Math.round(element.getBoundingClientRect().right),
+        width: Math.round(element.getBoundingClientRect().width),
+      })),
+  }));
+  expect(layout.scrollWidth, JSON.stringify(layout.offending)).toBeLessThanOrEqual(layout.viewport);
+});
+
 test('image workbench: responsive settings and an explicit preview', async ({ page }) => {
   const fixture = await imageFixture(page);
   await page.goto('/#/admin/ai?section=comfyui');
