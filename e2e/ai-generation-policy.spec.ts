@@ -461,9 +461,9 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
       await noOverflow(page);
       await expect(page.getByRole('heading', { name: 'Polza AI', exact: true })).toBeVisible();
       if (width <= 390) {
-        const heights = await page.locator('.asa-ai-provider-card').evaluateAll((cards) =>
-          cards.map((card) => card.getBoundingClientRect().height),
-        );
+        const heights = await page
+          .locator('.asa-ai-provider-card')
+          .evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));
         expect(Math.max(...heights)).toBeLessThanOrEqual(94);
       }
       if (colorScheme === 'dark') {
