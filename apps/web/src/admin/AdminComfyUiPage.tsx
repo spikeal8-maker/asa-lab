@@ -204,7 +204,14 @@ export function AdminComfyUiPage({
   const model = details?.diffusionModels.find((name) => /flux-2-klein-4b/i.test(name));
   const encoder = details?.textEncoders.find((name) => /qwen_3_4b/i.test(name));
   const vae = details?.vaeModels.find((name) => /flux2[-_]vae/i.test(name));
-  const savedReady = connectionVerified && imageConfig?.ready && imageConfig.enabled;
+  // A connected ComfyUI is not proof that its workflow matches the selected
+  // persisted image recipe. Stale image-config readiness must fail closed.
+  const savedReady =
+    connectionVerified &&
+    imageConfig?.enabled === true &&
+    imageConfig.ready === true &&
+    details?.recipeReady === true &&
+    details.recipe === imageConfig.recipe;
   const gpu = details?.devices?.[0];
 
   return (
@@ -297,7 +304,7 @@ export function AdminComfyUiPage({
             {principalId ? (
               <AdminComfyImageTest
                 principalId={principalId}
-                config={connectionVerified ? imageConfig : null}
+                config={savedReady ? imageConfig : null}
                 refreshToken={statusReload}
               />
             ) : null}
