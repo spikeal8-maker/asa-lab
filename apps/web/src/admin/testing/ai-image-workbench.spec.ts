@@ -179,3 +179,40 @@ it('does not submit an image when the saved ComfyUI profile is incompatible', as
   expect(button.disabled).toBe(true);
   expect(submitted).not.toHaveBeenCalled();
 });
+
+it.each([
+  {
+    reason: 'ComfyUI reports the saved model is not ready',
+    recipeReady: false,
+    recipe: 'flux2-klein-4b-fp8-izo-v1',
+  },
+  {
+    reason: 'ComfyUI returned a different profile than the saved configuration',
+    recipeReady: true,
+    recipe: 'flux2-klein-4b-v1',
+  },
+] as const)('keeps connected but incompatible GPU disabled: $reason', async ({ recipeReady, recipe }) => {
+  const original = vi.mocked(adminCall).getMockImplementation()!;
+  vi.mocked(adminCall).mockImplementation(async (path, init) => {
+    if (path === '/api/admin/v1/ai/comfyui/status')
+      return {
+        ok: true,
+        status: 200,
+        data: { ...status, recipe, recipeReady, recipeReason: recipeReady ? null : 'Missing model' },
+      };
+    return original(path, init);
+  });
+  await act(async () =>
+    root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn(), principalId: 'owner-1' })),
+  );
+  expect(host.textContent).toContain('ComfyUI подключён');
+  expect(host.textContent).toContain('Требует настройки');
+  const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (element) => element.textContent === 'Создать тестовое изображение',
+  )!;
+  expect(button).toBeDefined();
+  expect(button.disabled).toBe(true);
+  await act(async () => button.click());
+  expect(submitted).not.toHaveBeenCalled();
+  expect(vi.mocked(apiCall).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+});
