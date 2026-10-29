@@ -378,6 +378,11 @@ class Runtime:
         plain_paths(root, (".git", ".env", ".asa"))
         if not (root / ".git").exists():
             require(fresh, "GIT_MISSING", "У существующей установки отсутствует исходный checkout.")
+            backups = root / "backups"
+            plain_paths(backups, ())
+            require(not backups.exists() or backups.is_dir() and not any(backups.iterdir()),
+                    "TARGET_BACKUP_REMNANTS", "В новой цели обнаружены архивы прежней установки.",
+                    "Разберите происхождение backup; не создавайте поверх него пустую базу.")
             unknown = [p for p in root.iterdir() if p.name not in (".asa", ".env", "asa-setup.sh", "backups")]
             require(not unknown, "TARGET_NOT_EMPTY", "В новом каталоге есть неизвестные файлы.")
             run(["git", "init", "--quiet", str(root)], capture=True)
