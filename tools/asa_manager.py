@@ -270,6 +270,7 @@ def update(install, *, check=False, scheduled=False, fresh=False, reporter=None)
         print(f"UPDATED {release['revision']} schema={release['schema']}")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
         view.set("deployment", "OK", "Контейнеры готовы; новый release закреплён")
+        view.set("version", "OK", f"Установлен {release['revision'][:12]} · схема {release['schema']}")
     except BaseException:
         atomic_json(install.state / "failed-switch.json", operation)
         install.receipt({"status": "failed_switch", **operation, "automaticDatabaseRestore": False})
