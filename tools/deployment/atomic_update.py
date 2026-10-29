@@ -438,6 +438,16 @@ class AtomicSession:
                 "ATOMIC_DATABASE", "Promoted database schema is not the selected release.")
 
     def verify_candidate_without_ingress(self, target_install):
+        # The isolated stage database was renamed to the canonical name.
+        # Compose's migration dependency must now target the canonical database;
+        # retaining the shadow URL would apply migrations to a vanished target.
+        canonical = self.data["oldDb"]
+        assert urlsplit(target_install.env["MIGRATION_DATABASE_URL"]).path == "/" + canonical
+        require(target_install.env["MIGRATION_EXPECT_DATABASE"] == canonical
+                and target_install.env["MIGRATION_CONFIRM"] == "APPLY:" + canonical,
+                "ATOMIC_DATABASE_URL", "Canonical migration attestations are inconsistent.")
+        for key in ("MIGRATION_DATABASE_URL", "MIGRATION_EXPECT_DATABASE", "MIGRATION_CONFIRM"):
+            target_install.process_env[key] = target_install.env[key]
         # Do not start public Caddy while internal health probes can still fail.
         # 'up' on these services honors depends_on migration/API requirements.
         require(self.app_role_readonly(), "ATOMIC_WRITE_GATE",
@@ -491,7 +501,8 @@ class AtomicSession:
         self.install.receipt({
             "status": "success", "phase": "atomic", "source": self.previous,
             "selected": self.release, "backup": self.data["backup"],
-            "s3Objects": self.data["s3ObjectCount"], "userFlow": "not_run",
+            "s3Objects": self.data["s3ObjectCount"], "entryHttp": "pass",
+            "userFlow": "not_run",
         })
         self.archive_finished()
         print(f"UPDATED_ATOMIC {self.release['revision']} schema={self.release['schema']}",

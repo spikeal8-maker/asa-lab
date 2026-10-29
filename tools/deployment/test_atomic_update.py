@@ -43,6 +43,8 @@ class FakeInstallation:
             "POSTGRES_USER": "asalab_admin",
             "APP_DATABASE_URL": "postgres://asalab_app:private@postgres:5432/asalab",
             "MIGRATION_DATABASE_URL": "postgres://asalab_admin:private@postgres:5432/asalab",
+            "MIGRATION_EXPECT_DATABASE": "asalab",
+            "MIGRATION_CONFIRM": "APPLY:asalab",
             "ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4620",
             "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks",
             "ASA_SEED_DEV": "false",
@@ -138,6 +140,103 @@ class AtomicStatusTests(unittest.TestCase):
 
 
 class AtomicPreflightTests(unittest.TestCase):
+    def test_historical_collector_missing_known_file_degrades_without_mutations(self):
+        with tempfile.TemporaryDirectory() as td:
+            install=FakeInstallation(td)
+            atomic_json(install.state/"installed-release.json",OLD)
+            install.git=Mock(return_value=OLD_SHA)
+            missing=install.root/"tools"/"memory_sampling.py"
+            failure=FileNotFoundError(2,"Missing old diagnostic",str(missing))
+            with patch.object(asa_manager,"collector_status",side_effect=failure):
+                result=asa_manager.historical_collector_status(install)
+            self.assertEqual(result["state"],"degraded")
+            self.assertFalse(missing.exists())
+
+    def test_historical_collector_rejects_missing_unrelated_or_current_file(self):
+        with tempfile.TemporaryDirectory() as td:
+            install=FakeInstallation(td)
+            install.git=Mock(return_value=OLD_SHA)
+            errors=[
+                (OLD,"collector_runner.py","FileNotFoundError"),
+                ({"revision":OLD_SHA,"schema":279},"memory_sampling.py","Blocked"),
+                ({"revision":"c"*40,"schema":240},"memory_sampling.py","Blocked"),
+            ]
+            for receipt,filename,kind in errors:
+                with self.subTest(case=kind+filename):
+                    atomic_json(install.state/"installed-release.json",receipt)
+                    failure=FileNotFoundError(2,"Missing",str(install.root/"tools"/filename))
+                    with patch.object(asa_manager,"collector_status",side_effect=failure):
+                        with self.assertRaises(FileNotFoundError if kind=="FileNotFoundError" else Blocked):
+                            asa_manager.historical_collector_status(install)
+
+    def test_nochange_ci_cache_requires_exact_accepted_release_and_still_attests_images(self):
+        for case in ("accepted", "missing_receipt", "failed_receipt",
+                     "wrong_manifest", "missing_s3_evidence"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as td:
+                install=FakeInstallation(td)
+                atomic_json(install.state/"installed-release.json",NEW)
+                receipt={"status":"success","phase":"atomic","selected":NEW,
+                         "userFlow":"not_run","s3Objects":1}
+                if case=="failed_receipt":
+                    receipt["status"]="failed_switch"
+                elif case=="wrong_manifest":
+                    receipt["selected"]={**NEW,"revision":"c"*40}
+                elif case=="missing_s3_evidence":
+                    receipt.pop("s3Objects")
+                if case!="missing_receipt":
+                    atomic_json(install.state/"last-operation.json",receipt)
+                install.readiness=Mock(return_value={"revision":NEW_SHA,"schema":279})
+                install.identity=Mock(return_value={"api":{"image":"target-api"}})
+                unavailable=Blocked("CI_UNAVAILABLE","Synthetic network outage","Do not deploy")
+                with patch.object(asa_manager,"doctor"), \
+                     patch.object(asa_manager,"clean_checkout"), \
+                     patch.object(asa_manager,"backup_directory"), \
+                     patch.object(asa_manager,"attest_editor_env"), \
+                     patch.object(asa_manager,"discover_release",return_value=NEW), \
+                     patch.object(asa_manager,"assert_ci",side_effect=unavailable) as ci, \
+                     patch.object(asa_manager,"verify_embedded_entry_http") as entry, \
+                     patch.object(asa_manager,"prepare_collector") as collector, \
+                     patch.object(asa_manager,"fetch_images") as images:
+                    if case=="accepted":
+                        asa_manager.update(install,atomic=True)
+                        ci.assert_not_called()
+                        entry.assert_called_once()
+                    else:
+                        with self.assertRaises(Blocked) as error:
+                            asa_manager.update(install,atomic=True)
+                        self.assertEqual(error.exception.code,"CI_UNAVAILABLE")
+                        ci.assert_called_once_with(NEW)
+                    collector.assert_not_called()
+                    images.assert_not_called()
+
+    def test_verified_atomic_nochange_never_runs_optional_collector_or_mutates(self):
+        with tempfile.TemporaryDirectory() as td:
+            install = FakeInstallation(td)
+            atomic_json(install.state/"installed-release.json",NEW)
+            install.readiness = Mock(return_value={"revision":NEW_SHA,"schema":279})
+            install.identity = Mock(return_value={"api":{"image":"target-api"}})
+            with patch.object(asa_manager,"doctor"), \
+                 patch.object(asa_manager,"clean_checkout"), \
+                 patch.object(asa_manager,"backup_directory"), \
+                 patch.object(asa_manager,"attest_editor_env"), \
+                 patch.object(asa_manager,"discover_release",return_value=NEW), \
+                 patch.object(asa_manager,"assert_ci") as ci, \
+                 patch.object(asa_manager,"verify_embedded_entry_http") as entry, \
+                 patch.object(asa_manager,"prepare_collector") as collector, \
+                 patch.object(asa_manager,"reconcile_collector") as reconcile, \
+                 patch.object(asa_manager,"fetch_images") as images, \
+                 patch.object(asa_manager,"selected_source") as switch, \
+                 patch.object(asa_manager,"export_backup") as backup:
+                asa_manager.update(install,atomic=True)
+            ci.assert_called_once_with(NEW)
+            entry.assert_called_once_with("http://127.0.0.1:4620",NEW_SHA)
+            collector.assert_not_called()
+            reconcile.assert_not_called()
+            images.assert_not_called()
+            switch.assert_not_called()
+            backup.assert_not_called()
+            self.assertFalse((install.state/"atomic-active.json").exists())
+
     def test_unsafe_update_is_rejected_before_git_switch_and_image_fetch(self):
         with tempfile.TemporaryDirectory() as td:
             install = FakeInstallation(td)
@@ -311,13 +410,17 @@ class AtomicFlowTests(unittest.TestCase):
             install,session=self.fixture(td)
             old_hashes={"asa-blocks/sample":"abc",".minio.sys/a":"old"}
             new_hashes={"asa-blocks/sample":"abc",".minio.sys/a":"changed"}
+            target=FakeInstallation(td)
             with patch.object(session,"app_role_readonly",return_value=True), \
                  patch.object(txn,"_db_schema",return_value=279), \
                  patch.object(txn,"_volume_hashes",side_effect=[new_hashes,old_hashes]), \
                  patch.object(txn,"_s3_count",return_value=1991):
-                session.verify_candidate_without_ingress(FakeInstallation(td))
+                session.verify_candidate_without_ingress(target)
             self.assertEqual(session.data["phase"],"CANDIDATE_STARTED")
             self.assertEqual(session.data["s3ObjectCount"],1991)
+            self.assertEqual(target.process_env["MIGRATION_EXPECT_DATABASE"],"asalab")
+            self.assertEqual(target.process_env["MIGRATION_CONFIRM"],"APPLY:asalab")
+            self.assertTrue(target.process_env["MIGRATION_DATABASE_URL"].endswith("/asalab"))
             self.assertFalse(any("web" in call[1] for call in install.calls if call[0]=="compose"))
 
     def test_candidate_s3_drift_blocks_before_public_web(self):
