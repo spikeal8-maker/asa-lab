@@ -90,4 +90,12 @@ Security regression for the experimental QA-only transaction:
 
 atomic-recover по-прежнему **отказывается** обрабатывать SUCCEEDED или ACCEPTED_READ_ONLY. atomic-finalize по-прежнему **отказывается** работать с незавершёнными либо откатываемыми фазами. Для команд требуется operator lock и отдельная изолированная среда; на школьном production экспериментальные операции запрещены.
 
-На этом этапе покрытие atomic-finalize — unit/fault-injection и негативные испытания, а не реальный power loss Windows. Слияние/production HOLD до независимого L3 и exact-head CI.
+### Реальный тест atomic-finalize на отдельном D2R2 QA — 29.10.2026
+
+На полностью синтетическом ASA Lab `asa-atomic-qa-20261029` (порт 18570) создан точный тестовый SUCCEEDED marker из ранее сохранённого успешного immutable receipt. Это имитация пропущенной очистки журнала после приёмки — **не** авария электропитания Windows. До запуска сверены точные OCI digest, прошлый backup (схема 240), sha256 прежнего приватного .env, исходный Git/манифест v1 и приложение schema 282.
+
+Настоящая команда `asa_manager.py atomic-finalize` закончилась **EXIT=0** и `ACCEPTED_CONFIRMED` за 14,53 с. Маркер удалён, last-operation записал success; идентификаторы контейнеров остались прежними, данные PostgreSQL до/после совпали (7 тестовых аккаунтов, 4 проекта, 3 контрольные записи), 1 тестовый объект MinIO сохранён, рабочие 4610/4620 не изменены. Повторная команда ожидаемо вернула `ATOMIC_NO_FINALIZE` (exit 2), не изменив receipt и контейнеры.
+
+Обнаружено и исправлено отличие форматов старого релиза: журнал `source` содержит только revision и schema, в то время как `installed-release.json` — **полный** опубликованный immutable manifest с pin-digest всех образов. Команда теперь валидирует полный манифест, сверяет SHA/схему и `oldImages` digest с историческим журналом, а не ошибочно требует тождественных структур. Добавлены негативные тесты подмены старого образа. Доказательства хранятся только на D2R2 в `qa-real-finalize-success-20261029.json`.
+
+**Ограничение:** не было реального power loss Windows и независимого Security/L3 review. Слияние и production-развёртывание остаются HOLD до exact-head CI, внешней write-fence и отдельной приёмки.

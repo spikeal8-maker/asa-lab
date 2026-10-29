@@ -441,7 +441,20 @@ class AtomicSuccessFinalizationTests(unittest.TestCase):
             (install.root/".env").write_bytes(b"EXISTING_CONF=old\n")
             saved=session.directory/"old.private.env"
             saved.write_bytes((install.root/".env").read_bytes())
-            atomic_json(session.directory/"installed-release.json",OLD)
+            # A real archived installed-release is the full pinned v1 manifest;
+            # its journal source is only {revision, schema}. Never equate them.
+            old_manifest={
+                "format":"asa-deployment-v1",
+                "repository":"spikeal8-maker/asa-lab",
+                "revision":OLD_SHA,"schema":240,
+                "platform":"linux/amd64","publicationRunId":1,
+                "images":{
+                    name:"ghcr.io/spikeal8-maker/asa-lab/"+name+"@sha256:"+"a"*64
+                    for name in ("api","web","scratch","minio")
+                },
+            }
+            atomic_json(session.directory/"installed-release.json",old_manifest)
+            session.data["oldImages"]=dict(old_manifest["images"])
             snapshot=session.directory/"backup"/"snapshot"
             snapshot.mkdir(parents=True)
             (snapshot/"manifest.json").write_text("{}")
@@ -466,6 +479,15 @@ class AtomicSuccessFinalizationTests(unittest.TestCase):
                      "project":PROJ,"profile":"production",
                      "runtime":{"revision":OLD_SHA,"schema":240}}), \
                  patch.object(AtomicSession,"app_role_readonly",return_value=False):
+                session.data["oldImages"]["api"] = "wrong-digest-from-foreign-source"
+                session.phase("SUCCEEDED")
+                with self.assertRaises(Blocked) as blocked:
+                    txn.atomic_finalize(install.root)
+                self.assertEqual(blocked.exception.code,"ATOMIC_RELEASE")
+                self.assertTrue(session.marker.exists())
+                self.assertFalse((session.directory/"receipt.json").exists())
+                session.data["oldImages"] = dict(old_manifest["images"])
+                session.phase("SUCCEEDED")
                 result=txn.atomic_finalize(install.root)
             self.assertEqual(result,"ACCEPTED_CONFIRMED")
             self.assertFalse(session.marker.exists())

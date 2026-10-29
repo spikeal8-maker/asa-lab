@@ -917,9 +917,12 @@ def atomic_finalize(root):
     require(saved.is_file() and not saved.is_symlink()
             and hashlib.sha256(saved.read_bytes()).hexdigest() == state["envSha256"],
             "ATOMIC_ENV", "Previous private configuration snapshot is invalid.")
-    prior = json.loads((txn.directory / "installed-release.json").read_text(encoding="utf-8"))
-    require(prior == state["source"], "ATOMIC_RELEASE",
-            "Previous installed release does not match the accepted journal.")
+    from .contracts import validate_release
+    prior = validate_release(json.loads((txn.directory / "installed-release.json").read_text(encoding="utf-8")))
+    require(prior["revision"] == state["source"]["revision"]
+            and int(prior["schema"]) == int(state["source"]["schema"])
+            and prior["images"] == state.get("oldImages"),
+            "ATOMIC_RELEASE", "Previous pinned release or image digests do not match the accepted journal.")
     manifest = verify_backup(state["backup"])
     require(manifest["project"] == install.project
             and manifest["profile"] == "production"
