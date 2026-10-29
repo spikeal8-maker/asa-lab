@@ -160,7 +160,7 @@ it('fails closed when manual ComfyUI probe throws after previously confirmed GPU
   expect(host.textContent).toContain('ComfyUI подключён');
 });
 
-it('does not claim success after unknown settings PUT and reuses the same request UUID', async () => {
+it('preserves the request ID after uncertain settings PUT', async () => {
   await render();
   await input('http://192.168.5.20:8188');
   vi.mocked(call).mockRejectedValueOnce(new TypeError('simulated lost response'));
@@ -171,7 +171,8 @@ it('does not claim success after unknown settings PUT and reuses the same reques
   expect(host.textContent).not.toContain('ComfyUI подключён');
   await click('Сохранить адрес');
   const writes = vi.mocked(call).mock.calls.filter(
-    ([url, init]) => url === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+    ([url, init]) =>
+      url === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
   );
   expect(writes).toHaveLength(2);
   expect(JSON.parse(String(writes[0]?.[1]?.body)).requestId).toBe(
