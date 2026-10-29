@@ -15,8 +15,14 @@ export function AdminPolzaConnection() {
         <div>
           <h3>Подключение</h3>
           <dl className="asa-ai-integration-facts">
-            <div><dt>API</dt><dd>polza.ai/api/v1</dd></div>
-            <div><dt>Ключ</dt><dd>Нет защищённого подключения в ASA Lab</dd></div>
+            <div>
+              <dt>API</dt>
+              <dd>polza.ai/api/v1</dd>
+            </div>
+            <div>
+              <dt>Ключ</dt>
+              <dd>Нет защищённого подключения в ASA Lab</dd>
+            </div>
           </dl>
           <a
             href="https://polza.ai/"
@@ -37,9 +43,8 @@ export function AdminPolzaConnection() {
         </div>
       </div>
       <p className="asa-ai-integration-note" role="status">
-        Страница добавлена. Сохранение API-ключа и реальные запросы пока не реализованы:
-        для них требуется отдельный защищённый серверный адаптер с шифрованием,
-        правами администратора и лимитами расходов. Существующие подключения не изменены.
+        Ключ и запросы пока не подключены. Требуется защищённый серверный адаптер.
+        Существующие подключения не изменены.
       </p>
     </section>
   );
