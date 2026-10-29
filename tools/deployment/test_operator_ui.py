@@ -1,6 +1,7 @@
 """Synthetic, side-effect-free regression checks for the manual updater console."""
 
 import io
+from contextlib import redirect_stdout
 from pathlib import Path
 import sys
 import tempfile
@@ -67,7 +68,7 @@ class OperatorRendererTests(unittest.TestCase):
         report.finish("NO_CHANGE")
         output = buffer.getvalue()
         self.assertIn("Обновлений нет", output)
-        self.assertIn("Резервная копия: не выполнялось", output)
+        self.assertIn("Локальная резервная копия: не выполнялось", output)
         self.assertIn("Вход и работа пользователя: не выполнялось", output)
         self.assertNotIn("ОБНОВЛЕНО", output)
 
@@ -126,7 +127,8 @@ class ManagerProgressTests(unittest.TestCase):
                 patch.object(asa_manager, "fetch_images") as images,
                 patch.object(asa_manager, "export_backup") as backup,
             ):
-                asa_manager.update(install, check=True, reporter=OperatorView(stream=output))
+                with redirect_stdout(output):
+                    asa_manager.update(install, check=True, reporter=OperatorView(stream=output))
             self.assertIn("AVAILABLE revision=", output.getvalue())
             self.assertIn("ОБНОВЛЕНИЕ ДОСТУПНО", output.getvalue())
             self.assertIn("установка не запускалась", output.getvalue().lower())
@@ -162,7 +164,8 @@ class ManagerProgressTests(unittest.TestCase):
                 patch.object(asa_manager, "fetch_images") as images,
                 patch.object(asa_manager, "export_backup") as backup,
             ):
-                asa_manager.update(install, reporter=OperatorView(stream=output))
+                with redirect_stdout(output):
+                    asa_manager.update(install, reporter=OperatorView(stream=output))
             self.assertIn("NO_CHANGE the verified release", output.getvalue())
             self.assertIn("ОБНОВЛЕНИЙ НЕТ", output.getvalue())
             self.assertIn("Контейнеры не перезапускались", output.getvalue())
