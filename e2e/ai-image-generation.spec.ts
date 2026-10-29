@@ -284,9 +284,7 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
-test('admin image workbench keeps GPU settings compact and creates only one explicit preview', async ({
-  page,
-}) => {
+test('image workbench: responsive settings and an explicit preview', async ({ page }) => {
   const fixture = await imageFixture(page);
   await page.goto('/#/admin/ai?section=comfyui');
 
@@ -296,7 +294,7 @@ test('admin image workbench keeps GPU settings compact and creates only one expl
   await expect(page.getByRole('heading', { name: 'Пробная генерация' })).toBeVisible();
   await expect(page.locator('.asa-image-overview')).toContainText('RTX 3060');
 
-  for (const width of [1440, 390, 320]) {
+  for (const width of [3840, 1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 850 });
     await expect(page.getByRole('heading', { name: 'Локальная генерация' })).toBeVisible();
     const collapsed = page.locator('.asa-image-connection-detail');
