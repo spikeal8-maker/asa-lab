@@ -30,6 +30,32 @@ def clean_checkout(install):
         f"https://github.com/{REPOSITORY}", f"git@github.com:{REPOSITORY}"), "ORIGIN", "Unexpected Git repository.")
 
 
+def historical_collector_status(install):
+    """Read-only compatibility for a verified legacy source missing memory sampling.
+
+    Never install or alter diagnostic files in the old checkout. Any other
+    missing or invalid collector file remains an error.
+    """
+    try:
+        return collector_status(install)
+    except FileNotFoundError as exc:
+        target = (install.root / "tools" / "memory_sampling.py").resolve()
+        missing = Path(exc.filename).resolve() if exc.filename else None
+        if missing != target:
+            raise
+        receipt = install.state / "installed-release.json"
+        if not receipt.is_file():
+            raise
+        older = json.loads(receipt.read_text(encoding="utf-8"))
+        require(older.get("schema") in range(1, 279)
+                and install.git("rev-parse", "HEAD") == older.get("revision"),
+                "COLLECTOR_SOURCE", "Missing diagnostic tool does not match an attested older release.",
+                "Do not fill missing files or alter an unverified checkout.")
+        return {"state": "degraded",
+                "detail": "Historical installed checkout predates memory sampling; "
+                          "no host runner changes; update the published manager before enabling diagnostics."}
+
+
 def doctor(install, existing=True):
     run(["docker", "version", "--format", "{{.Server.Version}}"], capture=True)
     run(["docker", "compose", "version"], capture=True)
@@ -38,7 +64,7 @@ def doctor(install, existing=True):
     free = shutil.disk_usage(install.root).free
     print(f"INSTALLATION root={install.root} project={install.project} profile={install.profile}")
     print(f"DISK checkout_free_gib={free / 1024**3:.1f}; Docker data disk must also have space for images, objects and restore")
-    collection = collector_status(install)
+    collection = historical_collector_status(install)
     print(f"COLLECTOR {collection['state']}: {collection['detail']}")
     print('CLIENT_PROVENANCE ' + json.dumps(proxy_provenance_diagnostic(install.env), sort_keys=True))
     require(free >= 2 * 1024**3, "SPACE", "Less than 2 GiB free beside the checkout.")
@@ -137,33 +163,62 @@ def selected_source(install, release, *, existing):
                           "Run the same command again. Containers and data have not been changed.")
 
 
-def update(install, *, check=False, scheduled=False, fresh=False):
+def update(install, *, check=False, scheduled=False, fresh=False, atomic=False):
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
         if not in_window(install.settings.get("window", DEFAULT_WINDOW)):
             print("SKIP outside the maintenance window; no fetch, backup or restart")
             return
+    if (install.state / "atomic-active.json").exists():
+        from deployment.atomic_update import atomic_status
+        pending = atomic_status(install.root)
+        require(pending is None, "ATOMIC_PENDING",
+                "An atomic operation is incomplete or not yet archived.",
+                "Run atomic-status and use guarded atomic-recover, not a new update.")
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "Unfinished backup/switch needs inspection.")
     require(not (install.state / "failed-switch.json").exists(), "FAILED_SWITCH", "A prior service switch failed.",
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
     doctor(install, existing=not fresh)
+    if atomic:
+        require(not fresh and not check, "ATOMIC_ACTION",
+                "Atomic cutover is only available for an existing update action.")
+        from deployment.atomic_update import atomic_eligibility
+        atomic_eligibility(install)
     clean_checkout(install)
     backup_directory(install)
     attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
                       install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
                       install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
     release = discover_release()
-    assert_ci(release)
     before = None if fresh else install.readiness()
+    installed_path = install.state / "installed-release.json"
+    installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
+    same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    receipt_path = install.state / "last-operation.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8")) if receipt_path.exists() else {}
+    # The CI gate was already proven when an identical release was accepted.
+    # Reuse only the exact successful receipt; all running image digests,
+    # identities, runtime readiness and embedded HTTP are re-attested below.
+    # An unknown/new/failed release still requires a fresh GitHub CI check.
+    receipt_attested = bool(
+        same_release and isinstance(receipt, dict)
+        and receipt.get("status") == "success"
+        and receipt.get("selected") == release
+        and (receipt.get("entryHttp") == "pass"
+             or (receipt.get("phase") == "atomic"
+                 and receipt.get("userFlow") == "not_run"
+                 and type(receipt.get("s3Objects")) is int))
+    )
+    if receipt_attested:
+        print("CI_GATE previously accepted identical pinned release; no remote CI lookup")
+    else:
+        assert_ci(release)
     if before:
         require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
                 'Published release schema is older than the running database; refusing downgrade.')
         if release['revision'] != before['revision']:
             install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
             install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
-    installed_path = install.state / "installed-release.json"
-    installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
-    same_release = bool(before and before['revision'] == release['revision'] and installed == release)
     if same_release:
         records = install.identity()
         for name, expected in release['images'].items():
@@ -173,6 +228,14 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         print(f"{'NO_CHANGE' if same_release else 'AVAILABLE'} revision={release['revision']} schema={release['schema']}; read-only check, no installation changes")
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
+        return
+    if same_release and atomic:
+        # Atomic NO_CHANGE is a strictly read-only acceptance: image digest,
+        # project identity, entry HTTP and CI were checked above. Optional
+        # collector/scheduler maintenance is unrelated and must not block an
+        # unchanged release or alter other Windows installations.
+        print("NO_CHANGE the verified atomic release is already running; no backup or restart")
+        print("USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance")
         return
     preparation = {'readerGroupChanged': False}
     if same_release:
@@ -186,7 +249,9 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
     install = Installation(install.root, install.profile)
-    selected_preparation = prepare_collector(install)
+    # Transactional updates must not mutate host runner registration before
+    # their previous runtime, config and object identity have been snapshotted.
+    selected_preparation = {'readerGroupChanged': False} if atomic else prepare_collector(install)
     preparation['readerGroupChanged'] = preparation['readerGroupChanged'] or selected_preparation['readerGroupChanged']
     install = Installation(install.root, install.profile)
     for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN"):
@@ -201,6 +266,26 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     check_resources(install, install.identity(existing=not fresh))
     # Download support images while the previous application remains available.
     install.compose("pull", "postgres", "minio-init")
+    if atomic:
+        require(not fresh and before is not None, "ATOMIC_INSTALL",
+                "Atomic updates are for an existing installed product only.")
+        if scheduled:
+            require(in_window(install.settings["window"], reserve_minutes=45),
+                    "WINDOW_CLOSED", "Insufficient reserved time for a frozen atomic snapshot.",
+                    "Use the next maintenance window; do not begin write freeze.")
+        from deployment.atomic_update import AtomicSession
+        # Backup/runtime attestation must use the prior pinned installation.
+        session = AtomicSession(backup_install, release, before)
+        session.run(install)
+        # Optional host diagnostics cannot invalidate an already accepted
+        # application release or trigger a potentially destructive rollback.
+        try:
+            prepare_collector(install)
+            reconcile_collector(install)
+        except (Blocked, OSError, ValueError) as exc:
+            code = exc.code if isinstance(exc, Blocked) else type(exc).__name__
+            print(f"WARNING diagnostic_collector={code}; application update remains accepted")
+        return
     if scheduled:
         # Reserve fifteen minutes before starting any downtime. Downloading late
         # in the window is harmless; database work is never forcibly killed at 05:00.
@@ -252,10 +337,12 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "atomic-status", "atomic-recover", "atomic-finalize", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
+    parser.add_argument("--atomic", action="store_true",
+                        help="Opt-in shadow database and preserved previous-volume update")
     parser.add_argument("--enable-auto-update", action="store_true")
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
@@ -267,9 +354,21 @@ def main(argv=None):
             manifest = verify_backup(args.backup)
             print(f"BACKUP_VERIFIED revision={manifest['runtime']['revision']} files={len(manifest['files'])}")
             return 0
+        if args.action == "atomic-status":
+            from deployment.atomic_update import atomic_status
+            transaction = atomic_status(args.root)
+            print("ATOMIC " + (f"phase={transaction['phase']} nonce={transaction['nonce']} project={transaction['project']}"
+                               if transaction else "NO_ACTIVE_TRANSACTION"))
+            return 0
         install = Installation(args.root, args.profile)
         with nullcontext() if args.action in ('doctor', 'check') else operation_lock(install.root):
-            if args.action == "doctor":
+            if args.action == "atomic-recover":
+                from deployment.atomic_update import atomic_recover
+                print("ATOMIC_RECOVERY " + atomic_recover(args.root))
+            elif args.action == "atomic-finalize":
+                from deployment.atomic_update import atomic_finalize
+                print("ATOMIC_FINALIZED " + atomic_finalize(args.root))
+            elif args.action == "doctor":
                 doctor(install)
             elif args.action == "configure":
                 doctor(install)
@@ -281,7 +380,8 @@ def main(argv=None):
                     first_environment(install.root, install.profile)
                 update(Installation(install.root, install.profile), fresh=True)
             elif args.action in ("check", "update"):
-                update(install, check=args.action == "check", scheduled=args.scheduled)
+                update(install, check=args.action == "check", scheduled=args.scheduled,
+                       atomic=args.atomic)
             elif args.action == "backup":
                 export_backup(install, args.output)
             elif args.action == "restore-check":
