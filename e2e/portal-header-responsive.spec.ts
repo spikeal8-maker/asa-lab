@@ -35,6 +35,8 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
+    await expect(aiBrain, width + ': brain glyph rendered width').toHaveCSS('width', '20px');
+    await expect(aiBrain, width + ': brain glyph rendered height').toHaveCSS('height', '20px');
     const result = await page.evaluate(() => {
       const box = (selector: string) => {
         const element = document.querySelector<HTMLElement>(selector);
