@@ -23,7 +23,6 @@ class RecorderForTest {
   ondataavailable: ((event: { data: Blob }) => void) | null = null;
   onstop: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  constructor(_stream: MediaStream, _options?: MediaRecorderOptions) {}
   start(): void {
     this.state = 'recording';
   }
