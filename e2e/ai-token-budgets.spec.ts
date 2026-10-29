@@ -115,11 +115,9 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       ).status(),
     ).toBe(200);
     await page.goto('/#/admin/ai?section=settings');
-    const budgets = page.getByRole('region', { name: 'Месячные бюджеты токенов' });
+    const budgets = page.getByRole('region', { name: 'Месячные лимиты токенов' });
     await expect(budgets.getByRole('button', { name: 'Сохранить лимиты токенов' })).toBeVisible();
-    const row = budgets
-      .locator('fieldset')
-      .filter({ has: page.locator('legend').getByText('ollama-local', { exact: true }) });
+    const row = budgets.getByRole('row', { name: /Локальная Ollama/ });
     // Evidence is from native product CSS, never injected screenshot styles.
     async function capture(state: string, widths = [1440, 1024, 390, 320]) {
       for (const width of widths) {
@@ -139,8 +137,8 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
             ),
           ).toBe(true);
           await row.evaluate((element) => element.scrollIntoView({ block: 'center' }));
-          await row.getByLabel('Общий лимит в месяц', { exact: true }).focus();
-          const globalInput = row.getByLabel('Общий лимит в месяц', { exact: true });
+          const globalInput = row.getByRole('textbox', { name: 'Общий лимит ollama-local' });
+          await globalInput.focus();
           await expect(globalInput).toBeInViewport();
           await expect(globalInput).toHaveCSS('outline-width', '2px');
           if (colorScheme === 'dark') {
@@ -148,9 +146,11 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
             await expect(globalInput).toHaveCSS('border-top-color', 'rgb(116, 116, 122)');
             await expect(globalInput).toHaveCSS('outline-color', 'rgb(124, 185, 230)');
           }
-          await expect(
-            row.getByLabel('Лимит каждого пользователя в месяц', { exact: true }),
-          ).toBeInViewport();
+          const userInput = row.getByRole('textbox', {
+            name: 'Лимит на пользователя ollama-local',
+          });
+          await userInput.focus();
+          await expect(userInput).toBeInViewport();
           await page.screenshot({
             path: test.info().outputPath(`${state}-${width}-${colorScheme}.png`),
           });
@@ -160,7 +160,9 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
           if (state === 'before-limits') {
             const model = page.locator('.asa-ai-policy-model-row').first();
             await model.evaluate((element) => element.scrollIntoView({ block: 'center' }));
-            await expect(model.getByRole('spinbutton')).toBeInViewport();
+            await expect(
+              model.getByRole('checkbox', { name: /Показывать пользователям:/ }),
+            ).toBeInViewport();
             await page.screenshot({
               path: test.info().outputPath(`model-controls-${width}-${colorScheme}.png`),
             });
@@ -236,8 +238,8 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
     }
     await capture('before-limits');
     await checkChatAccountingHidden();
-    await row.getByLabel('Общий лимит в месяц', { exact: true }).fill('');
-    await row.getByLabel('Лимит каждого пользователя в месяц', { exact: true }).fill('1');
+    await row.getByRole('textbox', { name: 'Общий лимит ollama-local' }).fill('');
+    await row.getByRole('textbox', { name: 'Лимит на пользователя ollama-local' }).fill('1');
     await budgets.getByRole('button', { name: 'Сохранить лимиты токенов' }).click();
     await expect(budgets.getByRole('status')).toContainText('Лимиты токенов сохранены');
     const threadReply = await page.request.post('/api/ai/threads', { headers, data: {} });
@@ -257,7 +259,10 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       expect(BigInt(pending.models[0].held)).toBeGreaterThan(0n);
       expect(pending.models[0].used).toBe('0');
       await page.reload();
-      await expect(row).toContainText('Резерв: ' + pending.models[0].held);
+      await row.locator('details.asa-ai-budget-info > summary').click();
+      await expect(
+        row.getByText('Резерв: ' + pending.models[0].held, { exact: false }),
+      ).toBeVisible();
       await capture('pending-admitted-answer', [390]);
       await checkChatAccountingHidden();
     } finally {
@@ -299,10 +304,16 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
       }),
       contentType: 'application/json',
     });
-    await expect(row).toContainText('Подтверждено токенов всего: 12');
+    await expect(row.locator('span[aria-label^="Подтверждено токенов всего:"]')).toHaveAttribute(
+      'aria-label',
+      'Подтверждено токенов всего: 12',
+    );
     await capture('after-limits');
     await checkChatAccountingHidden(true);
-    await expect(row).toContainText('Подтверждено токенов всего: 12');
+    await expect(row.locator('span[aria-label^="Подтверждено токенов всего:"]')).toHaveAttribute(
+      'aria-label',
+      'Подтверждено токенов всего: 12',
+    );
     expect(calls).toHaveLength(1);
     // Leaving Settings removes the shell opt-in; Prompt retains its own layout.
     await page.emulateMedia({ colorScheme: 'dark' });
