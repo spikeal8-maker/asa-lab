@@ -103,6 +103,10 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
     if (path === '/api/auth/max/config')
       return route.fulfill({ json: { enabled: false, launchUrl: null } });
     if (path === '/api/class-join/me') return route.fulfill({ json: { authenticated: false } });
+    if (path === '/api/admin/v1/ai/ollama/model-detail')
+      return route.fulfill({
+        json: { capabilities: ['completion'], thinking: null, contextMax: null },
+      });
     if (path === '/api/admin/v1/ai/ollama/models') {
       ollamaDiscoveries.push(request.postDataJSON() as Record<string, unknown>);
       return route.fulfill({

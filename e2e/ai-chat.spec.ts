@@ -197,6 +197,8 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         updatedAt: NOW,
       });
     }
+    if (path === '/api/admin/v1/ai/ollama/model-detail')
+      return respond(route, { capabilities: ['completion'], thinking: null, contextMax: null });
     if (path === '/api/admin/v1/ai/ollama/models' && method === 'POST') {
       return respond(route, { models: [{ name: 'ornith:9b', size: 60000 }] });
     }

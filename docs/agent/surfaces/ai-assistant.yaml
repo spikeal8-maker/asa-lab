@@ -223,3 +223,10 @@ surfaces:
         files: [apps/api/src/ai-access.controller.ts, apps/api/src/ai-access.service.ts, migrations/0226_ai_student_admission.sql, apps/web/src/pages/ClassroomPage.tsx, apps/web/src/components/ClassroomAiAccess.tsx, apps/web/src/components/classroom-ai-access.css]
         invariants: [AI-ADMISSION-001, AI-REPLAY-001, AI-UI-SCOPE-001]
         tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-PG-001, TST-AI-ACCESS-E2E-001]
+
+  - id: SURF-AI-LOCAL-INFERENCE
+    routes: [/api/admin/v1/ai/ollama, /api/admin/v1/ai/ollama/apply, /api/admin/v1/ai/ollama/models, /api/admin/v1/ai/ollama/model-detail]
+    implementation:
+      files: [apps/api/src/ai-ollama.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-admin.controller.ts, apps/web/src/admin/AdminOllamaPage.tsx, apps/web/src/admin/ai-ollama.css, migrations/0239_ai_ollama_local.sql, migrations/0282_ai_ollama_inference_options.sql]
+    invariants: [AI-GENERATION-POLICY-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
+    tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-E2E-001]

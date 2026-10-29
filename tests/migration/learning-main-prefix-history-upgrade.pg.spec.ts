@@ -279,6 +279,16 @@ const upgradeArtifacts = [
     '0280_ai_image_six_presets.sql',
     'b1cabc69faa4c7301e2b85923c43d95abaa6abf5e8db0d8f2cfa7c37b8db18a4',
   ],
+  [
+    '0281',
+    '0281_ai_image_versioned_profiles.sql',
+    '623f7431dd2c15e1adbc1874cabdcb0272db9b23d7f2a52158f1fad63f50b8d5',
+  ],
+  [
+    '0282',
+    '0282_ai_ollama_inference_options.sql',
+    'd34604f857922e794dbef41a2accf8354149b4f87c94b57e5c1980bb363dae13',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

@@ -149,6 +149,9 @@ describe('Course Builder structure forward upgrade', () => {
         '0277', // Cloud pool provider projection.
         '0278', // Model selection policy.
         '0279', // Soft monthly token budgets.
+        '0280', // Six image presets.
+        '0281', // Versioned image profiles.
+        '0282', // Local inference overrides preserve legacy defaults.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -457,6 +460,9 @@ describe('Course Builder structure forward upgrade', () => {
           '0277', // Cloud pool provider projection.
           '0278', // Model selection policy.
           '0279', // Soft monthly token budgets.
+          '0280', // Six image presets.
+          '0281', // Versioned image profiles.
+          '0282', // Local inference overrides preserve legacy defaults.
         ]);
         expect(
           await applyIsolatedTestPlan(
