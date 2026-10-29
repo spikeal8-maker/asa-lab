@@ -1,0 +1,105 @@
+/* Compact administrative surfaces for new media modalities; no simulated controls. */
+.asa-ai-integration-panel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--border, #d5e0e9);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+  color: var(--text, #16344b);
+}
+.asa-ai-integration-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.asa-ai-integration-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.asa-ai-integration-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted, #607384);
+}
+.asa-ai-integration-state {
+  display: inline-block;
+  padding: 5px 9px;
+  border: 1px solid var(--border, #d5e0e9);
+  border-radius: 6px;
+  color: var(--muted, #607384);
+  font-size: 12px;
+  font-weight: 650;
+}
+.asa-ai-integration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.asa-ai-integration-grid > div {
+  min-width: 0;
+}
+.asa-ai-integration-grid h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.asa-ai-integration-facts {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 12px;
+}
+.asa-ai-integration-facts > div {
+  display: grid;
+  grid-template-columns: minmax(80px, 110px) minmax(0, 1fr);
+  gap: 9px;
+  font-size: 12px;
+}
+.asa-ai-integration-facts dt {
+  color: var(--muted, #607384);
+}
+.asa-ai-integration-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.asa-ai-integration-features {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+.asa-ai-integration-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--primary, #087ab7);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.asa-ai-integration-link:focus-visible {
+  outline: 2px solid var(--primary, #087ab7);
+  outline-offset: 2px;
+}
+.asa-ai-integration-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  background: var(--bg, #f3f6f9);
+  color: var(--muted, #607384);
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 680px) {
+  .asa-ai-integration-panel {
+    padding: 12px;
+  }
+  .asa-ai-integration-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+}

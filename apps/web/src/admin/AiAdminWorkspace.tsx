@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AiAdminPage } from './AdminAiPage';
 import { AdminOllamaPage } from './AdminOllamaPage';
 import { AdminComfyUiPage } from './AdminComfyUiPage';
+import { AdminPolzaConnection } from './AdminPolzaConnection';
+import { AdminAiTranscription } from './AdminAiTranscription';
+import { AdminAiVideo } from './AdminAiVideo';
 import { AdminAiWebSearch } from './AdminAiWebSearch';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
@@ -30,6 +33,7 @@ const PROVIDERS: ReadonlyArray<{ id: ProviderChoice; label: string; hint: string
   { id: 'ollama-cloud', label: 'Ollama Cloud', hint: 'ollama.com · API-ключ' },
   { id: 'deepseek', label: 'DeepSeek', hint: 'Облачный API' },
   { id: 'openai', label: 'OpenAI', hint: 'Облачный API' },
+  { id: 'polza', label: 'Polza AI', hint: 'Текст · изображения · речь' },
 ];
 
 export function AiAdminWorkspace({
@@ -157,6 +161,7 @@ function AiAdminWorkspaceSession({
   }, [onAccessDenied, statusRevision, section]);
 
   function providerStatus(value: ProviderChoice): string {
+    if (value === 'polza') return 'Не подключён';
     if (value === 'ollama')
       return local === null ? 'Проверяем' : local.enabled ? 'Включена' : 'Выключена';
     if (!cloud) return 'Проверяем';
@@ -248,6 +253,8 @@ function AiAdminWorkspaceSession({
           </div>
           {provider === 'ollama' ? (
             <AdminOllamaPage onAccessDenied={onAccessDenied} onUpdated={refreshStatus} />
+          ) : provider === 'polza' ? (
+            <AdminPolzaConnection />
           ) : (
             <AiAdminPage
               key={provider}
@@ -257,14 +264,16 @@ function AiAdminWorkspaceSession({
               onDirtyChange={setConnectionDirty}
             />
           )}
-          <AdminAiGenerationPolicy
-            key={'policy-' + provider}
-            section="connections"
-            provider={provider}
-            onAccessDenied={onAccessDenied}
-            onDirtyChange={setPolicyDirty}
-            onEligibleModels={setEligibleModels}
-          />
+          {provider !== 'polza' ? (
+            <AdminAiGenerationPolicy
+              key={'policy-' + provider}
+              section="connections"
+              provider={provider}
+              onAccessDenied={onAccessDenied}
+              onDirtyChange={setPolicyDirty}
+              onEligibleModels={setEligibleModels}
+            />
+          ) : null}
         </section>
       ) : section === 'prompt' || section === 'settings' ? (
         <div
@@ -290,6 +299,19 @@ function AiAdminWorkspaceSession({
       ) : section === 'internet' ? (
         <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">
           <AdminAiWebSearch onAccessDenied={onAccessDenied} />
+        </div>
+      ) : section === 'video' ? (
+        <div id="ai-panel-video" role="tabpanel" aria-labelledby="ai-tab-video" className="asa-ai-settings">
+          <AdminAiVideo />
+        </div>
+      ) : section === 'transcription' ? (
+        <div
+          id="ai-panel-transcription"
+          role="tabpanel"
+          aria-labelledby="ai-tab-transcription"
+          className="asa-ai-settings"
+        >
+          <AdminAiTranscription />
         </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">
