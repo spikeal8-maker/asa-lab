@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: ollama_context_thinking_source_integrated_remote_ci_pending
+      checkpoint: compact_human_settings_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,28 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-COMPACT-HUMAN-SETTINGS
+          issue: 373
+          scope: urgent human-readable provider/model order and compact monthly budgets
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R20, R23, R31]
+          acceptance_checks: [C17, C20, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner asks to prioritize compact Settings with only enabled/configured providers,
+            full-width provider rows and model rows, visible user-visibility checkboxes,
+            up/down ordering controls instead of numeric ranks, separate default selection,
+            compact global/per-user monthly budget table and minimal plain-language help.
+            Preserve authoritative eligibility, key union, hidden preferences/caps, default,
+            CAS and quota enforcement. Do not hide chosen models merely for temporary upstream
+            unavailability. No speculative DeepSeek model names or adapters. Focused UI tests,
+            types and review before source integration. No server/Docker/config updates.
+            Dashboard request is a later slice: infrastructure status, image/search/weather
+            counts and per-model coloured daily graphs with model filters; do not mix it here.
         - id: ASAI-OLLAMA-INFERENCE-ADAPTATION
           issue: 373
           scope: urgent adaptation of PR816 Ollama context and reasoning controls
