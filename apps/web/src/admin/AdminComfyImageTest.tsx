@@ -1,4 +1,10 @@
-import { AI_IMAGE_PRESETS, type AiImageGenerationAdminConfig, type AiImageGenerationJob, type AiImageGenerationStatus, type AiImageSize } from '@asa-lab/contracts';
+import {
+  AI_IMAGE_PRESETS,
+  type AiImageGenerationAdminConfig,
+  type AiImageGenerationJob,
+  type AiImageGenerationStatus,
+  type AiImageSize,
+} from '@asa-lab/contracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { call } from '../api-call';
 import {
@@ -64,9 +70,7 @@ export function AdminComfyImageTest({
         );
       } else {
         setLoadError(
-          response.ok
-            ? 'API вернул несовместимый статус генерации.'
-            : response.error.message,
+          response.ok ? 'API вернул несовместимый статус генерации.' : response.error.message,
         );
       }
     });
@@ -104,8 +108,8 @@ export function AdminComfyImageTest({
   const onJobChange = useCallback((next: AiImageGenerationJob | null) => setJob(next), []);
 
   const ready = !!config?.enabled && !!config?.ready && !!status?.enabled && !!status?.ready;
-  const configuredSizes = (status?.sizes || config?.sizes || [1024]).filter(
-    (value) => AI_IMAGE_PRESETS.some((preset) => preset.id === value),
+  const configuredSizes = (status?.sizes || config?.sizes || [1024]).filter((value) =>
+    AI_IMAGE_PRESETS.some((preset) => preset.id === value),
   );
   const currentSize = configuredSizes.includes(size) ? size : configuredSizes[0] || 1024;
   const canCreate =
@@ -174,8 +178,8 @@ export function AdminComfyImageTest({
         {state.notice ? <p role="status">{state.notice}</p> : null}
         {!ready && !loadError ? (
           <p className="asa-image-muted" role="status">
-            Сначала сохраните совместимый профиль генерации. Кнопка не запускает
-            задание, пока сервер не подтвердит готовность.
+            Сначала сохраните совместимый профиль генерации. Кнопка не запускает задание, пока
+            сервер не подтвердит готовность.
           </p>
         ) : null}
         {job?.state === 'complete' && job.image ? (
@@ -184,15 +188,17 @@ export function AdminComfyImageTest({
             <span>PNG сохранён в вашем личном ИИ-диалоге.</span>
           </div>
         ) : job?.state === 'failed' ? (
-          <p role="alert">Генерация завершилась ошибкой: {job.errorCode || 'проверьте состояние сервера'}.</p>
+          <p role="alert">
+            Генерация завершилась ошибкой: {job.errorCode || 'проверьте состояние сервера'}.
+          </p>
         ) : null}
       </div>
       <details className="asa-image-more">
         <summary>Как работает проверка</summary>
         <p>
-          Генерация использует персональный диалог, проверяет доступ и дневные лимиты,
-          сохраняет исходное задание и PNG в защищённом хранилище. Неизвестный
-          результат проверяется по ID без повторной отправки на GPU.
+          Генерация использует персональный диалог, проверяет доступ и дневные лимиты, сохраняет
+          исходное задание и PNG в защищённом хранилище. Неизвестный результат проверяется по ID без
+          повторной отправки на GPU.
         </p>
       </details>
       <AiImageGeneration
