@@ -254,7 +254,8 @@ for (const account of [false, true]) {
         .click();
       await expect(globalSidebar).toBeHidden();
       await expect(page.locator('.portal-sidebar.mobile-open')).toHaveCount(0);
-      await expect(page.locator('.asa-ai-layout')).toHaveCSS('margin-left', '12px');
+      // The new edge-to-edge GPT layout intentionally removes the old 12px mobile frame.
+      await expect(page.locator('.asa-ai-layout')).toHaveCSS('margin-left', '0px');
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         391,
       );
@@ -274,6 +275,8 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
     { path: '/api/ai/scopes', method: 'GET', seat: null },
     { path: '/api/ai/status', method: 'GET', seat: seatId },
     { path: '/api/ai/threads', method: 'GET', seat: seatId },
+    // Monthly budgets are read-only and strictly scoped to this same StudentSeat.
+    { path: '/api/ai/token-budgets', method: 'GET', seat: seatId },
   ];
   const aiRequests: Array<{ path: string; method: string; seat: string | null }> = [];
   page.on('request', (request) => {
@@ -311,6 +314,7 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
       availableModels: ['gpt-5-mini'],
     },
     '/api/ai/threads': { items: [], nextCursor: null },
+    '/api/ai/token-budgets': { models: [] },
   };
   await page.route('**/api/ai/**', (route) => {
     const request = route.request();
