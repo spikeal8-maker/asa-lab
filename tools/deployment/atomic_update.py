@@ -32,12 +32,18 @@ PHASES = frozenset({
 })
 MARKER = "atomic-active.json"
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+# Experimental write fence is only allowed on deliberately named QA stacks.
+# A localhost origin and a self-declared .env flag do not prove FRP isolation.
+ATOMIC_QA_PROJECT_RE = re.compile(r"^asa-atomic-(?:qa|crash|test)(?:-[a-z0-9]+)*$")
 
 
 def atomic_eligibility(install):
     """Fail before Docker pulls or a Git checkout switch on an unsafe host."""
     require(install.profile == "production", "ATOMIC_PROFILE",
             "The atomic updater requires an established production-profile installation.")
+    require(ATOMIC_QA_PROJECT_RE.fullmatch(install.project or ""),
+            "ATOMIC_QA_ONLY", "Experimental atomic updates are restricted to a named disposable QA project.",
+            "The isolated-test flag never authorizes updating a school or production Compose project.")
     require(install.env.get("ASA_ATOMIC_WRITE_FENCE") == "isolated-test",
             "ATOMIC_FENCE", "Atomic update is restricted to a fenced disposable test ingress.",
             "Do not set the flag on public D2R2/FRP or school installations.")
@@ -247,6 +253,9 @@ class AtomicSession:
         require(self.install.profile == "production", "ATOMIC_PROFILE",
                 "The transactional updater currently requires the production profile.",
                 "Do not migrate a development/legacy installation.")
+        require(ATOMIC_QA_PROJECT_RE.fullmatch(self.install.project or ""),
+                "ATOMIC_QA_ONLY", "The experimental cutover cannot be run on a non-QA Compose project.",
+                "Use a disposable isolated QA project until external ingress fencing is independently verified.")
         installed = self.state / "installed-release.json"
         require(installed.is_file(), "ATOMIC_RELEASE",
                 "This installation has no verified pinned release.")

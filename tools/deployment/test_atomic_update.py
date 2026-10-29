@@ -26,7 +26,7 @@ OLD_SHA = "a" * 40
 NEW_SHA = "b" * 40
 OLD = {"revision": OLD_SHA, "schema": 240, "images": {"api": "prior-api"}}
 NEW = {"revision": NEW_SHA, "schema": 279, "images": {"api": "target-api"}}
-PROJ = "asa-lab-atomic-test"
+PROJ = "asa-atomic-test"
 OBJECT_VOLUME = PROJ + "_blocks-object-data"
 
 
@@ -140,6 +140,25 @@ class AtomicStatusTests(unittest.TestCase):
 
 
 class AtomicPreflightTests(unittest.TestCase):
+    def test_isolated_test_flag_never_authorizes_real_school_project(self):
+        for actual_project in ("asa-lab-clean4620-20261024", "asa-lab-dev",
+                               "asa-atomic-production", "other-app"):
+            with self.subTest(project=actual_project), tempfile.TemporaryDirectory() as temp:
+                inst = FakeInstallation(temp)
+                inst.project = actual_project
+                atomic_json(inst.state / "installed-release.json", OLD)
+                with patch.object(asa_manager, "doctor"), \
+                     patch.object(asa_manager, "clean_checkout") as checkout, \
+                     patch.object(asa_manager, "discover_release") as discovery, \
+                     patch.object(asa_manager, "fetch_images") as images:
+                    with self.assertRaises(Blocked) as exception:
+                        asa_manager.update(inst, atomic=True)
+                self.assertEqual(exception.exception.code, "ATOMIC_QA_ONLY")
+                checkout.assert_not_called()
+                discovery.assert_not_called()
+                images.assert_not_called()
+                self.assertFalse((inst.state / "atomic-active.json").exists())
+
     def test_historical_collector_missing_known_file_degrades_without_mutations(self):
         with tempfile.TemporaryDirectory() as td:
             install=FakeInstallation(td)
@@ -257,6 +276,15 @@ class AtomicPreflightTests(unittest.TestCase):
         (i.root / ".env").write_text("ASA_TEST_ENV=private\n",encoding="utf-8")
         atomic_json(i.state / "installed-release.json", OLD)
         return i, AtomicSession(i, NEW, {"revision": OLD_SHA, "schema": 240},nonce="e"*12)
+
+    def test_direct_session_cannot_bypass_disposable_qa_project_guard(self):
+        with tempfile.TemporaryDirectory() as temp:
+            install, session = self.fixture(temp)
+            install.project = "asa-lab-clean4620-20261024"
+            with self.assertRaises(Blocked) as exception:
+                session.begin()
+            self.assertEqual(exception.exception.code, "ATOMIC_QA_ONLY")
+            self.assertFalse(session.marker.exists())
 
     def test_dev_install_cannot_begin_or_touch_state(self):
         with tempfile.TemporaryDirectory() as td:
