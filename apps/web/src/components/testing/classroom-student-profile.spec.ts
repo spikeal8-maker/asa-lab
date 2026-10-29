@@ -1441,7 +1441,16 @@ it('renders one navigation row, truthful safety, all ten keyboard-reachable sect
   const settingsCategories = host.querySelectorAll<HTMLButtonElement>(
     '.classroom-student-settings-category',
   );
-  expect(settingsCategories).toHaveLength(4);
+  expect(settingsCategories).toHaveLength(5);
+  expect(
+    [...settingsCategories].map((button) => button.querySelector('span')?.textContent),
+  ).toEqual([
+    'Данные и роль',
+    'Коды и доступ',
+    'Защита ученика',
+    'Игровые разрешения',
+    'Публикация и скачивание',
+  ]);
   expect(host.querySelector('.classroom-student-settings-editor')).toBeNull();
   await act(async () => settingsCategories[1]!.click());
   expect(settingsCategories[1]!.getAttribute('aria-expanded')).toBe('true');

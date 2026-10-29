@@ -1,0 +1,176 @@
+/* Connections and Settings opt into the existing Overview OS palette only while mounted.
+ * All shell selectors require this panel; no saved or global theme state. */
+.asa-ai-settings {
+  min-width: 0;
+}
+.asa-ai-settings :is(input:not([type='checkbox']), select, button) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.asa-ai-settings .asa-ai-policy-models :is(input[type='number'], button) {
+  min-height: 44px;
+  padding: 6px 10px;
+  font: inherit;
+}
+.asa-ai-settings .asa-ai-policy-model-row > label,
+.asa-ai-settings .asa-ai-policy-models fieldset > label {
+  overflow-wrap: anywhere;
+}
+.asa-ai-settings :is(input, select, button):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  .portal-shell:has(.asa-ai-settings),
+  .asa-ai-admin-workspace:has(.asa-ai-settings) {
+    --bg: #161618;
+    --surface: #202123;
+    --text: #f5f5f5;
+    --muted: #b2b2b5;
+    --border: #3a3a3d;
+    --primary: #7cb9e6;
+    --color-brand: #7cb9e6;
+    --admin-blue: #7cb9e6;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .asa-ai-admin-workspace:has(.asa-ai-settings) {
+    color-scheme: dark;
+  }
+  .admin-page:has(.asa-ai-settings) {
+    --admin-ink: #f5f5f5;
+    --ink-muted: #b2b2b5;
+    --admin-blue: #7cb9e6;
+    --admin-line: #3a3a3d;
+    --admin-soft: #202123;
+    background: var(--bg);
+  }
+  .portal-shell:has(.asa-ai-settings) :is(.portal-header, .portal-sidebar) {
+    background: var(--bg);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .portal-shell:has(.asa-ai-settings)
+    :is(
+      .portal-nav-item,
+      .portal-brand,
+      .portal-global-nav a,
+      .portal-menu-close,
+      .portal-sidebar-collapse,
+      .portal-sidebar-profile strong
+    ) {
+    color: var(--text);
+  }
+  .portal-shell:has(.asa-ai-settings) .portal-admin-subnav-item {
+    color: var(--muted);
+  }
+  .portal-shell:has(.asa-ai-settings) .portal-nav-item:is(:hover, .active),
+  .portal-shell:has(.asa-ai-settings) .portal-admin-subnav-item:is(:hover, .active),
+  .asa-ai-admin-workspace:has(.asa-ai-settings) .asa-ai-admin-tabs > button:hover {
+    background: var(--surface);
+  }
+  .portal-shell:has(.asa-ai-settings) .portal-admin-subnav-item.active {
+    color: var(--primary);
+  }
+  .portal-shell:has(.asa-ai-settings) .portal-sidebar-collapse-visual {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .portal-shell:has(.asa-ai-settings) :is(.portal-sidebar-profile, .portal-sidebar-footer) {
+    border-color: var(--border);
+  }
+  .admin-page:has(.asa-ai-settings) .admin-scope-select select {
+    min-height: 44px;
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .asa-ai-settings .asa-cloud-connection {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .asa-ai-settings :is(fieldset, .asa-cloud-bottom, .asa-ai-policy-model-row) {
+    border-color: var(--border);
+  }
+  .asa-ai-settings
+    :is(
+      .asa-ai-policy-heading p,
+      .asa-ai-policy-save-note,
+      .asa-ai-policy-models fieldset > p,
+      .asa-ai-policy-model small,
+      .asa-ai-catalog-observation small,
+      .asa-cloud-busy
+    ) {
+    color: var(--muted);
+  }
+  .asa-ai-settings :is(input:not([type='checkbox']), select, button:not(.asa-cloud-apply)) {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid #74747a;
+    border-radius: 6px;
+  }
+  .asa-ai-settings input::placeholder {
+    color: var(--muted);
+    opacity: 1;
+  }
+  .asa-ai-settings input[type='checkbox'] {
+    accent-color: var(--primary);
+  }
+  .asa-ai-settings :is(input, select, button):disabled {
+    color: var(--muted);
+    opacity: 1;
+    cursor: not-allowed;
+  }
+  .asa-ai-settings .asa-cloud-apply {
+    background: var(--primary);
+    color: var(--bg);
+    border-color: var(--primary);
+  }
+  .asa-ai-settings .asa-cloud-apply:hover:not(:disabled) {
+    background: #a3cfee;
+  }
+  .asa-ai-settings .asa-cloud-apply:disabled {
+    background: var(--border);
+    color: var(--muted);
+    border-color: var(--border);
+  }
+  .asa-ai-settings .asa-cloud-confirmed {
+    color: #83d4b5;
+  }
+  .asa-ai-settings :is(.asa-cloud-error, [role='alert']) {
+    color: #ffb4b4;
+  }
+  .asa-ai-settings .asa-cloud-error button {
+    color: var(--primary);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .asa-ai-connections.asa-ai-settings
+    :is(
+      .asa-ai-connections-heading span,
+      .asa-ai-provider-hint,
+      .asa-ai-provider-card-status,
+      .asa-cloud-top span,
+      .asa-cloud-key-help,
+      .asa-cloud-limit,
+      .asa-cloud-more,
+      .asa-cloud-enabled
+    ) {
+    color: var(--muted);
+  }
+  .asa-ai-connections.asa-ai-settings :is(.asa-cloud-key-help a, .asa-ai-provider-card-top > span) {
+    color: var(--primary);
+  }
+  .asa-ai-connections.asa-ai-settings .asa-ai-provider-card.selected {
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1px var(--primary);
+  }
+}

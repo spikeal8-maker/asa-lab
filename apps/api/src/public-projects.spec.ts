@@ -326,12 +326,12 @@ describe('Public Projects owner commands', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('refuses StudentSeat status, publish and revoke regardless of body', async () => {
+  it('refuses unresolved StudentSeat status, publish and revoke without Account fallback', async () => {
     const { owner, query } = setup([], false);
     const seat = request({ [STUDENT_SESSION_COOKIE]: 'seat-session' });
-    await expect(owner.status(seat, PROJECT)).rejects.toMatchObject({ status: 403 });
-    await expect(owner.publish(seat, PROJECT, {})).rejects.toMatchObject({ status: 403 });
-    await expect(owner.revoke(seat, PROJECT)).rejects.toMatchObject({ status: 403 });
+    await expect(owner.status(seat, PROJECT)).rejects.toMatchObject({ status: 401 });
+    await expect(owner.publish(seat, PROJECT, {})).rejects.toMatchObject({ status: 401 });
+    await expect(owner.revoke(seat, PROJECT)).rejects.toMatchObject({ status: 401 });
     expect(query).not.toHaveBeenCalled();
   });
 

@@ -35,6 +35,10 @@ GitHub-first protocol задаёт рабочую модель: GitHub хран�
 production Docker/browser/data evidence выполняются в GitHub Actions. Политика не
 зависит от того, какая задача активна.
 
+Для ComfyUI («Config UI»), локальных изображений, моделей, 12-ГБ GPU и подключения
+по IP сначала читать [COMFYUI_LOCAL_IMAGES.md](docs/deployment/COMFYUI_LOCAL_IMAGES.md).
+Там разделены проверенный профиль ИЗО и текущий recipe ASA; не считать их одинаковыми.
+
 ## 2. Выполни один preflight
 
 Обычный вход нового coding-агента — одна команда:

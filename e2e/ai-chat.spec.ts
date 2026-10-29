@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
@@ -196,9 +197,16 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         updatedAt: NOW,
       });
     }
+    if (path === '/api/admin/v1/ai/ollama/model-detail')
+      return respond(route, { capabilities: ['completion'], thinking: null, contextMax: null });
     if (path === '/api/admin/v1/ai/ollama/models' && method === 'POST') {
       return respond(route, { models: [{ name: 'ornith:9b', size: 60000 }] });
     }
+    if (
+      path === '/api/admin/v1/ai/generation-policy' ||
+      path === '/api/admin/v1/ai/generation-policy/catalog'
+    )
+      return respond(route, generationPolicyFixture());
     if (path === '/api/admin/v1/ai') {
       if (method === 'PUT') {
         const payload = req.postDataJSON() as {
@@ -223,6 +231,14 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
           keyFingerprint: hasKey ? 'abcdef123456' : null,
           configurationVersion: hasKey ? 2 : 1,
           updatedAt: NOW,
+          providerConfigurations: aiAdminFixture({
+            enabled,
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            apiKeyConfigured: hasKey,
+          }).providerConfigurations.map((slot) =>
+            slot.provider === 'openai' ? { ...slot, revision: hasKey ? 2 : 1 } : slot,
+          ),
         }),
       );
     }
@@ -1737,9 +1753,11 @@ test('Platform admin saves a separate cloud key without exposing it to the page'
   await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
   await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
   await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
-  await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toContainText(
-    'Ключ сохранён',
-  );
+  const selectedCard = page
+    .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+    .getByRole('button', { name: /^OpenAI/ });
+  await expect(selectedCard).toHaveAttribute('aria-pressed', 'true');
+  await expect(selectedCard).toContainText('Выключен · ключ сохранён');
   expect(await page.evaluate((value) => document.body.textContent?.includes(value), secret)).toBe(
     false,
   );
@@ -1853,6 +1871,7 @@ for (const width of [1440, 600, 390, 320]) {
           elapsedMs: 120,
           testedAt: NOW,
           configurationVersion: 2,
+          providerConfigurationVersion: 2,
         },
       });
     });
@@ -1869,7 +1888,14 @@ for (const width of [1440, 600, 390, 320]) {
     await page.getByLabel('Разрешаю один платный запрос для проверки').check();
     await apply.click();
     await expect(page.getByText(/Подключено · OpenAI/)).toBeVisible();
-    expect(tests).toEqual([{ acknowledgePaidRequest: true, configurationVersion: 2 }]);
+    expect(tests).toEqual([
+      {
+        acknowledgePaidRequest: true,
+        configurationVersion: 2,
+        provider: 'openai',
+        providerConfigurationVersion: 2,
+      },
+    ]);
     await expect(page.getByLabel('Разрешаю один платный запрос для проверки')).not.toBeChecked();
     await expect(apply).toBeDisabled();
     await page.getByLabel('Модель', { exact: true }).selectOption('gpt-4.1-mini');
@@ -2145,11 +2171,41 @@ test('AI theme is explicitly light by default and respects the chosen appearance
   expect(
     await root.evaluate((node) => getComputedStyle(node).getPropertyValue('--ai-danger').trim()),
   ).toBe('#ff9c98');
+  async function checkMenu(theme: 'light' | 'dark') {
+    // Deliberately oppose the OS preference: the chat toggle owns this menu.
+    await page.emulateMedia({ colorScheme: theme === 'dark' ? 'light' : 'dark' });
+    const tools = root.locator('.chat-tools-menu');
+    await tools.locator('summary').click();
+    const popup = tools.locator('.chat-tools-popup');
+    await page.mouse.move(0, 0);
+    const surface = theme === 'dark' ? 'rgb(29, 29, 31)' : 'rgb(255, 255, 255)';
+    const text = theme === 'dark' ? 'rgb(245, 245, 245)' : 'rgb(32, 33, 35)';
+    await expect(popup).toHaveCSS('background-color', surface);
+    await expect(popup).toHaveCSS('color', text);
+    await expect(popup).toHaveCSS('color-scheme', theme);
+    await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
+    const select = tools.getByRole('combobox', { name: 'Генерация изображений' });
+    await expect(select).toHaveCSS('background-color', surface);
+    await expect(select).toHaveCSS('color', text);
+    await expect(select.locator('option').first()).toHaveCSS('background-color', surface);
+    await select.focus();
+    await expect(select).toHaveCSS('outline-width', '2px');
+    await select.hover();
+    await expect(select).toHaveCSS(
+      'background-color',
+      theme === 'dark' ? 'rgb(50, 50, 53)' : 'rgb(234, 234, 234)',
+    );
+    await select.selectOption('auto');
+    await expect(select).toHaveValue('auto');
+    await tools.locator('summary').click();
+  }
+  await checkMenu('dark');
   await page.reload();
   await expect(root).toHaveAttribute('data-chat-theme', 'dark');
   await page.getByRole('button', { name: 'Светлая тема чата' }).click();
   await expect(root).toHaveAttribute('data-chat-theme', 'light');
   await expect(root).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await checkMenu('light');
 });
 
 for (const width of [320, 390, 1024, 1440]) {

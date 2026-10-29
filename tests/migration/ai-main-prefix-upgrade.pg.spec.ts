@@ -49,6 +49,18 @@ const expectedPending = [
   '0267', // Additive frozen Courses completion repair, no data rewrite.
   '0268', // Additive read-only AI usage overview.
   '0269', // Exact public Scratch player and version-scoped asset reads.
+  '0271', // Accepted Ollama Cloud catalog migration.
+  '0272', // Accepted Ollama Cloud key pool migration.
+  '0273', // Accepted ComfyUI endpoint migration.
+  '0274', // Audited class/Seat distribution and immutable publication admission.
+  '0275', // Global and author acquisition controls.
+  '0276', // Independent providers.
+  '0277', // Cloud pool provider projection.
+  '0278', // Model selection policy.
+  '0279', // Soft monthly token budgets.
+  '0280', // Six image presets.
+  '0281', // Versioned image profiles.
+  '0282', // Local inference overrides preserve legacy defaults.
 ];
 
 interface Identity {
@@ -112,7 +124,9 @@ async function legacySnapshot(db: pg.Pool) {
     project_versions: [],
     project_snapshots: [],
     project_publications: [],
-    project_publication_state: [],
+    // 0275 adds only these default-OFF consent columns. Keep every old field
+    // (and any unrecognized future field) in the strict preserved-data comparison.
+    project_publication_state: ['acquisition_allowed', 'acquisition_version'],
     project_publication_revisions: [
       'module_key',
       'author_label',
@@ -689,6 +703,25 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       const upgrade = await db.connect();
       try {
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedPending.length);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT enabled,version FROM publication_acquisition_settings WHERE singleton_key',
+            )
+          ).rows,
+        ).toEqual([{ enabled: false, version: 0 }]);
+        expect(
+          (
+            await upgrade.query(
+              'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+            )
+          ).rows,
+        ).toEqual(
+          before.project_publication_state!.map(() => ({
+            acquisition_allowed: false,
+            acquisition_version: 0,
+          })),
+        );
       } finally {
         upgrade.release();
       }
@@ -785,6 +818,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       ).toEqual([
         {
           provider: 'deepseek',
+          enabled: false,
+          revision: 1,
           model: 'deepseek-flash',
           api_key_ciphertext: configBefore.api_key_ciphertext,
           api_key_iv: configBefore.api_key_iv,
@@ -794,6 +829,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         },
         {
           provider: 'ollama-cloud',
+          enabled: false,
+          revision: 1,
           model: 'gemma4:31b',
           api_key_ciphertext: null,
           api_key_iv: null,
@@ -803,6 +840,8 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         },
         {
           provider: 'openai',
+          enabled: false,
+          revision: 1,
           model: 'gpt-6-luna',
           api_key_ciphertext: null,
           api_key_iv: null,

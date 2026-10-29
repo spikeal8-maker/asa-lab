@@ -884,7 +884,16 @@ test('UI-04 compact teacher profile has only context-specific controls and real 
 
     await openTeacherTab(page, 'settings');
     const region = main.getByRole('region', { name: 'Настройки ученика', exact: true });
-    await expect(region.locator('.classroom-student-settings-category')).toHaveCount(4);
+    await expect(region.locator('.classroom-student-settings-category')).toHaveCount(5);
+    await expect(
+      region.locator('.classroom-student-settings-category > span:first-child'),
+    ).toHaveText([
+      'Данные и роль',
+      'Коды и доступ',
+      'Защита ученика',
+      'Игровые разрешения',
+      'Публикация и скачивание',
+    ]);
     await expect(region.locator('.classroom-student-settings-editor')).toHaveCount(0);
     await expect(main.locator('.classroom-games-settings')).toHaveCount(0);
     const first = (await region
@@ -1903,7 +1912,7 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
   expect(state.mutations).toEqual([]);
 });
 
-test('UI-03: four real student settings categories preserve permissions and one active editor', async ({
+test('UI-03: five real student settings categories preserve permissions and one active editor', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
@@ -1918,7 +1927,16 @@ test('UI-03: four real student settings categories preserve permissions and one 
 
   const region = page.getByRole('region', { name: 'Настройки ученика', exact: true });
   const categories = region.getByRole('group', { name: 'Категории настроек ученика' });
-  await expect(categories.locator('button')).toHaveCount(4);
+  await expect(categories.locator('button')).toHaveCount(5);
+  await expect(
+    region.locator('.classroom-student-settings-category > span:first-child'),
+  ).toHaveText([
+    'Данные и роль',
+    'Коды и доступ',
+    'Защита ученика',
+    'Игровые разрешения',
+    'Публикация и скачивание',
+  ]);
   await expect(categories.locator('button[aria-expanded="true"]')).toHaveCount(0);
   await expect(region.getByRole('group', { name: 'Активный редактор ученика' })).toHaveCount(0);
 

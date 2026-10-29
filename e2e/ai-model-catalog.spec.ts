@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
 import type { AiAdminConfig, AiProvider } from '../apps/web/src/admin/ai-model-config';
+import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
@@ -10,6 +12,31 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
   let config = structuredClone(initial);
   const writes: Record<string, unknown>[] = [];
   const paidTests: unknown[] = [];
+  const poolWrites: { configurationVersion: number; keys: AiOllamaCloudKeyUpdate[] }[] = [];
+  let pool: AiOllamaCloudPool = {
+    configurationVersion: config.configurationVersion,
+    managed: false,
+    models: config.modelCatalog.models
+      .filter((model) => model.provider === 'ollama-cloud')
+      .map((model) => ({
+        id: model.id,
+        model: model.id,
+        active: true,
+        capabilities: ['completion'],
+      })),
+    keys: Array.from({ length: 5 }, (_, index) => ({
+      slot: index + 1,
+      label: 'Ключ ' + (index + 1),
+      priority: index + 1,
+      enabled: false,
+      configured: false,
+      fingerprint: null,
+      models: [],
+      account: null,
+      blockedUntil: null,
+      unavailableModels: [],
+    })),
+  };
   const ollamaWrites: Record<string, unknown>[] = [];
   const ollamaDiscoveries: Record<string, unknown>[] = [];
   const ollamaTests: Record<string, unknown>[] = [];
@@ -76,6 +103,10 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
     if (path === '/api/auth/max/config')
       return route.fulfill({ json: { enabled: false, launchUrl: null } });
     if (path === '/api/class-join/me') return route.fulfill({ json: { authenticated: false } });
+    if (path === '/api/admin/v1/ai/ollama/model-detail')
+      return route.fulfill({
+        json: { capabilities: ['completion'], thinking: null, contextMax: null },
+      });
     if (path === '/api/admin/v1/ai/ollama/models') {
       ollamaDiscoveries.push(request.postDataJSON() as Record<string, unknown>);
       return route.fulfill({
@@ -87,6 +118,27 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
         },
       });
     }
+    if (path === '/api/admin/v1/ai/comfyui/settings' && request.method() === 'GET')
+      return route.fulfill({
+        json: {
+          configurationVersion: 1,
+          baseUrl: 'http://host.docker.internal:8188',
+          source: 'saved',
+        },
+      });
+    if (path === '/api/admin/v1/ai/images' && request.method() === 'GET')
+      return route.fulfill({
+        json: {
+          configurationVersion: 1,
+          enabled: false,
+          dailyLimit: 10,
+          globalConcurrency: 1,
+          sizes: [512],
+          ready: false,
+          reason: 'disabled',
+          recipe: 'flux2-klein-4b-v1',
+        },
+      });
     if (path === '/api/admin/v1/ai/comfyui/status') {
       return route.fulfill({
         json: {
@@ -97,6 +149,7 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
           textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
           vaeModels: ['flux2-vae.safetensors'],
           fluxKlein4bFound: true,
+          devices: [],
           checkedAt: NOW,
         },
       });
@@ -168,13 +221,84 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
       }
       return route.fulfill({ json: ollama });
     }
-    if (path === '/api/admin/v1/ai/test') {
-      paidTests.push(request.postDataJSON());
+    if (path === '/api/admin/v1/ai/ollama-cloud/keys') {
+      if (request.method() === 'PUT') {
+        const body = request.postDataJSON() as (typeof poolWrites)[number];
+        if (body.configurationVersion !== config.configurationVersion)
+          return route.fulfill({ status: 409, json: { error: { code: 'ai_config_changed' } } });
+        poolWrites.push(body);
+        pool = {
+          ...pool,
+          managed: true,
+          keys: pool.keys.map((old) => {
+            const next = body.keys.find((key) => key.slot === old.slot)!;
+            return {
+              ...old,
+              label: next.label,
+              priority: next.priority,
+              enabled: next.enabled && !next.clearApiKey,
+              configured: next.clearApiKey ? false : Boolean(next.apiKey) || old.configured,
+              fingerprint: next.clearApiKey
+                ? null
+                : next.apiKey
+                  ? 'cloud-slot-' + old.slot
+                  : old.fingerprint,
+              models: next.models,
+            };
+          }),
+        };
+        const active = [...pool.keys]
+          .sort((a, b) => a.priority - b.priority)
+          .find((key) => key.enabled && key.configured);
+        config = {
+          ...config,
+          configurationVersion: config.configurationVersion + 1,
+          providerConfigurations: config.providerConfigurations.map((slot) =>
+            slot.provider === 'ollama-cloud'
+              ? { ...slot, apiKeyConfigured: !!active, keyFingerprint: active?.fingerprint ?? null }
+              : slot,
+          ),
+        };
+      }
+      return route.fulfill({
+        json: { ...pool, configurationVersion: config.configurationVersion },
+      });
+    }
+    if (
+      path === '/api/admin/v1/ai/generation-policy' ||
+      path === '/api/admin/v1/ai/generation-policy/catalog'
+    ) {
+      const policy = generationPolicyFixture();
+      const selected = new Set(
+        pool.keys.filter((key) => key.enabled && key.configured).flatMap((key) => key.models),
+      );
       return route.fulfill({
         json: {
-          provider: config.provider,
-          model: config.model,
+          ...policy,
+          models: policy.models.map((model) => ({
+            ...model,
+            connectionSelected:
+              model.provider !== 'ollama-cloud' || !pool.managed || selected.has(model.id),
+          })),
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/test') {
+      const body = request.postDataJSON();
+      const slot = config.providerConfigurations.find((item) => item.provider === body.provider);
+      paidTests.push(body);
+      if (
+        body.configurationVersion !== config.configurationVersion ||
+        !slot?.enabled ||
+        body.providerConfigurationVersion !== slot.revision
+      )
+        return route.fulfill({ status: 409, json: { error: { code: 'ai_config_changed' } } });
+      return route.fulfill({
+        json: {
+          provider: slot.provider,
+          model: slot.model,
           configurationVersion: config.configurationVersion,
+          providerConfigurationVersion: slot.revision,
           elapsedMs: 120,
           testedAt: NOW,
         },
@@ -184,7 +308,12 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
       if (request.method() === 'PUT') {
         const body = request.postDataJSON() as Record<string, unknown>;
         writes.push(body);
-        if (body['configurationVersion'] !== config.configurationVersion)
+        if (
+          body['configurationVersion'] !== config.configurationVersion ||
+          body['providerConfigurationVersion'] !==
+            config.providerConfigurations.find((slot) => slot.provider === body['provider'])
+              ?.revision
+        )
           return route.fulfill({
             status: 409,
             json: {
@@ -202,6 +331,8 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
             : {
                 ...slot,
                 model,
+                enabled: Boolean(body['enabled']),
+                revision: slot.revision + 1,
                 updatedAt: NOW,
                 apiKeyConfigured: body['clearApiKey']
                   ? false
@@ -242,6 +373,7 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
   return {
     writes,
     paidTests,
+    poolWrites,
     ollamaWrites,
     ollamaDiscoveries,
     ollamaTests,
@@ -382,52 +514,121 @@ test('Cloud save-and-verify uses exactly one consented paid request and refreshe
   await action.click();
   await expect(page.getByText(/Подключено · DeepSeek/)).toBeVisible();
   expect(fake.writes).toHaveLength(1);
-  expect(fake.paidTests).toEqual([{ acknowledgePaidRequest: true, configurationVersion: 4 }]);
+  expect(fake.paidTests).toEqual([
+    {
+      acknowledgePaidRequest: true,
+      configurationVersion: 4,
+      provider: 'deepseek',
+      providerConfigurationVersion: 2,
+    },
+  ]);
   await expect(page.getByLabel('Разрешаю один платный запрос для проверки')).not.toBeChecked();
   await expect(action).toBeDisabled();
   expect(fake.pageErrors).toEqual([]);
 });
 
 for (const width of [1440, 1024, 390, 320]) {
-  test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width}`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 900 });
-    const fake = await adminFixture(page);
-    await openAdmin(page);
-    await selectProvider(page, 'ollama-cloud');
-    await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
-    ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
-    await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gemma4:31b');
-    await page.getByLabel('Новый API-ключ').fill('test-ollama-cloud-key-only');
-    await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
-    await page.getByLabel('Выключено', { exact: true }).check();
-    await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
-    expect(fake.paidTests).toHaveLength(0);
-    await page.getByLabel('Разрешаю один платный запрос для проверки').check();
-    await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
-    await expect(page.getByText(/Подключено · Ollama Cloud/)).toBeVisible();
-    expect(fake.writes).toHaveLength(1);
-    expect(fake.writes[0]).toMatchObject({
-      provider: 'ollama-cloud',
-      model: 'gemma4:31b',
-      apiKey: 'test-ollama-cloud-key-only',
+  for (const theme of ['light', 'dark']) {
+    test(`Ollama Cloud saves a separate key and uses explicit paid verification at ${width} ${theme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme === 'dark' ? 'dark' : 'light' });
+      await page.setViewportSize({ width, height: 900 });
+      const fake = await adminFixture(page);
+      await openAdmin(page);
+      await selectProvider(page, 'ollama-cloud');
+      await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Настройки Ollama Cloud' })).toHaveCSS(
+        'background-color',
+        theme === 'dark' ? 'rgb(32, 33, 35)' : 'rgb(255, 255, 255)',
+      );
+      await expect(
+        page.getByRole('link', { name: 'Войти в Ollama и получить ключ' }),
+      ).toHaveAttribute('href', 'https://ollama.com/settings/keys');
+      await expect(page.getByLabel('Модель', { exact: true })).toHaveValue('gemma4:31b');
+      const keyCard = page.locator('details.asa-cloud-key-card').filter({
+        has: page.getByLabel('API-ключ 1', { exact: true }),
+      });
+      await page.getByRole('button', { name: 'Открыть ключ 1', exact: true }).click();
+      await keyCard.getByLabel('API-ключ 1', { exact: true }).fill('test-ollama-cloud-key-only');
+      await keyCard.getByRole('checkbox', { name: 'Использовать ключ', exact: true }).check();
+      await keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }).check();
+      expect(fake.paidTests).toHaveLength(0);
+      await page.getByRole('button', { name: 'Сохранить ключи и порядок', exact: true }).click();
+      await expect(page.getByText('Ключи и порядок сохранены', { exact: true })).toBeVisible();
+      await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
+      await expect(page.getByLabel('Выключено', { exact: true })).not.toBeChecked();
+      expect(fake.poolWrites).toHaveLength(1);
+      expect(fake.poolWrites[0]).toMatchObject({
+        configurationVersion: 1,
+        keys: expect.arrayContaining([
+          {
+            slot: 1,
+            label: 'Ключ 1',
+            priority: 1,
+            enabled: true,
+            models: ['gemma4:31b'],
+            apiKey: 'test-ollama-cloud-key-only',
+          },
+        ]),
+      });
+      expect(
+        fake.current().providerConfigurations.find((slot) => slot.provider === 'ollama-cloud'),
+      ).toMatchObject({ enabled: false, apiKeyConfigured: true, revision: 1 });
+      expect(fake.paidTests).toHaveLength(0);
+      await page.getByLabel('Общий лимит платных ИИ-операций за час').fill('5');
+      await page.getByLabel('Выключено', { exact: true }).check();
+      await expect(page.getByRole('button', { name: 'Сохранить и проверить' })).toBeDisabled();
+      expect(fake.paidTests).toHaveLength(0);
+      await page.getByLabel('Разрешаю один платный запрос для проверки').check();
+      await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+      await expect(page.getByText(/Подключено · Ollama Cloud/)).toBeVisible();
+      expect(fake.writes).toHaveLength(1);
+      expect(fake.writes[0]).toMatchObject({
+        provider: 'ollama-cloud',
+        model: 'gemma4:31b',
+        enabled: true,
+        configurationVersion: 2,
+        providerConfigurationVersion: 1,
+      });
+      expect(fake.writes[0]).not.toHaveProperty('apiKey');
+      expect(fake.paidTests).toEqual([
+        {
+          acknowledgePaidRequest: true,
+          configurationVersion: 3,
+          provider: 'ollama-cloud',
+          providerConfigurationVersion: 2,
+        },
+      ]);
+      await expect(keyCard.getByLabel('API-ключ 1', { exact: true })).toHaveValue('');
+      expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.getByRole('region', { name: 'Настройки Ollama Cloud' }).scrollIntoViewIfNeeded();
+      await page.evaluate(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      });
+      await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}-${theme}.png`) });
+      const editor = keyCard.locator('.asa-cloud-key-editor');
+      await editor.scrollIntoViewIfNeeded();
+      await expect(editor).toBeVisible();
+      const keyControl = editor.getByLabel('API-ключ 1', { exact: true });
+      if (theme === 'dark')
+        await expect(keyControl).toHaveCSS('background-color', 'rgb(22, 22, 24)');
+      else await expect(keyControl).not.toHaveCSS('background-color', 'rgb(22, 22, 24)');
+      await expect(
+        keyCard.getByRole('checkbox', { name: 'gemma4:31b', exact: true }),
+      ).toBeChecked();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      await page.screenshot({
+        path: test.info().outputPath(`ollama-cloud-editor-${width}-${theme}.png`),
+      });
+      expect(fake.pageErrors).toEqual([]);
     });
-    expect(fake.paidTests).toHaveLength(1);
-    await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
-    expect(await page.locator('body').innerText()).not.toContain('test-ollama-cloud-key-only');
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
-      true,
-    );
-    await page.getByRole('region', { name: 'Настройки Ollama Cloud' }).scrollIntoViewIfNeeded();
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    });
-    await page.screenshot({ path: test.info().outputPath(`ollama-cloud-${width}.png`) });
-    expect(fake.pageErrors).toEqual([]);
-  });
+  }
 }
 
 test('Stale cloud save cannot start a paid request or claim success', async ({ page }) => {
@@ -468,6 +669,7 @@ test('A response for another model is never a verified connection', async ({ pag
       json: {
         provider: 'deepseek',
         model: 'deepseek-v4-pro',
+        providerConfigurationVersion: 1,
         elapsedMs: 123,
         testedAt: NOW,
         configurationVersion: 2,
@@ -541,10 +743,18 @@ for (const width of [1440, 390]) {
     expect(fake.ollamaWrites).toHaveLength(1);
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
-    const technicalState = page.locator('details.asa-ai-comfy');
+    const comfyConnection = page.getByRole('region', { name: 'Подключение ComfyUI', exact: true });
+    await expect(comfyConnection.getByRole('textbox', { name: 'Адрес ComfyUI' })).toHaveValue(
+      'http://host.docker.internal:8188',
+    );
+    const technicalState = comfyConnection.locator('details').filter({
+      has: page.getByText('Техническое состояние ComfyUI', { exact: true }),
+    });
     await technicalState.getByText('Техническое состояние ComfyUI', { exact: true }).click();
     await expect(technicalState.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
-    await expect(technicalState.getByText('Граф генерации ещё не проверен')).toBeVisible();
+    await expect(
+      technicalState.getByText('Workflow ASA ещё не проверен', { exact: true }),
+    ).toBeVisible();
     await page.getByRole('tab', { name: 'Подключения' }).click();
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');

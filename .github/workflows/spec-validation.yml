@@ -185,6 +185,15 @@ jobs:
           ' > reports/checks/full-data-gate.log 2>&1 &
           echo "$!" > reports/checks/log-observer.pid
 
+      - name: Match test runner to report owner
+        run: |
+          # Bind-mounted reports belong to this host user. Keep the container
+          # non-root while allowing it to write and clean its own diagnostics.
+          export ASA_TEST_UID="$(id -u)" ASA_TEST_GID="$(id -g)"
+          test "$ASA_TEST_UID" -ne 0
+          echo "ASA_TEST_UID=$ASA_TEST_UID" >> "$GITHUB_ENV"
+          echo "ASA_TEST_GID=$ASA_TEST_GID" >> "$GITHUB_ENV"
+
       - name: Data gate
         env:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -204,7 +213,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: full-data-gate-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
-          path: reports/checks/full-data-gate.log
+          path: |
+            reports/checks/full-data-gate.log
+            reports/arduino-seven-segment-matrix
           retention-days: 14
 
       - name: Cleanup isolated test environment

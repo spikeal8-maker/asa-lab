@@ -1,13 +1,16 @@
+import { AI_IMAGE_PRESETS, AI_IMAGE_RECIPES, type AiImageRecipe } from '@asa-lab/contracts';
 import { useEffect, useRef, useState } from 'react';
 import type { AiImageGenerationAdminConfig, AiImageSize } from '@asa-lab/contracts';
 import { call } from './admin-api';
+import { newClientId } from '../client-id';
 import './ai-generation-policy.css';
 
 export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }) {
   const [config, setConfig] = useState<AiImageGenerationAdminConfig | null>(null);
+  const [recipe, setRecipe] = useState<AiImageRecipe>('flux2-klein-4b-v1');
   const [enabled, setEnabled] = useState(false);
   const [limit, setLimit] = useState(10);
-  const [sizes, setSizes] = useState<readonly AiImageSize[]>([512]);
+  const [sizes, setSizes] = useState<readonly AiImageSize[]>([1024]);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [reload, setReload] = useState(0);
@@ -16,6 +19,7 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
   function apply(data: AiImageGenerationAdminConfig) {
     setConfig(data);
     setEnabled(data.enabled);
+    setRecipe(data.recipe);
     setLimit(data.dailyLimit);
     setSizes(data.sizes);
   }
@@ -26,7 +30,7 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
       if (!live) return;
       if (
         result.ok &&
-        result.data.recipe === 'flux2-klein-4b-v1' &&
+        AI_IMAGE_RECIPES.includes(result.data.recipe) &&
         Array.isArray(result.data.sizes)
       ) {
         apply(result.data);
@@ -57,13 +61,14 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
     const update = {
       configurationVersion: config.configurationVersion,
       enabled,
+      recipe,
       dailyLimit: limit,
       globalConcurrency: config.globalConcurrency,
       sizes,
     };
     const signature = JSON.stringify(update);
     if (attempt.current?.signature !== signature)
-      attempt.current = { signature, id: crypto.randomUUID() };
+      attempt.current = { signature, id: newClientId() };
     try {
       const result = await call<AiImageGenerationAdminConfig>('/api/admin/v1/ai/images', {
         method: 'PUT',
@@ -110,9 +115,24 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
         >
           <p role="status">
             {config.ready
-              ? 'Рецепт генерации готов'
+              ? 'Узлы и имена моделей совместимы с сохранённым рецептом'
               : 'Генерация не готова: ' + (config.reason || 'проверьте локальный сервер и модели')}
           </p>
+          <p>
+            GPU-проверка и SHA-256 файлов на этом узле не подтверждены. Совместимость не доказывает
+            успешную генерацию.
+          </p>
+          <label>
+            Профиль генерации{' '}
+            <select
+              value={recipe}
+              disabled={busy}
+              onChange={(e) => setRecipe(e.target.value as AiImageRecipe)}
+            >
+              <option value="flux2-klein-4b-v1">FLUX.2 Klein 4B · исходный FP4</option>
+              <option value="flux2-klein-4b-fp8-izo-v1">FLUX.2 Klein 4B · профиль ИЗО FP8</option>
+            </select>
+          </label>
           <label>
             <input
               type="checkbox"
@@ -135,7 +155,7 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
           </label>
           <fieldset disabled={busy}>
             <legend>Разрешённые размеры</legend>
-            {([512, 768, 1024] as const).map((value) => (
+            {AI_IMAGE_PRESETS.map(({ id: value, label }) => (
               <label key={value}>
                 <input
                   type="checkbox"
@@ -143,12 +163,14 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
                   onChange={(e) =>
                     setSizes((previous) =>
                       e.target.checked
-                        ? [...previous, value].sort((a, b) => a - b)
+                        ? AI_IMAGE_PRESETS.filter(
+                            (p) => p.id === value || previous.includes(p.id),
+                          ).map((p) => p.id)
                         : previous.filter((size) => size !== value),
                     )
                   }
                 />{' '}
-                {value} × {value}{' '}
+                {label}{' '}
               </label>
             ))}
           </fieldset>

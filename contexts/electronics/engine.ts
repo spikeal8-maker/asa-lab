@@ -26,6 +26,7 @@ export type {
   ElectronicsLedTemporalObservation,
   ElectronicsLedTemporalComponent,
   ElectronicsLedTemporalSample,
+  ElectronicsSevenSegmentTemporal,
   ElectronicsArduinoIndicatorSample,
   ElectronicsArduinoIndicatorTemporal,
 } from './domain/led-temporal-observation.js';
@@ -366,7 +367,10 @@ export function advanceElectronicsToHorizon(
 export function createElectronicsAdvanceSession(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
-  options: { readonly observeLedTemporal?: boolean } = {},
+  options: {
+    readonly observeLedTemporal?: boolean;
+    readonly observeSevenSegmentTemporal?: boolean;
+  } = {},
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
   const ownedDocument = structuredClone(document);
@@ -378,6 +382,7 @@ export function createElectronicsAdvanceSession(
     true,
     options.observeLedTemporal === true,
     ownership,
+    options.observeSevenSegmentTemporal === true,
   );
   let disposed = false;
   const dispose = () => {
@@ -397,6 +402,7 @@ function* advanceElectronicsRequest(
   internalBatches: boolean,
   observeLedTemporal = false,
   ownership?: ReturnType<typeof createOwnedArduinoCircuitClockRequest>,
+  observeSevenSegmentTemporal = false,
 ): Generator<null, ElectronicsTimedAdvanceResult, void> {
   // Recheck before even the initial structural/model guards can call a producer.
   ownership?.check();
@@ -476,6 +482,7 @@ function* advanceElectronicsRequest(
           previous,
           options,
           observeLedTemporal,
+          observeSevenSegmentTemporal,
         )
       : null;
   let opticalObservation: ElectronicsLedTemporalObservation | null | undefined;

@@ -45,7 +45,7 @@ function fixture(invalid = false) {
 }
 it('image create uses exact canonical Seat owner and JSON same-origin mutation boundary', async () => {
   const f = fixture();
-  const payload = { requestId: A, prompt: 'test', size: 512 };
+  const payload = { requestId: A, prompt: 'test', size: 768 };
   await f.controller.create(f.request, A, payload);
   expect(f.images.create).toHaveBeenCalledWith(O, A, payload);
   expect(f.active.resolve).not.toHaveBeenCalled();

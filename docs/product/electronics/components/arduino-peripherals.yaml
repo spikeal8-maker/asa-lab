@@ -10,11 +10,15 @@ components:
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#8-e-opt-5--arduino-runtime-hardening
     sources:
     - contexts/electronics/domain/arduino-program-runtime.ts
+    - contexts/electronics/domain/arduino-user-functions.ts
     - contexts/electronics/domain/arduino-values.ts
     - contexts/electronics/domain/arduino-random.ts
     - contexts/electronics/domain/arduino-model.ts
     tests:
     - contexts/electronics/testing/arduino-correctness.spec.ts
+    - contexts/electronics/testing/arduino-user-functions.spec.ts
+    - contexts/electronics/testing/arduino-helper-displays.spec.ts
+    - contexts/electronics/testing/fixtures/arduino-helper-display-counter.ts
     - contexts/electronics/testing/arduino-runtime-state.spec.ts
     - contexts/electronics/testing/arduino-values.spec.ts
     - contexts/electronics/testing/arduino-random.spec.ts

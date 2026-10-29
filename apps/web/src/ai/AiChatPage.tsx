@@ -1,3 +1,4 @@
+import { aiImageSizeLabel } from '@asa-lab/contracts';
 import {
   useEffect,
   useCallback,
@@ -12,6 +13,7 @@ import {
 import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
+import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
 import {
   AiImageGeneration,
@@ -105,6 +107,7 @@ interface AiStatus {
   readonly ollamaModel?: string | null;
   readonly model: string;
   readonly availableModels?: readonly string[];
+  readonly modelChoices?: readonly { id: string; label: string }[];
 }
 
 /** Keep the popover entirely inside the chat canvas, including short viewports
@@ -155,7 +158,7 @@ export function AiChatPage({
   const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [imageMode, setImageMode] = useState(false);
   const [imageSelection, setImageSelection] = useState<ImageGenerationMode>('auto');
-  const [imageSize, setImageSize] = useState<AiImageSize>(512);
+  const [imageSize, setImageSize] = useState<AiImageSize>(1024);
   const imageController = useRef<ImageComposerController>(null);
   const imageHandoffPending = useRef(false);
   const [imageUi, setImageUi] = useState<ImageComposerState>({
@@ -163,7 +166,7 @@ export function AiChatPage({
     canCancel: false,
     canSubmit: false,
     notice: '',
-    sizes: [512],
+    sizes: [1024],
   });
   const onImageState = useCallback((state: ImageComposerState) => {
     if (state.busy) imageHandoffPending.current = false;
@@ -172,6 +175,7 @@ export function AiChatPage({
   }, []);
   const [imageStatus, setImageStatus] = useState<AiImageGenerationStatus | null>(null);
   const [status, setStatus] = useState<AiStatus | null>(null);
+  const [tokenBudgets, setTokenBudgets] = useState<AiTokenBudgetsOwn | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
   const [webSearchStatus, setWebSearchStatus] = useState<AiWebSearchStatus | null>(null);
   const [webSearchMode, setWebSearchMode] = useState<AiWebSearchMode>('auto');
@@ -242,6 +246,24 @@ export function AiChatPage({
     loaded: Set<string>;
   }>({ threadId: null, loaded: new Set<string>() });
   const [busy, setBusy] = useState(false);
+  // Reuse model-status refresh (focus/60s) to recover availability after a limit change.
+  useEffect(() => {
+    if (busy) return;
+    let active = true;
+    void call<AiTokenBudgetsOwn>('/api/ai/token-budgets')
+      .then((reply) => {
+        if (active) setTokenBudgets(reply.ok ? reply.data : null);
+      })
+      .catch(() => {
+        if (active) setTokenBudgets(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [call, busy, status]);
+  const selectedBudget = tokenBudgets?.models?.find(
+    (row) => row.model === (selectedModel || status?.model),
+  );
   const [creatingChat, setCreatingChat] = useState(false);
   // Serialize creation and sending before React renders disabled controls.
   const requestBusy = useRef(false);
@@ -685,6 +707,38 @@ export function AiChatPage({
       node.scrollTo({ top: node.scrollHeight });
     }
   }, [messages, busy, streamedText]);
+
+  const refreshModelChoices = useCallback(async () => {
+    if (requestBusy.current) return;
+    const version = selectedVersion.current;
+    const reply = await call<AiStatus>('/api/ai/status').catch(() => null);
+    if (
+      version !== selectedVersion.current ||
+      requestBusy.current ||
+      !reply ||
+      !reply.ok ||
+      !Array.isArray(reply.data.availableModels)
+    )
+      return;
+    setStatus(reply.data);
+    setSelectedModel((previous) => previous || reply.data.model);
+  }, [call]);
+  const wasGenerating = useRef(false);
+  useEffect(() => {
+    if (wasGenerating.current && !busy) void refreshModelChoices();
+    wasGenerating.current = busy;
+  }, [busy, refreshModelChoices]);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'hidden') void refreshModelChoices();
+    };
+    const timer = window.setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshModelChoices]);
 
   async function refreshAdmission() {
     const version = selectedVersion.current;
@@ -2059,7 +2113,7 @@ export function AiChatPage({
                     >
                       {imageUi.sizes.map((value) => (
                         <option key={value} value={value}>
-                          {value} × {value}
+                          {aiImageSizeLabel(value as AiImageSize)}
                         </option>
                       ))}
                     </select>
@@ -2286,20 +2340,43 @@ export function AiChatPage({
                     <div className="asa-ai-provider-label">
                       {imageMode ? (
                         <span className="asa-ai-model-single">FLUX.2 Klein 4B</span>
-                      ) : (status?.availableModels?.length ?? 0) > 1 ? (
+                      ) : (status?.availableModels?.length ?? 0) > 1 ||
+                        (status?.enabled &&
+                          !status.availableModels?.includes(selectedModel || status.model)) ? (
                         <select
                           className="asa-ai-model-picker"
                           aria-label="Модель ИИ"
                           title="Выбрать модель"
+                          onFocus={() => void refreshModelChoices()}
                           value={selectedModel || status?.model}
                           onChange={(event) => setSelectedModel(event.target.value)}
                           disabled={interactionBusy || !status?.enabled}
                         >
+                          {status &&
+                          !status.availableModels?.includes(selectedModel || status.model) ? (
+                            <option value={selectedModel || status.model} disabled>
+                              Выбранная модель недоступна — выберите другую
+                            </option>
+                          ) : null}
                           {status?.availableModels?.map((name) => (
-                            <option key={name} value={name}>
-                              {name === 'ollama-local'
-                                ? status.ollamaModel || 'Локальная модель'
-                                : name}
+                            <option
+                              key={name}
+                              value={name}
+                              disabled={tokenBudgets?.models?.some(
+                                (row) => row.model === name && !row.available,
+                              )}
+                            >
+                              {status.modelChoices?.find((m) => m.id === name)?.label ??
+                                (name === 'ollama-local'
+                                  ? status.ollamaModel || 'Локальная модель'
+                                  : name)}
+                              {tokenBudgets?.models?.find((row) => row.model === name)?.reason ===
+                              'ai_budget_pending'
+                                ? ' · расход ожидает подтверждения'
+                                : tokenBudgets?.models?.find((row) => row.model === name)
+                                      ?.reason === 'ai_budget_exhausted'
+                                  ? ' · бюджет исчерпан'
+                                  : ''}
                             </option>
                           ))}
                         </select>
@@ -2308,7 +2385,8 @@ export function AiChatPage({
                           {status?.enabled
                             ? status.model === 'ollama-local'
                               ? status.ollamaModel || 'Локальная модель'
-                              : status.model
+                              : (status.modelChoices?.find((m) => m.id === status.model)?.label ??
+                                status.model)
                             : schoolPolicyDenied
                               ? 'Доступ закрыт'
                               : 'Модель'}
@@ -2339,9 +2417,17 @@ export function AiChatPage({
                     <button
                       type={composerBusy ? 'button' : 'submit'}
                       className="chat-send-button"
+                      title={
+                        !composerBusy && !imageMode && selectedBudget?.available === false
+                          ? selectedBudget.reason === 'ai_budget_pending'
+                            ? 'Расход ожидает подтверждения'
+                            : 'Месячный бюджет модели исчерпан'
+                          : undefined
+                      }
                       disabled={
                         (imageUi.busy && !imageUi.canCancel) ||
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
+                        (!composerBusy && !imageMode && selectedBudget?.available === false) ||
                         (!composerBusy && ((!status?.enabled && !imageMode) || archived)) ||
                         creatingChat ||
                         threadActionBusy ||

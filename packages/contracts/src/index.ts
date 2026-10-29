@@ -21,6 +21,8 @@ export type {
 export type {
   AiPromptVariable,
   AiGenerationModel,
+  AiModelPreference,
+  AiCatalogObservation,
   AiGenerationPolicy,
   AiGenerationPolicyUpdate,
 } from './ai-generation-policy.js';
@@ -64,4 +66,25 @@ export type {
   AiOllamaCloudModel,
   AiOllamaCloudAccount,
   AiOllamaCloudInspection,
+  AiOllamaCloudKey,
+  AiOllamaCloudPool,
+  AiOllamaCloudKeyUpdate,
 } from './ai-ollama-cloud.js';
+export type {
+  AiTokenBudgetLimit,
+  AiTokenBudgetAdmin,
+  AiTokenBudgetUpdate,
+  AiTokenBudgetsOwn,
+} from './ai-token-budgets.js';
+
+export {
+  AI_IMAGE_PRESETS,
+  aiImagePreset,
+  aiImageDimensions,
+  isAiImageSize,
+  aiImageSizeLabel,
+} from './ai-image-generation.js';
+export type { AiImageStoredSize } from './ai-image-generation.js';
+
+export { AI_IMAGE_RECIPES } from './ai-image-generation.js';
+export type { AiImageRecipe } from './ai-image-generation.js';

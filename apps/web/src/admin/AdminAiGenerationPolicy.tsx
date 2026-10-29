@@ -23,7 +23,7 @@ function policyShape(value: unknown): value is AiGenerationPolicy {
     Array.isArray(data.allowedModels) &&
     data.allowedModels.every((model) => typeof model === 'string') &&
     Array.isArray(data.models) &&
-    data.models.length <= 100 &&
+    data.models.length <= 2400 &&
     data.models.every(
       (model) =>
         model &&
@@ -32,7 +32,8 @@ function policyShape(value: unknown): value is AiGenerationPolicy {
         PROVIDERS.some((provider) => provider.id === model.provider) &&
         typeof model.ready === 'boolean' &&
         typeof model.selectable === 'boolean' &&
-        typeof model.allowed === 'boolean',
+        typeof model.allowed === 'boolean' &&
+        (model.connectionSelected === undefined || typeof model.connectionSelected === 'boolean'),
     ) &&
     Array.isArray(data.variables) &&
     data.variables.length <= 20 &&
@@ -50,14 +51,26 @@ function policyShape(value: unknown): value is AiGenerationPolicy {
 export function AdminAiGenerationPolicy({
   section,
   onAccessDenied,
+  provider,
+  onDirtyChange,
+  onEligibleModels,
 }: {
-  readonly section: 'prompt' | 'settings';
+  readonly section: 'prompt' | 'settings' | 'connections';
+  readonly provider?: string;
+  readonly onDirtyChange?: (dirty: boolean) => void;
+  readonly onEligibleModels?: (ids: readonly string[]) => void;
   readonly onAccessDenied: () => void;
 }) {
   const [config, setConfig] = useState<AiGenerationPolicy | null>(null);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [allowedModels, setAllowedModels] = useState<readonly string[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
+  const [modelPreferences, setModelPreferences] = useState<
+    NonNullable<AiGenerationPolicy['modelPreferences']>
+  >([]);
+  const [providerOrder, setProviderOrder] = useState<
+    NonNullable<AiGenerationPolicy['providerOrder']>
+  >({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -66,6 +79,7 @@ export function AdminAiGenerationPolicy({
   const [reload, setReload] = useState(0);
   const editor = useRef<HTMLTextAreaElement>(null);
   const inFlight = useRef(false);
+  const catalogAttempts = useRef(new Set<string>());
   const attempt = useRef<{ signature: string; id: string } | null>(null);
 
   const apply = (data: AiGenerationPolicy) => {
@@ -73,6 +87,8 @@ export function AdminAiGenerationPolicy({
     setSystemPrompt(data.systemPrompt);
     setAllowedModels(data.allowedModels);
     setDefaultModel(data.defaultModel);
+    setModelPreferences(data.modelPreferences ?? []);
+    setProviderOrder(data.providerOrder ?? {});
     setConflict(false);
   };
   useEffect(() => {
@@ -106,6 +122,32 @@ export function AdminAiGenerationPolicy({
     };
   }, [onAccessDenied, reload]);
 
+  useEffect(() => {
+    if (section !== 'settings' || !config || busy) return;
+    const provider = (['openai', 'deepseek'] as const).find((id) => {
+      const observation = config.observations?.find((o) => o.provider === id);
+      return (
+        !catalogAttempts.current.has(id) &&
+        config.models.some((m) => m.provider === id && m.ready) &&
+        (!observation?.checkedAt || Date.now() - Date.parse(observation.checkedAt) > 300000)
+      );
+    });
+    if (provider) {
+      catalogAttempts.current.add(provider);
+      void refreshCatalog(provider);
+    }
+  }, [config, section, busy]);
+
+  const dirty =
+    !!config &&
+    (systemPrompt !== config.systemPrompt ||
+      defaultModel !== config.defaultModel ||
+      JSON.stringify(allowedModels) !== JSON.stringify(config.allowedModels) ||
+      JSON.stringify(modelPreferences) !== JSON.stringify(config.modelPreferences ?? []) ||
+      JSON.stringify(providerOrder) !== JSON.stringify(config.providerOrder ?? {}));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   const unknownVariables = [
     ...new Set(
       [...systemPrompt.matchAll(/\{\{\s*([^{}]+?)\s*\}\}/g)]
@@ -117,7 +159,14 @@ export function AdminAiGenerationPolicy({
     (defaultModel === null && allowedModels.length === 0) ||
     (defaultModel !== null &&
       allowedModels.includes(defaultModel) &&
-      config?.models.some((model) => model.id === defaultModel && model.ready && model.selectable));
+      config?.models.some(
+        (model) =>
+          model.id === defaultModel &&
+          model.connectionSelected !== false &&
+          model.ready &&
+          model.selectable &&
+          (modelPreferences.find((p) => p.id === model.id)?.eligible ?? model.eligible ?? true),
+      ));
   const valid =
     systemPrompt.trim().length > 0 &&
     systemPrompt.length <= 12000 &&
@@ -149,6 +198,8 @@ export function AdminAiGenerationPolicy({
       systemPrompt,
       defaultModel,
       allowedModels,
+      modelPreferences,
+      providerOrder,
     };
     const signature = JSON.stringify(fields);
     if (attempt.current?.signature !== signature)
@@ -185,10 +236,164 @@ export function AdminAiGenerationPolicy({
     }
   }
 
+  const preference = (id: string) =>
+    modelPreferences.find((p) => p.id === id) ?? {
+      id,
+      eligible:
+        config?.models.find((m) => m.id === id)?.eligible ??
+        config?.models.find((m) => m.id === id)?.adapterCompatible !== false,
+      order: 0,
+    };
+  useEffect(() => {
+    if (config)
+      onEligibleModels?.(
+        config.models
+          .filter(
+            (m) =>
+              m.connectionSelected !== false &&
+              (section !== 'settings' || (m.ready && m.adapterCompatible !== false)) &&
+              (modelPreferences.find((p) => p.id === m.id)?.eligible ??
+                m.eligible ??
+                m.adapterCompatible !== false),
+          )
+          .map((m) => m.id),
+      );
+    else onEligibleModels?.([]);
+  }, [config, modelPreferences, onEligibleModels, section]);
+  const changePreference = (id: string, patch: Partial<{ eligible: boolean; order: number }>) => {
+    setModelPreferences((previous) => [
+      ...previous.filter((p) => p.id !== id),
+      { ...preference(id), ...patch },
+    ]);
+    setNotice('');
+  };
+  const modelRows = (id: string) =>
+    (config?.models ?? [])
+      .filter(
+        (model) =>
+          model.provider === id &&
+          model.connectionSelected !== false &&
+          (section === 'connections' ||
+            (model.ready && model.adapterCompatible !== false && preference(model.id).eligible)),
+      )
+      .sort(
+        (a, b) =>
+          preference(a.id).order - preference(b.id).order ||
+          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      );
+  const providerRows = [...PROVIDERS]
+    .filter((item) =>
+      section === 'connections' ? item.id === provider : modelRows(item.id).length > 0,
+    )
+    .sort(
+      (a, b) =>
+        (providerOrder[a.id] ?? 0) - (providerOrder[b.id] ?? 0) ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
+  function move(ids: readonly string[], id: string, direction: number, kind: 'provider' | 'model') {
+    const ordered = [...ids],
+      from = ordered.indexOf(id),
+      to = from + direction;
+    if (from < 0 || to < 0 || to >= ordered.length) return;
+    [ordered[from], ordered[to]] = [ordered[to]!, ordered[from]!];
+    const ranks = Object.fromEntries(ordered.map((value, index) => [value, index]));
+    if (kind === 'provider') setProviderOrder((old) => ({ ...old, ...ranks }));
+    else
+      setModelPreferences((old) => [
+        ...old.map((row) =>
+          Object.hasOwn(ranks, row.id) ? { ...row, order: ranks[row.id]! } : row,
+        ),
+        ...ordered
+          .filter((value) => !old.some((row) => row.id === value))
+          .map((value) => ({ ...preference(value), order: ranks[value]! })),
+      ]);
+    setNotice('');
+  }
+  const orderControls = (
+    kind: 'provider' | 'model',
+    id: string,
+    label: string,
+    ids: readonly string[],
+  ) => {
+    const index = ids.indexOf(id),
+      noun = kind === 'provider' ? 'провайдера' : 'модель';
+    return (
+      <div className="asa-ai-reorder">
+        <span className="asa-ai-rank" aria-label={'Место ' + (index + 1)}>
+          {index + 1}
+        </span>
+        <button
+          type="button"
+          aria-label={'Поднять ' + noun + ' ' + label}
+          disabled={busy || index <= 0}
+          onClick={() => move(ids, id, -1, kind)}
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          aria-label={'Опустить ' + noun + ' ' + label}
+          disabled={busy || index === ids.length - 1}
+          onClick={() => move(ids, id, 1, kind)}
+        >
+          ↓
+        </button>
+      </div>
+    );
+  };
+  async function refreshCatalog(provider: 'openai' | 'deepseek') {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const reply = await call<unknown>('/api/admin/v1/ai/generation-policy/catalog', {
+        method: 'POST',
+        body: JSON.stringify({ provider }),
+      });
+      if (reply.ok && policyShape(reply.data)) {
+        const data = reply.data;
+        if (config && data.configurationVersion !== config.configurationVersion) {
+          setConflict(true);
+          setError(
+            'Настройки изменились во время обновления каталога. Загрузите актуальную версию; ваш выбор остаётся в форме.',
+          );
+        }
+        setConfig((previous) =>
+          previous
+            ? { ...previous, models: data.models, observations: data.observations ?? [] }
+            : data,
+        );
+        if (data.observations?.find((o) => o.provider === provider)?.failed) {
+          setError(
+            'Не удалось обновить каталог провайдера. Последнее наблюдение и ваш выбор сохранены.',
+          );
+          setNotice('');
+        } else
+          setNotice(
+            'Наблюдение каталога загружено. Несохранённый выбор моделей сохранён в форме; новые модели не публикуются автоматически.',
+          );
+      } else setError('Не удалось обновить каталог. Предыдущие наблюдения и выбор сохранены.');
+    } catch {
+      setError('Нет подтверждения обновления каталога. Предыдущие наблюдения сохранены.');
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }
   return (
     <section
-      className="asa-ai-policy asa-cloud-connection"
-      aria-label={section === 'prompt' ? 'Системный промпт' : 'Настройки моделей'}
+      className={
+        'asa-ai-policy asa-cloud-connection' +
+        (section === 'settings' ? ' asa-settings-compact' : '')
+      }
+      aria-label={
+        section === 'prompt'
+          ? 'Системный промпт'
+          : section === 'connections'
+            ? 'Модели подключения'
+            : 'Настройки моделей'
+      }
     >
       {loading ? <p role="status">Загружаем настройки ответов…</p> : null}
       {error ? (
@@ -318,82 +523,200 @@ export function AdminAiGenerationPolicy({
           ) : (
             <>
               <div className="asa-ai-policy-heading">
-                <h2>Модели для пользователей</h2>
+                <h2>
+                  {section === 'connections' ? 'Модели подключения' : 'Модели для пользователей'}
+                </h2>
                 <p>
-                  Отметьте доступные модели и выберите модель по умолчанию. Ключи и подключения
-                  настраиваются во вкладке «Подключения».
+                  {section === 'settings'
+                    ? 'Отметьте модели для пользователей. Список подключений задаётся отдельно.'
+                    : 'Выберите модели подключения. Показ пользователям задаётся в Настройках.'}
                 </p>
               </div>
-              <label className="asa-cloud-field asa-ai-policy-default">
-                <span>Модель по умолчанию</span>
-                <select
-                  aria-label="Модель по умолчанию"
-                  value={defaultModel ?? ''}
-                  disabled={busy}
-                  onChange={(event) => {
-                    setDefaultModel(event.target.value || null);
-                    setNotice('');
-                  }}
-                >
-                  <option value="">Не выбрана</option>
-                  {config.models
-                    .filter((model) => allowedModels.includes(model.id))
-                    .map((model) => (
-                      <option
-                        key={model.id}
-                        value={model.id}
-                        disabled={!model.ready || !model.selectable}
-                      >
-                        {model.label}
-                        {!model.ready
-                          ? ' · подключение не готово'
-                          : !model.selectable
-                            ? ' · недоступна'
-                            : ''}
+              {section !== 'connections' ? (
+                <label className="asa-cloud-field asa-ai-policy-default">
+                  <span>Модель по умолчанию</span>
+                  <select
+                    aria-label="Модель по умолчанию"
+                    value={defaultModel ?? ''}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setDefaultModel(event.target.value || null);
+                      setNotice('');
+                    }}
+                  >
+                    <option value="">Не выбрана</option>
+                    {defaultModel &&
+                    !config.models.some(
+                      (m) =>
+                        m.id === defaultModel &&
+                        m.connectionSelected !== false &&
+                        m.ready &&
+                        preference(m.id).eligible,
+                    ) ? (
+                      <option value={defaultModel} disabled>
+                        Сохранённая модель недоступна: {defaultModel}
                       </option>
-                    ))}
-                </select>
-              </label>
+                    ) : null}
+                    {config.models
+                      .filter(
+                        (model) =>
+                          model.ready &&
+                          allowedModels.includes(model.id) &&
+                          preference(model.id).eligible &&
+                          model.connectionSelected !== false,
+                      )
+                      .map((model) => (
+                        <option
+                          key={model.id}
+                          value={model.id}
+                          disabled={
+                            !model.ready || !model.selectable || !preference(model.id).eligible
+                          }
+                        >
+                          {model.label}
+                          {!model.ready
+                            ? ' · подключение не готово'
+                            : !model.selectable
+                              ? ' · недоступна'
+                              : ''}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+              ) : null}
               <div className="asa-ai-policy-models">
-                {PROVIDERS.map((provider) => {
-                  const models = config.models.filter((model) => model.provider === provider.id);
+                {providerRows.map((provider) => {
+                  const models = modelRows(provider.id);
+                  const observation = config.observations?.find((o) => o.provider === provider.id);
                   if (!models.length) return null;
                   return (
                     <fieldset key={provider.id}>
-                      <legend>{provider.label}</legend>
-                      {provider.id === 'ollama' ? (
+                      <legend>
+                        <span>{provider.label}</span>
+                        {section === 'settings'
+                          ? orderControls(
+                              'provider',
+                              provider.id,
+                              provider.label,
+                              providerRows.map((row) => row.id),
+                            )
+                          : null}
+                      </legend>
+                      {provider.id === 'openai' || provider.id === 'deepseek' ? (
+                        <details
+                          className="asa-ai-catalog-observation"
+                          open={section === 'connections'}
+                        >
+                          <summary>Каталог и обновление</summary>
+                          <p>
+                            {observation?.checkedAt
+                              ? 'Наблюдение: ' + new Date(observation.checkedAt).toLocaleString()
+                              : 'Встроенный каталог ASA; доступ в аккаунте не проверен.'}
+                            {observation?.credentialChanged
+                              ? ' · Ключ изменился; доступ требует нового наблюдения.'
+                              : observation?.failed
+                                ? ' · Обновление не удалось; последнее наблюдение может быть устаревшим.'
+                                : observation?.checkedAt &&
+                                    Date.now() - Date.parse(observation.checkedAt) > 86400000
+                                  ? ' · Наблюдение устарело.'
+                                  : ''}
+                          </p>
+                          <small>
+                            {observation?.source ??
+                              (provider.id === 'openai'
+                                ? 'https://api.openai.com/v1/models'
+                                : 'https://api.deepseek.com/models')}{' '}
+                            · метаданные не подтверждают адаптер ASA
+                          </small>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() =>
+                              void refreshCatalog(provider.id as 'openai' | 'deepseek')
+                            }
+                          >
+                            Обновить каталог {provider.label}
+                          </button>
+                        </details>
+                      ) : null}
+                      {section === 'connections' && provider.id === 'ollama' ? (
                         <p>Локально используется модель, выбранная в подключении Ollama.</p>
                       ) : null}
                       {models.map((model) => (
-                        <label className="asa-ai-policy-model" key={model.id}>
-                          <input
-                            type="checkbox"
-                            checked={allowedModels.includes(model.id)}
-                            disabled={
-                              busy || (!model.selectable && !allowedModels.includes(model.id))
-                            }
-                            onChange={(event) => {
-                              const checked = event.target.checked;
-                              setAllowedModels((previous) =>
-                                checked
-                                  ? [...previous, model.id]
-                                  : previous.filter((id) => id !== model.id),
-                              );
-                              if (!checked && defaultModel === model.id) setDefaultModel(null);
-                              setNotice('');
-                            }}
-                          />
-                          <span>
-                            <strong>{model.label}</strong>
-                            <small>
-                              {!model.selectable
-                                ? 'Модель недоступна'
-                                : model.ready
-                                  ? 'Подключение готово'
-                                  : 'Сначала настройте подключение'}
-                            </small>
-                          </span>
-                        </label>
+                        <div className="asa-ai-policy-model-row" key={model.id}>
+                          {section === 'connections' ? (
+                            <label>
+                              <input
+                                type="checkbox"
+                                aria-label={'Разрешить у провайдера ' + model.label}
+                                checked={preference(model.id).eligible}
+                                disabled={
+                                  busy ||
+                                  model.adapterCompatible === false ||
+                                  model.id === defaultModel
+                                }
+                                onChange={(e) =>
+                                  changePreference(model.id, { eligible: e.target.checked })
+                                }
+                              />
+                              Использовать в настройках ASA
+                              {model.id === defaultModel ? (
+                                <small>
+                                  Сначала выберите другую модель по умолчанию в Настройках.
+                                </small>
+                              ) : null}
+                            </label>
+                          ) : null}
+                          {section !== 'connections' ? (
+                            <>
+                              {orderControls(
+                                'model',
+                                model.id,
+                                model.label,
+                                models.map((row) => row.id),
+                              )}
+                              <label className="asa-ai-policy-model">
+                                <input
+                                  type="checkbox"
+                                  aria-label={'Показывать пользователям: ' + model.label}
+                                  checked={allowedModels.includes(model.id)}
+                                  disabled={
+                                    busy ||
+                                    ((!model.selectable || !preference(model.id).eligible) &&
+                                      !allowedModels.includes(model.id))
+                                  }
+                                  onChange={(event) => {
+                                    const checked = event.target.checked;
+                                    setAllowedModels((previous) =>
+                                      checked
+                                        ? [...previous, model.id]
+                                        : previous.filter((id) => id !== model.id),
+                                    );
+                                    if (!checked && defaultModel === model.id)
+                                      setDefaultModel(null);
+                                    setNotice('');
+                                  }}
+                                />
+                                <span>
+                                  <strong>{model.label}</strong>
+                                  {model.id !== model.label ? (
+                                    <small title={model.id}>{model.id}</small>
+                                  ) : null}
+                                  <small>
+                                    {(!preference(model.id).eligible
+                                      ? 'Запрещена у провайдера'
+                                      : model.unavailableReason) ??
+                                      (!model.selectable
+                                        ? 'Модель недоступна'
+                                        : model.ready
+                                          ? 'Подключение готово'
+                                          : 'Сначала настройте подключение')}
+                                  </small>
+                                </span>
+                              </label>
+                            </>
+                          ) : null}
+                        </div>
                       ))}
                     </fieldset>
                   );
@@ -409,7 +732,10 @@ export function AdminAiGenerationPolicy({
               Выберите разрешённую подключённую модель по умолчанию во вкладке «Настройки».
             </p>
           ) : null}
-          <p className="asa-ai-policy-save-note">Промпт и выбор моделей сохраняются вместе.</p>
+          <p className="asa-ai-policy-save-note">
+            {dirty ? 'Есть несохранённые изменения. ' : ''}Подключения определяют список моделей;
+            Настройки — их показ пользователям.
+          </p>
           <div className="asa-cloud-bottom">
             <button
               type="submit"
@@ -420,7 +746,9 @@ export function AdminAiGenerationPolicy({
                 ? 'Сохраняем…'
                 : section === 'prompt'
                   ? 'Сохранить промпт'
-                  : 'Сохранить настройки'}
+                  : section === 'connections'
+                    ? 'Сохранить модели подключения'
+                    : 'Сохранить настройки'}
             </button>
             {notice ? (
               <span role="status" className="asa-cloud-confirmed">

@@ -46,7 +46,8 @@ import {ProductionComponentVisual as DirectVisual} from './src/electronics/Produ
 import {WorkbenchStage} from './src/electronics/WorkbenchStage';
 import {rawDisplayCircuit,rawDisplaySource,OWNER_HIGH_WRITES,RAW_DISPLAY_PINS} from '../../contexts/electronics/testing/fixtures/raw-seven-segment';
 import {sevenSegmentDiodeMatrix} from '../../contexts/electronics/testing/fixtures/seven-segment-diode-matrix';
-import {outputCommonMatrix,gpioCommonMatrix,outputCommonCommands} from '../../contexts/electronics/testing/fixtures/arduino-seven-segment-matrix';
+import {helperDisplayCounterSource} from '../../contexts/electronics/testing/fixtures/arduino-helper-display-counter';
+import {arduinoSevenSegmentMatrix,matrixLinearSource,matrixCommands,outputCommonMatrix,gpioCommonMatrix,outputCommonCommands} from '../../contexts/electronics/testing/fixtures/arduino-seven-segment-matrix';
 import {configureProductionLibrary} from './src/electronics/production-manifest-adapter';
 import {catalogEntry} from './src/electronics/component-catalog';
 import {ElectronicsSimulationWorkerClient} from './src/electronics/simulation-worker-client';
@@ -84,6 +85,25 @@ write.getInput('ANGLE').connection.connect(map.outputConnection);wait.setFieldVa
 }finally{w.dispose();Blocks.Events.enable();}}
 function potCircuit(blocks){const doc=circuit();doc.components[0].stateProperties.arduinoSource=potSource(blocks);doc.components[0].pinIds.push('a0');doc.components[1].position={x:1000,y:40};doc.components.push({id:'pot',kind:'potentiometer',componentTypeId:'potentiometer',value:10000,wiperPosition:0.5,position:{x:800,y:220},pinIds:['a','b','wiper']});for(const [a,b] of [['power-5v','a'],['power-gnd-1','b'],['a0','wiper']])doc.connections.push({id:'pot-'+b,from:{componentId:'uno',terminal:a},to:{componentId:'pot',terminal:b}});return doc;}
 function multiCircuit(){const doc=circuit();doc.components[0].pinIds.push('d10');doc.components[0].stateProperties.arduinoSource='#include <Servo.h>\\nServo left;Servo right;void setup(){left.attach(9);right.attach(10);}void loop(){left.write(0);right.write(180);delay(250);left.write(180);right.write(0);delay(250);}';doc.components[1].position={x:800,y:20};doc.components.push({...doc.components[1],id:'servo-right',position:{x:1100,y:20}});for(const [a,b] of [['power-5v','vcc'],['power-gnd-1','gnd'],['d10','signal']])doc.connections.push({id:'right-'+b,from:{componentId:'uno',terminal:a},to:{componentId:'servo-right',terminal:b}});return doc;}
+function blockCounter(count){registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{
+const variables=new Map([...Array.from({length:count},(_,i)=>'d'+i),'lastTick'].map(name=>[name,w.getVariableMap().createVariable(name)]));
+const block=t=>w.newBlock(t),connect=(b,k,v)=>{b.getInput(k).connection.connect(v.outputConnection);return b;};
+const number=v=>{const b=block('asa_number');b.setFieldValue(String(v),'VALUE');return b;};
+const variable=name=>{const b=block('asa_var_get');b.setFieldValue(variables.get(name).getId(),'NAME');return b;};
+const binary=(type,a,b)=>connect(connect(block(type),'A',a),'B',b);
+const chain=list=>{for(let i=1;i<list.length;i++)list[i-1].nextConnection.connect(list[i].previousConnection);return list[0];};
+const set=(name,value,change=false)=>{const b=block(change?'asa_var_change':'asa_var_set');b.setFieldValue(variables.get(name).getId(),'NAME');return connect(b,'VALUE',value);};
+const conditional=(condition,list)=>{const b=connect(block('asa_if'),'CONDITION',condition);b.getInput('DO').connection.connect(chain(list).previousConnection);return b;};
+const write=(pin,value)=>{const p=block('asa_pin');p.setFieldValue(String(pin),'VALUE');return connect(connect(block('asa_digital_write'),'PIN',p),'LEVEL',value);};
+const level=high=>{const b=block('asa_level');b.setFieldValue(high?'HIGH':'LOW','LEVEL');return b;};
+const millis=()=>block('asa_millis');const setup=block('asa_setup'),loop=block('asa_loop');
+setup.getInput('DO').connection.connect(chain([...Array.from({length:count},(_,i)=>set('d'+i,number(i?9:8))),set('lastTick',millis())]).previousConnection);
+const digits=['abcdef','bc','abdeg','abcdg','bcfg','acdfg','acdefg','abc','abcdefg','abcdfg'],segments=['a','b','c','d','e','f','g','dp'],commands=[];
+for(let digit=0;digit<count;digit++){for(let i=0;i<count;i++)commands.push(write(10+i,level(false)));for(let i=0;i<8;i++){const choices=digits.flatMap((pattern,value)=>pattern.includes(segments[i])?[binary('asa_compare_eq',variable('d'+(count-digit-1)),number(value))]:[]);commands.push(write(2+i,choices.length?choices.reduce((a,b)=>binary('asa_logic_or',a,b)):level(false)));}commands.push(write(10+digit,level(true)));const wait=connect(block('asa_wait'),'TIME',number(2));wait.setFieldValue('MILLISECONDS','UNIT');commands.push(wait,write(10+digit,level(false)));}
+let carry;for(let i=count-1;i>=0;i--)carry=conditional(binary('asa_compare_gt',variable('d'+i),number(9)),[set('d'+i,number(0)),...(i+1<count?[set('d'+(i+1),number(1),true),carry]:[])]);
+commands.push(conditional(binary('asa_compare_gt',binary('asa_math_minus',millis(),variable('lastTick')),number(39)),[set('d0',number(1),true),carry,set('lastTick',millis())]));loop.getInput('DO').connection.connect(chain(commands).previousConnection);
+return {source:generateArduinoCode(w),blockTypes:w.getAllBlocks(false).map(b=>b.type).sort(),blockCount:w.getAllBlocks(false).length};
+}finally{w.dispose();Blocks.Events.enable();}}
 let current=circuit();let wb;let refresh;let direct=null;let isDirect=false;let epoch=0;
 api.me=async()=>({ok:true,status:200,data:{authenticated:true,user:{id:'pupil'}}});
 api.openProject=async id=>({ok:true,status:200,data:{project:{id,moduleKey:'electronics',title:id,scope:'personal',classroomId:null,status:'active'},draft:{projectId:id,document:current,revision:1,updatedAt:''},versions:[],result:null}});
@@ -97,10 +117,13 @@ load(a,blocks=false){current=circuit(a);if(blocks)current.components[0].statePro
 pendingStop:()=>new Promise(resolve=>{window.probe.stopOnAdvance=request=>{const before=window.fixture.potSnapshot();wb.toggleSimulation();resolve({requestId:request.requestId,requestGeneration:request.generationId,projectSessionId:request.projectSessionId,beforeGeneration:before.lastResponse?.generationId,requestedWhileAdvanceInFlight:true});};}),
 loadMulti(){current=multiCircuit();isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 loadButtons(saved){current=saved??sevenSegmentDiodeMatrix();isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,projectSessionId:'servo-project-'+epoch};},
-loadMatrix(count,blocks){let blockTypes=[];if(blocks){registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{const loop=w.newBlock('asa_loop');let previous=null;for(const command of outputCommonCommands(count)){let next;if('waitMs' in command){next=w.newBlock('asa_wait');next.setFieldValue('MILLISECONDS','UNIT');const n=w.newBlock('asa_number');n.setFieldValue(String(command.waitMs),'VALUE');next.getInput('TIME').connection.connect(n.outputConnection);}else{next=w.newBlock('asa_digital_write');const pin=w.newBlock('asa_pin'),level=w.newBlock('asa_level');pin.setFieldValue(String(command.pin),'VALUE');level.setFieldValue(command.high?'HIGH':'LOW','LEVEL');next.getInput('PIN').connection.connect(pin.outputConnection);next.getInput('LEVEL').connection.connect(level.outputConnection);}if(previous)previous.nextConnection.connect(next.previousConnection);else loop.getInput('DO').connection.connect(next.previousConnection);previous=next;}blockTypes=w.getAllBlocks(false).map(b=>b.type).sort();current=outputCommonMatrix(count,generateArduinoCode(w));}finally{w.dispose();Blocks.Events.enable();}}else current=gpioCommonMatrix(count);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,blockTypes,projectSessionId:'servo-project-'+epoch};},
+loadHelperCounter(count,helpers){const generated=helpers==='blocks'?blockCounter(count):null;current=arduinoSevenSegmentMatrix(count,generated?.source??helperDisplayCounterSource(count,helpers));isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,projectSessionId:'servo-project-'+epoch,blockTypes:generated?.blockTypes??[],blockCount:generated?.blockCount??0};},
+loadMatrix(count,blocks,optical=false,patterns){let blockTypes=[];if(blocks){registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{const loop=w.newBlock('asa_loop');let previous=null;for(const command of (optical?matrixCommands(count,patterns):outputCommonCommands(count))){let next;if('waitMs' in command){next=w.newBlock('asa_wait');next.setFieldValue('MILLISECONDS','UNIT');const n=w.newBlock('asa_number');n.setFieldValue(String(command.waitMs),'VALUE');next.getInput('TIME').connection.connect(n.outputConnection);}else{next=w.newBlock('asa_digital_write');const pin=w.newBlock('asa_pin'),level=w.newBlock('asa_level');pin.setFieldValue(String(command.pin),'VALUE');level.setFieldValue(command.high?'HIGH':'LOW','LEVEL');next.getInput('PIN').connection.connect(pin.outputConnection);next.getInput('LEVEL').connection.connect(level.outputConnection);}if(previous)previous.nextConnection.connect(next.previousConnection);else loop.getInput('DO').connection.connect(next.previousConnection);previous=next;}blockTypes=w.getAllBlocks(false).map(b=>b.type).sort();current=optical?arduinoSevenSegmentMatrix(count,generateArduinoCode(w)):outputCommonMatrix(count,generateArduinoCode(w));}finally{w.dispose();Blocks.Events.enable();}}else current=optical?arduinoSevenSegmentMatrix(count,matrixLinearSource(count,patterns)):gpioCommonMatrix(count);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,blockTypes,projectSessionId:'servo-project-'+epoch};},
 async multiReplay({saved,document}){const doc=JSON.parse(JSON.stringify(document));const generation=client.beginGeneration('multi-replay');async function through(state,horizon){let result;do{result=await client.advance(generation,doc,JSON.parse(JSON.stringify(state)),horizon);state=result.state;}while(result.executionStatus==='yielded');if(result.executionStatus!=='ready')throw new Error('Short replay fault: '+JSON.stringify(result));return result;}const target=200000;const restored=await through(saved,target);const fresh=await through(resetElectronicsTimedState(),target);return {serializedByteEqual:JSON.stringify(restored.state)===JSON.stringify(fresh.state),restored:restored.state,fresh:fresh.state,target};},
 loadPot(blocks){current=potCircuit(blocks);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 potSnapshot:()=>{const committed=wb.nativeOpticalPresentation.getSnapshot().committed;const session='servo-project-'+epoch;const activeGeneration=Math.max(0,...window.probe.responses.filter(r=>r.projectSessionId===session).map(r=>r.generationId));const lastResponse=window.probe.responses.findLast(r=>r.projectSessionId===session&&r.generationId===activeGeneration&&r.advance?.executionStatus==='ready'&&r.metrics?.simulationInputDigest===committed?.result?.simulationInputDigest&&r.advance?.committedHorizonMicroseconds===committed?.frame?.atMicroseconds);return {document:wb.document,result:committed?.result,committedAtMicroseconds:committed?.frame?.atMicroseconds,lastResponse};},
+editOpticalMatrix:({count,patterns})=>{const source=matrixLinearSource(count,patterns);wb.updateArduinoProgram('uno',{arduinoSource:source});return source;},
+matrixOpticalSnapshot:()=>{const optical=wb.nativeOpticalPresentation.getSnapshot().committed;const session='servo-project-'+epoch;const generation=Math.max(0,...window.probe.responses.filter(r=>r.projectSessionId===session).map(r=>r.generationId));const response=window.probe.responses.findLast(r=>r.projectSessionId===session&&r.generationId===generation&&r.advance?.executionStatus==='ready'&&r.metrics?.simulationInputDigest===optical?.result.simulationInputDigest&&r.advance?.result===optical?.result);return {document:wb.document,frame:optical?{token:optical.frame.token,atMicroseconds:optical.frame.atMicroseconds,segments:Object.fromEntries(optical.frame.sevenSegmentBrightness??[])}:null,result:optical?.result,response};},
 loadSevenParity({active,commonAnode,blocks}){const program=sevenParitySource(active,commonAnode,blocks);current=rawDisplayCircuit({active,commonAnode,resistanceOhm:1000,source:program.source});current={...current,components:current.components.map(c=>({...c,position:c.id==='display'?{x:400,y:40}:c.position})),simulation:{...current.simulation,running:false}};isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {...program,projectSessionId:'servo-project-'+epoch};},
 loadSeven(active){current=rawDisplayCircuit({active});current={...current,components:current.components.map(c=>({...c,position:c.id==='display'?{x:400,y:40}:c.position})),simulation:{...current.simulation,running:false}};isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 editSeven:active=>wb.updateArduinoProgram('uno',{arduinoSource:rawDisplaySource(OWNER_HIGH_WRITES,active)}),
@@ -765,6 +788,232 @@ async function checkSevenParity(page, width) {
   }
   return { width, samples };
 }
+async function waitSevenOptical(page, patterns, minimumGeneration = 0) {
+  try {
+    await page.waitForFunction(
+      ({ patterns, minimumGeneration }) => {
+        const s = window.fixture.matrixOpticalSnapshot();
+        if (
+          !s.response ||
+          s.response.generationId < minimumGeneration ||
+          !s.result?.solved ||
+          !s.result.quality?.passed ||
+          !s.frame ||
+          s.frame.atMicroseconds < 24000
+        )
+          return false;
+        return patterns.every((pattern, i) => {
+          const values = s.frame.segments['display-' + i];
+          const nodes = [
+            ...document.querySelectorAll('[data-component-id="display-' + i + '"] [data-segment]'),
+          ];
+          return (
+            values &&
+            nodes.length === 8 &&
+            nodes.every((node) => {
+              const segment = node.getAttribute('data-segment');
+              return (
+                values[segment] > 0 === pattern.includes(segment) &&
+                Number(node.getAttribute('opacity')) === values[segment] / 100
+              );
+            })
+          );
+        });
+      },
+      { patterns, minimumGeneration },
+      { timeout: 30000 },
+    );
+  } catch (error) {
+    await writeFile(
+      resolve(output, 'seven-optical-failure.json'),
+      JSON.stringify(
+        await page.evaluate(() => ({
+          snapshot: window.fixture.matrixOpticalSnapshot(),
+          responses: window.probe.responses.slice(-3),
+          state: window.fixture.state(),
+          visible: [
+            ...document.querySelectorAll('[data-component-id^=display-] [data-segment]'),
+          ].map((e) => [
+            e.closest('[data-component-id]').getAttribute('data-component-id'),
+            e.getAttribute('data-segment'),
+            e.getAttribute('opacity'),
+          ]),
+        })),
+        null,
+        2,
+      ),
+    );
+    throw error;
+  }
+  return page.evaluate(() => window.fixture.matrixOpticalSnapshot());
+}
+async function checkSevenOptical(page, width, count, blocks) {
+  const started = Date.now();
+  const loaded = await page.evaluate(
+    ({ count, blocks }) => window.fixture.loadMatrix(count, blocks, true),
+    { count, blocks },
+  );
+  await page.waitForFunction(() => window.fixture.status() === 'ready');
+  await page.evaluate(() => window.fixture.start());
+  const patterns = ['bc', 'abdeg', 'abcdg', 'bcfg'].slice(0, count);
+  const snapshot = await waitSevenOptical(page, patterns);
+  assert.equal(snapshot.response.projectSessionId, loaded.projectSessionId);
+  assert.equal(
+    snapshot.response.metrics.simulationInputDigest,
+    snapshot.result.simulationInputDigest,
+  );
+  assert.ok(
+    snapshot.frame.atMicroseconds <= snapshot.response.advance.committedHorizonMicroseconds,
+  );
+  assert.ok(snapshot.result.quality.maxKclResidualAmp <= 1e-6);
+  assert.ok(snapshot.result.quality.maxSourceVoltageResidualVolt <= 1e-9);
+  assert.equal(
+    snapshot.document.components[0].stateProperties.arduinoSource,
+    loaded.document.components[0].stateProperties.arduinoSource,
+  );
+  if (blocks)
+    assert.ok(
+      loaded.blockTypes.includes('asa_loop') &&
+        loaded.blockTypes.includes('asa_digital_write') &&
+        loaded.blockTypes.includes('asa_wait'),
+    );
+  await page.screenshot({
+    path: resolve(output, `seven-optical-${count}-${blocks ? 'blocks' : 'text'}-${width}.png`),
+  });
+  let lifecycle;
+  if (count === 4 && !blocks && !process.argv.includes('--optical-pilot')) {
+    const nextPatterns = ['abcdef', 'abcdefgdp', 'abdeg', 'acdfg'];
+    const source = await page.evaluate(
+      ({ count, patterns }) => window.fixture.editOpticalMatrix({ count, patterns }),
+      { count, patterns: nextPatterns },
+    );
+    const edited = await waitSevenOptical(page, nextPatterns);
+    assert.equal(edited.document.components[0].stateProperties.arduinoSource, source);
+    const executed = JSON.parse(
+      edited.response.advance.state.continuation.serializedState,
+    ).boards.find((board) => board.componentId === 'uno').loadedSource;
+    assert.equal(executed, source);
+    await page.evaluate(() => window.fixture.reset());
+    const reset = await waitSevenOptical(page, nextPatterns, edited.response.generationId + 1);
+    await page.evaluate(() => window.fixture.stop());
+    await page.waitForFunction(() => !window.fixture.state().running);
+    assert.ok(
+      await page
+        .locator('[data-component-id^="display-"] [data-segment]')
+        .evaluateAll((nodes) => nodes.every((node) => Number(node.getAttribute('opacity')) === 0)),
+    );
+    await page.evaluate(() => window.fixture.start());
+    const restarted = await waitSevenOptical(page, nextPatterns, reset.response.generationId + 1);
+    lifecycle = {
+      sourceChanged: true,
+      dp: true,
+      editedSource: source,
+      editedDigest: edited.result.simulationInputDigest,
+      resetGeneration: reset.response.generationId,
+      restartGeneration: restarted.response.generationId,
+      stopDark: true,
+    };
+  }
+  await page.evaluate(() => window.fixture.stop());
+  await page.waitForFunction(() => !window.fixture.state().running);
+  return {
+    width,
+    count,
+    blocks,
+    blockTypes: loaded.blockTypes,
+    source: loaded.document.components[0].stateProperties.arduinoSource,
+    frame: snapshot.frame,
+    electrical: snapshot.result.components.filter((c) => c.componentId.startsWith('display-')),
+    quality: snapshot.result.quality,
+    projectSessionId: snapshot.response.projectSessionId,
+    generation: snapshot.response.generationId,
+    inputDigest: snapshot.result.simulationInputDigest,
+    electricalHorizon: snapshot.response.advance.committedHorizonMicroseconds,
+    computeMs: snapshot.response.metrics.computeMs,
+    wallMs: Date.now() - started,
+    ...(lifecycle ? { lifecycle } : {}),
+  };
+}
+async function checkHelperCounter(page, width, count, helpers) {
+  const started = Date.now();
+  const loaded = await page.evaluate(
+    ({ count, helpers }) => window.fixture.loadHelperCounter(count, helpers),
+    { count, helpers },
+  );
+  await page.waitForFunction(() => window.fixture.status() === 'ready');
+  if (helpers === 'blocks')
+    assert.ok(
+      loaded.blockCount > 100 &&
+        loaded.blockTypes.includes('asa_var_change') &&
+        loaded.blockTypes.includes('asa_if') &&
+        loaded.blockTypes.includes('asa_millis'),
+    );
+  await page.evaluate(() => window.fixture.start());
+  const snapshots = [];
+  for (const digits of [
+    [...Array(count - 1).fill(9), 8],
+    Array(count).fill(9),
+    Array(count).fill(0),
+  ]) {
+    const glyphs = [
+      'abcdef',
+      'bc',
+      'abdeg',
+      'abcdg',
+      'bcfg',
+      'acdfg',
+      'acdefg',
+      'abc',
+      'abcdefg',
+      'abcdfg',
+    ];
+    const patterns = digits.map((digit) => glyphs[digit]);
+    const snapshot = await waitSevenOptical(page, patterns);
+    assert.equal(snapshot.response.projectSessionId, loaded.projectSessionId);
+    assert.equal(
+      snapshot.response.metrics.simulationInputDigest,
+      snapshot.result.simulationInputDigest,
+    );
+    assert.ok(
+      snapshot.frame.atMicroseconds <= snapshot.response.advance.committedHorizonMicroseconds,
+    );
+    assert.equal(
+      snapshot.document.components[0].stateProperties.arduinoSource,
+      loaded.document.components[0].stateProperties.arduinoSource,
+    );
+    assert.ok(snapshot.result.quality.maxKclResidualAmp <= 1e-6);
+    assert.ok(snapshot.result.quality.maxSourceVoltageResidualVolt <= 1e-9);
+    const board = JSON.parse(snapshot.response.advance.state.continuation.serializedState)
+      .boards[0];
+    assert.equal(board.loadedSource, loaded.document.components[0].stateProperties.arduinoSource);
+    snapshots.push({
+      digits,
+      frame: snapshot.frame,
+      quality: snapshot.result.quality,
+      modelHorizon: snapshot.response.advance.committedHorizonMicroseconds,
+      runtime: board.runtime,
+      wallMs: Date.now() - started,
+    });
+  }
+  if (count === 4)
+    await page.screenshot({
+      path: resolve(
+        output,
+        `helper-counter-${count}-${helpers === 'blocks' ? 'blocks' : helpers ? 'functions' : 'linear'}-${width}.png`,
+      ),
+    });
+  await page.evaluate(() => window.fixture.stop());
+  await page.waitForFunction(() => !window.fixture.state().running);
+  return {
+    width,
+    count,
+    helpers,
+    blockCount: loaded.blockCount,
+    blockTypes: loaded.blockTypes,
+    source: loaded.document.components[0].stateProperties.arduinoSource,
+    snapshots,
+  };
+}
 async function checkArduinoMatrixPilot(page, width) {
   const samples = [];
   for (const [count, blocks] of [
@@ -1078,6 +1327,26 @@ try {
         (await readFile('apps/web/src/electronics/workbench.css', 'utf8')) +
         '\n#app{--wb-library-width:0px}.workbench-stage{position:relative;height:700px;width:100%}',
     });
+    if (process.argv.includes('--helper-display-counters-only')) {
+      for (const count of process.argv.includes('--helpers-pilot') ? [1, 4] : [1, 2, 3, 4])
+        for (const helpers of process.argv.includes('--helpers-pilot')
+          ? [true]
+          : [false, true, 'blocks'])
+          all.push(await checkHelperCounter(page, width, count, helpers));
+      assert.deepEqual(errors, []);
+      await page.close();
+      if (process.argv.includes('--helpers-pilot')) break;
+      continue;
+    }
+    if (process.argv.includes('--seven-segment-optical-only')) {
+      for (const count of process.argv.includes('--optical-pilot') ? [1, 4] : [1, 2, 3, 4])
+        for (const blocks of process.argv.includes('--optical-pilot') ? [false] : [false, true])
+          all.push(await checkSevenOptical(page, width, count, blocks));
+      assert.deepEqual(errors, []);
+      await page.close();
+      if (process.argv.includes('--optical-pilot')) break;
+      continue;
+    }
     if (process.argv.includes('--arduino-seven-segment-pilot-only')) {
       all.push(await checkArduinoMatrixPilot(page, width));
       assert.deepEqual(errors, []);
@@ -1242,36 +1511,44 @@ try {
     });
     await page.close();
   }
-  const receiptName = process.argv.includes('--arduino-seven-segment-pilot-only')
-    ? 'arduino-seven-segment-pilot-817.json'
-    : process.argv.includes('--seven-segment-buttons-only')
-      ? 'seven-segment-diode-matrix-815.json'
-      : process.argv.includes('--seven-segment-parity-only')
-        ? 'seven-segment-parity-788' +
-          (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
-          '.json'
-        : process.argv.includes('--multi-servo-sustained-only')
-          ? 'servo-multi-sustained-786.json'
-          : process.argv.includes('--potentiometer-only')
-            ? 'servo-potentiometer-784.json'
-            : process.argv.includes('--horn-clip-only')
-              ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
-              : 'receipts.json';
+  const receiptName = process.argv.includes('--helper-display-counters-only')
+    ? 'arduino-helper-display-counters-824.json'
+    : process.argv.includes('--seven-segment-optical-only')
+      ? 'seven-segment-optical-821.json'
+      : process.argv.includes('--arduino-seven-segment-pilot-only')
+        ? 'arduino-seven-segment-pilot-817.json'
+        : process.argv.includes('--seven-segment-buttons-only')
+          ? 'seven-segment-diode-matrix-815.json'
+          : process.argv.includes('--seven-segment-parity-only')
+            ? 'seven-segment-parity-788' +
+              (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
+              '.json'
+            : process.argv.includes('--multi-servo-sustained-only')
+              ? 'servo-multi-sustained-786.json'
+              : process.argv.includes('--potentiometer-only')
+                ? 'servo-potentiometer-784.json'
+                : process.argv.includes('--horn-clip-only')
+                  ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
+                  : 'receipts.json';
   await writeFile(resolve(output, receiptName), JSON.stringify(all, null, 2));
   console.log(
-    process.argv.includes('--arduino-seven-segment-pilot-only')
-      ? 'BLOCKED Arduino display qualification: unsupported user functions, NPN/LED quality fault, and instantaneous multiplex optics require separate repairs. Pilot is not a full matrix PASS.'
-      : process.argv.includes('--seven-segment-buttons-only')
-        ? 'PASS physical 2AA ten-button diode matrix: 0–9 press/release and saved circuit reopen, real Worker/Stage desktop/mobile; no Arduino.'
-        : process.argv.includes('--seven-segment-parity-only')
-          ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
-          : process.argv.includes('--multi-servo-sustained-only')
-            ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
-            : process.argv.includes('--potentiometer-only')
-              ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
-              : process.argv.includes('--horn-clip-only')
-                ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
-                : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
+    process.argv.includes('--helper-display-counters-only')
+      ? 'PASS real linear/helper Arduino display counters with visible carry; not arbitrary C++ or realtime acceptance.'
+      : process.argv.includes('--seven-segment-optical-only')
+        ? 'PASS physically observed multiplexed raw display optical projection; not function-runtime or realtime acceptance.'
+        : process.argv.includes('--arduino-seven-segment-pilot-only')
+          ? 'BLOCKED Arduino display qualification: unsupported user functions, NPN/LED quality fault, and instantaneous multiplex optics require separate repairs. Pilot is not a full matrix PASS.'
+          : process.argv.includes('--seven-segment-buttons-only')
+            ? 'PASS physical 2AA ten-button diode matrix: 0–9 press/release and saved circuit reopen, real Worker/Stage desktop/mobile; no Arduino.'
+            : process.argv.includes('--seven-segment-parity-only')
+              ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
+              : process.argv.includes('--multi-servo-sustained-only')
+                ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
+                : process.argv.includes('--potentiometer-only')
+                  ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
+                  : process.argv.includes('--horn-clip-only')
+                    ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
+                    : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
   );
 } finally {
   await browser.close();

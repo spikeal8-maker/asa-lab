@@ -16,9 +16,9 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
-import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
+import { isAiProvider, isKnownModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
-import { ComfyUiError, discoverComfyUi } from './ai-comfyui.js';
+import { ComfyUiError } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AiUsageUnavailable } from './ai-usage-journal.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -107,6 +107,32 @@ export class AiAdminController {
     return this.safe(() => this.ai.generationPolicy(actor));
   }
 
+  @Get('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async tokenBudgets(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.tokenBudgetsAdmin(actor));
+  }
+
+  @Put('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async saveTokenBudgets(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.saveTokenBudgets(actor, raw));
+  }
+
+  @Post('generation-policy/catalog')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async refreshCatalog(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const provider = (raw as { provider?: unknown } | null)?.provider;
+    if (provider !== 'openai' && provider !== 'deepseek')
+      return reject('ai_catalog_invalid', 'Выберите провайдера.', 400);
+    return this.safe(() => this.ai.refreshProviderCatalog(actor, provider));
+  }
   @Put('generation-policy')
   async saveGenerationPolicy(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
@@ -129,17 +155,65 @@ export class AiAdminController {
     return this.safe(() => this.ai.adminConfig(principalId));
   }
 
+  @Get('ollama-cloud/keys')
+  @Header('Cache-Control', 'private, no-store')
+  async cloudKeys(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.ollamaCloudPool(actor));
+  }
+  @Put('ollama-cloud/keys')
+  @Header('Cache-Control', 'private, no-store')
+  async saveCloudKeys(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const body = raw as { configurationVersion?: unknown; keys?: unknown } | null;
+    if (
+      !body ||
+      !Number.isSafeInteger(body.configurationVersion) ||
+      Number(body.configurationVersion) < 1
+    )
+      return reject('ai_cloud_pool_invalid', 'Нужна актуальная версия настроек.', 400);
+    return this.safe(() =>
+      this.ai.saveOllamaCloudPool(actor, Number(body.configurationVersion), body.keys, request.id),
+    );
+  }
+  @Post('ollama-cloud/keys/inspect')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async inspectCloudKeys(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    const body = raw as { configurationVersion?: unknown } | null;
+    if (
+      !body ||
+      !Number.isSafeInteger(body.configurationVersion) ||
+      Number(body.configurationVersion) < 1
+    )
+      return reject('ai_cloud_pool_invalid', 'Нужна актуальная версия настроек.', 400);
+    return this.safe(() =>
+      this.ai.inspectOllamaCloudPool(actor, Number(body.configurationVersion), request.id),
+    );
+  }
+
   @Post('test')
   @HttpCode(200)
   async test(@Req() request: FastifyRequest, @Body() raw: unknown) {
     this.requireSameOrigin(request);
     const principalId = await this.requirePlatformAdmin(request);
-    const body = raw as { acknowledgePaidRequest?: unknown; configurationVersion?: unknown } | null;
+    const body = raw as {
+      acknowledgePaidRequest?: unknown;
+      configurationVersion?: unknown;
+      provider?: unknown;
+      providerConfigurationVersion?: unknown;
+    } | null;
     if (
       !body ||
       body.acknowledgePaidRequest !== true ||
       !Number.isSafeInteger(body.configurationVersion) ||
-      Number(body.configurationVersion) < 1
+      Number(body.configurationVersion) < 1 ||
+      !['openai', 'deepseek', 'ollama-cloud'].includes(String(body.provider)) ||
+      !Number.isSafeInteger(body.providerConfigurationVersion) ||
+      Number(body.providerConfigurationVersion) < 1
     ) {
       return reject(
         'ai_test_confirmation_required',
@@ -147,7 +221,14 @@ export class AiAdminController {
         400,
       );
     }
-    return this.safe(() => this.ai.testConnection(principalId, Number(body.configurationVersion)));
+    return this.safe(() =>
+      this.ai.testConnection(
+        principalId,
+        Number(body.configurationVersion),
+        body.provider as AiProvider,
+        Number(body.providerConfigurationVersion),
+      ),
+    );
   }
 
   @Put()
@@ -166,10 +247,11 @@ export class AiAdminController {
     const apiKey = value['apiKey'];
     const paidOperationsPerHour = value['paidOperationsPerHour'];
     const configurationVersion = value['configurationVersion'];
+    const providerConfigurationVersion = value['providerConfigurationVersion'];
     if (
       !isAiProvider(provider) ||
       !(
-        isModelForProvider(provider, model) ||
+        isKnownModelForProvider(provider, model) ||
         (provider === 'ollama-cloud' &&
           typeof model === 'string' &&
           model.startsWith('ollama-cloud/') &&
@@ -183,7 +265,10 @@ export class AiAdminController {
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
       (apiKey !== undefined && typeof apiKey !== 'string') ||
       (configurationVersion !== undefined &&
-        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1))
+        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1)) ||
+      (providerConfigurationVersion !== undefined &&
+        (!Number.isSafeInteger(providerConfigurationVersion) ||
+          Number(providerConfigurationVersion) < 1))
     ) {
       return reject('ai_config_invalid', 'Неверные настройки ИИ.', 400);
     }
@@ -196,6 +281,9 @@ export class AiAdminController {
           enabled,
           ...(typeof paidOperationsPerHour === 'number' ? { paidOperationsPerHour } : {}),
           ...(typeof configurationVersion === 'number' ? { configurationVersion } : {}),
+          ...(typeof providerConfigurationVersion === 'number'
+            ? { providerConfigurationVersion }
+            : {}),
           ...(typeof apiKey === 'string' ? { apiKey } : {}),
           ...(typeof clearApiKey === 'boolean' ? { clearApiKey } : {}),
         },
@@ -259,6 +347,8 @@ export class AiAdminController {
           baseUrl: value['baseUrl'] as string,
           model: value['model'] as string,
           revision: value['revision'] as number,
+          thinking: value['thinking'] as string | undefined,
+          contextTokens: value['contextTokens'] as number | undefined,
         },
         request.id,
       ),
@@ -290,6 +380,8 @@ export class AiAdminController {
           baseUrl: input['baseUrl'] as string,
           model: input['model'] as string,
           revision: input['revision'] as number,
+          thinking: input['thinking'] as string | undefined,
+          contextTokens: input['contextTokens'] as number | undefined,
         },
         request.id,
       ),
@@ -297,9 +389,33 @@ export class AiAdminController {
   }
 
   @Get('comfyui/status')
+  @Header('Cache-Control', 'private, no-store')
   async comfyUiStatus(@Req() request: FastifyRequest) {
-    await this.requirePlatformAdmin(request);
-    return this.safe(() => discoverComfyUi());
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.comfyUiStatus(actor));
+  }
+  @Get('comfyui/settings')
+  @Header('Cache-Control', 'private, no-store')
+  async comfyUiSettings(@Req() request: FastifyRequest) {
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.comfyUiConfig(actor));
+  }
+  @Post('comfyui/probe')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  async comfyUiProbe(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() =>
+      this.ai.probeComfyUi(actor, (raw as { baseUrl?: unknown } | null)?.baseUrl),
+    );
+  }
+  @Put('comfyui/settings')
+  @Header('Cache-Control', 'private, no-store')
+  async comfyUiSave(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const actor = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.saveComfyUi(actor, raw));
   }
 
   @Post('ollama/models')
@@ -315,6 +431,19 @@ export class AiAdminController {
       return reject('ai_ollama_config_invalid', 'Неверный адрес Ollama.', 400);
     }
     return this.safe(async () => ({ models: await this.ai.ollamaModels(principalId, baseUrl) }));
+  }
+
+  @Post('ollama/model-detail')
+  @HttpCode(200)
+  async ollamaModelDetail(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const input = raw as { baseUrl?: unknown; model?: unknown } | null;
+    if (typeof input?.baseUrl !== 'string' || typeof input.model !== 'string')
+      return reject('ai_ollama_config_invalid', 'Неверная модель Ollama.', 400);
+    return this.safe(() =>
+      this.ai.ollamaModelDetail(principalId, input.baseUrl as string, input.model as string),
+    );
   }
 
   @Post('ollama/test')

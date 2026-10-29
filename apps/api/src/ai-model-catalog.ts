@@ -1,4 +1,4 @@
-import type { AiOllamaCloudModel } from '@asa-lab/contracts';
+import type { AiOllamaCloudModel, AiCatalogObservation } from '@asa-lab/contracts';
 import { AI_MAX_OUTPUT_TOKENS } from './ai-generation-limits.js';
 /** Server-owned text model catalog. The browser consumes this metadata, never an allowlist.
  * Official sources checked 2026-10-19:
@@ -15,7 +15,7 @@ const MODELS = [
   {
     id: 'gemma4:31b',
     provider: 'ollama-cloud',
-    label: 'Gemma 4 31B · Ollama Cloud',
+    label: 'Gemma 4 31B',
     vision: true,
     shutdownDate: null,
     reasoning: null,
@@ -23,7 +23,7 @@ const MODELS = [
   {
     id: 'gpt-oss:120b',
     provider: 'ollama-cloud',
-    label: 'GPT-OSS 120B · Ollama Cloud',
+    label: 'GPT-OSS 120B',
     vision: false,
     shutdownDate: null,
     reasoning: null,
@@ -31,7 +31,7 @@ const MODELS = [
   {
     id: 'gpt-oss:20b',
     provider: 'ollama-cloud',
-    label: 'GPT-OSS 20B · Ollama Cloud',
+    label: 'GPT-OSS 20B',
     vision: false,
     shutdownDate: null,
     reasoning: null,
@@ -98,9 +98,17 @@ let cloudModels: {
   active: true,
 }));
 let cloudRevision: string | null = null;
+let cloudAvailable: ReadonlySet<string> | null = null;
+export function isOllamaCloudPoolManaged(): boolean {
+  return cloudAvailable !== null;
+}
+export function isOllamaCloudModelAvailable(model: string): boolean {
+  return cloudAvailable === null || cloudAvailable.has(model);
+}
 export function installOllamaCloudCatalog(
   rows: readonly AiOllamaCloudModel[],
   checkedAt: string | null,
+  availableModels: readonly string[] | null = null,
 ): void {
   if (!rows.length || rows.length > 600) throw new Error('AI_CLOUD_CATALOG_INVALID');
   const next = rows.map((row) => {
@@ -118,7 +126,7 @@ export function installOllamaCloudCatalog(
       id: row.id,
       upstream: row.model,
       provider: 'ollama-cloud' as const,
-      label: old?.label ?? row.model + ' · Ollama Cloud',
+      label: old?.label ?? row.model + '',
       vision: row.capabilities.includes('vision'),
       shutdownDate: null,
       reasoning: null,
@@ -129,6 +137,16 @@ export function installOllamaCloudCatalog(
     throw new Error('AI_CLOUD_CATALOG_INVALID');
   cloudModels = next;
   cloudRevision = checkedAt;
+  cloudAvailable = availableModels === null ? null : new Set(availableModels);
+}
+let observations: readonly AiCatalogObservation[] = [];
+export function installProviderObservations(value: readonly AiCatalogObservation[]): void {
+  observations = value;
+}
+function observedAvailable(provider: string, id: string): boolean {
+  const observation = observations.find((o) => o.provider === provider);
+  if (observation?.credentialChanged) return false;
+  return !observation?.checkedAt || observation.models.some((m) => m.id === id && m.active);
 }
 function modelEntries() {
   return [...MODELS.filter((m) => m.provider !== 'ollama-cloud'), ...cloudModels];
@@ -153,12 +171,23 @@ export function isAiProvider(value: unknown): value is AiProvider {
   return PROVIDERS.some((provider) => provider.id === value);
 }
 
+export function isKnownAiModel(value: unknown): value is AiModel {
+  return modelEntries().some((m) => m.id === value);
+}
 export function isAiModel(value: unknown, now = Date.now()): value is AiModel {
   return modelEntries().some(
     (model) =>
       model.id === value &&
+      observedAvailable(model.provider, model.id) &&
       (!('active' in model) || model.active) &&
       (model.shutdownDate === null || now < Date.parse(model.shutdownDate + 'T00:00:00Z')),
+  );
+}
+
+/** Configuration maintenance validates adapter identity, independently of observed availability. */
+export function isKnownModelForProvider(provider: unknown, model: unknown): model is AiModel {
+  return modelEntries().some(
+    (candidate) => candidate.id === model && candidate.provider === provider,
   );
 }
 
@@ -192,22 +221,46 @@ export function getAiModelCatalog(now = Date.now()) {
           }
         : p,
     ),
-    models: modelEntries().map((model) => ({
-      id: model.id,
-      provider: model.provider,
-      label: model.label,
-      inputModalities: model.vision ? ['text', 'image'] : ['text'],
-      outputModalities: ['text'],
-      streaming: true,
-      shutdownDate: model.shutdownDate,
-      selectable: isAiModel(model.id, now),
-      lifecycle:
-        model.shutdownDate === null
-          ? ('active' as const)
-          : isAiModel(model.id, now)
-            ? ('deprecated' as const)
-            : ('retired' as const),
-    })),
+    models: [
+      ...modelEntries().map((model) => ({
+        adapterCompatible: true,
+        id: model.id,
+        provider: model.provider,
+        label: model.label,
+        inputModalities: model.vision ? ['text', 'image'] : ['text'],
+        outputModalities: ['text'],
+        streaming: true,
+        shutdownDate: model.shutdownDate,
+        selectable:
+          isAiModel(model.id, now) &&
+          (model.provider !== 'ollama-cloud' || isOllamaCloudModelAvailable(model.id)),
+        lifecycle:
+          model.shutdownDate === null
+            ? ('active' as const)
+            : isAiModel(model.id, now)
+              ? ('deprecated' as const)
+              : ('retired' as const),
+      })),
+      ...observations.flatMap((o) =>
+        o.models
+          .filter(
+            (m) =>
+              !modelEntries().some((known) => known.id === m.id && known.provider === o.provider),
+          )
+          .map((m) => ({
+            id: `catalog:${o.provider}:${m.id}`,
+            provider: o.provider,
+            label: m.id,
+            adapterCompatible: false,
+            inputModalities: [] as string[],
+            outputModalities: [] as string[],
+            streaming: false,
+            shutdownDate: null,
+            selectable: false,
+            lifecycle: m.active ? ('active' as const) : ('retired' as const),
+          })),
+      ),
+    ],
     productFeatures: AI_PRODUCT_FEATURES,
   };
 }
@@ -223,10 +276,7 @@ export function buildAiTextRequest(
   stream: boolean,
 ): { url: string; body: Record<string, unknown> } {
   const descriptor = modelEntries().find((candidate) => candidate.id === model);
-  if (
-    !descriptor ||
-    !(isModelForProvider(provider, model) || isKnownOllamaCloudModel(provider, model))
-  ) {
+  if (!descriptor || descriptor.provider !== provider) {
     throw new Error('AI_MODEL_UNAVAILABLE');
   }
   return provider === 'openai'

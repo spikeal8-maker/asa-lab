@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { addNativeUsage, nativeTools, parseNativeToolCalls } from './ai-native-tools';
 
 describe('native image tool admission', () => {
-  const offered = nativeTools({ imageSizes: [512], search: false, weather: false });
+  const offered = nativeTools({ imageSizes: [768], search: false, weather: false });
   const call = (arguments_: unknown) => [
     { function: { name: 'generate_image', arguments: arguments_ } },
   ];
@@ -17,22 +17,22 @@ describe('native image tool admission', () => {
       offered,
     );
     expect(parsed[0]?.arguments.prompt).toContain('forest');
-    expect(offered[0]?.function.parameters.properties).toMatchObject({ size: { enum: [512] } });
+    expect(offered[0]?.function.parameters.properties).toMatchObject({ size: { enum: [768] } });
   });
 
   it('rejects invented model, malformed size, extra keys and multiple calls', () => {
     for (const bad of [
       { prompt: 'Forest', size: 2048, model: 'flux2-klein-4b-v1' },
       { prompt: 'Forest', size: '512', model: 'flux2-klein-4b-v1' },
-      { prompt: 'Forest', size: 512, model: 'other' },
-      { prompt: 'Forest', size: 512, model: 'flux2-klein-4b-v1', url: 'https://example.invalid' },
+      { prompt: 'Forest', size: 768, model: 'other' },
+      { prompt: 'Forest', size: 768, model: 'flux2-klein-4b-v1', url: 'https://example.invalid' },
     ])
       expect(() => parseNativeToolCalls(call(bad), offered)).toThrow('AI_TOOL_CALL_INVALID');
     expect(() =>
       parseNativeToolCalls(
         [
-          ...call({ prompt: 'Forest', size: 512, model: 'flux2-klein-4b-v1' }),
-          ...call({ prompt: 'Village', size: 512, model: 'flux2-klein-4b-v1' }),
+          ...call({ prompt: 'Forest', size: 768, model: 'flux2-klein-4b-v1' }),
+          ...call({ prompt: 'Village', size: 768, model: 'flux2-klein-4b-v1' }),
         ],
         offered,
       ),
@@ -78,4 +78,21 @@ describe('native internet argument boundary', () => {
       addNativeUsage({ inputTokens: 10, outputTokens: 2, actualModel: 'a' }, undefined),
     ).toEqual({ inputTokens: null, outputTokens: null, actualModel: 'a' });
   });
+});
+
+it('advertises only the configured FP8 recipe and rejects an unoffered v1 graph request', () => {
+  const recipe = 'flux2-klein-4b-fp8-izo-v1' as const;
+  const offered = nativeTools({
+    imageSizes: [1024],
+    imageRecipe: recipe,
+    search: false,
+    weather: false,
+  });
+  const call = (model: string) => [
+    {
+      function: { name: 'generate_image', arguments: { prompt: 'A blue tree', size: 1024, model } },
+    },
+  ];
+  expect(parseNativeToolCalls(call(recipe), offered)[0]?.arguments.model).toBe(recipe);
+  expect(() => parseNativeToolCalls(call('flux2-klein-4b-v1'), offered)).toThrow();
 });

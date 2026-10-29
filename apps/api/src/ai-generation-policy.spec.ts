@@ -1,3 +1,5 @@
+import type pg from 'pg';
+import { getAiModelCatalog, installOllamaCloudCatalog } from './ai-model-catalog';
 import { randomUUID } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
@@ -7,6 +9,7 @@ import type { AiChatService } from './ai-chat.service';
 import type { AdminControlPlaneService } from './admin-control-plane.service';
 import {
   AI_DEFAULT_SYSTEM_PROMPT,
+  AiGenerationPolicyStore,
   policyInstructions,
   validPolicyInput,
 } from './ai-generation-policy';
@@ -139,4 +142,121 @@ it('renders missing fields truthfully and does not recursively interpolate profi
   expect(result).toContain('"Не предоставлено"');
   expect(result).toContain('UTC');
   expect(result).not.toContain('INVALID/zone');
+});
+
+it('B bounds eligibility and sort numbers independently from visibility', () => {
+  const input = {
+    configurationVersion: 1,
+    systemPrompt: 'Кратко.',
+    allowedModels: ['deepseek-flash'],
+    defaultModel: 'deepseek-flash',
+    requestId: randomUUID(),
+  };
+  expect(
+    validPolicyInput({
+      ...input,
+      modelPreferences: [{ id: 'deepseek-flash', eligible: true, order: -10 }],
+      providerOrder: { deepseek: 2 },
+    }),
+  ).toMatchObject({ providerOrder: { deepseek: 2 } });
+  for (const extra of [
+    { providerOrder: { unknown: 1 } },
+    { providerOrder: { deepseek: 1.1 } },
+    { modelPreferences: [{ id: 'deepseek-flash', eligible: true, order: Infinity }] },
+    {
+      modelPreferences: [
+        { id: 'deepseek-flash', eligible: true, order: 0 },
+        { id: 'deepseek-flash', eligible: false, order: 2 },
+      ],
+    },
+  ])
+    expect(() => validPolicyInput({ ...input, ...extra })).toThrow();
+});
+
+it('projects the selected union of enabled configured Cloud keys independently of runtime outages and user visibility', async () => {
+  const previous = getAiModelCatalog()
+    .models.filter((m) => m.provider === 'ollama-cloud')
+    .map((m) => ({ id: m.id, model: m.id, active: true, capabilities: ['completion'] }));
+  const models = ['a', 'b', 'disabled', 'unconfigured', 'unused'].map((name) => ({
+    id: 'ollama-cloud/' + name,
+    model: name,
+    active: true,
+    capabilities: ['completion'],
+  }));
+  let managed = true;
+  const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+    if (sql.includes('ai_generation_policy_get'))
+      return {
+        rows: [
+          {
+            value: {
+              revision: 4,
+              systemPrompt: 'Keep this',
+              defaultModel: 'ollama-cloud/a',
+              allowedModels: ['ollama-cloud/a'],
+              modelPreferences: [],
+              providerOrder: {},
+              providerReady: { 'ollama-cloud': true },
+            },
+          },
+        ],
+      };
+    if (sql.includes('ai_ollama_cloud_catalog_runtime'))
+      return {
+        rows: [
+          {
+            value: {
+              models,
+              poolManaged: managed,
+              availableModels: [],
+              checkedAt: '2026-10-29T00:00:00Z',
+            },
+          },
+        ],
+      };
+    if (sql.includes('ai_ollama_cloud_pool_admin')) {
+      expect(params).toEqual(['admin']);
+      return {
+        rows: [
+          {
+            value: {
+              managed: true,
+              keys: [
+                { enabled: true, configured: true, models: ['ollama-cloud/a'] },
+                { enabled: true, configured: true, models: ['ollama-cloud/b'] },
+                { enabled: false, configured: true, models: ['ollama-cloud/disabled'] },
+                { enabled: true, configured: false, models: ['ollama-cloud/unconfigured'] },
+              ],
+            },
+          },
+        ],
+      };
+    }
+    throw new Error('Unexpected SQL');
+  });
+  try {
+    const store = new AiGenerationPolicyStore({ query } as unknown as pg.Pool);
+    const policy = await store.admin('admin', true);
+    expect(
+      policy.models
+        .filter((m) => m.provider === 'ollama-cloud' && m.connectionSelected)
+        .map((m) => m.id),
+    ).toEqual(['ollama-cloud/a', 'ollama-cloud/b']);
+    expect(policy.models.find((m) => m.id === 'ollama-cloud/a')).toMatchObject({
+      selectable: false,
+      connectionSelected: true,
+    });
+    expect(policy.allowedModels).toEqual(['ollama-cloud/a']);
+    expect(policy.defaultModel).toBe('ollama-cloud/a');
+    expect(policy.modelPreferences).toEqual([]);
+    managed = false;
+    expect(
+      (await store.admin('admin', true)).models
+        .filter((m) => m.provider === 'ollama-cloud')
+        .every((m) => m.connectionSelected),
+    ).toBe(true);
+    expect(query.mock.calls.filter(([sql]) => sql.includes('pool_admin'))).toHaveLength(1);
+  } finally {
+    installOllamaCloudCatalog(previous, null);
+  }
 });

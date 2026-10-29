@@ -1,3 +1,4 @@
+import { aiImageSizeLabel, isAiImageSize, type AiImageRecipe } from '@asa-lab/contracts';
 import type { AiProviderUsage } from './ai-provider-usage.js';
 
 export type NativeToolName = 'generate_image' | 'web_search' | 'image_search' | 'weather';
@@ -19,6 +20,7 @@ export interface NativeToolResult {
 }
 export function nativeTools(options: {
   imageSizes?: readonly number[];
+  imageRecipe?: AiImageRecipe;
   search: boolean;
   weather: boolean;
 }): readonly NativeToolDefinition[] {
@@ -36,8 +38,15 @@ export function nativeTools(options: {
           required: ['prompt', 'size', 'model'],
           properties: {
             prompt: { type: 'string', minLength: 1, maxLength: 3000 },
-            size: { type: 'integer', enum: options.imageSizes },
-            model: { type: 'string', enum: ['flux2-klein-4b-v1'] },
+            size: {
+              type: 'integer',
+              enum: options.imageSizes,
+              description: options.imageSizes
+                .filter(isAiImageSize)
+                .map((id) => id + ': ' + aiImageSizeLabel(id))
+                .join('; '),
+            },
+            model: { type: 'string', enum: [options.imageRecipe ?? 'flux2-klein-4b-v1'] },
           },
         },
       },
@@ -103,12 +112,15 @@ export function parseNativeToolCalls(
     ).size.enum;
     if (
       keys !== 'model,prompt,size' ||
-      values.model !== 'flux2-klein-4b-v1' ||
+      !(
+        offered.find((tool) => tool.function.name === 'generate_image')!.function.parameters
+          .properties as { model: { enum: readonly unknown[] } }
+      ).model.enum.includes(values.model) ||
       typeof values.prompt !== 'string' ||
       !values.prompt.trim() ||
       values.prompt.length > 3000 ||
       !Number.isSafeInteger(values.size) ||
-      ![512, 768, 1024].includes(values.size as number) ||
+      !isAiImageSize(values.size) ||
       sizes.length !== 1
     )
       throw new Error('AI_TOOL_CALL_INVALID');

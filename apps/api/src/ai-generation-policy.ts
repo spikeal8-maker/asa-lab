@@ -2,11 +2,19 @@ import { reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
 import type pg from 'pg';
 import type {
   AiGenerationPolicy,
+  AiOllamaCloudPool,
+  AiModelPreference,
+  AiCatalogObservation,
   AiGenerationPolicyUpdate,
   AiPromptVariable,
   AiWebSearchEvidence,
 } from '@asa-lab/contracts';
-import { getAiModelCatalog, isAiModel } from './ai-model-catalog.js';
+import {
+  getAiModelCatalog,
+  isOllamaCloudPoolManaged,
+  installProviderObservations,
+  isKnownAiModel,
+} from './ai-model-catalog.js';
 
 export const AI_DEFAULT_SYSTEM_PROMPT = [
   'Ты ИИ-помощник цифровой лаборатории ASA Lab: помогай учиться, исследовать, программировать и создавать проекты. Отвечай по-русски, если пользователь не выбрал другой язык.',
@@ -101,6 +109,9 @@ export interface PolicyRow {
   providerReady?: Record<string, boolean>;
   localModel?: string | null;
   localEnabled?: boolean;
+  modelPreferences?: AiModelPreference[];
+  providerOrder?: Record<string, number>;
+  observations?: AiCatalogObservation[];
 }
 export function validPolicyInput(raw: unknown): AiGenerationPolicyUpdate {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
@@ -112,6 +123,8 @@ export function validPolicyInput(raw: unknown): AiGenerationPolicyUpdate {
     'defaultModel',
     'allowedModels',
     'requestId',
+    'modelPreferences',
+    'providerOrder',
   ];
   if (
     Object.keys(v).some((k) => !keys.includes(k)) ||
@@ -121,8 +134,8 @@ export function validPolicyInput(raw: unknown): AiGenerationPolicyUpdate {
     !v.systemPrompt.trim() ||
     v.systemPrompt.length > 12000 ||
     !Array.isArray(v.allowedModels) ||
-    v.allowedModels.length > 20 ||
-    v.allowedModels.some((m) => m !== 'ollama-local' && !isAiModel(m)) ||
+    v.allowedModels.length > 2400 ||
+    v.allowedModels.some((m) => m !== 'ollama-local' && !isKnownAiModel(m)) ||
     new Set(v.allowedModels).size !== v.allowedModels.length ||
     !(
       v.defaultModel === null ||
@@ -137,6 +150,36 @@ export function validPolicyInput(raw: unknown): AiGenerationPolicyUpdate {
       400,
       'Проверьте промпт, разрешённые модели и модель по умолчанию.',
     );
+  const preferences = v.modelPreferences;
+  if (
+    preferences !== undefined &&
+    (!Array.isArray(preferences) ||
+      preferences.length > 2400 ||
+      new Set(preferences.map((m) => m?.id)).size !== preferences.length ||
+      preferences.some(
+        (m) =>
+          !m ||
+          typeof m.id !== 'string' ||
+          !/^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}$/.test(m.id) ||
+          typeof m.eligible !== 'boolean' ||
+          !Number.isSafeInteger(m.order) ||
+          Math.abs(m.order) > 1000000,
+      ))
+  )
+    throw new AiPolicyError('ai_policy_invalid', 400, 'Проверьте доступность и порядок моделей.');
+  if (
+    v.providerOrder !== undefined &&
+    (!v.providerOrder ||
+      typeof v.providerOrder !== 'object' ||
+      Array.isArray(v.providerOrder) ||
+      Object.entries(v.providerOrder).some(
+        ([id, order]) =>
+          !['openai', 'deepseek', 'ollama-cloud', 'ollama'].includes(id) ||
+          !Number.isSafeInteger(order) ||
+          Math.abs(order) > 1000000,
+      ))
+  )
+    throw new AiPolicyError('ai_policy_invalid', 400, 'Проверьте порядок провайдеров.');
   const stripped = v.systemPrompt.replace(/\{\{([a-z_]+)\}\}/g, (_all, name: string) => {
     if (!AI_PROMPT_VARIABLES.some((item) => item.name === name))
       throw new AiPolicyError(
@@ -265,14 +308,36 @@ export class AiGenerationPolicyStore {
         : 'SELECT ai_generation_policy_runtime() AS value',
       actor ? [actor] : [],
     );
-    return r.rows[0]?.value ?? null;
+    const row = r.rows[0]?.value ?? null;
+    installProviderObservations(row?.observations ?? []);
+    return row;
   }
   async admin(actor: string, encryptionReady: boolean): Promise<AiGenerationPolicy> {
     const row = await this.row(actor);
     if (!row)
       throw new AiPolicyError('ai_policy_unavailable', 503, 'Настройки генерации недоступны.');
     await reloadOllamaCloudCatalog(this.pool);
+    installProviderObservations(row.observations ?? []);
     const catalog = getAiModelCatalog();
+    const managed = isOllamaCloudPoolManaged();
+    let selectedCloudModels: Set<string> | null = null;
+    if (managed) {
+      const pool = (
+        await this.pool.query<{ value: AiOllamaCloudPool }>(
+          'SELECT ai_ollama_cloud_pool_admin($1) AS value',
+          [actor],
+        )
+      ).rows[0]?.value;
+      if (!pool || !Array.isArray(pool.keys))
+        throw new AiPolicyError(
+          'ai_policy_unavailable',
+          503,
+          'Не удалось подтвердить модели ключей.',
+        );
+      selectedCloudModels = new Set(
+        pool.keys.filter((key) => key.enabled && key.configured).flatMap((key) => key.models),
+      );
+    }
     return {
       schemaVersion: 1,
       configurationVersion: Number(row.revision),
@@ -280,6 +345,9 @@ export class AiGenerationPolicyStore {
       defaultModel: row.defaultModel,
       allowedModels: row.allowedModels,
       variables: AI_PROMPT_VARIABLES,
+      modelPreferences: row.modelPreferences ?? [],
+      providerOrder: row.providerOrder ?? {},
+      observations: row.observations ?? [],
       models: [
         ...catalog.models.map((m) => ({
           id: m.id,
@@ -288,13 +356,32 @@ export class AiGenerationPolicyStore {
           selectable: m.selectable,
           ready: encryptionReady && !!row.providerReady?.[m.provider],
           allowed: row.allowedModels.includes(m.id),
+          connectionSelected:
+            m.provider !== 'ollama-cloud' ||
+            selectedCloudModels === null ||
+            selectedCloudModels.has(m.id),
+          eligible:
+            m.adapterCompatible &&
+            (row.modelPreferences?.find((p) => p.id === m.id)?.eligible ?? true),
+          order: row.modelPreferences?.find((p) => p.id === m.id)?.order ?? 0,
+          adapterCompatible: m.adapterCompatible,
+          unavailableReason: !m.adapterCompatible
+            ? 'Адаптер ASA не подтверждён'
+            : !m.selectable
+              ? 'Модель отсутствует или выведена из каталога'
+              : !row.providerReady?.[m.provider]
+                ? 'Провайдер выключен или ключ не настроен'
+                : null,
         })),
         {
           id: 'ollama-local',
           provider: 'ollama',
-          label: row.localModel ? 'Ollama · ' + row.localModel : 'Ollama · модель не настроена',
+          label: row.localModel ?? 'Локальная модель не настроена',
           selectable: true,
-          ready: !!row.localModel,
+          ready: !!row.localModel && !!row.localEnabled,
+          eligible: row.modelPreferences?.find((p) => p.id === 'ollama-local')?.eligible ?? true,
+          order: row.modelPreferences?.find((p) => p.id === 'ollama-local')?.order ?? 0,
+          adapterCompatible: true,
           allowed: row.allowedModels.includes('ollama-local'),
         },
       ],

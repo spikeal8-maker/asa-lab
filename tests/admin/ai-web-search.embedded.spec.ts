@@ -1,3 +1,4 @@
+import { publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
@@ -102,6 +103,7 @@ beforeAll(async () => {
     },
     randomUUID(),
   );
+  await publishFixtureModels(chat, admin, ['deepseek-flash']);
   await new AiWebSearchService(pool).save(
     admin,
     { enabled: true, weatherEnabled: true, operationsPerHour: 100, configurationVersion: 1 },
@@ -338,7 +340,10 @@ it('does not upgrade a legacy UUID into a search and returns the frozen snapshot
   const explicitId = randomUUID();
   await chat.send(owner, thread.id, 'Найди другой факт', explicitId, 'web');
   const savedCalls = fetchImpl.mock.calls.length;
-  const replay = await chat.send(owner, thread.id, 'Найди другой факт', explicitId);
+  await expect(chat.send(owner, thread.id, 'Найди другой факт', explicitId)).rejects.toMatchObject({
+    code: 'ai_request_id_reused',
+  });
+  const replay = await chat.send(owner, thread.id, 'Найди другой факт', explicitId, 'web');
   expect(replay.replayed).toBe(true);
   expect(
     replay.messages.find((m) => m.requestId === explicitId && m.role === 'assistant')?.webSearch

@@ -18,7 +18,7 @@ invariants:
       - document: AI-ASSISTANT-SPEC
         section: AI-GENERATION-POLICY-001
     applies_to: [generation_policy, system_prompt, model_allowlist, search_domain_policy]
-    forbid: [client_model_authority, arbitrary_model_id, automatic_paid_retry, cross_owner_profile_context, invented_user_location, raw_crm_prompt_context, legacy_policy_bypass]
+    forbid: [client_model_authority, arbitrary_model_id, retry_after_answer_or_unknown_outcome, cross_owner_profile_context, invented_user_location, raw_crm_prompt_context, legacy_policy_bypass]
 
   - id: AI-WEB-SEARCH-001
     statement: Free server retrieval uses only internal SearxNG, bounded manual city geocoding and attributed MET Norway forecasts. Immutable owner admission precedes network access; UUID replay and variants reuse stored evidence. Typed raster previews require owner-bound same-origin closed-CDN proxy, actual byte validation and bounded global concurrency. Arbitrary Markdown images remain forbidden. No paid search keys or subscriptions exist.
@@ -29,7 +29,7 @@ invariants:
     forbid: [paid_search_provider, arbitrary_image_fetch, fresh_search_on_replay, cross_owner_evidence, unbounded_geocoding, invented_weather]
 
   - id: AI-CLOUD-CREDENTIAL-001
-    statement: Cloud provider keys remain separate encrypted server-only slots. Provider/model admission uses the closed server and SQL catalog, current configuration revision and shared paid quota; cloud Ollama uses only the fixed HTTPS ollama.com endpoint without redirects. Official-site sign-in/key creation is not an ASA OAuth grant. Adding, switching or clearing one provider preserves other keys and history.
+    statement: Cloud provider keys remain separate encrypted server-only slots; Ollama Cloud supports at most five prioritized encrypted keys with per-key model selections. Only a definitive HTTP rejection before any answer permits bounded same-model failover; partial answers, network exceptions and HTTP 5xx are never retried. Provider/model admission uses the closed server and SQL catalog, current configuration revision and shared paid quota; cloud Ollama uses only the fixed HTTPS ollama.com endpoint without redirects. Official-site sign-in/key creation is not an ASA OAuth grant. Adding, switching or clearing one provider preserves other keys and history.
     master_refs:
       - document: AI-ASSISTANT-SPEC
         section: AI-CLOUD-CREDENTIAL-001

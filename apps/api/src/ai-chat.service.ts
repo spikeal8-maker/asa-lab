@@ -1,6 +1,18 @@
+import type { AiImageRecipe } from '@asa-lab/contracts';
+import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
+import { AiTokenBudgetStore } from './ai-token-budgets.js';
+import { installProviderObservations } from './ai-model-catalog.js';
 import { OllamaCloudMetadata, reloadOllamaCloudCatalog } from './ai-ollama-cloud.js';
+import { ComfyUiSettings } from './ai-comfyui-settings.js';
+import {
+  cloudPoolFetch,
+  accountBlockUntil,
+  type CloudKeyCredential,
+} from './ai-ollama-cloud-pool.js';
+import { isOllamaCloudPoolManaged } from './ai-model-catalog.js';
+import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
 import type { AiOllamaCloudInspection } from '@asa-lab/contracts';
-import type { AiGeneratedImage, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
+import type { AiGeneratedImage, AiImageGenerationJob, AiImageStoredSize } from '@asa-lab/contracts';
 import { AiImageService } from './ai-image.service.js';
 import {
   AiToolPolicyError,
@@ -51,6 +63,9 @@ import {
   validOllamaModel,
   discoverOllama,
   describeOllamaModel,
+  inspectOllamaModel,
+  validOllamaOptions,
+  resolveOllamaThinking,
   streamOllamaText,
   type OllamaModel,
   type OllamaSettings,
@@ -60,6 +75,7 @@ import {
   buildAiTextRequest,
   getAiModelCatalog,
   isModelForProvider,
+  isKnownModelForProvider,
   type AiModel,
   type AiModelCatalog,
   type AiProvider,
@@ -77,12 +93,14 @@ export type { AiProvider, AiModel } from './ai-model-catalog.js';
 export type AiChatModel = AiModel | typeof OLLAMA_SELECTION;
 export interface AiNativeImageOptions {
   readonly mode: 'off' | 'auto';
-  readonly size: AiImageSize;
+  readonly size: AiImageStoredSize;
 }
 
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
   readonly model: AiModel;
+  readonly enabled: boolean;
+  readonly revision: number;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
   readonly updatedAt: string | null;
@@ -106,6 +124,7 @@ export interface AiAdminConfig {
 
 export interface AiAdminUpdate {
   readonly enabled: boolean;
+  readonly providerConfigurationVersion?: number;
   readonly paidOperationsPerHour?: number;
   readonly provider: AiProvider;
   readonly model: AiModel;
@@ -170,7 +189,14 @@ interface RuntimeRow {
   readonly api_key_auth_tag: string | null;
 }
 
+type ProviderCredential = Pick<
+  RuntimeRow,
+  'api_key_ciphertext' | 'api_key_iv' | 'api_key_auth_tag'
+>;
+
 interface OllamaRow {
+  readonly thinking?: string | null;
+  readonly context_tokens?: number | null;
   readonly enabled: boolean;
   readonly base_url: string;
   readonly model: string;
@@ -223,6 +249,7 @@ export class AiChatService {
   private readonly usage: AiUsageJournal;
   private readonly web: AiWebSearchService;
   private readonly toolPolicy: AiToolPolicyService;
+  private readonly comfySettings: ComfyUiSettings;
   private readonly activeStreams = new Map<
     string,
     { principalId: string; threadId: string; abort: AbortController }
@@ -233,21 +260,75 @@ export class AiChatService {
     options: AiServiceOptions = {},
   ) {
     this.key = rootKey(options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY']);
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.fetchImpl = cloudPoolFetch(pool, options.fetchImpl ?? fetch, (row) =>
+      this.requireProviderKey(row),
+    );
     this.history = new AiTextHistoryStore(pool);
     this.attachments = options.attachments;
     this.images = options.images;
     this.usage = new AiUsageJournal(pool);
     this.web = new AiWebSearchService(pool, this.fetchImpl);
+    this.comfySettings = new ComfyUiSettings(pool, this.fetchImpl);
     this.toolPolicy = new AiToolPolicyService(pool);
     this.policy = new AiGenerationPolicyStore(pool);
   }
 
+  async refreshProviderCatalog(actor: string, provider: 'openai' | 'deepseek') {
+    const policy = await this.policy.row(actor);
+    const observation = policy?.observations?.find((o) => o.provider === provider);
+    if (
+      observation?.checkedAt &&
+      !observation.failed &&
+      Date.now() - Date.parse(observation.checkedAt) < 300000
+    )
+      return this.generationPolicy(actor);
+    const result = await this.pool.query<RuntimeRow & { revision: number }>(
+      'SELECT * FROM ai_provider_catalog_credentials($1,$2)',
+      [actor, provider],
+    );
+    const credentials = result.rows[0];
+    const key = credentials ? this.decrypt(credentials) : null;
+    if (!key)
+      throw new AiServiceError(
+        'ai_catalog_key_required',
+        409,
+        'Настройте ключ провайдера перед обновлением каталога.',
+      );
+    let ids: string[] | null = null;
+    try {
+      ids = await discoverProviderModels(provider, key, this.fetchImpl);
+    } catch {
+      /* Preserve the last successful observation; never log upstream bodies or keys. */
+    }
+    await applyCatalogObservation(this.pool, actor, provider, Number(credentials!.revision), ids);
+    return this.generationPolicy(actor);
+  }
   generationPolicy(actor: string) {
     return this.policy.admin(actor, this.key !== null);
   }
+  comfyUiConfig(actor: string) {
+    return this.comfySettings.config(actor);
+  }
+  comfyUiStatus(actor: string) {
+    return this.comfySettings.status(actor);
+  }
+  probeComfyUi(actor: string, url: unknown) {
+    return this.comfySettings.probe(actor, url);
+  }
+  saveComfyUi(actor: string, raw: unknown) {
+    return this.comfySettings.save(actor, raw);
+  }
   usageOverview(actor: string) {
     return this.usage.overview(actor);
+  }
+  tokenBudgetsAdmin(actor: string) {
+    return new AiTokenBudgetStore(this.pool).admin(actor);
+  }
+  tokenBudgetsOwn(owner: string) {
+    return new AiTokenBudgetStore(this.pool).own(owner);
+  }
+  saveTokenBudgets(actor: string, input: unknown) {
+    return new AiTokenBudgetStore(this.pool).save(actor, input);
   }
   saveGenerationPolicy(actor: string, input: AiGenerationPolicyUpdate) {
     return this.policy.save(actor, input, this.key !== null);
@@ -293,6 +374,12 @@ export class AiChatService {
       const row = (
         await this.pool.query<RuntimeRow>('SELECT * FROM ai_generation_runtime($1)', [selected])
       ).rows[0];
+      if (row && Number(row.configuration_version) !== Number(runtime.configuration_version))
+        throw new AiServiceError(
+          'ai_config_changed',
+          409,
+          'Настройки изменились до начала запроса. Повторите выбор модели.',
+        );
       if (row?.provider === 'ollama-cloud') await reloadOllamaCloudCatalog(this.pool);
       if (!row)
         throw new AiServiceError(
@@ -383,7 +470,7 @@ export class AiChatService {
   }
 
   private async ollamaRuntime(): Promise<OllamaRow> {
-    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_runtime()');
+    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_runtime_v2()');
     const row = result.rows[0];
     // A missing or incompatible optional connection must never activate local
     // inference or change the behavior of existing paid-provider fixtures.
@@ -410,7 +497,7 @@ export class AiChatService {
   }
 
   async ollamaSettings(principalId: string): Promise<OllamaSettings> {
-    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_admin_get($1)', [
+    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_admin_get_v2($1)', [
       principalId,
     ]);
     const row = result.rows[0];
@@ -422,6 +509,8 @@ export class AiChatService {
       model: row.model,
       revision: Number(row.revision),
       updatedAt: iso(row.updated_at ?? null),
+      thinking: row.thinking ?? (row.model === 'qwen3.8:27b' ? 'xhigh' : 'off'),
+      contextTokens: row.context_tokens ?? 120000,
     };
   }
 
@@ -432,21 +521,56 @@ export class AiChatService {
       baseUrl: string;
       model: string;
       revision: number;
+      thinking?: string | undefined;
+      contextTokens?: number | undefined;
     },
     requestId: string,
   ): Promise<OllamaSettings> {
+    const before = await this.ollamaSettings(principalId).catch((problem: unknown) => {
+      if ((problem as { code?: string }).code === '42501')
+        throw new AiServiceError('ai_admin_denied', 403, 'Нет доступа к настройкам Ollama.');
+      throw problem;
+    });
+    if (!Number.isSafeInteger(input.revision) || input.revision < 1)
+      throw new AiServiceError('ai_ollama_config_invalid', 400, 'Неверная версия настроек.');
+    if (input.revision !== before.revision)
+      throw new AiServiceError(
+        'ai_ollama_config_changed',
+        409,
+        'Настройки изменились. Обновите форму.',
+      );
     const baseUrl = ollamaBaseUrl(input.baseUrl);
     if (
+      !validOllamaOptions(input.thinking, input.contextTokens) ||
       !validOllamaModel(input.model) ||
       !Number.isSafeInteger(input.revision) ||
       input.revision < 1
     ) {
       throw new AiServiceError('ai_ollama_config_invalid', 400, 'Неверные настройки Ollama.');
     }
+    if (input.enabled && (input.thinking !== undefined || input.contextTokens !== undefined)) {
+      const detail = await inspectOllamaModel(baseUrl, input.model, this.fetchImpl);
+      resolveOllamaThinking(input.thinking ?? before.thinking ?? 'off', detail);
+      if (detail.contextMax !== null && (input.contextTokens ?? 120000) > detail.contextMax)
+        throw new AiServiceError(
+          'ai_ollama_context_invalid',
+          400,
+          'Контекст превышает возможности модели.',
+        );
+    }
     try {
       await this.pool.query(
-        'SELECT ai_ollama_admin_set($1,$2,$3::varchar,$4::varchar,$5::bigint,$6::varchar)',
-        [principalId, input.enabled, baseUrl, input.model, input.revision, requestId],
+        'SELECT ai_ollama_admin_set_v2($1,$2,$3::varchar,$4::varchar,$5::bigint,$6::varchar,$7::varchar,$8::integer)',
+        [
+          principalId,
+          input.enabled,
+          baseUrl,
+          input.model,
+          input.revision,
+          requestId,
+          input.thinking ?? null,
+          input.contextTokens ?? null,
+        ],
       );
     } catch (problem) {
       if ((problem as Error).message.includes('AI_OLLAMA_CONFIG_CHANGED')) {
@@ -461,7 +585,19 @@ export class AiChatService {
       }
       throw problem;
     }
-    return this.ollamaSettings(principalId);
+    const after = await this.ollamaSettings(principalId);
+    if (
+      after.revision !== input.revision + 1 ||
+      after.model !== input.model ||
+      after.baseUrl !== baseUrl ||
+      after.enabled !== input.enabled
+    )
+      throw new AiServiceError(
+        'ai_ollama_config_changed',
+        409,
+        'Настройки изменились после сохранения. Обновите форму.',
+      );
+    return after;
   }
 
   async ollamaModels(principalId: string, candidate?: string): Promise<readonly OllamaModel[]> {
@@ -469,7 +605,17 @@ export class AiChatService {
     return discoverOllama(endpoint, this.fetchImpl);
   }
 
-  private async probeOllama(baseUrl: string, model: string): Promise<number> {
+  async ollamaModelDetail(principalId: string, baseUrl: string, model: string) {
+    await this.ollamaSettings(principalId);
+    return inspectOllamaModel(baseUrl, model, this.fetchImpl);
+  }
+
+  private async probeOllama(
+    baseUrl: string,
+    model: string,
+    thinking?: string,
+    contextTokens?: number,
+  ): Promise<number> {
     const models = await discoverOllama(baseUrl, this.fetchImpl);
     if (!models.some((item) => item.name === model)) {
       throw new AiServiceError(
@@ -482,6 +628,8 @@ export class AiChatService {
     await streamOllamaText({
       baseUrl,
       model,
+      thinking,
+      contextTokens,
       context: [{ role: 'user', content: 'Ответь кратко: OK' }],
       instructions: 'Проверка соединения. Ответь одним словом.',
       signal: new AbortController().signal,
@@ -496,7 +644,14 @@ export class AiChatService {
    */
   async applyOllamaSettings(
     principalId: string,
-    input: { enabled: boolean; baseUrl: string; model: string; revision: number },
+    input: {
+      enabled: boolean;
+      baseUrl: string;
+      model: string;
+      revision: number;
+      thinking?: string | undefined;
+      contextTokens?: number | undefined;
+    },
     requestId: string,
   ): Promise<{
     config: OllamaSettings;
@@ -512,14 +667,37 @@ export class AiChatService {
       );
     }
     const baseUrl = ollamaBaseUrl(input.baseUrl);
-    if (!validOllamaModel(input.model) || typeof input.enabled !== 'boolean') {
+    if (
+      !validOllamaOptions(input.thinking, input.contextTokens) ||
+      !validOllamaModel(input.model) ||
+      typeof input.enabled !== 'boolean'
+    ) {
       throw new AiServiceError('ai_ollama_config_invalid', 400, 'Проверьте настройки Ollama.');
     }
-    const elapsedMs = input.enabled ? await this.probeOllama(baseUrl, input.model) : null;
+    if (input.enabled && (input.thinking !== undefined || input.contextTokens !== undefined)) {
+      const detail = await inspectOllamaModel(baseUrl, input.model, this.fetchImpl);
+      resolveOllamaThinking(input.thinking ?? current.thinking ?? 'off', detail);
+      if (detail.contextMax !== null && (input.contextTokens ?? 120000) > detail.contextMax)
+        throw new AiServiceError(
+          'ai_ollama_context_invalid',
+          400,
+          'Контекст превышает возможности модели.',
+        );
+    }
+    const elapsedMs = input.enabled
+      ? await this.probeOllama(
+          baseUrl,
+          input.model,
+          input.thinking ?? current.thinking,
+          input.contextTokens ?? current.contextTokens,
+        )
+      : null;
     const dirty =
       current.enabled !== input.enabled ||
       current.baseUrl !== baseUrl ||
-      current.model !== input.model;
+      current.model !== input.model ||
+      current.thinking !== (input.thinking ?? current.thinking) ||
+      current.contextTokens !== (input.contextTokens ?? current.contextTokens);
     const config = dirty
       ? await this.saveOllamaSettings(principalId, { ...input, baseUrl }, requestId)
       : await this.ollamaSettings(principalId);
@@ -530,7 +708,9 @@ export class AiChatService {
       (config.revision !== input.revision ||
         config.enabled !== input.enabled ||
         config.baseUrl !== baseUrl ||
-        config.model !== input.model)
+        config.model !== input.model ||
+        config.thinking !== (input.thinking ?? current.thinking) ||
+        config.contextTokens !== (input.contextTokens ?? current.contextTokens))
     ) {
       throw new AiServiceError(
         'ai_ollama_config_changed',
@@ -573,6 +753,8 @@ export class AiChatService {
     await streamOllamaText({
       baseUrl: config.baseUrl,
       model: config.model,
+      thinking: config.thinking,
+      contextTokens: config.contextTokens,
       context: [{ role: 'user', content: 'Ответь кратко: OK' }],
       instructions: 'Проверка соединения. Ответь одним словом.',
       signal: new AbortController().signal,
@@ -610,6 +792,8 @@ export class AiChatService {
       providerConfigurations: row.provider_configurations.map((slot) => ({
         provider: slot.provider,
         model: slot.model,
+        enabled: slot.enabled,
+        revision: Number(slot.revision),
         apiKeyConfigured: slot.apiKeyConfigured,
         keyFingerprint: slot.keyFingerprint,
         updatedAt: iso(slot.updatedAt),
@@ -645,12 +829,22 @@ export class AiChatService {
       );
     }
     if (!(
-      isModelForProvider(input.provider, input.model) ||
+      isKnownModelForProvider(input.provider, input.model) ||
       (input.provider === 'ollama-cloud' && (await this.isDiscoveredCloudModel(input.model)))
     )) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
     }
     const before = await this.adminConfig(principalId);
+    if (
+      input.provider === 'ollama-cloud' &&
+      isOllamaCloudPoolManaged() &&
+      (input.apiKey !== undefined || input.clearApiKey)
+    )
+      throw new AiServiceError(
+        'ai_cloud_pool_managed',
+        400,
+        'Меняйте ключи в карточках Ollama Cloud.',
+      );
     const expectedVersion = input.configurationVersion ?? before.configurationVersion;
     if (
       !Number.isSafeInteger(expectedVersion) ||
@@ -664,6 +858,18 @@ export class AiChatService {
       );
     }
     const target = before.providerConfigurations.find((slot) => slot.provider === input.provider);
+    const expectedProviderVersion = input.providerConfigurationVersion ?? target?.revision;
+    if (
+      !Number.isSafeInteger(expectedProviderVersion) ||
+      Number(expectedProviderVersion) < 1 ||
+      expectedProviderVersion !== target?.revision
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Подключение изменилось. Обновите страницу.',
+      );
+    }
     const candidate = input.apiKey?.trim() ?? '';
     if (
       input.apiKey !== undefined &&
@@ -679,7 +885,12 @@ export class AiChatService {
         'Нельзя заменить и очистить ключ одновременно.',
       );
     }
-    if (before.provider !== input.provider && !candidate && !target?.apiKeyConfigured) {
+    if (
+      input.enabled &&
+      before.provider !== input.provider &&
+      !candidate &&
+      !target?.apiKeyConfigured
+    ) {
       throw new AiServiceError(
         'ai_key_required',
         409,
@@ -701,7 +912,7 @@ export class AiChatService {
     const action = input.clearApiKey ? 'clear' : encrypted ? 'replace' : 'keep';
     try {
       await this.pool.query(
-        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint)',
+        'SELECT ai_admin_set_provider_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint,$13::bigint)',
         [
           principalId,
           input.enabled,
@@ -715,6 +926,7 @@ export class AiChatService {
           requestId,
           input.paidOperationsPerHour ?? null,
           expectedVersion,
+          expectedProviderVersion,
         ],
       );
     } catch (problem) {
@@ -741,12 +953,15 @@ export class AiChatService {
   async testConnection(
     principalId: string,
     expectedVersion: number,
+    requestedProvider?: AiProvider,
+    expectedProviderVersion?: number,
   ): Promise<{
     provider: AiProvider;
     model: AiModel;
     testedAt: string;
     elapsedMs: number;
     configurationVersion: number;
+    providerConfigurationVersion: number;
   }> {
     const config = await this.adminConfig(principalId);
     if (config.configurationVersion !== expectedVersion) {
@@ -756,24 +971,55 @@ export class AiChatService {
         'Настройки изменились. Перезагрузите страницу.',
       );
     }
-    const runtime = await this.runtime();
-    this.requireSupportedModel(runtime);
-    const key = this.requireProviderKey(runtime);
+    const provider = requestedProvider ?? config.provider;
+    const slot = config.providerConfigurations.find((item) => item.provider === provider);
+    const slotVersion = expectedProviderVersion ?? slot?.revision;
+    if (
+      requestedProvider &&
+      (!slot ||
+        !slot.enabled ||
+        !Number.isSafeInteger(slotVersion) ||
+        slotVersion !== slot.revision)
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Подключение изменилось. Обновите страницу.',
+      );
+    }
+    const legacyRuntime = requestedProvider ? null : await this.runtime();
+    if (legacyRuntime) {
+      this.requireSupportedModel(legacyRuntime);
+      this.requireProviderKey(legacyRuntime);
+    }
     const started = Date.now();
     try {
       // SQL rechecks the real platform-admin role and configuration version,
       // then durably reserves from the same quota used by chat admission.
-      const admission = await this.pool.query<{ admitted: boolean }>(
-        'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
-        [principalId, expectedVersion],
-      );
-      if (admission.rows[0]?.admitted !== true) {
+      const admission = requestedProvider
+        ? await this.pool.query<RuntimeRow & { provider_revision: string | number }>(
+            'SELECT * FROM ai_admin_test_provider_begin($1,$2::bigint,$3,$4::bigint)',
+            [principalId, expectedVersion, provider, slotVersion],
+          )
+        : await this.pool.query<{ admitted: boolean }>(
+            'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
+            [principalId, expectedVersion],
+          );
+      if (
+        !requestedProvider &&
+        (admission.rows[0] as { admitted?: boolean } | undefined)?.admitted !== true
+      ) {
         throw new AiServiceError(
           'ai_admission_unavailable',
           503,
           'Допуск платной операции не подтверждён.',
         );
       }
+      const runtime = requestedProvider ? (admission.rows[0] as RuntimeRow) : legacyRuntime!;
+      if (requestedProvider && (!runtime || !runtime.enabled))
+        throw new AiServiceError('ai_admission_unavailable', 503, 'Подключение недоступно.');
+      this.requireSupportedModel(runtime);
+      const key = this.requireProviderKey(runtime);
       const result = await streamProviderText({
         fetchImpl: this.fetchImpl,
         provider: runtime.provider,
@@ -799,15 +1045,21 @@ export class AiChatService {
       throw problem;
     }
     const after = await this.adminConfig(principalId);
-    if (after.configurationVersion !== expectedVersion) {
+    if (
+      after.configurationVersion !== expectedVersion ||
+      (requestedProvider &&
+        after.providerConfigurations.find((item) => item.provider === provider)?.revision !==
+          slotVersion)
+    ) {
       throw new AiServiceError('ai_config_changed', 409, 'Во время проверки настройки изменились.');
     }
     return {
-      provider: config.provider,
-      model: config.model,
+      provider,
+      model: requestedProvider ? slot!.model : config.model,
       testedAt: new Date().toISOString(),
       elapsedMs: Date.now() - started,
       configurationVersion: expectedVersion,
+      providerConfigurationVersion: slotVersion ?? 1,
     };
   }
 
@@ -816,22 +1068,24 @@ export class AiChatService {
     provider: AiProvider | 'ollama';
     model: AiChatModel;
     availableModels: readonly AiChatModel[];
+    modelChoices?: readonly { id: string; label: string }[];
     modelCatalog: AiModelCatalog;
     productFeatures: typeof AI_PRODUCT_FEATURES;
     ollamaModel: string | null;
     nativeImageTools: readonly string[];
   }> {
     const [config, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
-    const modelCatalog = getAiModelCatalog();
     const policy = await this.policy.row();
+    installProviderObservations(policy?.observations ?? []);
+    const modelCatalog = getAiModelCatalog();
     const nativeImageTools = (await this.nativeImageReady(local)) ? [OLLAMA_SELECTION] : [];
     if (policy?.customized) {
       const available: AiChatModel[] = modelCatalog.models
         .filter(
           (m) =>
-            config.enabled &&
             this.key !== null &&
             policy.allowedModels.includes(m.id) &&
+            (policy.modelPreferences?.find((p) => p.id === m.id)?.eligible ?? true) &&
             m.selectable &&
             policy.providerReady?.[m.provider],
         )
@@ -839,13 +1093,26 @@ export class AiChatService {
       if (
         local.enabled &&
         validOllamaModel(local.model) &&
-        policy.allowedModels.includes(OLLAMA_SELECTION)
+        policy.allowedModels.includes(OLLAMA_SELECTION) &&
+        (policy.modelPreferences?.find((p) => p.id === OLLAMA_SELECTION)?.eligible ?? true)
       )
         available.push(OLLAMA_SELECTION);
+      const providerOf = (id: string) =>
+        id === OLLAMA_SELECTION
+          ? 'ollama'
+          : (modelCatalog.models.find((m) => m.id === id)?.provider ?? '');
+      available.sort(
+        (left, right) =>
+          (policy.providerOrder?.[providerOf(left)] ?? 0) -
+            (policy.providerOrder?.[providerOf(right)] ?? 0) ||
+          (policy.modelPreferences?.find((p) => p.id === left)?.order ?? 0) -
+            (policy.modelPreferences?.find((p) => p.id === right)?.order ?? 0) ||
+          (left < right ? -1 : left > right ? 1 : 0),
+      );
       const model = (
         available.includes(policy.defaultModel as AiChatModel)
           ? policy.defaultModel
-          : (available[0] ?? policy.defaultModel ?? config.model)
+          : (policy.defaultModel ?? config.model)
       ) as AiChatModel;
       const provider =
         model === OLLAMA_SELECTION
@@ -856,15 +1123,26 @@ export class AiChatService {
         provider,
         model,
         availableModels: available,
+        modelChoices: available.map((id) => ({
+          id,
+          label:
+            id === OLLAMA_SELECTION
+              ? local.model
+              : (modelCatalog.models.find((m) => m.id === id)?.label ?? id),
+        })),
         modelCatalog,
         productFeatures: AI_PRODUCT_FEATURES,
         ollamaModel: local.enabled ? local.model : null,
         nativeImageTools,
       };
     }
+    const availableExternalModels = modelCatalog.models
+      .filter((m) => m.provider === config.provider && m.selectable)
+      .map((m) => m.id);
     const externalReady =
       config.enabled &&
       isModelForProvider(config.provider, config.model) &&
+      availableExternalModels.length > 0 &&
       this.decrypt(config) !== null;
     const localReady = local.enabled && validOllamaModel(local.model);
     return {
@@ -1128,6 +1406,8 @@ export class AiChatService {
         ? await streamOllamaText({
             baseUrl: local!.base_url,
             model: local!.model,
+            thinking: local!.thinking ?? undefined,
+            contextTokens: local!.context_tokens ?? undefined,
             context,
             instructions,
             signal: new AbortController().signal,
@@ -1395,6 +1675,24 @@ export class AiChatService {
         409,
         'Инструмент модели пока недоступен. Обновите страницу.',
       );
+    // The retired size is transport-compatible only for an exact existing owner receipt.
+    // Prove it before runtime access or any text, token-budget or GPU admission.
+    if (nativeImage?.size === 512) {
+      const receipt = await this.pool.query<{ value: boolean }>(
+        'SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,false) AS value',
+        [principalId, threadId, requestId, JSON.stringify(nativePayload)],
+      );
+      if (!receipt.rows[0]?.value)
+        throw new AiServiceError('ai_input_invalid', 400, 'Выберите доступный размер изображения.');
+      const messages = await this.requestMessages(principalId, threadId, requestId);
+      const imageJob = await this.images!.replayTool(principalId, threadId, requestId);
+      return {
+        messages,
+        replayed: true,
+        stopped: messages.some((m) => m.state === 'stopped'),
+        ...(imageJob ? { imageJob } : {}),
+      };
+    }
     const replayImage = async () =>
       schemaReady ? await this.images!.replayTool(principalId, threadId, requestId) : null;
     if (
@@ -1714,7 +2012,7 @@ export class AiChatService {
         imageStatus.ready &&
         imageStatus.remainingToday > 0 &&
         imageStatus.sizes.includes(nativeImage!.size)
-          ? { imageSizes: [nativeImage!.size] }
+          ? { imageSizes: [nativeImage!.size], imageRecipe: imageStatus.recipe }
           : {}),
       });
       const permittedTools = tools
@@ -1764,6 +2062,8 @@ export class AiChatService {
         ? await streamOllamaText({
             baseUrl: local!.base_url,
             model: local!.model,
+            thinking: local!.thinking ?? undefined,
+            contextTokens: local!.context_tokens ?? undefined,
             context,
             ...(files?.images.length ? { images: files.images } : {}),
             instructions:
@@ -1819,6 +2119,7 @@ export class AiChatService {
             call.arguments.prompt as string,
             nativeImage!.size,
             combined,
+            call.arguments.model as AiImageRecipe,
           );
           await this.usage.finish(
             principalId,
@@ -1919,6 +2220,8 @@ export class AiChatService {
         const followup = await streamOllamaText({
           baseUrl: local!.base_url,
           model: local!.model,
+          thinking: local!.thinking ?? undefined,
+          contextTokens: local!.context_tokens ?? undefined,
           context,
           ...(files?.images.length ? { images: files.images } : {}),
           instructions:
@@ -2070,6 +2373,163 @@ export class AiChatService {
   }
 
   private cloudMetadataClient: OllamaCloudMetadata | null = null;
+  async ollamaCloudPool(actor: string): Promise<AiOllamaCloudPool> {
+    await this.adminConfig(actor);
+    return (
+      await this.pool.query<{ value: AiOllamaCloudPool }>(
+        'SELECT ai_ollama_cloud_pool_admin($1) AS value',
+        [actor],
+      )
+    ).rows[0]!.value;
+  }
+  async saveOllamaCloudPool(
+    actor: string,
+    version: number,
+    input: unknown,
+    requestId: string,
+  ): Promise<AiOllamaCloudPool> {
+    await this.adminConfig(actor);
+    if (
+      !Array.isArray(input) ||
+      input.length !== 5 ||
+      !Number.isSafeInteger(version) ||
+      version < 1
+    )
+      throw new AiServiceError(
+        'ai_cloud_pool_invalid',
+        400,
+        'Нужны пять карточек ключей и актуальная версия настроек.',
+      );
+    const rows = input.map((value: unknown) => {
+      const row = value as AiOllamaCloudKeyUpdate | null;
+      if (
+        !row ||
+        !Number.isInteger(row.slot) ||
+        row.slot < 1 ||
+        row.slot > 5 ||
+        !Number.isInteger(row.priority) ||
+        row.priority < 1 ||
+        row.priority > 5 ||
+        typeof row.label !== 'string' ||
+        !row.label.trim() ||
+        row.label.length > 64 ||
+        /[\p{Cc}\p{Zl}\p{Zp}]/u.test(row.label) ||
+        typeof row.enabled !== 'boolean' ||
+        !Array.isArray(row.models) ||
+        row.models.length > 300 ||
+        row.models.some((m) => typeof m !== 'string') ||
+        (row.apiKey !== undefined && typeof row.apiKey !== 'string') ||
+        (row.clearApiKey !== undefined && typeof row.clearApiKey !== 'boolean')
+      )
+        throw new AiServiceError(
+          'ai_cloud_pool_invalid',
+          400,
+          'Проверьте название, порядок и модели ключей.',
+        );
+      const candidate = row.apiKey?.trim();
+      if (
+        candidate &&
+        (candidate.length < 12 ||
+          candidate.length > 2048 ||
+          /[\p{Cc}\p{Zl}\p{Zp}]/u.test(candidate))
+      )
+        throw new AiServiceError('ai_key_invalid', 400, 'Недопустимый API-ключ.');
+      if (candidate && row.clearApiKey)
+        throw new AiServiceError(
+          'ai_key_invalid',
+          400,
+          'Нельзя одновременно заменить и удалить ключ.',
+        );
+      return {
+        slot: row.slot,
+        label: row.label.trim(),
+        priority: row.priority,
+        enabled: row.enabled,
+        models: [...new Set(row.models)],
+        action: row.clearApiKey ? 'clear' : candidate ? 'replace' : 'keep',
+        ...(candidate ? this.encrypt(candidate) : {}),
+      };
+    });
+    if (
+      new Set(rows.map((r) => r.slot)).size !== 5 ||
+      new Set(rows.map((r) => r.priority)).size !== 5
+    )
+      throw new AiServiceError(
+        'ai_cloud_pool_invalid',
+        400,
+        'Порядок и номера карточек не должны повторяться.',
+      );
+    try {
+      await this.pool.query('SELECT ai_ollama_cloud_pool_save($1,$2,$3::jsonb,$4::varchar)', [
+        actor,
+        version,
+        JSON.stringify(rows),
+        requestId,
+      ]);
+    } catch (problem) {
+      this.rethrowAdmissionError(problem);
+      if ((problem as { code?: string }).code === '22023')
+        throw new AiServiceError(
+          'ai_cloud_pool_invalid',
+          400,
+          'Проверьте список моделей: одинаковый ключ нельзя добавлять дважды.',
+        );
+      throw problem;
+    }
+    return this.ollamaCloudPool(actor);
+  }
+  async inspectOllamaCloudPool(
+    actor: string,
+    version: number,
+    requestId: string,
+  ): Promise<AiOllamaCloudPool> {
+    const before = await this.adminConfig(actor);
+    if (before.configurationVersion !== version)
+      throw new AiServiceError('ai_config_changed', 409, 'Настройки изменились. Обновите вкладку.');
+    this.cloudMetadataClient ??= new OllamaCloudMetadata(this.fetchImpl);
+    const credentials = (
+      await this.pool.query<CloudKeyCredential>(
+        'SELECT * FROM ai_ollama_cloud_pool_credentials($1)',
+        [actor],
+      )
+    ).rows;
+    const catalog = await this.cloudMetadataClient.catalog().catch(() => null);
+    const observations = await Promise.all(
+      credentials
+        .filter((k) => k.api_key_ciphertext)
+        .map(async (k) => ({
+          key: k,
+          account: await this.cloudMetadataClient!.account(this.requireProviderKey(k)),
+        })),
+    );
+    if ((await this.adminConfig(actor)).configurationVersion !== version)
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Ключи изменились во время проверки. Повторите обновление.',
+      );
+    if (catalog)
+      await this.pool.query('SELECT ai_ollama_cloud_catalog_apply($1,$2,$3::jsonb,$4::varchar)', [
+        actor,
+        version,
+        JSON.stringify(catalog),
+        requestId,
+      ]);
+    for (const { key, account } of observations) {
+      const until = accountBlockUntil(account);
+      await this.pool.query(
+        'SELECT ai_ollama_cloud_key_observe($1,$2,$3::jsonb,$4::timestamptz,$5::varchar)',
+        [
+          key.slot,
+          key.key_fingerprint,
+          JSON.stringify(account),
+          until === undefined ? key.blocked_until : until,
+          null,
+        ],
+      );
+    }
+    return this.ollamaCloudPool(actor);
+  }
   async isDiscoveredCloudModel(model: unknown): Promise<boolean> {
     if (typeof model !== 'string' || !model.startsWith('ollama-cloud/')) return false;
     await reloadOllamaCloudCatalog(this.pool);
@@ -2168,6 +2628,19 @@ export class AiChatService {
   }
 
   private rethrowAdmissionError(problem: unknown): void {
+    const budgetMessage = (problem as Error)?.message ?? '';
+    if (budgetMessage.includes('AI_BUDGET_PENDING'))
+      throw new AiServiceError(
+        'ai_budget_pending',
+        429,
+        'Токены зарезервированы выполняющимися ответами или расход пока не подтверждён. Проверьте остаток позже.',
+      );
+    if (budgetMessage.includes('AI_BUDGET_EXHAUSTED'))
+      throw new AiServiceError(
+        'ai_budget_exhausted',
+        429,
+        'Месячный бюджет этой модели исчерпан. Уже начатый ответ завершается полностью. Новый период начинается 1 числа в 00:00 UTC.',
+      );
     const message = problem instanceof Error ? problem.message : '';
     if (problem instanceof AiPolicyError)
       throw new AiServiceError(problem.code, problem.status, problem.message);
@@ -2290,7 +2763,7 @@ export class AiChatService {
     };
   }
 
-  private requireProviderKey(row: RuntimeRow): string {
+  private requireProviderKey(row: ProviderCredential): string {
     if (!row.api_key_ciphertext) {
       throw new AiServiceError('ai_key_required', 503, 'API-ключ провайдера ещё не сохранён.');
     }
@@ -2312,7 +2785,7 @@ export class AiChatService {
     return key;
   }
 
-  private decrypt(row: RuntimeRow): string | null {
+  private decrypt(row: ProviderCredential): string | null {
     if (!this.key || !row.api_key_ciphertext || !row.api_key_iv || !row.api_key_auth_tag) {
       return null;
     }

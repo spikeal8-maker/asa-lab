@@ -7,6 +7,7 @@ export interface AiModelOption {
   readonly inputModalities: readonly ('text' | 'image')[];
   readonly outputModalities: readonly ('text' | 'image')[];
   readonly streaming: boolean;
+  readonly adapterCompatible?: boolean;
   readonly shutdownDate: string | null;
   readonly selectable: boolean;
   readonly lifecycle: 'active' | 'deprecated' | 'retired';
@@ -15,6 +16,8 @@ export interface AiModelOption {
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
   readonly model: string;
+  readonly enabled: boolean;
+  readonly revision: number;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
   readonly updatedAt: string | null;
@@ -76,6 +79,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     typeof catalog['revision'] !== 'string' ||
     !Array.isArray(models) ||
     !models.length ||
+    models.length > 2400 ||
     !Array.isArray(providers) ||
     ![2, 3].includes(providers.length) ||
     !Array.isArray(slots) ||
@@ -101,7 +105,10 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         ['inputModalities', 'outputModalities'].every(
           (key) =>
             Array.isArray(model[key]) &&
-            model[key].length > 0 &&
+            (model[key].length > 0 ||
+              (model['adapterCompatible'] === false &&
+                model['selectable'] === false &&
+                model['streaming'] === false)) &&
             model[key].every((item: unknown) => item === 'text' || item === 'image'),
         ),
     )
@@ -131,6 +138,9 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         record(item) &&
         provider(item['provider']) &&
         hasModel(item['model'], item['provider']) &&
+        typeof item['enabled'] === 'boolean' &&
+        Number.isSafeInteger(item['revision']) &&
+        Number(item['revision']) > 0 &&
         typeof item['apiKeyConfigured'] === 'boolean' &&
         nullableText(item['keyFingerprint']) &&
         nullableText(item['updatedAt']),

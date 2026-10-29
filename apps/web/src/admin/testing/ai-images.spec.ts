@@ -1,3 +1,4 @@
+import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -12,7 +13,7 @@ const config = {
   enabled: false,
   dailyLimit: 10,
   globalConcurrency: 1,
-  sizes: [512],
+  sizes: [768],
   ready: false,
   reason: 'model_missing',
   recipe: 'flux2-klein-4b-v1',
@@ -59,7 +60,7 @@ it('keeps default OFF and readiness separate; saves revisioned settings without 
     enabled: false,
     dailyLimit: 10,
     globalConcurrency: 1,
-    sizes: [512],
+    sizes: [768],
   });
   expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
   expect(host.textContent).toContain('Генерация не запускалась');
@@ -106,4 +107,31 @@ it('rejects 101 locally even when submit bypasses native number validation', asy
   expect(host.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
   await save();
   expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+});
+
+it('offers exactly the six agreed image presets and no 512 square', async () => {
+  await render();
+  const sizes = host.querySelector('fieldset')!;
+  expect(sizes.querySelectorAll('input[type=checkbox]')).toHaveLength(6);
+  for (const preset of AI_IMAGE_PRESETS) expect(sizes.textContent).toContain(preset.label);
+  expect(sizes.textContent).not.toContain('512');
+});
+
+it('selects a distinct FP8 profile in the revisioned admin write without generation', async () => {
+  await render();
+  const select = host.querySelector('select')!;
+  await act(async () => {
+    select.value = 'flux2-klein-4b-fp8-izo-v1';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: { ...config, recipe: 'flux2-klein-4b-fp8-izo-v1' },
+  });
+  await save();
+  const write = vi.mocked(call).mock.calls.find(([, init]) => init?.method === 'PUT')!;
+  expect(JSON.parse(String(write[1]!.body)).recipe).toBe('flux2-klein-4b-fp8-izo-v1');
+  expect(host.textContent).toContain('SHA-256');
+  expect(host.textContent).toContain('не подтверждены');
 });

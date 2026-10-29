@@ -1,3 +1,4 @@
+import { isAiImageSize } from '@asa-lab/contracts';
 import type { AiWebSearchMode } from '@asa-lab/contracts';
 import { AiPolicyError } from './ai-generation-policy.js';
 import { AiToolPolicyError } from './ai-tool-policy.js';
@@ -7,6 +8,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpException,
   Inject,
@@ -48,7 +50,7 @@ export class AiChatController {
     if (
       Object.keys(value).sort().join(',') !== 'mode,size' ||
       !['off', 'auto'].includes(value['mode'] as string) ||
-      ![512, 768, 1024].includes(value['size'] as number)
+      !(value['size'] === 512 || isAiImageSize(value['size']))
     )
       return reject('ai_input_invalid', 'Неверные настройки изображения.', 400);
     return value as unknown as AiNativeImageOptions;
@@ -204,6 +206,13 @@ export class AiChatController {
         reason: runtime.enabled ? admission.reason : 'ai_disabled',
       };
     });
+  }
+
+  @Get('token-budgets')
+  @Header('Cache-Control', 'private, no-store')
+  async tokenBudgets(@Req() request: FastifyRequest) {
+    const owner = await this.requireOwner(request);
+    return this.safe(() => this.ai.tokenBudgetsOwn(owner.principalId));
   }
 
   @Get('threads')

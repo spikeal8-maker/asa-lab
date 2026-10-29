@@ -1,5 +1,11 @@
 import { draw, seed, valid } from './arduino-random.js';
 import {
+  maskArduinoFunctionSyntax,
+  parseArduinoVoidFunctions,
+  reservedArduinoFunctionIdentifier,
+  type ArduinoVoidFunction,
+} from './arduino-user-functions.js';
+import {
   ADC_OBSERVATION,
   unconnectedAdcReading,
   type ObservedArduinoInputs,
@@ -141,6 +147,13 @@ interface ArduinoUltrasonicAdapterState {
   readonly phase: 'trigger-low-delay' | 'trigger-high-delay' | 'pulse';
 }
 
+interface ArduinoFunctionFrame {
+  readonly callerFunction?: string;
+  readonly returnProgramCounter: number;
+  /** Suspended caller locals; globals remain shared in state.scopes[0]. */
+  readonly scopes: readonly ArduinoScopeSnapshot[];
+}
+
 /**
  * Serializable runtime-only state. It is deliberately separate from the saved
  * schematic document: browser and server may carry it between simulation
@@ -154,6 +167,8 @@ export interface ArduinoRuntimeState {
   readonly resumeAtMs: number;
   readonly phase: 'setup' | 'loop';
   readonly programCounter: number;
+  readonly activeFunction?: string;
+  readonly functionFrames?: readonly ArduinoFunctionFrame[];
   readonly loopIterationActive: boolean;
   readonly loopStartedAtMs: number;
   readonly loopIterations: number;
@@ -243,6 +258,7 @@ interface ArduinoPendingEvaluation {
   readonly programFingerprint: string;
   readonly phase: 'setup' | 'loop';
   readonly programCounter: number;
+  readonly callContext?: string;
   readonly parents: readonly number[];
   readonly streams: readonly (readonly string[])[];
   readonly entries: readonly (ArduinoEvaluationEntry | null)[];
@@ -298,8 +314,20 @@ interface JumpInstruction {
 }
 
 type ScopeInstruction = { readonly kind: 'enter-scope' } | { readonly kind: 'exit-scope' };
+interface UserCallInstruction {
+  readonly kind: 'user-call';
+  readonly name: string;
+  readonly args: readonly string[];
+  readonly line: number;
+}
+type ReturnInstruction = { readonly kind: 'return'; readonly line: number };
 type CompiledInstruction =
-  SimpleInstruction | BranchInstruction | JumpInstruction | ScopeInstruction;
+  | SimpleInstruction
+  | BranchInstruction
+  | JumpInstruction
+  | ScopeInstruction
+  | UserCallInstruction
+  | ReturnInstruction;
 
 const MAX_STATEMENTS = 512;
 const MAX_LOOP_ADVANCES = 4_096;
@@ -373,6 +401,7 @@ function toneStateIsValid(tone: ArduinoToneState): boolean {
 }
 
 function incrementWaitText(instruction: CompiledInstruction | undefined): string | undefined {
+  if (instruction?.kind === 'user-call') return instruction.args.join(';') || undefined;
   const text =
     instruction?.kind === 'simple'
       ? instruction.statement
@@ -418,6 +447,7 @@ function pendingEvaluationIsValid(state: ArduinoRuntimeState): boolean {
       pending.programFingerprint === state.programFingerprint &&
       pending.phase === state.phase &&
       pending.programCounter === state.programCounter &&
+      pending.callContext === functionCallContext(state.activeFunction, state.functionFrames) &&
       Array.isArray(pending.streams) &&
       pending.streams.length > 0 &&
       pending.streams.reduce(
@@ -470,6 +500,21 @@ function runtimeStateIsValid(state: ArduinoRuntimeState): boolean {
   const tones = Object.values(state.tones ?? {});
   return (
     state.version === ARDUINO_RUNTIME_STATE_VERSION &&
+    (state.activeFunction === undefined
+      ? state.functionFrames === undefined
+      : typeof state.activeFunction === 'string' &&
+        Array.isArray(state.functionFrames) &&
+        state.functionFrames.length > 0 &&
+        state.functionFrames.length <= 128 &&
+        Array.from(state.functionFrames).every(
+          (frame) =>
+            frame &&
+            (frame.callerFunction === undefined || typeof frame.callerFunction === 'string') &&
+            Number.isSafeInteger(frame.returnProgramCounter) &&
+            frame.returnProgramCounter > 0 &&
+            Array.isArray(frame.scopes) &&
+            validScopes([{}, ...frame.scopes]),
+        )) &&
     pendingEvaluationIsValid(state) &&
     (state.clockProfile === 'legacy-ms-v1' || state.clockProfile === 'instruction-us-v1') &&
     validScopes(state.scopes) &&
@@ -1526,19 +1571,31 @@ function validateCallArguments(name: string, count: number, expression = false):
     throw new SyntaxError(`Неверное число аргументов ${name}().`);
 }
 
-function functionBody(source: string, name: 'setup' | 'loop'): string | null {
+function functionBody(source: string, name: 'setup' | 'loop', syntax = source): string | null {
   const declaration = new RegExp(`\\bvoid\\s+${name}\\s*\\(\\s*(?:void\\s*)?\\)\\s*\\{`).exec(
-    source,
+    syntax,
   );
   if (!declaration) return null;
   const start = declaration.index + declaration[0].length;
   let depth = 1;
   for (let index = start; index < source.length; index += 1) {
+    if (source[index] === '"' || source[index] === "'") {
+      index = quotedEnd(source, index);
+      continue;
+    }
     if (source[index] === '{') depth += 1;
     if (source[index] === '}') depth -= 1;
     if (depth === 0) return source.slice(start, index);
   }
   return null;
+}
+
+function quotedEnd(source: string, start: number): number {
+  for (let index = start + 1; index < source.length; index++) {
+    if (source[index] === '\\') index++;
+    else if (source[index] === source[start]) return index;
+  }
+  return source.length;
 }
 
 function balancedSlice(
@@ -1550,6 +1607,10 @@ function balancedSlice(
   if (source[start] !== open) return null;
   let depth = 1;
   for (let index = start + 1; index < source.length; index += 1) {
+    if (source[index] === '"' || source[index] === "'") {
+      index = quotedEnd(source, index);
+      continue;
+    }
     if (source[index] === open) depth += 1;
     if (source[index] === close) depth -= 1;
     if (depth === 0) return { content: source.slice(start + 1, index), end: index + 1 };
@@ -1970,6 +2031,8 @@ function compileStatements(
   locations = new Map<object, { start: number; length: number }>(),
   loop?: CompilingLoop,
   scopeDepth = 0,
+  functions?: ReadonlyMap<string, ArduinoVoidFunction>,
+  helperBody = false,
 ): readonly CompiledInstruction[] {
   const lineAt = (offset: number): number =>
     firstLine + (source.slice(0, offset).match(/\n/g)?.length ?? 0);
@@ -1992,6 +2055,8 @@ function compileStatements(
       locations,
       bodyLoop,
       parentDepth + 1,
+      functions,
+      helperBody,
     );
     instructions.push({ kind: 'exit-scope' });
   };
@@ -2195,6 +2260,10 @@ function compileStatements(
     let depth = 0;
     end = index;
     for (; end < source.length; end += 1) {
+      if (source[end] === '"' || source[end] === "'") {
+        end = quotedEnd(source, end);
+        continue;
+      }
       if (source[end] === '(') depth += 1;
       if (source[end] === ')') depth -= 1;
       if (source[end] === ';' && depth === 0) break;
@@ -2222,7 +2291,19 @@ function compileStatements(
       };
       record(jump);
       (statement === 'break' ? loop.breaks : loop.continues).push(jump);
-    } else if (statement) record({ kind: 'simple', statement, line });
+    } else if (statement === 'return' && helperBody) {
+      record({ kind: 'return', line });
+    } else if (statement) {
+      const call = /^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/.exec(statement);
+      if (call && functions?.has(call[1]!)) {
+        record({
+          kind: 'user-call',
+          name: call[1]!,
+          args: call[2]!.trim() ? splitArduinoSerialArguments(call[2]!) : [],
+          line,
+        });
+      } else record({ kind: 'simple', statement, line });
+    }
     index = end + 1;
   }
   return instructions;
@@ -2292,6 +2373,10 @@ function globalDeclarations(
   let depth = 0;
   let start = 0;
   for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '"' || source[index] === "'") {
+      index = quotedEnd(source, index);
+      continue;
+    }
     if (source[index] === '{') {
       if (depth === 0) start = index + 1;
       depth += 1;
@@ -2346,8 +2431,102 @@ interface ArduinoProgramCompilation {
   readonly servoDeclarations: readonly string[];
   readonly setupInstructions: readonly CompiledInstruction[];
   readonly loopInstructions: readonly CompiledInstruction[];
+  readonly functions?: Readonly<
+    Record<
+      string,
+      {
+        readonly definition: ArduinoVoidFunction;
+        readonly instructions: readonly CompiledInstruction[];
+      }
+    >
+  >;
   readonly expressions: Readonly<Record<string, PreparedExpression>>;
   readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
+}
+
+function functionCallContext(
+  active: string | undefined,
+  frames: readonly ArduinoFunctionFrame[] | undefined,
+): string | undefined {
+  return active === undefined
+    ? undefined
+    : `${frames?.map((frame) => `${frame.callerFunction ?? '$root'}@${frame.returnProgramCounter}`).join('/')}/${active}`;
+}
+
+function runtimeInstructions(
+  compilation: ArduinoProgramCompilation,
+  phase: ArduinoRuntimeState['phase'],
+  active?: string,
+): readonly CompiledInstruction[] {
+  return active === undefined
+    ? phase === 'setup'
+      ? compilation.setupInstructions
+      : compilation.loopInstructions
+    : (compilation.functions?.[active]?.instructions ?? []);
+}
+
+function instructionScopeDepth(instructions: readonly CompiledInstruction[], pc: number): number {
+  return instructions
+    .slice(0, pc)
+    .reduce(
+      (depth, instruction) =>
+        depth +
+        (instruction.kind === 'enter-scope' ? 1 : instruction.kind === 'exit-scope' ? -1 : 0),
+      2,
+    );
+}
+
+function functionFramesMatch(
+  compilation: ArduinoProgramCompilation,
+  state: ArduinoRuntimeState,
+): boolean {
+  if (state.activeFunction === undefined) return state.functionFrames === undefined;
+  if (
+    !compilation.functions ||
+    !state.functionFrames?.length ||
+    !Array.from(state.scopes).every(Boolean) ||
+    (state.phase === 'loop' && !state.loopIterationActive)
+  )
+    return false;
+  let caller: string | undefined;
+  for (const frame of state.functionFrames) {
+    if (frame.callerFunction !== caller) return false;
+    const stream = runtimeInstructions(compilation, state.phase, caller);
+    const instruction = stream[frame.returnProgramCounter - 1];
+    if (
+      instruction?.kind !== 'user-call' ||
+      frame.scopes.length !== instructionScopeDepth(stream, frame.returnProgramCounter) - 1
+    )
+      return false;
+    if (caller !== undefined && !functionParametersMatch(compilation, caller, frame.scopes[0]))
+      return false;
+    caller = instruction.name;
+  }
+  return (
+    caller === state.activeFunction &&
+    functionParametersMatch(compilation, state.activeFunction, state.scopes[1])
+  );
+}
+
+function functionParametersMatch(
+  compilation: ArduinoProgramCompilation,
+  name: string,
+  scope: ArduinoScopeSnapshot | undefined,
+): boolean {
+  const fn = compilation.functions?.[name];
+  return Boolean(
+    fn &&
+    scope &&
+    fn.definition.parameters.every((parameter) => {
+      const binding = scope[parameter.name];
+      return (
+        binding &&
+        binding.type === parameter.type &&
+        binding.constant === parameter.constant &&
+        binding.value !== null
+      );
+    }),
+  );
 }
 
 type InactiveScopePool = (ArduinoScope | undefined)[];
@@ -2497,12 +2676,16 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   offsets.push(source.length);
   const messages: CompileMessage[] = [];
   const locations = new Map<object, { start: number; length: number }>();
+  const helpers = parseArduinoVoidFunctions(cleanSource);
+  const functionSyntax = maskArduinoFunctionSyntax(cleanSource);
+  messages.push(...helpers.messages);
+  const helperNames = new Map(helpers.functions.map((fn) => [fn.name, fn]));
   const structuralError = structuralCompileError(cleanSource);
   if (structuralError) messages.push(structuralError);
-  const declaredSetup = /\bvoid\s+setup\b/i.test(cleanSource);
-  const declaredLoop = /\bvoid\s+loop\b/i.test(cleanSource);
-  const extractedSetupBody = functionBody(cleanSource, 'setup');
-  const extractedLoopBody = functionBody(cleanSource, 'loop');
+  const declaredSetup = /\bvoid\s+setup\b/i.test(functionSyntax);
+  const declaredLoop = /\bvoid\s+loop\b/i.test(functionSyntax);
+  const extractedSetupBody = functionBody(cleanSource, 'setup', functionSyntax);
+  const extractedLoopBody = functionBody(cleanSource, 'loop', functionSyntax);
   if (!structuralError && declaredSetup && extractedSetupBody === null) {
     messages.push({
       message:
@@ -2523,15 +2706,22 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
   const servoDeclarations = arduinoServoDeclarationNames(cleanSource);
   const declarations = globalDeclarations(cleanSource, locations);
+  for (const declaration of declarations) {
+    if (helperNames.has(declaration.name))
+      messages.push({
+        message: `Имя ${declaration.name} занято функцией.`,
+        ...(locations.get(declaration) ?? { start: 0, length: 1 }),
+      });
+  }
   const bodyLine = (name: string): number => {
-    const match = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(cleanSource);
+    const match = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(functionSyntax);
     return match
       ? 1 + (cleanSource.slice(0, match.index + match[0].length).match(/\n/g)?.length ?? 0)
       : 1;
   };
   const bodyOffset = (name: string): number => {
     const match = new RegExp(`\\bvoid\\s+${name}\\s*\\(\\s*(?:void\\s*)?\\)\\s*\\{`).exec(
-      cleanSource,
+      functionSyntax,
     );
     return match ? match.index + match[0].length : 0;
   };
@@ -2544,6 +2734,9 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
     undefined,
     bodyOffset('setup'),
     locations,
+    undefined,
+    0,
+    helperNames,
   );
   const loopInstructions = compileStatements(
     loopBody,
@@ -2554,7 +2747,66 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
     undefined,
     bodyOffset('loop'),
     locations,
+    undefined,
+    0,
+    helperNames,
   );
+  const functions: NonNullable<ArduinoProgramCompilation['functions']> = Object.assign(
+    Object.create(null),
+    Object.fromEntries(
+      helpers.functions.map((definition) => [
+        definition.name,
+        {
+          definition,
+          instructions: compileStatements(
+            definition.body,
+            [],
+            messages,
+            'loop',
+            definition.line,
+            undefined,
+            definition.bodyOffset,
+            locations,
+            undefined,
+            0,
+            helperNames,
+            true,
+          ),
+        },
+      ]),
+    ),
+  );
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  for (const fn of Object.values(functions)) {
+    let depth = 2;
+    if (
+      fn.instructions.some((instruction) => {
+        depth +=
+          instruction.kind === 'enter-scope' ? 1 : instruction.kind === 'exit-scope' ? -1 : 0;
+        return depth > 128;
+      })
+    )
+      messages.push({
+        message: `Слишком много вложенных областей в функции ${fn.definition.name}().`,
+        start: fn.definition.bodyOffset,
+        length: 1,
+      });
+  }
+  const visit = (name: string): void => {
+    if (visiting.has(name)) throw new SyntaxError(`Рекурсивный вызов ${name}() не поддерживается.`);
+    if (visited.has(name)) return;
+    visiting.add(name);
+    for (const instruction of functions[name]!.instructions)
+      if (instruction.kind === 'user-call') visit(instruction.name);
+    visiting.delete(name);
+    visited.add(name);
+  };
+  try {
+    for (const fn of helpers.functions) visit(fn.name);
+  } catch (error) {
+    messages.push({ message: (error as Error).message, start: 0, length: 1 });
+  }
   const expressions: Record<string, PreparedExpression> = Object.create(null);
   // Parse every instruction, including unreachable branches, before driving GPIO.
   // This is validation of the bounded language, not execution of the sketch.
@@ -2582,17 +2834,53 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
         position = locations.get(declaration)!;
       });
       const globals = new Map(validation.scopes[0]);
-      for (const instructions of [setupInstructions, loopInstructions]) {
-        validation.scopes.splice(0, validation.scopes.length, new Map(globals), new Map());
+      for (const [instructions, parameters, helper] of [
+        [setupInstructions, [], false],
+        [loopInstructions, [], false],
+        ...Object.values(functions).map(
+          (fn) => [fn.instructions, fn.definition.parameters, true] as const,
+        ),
+      ] as const) {
+        validation.scopes.splice(
+          0,
+          validation.scopes.length,
+          new Map(globals),
+          new Map(
+            parameters.map((parameter) => [
+              parameter.name,
+              { type: parameter.type, constant: parameter.constant, value: 0 },
+            ]),
+          ),
+        );
         for (const instruction of instructions) {
           position = locations.get(instruction) ?? position;
           validation.statementCount = 0;
           validation.actions.length = 0;
           if (instruction.kind === 'branch') evaluate(instruction.condition, validation);
           if (instruction.kind === 'simple') {
+            const declaration = helper ? parseDeclaration(instruction.statement) : null;
+            if (declaration && reservedArduinoFunctionIdentifier(declaration.name))
+              throw new SyntaxError(`Зарезервированное имя «${declaration.name}».`);
             executeSimpleStatement(instruction.statement, validation);
             prepareLiteralCommand(instruction, validation);
             instruction.prepared = prepareStatement(instruction.statement);
+          }
+          if (instruction.kind === 'user-call') {
+            for (const scope of validation.scopes)
+              if (scope.has(instruction.name))
+                throw new SyntaxError(`«${instruction.name}» — переменная, а не функция.`);
+            const fn = functions[instruction.name]!;
+            if (instruction.args.length !== fn.definition.parameters.length)
+              throw new SyntaxError(
+                `Функция ${instruction.name}() ожидает ${fn.definition.parameters.length} аргументов.`,
+              );
+            instruction.args.forEach((argument, index) =>
+              convertValue(
+                evaluateValue(argument, validation),
+                fn.definition.parameters[index]!.type,
+                true,
+              ),
+            );
           }
           if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope')
             applyScopeInstruction(instruction, validation.scopes);
@@ -2616,6 +2904,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
     servoDeclarations,
     setupInstructions,
     loopInstructions,
+    ...(helpers.functions.length ? { functions } : {}),
     expressions,
     diagnostics: messages.map(({ message, start: offset, length: size }) => {
       const start = offsets[offset] ?? source.length;
@@ -2648,8 +2937,8 @@ export function arduinoRuntimeStateMatchesProgram(
 ): boolean {
   if (!state || !runtimeStateIsValid(state)) return false;
   const compilation = compileArduinoProgram(source);
-  const instructions =
-    state.phase === 'setup' ? compilation.setupInstructions : compilation.loopInstructions;
+  if (!functionFramesMatch(compilation, state)) return false;
+  const instructions = runtimeInstructions(compilation, state.phase, state.activeFunction);
   const replayText = incrementWaitText(instructions[state.programCounter]);
   if (state.pendingEvaluation) {
     if (!replayText) return false;
@@ -2709,15 +2998,7 @@ export function arduinoRuntimeStateMatchesProgram(
         servoDeclarations.every((name, index) => name === persistedServoNames[index]))) &&
     state.programFingerprint === compilation.fingerprint &&
     state.programCounter <= instructions.length &&
-    state.scopes.length ===
-      instructions
-        .slice(0, state.programCounter)
-        .reduce(
-          (depth, instruction) =>
-            depth +
-            (instruction.kind === 'enter-scope' ? 1 : instruction.kind === 'exit-scope' ? -1 : 0),
-          2,
-        )
+    state.scopes.length === instructionScopeDepth(instructions, state.programCounter)
   );
 }
 
@@ -2837,6 +3118,7 @@ export function createOwnedClockedArduinoRuntime(source: string, initial?: Ardui
   // Other supported programmes keep the public interpreter's original importer.
   if (
     compilation.diagnostics.length ||
+    compilation.functions !== undefined ||
     compilation.servoDeclarations.length ||
     (initial &&
       (initial.serial ||
@@ -3028,6 +3310,10 @@ function advanceRuntime(
   let rng = compatible ? previous.randomState : undefined;
   let phase: ArduinoRuntimeState['phase'] = compatible ? previous.phase : 'setup';
   let programCounter = compatible ? previous.programCounter : 0;
+  let activeFunction = compatible ? previous.activeFunction : undefined;
+  const functionFrames: ArduinoFunctionFrame[] = compatible
+    ? [...(previous.functionFrames ?? [])]
+    : [];
   let loopIterationActive = compatible ? previous.loopIterationActive : false;
   let loopStartedAtMs = compatible ? previous.loopStartedAtMs : resetAtMs;
   let loopIterations = compatible ? previous.loopIterations : 0;
@@ -3162,6 +3448,17 @@ function advanceRuntime(
       }
     }
   };
+  const returnFromFunction = (): void => {
+    const caller = functionFrames.pop()!;
+    scopes.splice(
+      1,
+      scopes.length - 1,
+      ...caller.scopes.map((scope) => new Map(Object.entries(scope))),
+    );
+    activeFunction = caller.callerFunction;
+    programCounter = caller.returnProgramCounter;
+    consumeClockInstruction();
+  };
   while (
     resumeAtMs <= targetTimeMs &&
     (clocked
@@ -3180,7 +3477,16 @@ function advanceRuntime(
     )
       break;
     expireTones(resumeAtMs, tones, emit);
-    const instructions = phase === 'setup' ? setupInstructions : loopInstructions;
+    const instructions =
+      activeFunction === undefined
+        ? phase === 'setup'
+          ? setupInstructions
+          : loopInstructions
+        : compilation.functions![activeFunction]!.instructions;
+    if (activeFunction !== undefined && programCounter >= instructions.length) {
+      returnFromFunction();
+      continue;
+    }
 
     if (phase === 'setup' && programCounter >= instructions.length) {
       if (scopes.length !== 2 || scopes[1]!.size !== 0)
@@ -3214,6 +3520,10 @@ function advanceRuntime(
 
     const instruction = instructions[programCounter];
     if (!instruction) break;
+    if (instruction.kind === 'return') {
+      returnFromFunction();
+      continue;
+    }
     if (instruction.kind === 'jump') {
       for (let count = 0; count < (instruction.unwindScopes ?? 0); count += 1)
         applyScopeInstruction({ kind: 'exit-scope' }, scopes, owned?.inactiveScopes);
@@ -3286,6 +3596,38 @@ function advanceRuntime(
           evaluate(instruction.condition, instructionState) !== 0
             ? programCounter + 1
             : instruction.falseTarget;
+      } else if (instruction.kind === 'user-call') {
+        if (!consumeStatement(instructionState)) break;
+        for (const scope of scopes)
+          if (scope.has(instruction.name))
+            throw new SyntaxError(`«${instruction.name}» — переменная, а не функция.`);
+        const fn = compilation.functions![instruction.name]!;
+        const values = instruction.args.map((argument, index) =>
+          convertValue(
+            evaluateValue(argument, instructionState),
+            fn.definition.parameters[index]!.type,
+          ),
+        );
+        if (functionFrames.length >= 128)
+          throw new SyntaxError('Превышена глубина вызовов функций.');
+        functionFrames.push({
+          ...(activeFunction === undefined ? {} : { callerFunction: activeFunction }),
+          returnProgramCounter: programCounter + 1,
+          scopes: serializeScopes(scopes.slice(1)),
+        });
+        scopes.splice(
+          1,
+          scopes.length - 1,
+          new Map(
+            fn.definition.parameters.map((parameter, index) => [
+              parameter.name,
+              { type: parameter.type, constant: parameter.constant, value: values[index]!.value },
+            ]),
+          ),
+        );
+        activeFunction = instruction.name;
+        programCounter = 0;
+        commitActions(actions, actionStart, executionTimeMs);
       } else if (instruction.kind === 'simple') {
         if (literal) {
           if (consumeStatement(instructionState)) {
@@ -3326,6 +3668,9 @@ function advanceRuntime(
             programFingerprint: fingerprint,
             phase,
             programCounter,
+            ...(activeFunction === undefined
+              ? {}
+              : { callContext: functionCallContext(activeFunction, functionFrames)! }),
             parents: replay.parents,
             streams: replay.streams,
             entries: replay.entries,
@@ -3421,6 +3766,9 @@ function advanceRuntime(
       resumeAtMs,
       phase,
       programCounter,
+      ...(activeFunction === undefined
+        ? {}
+        : { activeFunction, functionFrames: [...functionFrames] }),
       loopIterationActive,
       loopStartedAtMs,
       loopIterations,

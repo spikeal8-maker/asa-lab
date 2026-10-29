@@ -1,3 +1,4 @@
+import { withLocalFixtureAdmissions } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { beforeAll, afterAll, it, expect } from 'vitest';
@@ -55,16 +56,19 @@ async function fixture() {
   }
   const call = async (options: Record<string, unknown> = {}) =>
     (
-      await runtime.query('SELECT admin_user_history($1,$2,$3,$4,$5,$6,$7,$8::jsonb) AS value', [
-        options.actor ?? actor.principal_id,
-        options.scope ?? 'platform',
-        options.scopeId ?? null,
-        options.kind ?? 'account',
-        options.target ?? target.account_id,
-        options.category ?? 'projects',
-        options.limit ?? 13,
-        options.cursor ? JSON.stringify(options.cursor) : null,
-      ])
+      await ((options.connection as Pick<pg.Pool, 'query'> | undefined) ?? runtime).query(
+        'SELECT admin_user_history($1,$2,$3,$4,$5,$6,$7,$8::jsonb) AS value',
+        [
+          options.actor ?? actor.principal_id,
+          options.scope ?? 'platform',
+          options.scopeId ?? null,
+          options.kind ?? 'account',
+          options.target ?? target.account_id,
+          options.category ?? 'projects',
+          options.limit ?? 13,
+          options.cursor ? JSON.stringify(options.cursor) : null,
+        ],
+      )
     ).rows[0].value;
   return { actor, target, foreign, ids, call };
 }
@@ -98,25 +102,35 @@ it('pages every retained project/version, publication and AI request beyond fift
 it('includes retained pre-journal AI admissions without duplicating journaled requests or inventing tokens/results', async () => {
   const f = await fixture();
   const request = randomUUID();
-  await admin.query(
-    'INSERT INTO ai_assistant_request_quota(owner_principal_id,account_id,request_id) VALUES($1,$2,$3)',
-    [f.target.principal_id, f.target.account_id, request],
-  );
-  expect((await f.call({ category: 'ai', limit: 100 })).items).toHaveLength(58);
-  // Simulate a retained pre-0244 admission in this isolated test's own rows.
-  await admin.query('DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2', [
+  await withLocalFixtureAdmissions(
+    admin,
+    f.actor.principal_id,
     f.target.principal_id,
-    request,
-  ]);
-  const page = await f.call({ category: 'ai', limit: 100 });
-  expect(page.items).toHaveLength(58);
-  const old = page.items.find((item: { id: string }) => item.id === request);
-  expect(old).toMatchObject({
-    status: 'legacy_unknown',
-    title: 'Сохранённый запрос без подробных сведений',
-  });
-  expect(old.inputTokens ?? null).toBeNull();
-  expect(old.model ?? null).toBeNull();
+    [request],
+    async (client) => {
+      expect((await f.call({ category: 'ai', limit: 100, connection: client })).items).toHaveLength(
+        58,
+      );
+      // Simulate a retained pre-0244 admission in this isolated test's own rows.
+      await client.query(
+        'DELETE FROM ai_token_budget_reservations WHERE owner_principal_id=$1 AND request_id=$2',
+        [f.target.principal_id, request],
+      );
+      await client.query(
+        'DELETE FROM ai_usage_journal WHERE owner_principal_id=$1 AND request_id=$2',
+        [f.target.principal_id, request],
+      );
+      const page = await f.call({ category: 'ai', limit: 100, connection: client });
+      expect(page.items).toHaveLength(58);
+      const old = page.items.find((item: { id: string }) => item.id === request);
+      expect(old).toMatchObject({
+        status: 'legacy_unknown',
+        title: 'Сохранённый запрос без подробных сведений',
+      });
+      expect(old.inputTokens ?? null).toBeNull();
+      expect(old.model ?? null).toBeNull();
+    },
+  );
 });
 it('retains separately labelled legacy gallery records even when new publication revisions exist', async () => {
   const f = await fixture();

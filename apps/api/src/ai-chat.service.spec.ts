@@ -170,7 +170,7 @@ describe('ASA native AI Chat', () => {
       },
       'test-admin-request',
     );
-    const write = calls.find((call) => String(call[0]).includes('ai_admin_set_config'));
+    const write = calls.find((call) => String(call[0]).includes('ai_admin_set_provider_config'));
     expect(write).toBeDefined();
     expect(write?.[5]).toBe('replace');
     expect(JSON.stringify(write)).not.toContain('sk-test-private-key-123456');

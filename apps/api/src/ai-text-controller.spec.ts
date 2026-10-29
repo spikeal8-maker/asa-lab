@@ -227,3 +227,29 @@ describe('explicit internet options preserve service argument positions', () => 
     );
   });
 });
+
+it.each([512, 768, 1024, 1280, 1536, 720, 864])(
+  'forwards image preset %i including receipt-only legacy size to the service guard',
+  async (size) => {
+    const f = fixture();
+    await f.controller.sendStream(f.request(), f.reply as unknown as FastifyReply, THREAD, {
+      message: 'image',
+      requestId: REQUEST,
+      nativeImage: { mode: 'auto', size },
+    });
+    expect(f.ai.sendStream).toHaveBeenLastCalledWith(
+      OWNER,
+      THREAD,
+      'image',
+      REQUEST,
+      expect.any(Function),
+      expect.any(AbortSignal),
+      undefined,
+      undefined,
+      [],
+      undefined,
+      undefined,
+      { mode: 'auto', size },
+    );
+  },
+);

@@ -1,6 +1,20 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-MONTHLY-TOKEN-BUDGETS
+    routes: ['#/admin/ai?section=settings', /api/admin/v1/ai/token-budgets, /api/ai/token-budgets]
+    implementation:
+      files: [apps/api/src/ai-token-budgets.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.controller.ts, packages/contracts/src/ai-token-budgets.ts, migrations/0279_ai_monthly_token_budgets.sql, apps/web/src/admin/AdminAiTokenBudgets.tsx, apps/web/src/admin/ai-token-budgets.css, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/ai/AiChatPage.tsx]
+    invariants: [AI-USAGE-001, AI-OWNER-001, AI-REPLAY-001, AI-GENERATION-POLICY-001, AI-SESSION-001]
+    tests: [TST-AI-TOKEN-BUDGETS-CORE-001, TST-AI-TOKEN-BUDGETS-PG-001, TST-AI-TOKEN-BUDGETS-E2E-001]
+    controls:
+      - id: CTRL-AI-MONTHLY-TOKEN-BUDGETS
+        label: Atomically reserve global and own-principal UTC monthly model budgets, finish admitted replies fully, settle actual journal usage once and retain uncertain holds
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-token-budgets.ts, migrations/0279_ai_monthly_token_budgets.sql, apps/web/src/admin/AdminAiTokenBudgets.tsx, apps/web/src/ai/AiChatPage.tsx]
+        invariants: [AI-USAGE-001, AI-OWNER-001, AI-REPLAY-001, AI-GENERATION-POLICY-001, AI-SESSION-001]
+        tests: [TST-AI-TOKEN-BUDGETS-CORE-001, TST-AI-TOKEN-BUDGETS-PG-001, TST-AI-TOKEN-BUDGETS-E2E-001]
+
   - id: SURF-AI-USAGE-OVERVIEW
     routes: ['#/admin/ai', /api/admin/v1/ai/usage-overview]
     implementation:
@@ -18,14 +32,14 @@ surfaces:
   - id: SURF-AI-LOCAL-IMAGES
     routes: [/api/ai/image-generation/status, /api/admin/v1/ai/images, '/api/ai/threads/:threadId/image-generations', '/api/ai/threads/:threadId/image-generations/:requestId', '/api/ai/threads/:threadId/image-generations/:requestId/cancel', '/api/ai/threads/:threadId/image-generations/:requestId/image']
     implementation:
-      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
+      files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, apps/api/src/ai-text-history.ts, packages/contracts/src/ai-image-generation.ts, migrations/0264_ai_local_image_generation.sql, migrations/0280_ai_image_six_presets.sql, apps/web/src/admin/AdminAiImages.tsx, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/ai/AiGeneratedImage.tsx, apps/web/src/ai/read-generated-image.ts, apps/web/src/ai/ai-image-generation.css]
     invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-SESSION-001, AI-ADMISSION-001, AI-REPLAY-001, AI-USAGE-001]
     tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
     controls:
       - id: CTRL-AI-LOCAL-IMAGES
         label: Generate and recover a private local GPU image without replaying dispatch or exposing another owner
         change_class: L3_CRITICAL
-        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
+        files: [apps/api/src/ai-image.service.ts, apps/api/src/ai-image.controller.ts, apps/api/src/ai-image-comfyui.ts, migrations/0264_ai_local_image_generation.sql, migrations/0280_ai_image_six_presets.sql, apps/web/src/ai/AiImageGeneration.tsx, apps/web/src/admin/AdminAiImages.tsx]
         invariants: [AI-IMAGE-JOB-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
         tests: [TST-AI-IMAGE-CORE-001, TST-AI-IMAGE-E2E-001]
 
@@ -74,7 +88,7 @@ surfaces:
   - id: SURF-AI-CLOUD-PROVIDERS
     routes: [/api/admin/v1/ai, /api/admin/v1/ai/test, /api/ai/status]
     implementation:
-      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-model-catalog.ts, apps/api/src/ai-provider-stream.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/web/src/admin/AdminAiPage.tsx, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/ai-admin.css, apps/web/src/admin/ai-model-config.ts, migrations/0252_ai_ollama_cloud.sql]
+      files: [apps/api/src/ai-admin.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-model-catalog.ts, apps/api/src/ai-provider-stream.ts, apps/api/src/ai-provider-usage.ts, apps/api/src/ai-usage-journal.ts, apps/web/src/admin/AdminAiPage.tsx, apps/web/src/admin/OllamaCloudKeys.tsx, apps/web/src/admin/AiAdminWorkspace.tsx, apps/web/src/admin/ai-admin.css, apps/web/src/admin/ai-model-config.ts, migrations/0252_ai_ollama_cloud.sql]
     invariants: [AI-CLOUD-CREDENTIAL-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
     tests: [TST-AI-TEXT-CORE-001, TST-AI-CLOUD-PG-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
     controls:
@@ -209,3 +223,10 @@ surfaces:
         files: [apps/api/src/ai-access.controller.ts, apps/api/src/ai-access.service.ts, migrations/0226_ai_student_admission.sql, apps/web/src/pages/ClassroomPage.tsx, apps/web/src/components/ClassroomAiAccess.tsx, apps/web/src/components/classroom-ai-access.css]
         invariants: [AI-ADMISSION-001, AI-REPLAY-001, AI-UI-SCOPE-001]
         tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-PG-001, TST-AI-ACCESS-E2E-001]
+
+  - id: SURF-AI-LOCAL-INFERENCE
+    routes: [/api/admin/v1/ai/ollama, /api/admin/v1/ai/ollama/apply, /api/admin/v1/ai/ollama/models, /api/admin/v1/ai/ollama/model-detail]
+    implementation:
+      files: [apps/api/src/ai-ollama.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-admin.controller.ts, apps/web/src/admin/AdminOllamaPage.tsx, apps/web/src/admin/ai-ollama.css, migrations/0239_ai_ollama_local.sql, migrations/0282_ai_ollama_inference_options.sql]
+    invariants: [AI-GENERATION-POLICY-001, AI-OWNER-001, AI-REPLAY-001, AI-USAGE-001]
+    tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-E2E-001]

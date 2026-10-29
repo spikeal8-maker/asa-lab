@@ -1,4 +1,65 @@
 /* Compact AI administration: providers, concise settings, one apply action. */
+.asa-comfy-connection {
+  min-width: 0;
+}
+.asa-comfy-url {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+.asa-comfy-url input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 7px;
+  font: inherit;
+}
+.asa-comfy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.asa-comfy-actions button {
+  min-height: 36px;
+  padding: 7px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.asa-comfy-actions span,
+.asa-comfy-help,
+.asa-comfy-devices {
+  overflow-wrap: anywhere;
+}
+.asa-comfy-help {
+  font-size: 12px;
+}
+.asa-comfy-help summary,
+.asa-comfy-connection > details > summary {
+  cursor: pointer;
+}
+.asa-comfy-help code {
+  overflow-wrap: anywhere;
+}
+.asa-comfy-help a {
+  color: inherit;
+  text-decoration: underline;
+}
+.asa-comfy-connection .asa-ai-comfy-model {
+  color: #17344a;
+}
+.asa-comfy-devices {
+  display: grid;
+  gap: 4px;
+}
+@media (max-width: 660px) {
+  .asa-comfy-actions button {
+    min-height: 44px;
+  }
+}
 .asa-ai-admin-workspace {
   display: grid;
   gap: 12px;
@@ -368,4 +429,90 @@
   .asa-ai-ollama-bottom {
     gap: 8px;
   }
+}
+
+.asa-ai-ollama-inference {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: start;
+}
+.asa-ai-ollama-reasoning {
+  position: relative;
+  flex: 1 1 220px;
+}
+.asa-ai-ollama-reasoning summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #d6e0ea;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  list-style: none;
+}
+.asa-ai-ollama-reasoning summary::-webkit-details-marker {
+  display: none;
+}
+.asa-ai-ollama-reasoning-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 220px;
+  padding: 12px;
+  background: var(--surface, #fff);
+  border: 1px solid #d6e0ea;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px #17344a20;
+}
+.asa-ai-ollama-reasoning-menu label {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.asa-ai-ollama-reasoning-menu select {
+  width: 100%;
+  min-height: 36px;
+  font: inherit;
+}
+.asa-ai-ollama-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.asa-ai-ollama-context input {
+  width: 110px;
+  min-height: 36px;
+  border: 1px solid #d6e0ea;
+  border-radius: 8px;
+  padding: 0 8px;
+  font: inherit;
+}
+.asa-ai-ollama-inference-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--ink-muted, #607684);
+}
+
+.asa-ai-ollama-model-card {
+  min-width: 0;
+}
+.asa-ai-ollama-model-card > button {
+  width: 100%;
+}
+.asa-ai-ollama-model-card .asa-ai-ollama-inference {
+  margin-top: 6px;
+}
+
+.asa-ai-ollama-context {
+  flex-wrap: wrap;
+}
+.asa-ai-ollama-context-limit {
+  flex-basis: 100%;
+  color: var(--ink-muted, #607684);
+  font-size: 11px;
 }
