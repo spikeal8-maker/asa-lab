@@ -14,6 +14,15 @@
   line-height: 1;
 }
 
+/* Keep the approved top AI brain inside its 20px wrapper at 4K, where the
+   shared header intentionally scales other navigation SVGs to 26px. */
+.portal-shell .portal-header.portal-header-ai-navigation
+  .portal-global-nav a .portal-ai-glyph svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}
+
 /* Keep all three text labels from 601px, freeing the create label's space
    before the row gets tight. The existing create menu is unchanged. */
 @media (min-width: 601px) and (max-width: 760px) {
