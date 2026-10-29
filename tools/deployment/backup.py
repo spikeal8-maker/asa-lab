@@ -100,7 +100,7 @@ def attest_backup_mounts(root, config):
     return external_diagnostics
 
 
-def export_backup(install, destination=None):
+def export_backup(install, destination=None, *, resume_services=True, frozen_runtime=None):
     records = install.identity()
     require("minio" in records and records["postgres"]["running"], "BACKUP_SERVICES", "PostgreSQL and local MinIO are required for a complete export.")
     require(install.env.get("ASA_OBJECT_STORAGE_ENDPOINT") == "http://minio:9000",
@@ -108,7 +108,7 @@ def export_backup(install, destination=None):
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "An unfinished maintenance operation needs review first.")
     config = json.loads(install.compose("config", "--format", "json", capture=True))
     external_diagnostics = attest_backup_mounts(install.root, config)
-    runtime = install.readiness()
+    runtime = frozen_runtime if frozen_runtime is not None else install.readiness()
     recovery = recovery_configuration(install, runtime)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     parent = Path(destination or install.settings.get("backupDirectory") or install.root / "backups").resolve()
@@ -169,9 +169,12 @@ def export_backup(install, destination=None):
         return final
     finally:
         # start preserves the exact existing images/configuration; never up/build.
-        if running:
-            install.compose("start", *running)
-        install.wait_ready(runtime["revision"], runtime["schema"])
+        if resume_services:
+            if running:
+                install.compose("start", *running)
+            install.wait_ready(runtime["revision"], runtime["schema"])
+        # The transactional updater deliberately keeps writers stopped after
+        # the consistent snapshot; its journal owns restart/rollback.
         (install.state / "maintenance.json").unlink()
 
 

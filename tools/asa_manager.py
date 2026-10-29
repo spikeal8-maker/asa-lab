@@ -137,16 +137,27 @@ def selected_source(install, release, *, existing):
                           "Run the same command again. Containers and data have not been changed.")
 
 
-def update(install, *, check=False, scheduled=False, fresh=False):
+def update(install, *, check=False, scheduled=False, fresh=False, atomic=False):
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
         if not in_window(install.settings.get("window", DEFAULT_WINDOW)):
             print("SKIP outside the maintenance window; no fetch, backup or restart")
             return
+    if (install.state / "atomic-active.json").exists():
+        from deployment.atomic_update import atomic_status
+        pending = atomic_status(install.root)
+        require(pending is None, "ATOMIC_PENDING",
+                "An atomic operation is incomplete or not yet archived.",
+                "Run atomic-status and use guarded atomic-recover, not a new update.")
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "Unfinished backup/switch needs inspection.")
     require(not (install.state / "failed-switch.json").exists(), "FAILED_SWITCH", "A prior service switch failed.",
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
     doctor(install, existing=not fresh)
+    if atomic:
+        require(not fresh and not check, "ATOMIC_ACTION",
+                "Atomic cutover is only available for an existing update action.")
+        from deployment.atomic_update import atomic_eligibility
+        atomic_eligibility(install)
     clean_checkout(install)
     backup_directory(install)
     attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
@@ -186,7 +197,9 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
     install = Installation(install.root, install.profile)
-    selected_preparation = prepare_collector(install)
+    # Transactional updates must not mutate host runner registration before
+    # their previous runtime, config and object identity have been snapshotted.
+    selected_preparation = {'readerGroupChanged': False} if atomic else prepare_collector(install)
     preparation['readerGroupChanged'] = preparation['readerGroupChanged'] or selected_preparation['readerGroupChanged']
     install = Installation(install.root, install.profile)
     for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN"):
@@ -201,6 +214,26 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     check_resources(install, install.identity(existing=not fresh))
     # Download support images while the previous application remains available.
     install.compose("pull", "postgres", "minio-init")
+    if atomic:
+        require(not fresh and before is not None, "ATOMIC_INSTALL",
+                "Atomic updates are for an existing installed product only.")
+        if scheduled:
+            require(in_window(install.settings["window"], reserve_minutes=45),
+                    "WINDOW_CLOSED", "Insufficient reserved time for a frozen atomic snapshot.",
+                    "Use the next maintenance window; do not begin write freeze.")
+        from deployment.atomic_update import AtomicSession
+        # Backup/runtime attestation must use the prior pinned installation.
+        session = AtomicSession(backup_install, release, before)
+        session.run(install)
+        # Optional host diagnostics cannot invalidate an already accepted
+        # application release or trigger a potentially destructive rollback.
+        try:
+            prepare_collector(install)
+            reconcile_collector(install)
+        except (Blocked, OSError, ValueError) as exc:
+            code = exc.code if isinstance(exc, Blocked) else type(exc).__name__
+            print(f"WARNING diagnostic_collector={code}; application update remains accepted")
+        return
     if scheduled:
         # Reserve fifteen minutes before starting any downtime. Downloading late
         # in the window is harmless; database work is never forcibly killed at 05:00.
@@ -252,10 +285,12 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "atomic-status", "atomic-recover", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
+    parser.add_argument("--atomic", action="store_true",
+                        help="Opt-in shadow database and preserved previous-volume update")
     parser.add_argument("--enable-auto-update", action="store_true")
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
@@ -267,9 +302,18 @@ def main(argv=None):
             manifest = verify_backup(args.backup)
             print(f"BACKUP_VERIFIED revision={manifest['runtime']['revision']} files={len(manifest['files'])}")
             return 0
+        if args.action == "atomic-status":
+            from deployment.atomic_update import atomic_status
+            transaction = atomic_status(args.root)
+            print("ATOMIC " + (f"phase={transaction['phase']} nonce={transaction['nonce']} project={transaction['project']}"
+                               if transaction else "NO_ACTIVE_TRANSACTION"))
+            return 0
         install = Installation(args.root, args.profile)
         with nullcontext() if args.action in ('doctor', 'check') else operation_lock(install.root):
-            if args.action == "doctor":
+            if args.action == "atomic-recover":
+                from deployment.atomic_update import atomic_recover
+                print("ATOMIC_RECOVERY " + atomic_recover(args.root))
+            elif args.action == "doctor":
                 doctor(install)
             elif args.action == "configure":
                 doctor(install)
@@ -281,7 +325,8 @@ def main(argv=None):
                     first_environment(install.root, install.profile)
                 update(Installation(install.root, install.profile), fresh=True)
             elif args.action in ("check", "update"):
-                update(install, check=args.action == "check", scheduled=args.scheduled)
+                update(install, check=args.action == "check", scheduled=args.scheduled,
+                       atomic=args.atomic)
             elif args.action == "backup":
                 export_backup(install, args.output)
             elif args.action == "restore-check":
