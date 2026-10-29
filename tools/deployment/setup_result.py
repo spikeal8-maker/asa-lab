@@ -20,8 +20,25 @@ def result(operation_id, installation_id, mode, *, outcome="PENDING", code=2, **
             "postActions": [], "nextAction": "Проверьте состояние через asa-setup status.", **values}
 
 
+def _site_summary(site):
+    """Aggregate mandatory current checks; never report technical-only as OK."""
+    if not isinstance(site, dict) or not any(key in site for key in ("technical", "browser", "owner")):
+        return None
+    technical = site.get("technical", {}).get("status")
+    browser = site.get("browser", {}).get("status")
+    owner = site.get("owner", {}).get("status", "NOT_REQUIRED")
+    if any(state in ("FAILED", "ERROR", "failed", "environment_failed") for state in (technical, browser, owner)):
+        return "FAILED"
+    if technical == "passed" and browser == "passed" and owner in ("READY", "NOT_REQUIRED"):
+        return "OK"
+    return "INCOMPLETE"
+
+
 def finalize(value):
     """Never convert missing acceptance or cloud evidence into an accepted run."""
+    summary = _site_summary(value.get("site", {}))
+    if summary is not None:
+        value["site"]["status"] = summary
     if value.get("outcome") in ("ERROR", "INTERRUPTED", "BLOCKED", "NO_CHANGE", "CHECKED", "CONFIGURED", "STATUS", "PLANNED"):
         return value
     technical = value.get("site", {}).get("technical", {}).get("status")
@@ -51,6 +68,11 @@ def finalize(value):
 
 def render(value, *, as_json=False, stream=None):
     stream = stream or sys.stdout
+    # Old and directly constructed reports also receive an honest aggregate.
+    value = {**value, "site": {**value.get("site", {})}}
+    summary = _site_summary(value["site"])
+    if summary is not None:
+        value["site"]["status"] = summary
     if as_json:
         print(json.dumps(value, ensure_ascii=True, sort_keys=True), file=stream)
         return
