@@ -58,6 +58,35 @@ class OperatorView:
         return f"\033[{ansi}m{label}\033[0m" if self.color else label
 
     def _line(self, text=""):
+        # Some Windows CI/console streams still use cp1252 or another
+        # non-Cyrillic code page. Reporting must never abort maintenance.
+        # Use a readable Latin transliteration, then escape any remaining
+        # characters the actual stream cannot encode.
+        encoding = getattr(self.stream, "encoding", None)
+        if encoding:
+            try:
+                text.encode(encoding)
+            except (UnicodeEncodeError, LookupError):
+                alphabet = {
+                    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d",
+                    "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i",
+                    "й": "y", "к": "k", "л": "l", "м": "m", "н": "n",
+                    "о": "o", "п": "p", "р": "r", "с": "s", "т": "t",
+                    "у": "u", "ф": "f", "х": "kh", "ц": "ts", "ч": "ch",
+                    "ш": "sh", "щ": "shch", "ъ": "", "ы": "y", "ь": "",
+                    "э": "e", "ю": "yu", "я": "ya",
+                }
+                normalized = []
+                for symbol in text:
+                    if symbol.lower() in alphabet:
+                        part = alphabet[symbol.lower()]
+                        normalized.append(part.upper() if symbol.isupper() else part)
+                    else:
+                        normalized.append({"→": "->", "·": "-", "—": "-", "…": "...",
+                                           "✓": "[OK]", "✗": "[X]"}.get(symbol, symbol))
+                text = "".join(normalized).encode(
+                    encoding, errors="backslashreplace"
+                ).decode(encoding)
         print(text, file=self.stream, flush=True)
 
     def begin(self, mode):
