@@ -335,6 +335,30 @@ describe('STT admission and request isolation', () => {
     await Promise.all([first, second]);
     expect(admitted).toHaveLength(2);
   });
+
+  it('keeps a restored but undecryptable key disabled and consumes no speech allowance', async () => {
+    const broken = { ...runtime(), api_key_auth_tag: 'invalid-authentication-tag' };
+    const { pool, query } = fakePool((sql) => {
+      if (sql.includes('ai_polza_runtime')) return [broken];
+      throw new Error('Invalid keys must not reach paid admission');
+    });
+    const provider = vi.fn();
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 5,
+    });
+    expect((await service.status()).enabled).toBe(false);
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(), audioBase64: sampleAudio,
+        mimeType: 'audio/webm', durationSeconds: 5,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_polza_key_invalid', status: 503 });
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(provider).not.toHaveBeenCalled();
+  });
+
   it('denies a revoked School Seat before spending quota or dispatching speech', async () => {
     const { pool, query } = fakePool((sql) => {
       if (sql.includes('ai_polza_runtime')) return [runtime()];

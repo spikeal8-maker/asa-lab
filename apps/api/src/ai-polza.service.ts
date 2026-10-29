@@ -353,12 +353,18 @@ export class AiPolzaService {
 
   async status(): Promise<{ enabled: boolean; model: string; maxAudioSeconds: number }> {
     const state = await this.runtime();
-    return {
-      enabled:
-        state.enabled && state.transcription_enabled && !!state.api_key_ciphertext && !!this.key,
-      model: POLZA_STT_MODEL,
-      maxAudioSeconds: state.max_audio_seconds,
-    };
+    let ready = false;
+    if (state.enabled && state.transcription_enabled && state.api_key_ciphertext && this.key) {
+      try {
+        // A restored database with a different encryption key must not advertise
+        // an operational microphone or consume quota for undecryptable secrets.
+        this.decrypt(state);
+        ready = true;
+      } catch {
+        ready = false;
+      }
+    }
+    return { enabled: ready, model: POLZA_STT_MODEL, maxAudioSeconds: state.max_audio_seconds };
   }
 
   private async acquire(signal?: AbortSignal): Promise<() => void> {
@@ -456,6 +462,8 @@ export class AiPolzaService {
       await revalidateAccess?.();
       if (signal?.aborted)
         throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+      // A corrupt/restored key must fail before quota is consumed.
+      const key = this.decrypt(state);
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.
       await this.sqlValue<number>('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid) AS value', [
         owner,
@@ -463,7 +471,6 @@ export class AiPolzaService {
       ]);
       if (signal?.aborted)
         throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
-      const key = this.decrypt(state);
       const extension =
         audio.mime === 'audio/mp4' ? 'm4a' : audio.mime === 'audio/ogg' ? 'ogg' : 'webm';
       const body = new FormData();
