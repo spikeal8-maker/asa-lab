@@ -301,7 +301,12 @@ function AiAdminWorkspaceSession({
           <AdminAiWebSearch onAccessDenied={onAccessDenied} />
         </div>
       ) : section === 'video' ? (
-        <div id="ai-panel-video" role="tabpanel" aria-labelledby="ai-tab-video" className="asa-ai-settings">
+        <div
+          id="ai-panel-video"
+          role="tabpanel"
+          aria-labelledby="ai-tab-video"
+          className="asa-ai-settings"
+        >
           <AdminAiVideo />
         </div>
       ) : section === 'transcription' ? (
