@@ -60,9 +60,15 @@ export async function inspectPolzaAudioSeconds(
       const [position, length] = line.split(',');
       const start = Number(position);
       const seconds = Number(length);
-      if (position !== undefined && length !== undefined &&
-          Number.isFinite(start) && Number.isFinite(seconds) &&
-          start >= -2 && seconds >= 0 && start <= 3600) {
+      if (
+        position !== undefined &&
+        length !== undefined &&
+        Number.isFinite(start) &&
+        Number.isFinite(seconds) &&
+        start >= -2 &&
+        seconds >= 0 &&
+        start <= 3600
+      ) {
         duration = Math.max(duration, start + seconds);
       }
     }

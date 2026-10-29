@@ -241,10 +241,10 @@ export function AiVoiceInput({
           : available
             ? 'Продиктовать сообщение'
             : status?.enabled && typeof window !== 'undefined' && !window.isSecureContext
-            ? 'Для голосового ввода нужен HTTPS'
-            : status?.enabled
-              ? 'Браузер не поддерживает голосовой ввод'
-              : 'Голосовой ввод не подключён';
+              ? 'Для голосового ввода нужен HTTPS'
+              : status?.enabled
+                ? 'Браузер не поддерживает голосовой ввод'
+                : 'Голосовой ввод не подключён';
 
   return (
     <div className="ai-voice-control">
@@ -297,7 +297,11 @@ export function AiVoiceInput({
           </span>
           {mode === 'confirm' ? (
             <>
-              <button type="button" onClick={() => void start()} aria-label="Разрешить голосовой ввод">
+              <button
+                type="button"
+                onClick={() => void start()}
+                aria-label="Разрешить голосовой ввод"
+              >
                 Продолжить
               </button>
               <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">

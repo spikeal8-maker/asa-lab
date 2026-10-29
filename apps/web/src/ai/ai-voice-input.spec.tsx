@@ -4,7 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { AiVoiceInput } from './AiVoiceInput';
 
-const ebml = new Uint8Array([0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81, 0x01, 0x42, 0xf7, 0x81, 0x01, 0x42, 0xf2, 0x81, 0x04]);
+const ebml = new Uint8Array([
+  0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81, 0x01, 0x42, 0xf7, 0x81, 0x01, 0x42, 0xf2, 0x81, 0x04,
+]);
 let root: Root;
 let host: HTMLDivElement;
 let stopTrack: ReturnType<typeof vi.fn>;
@@ -33,20 +35,34 @@ class RecorderForTest {
   }
 }
 
-function call<T>(path: string, init?: RequestInit): Promise<{
+function call<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<{
   ok: true;
   status: number;
   data: T;
 }> {
   requests.push({ path, init });
   if (path === '/api/ai/stt/status')
-    return Promise.resolve({ ok: true, status: 200, data: {
-      enabled: true, model: 'ai-sage/gigaam-v3', maxAudioSeconds: 20,
-    } as T });
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      data: {
+        enabled: true,
+        model: 'ai-sage/gigaam-v3',
+        maxAudioSeconds: 20,
+      } as T,
+    });
   if (path === '/api/ai/stt/transcribe')
-    return Promise.resolve({ ok: true, status: 200, data: {
-      text: speechResponse, model: 'ai-sage/gigaam-v3',
-    } as T });
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      data: {
+        text: speechResponse,
+        model: 'ai-sage/gigaam-v3',
+      } as T,
+    });
   throw new Error('Unexpected API path: ' + path);
 }
 
@@ -70,7 +86,8 @@ beforeEach(() => {
   stopTrack = vi.fn();
   acquire = vi.fn(async () => ({ getTracks: () => [{ stop: stopTrack }] }));
   Object.defineProperty(navigator, 'mediaDevices', {
-    configurable: true, value: { getUserMedia: acquire },
+    configurable: true,
+    value: { getUserMedia: acquire },
   });
   transcript.mockReset();
   requests.splice(0);
