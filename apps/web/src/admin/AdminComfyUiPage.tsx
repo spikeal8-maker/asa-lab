@@ -135,6 +135,9 @@ export function AdminComfyUiPage({
     setBusy(true);
     setError('');
     setNotice('');
+    // A failed manual check must never leave the previous GPU marked as ready.
+    setDetails(null);
+    setConnectionVerified(false);
     const request = ++generation.current;
     try {
       const signature = JSON.stringify({ url, version: config.configurationVersion });
@@ -182,6 +185,16 @@ export function AdminComfyUiPage({
             ? 'Связь проверена · генерация не запускалась'
             : 'Адрес проверен · ещё не сохранён',
         );
+    } catch {
+      if (request === generation.current) {
+        setDetails(null);
+        setConnectionVerified(false);
+        setError(
+          save
+            ? 'Результат сохранения адреса не подтверждён. Обновите настройки и повторно проверьте подключение.'
+            : 'Нет связи с ComfyUI. Проверьте адрес и доступность сервера.',
+        );
+      }
     } finally {
       flight.current = false;
       setBusy(false);
