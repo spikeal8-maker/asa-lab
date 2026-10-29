@@ -18,6 +18,15 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
   const state = await fixture(page, 15, { classes: 23, sidebar: 'expanded' });
   await page.goto('/#/classrooms');
   await expect(page.getByRole('navigation', { name: 'Разделы ASA Lab' })).toBeVisible();
+  // The same owner-approved brain glyph must appear in the desktop top AI link.
+  const aiBrain = page
+    .locator('.portal-global-nav')
+    .getByRole('link', { name: 'ИИ', exact: true })
+    .locator('.portal-ai-glyph svg');
+  await expect(aiBrain).toHaveCount(1);
+  await expect(aiBrain).toHaveAttribute('viewBox', '0 0 24 24');
+  await expect(aiBrain).toHaveAttribute('width', '20');
+  await expect(aiBrain).toHaveAttribute('height', '20');
   for (const width of widths) {
     await page.setViewportSize({ width, height: 1000 });
     await page.evaluate(
@@ -26,6 +35,8 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
+    await expect(aiBrain, width + ': brain glyph rendered width').toHaveCSS('width', '20px');
+    await expect(aiBrain, width + ': brain glyph rendered height').toHaveCSS('height', '20px');
     const result = await page.evaluate(() => {
       const box = (selector: string) => {
         const element = document.querySelector<HTMLElement>(selector);
