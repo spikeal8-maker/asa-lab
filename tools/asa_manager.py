@@ -153,17 +153,29 @@ def update(install, *, check=False, scheduled=False, fresh=False):
                       install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
                       install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
     release = discover_release()
-    assert_ci(release)
     before = None if fresh else install.readiness()
+    installed_path = install.state / "installed-release.json"
+    installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
+    same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    # No-change operations can reuse the success receipt for this *exact*
+    # immutable manifest. New, different or unreceipted releases still require
+    # live GitHub CI verification, and no network error authorizes a switch.
+    receipt_path = install.state / "last-operation.json"
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8")) if receipt_path.exists() else {}
+    previously_attested = bool(same_release and isinstance(receipt, dict)
+                               and receipt.get('status') == 'success'
+                               and receipt.get('entryHttp') == 'pass'
+                               and receipt.get('selected') == release)
+    if previously_attested:
+        print('CI_GATE previously verified for the identical installed release; no fresh CI lookup')
+    else:
+        assert_ci(release)
     if before:
         require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
                 'Published release schema is older than the running database; refusing downgrade.')
         if release['revision'] != before['revision']:
             install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
             install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
-    installed_path = install.state / "installed-release.json"
-    installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
-    same_release = bool(before and before['revision'] == release['revision'] and installed == release)
     if same_release:
         records = install.identity()
         for name, expected in release['images'].items():

@@ -152,7 +152,10 @@ def prepare(install):
 def _prepare_host(install):
     """Run only inside an authorized install/up/update, before the Compose switch."""
     safe_paths(install)
-    records = install.identity(existing=False)
+    # Fresh installs must reject competing ASA stacks. An already published
+    # installation instead attests its own root/project/volumes even when other
+    # independent test stacks exist on the same Windows Docker engine.
+    records = install.identity(existing=(install.state / 'installed-release.json').is_file())
     require(install.profile != "test", "COLLECTOR_PROFILE", "Persistent host collection is not installed for ephemeral tests.")
     previous = install.settings
     require(not previous.get("project") or previous["project"] == install.project,
