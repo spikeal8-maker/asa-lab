@@ -19,7 +19,8 @@ from deployment.contracts import Blocked, verify_backup
 class ManagedBackupHoldTests(unittest.TestCase):
     def fixture(self, directory, *, foreign=False, unknown=False, extra_writer=True, active=0, dump_failure=False,
                 other_database_idle_admin=False):
-        root = Path(directory)
+        # Match Installation.root, including Windows temporary 8.3 aliases.
+        root = Path(directory).resolve()
         (root / ".asa").mkdir(mode=0o700)
         (root / ".env").write_text("SYNTHETIC_SECRET=test\n")
         calls = []

@@ -1,6 +1,7 @@
 """Crash/hold/identity acceptance boundaries without a live Docker daemon."""
 
 import copy
+import datetime as dt
 import io
 import json
 import os
@@ -11,6 +12,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfoNotFoundError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import Blocked, REGISTRY, SERVICES
@@ -34,7 +36,15 @@ def configuration(root):
     return {"format": "asa-setup-config-v1", "installationId": IDENTITY, "root": str(root),
             "operatorUid": UID, "profile": "production", "project": "asa-test",
             "entryOrigin": "https://asa.example.invalid", "backup": {"policy": "best-effort", "cloud": {"enabled": False},
-            "schedule": {"enabled": False}, "retention": {"localKeep": None, "remoteKeep": None}}}
+            "schedule": {"enabled": False, "time": "03:00", "timezone": "Etc/UTC", "maxAgeHours": 26},
+            "retention": {"localKeep": None, "remoteKeep": None}}}
+
+
+def fixture_zone_info(key):
+    """Model the fixture's one zone without requiring host IANA tzdata."""
+    if key != "Etc/UTC":
+        raise ZoneInfoNotFoundError(key)
+    return dt.timezone.utc
 
 
 def receipt(outcome="ACCEPTED"):
@@ -435,6 +445,9 @@ class AuxiliaryRuntime(FakeRuntime):
 
 class AuxiliaryRecoveryTests(unittest.TestCase):
     def setUp(self):
+        zone = patch("deployment.backup_schedule.ZoneInfo", side_effect=fixture_zone_info)
+        zone.start()
+        self.addCleanup(zone.stop)
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
@@ -1044,7 +1057,8 @@ class ReportAndRoutesTests(unittest.TestCase):
 
 class BootstrapAndSecretsTests(unittest.TestCase):
     def test_complete_initial_intent_can_recover_before_config_without_guessing_empty_data(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch("deployment.backup_schedule.ZoneInfo", side_effect=fixture_zone_info):
             root = Path(temporary)
             config = configuration(root)
             inventory = {"complete": True, "containers": [], "volumes": [], "images": [], "daemon": {"id": "fixture"}}

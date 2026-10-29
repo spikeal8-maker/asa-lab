@@ -231,7 +231,9 @@ def encrypt_snapshot(install, receipt, recipient, *, deadline=None):
     encrypted = stage / "snapshot.age"
     _command(["age", "--encrypt", "--recipient", recipient, "--output", encrypted, archive], timeout=_budget(deadline))
     encrypted.chmod(0o600)
-    with encrypted.open("rb") as stream:
+    # Windows FlushFileBuffers needs a writable handle, as in durable export;
+    # opening without truncation preserves the immutable ciphertext bytes.
+    with encrypted.open("r+b" if os.name == "nt" else "rb") as stream:
         require(stream.read(40).startswith(b"age-encryption.org/v1\n"), "AGE_ENVELOPE", "AGE не создал допустимый конверт.")
         os.fsync(stream.fileno())
     _sync_directory(stage)
@@ -432,7 +434,7 @@ def _complete_encryption_receipt(install, receipt):
                 and file_hash(target) == encryption.get("sha256"),
                 "BACKUP_ENCRYPTION_INCOMPLETE", "Шифрование прервано до подтверждённого завершения.",
                 "Проверьте ciphertext и его незавершённую квитанцию перед повтором.")
-        with target.open("rb") as stream:
+        with target.open("r+b" if os.name == "nt" else "rb") as stream:
             os.fsync(stream.fileno())
         _sync_directory(target.parent)
         if prepared is not None and prepared.parent.exists():

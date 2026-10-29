@@ -187,7 +187,8 @@ def run_smoke(evidence):
                 require(hashlib.sha256(payload).hexdigest() == digest, "CI_BROWSER_PIN", "Browser fixture pin differs.")
                 (browser_dir / name).write_bytes(payload)
             browser = {"componentPath": str(browser_dir / "browser_acceptance.py"), "componentSha256": BROWSER_SHA256,
-                       "pythonPath": sys.executable, "fixturePath": str(root / ".asa/browser/fixture.json"), "timeoutSeconds": 600}
+                       "pythonPath": os.environ["ASA_SETUP_CI_BROWSER_PYTHON"],
+                       "fixturePath": str(root / ".asa/browser/fixture.json"), "timeoutSeconds": 600}
             browser_before = browser_acceptance(install, release, uuid.uuid4().hex, browser)
             evidence["browserBefore"] = browser_before
             require(browser_before["status"] == "passed", "CI_BROWSER_BEFORE", "Synthetic browser acceptance before backup did not pass.")
@@ -349,7 +350,10 @@ def main():
     finally:
         evidence["finishedAt"] = now()
         atomic_json(destination, evidence)
-    print("ASA_SETUP_SYNTHETIC " + evidence["status"] + "; evidence=test-results/setup-synthetic/evidence.json")
+    print("ASA_SETUP_SYNTHETIC " + evidence["status"]
+          + "; errorCode=" + evidence.get("errorCode", "NONE")
+          + "; browserReason=" + evidence.get("browserBefore", {}).get("reasonCode", "NONE")
+          + "; evidence=test-results/setup-synthetic/evidence.json")
     return 0 if evidence["status"] == "PASS" else 1
 
 
