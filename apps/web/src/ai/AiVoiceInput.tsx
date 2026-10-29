@@ -13,7 +13,7 @@ interface Transcript {
   readonly model: string;
 }
 type ScopedCall = <T>(path: string, init?: RequestInit) => Promise<ApiResult<T>>;
-type RecordingMode = 'idle' | 'recording' | 'transcribing';
+type RecordingMode = 'idle' | 'confirm' | 'recording' | 'transcribing';
 
 function selectMime(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -89,7 +89,7 @@ export function AiVoiceInput({
     cleanup();
     setMode('idle');
     setSeconds(0);
-    setMessage('Запись отменена');
+    setMessage(mode === 'confirm' ? '' : 'Запись отменена');
   }
 
   async function transcribe(blob: Blob, durationSeconds: number, mimeType: string) {
@@ -218,11 +218,13 @@ export function AiVoiceInput({
   const label =
     mode === 'recording'
       ? 'Остановить запись и распознать'
-      : mode === 'transcribing'
-        ? 'Распознаём речь'
-        : available
-          ? 'Продиктовать сообщение'
-          : 'Голосовой ввод не подключён';
+      : mode === 'confirm'
+        ? 'Подтверждение записи'
+        : mode === 'transcribing'
+          ? 'Распознаём речь'
+          : available
+            ? 'Продиктовать сообщение'
+            : 'Голосовой ввод не подключён';
 
   return (
     <div className="ai-voice-control">
@@ -233,7 +235,11 @@ export function AiVoiceInput({
         aria-pressed={mode === 'recording'}
         title={label}
         disabled={mode === 'transcribing' || (mode === 'idle' && (!available || disabled))}
-        onClick={() => (mode === 'recording' ? stop() : void start())}
+        onClick={() => {
+          if (mode === 'recording') stop();
+          else if (mode === 'confirm') cancel();
+          else setMode('confirm');
+        }}
       >
         {mode === 'transcribing' ? (
           <span className="ai-voice-spinner" aria-hidden="true" />
@@ -254,15 +260,31 @@ export function AiVoiceInput({
         )}
       </button>
       {mode !== 'idle' || message ? (
-        <div className="ai-voice-toast" role="status" aria-live="polite">
+        <div
+          className="ai-voice-toast"
+          role={mode === 'confirm' ? 'dialog' : 'status'}
+          aria-label={mode === 'confirm' ? 'Подтверждение голосового ввода' : undefined}
+          aria-live="polite"
+        >
           <span>
-            {mode === 'recording'
-              ? 'Запись ' + seconds + ' / ' + status?.maxAudioSeconds + ' сек'
-              : mode === 'transcribing'
-                ? 'Распознаём речь…'
-                : message}
+            {mode === 'confirm'
+              ? 'Запись будет отправлена в Polza AI для распознавания. ASA Lab не сохраняет аудио.'
+              : mode === 'recording'
+                ? 'Запись ' + seconds + ' / ' + status?.maxAudioSeconds + ' сек'
+                : mode === 'transcribing'
+                  ? 'Распознаём речь…'
+                  : message}
           </span>
-          {mode !== 'idle' ? (
+          {mode === 'confirm' ? (
+            <>
+              <button type="button" onClick={() => void start()} aria-label="Разрешить голосовой ввод">
+                Продолжить
+              </button>
+              <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">
+                Отмена
+              </button>
+            </>
+          ) : mode !== 'idle' ? (
             <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">
               Отмена
             </button>

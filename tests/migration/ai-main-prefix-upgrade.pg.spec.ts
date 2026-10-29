@@ -61,6 +61,7 @@ const expectedPending = [
   '0280', // Six image presets.
   '0281', // Versioned image profiles.
   '0282', // Local inference overrides preserve legacy defaults.
+  '0283', // Isolated Polza STT credentials and bounded speech admission.
 ];
 
 interface Identity {
