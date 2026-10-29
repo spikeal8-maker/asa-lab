@@ -277,6 +277,8 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
     { path: '/api/ai/threads', method: 'GET', seat: seatId },
     // Monthly budgets are read-only and strictly scoped to this same StudentSeat.
     { path: '/api/ai/token-budgets', method: 'GET', seat: seatId },
+    // Capability discovery cannot grant generation; still requires this Seat ID.
+    { path: '/api/ai/image-generation/status', method: 'GET', seat: seatId },
   ];
   const aiRequests: Array<{ path: string; method: string; seat: string | null }> = [];
   page.on('request', (request) => {
@@ -315,6 +317,13 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
     },
     '/api/ai/threads': { items: [], nextCursor: null },
     '/api/ai/token-budgets': { models: [] },
+    '/api/ai/image-generation/status': {
+      enabled: false,
+      ready: false,
+      sizes: [1024],
+      dailyLimit: 0,
+      remainingToday: 0,
+    },
   };
   await page.route('**/api/ai/**', (route) => {
     const request = route.request();
