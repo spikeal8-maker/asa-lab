@@ -516,7 +516,7 @@ export function PortalHeader({
             onNavigate={() => go('ai')}
           >
             <b className="portal-ai-glyph" aria-hidden="true">
-              ✦
+              <BrainGlyph width={20} height={20} />
             </b>
             <span>ИИ</span>
           </PortalLink>
