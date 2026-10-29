@@ -345,7 +345,14 @@ def classify_installation(root, inventory, *, project=None, saved_identity=None,
         result["installationId"] = config.get("installationId") or metadata.get("instanceId")
         empty_bootstrap = _empty_bootstrap_state(root) if not (env or metadata or config) else False
         result["emptyBootstrapState"] = empty_bootstrap
-        markers = bool(env or metadata or config or ((root / ".asa").exists() and not empty_bootstrap))
+        # A previous full backup is persistent data even after .env, metadata
+        # and Docker resources have disappeared. Never infer an empty target.
+        backups = root / "backups"
+        plain_paths(backups, ())
+        backup_remnants = backups.exists() and (not backups.is_dir() or any(backups.iterdir()))
+        if backup_remnants:
+            result["backupRemnants"] = str(backups)
+        markers = bool(env or metadata or config or backup_remnants or ((root / ".asa").exists() and not empty_bootstrap))
         if pending_operation and (not isinstance(pending_operation, dict) or not pending_operation.get("operationId")
                 or pending_operation.get("installationId") != result.get("installationId")
                 or pending_operation.get("root", str(root)) != str(root)
