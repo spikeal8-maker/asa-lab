@@ -48,11 +48,13 @@ async function readLimitedSttJson(response: Response): Promise<unknown> {
   const limit = 16_384;
   const lengthHeader = response.headers.get('content-length');
   const declared = lengthHeader === null ? 0 : Number(lengthHeader);
-  if (lengthHeader !== null && (!Number.isSafeInteger(declared) || declared < 0 || declared > limit))
+  if (
+    lengthHeader !== null &&
+    (!Number.isSafeInteger(declared) || declared < 0 || declared > limit)
+  )
     throw new AiPolzaError('ai_stt_response_invalid', 502, 'Некорректный ответ распознавания.');
   const reader = response.body?.getReader();
-  if (!reader)
-    throw new AiPolzaError('ai_stt_response_invalid', 502, 'Ответ распознавания пуст.');
+  if (!reader) throw new AiPolzaError('ai_stt_response_invalid', 502, 'Ответ распознавания пуст.');
   const chunks: Buffer[] = [];
   let total = 0;
   try {
@@ -62,7 +64,11 @@ async function readLimitedSttJson(response: Response): Promise<unknown> {
       total += part.value.byteLength;
       if (total > limit) {
         void reader.cancel().catch(() => undefined);
-        throw new AiPolzaError('ai_stt_response_invalid', 502, 'Ответ распознавания превышает лимит.');
+        throw new AiPolzaError(
+          'ai_stt_response_invalid',
+          502,
+          'Ответ распознавания превышает лимит.',
+        );
       }
       chunks.push(Buffer.from(part.value));
     }
@@ -72,7 +78,11 @@ async function readLimitedSttJson(response: Response): Promise<unknown> {
   try {
     return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
   } catch {
-    throw new AiPolzaError('ai_stt_response_invalid', 502, 'Не удалось прочитать ответ распознавания.');
+    throw new AiPolzaError(
+      'ai_stt_response_invalid',
+      502,
+      'Не удалось прочитать ответ распознавания.',
+    );
   }
 }
 

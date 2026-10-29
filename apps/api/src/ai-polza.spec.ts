@@ -351,8 +351,10 @@ describe('STT admission and request isolation', () => {
     expect((await service.status()).enabled).toBe(false);
     await expect(
       service.transcribe(actor, {
-        requestId: randomUUID(), audioBase64: sampleAudio,
-        mimeType: 'audio/webm', durationSeconds: 5,
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
       }),
     ).rejects.toMatchObject({ code: 'ai_polza_key_invalid', status: 503 });
     expect(query).toHaveBeenCalledTimes(2);
@@ -373,7 +375,12 @@ describe('STT admission and request isolation', () => {
     await expect(
       service.transcribe(
         actor,
-        { requestId: randomUUID(), audioBase64: sampleAudio, mimeType: 'audio/webm', durationSeconds: 5 },
+        {
+          requestId: randomUUID(),
+          audioBase64: sampleAudio,
+          mimeType: 'audio/webm',
+          durationSeconds: 5,
+        },
         undefined,
         async () => {
           throw new AiPolzaError('ai_stt_denied', 403, 'School access revoked.');
@@ -390,11 +397,12 @@ describe('STT admission and request isolation', () => {
       if (sql.includes('ai_polza_stt_admit')) return 20;
       throw new Error('Unexpected SQL');
     });
-    const provider = vi.fn(async () =>
-      new Response(JSON.stringify({ text: 'А'.repeat(15_000) }), {
-        status: 200,
-        headers: { 'content-type': 'application/json', 'transfer-encoding': 'chunked' },
-      }),
+    const provider = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ text: 'А'.repeat(15_000) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'transfer-encoding': 'chunked' },
+        }),
     );
     const service = new AiPolzaService(pool, {
       encryptionKey,
@@ -403,8 +411,10 @@ describe('STT admission and request isolation', () => {
     });
     await expect(
       service.transcribe(actor, {
-        requestId: randomUUID(), audioBase64: sampleAudio,
-        mimeType: 'audio/webm', durationSeconds: 5,
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
       }),
     ).rejects.toMatchObject({
       code: 'ai_stt_response_invalid',
@@ -413,5 +423,4 @@ describe('STT admission and request isolation', () => {
     });
     expect(provider).toHaveBeenCalledTimes(1);
   });
-
 });
