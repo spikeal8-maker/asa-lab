@@ -48,9 +48,14 @@ export function AiVoiceInput({
   useEffect(() => {
     mounted.current = true;
     let active = true;
-    void call<VoiceStatus>('/api/ai/stt/status').then((result) => {
-      if (active) setStatus(result.ok ? result.data : null);
-    });
+    void call<VoiceStatus>('/api/ai/stt/status')
+      .then((result) => {
+        if (active) setStatus(result.ok ? result.data : null);
+      })
+      .catch(() => {
+        // A legacy API, blocked network or strict test fixture must not crash text chat.
+        if (active) setStatus(null);
+      });
     return () => {
       active = false;
       mounted.current = false;
