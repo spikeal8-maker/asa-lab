@@ -270,8 +270,8 @@
     gap: 5px;
   }
   .asa-ai-provider-card {
-    padding: 10px 8px;
-    min-height: 99px;
+    padding: 9px 9px;
+    min-height: 76px;
   }
   .asa-ai-provider-card-top strong {
     font-size: 12px;
