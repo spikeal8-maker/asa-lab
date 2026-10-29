@@ -44,6 +44,7 @@ export function AdminComfyUiPage({
   const [tab, setTab] = useState<'local' | 'api'>('local');
   const [imageConfig, setImageConfig] = useState<AiImageGenerationAdminConfig | null>(null);
   const [details, setDetails] = useState<ComfyUiStatus | null>(null);
+  const [connectionVerified, setConnectionVerified] = useState(false);
   const [config, setConfig] = useState<{
     configurationVersion: number;
     baseUrl: string;
@@ -79,19 +80,8 @@ export function AdminComfyUiPage({
         }
         setConfig(reply.data);
         setUrl(reply.data.baseUrl);
-        const response = await call<ComfyUiStatus>('/api/admin/v1/ai/comfyui/status');
-        if (!active || request !== generation.current) return;
-        if (
-          response.ok &&
-          validStatus(response.data) &&
-          response.data.baseUrl === reply.data.baseUrl
-        ) {
-          setDetails(response.data);
-          setError('');
-        } else if (!response.ok) {
-          if ([401, 403].includes(response.status)) onAccessDenied();
-          setError(response.error.message || 'ComfyUI недоступен.');
-        } else setError('Настройки изменились или ответ сервера несовместим. Повторите проверку.');
+        // The status is checked separately with the saved image configuration.
+        // This avoids racing two responses with different recipe revisions.
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -102,17 +92,42 @@ export function AdminComfyUiPage({
     };
   }, [onAccessDenied]);
 
-  // Re-evaluate the selected saved recipe after a profile save, not just at first mount.
+  // Never leave a stale green indicator or an active preview after a failed probe.
+  // Revalidate when the saved profile, endpoint, or explicit refresh changes.
   useEffect(() => {
-    if (!imageConfig) return;
+    if (!imageConfig || !config) return;
     let active = true;
-    void call<ComfyUiStatus>('/api/admin/v1/ai/comfyui/status').then((result) => {
-      if (active && result.ok && validStatus(result.data)) setDetails(result.data);
-    });
+    setDetails(null);
+    setConnectionVerified(false);
+    setError('');
+    void call<ComfyUiStatus>('/api/admin/v1/ai/comfyui/status')
+      .then((result) => {
+        if (!active) return;
+        if (result.ok && validStatus(result.data) && result.data.baseUrl === config.baseUrl) {
+          setDetails(result.data);
+          setConnectionVerified(true);
+          setError('');
+        } else {
+          setDetails(null);
+          setConnectionVerified(false);
+          if (!result.ok && [401, 403].includes(result.status)) onAccessDenied();
+          setError(
+            !result.ok
+              ? result.error.message || 'ComfyUI недоступен.'
+              : 'Ответ ComfyUI устарел или несовместим. Проверьте подключение.',
+          );
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setDetails(null);
+        setConnectionVerified(false);
+        setError('Не удалось проверить состояние ComfyUI.');
+      });
     return () => {
       active = false;
     };
-  }, [imageConfig?.configurationVersion, statusReload]);
+  }, [imageConfig?.configurationVersion, config?.baseUrl, statusReload]);
 
   async function connect(save: boolean) {
     if (!config || flight.current) return;
@@ -140,6 +155,8 @@ export function AdminComfyUiPage({
       if (request !== generation.current) return;
       if (!reply.ok) {
         if ([401, 403].includes(reply.status)) onAccessDenied();
+        setDetails(null);
+        setConnectionVerified(false);
         setError(reply.error.message);
         return;
       }
@@ -150,6 +167,7 @@ export function AdminComfyUiPage({
         return;
       }
       setDetails(status);
+      setConnectionVerified(status.baseUrl === config.baseUrl || 'config' in next);
       if ('config' in next) {
         attempt.current = null;
         setConfig(next.config);
@@ -170,7 +188,7 @@ export function AdminComfyUiPage({
   const model = details?.diffusionModels.find((name) => /flux-2-klein-4b/i.test(name));
   const encoder = details?.textEncoders.find((name) => /qwen_3_4b/i.test(name));
   const vae = details?.vaeModels.find((name) => /flux2[-_]vae/i.test(name));
-  const savedReady = imageConfig?.ready && imageConfig.enabled;
+  const savedReady = connectionVerified && imageConfig?.ready && imageConfig.enabled;
   const gpu = details?.devices?.[0];
 
   return (
@@ -180,7 +198,15 @@ export function AdminComfyUiPage({
           <h2>Изображения</h2>
           <p>Источники генерации, настройки и тестовый результат</p>
         </div>
-        <button type="button" className="asa-image-refresh" onClick={() => setStatusReload((n) => n + 1)}>
+        <button
+          type="button"
+          className="asa-image-refresh"
+          onClick={() => {
+            setDetails(null);
+            setConnectionVerified(false);
+            setStatusReload((n) => n + 1);
+          }}
+        >
           Проверить состояние
         </button>
       </header>
@@ -211,7 +237,7 @@ export function AdminComfyUiPage({
           <div className="asa-image-overview" aria-label="Состояние локальной генерации">
             <div>
               <span>Сервер</span>
-              <strong>{details ? 'ComfyUI подключён' : loading ? 'Проверяем…' : 'Нет связи'}</strong>
+              <strong>{details && connectionVerified ? 'ComfyUI подключён' : !error ? 'Проверяем…' : 'Нет связи'}</strong>
               <small>{details ? 'v' + details.version : 'Сохранённое подключение'}</small>
             </div>
             <div>
@@ -229,9 +255,17 @@ export function AdminComfyUiPage({
           </div>
           {error ? <p role="alert" className="asa-image-error">{error}</p> : null}
           <div className="asa-image-workbench-grid">
-            <AdminAiImages onAccessDenied={onAccessDenied} onConfigChange={onImageConfigChange} />
+            <AdminAiImages
+              onAccessDenied={onAccessDenied}
+              onConfigChange={onImageConfigChange}
+              refreshToken={statusReload}
+            />
             {principalId ? (
-              <AdminComfyImageTest principalId={principalId} config={imageConfig} />
+              <AdminComfyImageTest
+                principalId={principalId}
+                config={connectionVerified ? imageConfig : null}
+                refreshToken={statusReload}
+              />
             ) : null}
           </div>
           <details className="asa-image-connection-detail">
@@ -253,6 +287,7 @@ export function AdminComfyUiPage({
                     generation.current++;
                     setUrl(event.target.value);
                     setDetails(null);
+                    setConnectionVerified(false);
                     setError('');
                     setNotice('');
                   }}
