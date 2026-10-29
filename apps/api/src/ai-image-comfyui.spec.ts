@@ -437,7 +437,7 @@ it.each(['0.19.3', '0.42.0', '0.99.1', '1.2.0', undefined, '', null, { invalid: 
                   type === 'ModelSamplingAuraFlow' || key === 'cfg' || key === 'denoise'
                     ? 'FLOAT'
                     : 'INT',
-                  { min: 0, max: 18446744073709551615 },
+                  { min: 0, max: Number('18446744073709551615') },
                 ]
               : key === 'text' || key === 'filename_prefix'
                 ? ['STRING']
