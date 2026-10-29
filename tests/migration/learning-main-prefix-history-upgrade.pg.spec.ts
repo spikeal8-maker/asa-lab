@@ -289,6 +289,11 @@ const upgradeArtifacts = [
     '0282_ai_ollama_inference_options.sql',
     'd34604f857922e794dbef41a2accf8354149b4f87c94b57e5c1980bb363dae13',
   ],
+  [
+    '0283',
+    '0283_ai_polza_stt.sql',
+    'b89c74674e2eb5c6be3452f8006a1d96c9d5768ab0f781074280a1a7fef8fc54',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
