@@ -131,7 +131,12 @@ export class AiSttController {
       const onDisconnect = () => controller.abort();
       reply.raw.once('close', onDisconnect);
       try {
-        return await this.polza.transcribe(access.owner, body, controller.signal);
+        return await this.polza.transcribe(access.owner, body, controller.signal, async () => {
+          // The owner/Seat authorization may have been revoked while waiting.
+          const current = await this.owner(request);
+          if (!current.allowed || current.owner !== access.owner)
+            throw new AiPolzaError('ai_stt_denied', 403, 'Доступ к голосовому вводу изменился.');
+        });
       } finally {
         reply.raw.off('close', onDisconnect);
       }

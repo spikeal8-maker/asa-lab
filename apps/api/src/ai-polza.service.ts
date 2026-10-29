@@ -42,6 +42,40 @@ interface PolzaRuntime {
   revision: number;
 }
 
+/** Read a bounded provider response even when transfer encoding is chunked and
+ * Content-Length is absent or lies. Never buffer unbounded upstream JSON. */
+async function readLimitedSttJson(response: Response): Promise<unknown> {
+  const limit = 16_384;
+  const lengthHeader = response.headers.get('content-length');
+  const declared = lengthHeader === null ? 0 : Number(lengthHeader);
+  if (lengthHeader !== null && (!Number.isSafeInteger(declared) || declared < 0 || declared > limit))
+    throw new AiPolzaError('ai_stt_response_invalid', 502, 'Некорректный ответ распознавания.');
+  const reader = response.body?.getReader();
+  if (!reader)
+    throw new AiPolzaError('ai_stt_response_invalid', 502, 'Ответ распознавания пуст.');
+  const chunks: Buffer[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      total += part.value.byteLength;
+      if (total > limit) {
+        void reader.cancel().catch(() => undefined);
+        throw new AiPolzaError('ai_stt_response_invalid', 502, 'Ответ распознавания превышает лимит.');
+      }
+      chunks.push(Buffer.from(part.value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+  } catch {
+    throw new AiPolzaError('ai_stt_response_invalid', 502, 'Не удалось прочитать ответ распознавания.');
+  }
+}
+
 export interface PolzaSttInput {
   requestId: string;
   audioBase64: string;
@@ -376,6 +410,7 @@ export class AiPolzaService {
     owner: string,
     raw: unknown,
     signal?: AbortSignal,
+    revalidateAccess?: () => Promise<void>,
   ): Promise<{ text: string; model: string }> {
     const state = await this.runtime();
     if (!state.enabled || !state.transcription_enabled || !state.api_key_ciphertext)
@@ -414,6 +449,11 @@ export class AiPolzaService {
           400,
           'Длительность записи не соответствует разрешённому лимиту.',
         );
+      if (signal?.aborted)
+        throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+      // School access and the selected Seat may have changed while waiting in the
+      // queue or probing the file. Re-check before any potentially paid operation.
+      await revalidateAccess?.();
       if (signal?.aborted)
         throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.
@@ -471,19 +511,7 @@ export class AiPolzaService {
                 : 'Polza AI не смог распознать запись.';
         throw new AiPolzaError(code, response.status === 429 ? 429 : 503, message);
       }
-      const length = Number(response.headers.get('content-length'));
-      if (Number.isFinite(length) && length > 16_384)
-        throw new AiPolzaError('ai_stt_response_invalid', 502, 'Некорректный ответ распознавания.');
-      let result: unknown;
-      try {
-        result = await response.json();
-      } catch {
-        throw new AiPolzaError(
-          'ai_stt_response_invalid',
-          502,
-          'Не удалось прочитать ответ распознавания.',
-        );
-      }
+      const result = await readLimitedSttJson(response);
       const text = (result as { text?: unknown } | null)?.text;
       if (typeof text !== 'string' || text.length > 6000)
         throw new AiPolzaError('ai_stt_response_invalid', 502, 'Сервис вернул недопустимый текст.');

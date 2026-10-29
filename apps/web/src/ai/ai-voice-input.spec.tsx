@@ -108,9 +108,23 @@ it('requires an explicit confirmation before microphone capture', async () => {
   await act(async () => button('Продиктовать сообщение').click());
   expect(acquire).not.toHaveBeenCalled();
   expect(host.textContent).toContain('Polza AI');
+  expect(document.activeElement).toBe(button('Разрешить голосовой ввод'));
   await act(async () => button('Отменить голосовой ввод').click());
   expect(acquire).not.toHaveBeenCalled();
   expect(requests.map((r) => r.path)).toEqual(['/api/ai/stt/status']);
+});
+
+it('Escape dismisses the external audio transfer consent without microphone access', async () => {
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => {
+    button('Разрешить голосовой ввод').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    );
+  });
+  expect(acquire).not.toHaveBeenCalled();
+  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.activeElement).toBe(button('Продиктовать сообщение'));
 });
 
 it('stops and transcribes into a draft only, without sending a chat message', async () => {

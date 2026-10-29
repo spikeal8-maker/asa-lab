@@ -335,4 +335,59 @@ describe('STT admission and request isolation', () => {
     await Promise.all([first, second]);
     expect(admitted).toHaveLength(2);
   });
+  it('denies a revoked School Seat before spending quota or dispatching speech', async () => {
+    const { pool, query } = fakePool((sql) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      throw new Error('Denied requests must not reach quota admission');
+    });
+    const provider = vi.fn();
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 5,
+    });
+    await expect(
+      service.transcribe(
+        actor,
+        { requestId: randomUUID(), audioBase64: sampleAudio, mimeType: 'audio/webm', durationSeconds: 5 },
+        undefined,
+        async () => {
+          throw new AiPolzaError('ai_stt_denied', 403, 'School access revoked.');
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'ai_stt_denied', status: 403 });
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized chunked upstream replies without buffering or parsing their JSON', async () => {
+    const { pool } = fakePool((sql) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      if (sql.includes('ai_polza_stt_admit')) return 20;
+      throw new Error('Unexpected SQL');
+    });
+    const provider = vi.fn(async () =>
+      new Response(JSON.stringify({ text: 'А'.repeat(15_000) }), {
+        status: 200,
+        headers: { 'content-type': 'application/json', 'transfer-encoding': 'chunked' },
+      }),
+    );
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 5,
+    });
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(), audioBase64: sampleAudio,
+        mimeType: 'audio/webm', durationSeconds: 5,
+      }),
+    ).rejects.toMatchObject({
+      code: 'ai_stt_response_invalid',
+      status: 502,
+      message: 'Ответ распознавания превышает лимит.',
+    });
+    expect(provider).toHaveBeenCalledTimes(1);
+  });
+
 });

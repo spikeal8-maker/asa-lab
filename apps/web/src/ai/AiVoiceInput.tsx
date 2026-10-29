@@ -42,6 +42,8 @@ export function AiVoiceInput({
   const pending = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
   const mounted = useRef(true);
+  const microphoneButton = useRef<HTMLButtonElement>(null);
+  const consentButton = useRef<HTMLButtonElement>(null);
   const callback = useRef(onTranscript);
   callback.current = onTranscript;
 
@@ -84,6 +86,10 @@ export function AiVoiceInput({
   }, [disabled]);
 
   useEffect(() => {
+    if (mode === 'confirm') consentButton.current?.focus();
+  }, [mode]);
+
+  useEffect(() => {
     if (mode !== 'recording') return;
     const clock = setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => clearInterval(clock);
@@ -106,6 +112,7 @@ export function AiVoiceInput({
     setMode('idle');
     setSeconds(0);
     setMessage(mode === 'confirm' ? '' : 'Запись отменена');
+    if (mode === 'confirm') microphoneButton.current?.focus();
   }
 
   async function transcribe(blob: Blob, durationSeconds: number, mimeType: string) {
@@ -249,6 +256,7 @@ export function AiVoiceInput({
   return (
     <div className="ai-voice-control">
       <button
+        ref={microphoneButton}
         className={'chat-microphone' + (mode === 'recording' ? ' ai-voice-recording' : '')}
         type="button"
         aria-label={label}
@@ -298,8 +306,15 @@ export function AiVoiceInput({
           {mode === 'confirm' ? (
             <>
               <button
+                ref={consentButton}
                 type="button"
                 onClick={() => void start()}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cancel();
+                  }
+                }}
                 aria-label="Разрешить голосовой ввод"
               >
                 Продолжить
