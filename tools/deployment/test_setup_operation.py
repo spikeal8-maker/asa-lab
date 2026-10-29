@@ -78,6 +78,36 @@ class FreshComposeDefaultTests(unittest.TestCase):
             self.assertEqual(configured["profile"], "production")
 
 
+
+class CloudPreflightPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.runtime = Runtime.__new__(Runtime)
+        self.runtime.config = {"installationId": IDENTITY, "backup": {
+            "policy": "best-effort", "cloud": {"enabled": True}
+        }}
+
+    def test_best_effort_transport_unavailable_is_warning(self):
+        with patch("deployment.setup_operation.backup_workflow.CloudTransport",
+                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable")):
+            actual = self.runtime.backup_preflight()
+        self.assertEqual(actual["status"], "WARNING")
+        self.assertEqual(actual["reasonCode"], "CLOUD_UNAVAILABLE")
+
+    def test_required_transport_unavailable_stays_blocked(self):
+        self.runtime.config["backup"]["policy"] = "required"
+        with patch("deployment.setup_operation.backup_workflow.CloudTransport",
+                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable")):
+            with self.assertRaises(Blocked) as caught:
+                self.runtime.backup_preflight()
+        self.assertEqual(caught.exception.code, "CLOUD_PREPARATION")
+
+    def test_best_effort_transport_identity_violation_stays_blocked(self):
+        with patch("deployment.setup_operation.backup_workflow.CloudTransport",
+                   side_effect=Blocked("CLOUD_TRANSPORT_PIN", "transport changed")):
+            with self.assertRaises(Blocked) as caught:
+                self.runtime.backup_preflight()
+        self.assertEqual(caught.exception.code, "CLOUD_TRANSPORT_PIN")
+
 class FakeRuntime:
     def __init__(self, root):
         self.root = Path(root)
