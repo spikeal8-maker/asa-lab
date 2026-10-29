@@ -43,7 +43,11 @@ async function privateJson(
     throw new ComfyUiError('ai_comfy_unreachable', 503, 'Нет соединения с ComfyUI.');
   }
   if (!response.ok || response.redirected) {
-    throw new ComfyUiError('ai_comfy_unavailable', 503, 'ComfyUI не ответил на запрос.');
+    throw new ComfyUiError(
+      'ai_comfy_unavailable',
+      503,
+      'Адрес не подтвердил ComfyUI. Проверьте порт: 11434 обычно используется Ollama, ComfyUI — 8188.',
+    );
   }
   if (!response.body) throw new ComfyUiError('ai_comfy_invalid', 503, 'Ответ ComfyUI пустой.');
   const reader = response.body.getReader();

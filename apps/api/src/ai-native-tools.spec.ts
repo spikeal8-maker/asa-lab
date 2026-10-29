@@ -79,3 +79,20 @@ describe('native internet argument boundary', () => {
     ).toEqual({ inputTokens: null, outputTokens: null, actualModel: 'a' });
   });
 });
+
+it('advertises only the configured FP8 recipe and rejects an unoffered v1 graph request', () => {
+  const recipe = 'flux2-klein-4b-fp8-izo-v1' as const;
+  const offered = nativeTools({
+    imageSizes: [1024],
+    imageRecipe: recipe,
+    search: false,
+    weather: false,
+  });
+  const call = (model: string) => [
+    {
+      function: { name: 'generate_image', arguments: { prompt: 'A blue tree', size: 1024, model } },
+    },
+  ];
+  expect(parseNativeToolCalls(call(recipe), offered)[0]?.arguments.model).toBe(recipe);
+  expect(() => parseNativeToolCalls(call('flux2-klein-4b-v1'), offered)).toThrow();
+});

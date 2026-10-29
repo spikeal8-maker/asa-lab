@@ -1,4 +1,10 @@
-import { aiImageDimensions, isAiImageSize, type AiImageStoredSize } from '@asa-lab/contracts';
+import {
+  AI_IMAGE_PRESETS,
+  aiImageDimensions,
+  isAiImageSize,
+  type AiImageRecipe,
+  type AiImageStoredSize,
+} from '@asa-lab/contracts';
 import { createHash } from 'node:crypto';
 import { ollamaBaseUrl } from './ai-ollama.js';
 import { validateAiAttachment } from './ai-attachments/validation.js';
@@ -9,7 +15,7 @@ export type ComfyImageRecovery = {
   state: 'pending' | 'running' | 'missing' | 'failed' | 'complete';
   png?: Buffer;
 };
-const RECIPE = 'flux2-klein-4b-v1';
+const RECIPE: AiImageRecipe = 'flux2-klein-4b-v1';
 const MODELS = {
   unet: 'flux-2-klein-4b-fp8.safetensors',
   clip: 'qwen_3_4b_fp4_flux2.safetensors',
@@ -39,8 +45,50 @@ function identity(id: string, marker: string, size: Size): void {
   )
     invalid();
 }
-function graph(prompt: string, size: Size, seed: number, marker: string): JsonObject {
+function graph(
+  prompt: string,
+  size: Size,
+  seed: number,
+  marker: string,
+  recipe: AiImageRecipe = RECIPE,
+): JsonObject {
+  if (recipe !== RECIPE && recipe !== 'flux2-klein-4b-fp8-izo-v1') invalid();
   const dimensions = aiImageDimensions(size);
+  // Versioned adaptation of docs/deployment/comfyui/izo-fp8-diagnostic-workflow.json.
+  // Weight provenance is the adjacent RTX3060 manifest, not an HTTP catalogue assertion.
+  if (recipe === 'flux2-klein-4b-fp8-izo-v1')
+    return {
+      '1': {
+        class_type: 'UNETLoader',
+        inputs: { unet_name: MODELS.unet, weight_dtype: 'default' },
+      },
+      '2': {
+        class_type: 'CLIPLoader',
+        inputs: { clip_name: 'qwen_3_4b.safetensors', type: 'flux2', device: 'default' },
+      },
+      '3': { class_type: 'VAELoader', inputs: { vae_name: MODELS.vae } },
+      '4': { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['2', 0] } },
+      '5': { class_type: 'CLIPTextEncode', inputs: { text: '', clip: ['2', 0] } },
+      '6': { class_type: 'EmptyFlux2LatentImage', inputs: { ...dimensions, batch_size: 1 } },
+      '7': {
+        class_type: 'KSampler',
+        inputs: {
+          seed,
+          steps: 4,
+          cfg: 1.0,
+          sampler_name: 'er_sde',
+          scheduler: 'simple',
+          denoise: 1.0,
+          model: ['8', 0],
+          positive: ['4', 0],
+          negative: ['5', 0],
+          latent_image: ['6', 0],
+        },
+      },
+      '8': { class_type: 'ModelSamplingAuraFlow', inputs: { shift: 3.0, model: ['1', 0] } },
+      '11': { class_type: 'VAEDecode', inputs: { samples: ['7', 0], vae: ['3', 0] } },
+      '12': { class_type: 'SaveImage', inputs: { images: ['11', 0], filename_prefix: marker } },
+    };
   return {
     '1': { class_type: 'UNETLoader', inputs: { unet_name: MODELS.unet, weight_dtype: 'default' } },
     '2': {
@@ -96,8 +144,9 @@ export function imageWorkflowDigest(
   size: Size,
   seed: number,
   marker: string,
+  recipe: AiImageRecipe = RECIPE,
 ): string {
-  return digest(graph(prompt, size, seed, marker));
+  return digest(graph(prompt, size, seed, marker, recipe));
 }
 function validDigest(value: string): void {
   if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) invalid();
@@ -156,64 +205,99 @@ export class ComfyImageTransport {
       throw new ComfyTransportError('ai_image_provider_unavailable', body !== undefined);
     }
   }
-  async readiness(): Promise<{ ready: boolean; reason: string | null }> {
+  async readiness(
+    recipe: AiImageRecipe = RECIPE,
+  ): Promise<{ ready: boolean; reason: string | null }> {
+    let reason =
+      'Адрес не подтвердил ComfyUI. Проверьте сервер и порт (11434 обычно Ollama, 8188 — ComfyUI).';
     try {
       const stats = object(await this.json('/system_stats'));
       const version = object(stats['system'])['comfyui_version'];
-      if (
-        typeof version !== 'string' ||
-        !/^0\.(?:4[2-9]|[5-9]\d|\d{3,})\.(?:\d+)$/.test(version) ||
-        version === '0.42.0'
-      )
-        invalid();
-      const template = graph('readiness', 512, 0, 'ASA_readiness');
-      // Per-class requests keep unrelated/custom-node definitions outside our trust boundary.
-      await Promise.all(
-        Object.values(template).map(async (node) => {
-          const definition = object(node);
-          const type = definition['class_type'] as string;
-          const info = object(object(await this.json('/object_info/' + type))[type]);
-          const inputs = object(info['input']);
-          const declared = {
-            ...object(inputs['required']),
-            ...(inputs['optional'] ? object(inputs['optional']) : {}),
-          };
-          for (const [key, value] of Object.entries(object(definition['inputs']))) {
-            const field = declared[key];
-            if (!Array.isArray(field) || !field.length) invalid();
-            if (Array.isArray(field[0])) {
-              if (Array.isArray(value) || !field[0].includes(value)) invalid();
-            } else if (field[0] === 'COMBO') {
-              const options = object(field[1])['options'];
-              if (!Array.isArray(options) || Array.isArray(value) || !options.includes(value))
-                invalid();
-            } else {
-              const outputs: Record<string, string> = {
-                '1': 'MODEL',
-                '2': 'CLIP',
-                '3': 'VAE',
-                '4': 'CONDITIONING',
-                '5': 'GUIDER',
-                '6': 'LATENT',
-                '7': 'NOISE',
-                '8': 'SIGMAS',
-                '9': 'SAMPLER',
-                '10': 'LATENT',
-                '11': 'IMAGE',
-              };
-              const expected = Array.isArray(value)
-                ? outputs[String(value[0])]
-                : typeof value === 'number'
-                  ? 'INT'
-                  : 'STRING';
-              if (field[0] !== expected) invalid();
-            }
-          }
-        }),
-      );
+      if (typeof version !== 'string' || !version.length || version.length > 40) invalid();
+      // Version strings are diagnostics, not a substitute for the actual native contracts.
+      // The former 0.42.1 floor had no documented upstream defect behind it.
+      const template = graph('readiness', 768, 0, 'ASA_readiness', recipe);
+      const definitions = new Map<string, JsonObject>();
+      for (const node of Object.values(template)) {
+        const type = object(node)['class_type'] as string;
+        reason = 'Нет совместимого native-узла: ' + type;
+        if (!definitions.has(type))
+          definitions.set(type, object(object(await this.json('/object_info/' + type))[type]));
+      }
+      const outputs: Record<string, readonly string[]> = {
+        UNETLoader: ['MODEL'],
+        CLIPLoader: ['CLIP'],
+        VAELoader: ['VAE'],
+        CLIPTextEncode: ['CONDITIONING'],
+        BasicGuider: ['GUIDER'],
+        EmptyFlux2LatentImage: ['LATENT'],
+        RandomNoise: ['NOISE'],
+        Flux2Scheduler: ['SIGMAS'],
+        KSamplerSelect: ['SAMPLER'],
+        SamplerCustomAdvanced: ['LATENT', 'LATENT'],
+        KSampler: ['LATENT'],
+        ModelSamplingAuraFlow: ['MODEL'],
+        VAEDecode: ['IMAGE'],
+        SaveImage: [],
+      };
+      for (const raw of AI_IMAGE_PRESETS.flatMap((preset) =>
+        Object.values(graph('readiness', preset.id, 0, 'ASA_readiness', recipe)),
+      )) {
+        const node = object(raw),
+          type = node['class_type'] as string;
+        const info = definitions.get(type)!;
+        reason = 'Несовместимые выходы native-узла: ' + type;
+        const expectedOutputs = outputs[type];
+        if (!expectedOutputs || canonical(info['output']) !== canonical(expectedOutputs)) invalid();
+        const input = object(info['input']);
+        const required = object(input['required']);
+        const declared = { ...required, ...(input['optional'] ? object(input['optional']) : {}) };
+        const values = object(node['inputs']);
+        reason = 'Неподдерживаемый обязательный вход native-узла: ' + type;
+        for (const key of Object.keys(required)) if (!Object.hasOwn(values, key)) invalid();
+        for (const [key, value] of Object.entries(values)) {
+          reason = ['unet_name', 'clip_name', 'vae_name'].includes(key)
+            ? 'Для профиля ' + recipe + ' не подтверждён точный файл модели: ' + String(value)
+            : 'Несовместимый вход native-узла: ' + type + '.' + key;
+          const field = declared[key];
+          if (!Array.isArray(field) || !field.length) invalid();
+          if (Array.isArray(field[0]) || field[0] === 'COMBO') {
+            const choices = Array.isArray(field[0]) ? field[0] : object(field[1])['options'];
+            if (!Array.isArray(choices) || Array.isArray(value) || !choices.includes(value))
+              invalid();
+          } else if (Array.isArray(value)) {
+            const source = object(template[String(value[0])]);
+            const sourceOutputs = outputs[source['class_type'] as string];
+            if (
+              value.length !== 2 ||
+              !Number.isInteger(value[1]) ||
+              field[0] !== sourceOutputs?.[value[1] as number]
+            )
+              invalid();
+          } else if (typeof value === 'number') {
+            if (
+              !Number.isFinite(value) ||
+              field[0] !== (['cfg', 'denoise', 'shift'].includes(key) ? 'FLOAT' : 'INT') ||
+              (field[0] === 'INT' && !Number.isInteger(value))
+            )
+              invalid();
+            const bounds = field[1] ? object(field[1]) : {};
+            if (
+              (typeof bounds['min'] === 'number' && value < bounds['min']) ||
+              (typeof bounds['max'] === 'number' && value > bounds['max'])
+            )
+              invalid();
+          } else if (
+            field[0] !== 'STRING' ||
+            typeof value !== 'string' ||
+            ['unet_name', 'clip_name', 'vae_name'].includes(key)
+          )
+            invalid();
+        }
+      }
       return { ready: true, reason: null };
     } catch {
-      return { ready: false, reason: 'ai_image_provider_not_ready' };
+      return { ready: false, reason };
     }
   }
   async dispatch(
@@ -222,6 +306,7 @@ export class ComfyImageTransport {
     size: Size,
     seed: number,
     marker: string,
+    recipe: AiImageRecipe = RECIPE,
   ): Promise<void> {
     identity(providerUUID, marker, size);
     if (
@@ -233,14 +318,14 @@ export class ComfyImageTransport {
       seed > 0xffffffff
     )
       invalid();
-    const workflow = graph(prompt, size, seed, marker);
+    const workflow = graph(prompt, size, seed, marker, recipe);
     // The durable caller CAS must precede this sole POST. ComfyUI does not deduplicate IDs.
     try {
       const response = object(
         await this.json('/prompt', {
           prompt_id: providerUUID,
           prompt: workflow,
-          extra_data: { asa_image: { marker, recipe: RECIPE, digest: digest(workflow) } },
+          extra_data: { asa_image: { marker, recipe, digest: digest(workflow) } },
         }),
       );
       if (
@@ -258,12 +343,13 @@ export class ComfyImageTransport {
     marker: string,
     size: Size,
     expectedDigest: string,
+    recipe: AiImageRecipe = RECIPE,
   ): boolean {
     if (!Array.isArray(tuple) || tuple[1] !== id) return false;
     const workflow = object(tuple[2]);
     const meta = object(object(tuple[3])['asa_image']);
     const prompt = object(object(workflow['4'])['inputs'])['text'];
-    const seed = object(object(workflow['7'])['inputs'])['noise_seed'];
+    const seed = object(object(workflow['7'])['inputs'])[recipe === RECIPE ? 'noise_seed' : 'seed'];
     if (
       typeof prompt !== 'string' ||
       prompt.length < 1 ||
@@ -274,10 +360,10 @@ export class ComfyImageTransport {
       seed > 0xffffffff
     )
       return false;
-    const expected = graph(prompt, size, seed, marker);
+    const expected = graph(prompt, size, seed, marker, recipe);
     return (
       meta['marker'] === marker &&
-      meta['recipe'] === RECIPE &&
+      meta['recipe'] === recipe &&
       meta['digest'] === expectedDigest &&
       digest(expected) === expectedDigest &&
       canonical(workflow) === canonical(expected)
@@ -288,6 +374,7 @@ export class ComfyImageTransport {
     marker: string,
     size: Size,
     expectedDigest: string,
+    recipe: AiImageRecipe = RECIPE,
   ): Promise<'pending' | 'running' | 'missing'> {
     const queue = object(await this.json('/queue'));
     for (const [key, state] of [
@@ -298,7 +385,7 @@ export class ComfyImageTransport {
       if (!Array.isArray(entries) || entries.length > 2000) invalid();
       for (const entry of entries) {
         if (Array.isArray(entry) && entry[1] === id) {
-          if (!this.owned(entry, id, marker, size, expectedDigest)) invalid();
+          if (!this.owned(entry, id, marker, size, expectedDigest, recipe)) invalid();
           return state;
         }
       }
@@ -310,14 +397,15 @@ export class ComfyImageTransport {
     marker: string,
     size: Size,
     expectedDigest: string,
+    recipe: AiImageRecipe = RECIPE,
   ): Promise<ComfyImageRecovery> {
     identity(id, marker, size);
     validDigest(expectedDigest);
     const history = object(await this.json('/history/' + id));
     if (!Object.hasOwn(history, id))
-      return { state: await this.queue(id, marker, size, expectedDigest) };
+      return { state: await this.queue(id, marker, size, expectedDigest, recipe) };
     const entry = object(history[id]);
-    if (!this.owned(entry['prompt'], id, marker, size, expectedDigest)) invalid();
+    if (!this.owned(entry['prompt'], id, marker, size, expectedDigest, recipe)) invalid();
     const status = object(entry['status']);
     if (status['status_str'] === 'error') return { state: 'failed' };
     if (status['completed'] !== true || status['status_str'] !== 'success')
@@ -364,12 +452,13 @@ export class ComfyImageTransport {
     marker: string,
     size: Size,
     expectedDigest: string,
+    recipe: AiImageRecipe = RECIPE,
   ): Promise<boolean> {
     identity(id, marker, size);
     validDigest(expectedDigest);
-    if ((await this.queue(id, marker, size, expectedDigest)) !== 'pending') return false;
+    if ((await this.queue(id, marker, size, expectedDigest, recipe)) !== 'pending') return false;
     // /queue delete targets only this caller-owned ID; never interrupt running work.
     await this.json('/queue', { delete: [id] });
-    return (await this.queue(id, marker, size, expectedDigest)) === 'missing';
+    return (await this.queue(id, marker, size, expectedDigest, recipe)) === 'missing';
   }
 }

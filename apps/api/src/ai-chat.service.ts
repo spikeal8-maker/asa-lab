@@ -1,3 +1,4 @@
+import type { AiImageRecipe } from '@asa-lab/contracts';
 import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
 import { AiTokenBudgetStore } from './ai-token-budgets.js';
 import { installProviderObservations } from './ai-model-catalog.js';
@@ -1909,7 +1910,7 @@ export class AiChatService {
         imageStatus.ready &&
         imageStatus.remainingToday > 0 &&
         imageStatus.sizes.includes(nativeImage!.size)
-          ? { imageSizes: [nativeImage!.size] }
+          ? { imageSizes: [nativeImage!.size], imageRecipe: imageStatus.recipe }
           : {}),
       });
       const permittedTools = tools
@@ -2014,6 +2015,7 @@ export class AiChatService {
             call.arguments.prompt as string,
             nativeImage!.size,
             combined,
+            call.arguments.model as AiImageRecipe,
           );
           await this.usage.finish(
             principalId,

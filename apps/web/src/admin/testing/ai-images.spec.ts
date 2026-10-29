@@ -116,3 +116,22 @@ it('offers exactly the six agreed image presets and no 512 square', async () => 
   for (const preset of AI_IMAGE_PRESETS) expect(sizes.textContent).toContain(preset.label);
   expect(sizes.textContent).not.toContain('512');
 });
+
+it('selects a distinct FP8 profile in the revisioned admin write without generation', async () => {
+  await render();
+  const select = host.querySelector('select')!;
+  await act(async () => {
+    select.value = 'flux2-klein-4b-fp8-izo-v1';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: { ...config, recipe: 'flux2-klein-4b-fp8-izo-v1' },
+  });
+  await save();
+  const write = vi.mocked(call).mock.calls.find(([, init]) => init?.method === 'PUT')!;
+  expect(JSON.parse(String(write[1]!.body)).recipe).toBe('flux2-klein-4b-fp8-izo-v1');
+  expect(host.textContent).toContain('SHA-256');
+  expect(host.textContent).toContain('не подтверждены');
+});

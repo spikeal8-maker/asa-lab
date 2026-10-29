@@ -201,18 +201,30 @@ export function AdminComfyUiPage({ onAccessDenied }: { readonly onAccessDenied: 
           </div>
         ) : null}
 
-        <details className="asa-comfy-help">
-          <summary>Модели и профиль видеокарты 12 ГБ</summary>
+        <section className="asa-comfy-help">
+          <h3>Модели и профиль видеокарты 12 ГБ</h3>
           <p>
             Проверенный профиль ИЗО: RTX 3060 12 ГБ, FLUX.2 Klein 4B FP8, Qwen3 4B FP8, Flux2 VAE,
             одно изображение за раз. Начинать с 1024×1024 или 1536×864 / 864×1536. Для другой 12-ГБ
             карты нужна повторная проверка.
           </p>
           <p>
-            Текущий workflow ASA — отдельный комплект: <code>flux-2-klein-4b-fp8.safetensors</code>,{' '}
+            Исходный профиль ASA FP4 использует комплект:{' '}
+            <code>flux-2-klein-4b-fp8.safetensors</code>,{' '}
             <code>qwen_3_4b_fp4_flux2.safetensors</code>, <code>flux2-vae.safetensors</code>. Нельзя
             заменять FP4 переименованным FP8. Связь и наличие файлов ещё не доказывают готовность
             генерации.
+          </p>
+          <p>
+            Профиль ИЗО FP8 выбирается отдельно в настройках изображений и использует{' '}
+            <code>qwen_3_4b.safetensors</code>. Имя файла не подтверждает FP8: нужны размер и
+            SHA-256 из инструкции.
+          </p>
+          <p>
+            Локальный сервер — компьютер API ASA, а не компьютер браузера. В Docker:{' '}
+            <code>http://host.docker.internal:8188</code>; на том же host без Docker:{' '}
+            <code>http://127.0.0.1:8188</code>; другой компьютер: его частный IP и порт ComfyUI.
+            Порт 11434 обычно принадлежит Ollama.
           </p>
           <a
             href="https://github.com/spikeal8-maker/asa-lab/blob/main/docs/deployment/COMFYUI_LOCAL_IMAGES.md"
@@ -221,7 +233,7 @@ export function AdminComfyUiPage({ onAccessDenied }: { readonly onAccessDenied: 
           >
             Инструкция: модели, запуск, видеокарта, сеть и перенос
           </a>
-        </details>
+        </section>
         <details>
           <summary>Техническое состояние ComfyUI</summary>
           <div className="asa-ai-provider-top">

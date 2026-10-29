@@ -1,3 +1,5 @@
+export const AI_IMAGE_RECIPES = ['flux2-klein-4b-v1', 'flux2-klein-4b-fp8-izo-v1'] as const;
+export type AiImageRecipe = (typeof AI_IMAGE_RECIPES)[number];
 /** Local GPU images are independent of text-provider credentials and token budgets. */
 /** Stable preset IDs, not a square side length. Existing square IDs remain unchanged. */
 export const AI_IMAGE_PRESETS = [
@@ -54,6 +56,8 @@ export interface AiGeneratedImage {
 }
 
 export interface AiImageGenerationStatus {
+  /** Optional for compatibility with an older API response. */
+  readonly recipe?: AiImageRecipe;
   readonly enabled: boolean;
   readonly ready: boolean;
   readonly reason: string | null;
@@ -88,10 +92,12 @@ export interface AiImageGenerationAdminConfig {
   readonly sizes: readonly AiImageSize[];
   readonly ready: boolean;
   readonly reason: string | null;
-  readonly recipe: 'flux2-klein-4b-v1';
+  readonly recipe: AiImageRecipe;
 }
 
 export interface AiImageGenerationAdminUpdate {
+  /** Omitted by older clients: retain current profile. */
+  readonly recipe?: AiImageRecipe;
   readonly configurationVersion: number;
   readonly requestId: string;
   readonly enabled: boolean;

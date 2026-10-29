@@ -1,5 +1,7 @@
 import {
   AI_IMAGE_PRESETS,
+  AI_IMAGE_RECIPES,
+  type AiImageRecipe,
   aiImageDimensions,
   isAiImageSize,
   type AiImageStoredSize,
@@ -42,6 +44,7 @@ export class AiImageError extends Error {
   }
 }
 export interface ImageJobRow {
+  recipe: AiImageRecipe;
   graph_digest: string;
   owner_principal_id: string;
   request_id: string;
@@ -106,6 +109,7 @@ export function imageAdminInput(raw: unknown): AiImageGenerationAdminUpdate {
     !UUID.test(p.requestId) ||
     !Number.isSafeInteger(p.configurationVersion) ||
     p.configurationVersion < 1 ||
+    (p.recipe !== undefined && !AI_IMAGE_RECIPES.includes(p.recipe)) ||
     typeof p.enabled !== 'boolean' ||
     !Number.isSafeInteger(p.dailyLimit) ||
     p.dailyLimit < 1 ||
@@ -131,6 +135,7 @@ export function imageAdminInput(raw: unknown): AiImageGenerationAdminUpdate {
     dailyLimit: p.dailyLimit,
     globalConcurrency: p.globalConcurrency,
     sizes: p.sizes,
+    ...(p.recipe === undefined ? {} : { recipe: p.recipe }),
   };
 }
 function descriptor(j: ImageJobRow): AiAttachmentObject {
@@ -233,10 +238,10 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       throw e;
     }
   }
-  private async readiness() {
+  private async readiness(recipe: AiImageRecipe = 'flux2-klein-4b-v1') {
     try {
       this.blobs();
-      return await (await this.provider()).readiness();
+      return await (await this.provider()).readiness(recipe);
     } catch {
       return { ready: false, reason: 'Приватное хранилище изображений недоступно.' };
     }
@@ -249,8 +254,9 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   }
   async status(owner: string): Promise<AiImageGenerationStatus> {
     const c = await this.value<ImageConfig>('SELECT ai_image_status($1) AS value', [owner]);
-    const r = await this.readiness();
+    const r = await this.readiness(c.recipe);
     return {
+      recipe: c.recipe,
       enabled: c.enabled,
       ready: r.ready && c.enabled,
       reason: !c.enabled ? 'Генерация изображений выключена.' : r.reason,
@@ -261,7 +267,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   }
   async admin(actor: string): Promise<AiImageGenerationAdminConfig> {
     const c = await this.value<ImageConfig>('SELECT ai_image_config($1) AS value', [actor]);
-    return { ...c, ...(await this.readiness()) };
+    return { ...c, ...(await this.readiness(c.recipe)) };
   }
   async saveAdmin(actor: string, raw: unknown): Promise<AiImageGenerationAdminConfig> {
     await this.value('SELECT ai_image_config_set($1,$2::jsonb) AS value', [
@@ -280,7 +286,8 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
           409,
           'Создание изображений выключено администратором.',
         );
-      const availability = await this.readiness();
+      const c = await this.value<ImageConfig>('SELECT ai_image_config() AS value');
+      const availability = await this.readiness(c.recipe);
       const provider = randomUUID();
       const seed = randomBytes(4).readUInt32BE();
       const graphDigest = imageWorkflowDigest(
@@ -288,10 +295,11 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         input.size,
         seed,
         'ASA_' + provider.replaceAll('-', ''),
+        c.recipe,
       );
       // Replay must succeed even after provider/storage configuration changed.
       return await this.value<ImageJobRow>(
-        'SELECT ai_image_begin($1,$2,$3,$4,$5::integer,$6,$7::bigint,$8::boolean,$9::varchar) AS value',
+        'SELECT ai_image_begin($1,$2,$3,$4,$5::integer,$6,$7::bigint,$8::boolean,$9::varchar,$10::varchar) AS value',
         [
           owner,
           t,
@@ -302,6 +310,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
           seed,
           availability.ready,
           graphDigest,
+          c.recipe,
         ],
       );
     } catch (problem) {
@@ -357,7 +366,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         try {
           await (
             await this.provider()
-          ).dispatch(j.provider_id, j.prompt!, j.size, Number(j.seed), j.marker);
+          ).dispatch(j.provider_id, j.prompt!, j.size, Number(j.seed), j.marker, j.recipe);
         } catch {
           /* durable submitting is reconciled by known UUID only */
         }
@@ -371,10 +380,13 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     prompt: string,
     size: AiImageSize,
     signal: AbortSignal,
+    requestedRecipe?: AiImageRecipe,
   ): Promise<AiImageGenerationJob> {
     const input = imageInput({ requestId: randomUUID(), prompt, size });
     if (signal.aborted) throw new AiImageError('ai_image_cancelled', 409, 'Запрос остановлен.');
-    const availability = await this.readiness();
+    const c = await this.value<ImageConfig>('SELECT ai_image_config() AS value');
+    const recipe = requestedRecipe ?? c.recipe;
+    const availability = await this.readiness(recipe);
     const provider = randomUUID(),
       seed = randomBytes(4).readUInt32BE();
     const digest = imageWorkflowDigest(
@@ -382,9 +394,10 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       input.size,
       seed,
       'ASA_' + provider.replaceAll('-', ''),
+      recipe,
     );
     const j = await this.value<ImageJobRow>(
-      'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar) AS value',
+      'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar) AS value',
       [
         owner,
         imageId(thread),
@@ -396,6 +409,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         seed,
         availability.ready,
         digest,
+        recipe,
       ],
     );
     const cancel = () => {
@@ -540,7 +554,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       }
       const result = await (
         await this.provider()
-      ).recover(j.provider_id, j.marker, j.size, j.graph_digest);
+      ).recover(j.provider_id, j.marker, j.size, j.graph_digest, j.recipe);
       if (result.state === 'missing') {
         await this.transition(j, lease, 'unknown');
         return;

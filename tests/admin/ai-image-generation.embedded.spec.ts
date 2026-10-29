@@ -1,3 +1,4 @@
+import { nativeTools, parseNativeToolCalls } from '../../apps/api/src/ai-native-tools';
 import { AiChatService } from '../../apps/api/src/ai-chat.service';
 import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
 import { publishFixturePolicy, fixtureGenerationSql } from './ai-model-policy.fixture';
@@ -785,6 +786,11 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     )
   ).rows[0]!.revision;
   await publishFixturePolicy(pool, admin, 'ollama-local');
+  const fp8Settings = await service().saveAdmin(admin, {
+    ...(await service().admin(admin)),
+    requestId: randomUUID(),
+    recipe: 'flux2-klein-4b-fp8-izo-v1',
+  });
   const parent = randomUUID();
   const childPrompt = 'A detailed sunlit forest with a village and winding path';
   expect(
@@ -809,14 +815,39 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     JSON.stringify(options),
   ]);
   await pool.query('SELECT ai_tool_policy_snapshot($1,$2,$3) AS value', [actor, chat, parent]);
+  await expect(
+    service().saveAdmin(admin, {
+      ...fp8Settings,
+      requestId: randomUUID(),
+      recipe: 'flux2-klein-4b-v1',
+    }),
+  ).rejects.toThrow();
   const before = transport.dispatch.mock.calls.length;
+  const offered = nativeTools({
+    imageSizes: [768],
+    imageRecipe: fp8Settings.recipe,
+    search: false,
+    weather: false,
+  });
+  const parsed = parseNativeToolCalls(
+    [
+      {
+        function: {
+          name: 'generate_image',
+          arguments: { prompt: childPrompt, size: 768, model: fp8Settings.recipe },
+        },
+      },
+    ],
+    offered,
+  )[0]!;
   const job = await service().createFromTool(
     actor,
     chat,
     parent,
-    childPrompt,
+    parsed.arguments.prompt as string,
     768,
     new AbortController().signal,
+    parsed.arguments.model as typeof fp8Settings.recipe,
   );
   expect(
     (
@@ -826,6 +857,14 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     ).rows[0]?.size,
   ).toBe(768);
   expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  expect(
+    (
+      await db.query<{ recipe: string }>(
+        'SELECT recipe FROM ai_tool_image_receipts WHERE child_request_id=$1',
+        [job.requestId],
+      )
+    ).rows[0]!.recipe,
+  ).toBe('flux2-klein-4b-fp8-izo-v1');
   expect((await service().replayTool(actor, chat, parent))?.requestId).toBe(job.requestId);
   expect(
     (await service().pendingTools(actor, chat)).some((item) => item.requestId === job.requestId),
@@ -975,4 +1014,70 @@ it('uses the six preset dimensions in durable owner history and rejects new 512 
       sizes: [512],
     }),
   ).rejects.toThrow();
+});
+
+it('pins FP8 admission and digest, preserves old-client config, rejects active profile switches and stale recipe admission', async () => {
+  await db.query(
+    "UPDATE ai_image_jobs SET state='failed' WHERE state IN('admitted','submitting','unknown','running','storing')",
+  );
+  await db.query('UPDATE ai_assistant_threads SET busy_until=NULL,active_request_id=NULL');
+  const recipe = 'flux2-klein-4b-fp8-izo-v1';
+  let settings = await service().saveAdmin(admin, {
+    ...(await service().admin(admin)),
+    requestId: randomUUID(),
+    enabled: true,
+    recipe,
+  });
+  const { recipe: omitted, ...oldClient } = settings;
+  expect(omitted).toBe(recipe);
+  settings = await service().saveAdmin(admin, { ...oldClient, requestId: randomUUID() });
+  expect(settings.recipe).toBe(recipe);
+  const actor = await identity();
+  const chat = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [actor]))
+    .rows[0]!.id;
+  const requestId = randomUUID();
+  const before = transport.dispatch.mock.calls.length;
+  await service().create(actor, chat, { requestId, prompt: 'FP8 tree', size: 1024 });
+  const row = (
+    await db.query<{ recipe: string; graph_digest: string; settings_snapshot: { recipe: string } }>(
+      'SELECT recipe,graph_digest,settings_snapshot FROM ai_image_jobs WHERE request_id=$1',
+      [requestId],
+    )
+  ).rows[0]!;
+  expect(row.recipe).toBe(recipe);
+  expect(row.settings_snapshot.recipe).toBe(recipe);
+  expect(row.graph_digest).toMatch(/^[a-f0-9]{64}$/);
+  transport.recover.mockResolvedValueOnce({ state: 'missing' });
+  await db.query('UPDATE ai_image_jobs SET lease_until=NULL WHERE request_id=$1', [requestId]);
+  await service().sweep();
+  expect(transport.recover.mock.calls.at(-1)?.at(-1)).toBe(recipe);
+  expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  expect(transport.dispatch.mock.calls.at(-1)?.at(-1)).toBe(recipe);
+  await expect(
+    service().saveAdmin(admin, {
+      ...settings,
+      requestId: randomUUID(),
+      recipe: 'flux2-klein-4b-v1',
+    }),
+  ).rejects.toThrow();
+  await service().create(actor, chat, { requestId, prompt: 'FP8 tree', size: 1024 });
+  expect(transport.dispatch.mock.calls.length).toBe(before + 1);
+  await db.query("UPDATE ai_image_jobs SET state='failed' WHERE request_id=$1", [requestId]);
+  settings = await service().saveAdmin(admin, {
+    ...settings,
+    requestId: randomUUID(),
+    recipe: 'flux2-klein-4b-v1',
+  });
+  await expect(
+    pool.query('SELECT ai_image_begin($1,$2,$3,$4,1024,$5,42,true,$6,$7)', [
+      actor,
+      chat,
+      randomUUID(),
+      'Stale profile',
+      randomUUID(),
+      'a'.repeat(64),
+      recipe,
+    ]),
+  ).rejects.toThrow(/AI_CONFIG_CHANGED/);
+  expect((await service().get(actor, chat, requestId)).state).toBe('failed');
 });
