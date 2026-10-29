@@ -152,7 +152,8 @@ it('requires an explicit user action before submitting the preview job', async (
   });
   expect(button.disabled).toBe(false);
   await act(async () => button.click());
-  expect(submitted).toHaveBeenCalledExactlyOnceWith('Робот на светлом фоне', 1024);
+  expect(submitted).toHaveBeenCalledOnce();
+  expect(submitted).toHaveBeenCalledWith('Робот на светлом фоне', 1024);
   expect(vi.mocked(apiCall).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
 });
 
