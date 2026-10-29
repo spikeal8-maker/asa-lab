@@ -279,6 +279,7 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
     { path: '/api/ai/token-budgets', method: 'GET', seat: seatId },
     // Capability discovery cannot grant generation; still requires this Seat ID.
     { path: '/api/ai/image-generation/status', method: 'GET', seat: seatId },
+    { path: '/api/ai/web-search/status', method: 'GET', seat: seatId },
   ];
   const aiRequests: Array<{ path: string; method: string; seat: string | null }> = [];
   page.on('request', (request) => {
@@ -323,6 +324,13 @@ test('class seat discovers AI in the top bar and drawer with read-only school ac
       sizes: [1024],
       dailyLimit: 0,
       remainingToday: 0,
+    },
+    '/api/ai/web-search/status': {
+      schemaVersion: 1,
+      provider: 'searxng',
+      weatherConfigured: false,
+      configured: false,
+      enabled: false,
     },
   };
   await page.route('**/api/ai/**', (route) => {
