@@ -58,3 +58,16 @@ python tools/asa_manager.py atomic-recover --root <isolated-root> --profile prod
 - Новые unit-тесты проверяют отрицательный маршрут для реального и чужого проекта, а также отказ прямого AtomicSession.begin без допустимого имени.
 
 Это НЕ реальное отключение питания Windows и НЕ независимая Security/L3 приёмка. После изменения HEAD требуется полный exact-SHA CI; проект остаётся Draft/HOLD для production до независимых проверок.
+
+
+## Recovery journal ownership and crash-boundary hardening (29.10.2026)
+
+Security regression for the experimental QA-only transaction:
+
+- The automatic failure handler may roll back only when the **same process** successfully committed its own INITIALIZED journal. A pre-existing marker (possibly from a different interrupted attempt) causes a fail-closed ATOMIC_PENDING and may only be investigated with the guarded atomic-status / atomic-recover path. The new process must never rename databases or overwrite MinIO merely because a marker exists.
+- Recovery after a backed-up/cutover phase requires a snapshot in the **exact nonce-scoped directory** with no symlink/reparse-point redirects, a manifest, and (after object staging) a stored MinIO SHA inventory. Any missing or foreign evidence blocks before Docker identity or mutation.
+- On recovery the backup's actual project, profile, source revision and source schema are checked. Generated PostgreSQL and Docker volume names must match the journal's project/nonce before any Docker call.
+- When rollback itself is interrupted, the ROLLBACK_STARTED / RECOVERY_REQUIRED marker retains rollbackFromPhase and requires the evidence appropriate to the *original* phase; it is not silently downgraded to a pre-backup stage.
+- A crash after a verified ROLLED_BACK journal but before receipt/marker cleanup is handled by **verification-only finalization** of old Git revision, installed-release, private environment, PostgreSQL schema/population, S3 count and user-bucket SHA. It does not rename PostgreSQL or recopy MinIO a second time; after successful independent checks it archives the receipt and clears its own marker. Internal MinIO .minio.sys metadata may change upon restart; user-bucket hashes must remain identical.
+- Malformed JSON structures or array/object-valued journal phase/nonce receive ATOMIC_JOURNAL rather than an unstructured exception.
+- These changes are covered by new negative/fault-injection tests. No real 4610/4620 mutation is part of this patch. A complete exact-head CI and independent security review are still required before production use.

@@ -31,6 +31,21 @@ PHASES = frozenset({
     "ROLLED_BACK", "RECOVERY_REQUIRED",
 })
 MARKER = "atomic-active.json"
+# Only phases at/after the durable snapshot can require backup evidence.
+# Recovery journals retain their original phase through ROLLBACK_STARTED.
+_RECOVERY_BACKUP_PHASES = frozenset((
+    "BACKUP_VERIFIED", "SHADOW_DATABASE_READY", "MIGRATED",
+    "ROLLBACK_OBJECTS_SAVED", "CANDIDATE_OBJECTS_SAVED",
+    "OBJECT_SWITCH_STARTED", "OBJECT_SWITCHED", "DB_SWITCH_STARTED",
+    "OLD_DB_RENAMED", "NEW_DB_PROMOTED", "CANDIDATE_STARTED",
+    "VERIFYING", "ACCEPTED_READ_ONLY", "SUCCEEDED",
+))
+_RECOVERY_OBJECT_PHASES = frozenset((
+    "ROLLBACK_OBJECTS_SAVED", "CANDIDATE_OBJECTS_SAVED",
+    "OBJECT_SWITCH_STARTED", "OBJECT_SWITCHED", "DB_SWITCH_STARTED",
+    "OLD_DB_RENAMED", "NEW_DB_PROMOTED", "CANDIDATE_STARTED",
+    "VERIFYING", "ACCEPTED_READ_ONLY", "SUCCEEDED",
+))
 PROJECT_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 # Experimental write fence is only allowed on deliberately named QA stacks.
 # A localhost origin and a self-declared .env flag do not prove FRP isolation.
@@ -58,6 +73,67 @@ def atomic_eligibility(install):
     require((state / "installed-release.json").is_file(),
             "ATOMIC_RELEASE", "No pinned existing release is available.")
     return True
+
+
+def _attest_recovery_generated_names(state):
+    """Reject retargeted PostgreSQL/MinIO resources without Docker calls."""
+    nonce = state["nonce"]
+    project = state.get("project")
+    require(isinstance(project, str) and PROJECT_RE.fullmatch(project),
+            "ATOMIC_JOURNAL", "Journal has an invalid Docker Compose project.")
+    generated = {
+        "stageDb": f"asa_txn_{nonce}_test",
+        "previousDb": f"asa_previous_{nonce}",
+        "failedDb": f"asa_failed_{nonce}",
+        "rollbackVolume": project + "_asa_rollback_" + nonce,
+        "candidateVolume": project + "_asa_candidate_" + nonce,
+    }
+    for field, value in generated.items():
+        require(state.get(field) == value, "ATOMIC_JOURNAL",
+                "Journal resource identity changed: " + field,
+                "Do not attach volumes or rename databases identified by a forged journal.")
+
+
+def _recovery_evidence_preflight(state, root):
+    """Reject late-phase missing/foreign evidence before inspecting Docker.
+
+    A started rollback must retain its source phase. Without that phase we
+    cannot know whether active volumes may have been overwritten already.
+    """
+    phase = state.get("phase")
+    if phase in ("ROLLBACK_STARTED", "RECOVERY_REQUIRED", "ROLLED_BACK"):
+        origin = state.get("rollbackFromPhase")
+        require(origin in PHASES and origin not in (
+            "ROLLBACK_STARTED", "RECOVERY_REQUIRED", "ROLLED_BACK"),
+            "ATOMIC_JOURNAL", "Recovery journal lost its original cutover phase.",
+            "Preserve all resources and inspect the private phase journal.")
+    else:
+        origin = phase
+    require(origin in PHASES, "ATOMIC_JOURNAL",
+            "Recovery journal contains an unsupported origin phase.")
+    data_dir = root / ".asa" / "atomic" / state["nonce"]
+    if origin in _RECOVERY_BACKUP_PHASES:
+        backup = state.get("backup")
+        require(isinstance(backup, str) and bool(backup), "ATOMIC_BACKUP",
+                "A post-snapshot recovery has no recorded backup.",
+                "Do not rename PostgreSQL or overwrite MinIO.")
+        backup_path = Path(backup)
+        backup_parent = data_dir / "backup"
+        for candidate in (data_dir, backup_parent, backup_path):
+            require(candidate.is_dir() and not candidate.is_symlink()
+                    and not (getattr(candidate.lstat(), "st_file_attributes", 0)
+                             & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)),
+                    "ATOMIC_BACKUP", "Recovery backup path contains a missing or redirected directory.")
+        require(backup_path.resolve().parent == backup_parent.resolve(),
+                "ATOMIC_BACKUP", "Recovery backup belongs to another transaction.")
+        require((backup_path / "manifest.json").is_file(),
+                "ATOMIC_BACKUP", "Recovery backup manifest is missing.")
+    if origin in _RECOVERY_OBJECT_PHASES:
+        hashes = data_dir / "old-object-hashes.private.json"
+        require(hashes.is_file() and not hashes.is_symlink(),
+                "ATOMIC_OBJECTS", "Original MinIO SHA-256 inventory is missing.",
+                "Do not replace the live volume without verified baseline hashes.")
+    return origin
 
 
 def _safe_identifier(value):
@@ -223,6 +299,10 @@ class AtomicSession:
                 "Unexpected Docker Compose project.")
         self.postgres_image = None
         self.old_hashes = None
+        # Only an attempt which committed its own INITIALIZED journal may
+        # initiate automatic rollback. A pre-existing marker belongs to
+        # another interrupted attempt and must be recovered independently.
+        self._started_this_run = False
 
     def phase(self, phase, **fields):
         require(phase in PHASES, "ATOMIC_PHASE", "Unsupported atomic stage.")
@@ -325,6 +405,7 @@ class AtomicSession:
         self.data["oldSchema"] = _db_schema(self.install, self.data["oldDb"])
         self.data["oldS3Objects"] = _s3_count(self.install)
         self.phase("INITIALIZED")
+        self._started_this_run = True
 
     def freeze(self):
         self.phase("FREEZE_STARTED")
@@ -524,7 +605,10 @@ class AtomicSession:
             raise Blocked("ATOMIC_RECOVERY_REQUIRED",
                           "Candidate ingress was exposed; new writes must be reconciled.",
                           "Preserve both databases, private config, object volumes and the journal.")
-        self.phase("ROLLBACK_STARTED")
+        # The phase being recovered matters after a process crash during
+        # rollback. Do not lose it when writing the ROLLBACK_STARTED marker.
+        rollback_origin = self.data.get("rollbackFromPhase", self.data["phase"])
+        self.phase("ROLLBACK_STARTED", rollbackFromPhase=rollback_origin)
         self.install.compose("stop", *(s for s in SERVICES
                                       if s in self.data.get("oldImageIds", {}) or s == "search"),
                              capture=True)
@@ -639,19 +723,75 @@ class AtomicSession:
                 self.record_elapsed(name, started)
         except BaseException as failure:
             failed_phase = self.data["phase"]
-            if self.marker.exists() and failed_phase not in ("SUCCEEDED", "ROLLED_BACK"):
+            if (self._started_this_run and self.marker.exists()
+                    and failed_phase not in ("SUCCEEDED", "ROLLED_BACK")):
                 try:
                     self.rollback_before_ingress()
                 except BaseException as rollback_error:
                     unsafe = failed_phase in ("ACCEPTED_READ_ONLY", "SUCCEEDED") or (
                         failed_phase == "VERIFYING" and self.data["phase"] != "ROLLBACK_STARTED")
                     self.phase("RECOVERY_REQUIRED", reason=type(rollback_error).__name__,
+                               rollbackFromPhase=self.data.get("rollbackFromPhase", failed_phase),
                                possibleNewWrites=unsafe)
                     raise Blocked("ATOMIC_RECOVERY_REQUIRED",
                                   "Atomic upgrade failed and recovery needs independent review.",
                                   "Do not rerun install/update or delete volumes. Inspect atomic-status.") from failure
             raise
 
+
+
+def _finalize_verified_rollback(txn, install, old_release):
+    """Finish an already verified rollback; NEVER execute a second failback.
+
+    A crash after the ROLLED_BACK marker but before its receipt/marker cleanup
+    leaves a safely restored application. Revalidate data, then archive only
+    the journal; do not overwrite PostgreSQL or MinIO again.
+    """
+    journal = txn.data
+    require(journal["phase"] == "ROLLED_BACK", "ATOMIC_PHASE",
+            "Only a completed rollback can be finalized.")
+    old = journal["oldDb"]
+    schema = journal["oldSchema"]
+    revision = old_release["revision"]
+    require(json.loads((txn.state / "installed-release.json").read_text(
+                encoding="utf-8")) == old_release,
+            "ATOMIC_RELEASE", "Installed release was not restored to the verified prior snapshot.")
+    require(run(["git", "rev-parse", "HEAD"], cwd=txn.root, capture=True) == revision,
+            "ATOMIC_RELEASE", "Source checkout does not match the prior application.")
+    require(hashlib.sha256((txn.root / ".env").read_bytes()).hexdigest()
+            == journal["envSha256"], "ATOMIC_ENV",
+            "Current private configuration differs from the previous installation.")
+    require(_db_schema(install, old) == schema
+            and _db_counts(install, old) == journal["oldCounts"],
+            "ATOMIC_DATABASE", "Previously restored PostgreSQL data has changed.")
+    require(_s3_count(install) == journal["oldS3Objects"],
+            "ATOMIC_S3", "Previous object count changed after rollback.")
+    hashes_file = txn.directory / "old-object-hashes.private.json"
+    if hashes_file.is_file():
+        saved = json.loads(hashes_file.read_text(encoding="utf-8"))
+        current = _volume_hashes(journal["oldVolume"], txn.postgres_image)
+        require(_bucket(saved, install.env["ASA_OBJECT_STORAGE_BUCKET"])
+                == _bucket(current, install.env["ASA_OBJECT_STORAGE_BUCKET"]),
+                "ATOMIC_OBJECTS", "Original MinIO user-bucket objects differ.")
+    require(install.readiness(revision, schema) ==
+            {"revision": revision, "schema": schema},
+            "ATOMIC_HEALTH", "Previous application is not ready.")
+    guard = txn.state / "failed-switch.json"
+    if guard.exists():
+        expected = {"phase": "atomic_rollback", "nonce": txn.nonce,
+                    "previous": txn.previous, "selected": txn.release}
+        require(json.loads(guard.read_text(encoding="utf-8")) == expected,
+                "ATOMIC_JOURNAL", "An unrelated failed-switch marker exists.")
+    final_receipt = txn.directory / "receipt.json"
+    if final_receipt.exists():
+        require(json.loads(final_receipt.read_text(encoding="utf-8")) == journal,
+                "ATOMIC_JOURNAL", "Existing completed recovery receipt differs.")
+    install.receipt({"status": "rolled_back", "source": txn.previous,
+                     "selected": txn.release, "backup": journal.get("backup")})
+    if guard.exists():
+        guard.unlink()
+    txn.archive_finished()
+    return "ROLLED_BACK_CONFIRMED"
 
 
 def atomic_status(root):
@@ -667,10 +807,13 @@ def atomic_status(root):
     except (OSError, ValueError) as exc:
         raise Blocked("ATOMIC_JOURNAL", "Atomic marker cannot be parsed.",
                       "Do not retry updates; inspect the existing marker.") from exc
-    require(state.get("format") == "asa-atomic-update-v1"
+    require(isinstance(state, dict)
+            and state.get("format") == "asa-atomic-update-v1"
             and state.get("root") == str(root)
-            and state.get("phase") in PHASES
-            and bool(re.fullmatch("[a-f0-9]{12}", state.get("nonce", ""))),
+            and isinstance(state.get("phase"), str)
+            and state["phase"] in PHASES
+            and isinstance(state.get("nonce"), str)
+            and bool(re.fullmatch("[a-f0-9]{12}", state["nonce"])),
             "ATOMIC_JOURNAL", "Atomic journal identity or phase is invalid.")
     return state
 
@@ -686,6 +829,8 @@ def atomic_recover(root):
             "Do not roll back automatically. Reconcile both databases and objects first.")
     require(state.get("profile") == "production", "ATOMIC_PROFILE",
             "Unexpected recovery profile.")
+    _attest_recovery_generated_names(state)
+    _recovery_evidence_preflight(state, Path(root).resolve())
     install = Installation(root, state["profile"])
     require(install.project == state["project"], "ATOMIC_PROJECT",
             "Current Compose project differs from the transaction journal.")
@@ -726,7 +871,9 @@ def atomic_recover(root):
     backup_path = state.get("backup")
     if backup_path:
         manifest = verify_backup(backup_path)
-        require(manifest["runtime"]["revision"] == state["source"]["revision"]
+        require(manifest.get("project") == install.project
+                and manifest.get("profile") == "production"
+                and manifest["runtime"]["revision"] == state["source"]["revision"]
                 and int(manifest["runtime"]["schema"]) == state["source"]["schema"],
                 "ATOMIC_BACKUP", "Previous recovery backup does not match the journal.")
     # Never reconstruct missing rollback volume from a name alone. If objects
@@ -735,7 +882,14 @@ def atomic_recover(root):
     if hash_path.exists():
         saved = json.loads(hash_path.read_text(encoding="utf-8"))
         current = _volume_hashes(actual_vol, txn.postgres_image)
-        if current != saved:
+        if current != saved and state["phase"] == "ROLLED_BACK":
+            # MinIO can rewrite its private .minio.sys metadata on restart.
+            # A completed rollback needs the *user bucket*, not byte-identical
+            # internal MinIO files; no volume replacement is permitted here.
+            bucket = install.env["ASA_OBJECT_STORAGE_BUCKET"]
+            require(_bucket(current, bucket) == _bucket(saved, bucket),
+                    "ATOMIC_OBJECTS", "User-bucket objects differ from the prior snapshot.")
+        elif current != saved:
             rollback = state["rollbackVolume"]
             rows = json.loads(run(["docker", "volume", "inspect", rollback],
                                   capture=True))
@@ -749,6 +903,8 @@ def atomic_recover(root):
         require(txn.app_role_readonly(), "ATOMIC_WRITE_GATE",
                 "The candidate is exposed and its database is no longer read-only.",
                 "Do not revert data that users may have changed.")
+    if state["phase"] == "ROLLED_BACK":
+        return _finalize_verified_rollback(txn, install, old_release)
     txn.rollback_before_ingress()
     require(not marker.exists(), "ATOMIC_RECOVERY",
             "Recovery marker remains after rollback verification.")

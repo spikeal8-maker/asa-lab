@@ -127,6 +127,27 @@ class AtomicStatusTests(unittest.TestCase):
                     self.assertEqual(error.exception.code,"ATOMIC_JOURNAL")
                     self.assertEqual(inst.calls,[])
 
+    def test_malformed_journal_types_fail_with_a_defined_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            state_dir = root / ".asa"
+            state_dir.mkdir()
+            marker = state_dir / "atomic-active.json"
+            malformed = (
+                [],
+                None,
+                {"format": "asa-atomic-update-v1", "root": str(root),
+                 "phase": ["INITIALIZED"], "nonce": "e" * 12},
+                {"format": "asa-atomic-update-v1", "root": str(root),
+                 "phase": "INITIALIZED", "nonce": ["e" * 12]},
+            )
+            for value in malformed:
+                with self.subTest(value=type(value).__name__):
+                    atomic_json(marker, value)
+                    with self.assertRaises(Blocked) as result:
+                        atomic_status(root)
+                    self.assertEqual(result.exception.code, "ATOMIC_JOURNAL")
+
     def test_completed_recovery_cannot_run_automatically(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td).resolve()
@@ -137,6 +158,160 @@ class AtomicStatusTests(unittest.TestCase):
             with self.assertRaises(Blocked) as failure:
                 atomic_recover(root)
             self.assertEqual(failure.exception.code, "ATOMIC_ACCEPTED")
+
+
+class AtomicRecoveryEvidenceTests(unittest.TestCase):
+    def test_late_recovery_requires_scoped_complete_backup_and_hash_inventory(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            nonce = "e" * 12
+            data = root / ".asa" / "atomic" / nonce
+            good_backup = data / "backup" / "snapshot-1"
+            foreign_backup = root / "other-project" / "snapshot-1"
+            state = {"phase": "NEW_DB_PROMOTED", "nonce": nonce,
+                     "backup": None}
+            with self.assertRaises(Blocked) as missing:
+                txn._recovery_evidence_preflight(state, root)
+            self.assertEqual(missing.exception.code, "ATOMIC_BACKUP")
+
+            foreign_backup.mkdir(parents=True)
+            (foreign_backup / "manifest.json").write_text("{}")
+            state["backup"] = str(foreign_backup)
+            with self.assertRaises(Blocked) as wrong_root:
+                txn._recovery_evidence_preflight(state, root)
+            self.assertEqual(wrong_root.exception.code, "ATOMIC_BACKUP")
+
+            good_backup.mkdir(parents=True)
+            (good_backup / "manifest.json").write_text("{}")
+            state["backup"] = str(good_backup)
+            with self.assertRaises(Blocked) as no_hashes:
+                txn._recovery_evidence_preflight(state, root)
+            self.assertEqual(no_hashes.exception.code, "ATOMIC_OBJECTS")
+
+            (data / "old-object-hashes.private.json").write_text('{"asa-blocks/p":"a"}')
+            self.assertEqual(txn._recovery_evidence_preflight(state, root),
+                             "NEW_DB_PROMOTED")
+
+            state["phase"] = "ROLLBACK_STARTED"
+            with self.assertRaises(Blocked) as no_origin:
+                txn._recovery_evidence_preflight(state, root)
+            self.assertEqual(no_origin.exception.code, "ATOMIC_JOURNAL")
+            state["rollbackFromPhase"] = "NEW_DB_PROMOTED"
+            self.assertEqual(txn._recovery_evidence_preflight(state, root),
+                             "NEW_DB_PROMOTED")
+            state["rollbackFromPhase"] = "RECOVERY_REQUIRED"
+            with self.assertRaises(Blocked):
+                txn._recovery_evidence_preflight(state, root)
+
+    def test_early_phase_can_recover_without_backup_because_old_db_unchanged(self):
+        with tempfile.TemporaryDirectory() as td:
+            for phase in ("INITIALIZED", "FREEZE_STARTED", "WRITERS_STOPPED"):
+                with self.subTest(phase=phase):
+                    state = {"phase": phase, "nonce": "e" * 12}
+                    self.assertEqual(txn._recovery_evidence_preflight(
+                        state, Path(td)), phase)
+
+    def test_rolled_back_phase_retains_its_original_evidence_requirements(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            data = root / ".asa" / "atomic" / ("e" * 12)
+            snapshot = data / "backup" / "snapshot"
+            state = {"phase": "ROLLED_BACK", "rollbackFromPhase": "NEW_DB_PROMOTED",
+                     "nonce": "e" * 12, "backup": str(snapshot)}
+            with self.assertRaises(Blocked) as missing:
+                txn._recovery_evidence_preflight(state, root)
+            self.assertEqual(missing.exception.code, "ATOMIC_BACKUP")
+            snapshot.mkdir(parents=True)
+            (snapshot / "manifest.json").write_text("{}")
+            with self.assertRaises(Blocked) as missing_hash:
+                txn._recovery_evidence_preflight(state, root)
+            self.assertEqual(missing_hash.exception.code, "ATOMIC_OBJECTS")
+            (data / "old-object-hashes.private.json").write_text("{}")
+            self.assertEqual(txn._recovery_evidence_preflight(state, root),
+                             "NEW_DB_PROMOTED")
+
+    def test_completed_rollback_finalization_only_removes_its_own_marker(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as td:
+            install = FakeInstallation(td)
+            (install.root / ".env").write_bytes(b"ASA_TEST_ENV=OLD\n")
+            session = AtomicSession(install, NEW, OLD, nonce="e" * 12)
+            session.directory.mkdir(parents=True)
+            session.data.update(oldSchema=240,
+                                oldCounts={"accounts": 3, "classrooms": 2,
+                                           "seats": 30, "projects": 4},
+                                oldS3Objects=1, oldVolume=OBJECT_VOLUME,
+                                envSha256=hashlib.sha256((install.root / ".env").read_bytes()).hexdigest())
+            session.phase("ROLLED_BACK", rollbackFromPhase="NEW_DB_PROMOTED")
+            atomic_json(install.state / "installed-release.json", OLD)
+            atomic_json(session.directory / "old-object-hashes.private.json",
+                        {"asa-blocks/entry":"same", ".minio.sys/a":"before"})
+            session.postgres_image="postgres:17.7-bookworm"
+            install.readiness=Mock(return_value={"revision": OLD_SHA, "schema":240})
+            with patch.object(txn, "run", return_value=OLD_SHA), \
+                 patch.object(txn, "_db_schema", return_value=240), \
+                 patch.object(txn, "_db_counts", return_value=session.data["oldCounts"]), \
+                 patch.object(txn, "_s3_count", return_value=1), \
+                 patch.object(txn, "_volume_hashes", return_value={
+                     "asa-blocks/entry":"same", ".minio.sys/a":"changed"}), \
+                 patch.object(txn, "_sql") as sql, \
+                 patch.object(txn, "_copy_volume") as overwrite:
+                result=txn._finalize_verified_rollback(session, install, OLD)
+            self.assertEqual(result, "ROLLED_BACK_CONFIRMED")
+            sql.assert_not_called()
+            overwrite.assert_not_called()
+            self.assertFalse(session.marker.exists())
+            self.assertTrue((session.directory / "receipt.json").exists())
+
+    def test_completed_rollback_finalization_refuses_changed_user_objects(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as td:
+            install=FakeInstallation(td)
+            (install.root / ".env").write_bytes(b"PREVIOUS_ENV=1\n")
+            session=AtomicSession(install, NEW, OLD, nonce="e"*12)
+            session.directory.mkdir(parents=True)
+            session.data.update(oldSchema=240,
+                                oldCounts={"accounts":2},
+                                oldS3Objects=1, oldVolume=OBJECT_VOLUME,
+                                envSha256=hashlib.sha256((install.root/".env").read_bytes()).hexdigest())
+            session.phase("ROLLED_BACK",rollbackFromPhase="NEW_DB_PROMOTED")
+            session.postgres_image="postgres:17.7-bookworm"
+            atomic_json(install.state/"installed-release.json",OLD)
+            atomic_json(session.directory/"old-object-hashes.private.json",
+                        {"asa-blocks/entry":"old"})
+            with patch.object(txn,"run",return_value=OLD_SHA), \
+                 patch.object(txn,"_db_schema",return_value=240), \
+                 patch.object(txn,"_db_counts",return_value=session.data["oldCounts"]), \
+                 patch.object(txn,"_s3_count",return_value=1), \
+                 patch.object(txn,"_volume_hashes",return_value={"asa-blocks/entry":"changed"}):
+                with self.assertRaises(Blocked) as failure:
+                    txn._finalize_verified_rollback(session,install,OLD)
+            self.assertEqual(failure.exception.code,"ATOMIC_OBJECTS")
+            self.assertTrue(session.marker.exists())
+            self.assertFalse((session.directory/"receipt.json").exists())
+
+    def test_missing_backup_stops_recover_before_docker_identity_or_writes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td).resolve()
+            nonce = "e" * 12
+            state = {"format": "asa-atomic-update-v1", "nonce": nonce,
+                     "project": "asa-atomic-test",
+                     "stageDb": f"asa_txn_{nonce}_test",
+                     "previousDb": f"asa_previous_{nonce}",
+                     "failedDb": f"asa_failed_{nonce}",
+                     "rollbackVolume": "asa-atomic-test_asa_rollback_" + nonce,
+                     "candidateVolume": "asa-atomic-test_asa_candidate_" + nonce,
+                     "root": str(root), "profile": "production",
+                     "phase": "NEW_DB_PROMOTED", "backup": None}
+            state_dir = root / ".asa"
+            state_dir.mkdir()
+            atomic_json(state_dir / "atomic-active.json", state)
+            with patch.object(txn, "Installation") as install:
+                with self.assertRaises(Blocked) as issue:
+                    atomic_recover(root)
+            self.assertEqual(issue.exception.code, "ATOMIC_BACKUP")
+            install.assert_not_called()
+            self.assertTrue((state_dir / "atomic-active.json").exists())
 
 
 class AtomicPreflightTests(unittest.TestCase):
@@ -472,6 +647,23 @@ class AtomicFlowTests(unittest.TestCase):
             self.assertEqual(error.exception.code,"ATOMIC_WRITE_GATE")
             self.assertFalse(any("up" in c[1] for c in install.calls if c[0]=="compose"))
 
+    def test_foreign_pending_marker_never_triggers_a_new_attempt_rollback(self):
+        with tempfile.TemporaryDirectory() as td:
+            install, session = self.fixture(td)
+            previous = {"format": "asa-atomic-update-v1", "nonce": "f" * 12,
+                        "root": str(Path(td)), "phase": "NEW_DB_PROMOTED"}
+            atomic_json(session.marker, previous)
+            initial_bytes = session.marker.read_bytes()
+            with patch.object(session, "rollback_before_ingress") as rollback, \
+                 patch.object(install, "compose") as compose:
+                with self.assertRaises(Blocked) as issue:
+                    session.run(FakeInstallation(td))
+            self.assertEqual(issue.exception.code, "ATOMIC_PENDING")
+            rollback.assert_not_called()
+            compose.assert_not_called()
+            self.assertFalse(session._started_this_run)
+            self.assertEqual(session.marker.read_bytes(), initial_bytes)
+
     def test_auto_rollback_for_every_preexposure_failure(self):
         methods=("freeze","frozen_backup","stage_db","stage_objects",
                  "promote","verify_candidate_without_ingress")
@@ -482,6 +674,7 @@ class AtomicFlowTests(unittest.TestCase):
                 events=[]
                 def start(*a):
                     session.phase("INITIALIZED")
+                    session._started_this_run = True
                     events.append("begin")
                 with contextlib.ExitStack() as stack:
                     stack.enter_context(patch.object(session,"begin",side_effect=start))
@@ -503,7 +696,9 @@ class AtomicFlowTests(unittest.TestCase):
     def test_accepted_stage_failed_restart_requires_manual_recovery(self):
         with tempfile.TemporaryDirectory() as td:
             install,session=self.fixture(td)
-            def begin(*_):session.phase("ACCEPTED_READ_ONLY")
+            def begin(*_):
+                session.phase("ACCEPTED_READ_ONLY")
+                session._started_this_run = True
             with patch.object(session,"begin",side_effect=begin),\
                  patch.object(session,"freeze",side_effect=RuntimeError("failed")):
                 with self.assertRaises(Blocked) as failure:
