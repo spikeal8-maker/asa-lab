@@ -454,12 +454,24 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   expect(fixture.polzaWrites).toHaveLength(1);
   expect(fixture.polzaWrites[0]?.apiKey).toBe('pza_fixture_polza_admin_20261029');
 
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme });
       await noOverflow(page);
       await expect(page.getByRole('heading', { name: 'Polza AI', exact: true })).toBeVisible();
+      if (width <= 390) {
+        const heights = await page.locator('.asa-ai-provider-card').evaluateAll((cards) =>
+          cards.map((card) => card.getBoundingClientRect().height),
+        );
+        expect(Math.max(...heights)).toBeLessThanOrEqual(94);
+      }
+      if (colorScheme === 'dark') {
+        await expect(page.locator('.asa-polza-confirmed')).toHaveCSS(
+          'color',
+          'rgb(131, 212, 181)',
+        );
+      }
       await page.screenshot({
         path: testInfo.outputPath('polza-' + width + '-' + colorScheme + '.png'),
         fullPage: true,
@@ -478,7 +490,7 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
   expect(fixture.polzaWrites).toHaveLength(2);
   expect(fixture.polzaWrites[1]?.transcriptionEnabled).toBe(true);
 
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
     for (const colorScheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme });
@@ -489,5 +501,9 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
       });
     }
   }
+  await page.getByText('Подробнее о лимитах и HTTPS').click();
+  await expect(page.getByText('Резервируется максимальная длина записи', {
+    exact: false,
+  })).toBeVisible();
   expect(fixture.errors).toEqual([]);
 });
