@@ -291,15 +291,16 @@ test('admin image workbench keeps GPU settings compact and creates only one expl
   const api = page.getByRole('tab', { name: 'API-провайдеры' });
   await expect(local).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('heading', { name: 'Пробная генерация' })).toBeVisible();
-  await expect(page.getByText('RTX 3060', { exact: false })).toBeVisible();
+  await expect(page.locator('.asa-image-overview')).toContainText('RTX 3060');
 
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 850 });
     await expect(page.getByRole('heading', { name: 'Локальная генерация' })).toBeVisible();
     const collapsed = page.locator('.asa-image-connection-detail');
     await expect(collapsed).toHaveCount(2);
-    expect(await collapsed.evaluateAll((elements) => elements.every((el) => !el.hasAttribute('open'))))
-      .toBe(true);
+    expect(
+      await collapsed.evaluateAll((elements) => elements.every((el) => !el.hasAttribute('open'))),
+    ).toBe(true);
     await noOverflow(page);
   }
 
@@ -315,7 +316,10 @@ test('admin image workbench keeps GPU settings compact and creates only one expl
   );
   await page.getByRole('button', { name: 'Создать тестовое изображение' }).click();
   await expect.poll(() => fixture.imagePosts.length).toBe(1);
-  expect(fixture.imagePosts[0]).toMatchObject({ prompt: 'Школьный робот на светлом фоне', size: 1024 });
+  expect(fixture.imagePosts[0]).toMatchObject({
+    prompt: 'Школьный робот на светлом фоне',
+    size: 1024,
+  });
   fixture.complete();
   await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
     timeout: 18000,
