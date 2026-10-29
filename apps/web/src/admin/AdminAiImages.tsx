@@ -3,9 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiImageGenerationAdminConfig, AiImageSize } from '@asa-lab/contracts';
 import { call } from './admin-api';
 import { newClientId } from '../client-id';
-import './ai-generation-policy.css';
 
-export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }) {
+export function AdminAiImages({
+  onAccessDenied,
+  onConfigChange,
+}: {
+  onAccessDenied: () => void;
+  onConfigChange?: (config: AiImageGenerationAdminConfig | null) => void;
+}) {
   const [config, setConfig] = useState<AiImageGenerationAdminConfig | null>(null);
   const [recipe, setRecipe] = useState<AiImageRecipe>('flux2-klein-4b-v1');
   const [enabled, setEnabled] = useState(false);
@@ -16,16 +21,20 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
   const [reload, setReload] = useState(0);
   const attempt = useRef<{ signature: string; id: string } | null>(null);
   const lock = useRef(false);
+
   function apply(data: AiImageGenerationAdminConfig) {
     setConfig(data);
     setEnabled(data.enabled);
     setRecipe(data.recipe);
     setLimit(data.dailyLimit);
     setSizes(data.sizes);
+    onConfigChange?.(data);
   }
+
   useEffect(() => {
     let live = true;
     setConfig(null);
+    onConfigChange?.(null);
     void call<AiImageGenerationAdminConfig>('/api/admin/v1/ai/images').then((result) => {
       if (!live) return;
       if (
@@ -44,17 +53,22 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
     return () => {
       live = false;
     };
+    // Config-change callback is notification only, not a trigger to refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onAccessDenied, reload]);
+
+  const dirty =
+    !!config &&
+    (config.recipe !== recipe ||
+      config.enabled !== enabled ||
+      config.dailyLimit !== limit ||
+      sizes.length !== config.sizes.length ||
+      sizes.some((size) => !config.sizes.includes(size)));
+  const mismatch = config?.reason?.includes('qwen_3_4b_fp4_flux2.safetensors');
+  const valid = !!sizes.length && Number.isInteger(limit) && limit >= 1 && limit <= 100;
+
   async function save() {
-    if (
-      !config ||
-      lock.current ||
-      !sizes.length ||
-      !Number.isInteger(limit) ||
-      limit < 1 ||
-      limit > 100
-    )
-      return;
+    if (!config || lock.current || !valid) return;
     lock.current = true;
     setBusy(true);
     setNotice('');
@@ -91,109 +105,129 @@ export function AdminAiImages({ onAccessDenied }: { onAccessDenied: () => void }
       setBusy(false);
     }
   }
+
   return (
-    <section className="asa-ai-comfy" aria-label="Настройки изображений">
-      <div className="asa-ai-provider-top">
-        <div className="asa-ai-provider-identity">
-          <h2>Изображения</h2>
-          <span className="asa-ai-provider-subtitle">
-            ComfyUI · локальный GPU · FLUX.2 Klein 4B
-          </span>
+    <section className="asa-image-settings-panel" aria-label="Настройки изображений">
+      <header className="asa-image-panel-heading">
+        <div>
+          <h3>Локальная генерация</h3>
+          <p>Профиль модели и доступные размеры</p>
         </div>
-      </div>
-      <p>
-        Создание изображений в чате использует локальный GPU. Ключи и лимиты текстовых моделей не
-        расходуются.
-      </p>
+        <span
+          className={'asa-image-state ' + (config?.ready && config.enabled ? 'is-ready' : 'is-warning')}
+          role="status"
+        >
+          {config?.ready && config.enabled ? 'Готово' : 'Требуется настройка'}
+        </span>
+      </header>
+
       {config ? (
         <form
-          className="ai-image-mode"
+          className="asa-image-settings-form"
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
         >
-          <p role="status">
-            {config.ready
-              ? 'Узлы и имена моделей совместимы с сохранённым рецептом'
-              : 'Генерация не готова: ' + (config.reason || 'проверьте локальный сервер и модели')}
+          <div className="asa-image-settings-fields">
+            <label className="asa-image-profile-field">
+              <span>Профиль генерации</span>
+              <select
+                value={recipe}
+                disabled={busy}
+                onChange={(event) => setRecipe(event.target.value as AiImageRecipe)}
+              >
+                <option value="flux2-klein-4b-v1">FLUX.2 Klein 4B · исходный FP4</option>
+                <option value="flux2-klein-4b-fp8-izo-v1">FLUX.2 Klein 4B · профиль ИЗО FP8</option>
+              </select>
+            </label>
+            <label className="asa-image-enabled-field">
+              <input
+                type="checkbox"
+                checked={enabled}
+                disabled={busy}
+                onChange={(event) => setEnabled(event.target.checked)}
+              />
+              Разрешить создание изображений
+            </label>
+          </div>
+
+          <p className="asa-image-profile-status" role="status">
+            {dirty
+              ? 'Профиль или лимиты изменены — сохраните настройки для повторной проверки.'
+              : config.ready
+                ? 'Сохранённый профиль совместим с узлами и файлами ComfyUI.'
+                : 'Генерация не готова: ' + (config.reason || 'проверьте подключение и файлы модели')}
           </p>
-          <p>
-            GPU-проверка и SHA-256 файлов на этом узле не подтверждены. Совместимость не доказывает
-            успешную генерацию.
-          </p>
-          <label>
-            Профиль генерации{' '}
-            <select
-              value={recipe}
-              disabled={busy}
-              onChange={(e) => setRecipe(e.target.value as AiImageRecipe)}
-            >
-              <option value="flux2-klein-4b-v1">FLUX.2 Klein 4B · исходный FP4</option>
-              <option value="flux2-klein-4b-fp8-izo-v1">FLUX.2 Klein 4B · профиль ИЗО FP8</option>
-            </select>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={enabled}
-              disabled={busy}
-              onChange={(e) => setEnabled(e.target.checked)}
-            />{' '}
-            Разрешить создание изображений
-          </label>
-          <label>
-            Изображений в день на пользователя{' '}
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={limit}
-              disabled={busy}
-              onChange={(e) => setLimit(Number(e.target.value))}
-            />
-          </label>
-          <fieldset disabled={busy}>
-            <legend>Разрешённые размеры</legend>
-            {AI_IMAGE_PRESETS.map(({ id: value, label }) => (
-              <label key={value}>
+          {mismatch && recipe === 'flux2-klein-4b-v1' ? (
+            <p className="asa-image-suggestion">
+              Требуемый FP4-энкодер не найден. Если на GPU установлен qwen_3_4b.safetensors,
+              выберите профиль ИЗО FP8 и сохраните — подмена имени файла не нужна.
+            </p>
+          ) : null}
+
+          <details className="asa-image-settings-details">
+            <summary>
+              Размеры и лимиты
+              <span>{sizes.length} форматов · {limit} / день</span>
+            </summary>
+            <div className="asa-image-detail-fields">
+              <label>
+                Изображений в день на пользователя
                 <input
-                  type="checkbox"
-                  checked={sizes.includes(value)}
-                  onChange={(e) =>
-                    setSizes((previous) =>
-                      e.target.checked
-                        ? AI_IMAGE_PRESETS.filter(
-                            (p) => p.id === value || previous.includes(p.id),
-                          ).map((p) => p.id)
-                        : previous.filter((size) => size !== value),
-                    )
-                  }
-                />{' '}
-                {label}{' '}
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={limit}
+                  disabled={busy}
+                  onChange={(event) => setLimit(Number(event.target.value))}
+                />
               </label>
-            ))}
-          </fieldset>
-          <p>
-            Лимит обновляется в 00:00 UTC. Одновременно заданий: {config.globalConcurrency}.
-            Сохранение настроек не создаёт изображение.
-          </p>
-          <div className="ai-image-mode-controls">
-            <button
-              type="submit"
-              disabled={
-                busy || !sizes.length || !Number.isInteger(limit) || limit < 1 || limit > 100
-              }
-            >
+              <span className="asa-image-muted">Одновременных заданий: {config.globalConcurrency}</span>
+            </div>
+            <fieldset disabled={busy} className="asa-image-presets">
+              <legend>Разрешённые размеры</legend>
+              <div className="asa-image-preset-grid">
+                {AI_IMAGE_PRESETS.map(({ id: value, label }) => (
+                  <label key={value}>
+                    <input
+                      type="checkbox"
+                      checked={sizes.includes(value)}
+                      onChange={(event) =>
+                        setSizes((previous) =>
+                          event.target.checked
+                            ? AI_IMAGE_PRESETS.filter(
+                                (preset) => preset.id === value || previous.includes(preset.id),
+                              ).map((preset) => preset.id)
+                            : previous.filter((size) => size !== value),
+                        )
+                      }
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <small className="asa-image-muted">
+              Лимит обновляется в 00:00 UTC. GPU-проверка и SHA-256 файлов на этом узле не
+              подтверждены. Совместимость не доказывает успешную генерацию.
+            </small>
+          </details>
+
+          <footer className="asa-image-form-actions">
+            <button type="submit" disabled={busy || !valid}>
               {busy ? 'Сохраняем…' : 'Сохранить настройки'}
             </button>
             <button type="button" disabled={busy} onClick={() => setReload((n) => n + 1)}>
               Обновить настройки
             </button>
-          </div>
+            {dirty ? <span className="asa-image-unsaved">Есть несохранённые изменения</span> : null}
+          </footer>
         </form>
-      ) : null}
-      {notice ? <p role="status">{notice}</p> : null}
+      ) : (
+        <p role="status">Загружаем настройки генерации…</p>
+      )}
+      {notice ? <p role="status" className="asa-image-action-message">{notice}</p> : null}
     </section>
   );
 }
