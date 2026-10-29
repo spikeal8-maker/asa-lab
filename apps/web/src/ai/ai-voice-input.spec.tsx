@@ -10,7 +10,7 @@ let host: HTMLDivElement;
 let stopTrack: ReturnType<typeof vi.fn>;
 let acquire: ReturnType<typeof vi.fn>;
 const transcript = vi.fn<(text: string) => void>();
-const requests: Array<{ path: string; init?: RequestInit }> = [];
+const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
 let speechResponse = 'Объясни мне алгоритм сортировки.';
 
 class RecorderForTest {

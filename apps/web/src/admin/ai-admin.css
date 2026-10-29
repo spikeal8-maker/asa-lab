@@ -259,6 +259,11 @@
   outline: 2px solid #1686c5;
   outline-offset: 2px;
 }
+@media (max-width: 1100px) {
+  .asa-ai-provider-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 680px) {
   .asa-ai-provider-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));

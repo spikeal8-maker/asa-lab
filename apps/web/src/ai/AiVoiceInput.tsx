@@ -180,7 +180,7 @@ export function AiVoiceInput({
     }
     let media: MediaRecorder;
     try {
-      media = new MediaRecorder(opened, { mimeType: mime });
+      media = new MediaRecorder(opened, { mimeType: mime, audioBitsPerSecond: 64_000 });
     } catch {
       opened.getTracks().forEach((track) => track.stop());
       setMessage('Не удалось начать запись.');
@@ -240,7 +240,11 @@ export function AiVoiceInput({
           ? 'Распознаём речь'
           : available
             ? 'Продиктовать сообщение'
-            : 'Голосовой ввод не подключён';
+            : status?.enabled && typeof window !== 'undefined' && !window.isSecureContext
+            ? 'Для голосового ввода нужен HTTPS'
+            : status?.enabled
+              ? 'Браузер не поддерживает голосовой ввод'
+              : 'Голосовой ввод не подключён';
 
   return (
     <div className="ai-voice-control">
