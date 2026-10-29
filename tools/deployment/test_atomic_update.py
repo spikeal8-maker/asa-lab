@@ -314,6 +314,162 @@ class AtomicRecoveryEvidenceTests(unittest.TestCase):
             self.assertTrue((state_dir / "atomic-active.json").exists())
 
 
+class AtomicSuccessFinalizationTests(unittest.TestCase):
+    def fixture(self, td):
+        install = FakeInstallation(td)
+        session = AtomicSession(install, NEW, OLD, nonce="e" * 12)
+        session.directory.mkdir(parents=True)
+        session.data.update(
+            oldVolume=OBJECT_VOLUME,
+            oldSchema=240, s3ObjectCount=1,
+            appRole="asalab_app",
+            previousDb=f"asa_previous_{session.nonce}",
+        )
+        session.phase("SUCCEEDED")
+        atomic_json(install.state / "installed-release.json", NEW)
+        install.readiness = Mock(return_value={"revision": NEW_SHA, "schema":279})
+        rec=install.identity()
+        rec["api"]["image"]="target-api"
+        install.identity = Mock(return_value=rec)
+        return install, session
+
+    def test_completed_success_finalization_is_nondestructive_after_user_writes(self):
+        with tempfile.TemporaryDirectory() as td:
+            install, session = self.fixture(td)
+            names={session.data["oldDb"],session.data["previousDb"]}
+            with patch.object(txn,"run",return_value=NEW_SHA), \
+                 patch.object(txn,"_db_names",return_value=names), \
+                 patch.object(txn,"_db_schema",return_value=279), \
+                 patch.object(txn,"_volume",return_value=OBJECT_VOLUME), \
+                 patch.object(txn,"_s3_count",return_value=12) as s3, \
+                 patch.object(txn,"_db_counts") as counts, \
+                 patch.object(txn,"_copy_volume") as copy, \
+                 patch.object(txn,"_sql") as sql, \
+                 patch.object(txn,"verify_embedded_entry_http") as entry, \
+                 patch.object(session,"app_role_readonly",return_value=False):
+                result=txn._finalize_verified_success(session,install,NEW)
+            self.assertEqual(result,"ACCEPTED_CONFIRMED")
+            counts.assert_not_called()
+            copy.assert_not_called()
+            sql.assert_not_called()
+            s3.assert_called_once_with(install)
+            entry.assert_called_once_with("http://127.0.0.1:4620",NEW_SHA)
+            self.assertFalse(session.marker.exists())
+            self.assertEqual(json.loads((session.directory/"receipt.json").read_text())["phase"],
+                             "SUCCEEDED")
+            receipt=[x[1] for x in install.calls if x[0]=="receipt"]
+            self.assertEqual(len(receipt),1)
+            self.assertEqual(receipt[0]["status"],"success")
+
+    def test_successful_finalization_rejects_unpinned_runtime_image_without_cleanup(self):
+        with tempfile.TemporaryDirectory() as td:
+            install, session = self.fixture(td)
+            rec = install.identity()
+            rec["api"]["image"] = "untrusted-api-image"
+            install.identity = Mock(return_value=rec)
+            with patch.object(txn,"run",return_value=NEW_SHA), \
+                 patch.object(txn,"_db_names",return_value={
+                     session.data["oldDb"],session.data["previousDb"]}), \
+                 patch.object(txn,"_db_schema",return_value=279), \
+                 patch.object(session,"app_role_readonly",return_value=False), \
+                 patch.object(txn,"_copy_volume") as copy:
+                with self.assertRaises(Blocked) as failure:
+                    txn._finalize_verified_success(session, install, NEW)
+            self.assertEqual(failure.exception.code,"ATOMIC_IMAGE_DRIFT")
+            self.assertTrue(session.marker.exists())
+            self.assertFalse((session.directory/"receipt.json").exists())
+            copy.assert_not_called()
+
+    def test_accepted_but_still_readonly_cannot_be_finalized(self):
+        with tempfile.TemporaryDirectory() as td:
+            install,session=self.fixture(td)
+            with patch.object(txn,"run",return_value=NEW_SHA), \
+                 patch.object(txn,"_db_names",return_value={
+                     session.data["oldDb"],session.data["previousDb"]}), \
+                 patch.object(txn,"_db_schema",return_value=279), \
+                 patch.object(session,"app_role_readonly",return_value=True):
+                with self.assertRaises(Blocked) as error:
+                    txn._finalize_verified_success(session,install,NEW)
+            self.assertEqual(error.exception.code,"ATOMIC_WRITE_GATE")
+            self.assertTrue(session.marker.exists())
+            self.assertFalse((session.directory/"receipt.json").exists())
+
+    def test_unexpected_existing_receipt_for_same_release_remains_untouched(self):
+        with tempfile.TemporaryDirectory() as td:
+            install,session=self.fixture(td)
+            receipt_path=install.state/"last-operation.json"
+            atomic_json(receipt_path,{"status":"failed_switch","phase":"atomic",
+                                      "selected":NEW})
+            original=receipt_path.read_bytes()
+            with patch.object(txn,"run",return_value=NEW_SHA), \
+                 patch.object(txn,"_db_names",return_value={
+                     session.data["oldDb"],session.data["previousDb"]}), \
+                 patch.object(txn,"_db_schema",return_value=279), \
+                 patch.object(txn,"_volume",return_value=OBJECT_VOLUME), \
+                 patch.object(txn,"_s3_count",return_value=2), \
+                 patch.object(txn,"verify_embedded_entry_http"), \
+                 patch.object(session,"app_role_readonly",return_value=False):
+                with self.assertRaises(Blocked) as error:
+                    txn._finalize_verified_success(session,install,NEW)
+            self.assertEqual(error.exception.code,"ATOMIC_RECEIPT")
+            self.assertTrue(session.marker.exists())
+            self.assertEqual(receipt_path.read_bytes(),original)
+
+    def test_atomic_finalize_rejects_absent_or_not_successful_marker(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td).resolve()
+            with self.assertRaises(Blocked) as absent:
+                txn.atomic_finalize(root)
+            self.assertEqual(absent.exception.code,"ATOMIC_NO_FINALIZE")
+            path=root/".asa"/"atomic-active.json"
+            path.parent.mkdir()
+            atomic_json(path,{"format":"asa-atomic-update-v1",
+                              "root":str(root),"nonce":"e"*12,
+                              "phase":"NEW_DB_PROMOTED"})
+            with patch.object(txn,"Installation") as make:
+                with self.assertRaises(Blocked) as other:
+                    txn.atomic_finalize(root)
+            self.assertEqual(other.exception.code,"ATOMIC_NOT_ACCEPTED")
+            make.assert_not_called()
+
+    def test_successful_finalization_outer_wrapper_verifies_backup_identity(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as td:
+            install,session=self.fixture(td)
+            (install.root/".env").write_bytes(b"EXISTING_CONF=old\n")
+            saved=session.directory/"old.private.env"
+            saved.write_bytes((install.root/".env").read_bytes())
+            atomic_json(session.directory/"installed-release.json",OLD)
+            snapshot=session.directory/"backup"/"snapshot"
+            snapshot.mkdir(parents=True)
+            (snapshot/"manifest.json").write_text("{}")
+            (session.directory/"old-object-hashes.private.json").write_text("{}")
+            session.data.update(
+                backup=str(snapshot),
+                postgresImage="postgres:17.7-bookworm",
+                envSha256=hashlib.sha256(saved.read_bytes()).hexdigest(),
+            )
+            session.phase("SUCCEEDED")
+            with patch.object(txn,"Installation",return_value=install), \
+                 patch("deployment.releases.apply_release_environment"), \
+                 patch("deployment.releases.validate_resolved_images"), \
+                 patch.object(txn,"_volume",return_value=OBJECT_VOLUME), \
+                 patch.object(txn,"_db_names",return_value={
+                     session.data["oldDb"],session.data["previousDb"]}), \
+                 patch.object(txn,"_db_schema",return_value=279), \
+                 patch.object(txn,"_s3_count",return_value=5), \
+                 patch.object(txn,"run",return_value=NEW_SHA), \
+                 patch.object(txn,"verify_embedded_entry_http"), \
+                 patch.object(txn,"verify_backup",return_value={
+                     "project":PROJ,"profile":"production",
+                     "runtime":{"revision":OLD_SHA,"schema":240}}), \
+                 patch.object(AtomicSession,"app_role_readonly",return_value=False):
+                result=txn.atomic_finalize(install.root)
+            self.assertEqual(result,"ACCEPTED_CONFIRMED")
+            self.assertFalse(session.marker.exists())
+            self.assertTrue((session.directory/"receipt.json").exists())
+
+
 class AtomicPreflightTests(unittest.TestCase):
     def test_isolated_test_flag_never_authorizes_real_school_project(self):
         for actual_project in ("asa-lab-clean4620-20261024", "asa-lab-dev",

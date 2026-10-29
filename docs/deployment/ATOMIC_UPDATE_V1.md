@@ -19,6 +19,7 @@ python tools/asa_manager.py atomic-status --root <canonical-root> --profile prod
 python tools/asa_manager.py check --root <canonical-root> --profile production
 python tools/asa_manager.py update --atomic --root <isolated-root> --profile production
 python tools/asa_manager.py atomic-recover --root <isolated-root> --profile production
+python tools/asa_manager.py atomic-finalize --root <isolated-root> --profile production
 \`\`\`
 
 Эти команды относятся к будущему релизу после проверки PR. Они **не должны** вызываться из старого установленного checkout до интеграции. \`atomic-status\` только читает маркер. \`atomic-recover\` применим лишь к неполному переходу при подтверждённых именах БД, старом приватном окружении, Docker-томах и сохранённых хешах. После \`SUCCEEDED\` никакого автоматического отката не допускается: пользователь мог создать новые работы. Отдельный журнал хранится в \`.asa/atomic/<nonce>/\`; незавершённый маркер \`.asa/atomic-active.json\` блокирует повторные попытки.
@@ -34,7 +35,7 @@ python tools/asa_manager.py atomic-recover --root <isolated-root> --profile prod
 - Windows unittest / fault-injection тесты проверяют защиту identity, оригинального проекта, backup, shadow migration, границы записи, этапы и отказ автоматического отката принятого релиза.
 - На D2R2 отдельно выполнена реальная миграция **240→279 на новой БД** с проверкой сохранения записей и удалением временной БД. Стенд 4620 с базой Яндекс Диска не менялся.
 - Другой disposable Docker PostgreSQL 17.7 прошёл физический rename/swap/failback без host-портов и потери старых записей; ресурсы теста удалены.
-- Пока **нет** полностью проверенного end-to-end запуска \`update --atomic\` с реальными Web/API/MinIO и независимым браузерным сценарием. Нельзя утверждать, что система уже готова к production или что отключение питания на любом этапе всегда завершится автоматическим откатом.
+- Ранее отсутствие настоящего end-to-end испытания было блокирующим фактором; ниже приведены реальные D2R2 Docker/Windows сценарии его ограниченного QA-покрытия. Эти результаты не являются проверкой полного отключения питания, внешней write-fence или разрешением production.
 - **Реальное испытание D2R2 (29.10.2026):** отдельный QA Docker-проект `asa-atomic-qa-20261029`, localhost:18570, опубликованный релиз `e052fb16…` со схемой 240 → `1bb3ac10…` со схемой 282. Новый Web/API/Scratch/PostgreSQL/MinIO/Search стартовали с `ready`, три контрольные строки PostgreSQL и объект S3 сохранились. Успешное обновление заняло **107,13 с**.
 - **Реальный аварийный откат:** искусственная ошибка после физического `NEW_DB_PROMOTED` вернула старую схему 240, образ приложения и SQL/MinIO контрольные данные; неудачная новая БД сохранена отдельно, незавершённого маркера нет. Весь цикл с откатом занял **72,63 с**.
 - **NO_CHANGE:** три успешных повтора без новых бэкапов и пересоздания контейнеров. Для уже успешно принятого *точно такого же* манифеста допускается повторное использование локального CI receipt, после обязательной проверки контейнеров и HTTP; новый или недоказанный выпуск требует действительного GitHub CI.
@@ -71,3 +72,22 @@ Security regression for the experimental QA-only transaction:
 - A crash after a verified ROLLED_BACK journal but before receipt/marker cleanup is handled by **verification-only finalization** of old Git revision, installed-release, private environment, PostgreSQL schema/population, S3 count and user-bucket SHA. It does not rename PostgreSQL or recopy MinIO a second time; after successful independent checks it archives the receipt and clears its own marker. Internal MinIO .minio.sys metadata may change upon restart; user-bucket hashes must remain identical.
 - Malformed JSON structures or array/object-valued journal phase/nonce receive ATOMIC_JOURNAL rather than an unstructured exception.
 - These changes are covered by new negative/fault-injection tests. No real 4610/4620 mutation is part of this patch. A complete exact-head CI and independent security review are still required before production use.
+
+
+## Закрытие маркера после уже принятого обновления
+
+После успешного переключения фаза SUCCEEDED может быть записана в журнал раньше финального отчёта. Если в этот момент происходит сбой процесса, новая версия уже доступна для записи пользователям. В таком случае запрещены автоматический откат и повторное обновление без проверки.
+
+Предусмотрена отдельная команда atomic-finalize (только для operator-owned disposable QA). Она не является откатом: допускается только при точной фазе SUCCEEDED, прежние backup/old MinIO inventory/nonce/project сохраняются, не переназываются PostgreSQL БД и не копируются тома.
+
+Перед закрытием журнала проверяются:
+- Подтверждённые старый и новый релизы, приватная конфигурация и backup исходной версии;
+- Правильные имена текущей и старой БД, новая PostgreSQL схема, работающая роль приложения без read-only ограничения;
+- Точные OCI digest запущенных API/Web/Scratch/MinIO/Search, верная метка Compose-проекта и оригинальный том MinIO;
+- HTTP readiness, Scratch/Search health, соответствие Web/API целевой версии и доступность S3.
+
+После SUCCEEDED пользовательские записи уже могли появиться: **не** сравниваются текущие counts пользователей/проектов и S3 с прежним снимком, **не** происходит никаких изменений PostgreSQL или пользовательского MinIO. При несовпадении идентичности проекта/релиза или чужом receipt операция блокируется и оставляет маркер. При полном PASS в служебный каталог записывается receipt, затем закрывается atomic-active.json.
+
+atomic-recover по-прежнему **отказывается** обрабатывать SUCCEEDED или ACCEPTED_READ_ONLY. atomic-finalize по-прежнему **отказывается** работать с незавершёнными либо откатываемыми фазами. Для команд требуется operator lock и отдельная изолированная среда; на школьном production экспериментальные операции запрещены.
+
+На этом этапе покрытие atomic-finalize — unit/fault-injection и негативные испытания, а не реальный power loss Windows. Слияние/production HOLD до независимого L3 и exact-head CI.

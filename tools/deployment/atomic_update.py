@@ -818,6 +818,117 @@ def atomic_status(root):
     return state
 
 
+def _finalize_verified_success(txn, install, selected):
+    """Archive an already accepted release; never touch user PostgreSQL/MinIO.
+
+    SUCCEEDED is the commit point. New user writes may have occurred since it.
+    Therefore only *current* revision/schema/identities are verified. Original
+    counts and object hashes must not be copied back over legitimate new data.
+    """
+    state = txn.data
+    require(state["phase"] == "SUCCEEDED", "ATOMIC_ACCEPTED",
+            "Only an already accepted atomic release can be finalized.")
+    require(json.loads((txn.state / "installed-release.json").read_text(
+                encoding="utf-8")) == selected,
+            "ATOMIC_RELEASE", "The accepted installed-release no longer matches the journal.")
+    require(run(["git", "rev-parse", "HEAD"], cwd=txn.root, capture=True)
+            == selected["revision"], "ATOMIC_RELEASE",
+            "Current source checkout is not the accepted revision.")
+    require(not (txn.state / "maintenance.json").exists()
+            and not (txn.state / "failed-switch.json").exists(),
+            "ATOMIC_PENDING", "A separate maintenance marker blocks finalization.")
+    names = _db_names(install, (
+        state["oldDb"], state["previousDb"], state["stageDb"], state["failedDb"]))
+    require(names == {state["oldDb"], state["previousDb"]},
+            "ATOMIC_DATABASE", "Accepted and previous database identities do not reconcile.")
+    require(_db_schema(install, state["oldDb"]) == selected["schema"],
+            "ATOMIC_DATABASE", "Accepted database schema differs from the pinned release.")
+    expected_role = urlsplit(install.env["APP_DATABASE_URL"]).username
+    require(expected_role and state.get("appRole") == expected_role,
+            "ATOMIC_ROLE", "Accepted app role does not match the current database connection.")
+    require(not txn.app_role_readonly(), "ATOMIC_WRITE_GATE",
+            "Accepted application's database role is still read-only.")
+    records = install.identity()
+    for name, image in selected["images"].items():
+        require(records.get(name, {}).get("image") == image
+                and records[name].get("running"), "ATOMIC_IMAGE_DRIFT",
+                "Accepted " + name + " is not running its pinned image.")
+    require(_volume(install, records, "minio") == state["oldVolume"],
+            "ATOMIC_VOLUME", "The live object volume differs from the accepted journal.")
+    require(install.readiness(selected["revision"], selected["schema"]) ==
+            {"revision": selected["revision"], "schema": selected["schema"]},
+            "ATOMIC_HEALTH", "Accepted application failed readiness.")
+    verify_embedded_entry_http(
+        install.env["ASA_UPDATE_ENTRY_ORIGIN"], selected["revision"])
+    # S3 may legitimately have new or deleted user objects after acceptance.
+    # Listing checks reachability only; never compare to the pre-update count.
+    _s3_count(install)
+    completed = txn.directory / "receipt.json"
+    if completed.exists():
+        require(json.loads(completed.read_text(encoding="utf-8")) == state,
+                "ATOMIC_JOURNAL", "Existing acceptance receipt differs from the active journal.")
+    recorded = txn.state / "last-operation.json"
+    if recorded.exists():
+        last = json.loads(recorded.read_text(encoding="utf-8"))
+        if last.get("selected") == selected:
+            require(last.get("status") == "success"
+                    and last.get("phase") == "atomic",
+                    "ATOMIC_RECEIPT", "An inconsistent receipt already targets the accepted release.")
+    install.receipt({
+        "status": "success", "phase": "atomic",
+        "source": state["source"], "selected": selected,
+        "backup": state["backup"], "s3Objects": state.get("s3ObjectCount"),
+        "entryHttp": "pass", "userFlow": "not_run",
+    })
+    txn.archive_finished()
+    return "ACCEPTED_CONFIRMED"
+
+
+def atomic_finalize(root):
+    """Operator-only, non-rollback finalization for a stale SUCCEEDED journal."""
+    state = atomic_status(root)
+    require(state is not None, "ATOMIC_NO_FINALIZE",
+            "No accepted atomic transaction needs finalization.")
+    require(state["phase"] == "SUCCEEDED", "ATOMIC_NOT_ACCEPTED",
+            "A pending/failed switch cannot be accepted by finalization.",
+            "Use atomic-status and guarded atomic-recover or independent reconciliation.")
+    require(state.get("profile") == "production", "ATOMIC_PROFILE",
+            "Accepted transaction has an unexpected profile.")
+    _attest_recovery_generated_names(state)
+    _recovery_evidence_preflight(state, Path(root).resolve())
+    install = Installation(root, "production")
+    require(install.project == state["project"]
+            and ATOMIC_QA_PROJECT_RE.fullmatch(install.project or ""),
+            "ATOMIC_PROJECT", "Acceptance journal belongs to another or non-QA project.")
+    from .releases import apply_release_environment, validate_resolved_images
+    apply_release_environment(install, state["selected"])
+    validate_resolved_images(install, state["selected"])
+    records = install.identity()
+    require(state.get("postgresImage") == records["postgres"]["image"],
+            "ATOMIC_ENGINE", "PostgreSQL engine image differs from the accepted attempt.")
+    txn = AtomicSession(install, state["selected"], state["source"], nonce=state["nonce"])
+    txn.data = state
+    txn.postgres_image = state["postgresImage"]
+    require(_volume(install, records, "minio") == state["oldVolume"],
+            "ATOMIC_VOLUME", "Accepted object volume belongs to another installation.")
+    require(txn.directory.is_dir() and not txn.directory.is_symlink(),
+            "ATOMIC_JOURNAL", "Accepted journal directory is missing.")
+    saved = txn.directory / "old.private.env"
+    require(saved.is_file() and not saved.is_symlink()
+            and hashlib.sha256(saved.read_bytes()).hexdigest() == state["envSha256"],
+            "ATOMIC_ENV", "Previous private configuration snapshot is invalid.")
+    prior = json.loads((txn.directory / "installed-release.json").read_text(encoding="utf-8"))
+    require(prior == state["source"], "ATOMIC_RELEASE",
+            "Previous installed release does not match the accepted journal.")
+    manifest = verify_backup(state["backup"])
+    require(manifest["project"] == install.project
+            and manifest["profile"] == "production"
+            and manifest["runtime"]["revision"] == state["source"]["revision"]
+            and int(manifest["runtime"]["schema"]) == state["source"]["schema"],
+            "ATOMIC_BACKUP", "Accepted source backup is incomplete or foreign.")
+    return _finalize_verified_success(txn, install, state["selected"])
+
+
 def atomic_recover(root):
     """Recover ONLY pre-acceptance failure; never overwrite accepted user writes."""
     state = atomic_status(root)

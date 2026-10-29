@@ -337,7 +337,7 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "atomic-status", "atomic-recover", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "atomic-status", "atomic-recover", "atomic-finalize", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -365,6 +365,9 @@ def main(argv=None):
             if args.action == "atomic-recover":
                 from deployment.atomic_update import atomic_recover
                 print("ATOMIC_RECOVERY " + atomic_recover(args.root))
+            elif args.action == "atomic-finalize":
+                from deployment.atomic_update import atomic_finalize
+                print("ATOMIC_FINALIZED " + atomic_finalize(args.root))
             elif args.action == "doctor":
                 doctor(install)
             elif args.action == "configure":
