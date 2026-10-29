@@ -3,11 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AiAdminWorkspace } from '../AiAdminWorkspace';
-import {
-  AI_ADMIN_SECTIONS,
-  navigateAiAdmin,
-  readAiAdminNavigation,
-} from '../ai-admin-navigation';
+import { AI_ADMIN_SECTIONS, navigateAiAdmin, readAiAdminNavigation } from '../ai-admin-navigation';
 import { call } from '../admin-api';
 import { aiAdminFixture } from './ai-admin-config.fixture';
 
