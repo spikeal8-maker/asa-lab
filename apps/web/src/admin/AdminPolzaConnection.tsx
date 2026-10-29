@@ -43,8 +43,7 @@ export function AdminPolzaConnection() {
         </div>
       </div>
       <p className="asa-ai-integration-note" role="status">
-        Ключ и запросы пока не подключены. Требуется защищённый серверный адаптер.
-        Существующие подключения не изменены.
+        Ключ и запросы пока не подключены. Настройки ASA Lab не изменены.
       </p>
     </section>
   );
