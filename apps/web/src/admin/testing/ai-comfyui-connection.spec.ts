@@ -147,3 +147,34 @@ it('invalidates a previously connected GPU when a fresh status check fails', asy
   expect(host.textContent).not.toContain('ComfyUI подключён');
   expect(host.textContent).not.toContain('Workflow совместим');
 });
+
+it('fails closed when manual ComfyUI probe throws after previously confirmed GPU', async () => {
+  await render();
+  expect(host.textContent).toContain('ComfyUI подключён');
+  vi.mocked(call).mockRejectedValueOnce(new TypeError('simulated network interruption'));
+  await click('Проверить');
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+  expect(host.textContent).not.toContain('Workflow совместим');
+  await click('Проверить');
+  expect(host.textContent).toContain('ComfyUI подключён');
+});
+
+it('does not claim success after unknown settings PUT and reuses the same request UUID', async () => {
+  await render();
+  await input('http://192.168.5.20:8188');
+  vi.mocked(call).mockRejectedValueOnce(new TypeError('simulated lost response'));
+  await click('Сохранить адрес');
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    'Результат сохранения адреса не подтверждён',
+  );
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+  await click('Сохранить адрес');
+  const writes = vi.mocked(call).mock.calls.filter(
+    ([url, init]) => url === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+  );
+  expect(writes).toHaveLength(2);
+  expect(JSON.parse(String(writes[0]?.[1]?.body)).requestId).toBe(
+    JSON.parse(String(writes[1]?.[1]?.body)).requestId,
+  );
+});
