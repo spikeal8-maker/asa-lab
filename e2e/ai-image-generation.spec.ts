@@ -139,6 +139,9 @@ async function imageFixture(page: Page) {
         recipe: 'flux2-klein-4b-v1',
         recipeReady: true,
         recipeReason: null,
+        devices: [
+          { name: 'cuda:0 NVIDIA GeForce RTX 3060', vramTotalBytes: 12 * 1024 ** 3 },
+        ],
         checkedAt: '2026-10-26T09:00:00Z',
       });
     if (path === '/api/admin/v1/ai/generation-policy') {
