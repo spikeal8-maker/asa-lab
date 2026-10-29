@@ -139,9 +139,7 @@ async function imageFixture(page: Page) {
         recipe: 'flux2-klein-4b-v1',
         recipeReady: true,
         recipeReason: null,
-        devices: [
-          { name: 'cuda:0 NVIDIA GeForce RTX 3060', vramTotalBytes: 12 * 1024 ** 3 },
-        ],
+        devices: [{ name: 'cuda:0 NVIDIA GeForce RTX 3060', vramTotalBytes: 12 * 1024 ** 3 }],
         checkedAt: '2026-10-26T09:00:00Z',
       });
     if (path === '/api/admin/v1/ai/generation-policy') {
@@ -312,9 +310,9 @@ test('image workbench: responsive settings and an explicit preview', async ({ pa
   expect(fixture.imagePosts).toHaveLength(0);
 
   await local.click();
-  await page.getByRole('textbox', { name: 'Описание тестового изображения' }).fill(
-    'Школьный робот на светлом фоне',
-  );
+  await page
+    .getByRole('textbox', { name: 'Описание тестового изображения' })
+    .fill('Школьный робот на светлом фоне');
   await page.getByRole('button', { name: 'Создать тестовое изображение' }).click();
   await expect.poll(() => fixture.imagePosts.length).toBe(1);
   expect(fixture.imagePosts[0]).toMatchObject({
