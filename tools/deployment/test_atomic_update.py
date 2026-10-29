@@ -316,7 +316,9 @@ class AtomicRecoveryEvidenceTests(unittest.TestCase):
 
 class AtomicSuccessFinalizationTests(unittest.TestCase):
     def fixture(self, td):
-        install = FakeInstallation(td)
+        # Mirror Installation.root: Windows GitHub runners may return a temp
+        # directory with a different path casing than Path.resolve().
+        install = FakeInstallation(Path(td).resolve())
         session = AtomicSession(install, NEW, OLD, nonce="e" * 12)
         session.directory.mkdir(parents=True)
         session.data.update(
