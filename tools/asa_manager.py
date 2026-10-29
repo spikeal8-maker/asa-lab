@@ -22,6 +22,7 @@ from deployment.collector import prepare as prepare_collector, reconcile as reco
 from deployment.contracts import proxy_provenance_diagnostic
 from deployment.resources import check_resources
 from deployment.search_secret import InvalidSearchSecret
+from deployment.operator_ui import OperatorView
 
 
 def clean_checkout(install):
@@ -137,12 +138,17 @@ def selected_source(install, release, *, existing):
                           "Run the same command again. Containers and data have not been changed.")
 
 
-def update(install, *, check=False, scheduled=False, fresh=False):
+def update(install, *, check=False, scheduled=False, fresh=False, reporter=None):
+    view = reporter or OperatorView()
+    view.begin("ПРОВЕРКА ВЕРСИИ" if check else "УСТАНОВКА" if fresh else "РУЧНОЕ ОБНОВЛЕНИЕ")
     if scheduled:
         require(install.settings.get("automaticUpdates") is True, "SCHEDULE_DISABLED", "Automatic updates are disabled.")
         if not in_window(install.settings.get("window", DEFAULT_WINDOW)):
             print("SKIP outside the maintenance window; no fetch, backup or restart")
+            view.set("deployment", "SKIP", "Окно обслуживания ещё не открыто")
+            view.finish("SKIP", message="Повторите команду в разрешённое окно.")
             return
+    view.stage(1, "Проверяю сервер, контейнеры, права и целостность")
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "Unfinished backup/switch needs inspection.")
     require(not (install.state / "failed-switch.json").exists(), "FAILED_SWITCH", "A prior service switch failed.",
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
@@ -152,6 +158,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
                       install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
                       install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
+    view.set("environment", "OK", "Docker, установка, ресурсы и адрес сайта проверены")
+    view.stage(2, "Сверяю опубликованный stable с установленной версией")
     release = discover_release()
     assert_ci(release)
     before = None if fresh else install.readiness()
@@ -164,6 +172,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
     same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    view.highlight_version(before, release, same=same_release)
     if same_release:
         records = install.identity()
         for name, expected in release['images'].items():
@@ -173,6 +182,13 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         print(f"{'NO_CHANGE' if same_release else 'AVAILABLE'} revision={release['revision']} schema={release['schema']}; read-only check, no installation changes")
         if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
             print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
+        if same_release:
+            view.set("http", "OK", "Вход приложения и SHA проверены")
+        view.finish(
+            "NO_CHANGE" if same_release else "AVAILABLE",
+            message="Проверка завершена без установки. Для установки используйте update." if not same_release
+            else "Ничего устанавливать не требуется.",
+        )
         return
     preparation = {'readerGroupChanged': False}
     if same_release:
@@ -182,9 +198,15 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         print("NO_CHANGE the verified release is already running; no backup or restart")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
         reconcile_collector(install)
+        view.set("backup", "SKIP", "Не требуется: версия не менялась")
+        view.set("deployment", "SKIP", "Контейнеры не перезапускались")
+        view.set("http", "OK", "Проверен HTTP entry")
+        view.finish("NO_CHANGE", message="Текущая версия уже соответствует stable.")
         return
+    view.stage(3, "Подготавливаю закреплённые образы и исходники")
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
+    view.stage(4, "Проверяю конфигурацию и ресурсы перед заменой")
     install = Installation(install.root, install.profile)
     selected_preparation = prepare_collector(install)
     preparation['readerGroupChanged'] = preparation['readerGroupChanged'] or selected_preparation['readerGroupChanged']
@@ -206,11 +228,15 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         # in the window is harmless; database work is never forcibly killed at 05:00.
         require(in_window(install.settings["window"], reserve_minutes=15), "WINDOW_CLOSED", "Insufficient time left to start maintenance.", "Wait for the next permitted window.")
     backup = None
+    view.stage(5, "План миграций и проверенная резервная копия")
     if not fresh:
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "node", "migration", "tools/migrate.mjs", "--plan")
         backup = export_backup(backup_install)
+        view.set("backup", "OK", f"Создана и проверена: {backup}")
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
+    if fresh:
+        view.set("backup", "SKIP", "Первая установка — предыдущих данных нет")
     if "search" in release["images"]:
         # Authorized mutation only, after the old private.env has been backed up.
         # Existing keys are never rotated, including during a routine update.
@@ -223,14 +249,18 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     operation = {"phase": "switch", "previous": before, "selected": release, "backup": str(backup) if backup else None,
                  "diagnosticReaderGroupChanged": preparation['readerGroupChanged']}
     atomic_json(install.state / "maintenance.json", operation)
+    view.stage(6, "Переключаю контейнеры на проверенный образ")
+    view.set("deployment", "INFO", "Переключение выполняется; состояние проверится после запуска")
     try:
         if not fresh:
             install.compose("stop", "web", "api", "scratch")
         install.compose("up", "-d", "--no-build")
+        view.stage(7, "Проверяю новую версию, HTTP и готовность приложения")
         install.wait_ready(release["revision"], release["schema"])
         operation["phase"] = "verify_entry"
         atomic_json(install.state / "maintenance.json", operation)
         verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
+        view.set("http", "OK", "HTTP entry и версия проверены")
         install.identity()
         atomic_json(install.state / "installed-release.json", release)
         save_settings(install, install.settings.get("automaticUpdates", False))
@@ -239,12 +269,14 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         (install.state / "maintenance.json").unlink()
         print(f"UPDATED {release['revision']} schema={release['schema']}")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
+        view.set("deployment", "OK", "Контейнеры готовы; новый release закреплён")
     except BaseException:
         atomic_json(install.state / "failed-switch.json", operation)
         install.receipt({"status": "failed_switch", **operation, "automaticDatabaseRestore": False})
         raise
     # Application acceptance and diagnostic runner maintenance are independent.
     reconcile_collector(install)
+    view.finish("UPDATED", message="Проверьте вход преподавателя/ученика и сохранение проекта в браузере.")
 
 
 def main(argv=None):
@@ -261,6 +293,7 @@ def main(argv=None):
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
     args = parser.parse_args(argv)
+    reporter = OperatorView() if args.action in ("check", "update", "install") else None
     try:
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
@@ -279,9 +312,9 @@ def main(argv=None):
                 require(not install.identity(existing=False), "ALREADY_INSTALLED", "Use update for the existing installation.")
                 if not install.env:
                     first_environment(install.root, install.profile)
-                update(Installation(install.root, install.profile), fresh=True)
+                update(Installation(install.root, install.profile), fresh=True, reporter=reporter)
             elif args.action in ("check", "update"):
-                update(install, check=args.action == "check", scheduled=args.scheduled)
+                update(install, check=args.action == "check", scheduled=args.scheduled, reporter=reporter)
             elif args.action == "backup":
                 export_backup(install, args.output)
             elif args.action == "restore-check":
@@ -306,6 +339,8 @@ def main(argv=None):
                 "SEARCH_SECRET_INVALID" if isinstance(exc, InvalidSearchSecret) else "IO_OR_CONFIGURATION")
         action = exc.action if isinstance(exc, Blocked) else "Inspect the configuration and completed stages; do not discard data."
         print(f"BLOCKED {code}: {exc}\nSAFE_ACTION: {action}", file=sys.stderr)
+        if reporter is not None:
+            reporter.blocked(code, action)
         return 2
 
 
