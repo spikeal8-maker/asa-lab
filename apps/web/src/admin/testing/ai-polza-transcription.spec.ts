@@ -59,7 +59,7 @@ it('shows Polza and transcription pages without a fake key-save or paid request'
     const polza = host.querySelector<HTMLElement>('[aria-label="Подключение Polza AI"]');
     expect(polza).not.toBeNull();
     expect(polza!.textContent).toContain('Polza AI');
-    expect(polza!.textContent).toContain('не реализованы');
+    expect(polza!.textContent).toContain('Ключ и запросы пока не подключены');
     expect(host.querySelector('input[type=password]')).toBeNull();
     expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
 
@@ -70,7 +70,7 @@ it('shows Polza and transcription pages without a fake key-save or paid request'
     await act(async () => transcription!.click());
     expect(host.querySelector('[aria-label="Настройки транскрибации"]')).not.toBeNull();
     expect(host.textContent).toContain('GigaAM-v3');
-    expect(host.textContent).toContain('не доступны');
+    expect(host.textContent).toContain('Загрузка аудио пока недоступна');
     expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
     const video = [...host.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(
       (button) => button.textContent === 'Видео',
