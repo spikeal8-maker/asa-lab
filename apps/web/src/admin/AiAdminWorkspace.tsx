@@ -10,6 +10,7 @@ import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
 import { AdminAiUsageOverview } from './AdminAiUsageOverview';
 import type { AiAdminConfig } from './ai-model-config';
+import { isPolzaConfig, type AiPolzaAdminConfig } from './ai-polza-admin';
 import {
   AI_ADMIN_SECTIONS as SECTIONS,
   navigateAiAdmin,
@@ -63,6 +64,7 @@ function AiAdminWorkspaceSession({
   const { section, provider } = navigation;
   const tabs = useRef<HTMLElement>(null);
   const [cloud, setCloud] = useState<AiAdminConfig | null>(null);
+  const [polza, setPolza] = useState<AiPolzaAdminConfig | null>(null);
   const [local, setLocal] = useState<LocalState | null>(null);
   const [statusRevision, setStatusRevision] = useState(0);
   const refreshStatus = useCallback(() => setStatusRevision((v) => v + 1), []);
@@ -144,7 +146,8 @@ function AiAdminWorkspaceSession({
     void Promise.all([
       call<AiAdminConfig>('/api/admin/v1/ai'),
       call<LocalState>('/api/admin/v1/ai/ollama'),
-    ]).then(([cloudResponse, localResponse]) => {
+      call<unknown>('/api/admin/v1/ai/polza'),
+    ]).then(([cloudResponse, localResponse, polzaResponse]) => {
       if (!mounted) return;
       if (!cloudResponse.ok && (cloudResponse.status === 401 || cloudResponse.status === 403)) {
         onAccessDenied();
@@ -154,6 +157,7 @@ function AiAdminWorkspaceSession({
       }
       setCloud(cloudResponse.ok ? cloudResponse.data : null);
       setLocal(localResponse.ok ? localResponse.data : null);
+      setPolza(polzaResponse.ok && isPolzaConfig(polzaResponse.data) ? polzaResponse.data : null);
     });
     return () => {
       mounted = false;
@@ -161,7 +165,8 @@ function AiAdminWorkspaceSession({
   }, [onAccessDenied, statusRevision, section]);
 
   function providerStatus(value: ProviderChoice): string {
-    if (value === 'polza') return 'Не подключён';
+    if (value === 'polza')
+      return polza?.enabled ? 'Включён' : polza?.apiKeyConfigured ? 'Ключ сохранён' : 'Нет ключа';
     if (value === 'ollama')
       return local === null ? 'Проверяем' : local.enabled ? 'Включена' : 'Выключена';
     if (!cloud) return 'Проверяем';
@@ -254,7 +259,11 @@ function AiAdminWorkspaceSession({
           {provider === 'ollama' ? (
             <AdminOllamaPage onAccessDenied={onAccessDenied} onUpdated={refreshStatus} />
           ) : provider === 'polza' ? (
-            <AdminPolzaConnection />
+            <AdminPolzaConnection
+              onAccessDenied={onAccessDenied}
+              onUpdated={refreshStatus}
+              onDirtyChange={setConnectionDirty}
+            />
           ) : (
             <AiAdminPage
               key={provider}
@@ -316,7 +325,7 @@ function AiAdminWorkspaceSession({
           aria-labelledby="ai-tab-transcription"
           className="asa-ai-settings"
         >
-          <AdminAiTranscription />
+          <AdminAiTranscription onAccessDenied={onAccessDenied} onDirtyChange={setPolicyDirty} />
         </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">

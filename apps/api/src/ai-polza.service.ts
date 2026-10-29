@@ -21,6 +21,7 @@ export interface PolzaAdminConfig {
   enabled: boolean;
   transcriptionEnabled: boolean;
   dailySecondsLimit: number;
+  globalDailySecondsLimit: number;
   maxAudioSeconds: number;
   apiKeyConfigured: boolean;
   keyFingerprint: string | null;
@@ -32,6 +33,7 @@ interface PolzaRuntime {
   enabled: boolean;
   transcription_enabled: boolean;
   daily_seconds_limit: number;
+  global_daily_seconds_limit: number;
   max_audio_seconds: number;
   api_key_ciphertext: string | null;
   api_key_iv: string | null;
@@ -187,13 +189,14 @@ export class AiPolzaService {
     const body = textRecord(input);
     const {
       configurationVersion, enabled, transcriptionEnabled,
-      dailySecondsLimit, maxAudioSeconds, apiKey, clearApiKey,
+      dailySecondsLimit, globalDailySecondsLimit, maxAudioSeconds, apiKey, clearApiKey,
     } = body;
     if (
       !Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1 ||
       typeof enabled !== 'boolean' || typeof transcriptionEnabled !== 'boolean' ||
       (enabled === false && transcriptionEnabled) ||
       !Number.isSafeInteger(dailySecondsLimit) || Number(dailySecondsLimit) < 60 || Number(dailySecondsLimit) > 3600 ||
+      !Number.isSafeInteger(globalDailySecondsLimit) || Number(globalDailySecondsLimit) < 600 || Number(globalDailySecondsLimit) > 86400 ||
       !Number.isSafeInteger(maxAudioSeconds) || Number(maxAudioSeconds) < 5 || Number(maxAudioSeconds) > 30 ||
       (apiKey !== undefined && (typeof apiKey !== 'string' || !/^pza_[A-Za-z0-9_-]{8,2040}$/.test(apiKey))) ||
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
@@ -206,7 +209,7 @@ export class AiPolzaService {
       'SELECT public.ai_polza_admin_set($1::uuid,$2::jsonb) AS value',
       [actor, JSON.stringify({
         configurationVersion, enabled, transcriptionEnabled,
-        dailySecondsLimit, maxAudioSeconds, requestId: randomUUID(),
+        dailySecondsLimit, globalDailySecondsLimit, maxAudioSeconds, requestId: randomUUID(),
         action: clearApiKey ? 'clear' : apiKey ? 'replace' : 'keep',
         ...encrypted,
       })],
@@ -241,7 +244,7 @@ export class AiPolzaService {
   async status(): Promise<{ enabled: boolean; model: string; maxAudioSeconds: number }> {
     const state = await this.runtime();
     return {
-      enabled: state.enabled && state.transcription_enabled && !!state.api_key_ciphertext,
+      enabled: state.enabled && state.transcription_enabled && !!state.api_key_ciphertext && !!this.key,
       model: POLZA_STT_MODEL,
       maxAudioSeconds: state.max_audio_seconds,
     };

@@ -15,6 +15,7 @@ import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './st
 import { AiMessageContent } from './AiMessageContent';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
+import { AiVoiceInput } from './AiVoiceInput';
 import {
   AiImageGeneration,
   imageGenerationStatusShape,
@@ -2393,27 +2394,18 @@ export function AiChatPage({
                         </span>
                       )}
                     </div>
-                    <button
-                      className="chat-microphone"
-                      type="button"
-                      disabled
-                      title="Голосовой ввод пока не доступен"
-                      aria-label="Голосовой ввод пока не доступен"
-                    >
-                      <svg
-                        width="19"
-                        height="19"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        aria-hidden="true"
-                      >
-                        <rect x="9" y="2" width="6" height="13" rx="3" />
-                        <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
-                      </svg>
-                    </button>
+                    <AiVoiceInput
+                      call={call}
+                      disabled={
+                        interactionBusy || archived || schoolPolicyDenied || imageMode || !historyReady
+                      }
+                      onTranscript={(text) => {
+                        setDraft((previous) =>
+                          (previous.trim() ? previous.trimEnd() + ' ' + text : text).slice(0, 3000),
+                        );
+                        composer.current?.focus();
+                      }}
+                    />
                     <button
                       type={composerBusy ? 'button' : 'submit'}
                       className="chat-send-button"
