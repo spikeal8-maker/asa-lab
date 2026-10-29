@@ -71,28 +71,32 @@ let host: HTMLDivElement;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   submitted.mockReset();
-  vi.mocked(apiCall).mockReset().mockResolvedValue({
-    ok: true,
-    status: 200,
-    data: {
-      enabled: true,
-      ready: true,
-      sizes: [1024, 1280],
-      remainingToday: 30,
-      dailyLimit: 30,
-      reason: null,
-    },
-  });
-  vi.mocked(adminCall).mockReset().mockImplementation(async (path) => ({
-    ok: true,
-    status: 200,
-    data:
-      path === '/api/admin/v1/ai/images'
-        ? cfg
-        : path.endsWith('/settings')
-          ? { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' }
-          : status,
-  }));
+  vi.mocked(apiCall)
+    .mockReset()
+    .mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        enabled: true,
+        ready: true,
+        sizes: [1024, 1280],
+        remainingToday: 30,
+        dailyLimit: 30,
+        reason: null,
+      },
+    });
+  vi.mocked(adminCall)
+    .mockReset()
+    .mockImplementation(async (path) => ({
+      ok: true,
+      status: 200,
+      data:
+        path === '/api/admin/v1/ai/images'
+          ? cfg
+          : path.endsWith('/settings')
+            ? { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' }
+            : status,
+    }));
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -106,9 +110,7 @@ afterEach(async () => {
 });
 
 it('shows a compact GPU summary and hidden diagnostics', async () => {
-  await act(async () =>
-    root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })),
-  );
+  await act(async () => root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })));
   expect(host.textContent).toContain('FLUX.2 · ИЗО FP8');
   expect(host.textContent).toContain('RTX 3060');
   expect(host.querySelector('[aria-label="Состояние локальной генерации"]')).not.toBeNull();
@@ -122,9 +124,7 @@ it('shows a compact GPU summary and hidden diagnostics', async () => {
 });
 
 it('separates unconnected API providers without requesting secrets', async () => {
-  await act(async () =>
-    root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })),
-  );
+  await act(async () => root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })));
   const apiTab = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
     (item) => item.textContent === 'API-провайдеры',
   )!;
@@ -148,8 +148,10 @@ it('requires an explicit user action before submitting the preview job', async (
   expect(submitted).not.toHaveBeenCalled();
   const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!;
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!
-      .set!.call(textarea, 'Робот на светлом фоне');
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      textarea,
+      'Робот на светлом фоне',
+    );
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
   expect(button.disabled).toBe(false);
@@ -165,8 +167,10 @@ it('does not submit an image when the saved ComfyUI profile is incompatible', as
   );
   const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!;
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!
-      .set!.call(textarea, 'Робот');
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      textarea,
+      'Робот',
+    );
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
   const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
