@@ -95,6 +95,21 @@ class DiscoveryClassificationTests(unittest.TestCase):
         self.assertEqual(result["state"], "PARTIAL")
         self.assertEqual(len(result["orphanVolumes"]), 2)
 
+    def test_only_backup_manifest_remains_blocks_fresh_install(self):
+        (self.root / ".env").unlink()
+        (self.root / ".asa/installation.json").unlink()
+        (self.root / ".asa").rmdir()
+        snapshot = self.root / "backups" / "20261029T000000Z-1234abcd"
+        snapshot.mkdir(parents=True)
+        (snapshot / "manifest.json").write_text('{"format":"asa-backup-v1"}', encoding="utf-8")
+        inventory = copy.deepcopy(self.inventory)
+        inventory["containers"] = []
+        inventory["volumes"] = []
+        classified = classify_installation(self.root, inventory)
+        self.assertEqual(classified["state"], "PARTIAL")
+        self.assertEqual(classified["reasons"][0]["code"], "ORPHANED_INSTALLATION")
+        self.assertEqual(classified["backupRemnants"], str(self.root / "backups"))
+
     def test_unknown_docker_failure_is_not_empty(self):
         self.assertEqual(self.managed({"complete": False})["state"], "UNKNOWN")
 
