@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: compact_human_settings_selected
+      checkpoint: compact_settings_source_integrated_dashboard_followup
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -647,7 +647,13 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R20, R23, R31]
           acceptance_checks: [C17, C20, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          integrated_sha: 6d19511ecb881fc757de6437e5e9d20ccc48060c
+          independent_review: approved_exact_source
+          focused_tests: 17_ui_pass
+          ci_status: types_lint_review_pass_remote_ci_pending
+          browser_visual_acceptance: NOT_RUN
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
