@@ -16,8 +16,7 @@
 
 /* Keep the approved top AI brain inside its 20px wrapper at 4K, where the
    shared header intentionally scales other navigation SVGs to 26px. */
-.portal-shell .portal-header.portal-header-ai-navigation
-  .portal-global-nav a .portal-ai-glyph svg {
+.portal-shell .portal-header-ai-navigation .portal-global-nav .portal-ai-glyph svg {
   width: 20px;
   height: 20px;
   flex: 0 0 20px;
