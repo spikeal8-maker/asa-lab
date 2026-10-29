@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { AiImageGenerationAdminConfig } from '@asa-lab/contracts';
 import { act, createElement, useEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -34,7 +35,7 @@ vi.mock('../../ai/AiImageGeneration', () => ({
   },
 }));
 
-const cfg = {
+const cfg: AiImageGenerationAdminConfig = {
   configurationVersion: 4,
   enabled: true,
   dailyLimit: 30,
@@ -44,7 +45,7 @@ const cfg = {
   reason: null,
   recipe: 'flux2-klein-4b-fp8-izo-v1',
 };
-const legacy = {
+const legacy: AiImageGenerationAdminConfig = {
   ...cfg,
   ready: false,
   recipe: 'flux2-klein-4b-v1',
