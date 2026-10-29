@@ -122,102 +122,140 @@ export function AdminAiTokenBudgets({
     }
   }
   return (
-    <section className="asa-cloud-connection asa-ai-budgets" aria-label="Месячные бюджеты токенов">
-      <h2>Месячные бюджеты токенов</h2>
-      <p>
-        Для каждой модели: общий бюджет и одинаковый бюджет каждого пользователя. Личный кабинет и
-        школьное место учитываются отдельно. Пустое поле — без лимита, 0 — запрет новых ответов.
-      </p>
-      <p>
-        «ollama-local» — единый слот активной локальной модели. Смена её конфигурации не обнуляет
-        расход этого слота за месяц.
-      </p>
-      <p>
-        Уже начатый ответ завершается полностью, поэтому расход может превысить лимит. Резерв
-        защищает от одновременных новых запросов и не ограничивает длину ответа. Неизвестный расход
-        остаётся на проверке.
-      </p>
-      <p>
-        Проверки подключения провайдера не входят в эти бюджеты; для них действует отдельный
-        почасовой лимит платных операций. Денежная стоимость и число операций считаются отдельно.
-      </p>
+    <section className="asa-ai-budgets" aria-label="Месячные лимиты токенов">
+      <h2>Лимиты токенов в месяц</h2>
+      <p>Пусто — без лимита. 0 — новые запросы запрещены.</p>
       {config ? (
         <form onSubmit={(event) => void save(event)}>
-          <p>
-            Новый период: {new Date(config.resetAt).toLocaleString('ru-RU', { timeZone: 'UTC' })}{' '}
-            UTC.
-          </p>
-          <div className="asa-ai-budget-rows">
-            {draft.map((m, index) => {
-              if (eligibleModels && m.model !== '*' && !eligibleModels.includes(m.model))
-                return null;
-              const usage = config.models.find((row) => row.model === m.model)!;
-              return (
-                <fieldset key={m.model} disabled={busy}>
-                  <legend>{m.model}</legend>
-                  <label>
-                    Общий лимит в месяц
-                    <input
-                      inputMode="numeric"
-                      value={m.globalLimit ?? ''}
-                      placeholder="Без лимита"
-                      onChange={(event) =>
-                        setDraft((old) =>
-                          old.map((row, i) =>
-                            i === index ? { ...row, globalLimit: event.target.value } : row,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    Лимит каждого пользователя в месяц
-                    <input
-                      inputMode="numeric"
-                      value={m.userLimit ?? ''}
-                      placeholder="Без лимита"
-                      onChange={(event) =>
-                        setDraft((old) =>
-                          old.map((row, i) =>
-                            i === index ? { ...row, userLimit: event.target.value } : row,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <p>
-                    Подтверждено токенов всего: {usage.used} · Резерв: {usage.held}
-                    {usage.globalLimit !== null
-                      ? ' · Остаток: ' +
-                        String(
+          <div
+            className="asa-ai-budget-scroll"
+            role="region"
+            aria-label="Лимиты по моделям"
+            tabIndex={0}
+          >
+            <table className="asa-ai-budget-table">
+              <caption>
+                Следующий период:{' '}
+                {new Date(config.resetAt).toLocaleString('ru-RU', { timeZone: 'UTC' })} UTC
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Модель</th>
+                  <th scope="col">Общий лимит</th>
+                  <th scope="col">На пользователя</th>
+                  <th scope="col">Использовано</th>
+                </tr>
+              </thead>
+              <tbody>
+                {draft.map((m) => {
+                  if (eligibleModels && m.model !== '*' && !eligibleModels.includes(m.model))
+                    return null;
+                  const usage = config.models.find((row) => row.model === m.model)!;
+                  const remaining =
+                    usage.globalLimit === null
+                      ? null
+                      : String(
                           BigInt(usage.globalLimit) > BigInt(usage.used) + BigInt(usage.held)
                             ? BigInt(usage.globalLimit) - BigInt(usage.used) - BigInt(usage.held)
                             : 0,
-                        )
-                      : ' · Без общего лимита'}
-                    {usage.unresolved
-                      ? ' · Есть неподтверждённый исторический расход: новые запросы с лимитом приостановлены'
-                      : ''}
-                    {usage.pendingUnknown
-                      ? ' · Не весь расход подтверждён: резерв сохранён без срока истечения'
-                      : ''}
-                  </p>
-                </fieldset>
-              );
-            })}
+                        );
+                  return (
+                    <tr key={m.model}>
+                      <th scope="row" title={m.model}>
+                        {m.model === 'ollama-local'
+                          ? 'Локальная Ollama'
+                          : m.model.replace(/^ollama-cloud\//, '')}
+                      </th>
+                      <td>
+                        <input
+                          aria-label={'Общий лимит ' + m.model}
+                          inputMode="numeric"
+                          disabled={busy}
+                          value={m.globalLimit ?? ''}
+                          placeholder="Без лимита"
+                          onChange={(event) =>
+                            setDraft((old) =>
+                              old.map((row) =>
+                                row.model === m.model
+                                  ? { ...row, globalLimit: event.target.value }
+                                  : row,
+                              ),
+                            )
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          aria-label={'Лимит на пользователя ' + m.model}
+                          inputMode="numeric"
+                          disabled={busy}
+                          value={m.userLimit ?? ''}
+                          placeholder="Без лимита"
+                          onChange={(event) =>
+                            setDraft((old) =>
+                              old.map((row) =>
+                                row.model === m.model
+                                  ? { ...row, userLimit: event.target.value }
+                                  : row,
+                              ),
+                            )
+                          }
+                        />
+                      </td>
+                      <td>
+                        <span aria-label={'Подтверждено токенов всего: ' + usage.used}>
+                          {usage.used}
+                        </span>
+                        <details className="asa-ai-budget-info">
+                          <summary aria-label={'Подробнее о расходе ' + m.model}>
+                            {usage.pendingUnknown || usage.unresolved ? 'На проверке' : 'Подробнее'}
+                          </summary>
+                          <div>
+                            <p>
+                              Резерв: {usage.held} ·{' '}
+                              {remaining === null ? 'Без общего лимита' : 'Остаток: ' + remaining}
+                            </p>
+                            {usage.unresolved ? (
+                              <p role="status">
+                                Есть неподтверждённый исторический расход: новые запросы с лимитом
+                                приостановлены.
+                              </p>
+                            ) : null}
+                            {usage.pendingUnknown ? (
+                              <p role="status">
+                                Не весь расход подтверждён: резерв сохранён без срока истечения.
+                              </p>
+                            ) : null}
+                          </div>
+                        </details>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
           <button type="submit" disabled={busy}>
             {busy ? 'Сохраняем…' : 'Сохранить лимиты токенов'}
           </button>
-          <p>
-            Эта кнопка сохраняет только бюджеты. Выбор моделей и промпт сохраняются своей кнопкой.
-            Для загрузки изменённых другим администратором лимитов обновите страницу; сначала
-            сохраните черновик отдельно.
-          </p>
         </form>
       ) : (
         <p>Загружаем бюджеты…</p>
       )}
+      <details className="asa-ai-budget-help">
+        <summary>Как работают лимиты</summary>
+        <p>
+          Уже начатый ответ завершается полностью. Резерв защищает от одновременных новых запросов;
+          неизвестный расход остаётся на проверке.
+        </p>
+        <p>
+          ollama-local — единый слот активной локальной модели: смена модели не обнуляет расход.
+        </p>
+        <p>
+          Эта кнопка сохраняет только бюджеты. Выбор моделей сохраняется отдельно. Проверки
+          подключения используют отдельный почасовой лимит операций.
+        </p>
+      </details>
       {notice ? <p role="status">{notice}</p> : null}
     </section>
   );

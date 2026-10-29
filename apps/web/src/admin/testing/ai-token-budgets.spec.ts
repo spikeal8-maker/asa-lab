@@ -38,7 +38,9 @@ it('shows actual overage, separate save semantics and UTC reset with truthful sc
   await act(async () =>
     root.render(createElement(AdminAiTokenBudgets, { onAccessDenied: vi.fn() })),
   );
-  expect(host.textContent).toContain('Подтверждено токенов всего: 15');
+  expect(host.querySelector('[aria-label="Подтверждено токенов всего: 15"]')?.textContent).toBe(
+    '15',
+  );
   expect(host.textContent).toContain('Остаток: 0');
   expect(host.textContent).toContain('начатый ответ завершается полностью');
   expect(host.textContent).toContain('UTC');
@@ -97,7 +99,7 @@ it('omits ineligible model rows while preserving their stored limits in the full
       }),
     ),
   );
-  expect(host.querySelector('fieldset')).toBeNull();
+  expect(host.querySelectorAll('tbody tr')).toHaveLength(0);
   await act(async () =>
     host
       .querySelector('form')!
@@ -106,4 +108,53 @@ it('omits ineligible model rows while preserving their stored limits in the full
   const payload = JSON.parse(String(vi.mocked(call).mock.calls[1]![1]?.body));
   expect(payload.configurationVersion).toBe(3);
   expect(payload.models).toEqual([{ model: 'ollama-local', globalLimit: '12', userLimit: null }]);
+});
+
+it('edits the visible model by identity while retaining a hidden first model and exact large limits', async () => {
+  const hidden = { ...config.models[0], model: 'gpt-6-luna', globalLimit: '200', userLimit: '17' };
+  const visible = {
+    ...config.models[0],
+    model: 'deepseek-flash',
+    globalLimit: '9007199254740990',
+    used: '900719925474099300',
+    held: '2',
+    pendingUnknown: true,
+  };
+  const bodies: Record<string, unknown>[] = [];
+  vi.mocked(call).mockImplementation(async (_url, init) => {
+    if (init?.method === 'PUT') bodies.push(JSON.parse(String(init.body)));
+    return { ok: true, status: 200, data: { ...config, models: [hidden, visible] } };
+  });
+  await act(async () =>
+    root.render(
+      createElement(AdminAiTokenBudgets, {
+        onAccessDenied: vi.fn(),
+        eligibleModels: ['deepseek-flash'],
+      }),
+    ),
+  );
+  expect(host.querySelectorAll('tbody tr')).toHaveLength(1);
+  expect(host.querySelector('[aria-label="Общий лимит gpt-6-luna"]')).toBeNull();
+  const enter = async (label: string, value: string) =>
+    act(async () => {
+      const input = host.querySelector<HTMLInputElement>('[aria-label="' + label + '"]')!;
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  await enter('Общий лимит deepseek-flash', '9007199254740991');
+  await enter('Лимит на пользователя deepseek-flash', '0');
+  expect(host.textContent).toContain('На проверке');
+  expect(host.querySelector('[role=status]')?.textContent).toContain('резерв сохранён');
+  await act(async () =>
+    host
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  );
+  expect(bodies[0]).toMatchObject({
+    configurationVersion: 3,
+    models: [
+      { model: 'gpt-6-luna', globalLimit: '200', userLimit: '17' },
+      { model: 'deepseek-flash', globalLimit: '9007199254740991', userLimit: '0' },
+    ],
+  });
 });

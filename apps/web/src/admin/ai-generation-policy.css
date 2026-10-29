@@ -271,3 +271,77 @@
 .asa-ai-catalog-observation button {
   justify-self: start;
 }
+
+.asa-settings-compact .asa-ai-policy-models {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.asa-settings-compact .asa-ai-policy-models > fieldset {
+  padding: 6px 10px;
+}
+.asa-settings-compact .asa-ai-policy-models legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.asa-ai-reorder {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.asa-ai-reorder button {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 4px;
+  font: inherit;
+  border: 1px solid var(--border, #c4d3df);
+  border-radius: 6px;
+  background: var(--surface, transparent);
+  color: inherit;
+}
+.asa-ai-rank {
+  min-width: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted, #607586);
+}
+.asa-settings-compact .asa-ai-policy-model-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 4px 0;
+}
+.asa-settings-compact .asa-ai-policy-model-row > .asa-ai-reorder {
+  grid-column: 2;
+  grid-row: 1;
+}
+.asa-settings-compact .asa-ai-policy-model {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 44px;
+  align-items: center;
+  padding: 0;
+}
+.asa-settings-compact .asa-ai-policy-model > span {
+  gap: 2px;
+}
+.asa-settings-compact .asa-ai-policy-model small {
+  font-size: 11px;
+}
+.asa-settings-compact .asa-ai-catalog-observation {
+  display: block;
+  font-size: 11px;
+}
+.asa-settings-compact .asa-ai-catalog-observation summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding-top: 10px;
+  box-sizing: border-box;
+}
+.asa-settings-compact .asa-ai-policy-save-note {
+  margin: 6px 0;
+}

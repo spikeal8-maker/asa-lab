@@ -193,28 +193,75 @@ it.each([403, 404])('does not expose a policy form for unavailable API %s', asyn
   else expect(host.textContent).toContain('требуется обновление API');
 });
 
-it('B keeps eligibility separate from visibility and persists numeric ordering without changing hidden prompt', async () => {
+it('shows only configured providers, reorders tied visible rows and saves checkbox changes without touching hidden policy', async () => {
+  const base = generationPolicyFixture();
+  const initial = generationPolicyFixture({
+    models: [
+      ...base.models.map((m) =>
+        m.provider === 'openai'
+          ? { ...m, ready: false }
+          : m.provider === 'ollama-cloud'
+            ? { ...m, selectable: false }
+            : m,
+      ),
+      {
+        id: 'deepseek-v4-pro',
+        label: 'DeepSeek Pro',
+        provider: 'deepseek',
+        ready: true,
+        selectable: true,
+        allowed: false,
+      },
+    ],
+    modelPreferences: [
+      { id: 'gpt-6-luna', eligible: true, order: -99 },
+      { id: 'toString', eligible: false, order: 123 },
+    ],
+    providerOrder: { openai: -50, deepseek: 10, 'ollama-cloud': 10, retired: 42 },
+  });
   vi.mocked(call).mockImplementation(async (_url, init) => ({
     ok: true,
     status: 200,
-    data: generationPolicyFixture(init?.method === 'PUT' ? { configurationVersion: 4 } : {}),
+    data:
+      init?.method === 'PUT'
+        ? { ...initial, ...JSON.parse(String(init.body)), configurationVersion: 4 }
+        : initial,
   }));
-  await render('settings');
-  const eligible = host.querySelector<HTMLInputElement>(
-    '[aria-label="Разрешить у провайдера DeepSeek Flash"]',
-  )!;
-  expect(eligible).toBeNull();
-  const number = host.querySelector<HTMLInputElement>(
-    '[aria-label="Порядок модели DeepSeek Flash"]',
-  )!;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(number, '-7');
-    number.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  await act(async () =>
+    root.render(
+      createElement(AdminAiGenerationPolicy, { section: 'settings', onAccessDenied: denied }),
+    ),
+  );
+  expect(host.querySelector('[aria-label="Показывать пользователям: GPT-6 Luna"]')).toBeNull();
+  expect(
+    host.querySelector('[aria-label="Показывать пользователям: Gemma 4 31B · Ollama Cloud"]'),
+  ).not.toBeNull();
+  expect(host.querySelectorAll('input[type=number]')).toHaveLength(0);
+  const click = async (label: string) =>
+    act(async () => host.querySelector<HTMLButtonElement>('[aria-label="' + label + '"]')!.click());
+  await click('Поднять модель DeepSeek Pro');
+  await click('Поднять провайдера Ollama Cloud');
+  expect(host.querySelector('.asa-ai-policy-models > fieldset legend')?.textContent).toContain(
+    'Ollama Cloud',
+  );
+  await act(async () =>
+    host
+      .querySelector<HTMLInputElement>('[aria-label="Показывать пользователям: DeepSeek Pro"]')!
+      .click(),
+  );
   await submit();
   expect(writes()[0]).toMatchObject({
-    allowedModels: ['deepseek-flash'],
-    modelPreferences: [{ id: 'deepseek-flash', eligible: true, order: -7 }],
+    configurationVersion: 3,
+    systemPrompt: initial.systemPrompt,
+    defaultModel: 'deepseek-flash',
+    allowedModels: ['deepseek-flash', 'deepseek-v4-pro'],
+    providerOrder: { openai: -50, deepseek: 1, 'ollama-cloud': 0, retired: 42 },
+    modelPreferences: expect.arrayContaining([
+      { id: 'gpt-6-luna', eligible: true, order: -99 },
+      { id: 'toString', eligible: false, order: 123 },
+      { id: 'deepseek-v4-pro', eligible: true, order: 0 },
+      { id: 'deepseek-flash', eligible: true, order: 1 },
+    ]),
   });
 });
 
@@ -233,11 +280,12 @@ it('B preserves unsaved visibility, default and rank during metadata refresh and
       createElement(AdminAiGenerationPolicy, { section: 'settings', onAccessDenied: denied }),
     ),
   );
-  const rank = host.querySelector<HTMLInputElement>('[aria-label="Порядок модели GPT-6 Luna"]')!;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(rank, '-9');
-    rank.dispatchEvent(new Event('input', { bubbles: true }));
-  });
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Поднять провайдера OpenAI"]')!.click(),
+  );
+  const rankedProviders = [...host.querySelectorAll('.asa-ai-policy-models > fieldset legend')].map(
+    (node) => node.textContent,
+  );
   const labels = [...host.querySelectorAll('label.asa-ai-policy-model')];
   await act(async () =>
     labels
@@ -260,7 +308,11 @@ it('B preserves unsaved visibility, default and rank during metadata refresh and
       .find((b) => b.textContent === 'Обновить каталог OpenAI')!
       .click(),
   );
-  expect(rank.value).toBe('-9');
+  expect(
+    [...host.querySelectorAll('.asa-ai-policy-models > fieldset legend')].map(
+      (node) => node.textContent,
+    ),
+  ).toEqual(rankedProviders);
   expect(select.value).toBe('gpt-6-luna');
   expect(
     labels
@@ -359,7 +411,7 @@ it('omits models unselected by Cloud keys without losing a hidden stored default
     models: base.models.map((m) => ({
       ...m,
       connectionSelected: m.id !== 'gemma4:31b',
-      ...(m.id === 'deepseek-flash' ? { ready: false, selectable: false } : {}),
+      ...(m.id === 'deepseek-flash' ? { ready: true, selectable: false } : {}),
     })),
   });
   vi.mocked(call).mockResolvedValue({ ok: true, status: 200, data: policy });
