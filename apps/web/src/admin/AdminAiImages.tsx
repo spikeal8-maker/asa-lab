@@ -116,7 +116,9 @@ export function AdminAiImages({
           <p>Профиль модели и доступные размеры</p>
         </div>
         <span
-          className={'asa-image-state ' + (config?.ready && config.enabled ? 'is-ready' : 'is-warning')}
+          className={
+            'asa-image-state ' + (config?.ready && config.enabled ? 'is-ready' : 'is-warning')
+          }
           role="status"
         >
           {config?.ready && config.enabled ? 'Готово' : 'Требуется настройка'}
@@ -159,7 +161,8 @@ export function AdminAiImages({
               ? 'Профиль или лимиты изменены — сохраните настройки для повторной проверки.'
               : config.ready
                 ? 'Сохранённый профиль совместим с узлами и файлами ComfyUI.'
-                : 'Генерация не готова: ' + (config.reason || 'проверьте подключение и файлы модели')}
+                : 'Генерация не готова: ' +
+                  (config.reason || 'проверьте подключение и файлы модели')}
           </p>
           {mismatch && recipe === 'flux2-klein-4b-v1' ? (
             <p className="asa-image-suggestion">
@@ -171,7 +174,9 @@ export function AdminAiImages({
           <details className="asa-image-settings-details">
             <summary>
               Размеры и лимиты
-              <span>{sizes.length} форматов · {limit} / день</span>
+              <span>
+                {sizes.length} форматов · {limit} / день
+              </span>
             </summary>
             <div className="asa-image-detail-fields">
               <label>
@@ -185,7 +190,9 @@ export function AdminAiImages({
                   onChange={(event) => setLimit(Number(event.target.value))}
                 />
               </label>
-              <span className="asa-image-muted">Одновременных заданий: {config.globalConcurrency}</span>
+              <span className="asa-image-muted">
+                Одновременных заданий: {config.globalConcurrency}
+              </span>
             </div>
             <fieldset disabled={busy} className="asa-image-presets">
               <legend>Разрешённые размеры</legend>
@@ -229,7 +236,11 @@ export function AdminAiImages({
       ) : (
         <p role="status">Загружаем настройки генерации…</p>
       )}
-      {notice ? <p role="status" className="asa-image-action-message">{notice}</p> : null}
+      {notice ? (
+        <p role="status" className="asa-image-action-message">
+          {notice}
+        </p>
+      ) : null}
     </section>
   );
 }
