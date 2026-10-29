@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: presets_and_clean_composer_integrated_comfy_capabilities_next
+      checkpoint: comfy_capability_source_integrated_runtime_and_remaining_admin_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -647,7 +647,17 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R27, R31]
           acceptance_checks: [C17, C20, C24, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          candidate_sha: b289ba8412fed3d78985d7ca35eceba1a7e3813c
+          integrated_sha: fc0a95a46d95e2a10c5bba957ee7cf64aabc20d2
+          source_branch: codex/ai-comfy-capability-compatibility-20261029
+          independent_review: approved_source_p2_fix_and_final_composition
+          focused_tests: 110_pass_exact_final_composition
+          ci_status: remote_ci_pending
+          production_connectivity: NOT_RUN
+          model_hash_reverification: NOT_RUN
+          gpu_acceptance: NOT_RUN
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
