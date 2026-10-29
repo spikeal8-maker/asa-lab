@@ -79,6 +79,36 @@ class FreshComposeDefaultTests(unittest.TestCase):
 
 
 
+
+class SiteSummaryTests(unittest.TestCase):
+    def test_browser_failed_is_red_even_with_technical_success(self):
+        report = result("operation", IDENTITY, "update", site={
+            "status": "TECHNICAL_OK", "technical": {"status": "passed"},
+            "browser": {"status": "failed"}, "owner": {"status": "READY"}})
+        finalize(report)
+        self.assertEqual(report["site"]["status"], "FAILED")
+        output = io.StringIO()
+        render(report, stream=output)
+        self.assertIn("[X] Сайт и пользовательский путь: ошибка", output.getvalue())
+
+    def test_browser_not_run_is_not_technical_ok(self):
+        report = result("operation", IDENTITY, "update", site={
+            "status": "TECHNICAL_OK", "technical": {"status": "passed"},
+            "browser": {"status": "not_run"}})
+        finalize(report)
+        self.assertEqual(report["site"]["status"], "INCOMPLETE")
+        output = io.StringIO()
+        render(report, as_json=True, stream=output)
+        self.assertEqual(json.loads(output.getvalue())["site"]["status"], "INCOMPLETE")
+
+    def test_full_current_browser_pass_is_ok(self):
+        report = result("operation", IDENTITY, "update", site={
+            "technical": {"status": "passed"}, "browser": {"status": "passed"},
+            "owner": {"status": "READY"}})
+        finalize(report)
+        self.assertEqual(report["site"]["status"], "OK")
+
+
 class CloudPreflightPolicyTests(unittest.TestCase):
     def setUp(self):
         self.runtime = Runtime.__new__(Runtime)
