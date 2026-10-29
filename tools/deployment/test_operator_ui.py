@@ -157,6 +157,7 @@ class ManagerProgressTests(unittest.TestCase):
                 patch.object(asa_manager, "assert_ci"),
                 patch.object(asa_manager, "verify_embedded_entry_http"),
                 patch.object(asa_manager, "prepare_collector", return_value={"readerGroupChanged": False}),
+                patch.object(asa_manager, "Installation", return_value=install),
                 patch.object(asa_manager, "reconcile_collector"),
                 patch.object(asa_manager, "fetch_images") as images,
                 patch.object(asa_manager, "export_backup") as backup,
