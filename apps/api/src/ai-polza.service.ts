@@ -50,7 +50,8 @@ export interface PolzaSttInput {
 }
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const MIME = ['audio/webm', 'audio/ogg', 'audio/mp4'] as const;
-const MAX_QUEUED = 24;
+// Two active upstream requests plus the queue accommodate a 30-learner burst.
+const MAX_QUEUED = 32;
 const MAX_ACTIVE = 2;
 
 function keyFromEnvironment(raw: string | undefined): Buffer | null {
@@ -362,7 +363,7 @@ export class AiPolzaService {
         if (index !== -1) this.waiting.splice(index, 1);
         cleanup();
         reject(new AiPolzaError('ai_stt_busy', 429, 'Очередь распознавания переполнена.'));
-      }, 25000);
+      }, 60000);
       signal?.addEventListener('abort', onAbort, { once: true });
       if (signal?.aborted) onAbort();
       else this.waiting.push(onReady);

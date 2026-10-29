@@ -246,6 +246,54 @@ describe('STT admission and request isolation', () => {
     expect(active).toBe(0);
   });
 
+  it('accepts a thirty-learner burst as two active requests and a bounded cancellable queue', async () => {
+    const admitted: string[] = [];
+    const { pool } = fakePool((sql, params) => {
+      if (sql.includes('ai_polza_runtime')) return [runtime()];
+      if (sql.includes('ai_polza_stt_admit')) {
+        admitted.push(String(params[0]));
+        return 20;
+      }
+      throw new Error('Unexpected SQL');
+    });
+    const gates: Array<() => void> = [];
+    const provider = vi.fn(async () => {
+      await new Promise<void>((resolve) => gates.push(resolve));
+      return new Response(JSON.stringify({ text: 'Готово' }), { status: 200 });
+    });
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 5,
+    });
+    const makeInput = () => ({
+      requestId: randomUUID(),
+      audioBase64: sampleAudio,
+      mimeType: 'audio/webm',
+      durationSeconds: 5,
+    });
+    const first = service.transcribe(randomUUID(), makeInput());
+    const second = service.transcribe(randomUUID(), makeInput());
+    await vi.waitFor(() => expect(provider).toHaveBeenCalledTimes(2));
+    const cancels = Array.from({ length: 28 }, () => new AbortController());
+    const queued = cancels.map((controller) =>
+      service.transcribe(randomUUID(), makeInput(), controller.signal),
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    cancels.forEach((controller) => controller.abort());
+    const results = await Promise.allSettled(queued);
+    expect(results).toHaveLength(28);
+    expect(
+      results.every(
+        (result) => result.status === 'rejected' && result.reason.code === 'ai_stt_cancelled',
+      ),
+    ).toBe(true);
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(admitted).toHaveLength(2);
+    gates.splice(0).forEach((release) => release());
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+  });
+
   it('cancels queued work before SQL admission or a paid provider request', async () => {
     const admitted: string[] = [];
     const { pool } = fakePool((sql, params) => {
