@@ -467,10 +467,7 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
         expect(Math.max(...heights)).toBeLessThanOrEqual(94);
       }
       if (colorScheme === 'dark') {
-        await expect(page.locator('.asa-polza-confirmed')).toHaveCSS(
-          'color',
-          'rgb(131, 212, 181)',
-        );
+        await expect(page.locator('.asa-polza-confirmed')).toHaveCSS('color', 'rgb(131, 212, 181)');
       }
       await page.screenshot({
         path: testInfo.outputPath('polza-' + width + '-' + colorScheme + '.png'),
@@ -502,8 +499,8 @@ test('Polza admin connection and transcription stay compact on desktop and mobil
     }
   }
   await page.getByText('Подробнее о лимитах и HTTPS').click();
-  await expect(page.getByText('Резервируется максимальная длина записи', {
-    exact: false,
-  })).toBeVisible();
+  await expect(
+    page.getByText('Резервируется максимальная длина записи', { exact: false }),
+  ).toBeVisible();
   expect(fixture.errors).toEqual([]);
 });
