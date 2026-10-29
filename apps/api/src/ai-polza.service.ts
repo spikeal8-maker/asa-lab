@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import { inspectPolzaAudioSeconds } from './ai-polza-audio.js';
 
 export const POLZA_API_BASE = 'https://polza.ai/api/v1';
 export const POLZA_STT_MODEL = 'ai-sage/gigaam-v3';
@@ -113,18 +114,24 @@ function validateAudio(
 export class AiPolzaService {
   private readonly key: Buffer | null;
   private readonly fetchImpl: typeof fetch;
+  private readonly inspectDuration: (bytes: Buffer, signal?: AbortSignal) => Promise<number>;
   private active = 0;
   private readonly inFlightOwners = new Set<string>();
   private readonly waiting: Array<() => void> = [];
 
   constructor(
     private readonly pool: pg.Pool,
-    options: { encryptionKey?: string; fetchImpl?: typeof fetch } = {},
+    options: {
+      encryptionKey?: string;
+      fetchImpl?: typeof fetch;
+      inspectDuration?: (bytes: Buffer, signal?: AbortSignal) => Promise<number>;
+    } = {},
   ) {
     this.key = keyFromEnvironment(
       options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY'],
     );
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.inspectDuration = options.inspectDuration ?? inspectPolzaAudioSeconds;
   }
 
   private async sqlValue<T>(sql: string, values: readonly unknown[]): Promise<T> {
@@ -379,6 +386,33 @@ export class AiPolzaService {
     let release: (() => void) | undefined;
     try {
       release = await this.acquire(signal);
+      if (signal?.aborted)
+        throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+      // Do not trust a client-supplied duration. Examine actual packet timestamps before
+      // any paid dispatch or quota reservation, with no audio persisted to the filesystem.
+      let measuredSeconds: number;
+      try {
+        measuredSeconds = await this.inspectDuration(audio.bytes, signal);
+      } catch {
+        if (signal?.aborted)
+          throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
+        throw new AiPolzaError(
+          'ai_stt_input_invalid',
+          400,
+          'Невозможно проверить длительность или формат записи.',
+        );
+      }
+      if (
+        !Number.isFinite(measuredSeconds) ||
+        measuredSeconds < 0.1 ||
+        measuredSeconds > state.max_audio_seconds + 1 ||
+        Math.abs(measuredSeconds - audio.seconds) > 3
+      )
+        throw new AiPolzaError(
+          'ai_stt_duration_invalid',
+          400,
+          'Длительность записи не соответствует разрешённому лимиту.',
+        );
       if (signal?.aborted)
         throw new AiPolzaError('ai_stt_cancelled', 409, 'Распознавание отменено.');
       // Durable per-owner budget and UUID replay guard happen BEFORE any paid network request.

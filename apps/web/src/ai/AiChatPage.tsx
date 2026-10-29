@@ -2395,6 +2395,7 @@ export function AiChatPage({
                       )}
                     </div>
                     <AiVoiceInput
+                      key={(seatId ?? 'personal') + ':' + (currentId ?? 'new')}
                       call={call}
                       disabled={
                         interactionBusy ||

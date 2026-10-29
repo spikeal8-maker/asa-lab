@@ -67,6 +67,22 @@ export function AiVoiceInput({
     };
   }, [call]);
 
+  // If another operation disables the composer, never finish or dispatch stale audio.
+  useEffect(() => {
+    if (!disabled) return;
+    cancelled.current = true;
+    pending.current?.abort();
+    pending.current = null;
+    if (recorder.current?.state === 'recording') recorder.current.stop();
+    if (timeout.current) clearTimeout(timeout.current);
+    timeout.current = null;
+    stream.current?.getTracks().forEach((track) => track.stop());
+    stream.current = null;
+    recorder.current = null;
+    setMode('idle');
+    setMessage('');
+  }, [disabled]);
+
   useEffect(() => {
     if (mode !== 'recording') return;
     const clock = setInterval(() => setSeconds((value) => value + 1), 1000);

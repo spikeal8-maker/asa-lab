@@ -127,6 +127,7 @@ describe('STT admission and request isolation', () => {
     const service = new AiPolzaService(pool, {
       encryptionKey,
       fetchImpl: provider as unknown as typeof fetch,
+      inspectDuration: async () => 8,
     });
     const result = await service.transcribe(actor, {
       requestId: randomUUID(),
@@ -160,6 +161,30 @@ describe('STT admission and request isolation', () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects a forged short-duration claim before quota or network dispatch', async () => {
+    const source = runtime();
+    const { pool, query } = fakePool((sql) => {
+      if (sql.includes('ai_polza_runtime')) return [source];
+      throw new Error('Budget must not be consumed');
+    });
+    const provider = vi.fn();
+    const service = new AiPolzaService(pool, {
+      encryptionKey,
+      fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 42,
+    });
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_stt_duration_invalid', status: 400 });
+    expect(provider).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
   it('blocks replay after an uncertain request without contacting Polza again', async () => {
     const { pool } = fakePool((sql) => {
       if (sql.includes('ai_polza_runtime')) return [runtime()];
@@ -169,6 +194,7 @@ describe('STT admission and request isolation', () => {
     const service = new AiPolzaService(pool, {
       encryptionKey,
       fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 10,
     });
     await expect(
       service.transcribe(actor, {
@@ -199,6 +225,7 @@ describe('STT admission and request isolation', () => {
     const service = new AiPolzaService(pool, {
       encryptionKey,
       fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 5,
     });
     const tasks = [0, 1, 2].map(() =>
       service.transcribe(randomUUID(), {
@@ -237,6 +264,7 @@ describe('STT admission and request isolation', () => {
     const service = new AiPolzaService(pool, {
       encryptionKey,
       fetchImpl: provider as typeof fetch,
+      inspectDuration: async () => 5,
     });
     const makeInput = () => ({
       requestId: randomUUID(),
