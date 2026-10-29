@@ -88,7 +88,7 @@ class CloudPreflightPolicyTests(unittest.TestCase):
 
     def test_best_effort_transport_unavailable_is_warning(self):
         with patch("deployment.setup_operation.backup_workflow.CloudTransport",
-                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable")):
+                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable", "retry")):
             actual = self.runtime.backup_preflight()
         self.assertEqual(actual["status"], "WARNING")
         self.assertEqual(actual["reasonCode"], "CLOUD_UNAVAILABLE")
@@ -96,14 +96,14 @@ class CloudPreflightPolicyTests(unittest.TestCase):
     def test_required_transport_unavailable_stays_blocked(self):
         self.runtime.config["backup"]["policy"] = "required"
         with patch("deployment.setup_operation.backup_workflow.CloudTransport",
-                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable")):
+                   side_effect=Blocked("BACKUP_COMMAND_FAILED", "transport unavailable", "retry")):
             with self.assertRaises(Blocked) as caught:
                 self.runtime.backup_preflight()
         self.assertEqual(caught.exception.code, "CLOUD_PREPARATION")
 
     def test_best_effort_transport_identity_violation_stays_blocked(self):
         with patch("deployment.setup_operation.backup_workflow.CloudTransport",
-                   side_effect=Blocked("CLOUD_TRANSPORT_PIN", "transport changed")):
+                   side_effect=Blocked("CLOUD_TRANSPORT_PIN", "transport changed", "stop")):
             with self.assertRaises(Blocked) as caught:
                 self.runtime.backup_preflight()
         self.assertEqual(caught.exception.code, "CLOUD_TRANSPORT_PIN")
