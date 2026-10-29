@@ -108,20 +108,20 @@ export async function discoverComfyUi(
     privateJson(origin + '/models/text_encoders', fetchImpl, signal),
     privateJson(origin + '/models/vae', fetchImpl, signal),
   ]);
-  const system =
-    systemInfo && typeof systemInfo === 'object'
-      ? (systemInfo as { system?: { comfyui_version?: unknown } }).system
+  if (!systemInfo || typeof systemInfo !== 'object' || Array.isArray(systemInfo))
+    throw new ComfyUiError('ai_comfy_invalid', 503, 'Неверный ответ system_stats ComfyUI.');
+  const rawSystem = (systemInfo as { system?: unknown }).system;
+  const rawVersion =
+    rawSystem && typeof rawSystem === 'object' && !Array.isArray(rawSystem)
+      ? (rawSystem as { comfyui_version?: unknown }).comfyui_version
       : undefined;
   const version =
-    typeof system?.comfyui_version === 'string' && system.comfyui_version.length <= 40
-      ? system.comfyui_version
+    typeof rawVersion === 'string' &&
+    rawVersion.trim().length > 0 &&
+    rawVersion.length <= 40 &&
+    !/[\p{Cc}\p{Cf}]/u.test(rawVersion)
+      ? rawVersion.trim()
       : 'неизвестна';
-  if (version === 'неизвестна')
-    throw new ComfyUiError(
-      'ai_comfy_invalid',
-      503,
-      'Адрес не подтвердил ComfyUI: версия сервера отсутствует.',
-    );
   const rawDevices = (systemInfo as { devices?: unknown }).devices;
   const devices = Array.isArray(rawDevices)
     ? rawDevices

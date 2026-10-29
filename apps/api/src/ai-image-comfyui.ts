@@ -211,9 +211,8 @@ export class ComfyImageTransport {
     let reason =
       'Адрес не подтвердил ComfyUI. Проверьте сервер и порт (11434 обычно Ollama, 8188 — ComfyUI).';
     try {
-      const stats = object(await this.json('/system_stats'));
-      const version = object(stats['system'])['comfyui_version'];
-      if (typeof version !== 'string' || !version.length || version.length > 40) invalid();
+      object(await this.json('/system_stats'));
+      // Missing or malformed optional version metadata cannot veto valid capabilities.
       // Version strings are diagnostics, not a substitute for the actual native contracts.
       // The former 0.42.1 floor had no documented upstream defect behind it.
       const template = graph('readiness', 768, 0, 'ASA_readiness', recipe);

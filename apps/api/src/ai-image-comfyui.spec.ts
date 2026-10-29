@@ -401,7 +401,7 @@ it('retains the historical v1 digest while a distinct FP8 profile owns and recov
   await expect(transport.recover(id, marker, 1024, digest)).rejects.toThrow();
 });
 
-it.each(['0.19.3', '0.42.0', '0.99.1', '1.2.0'])(
+it.each(['0.19.3', '0.42.0', '0.99.1', '1.2.0', undefined, '', null, { invalid: true }])(
   'checks actual FP8 capabilities on %s, denying model/output/input changes',
   async (version) => {
     const recipe = 'flux2-klein-4b-fp8-izo-v1' as const;
@@ -424,7 +424,7 @@ it.each(['0.19.3', '0.42.0', '0.99.1', '1.2.0'])(
     let failure = '';
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       if (String(url).endsWith('/system_stats'))
-        return json({ system: { comfyui_version: version } });
+        return json(version === undefined ? {} : { system: { comfyui_version: version } });
       const type = String(url).split('/').at(-1)!;
       const node = Object.values(workflow).find((n) => n.class_type === type)!;
       const required = Object.fromEntries(
