@@ -21,6 +21,24 @@ class PretendTty(io.StringIO):
         return True
 
 
+class WindowsCp1252Stream:
+    encoding = "cp1252"
+
+    def __init__(self):
+        self.lines = []
+
+    def isatty(self):
+        return False
+
+    def write(self, value):
+        # Match the actual Windows runner's strict legacy stdout encoding.
+        value.encode(self.encoding)
+        self.lines.append(value)
+
+    def flush(self):
+        return None
+
+
 def release():
     return {"revision": "b" * 40, "schema": 279, "images": {}}
 
@@ -41,6 +59,23 @@ class OperatorRendererTests(unittest.TestCase):
         self.assertIn("Установка не запускалась".lower(), output.lower())
         self.assertEqual(output.count("Окружение и доступ:"), 1)
         self.assertEqual(sum(1 for _, label in FIELDS if label in output), len(FIELDS))
+
+    def test_legacy_windows_stdout_cannot_crash_or_leak_ansi(self):
+        stream = WindowsCp1252Stream()
+        report = OperatorView(stream=stream, environ={"TERM": "xterm"})
+        report.begin("РУЧНОЕ ОБНОВЛЕНИЕ")
+        report.highlight_version(
+            {"revision": "a" * 40, "schema": 278}, release(), same=False
+        )
+        report.set("backup", "OK", "Проверенная локальная копия")
+        report.finish("UPDATED")
+        output = "".join(stream.lines)
+        self.assertIn("ASA Lab", output)
+        self.assertIn("OBNOVLEN", output)
+        self.assertIn("a" * 12 + " -> " + "b" * 12, output)
+        self.assertIn("[OK]", output)
+        self.assertNotIn("\033", output)
+        self.assertNotIn("\\u0420", output)
 
     def test_interactive_colors_and_no_color_optout(self):
         buffer = PretendTty()
