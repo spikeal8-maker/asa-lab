@@ -159,7 +159,7 @@ def validate_config(value, root, operator_uid, *, policy=True):
     require(isinstance(value.get("installationId"), str) and re.fullmatch(r"[a-f0-9]{32}", value["installationId"]),
             "CONFIG_IDENTITY", "Некорректный installation ID.")
     require(value.get("profile") in ("production", "staging", "dev", "base"), "CONFIG_PROFILE", "Неизвестный профиль установки.")
-    project = value.get("project", "asa-lab-production")
+    project = value.get("project", "asa-lab-dev")
     require(isinstance(project, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,127}", project),
             "CONFIG_PROJECT", "Некорректный Compose project.")
     attest_editor_env(value.get("entryOrigin"), value.get("entryOrigin"), value.get("entryOrigin"), value["profile"])
@@ -233,7 +233,7 @@ def prepare_config(root, operator_uid, *, previous=None, supplied=None, install=
     if os.environ.get("ASA_SETUP_BROWSERS_PATH"):
         browser["browsersPath"] = os.environ["ASA_SETUP_BROWSERS_PATH"]
     value = {**(previous or {}), "format": FORMAT, "installationId": identity, "root": str(root), "operatorUid": operator_uid,
-             "profile": profile, "entryOrigin": origin, "project": env.get("COMPOSE_PROJECT_NAME", "asa-lab-production"),
+             "profile": profile, "entryOrigin": origin, "project": env.get("COMPOSE_PROJECT_NAME", "asa-lab-dev"),
              "backupDirectory": settings.get("backupDirectory", str(root / "backups")), "browser": browser,
              "backup": {"policy": policy_name, "ageRecipient": recipient or None,
                 "cloud": {"enabled": cloud_enabled, "transportPath": str(bundle / "ops/cloud_storage.py"),
