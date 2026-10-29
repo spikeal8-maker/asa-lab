@@ -22,12 +22,12 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Format exact changed files
-        run: pnpm exec prettier --write apps/api/src/ai-polza-audio.ts apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.spec.ts apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/AiChatPage.tsx apps/web/src/ai/ai-voice-input.spec.tsx apps/web/src/admin/ai-admin.css apps/web/src/admin/AdminAiTranscription.tsx
+        run: pnpm exec prettier --write apps/api/src/ai-polza-audio.ts apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.spec.ts apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/AiChatPage.tsx apps/web/src/ai/ai-voice-input.spec.tsx apps/web/src/admin/ai-admin.css apps/web/src/admin/AdminAiTranscription.tsx tests/admin/ai-polza.pg.spec.ts
       - name: Commit formatting to PR branch
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- apps/api/src/ai-polza-audio.ts apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.spec.ts apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/AiChatPage.tsx apps/web/src/ai/ai-voice-input.spec.tsx apps/web/src/admin/ai-admin.css apps/web/src/admin/AdminAiTranscription.tsx
+          git add -- apps/api/src/ai-polza-audio.ts apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.spec.ts apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/AiChatPage.tsx apps/web/src/ai/ai-voice-input.spec.tsx apps/web/src/admin/ai-admin.css apps/web/src/admin/AdminAiTranscription.tsx tests/admin/ai-polza.pg.spec.ts
           if ! git diff --cached --quiet; then
             git commit -m 'style(ai-stt): format audio verification and microphone tests'
             git push origin 'HEAD:refs/heads/feature/asa-polza-transcription-admin-20261029'
