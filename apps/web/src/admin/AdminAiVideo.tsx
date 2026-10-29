@@ -11,8 +11,7 @@ export function AdminAiVideo() {
         <span className="asa-ai-integration-state">Планируется</span>
       </header>
       <p className="asa-ai-integration-note" role="status">
-        Провайдеры, модели и лимиты видео пока не подключены. Настройки изображений
-        и действующие подключения остаются без изменений.
+        Генерация видео пока не подключена. Действующие настройки изображений не изменены.
       </p>
     </section>
   );
