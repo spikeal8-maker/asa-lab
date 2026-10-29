@@ -53,6 +53,31 @@ def receipt(outcome="ACCEPTED"):
             "restore": {"status": "UNVERIFIED"}, "writers": {"held": outcome != "BLOCKED"}}
 
 
+
+class FreshComposeDefaultTests(unittest.TestCase):
+    def test_fresh_config_uses_canonical_compose_project_without_existing_env(self):
+        from deployment.setup_config import prepare_config
+
+        def answer(prompt, default=None, **kwargs):
+            if prompt.startswith("Публичный HTTPS"):
+                return "https://asa.example.invalid"
+            if prompt.startswith("Политика backup"):
+                return "best-effort"
+            if prompt.startswith("Облачная копия") or prompt.startswith("Включить ежедневный"):
+                return "no"
+            return default
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            installed = SimpleNamespace(env={}, settings={}, profile="production")
+            with patch("deployment.setup_config._ask", side_effect=answer), patch(
+                "deployment.setup_config.validate_config", side_effect=lambda value, *_args, **_kwargs: value
+            ):
+                configured = prepare_config(root, UID, install=installed, fresh=True)
+            self.assertEqual(configured["project"], "asa-lab-dev")
+            self.assertEqual(configured["profile"], "production")
+
+
 class FakeRuntime:
     def __init__(self, root):
         self.root = Path(root)
