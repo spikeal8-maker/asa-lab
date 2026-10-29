@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: image_presets_adaptation_with_composer_ci_pending
+      checkpoint: presets_and_clean_composer_integrated_comfy_capabilities_next
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,39 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-COMFY-CAPABILITY-COMPATIBILITY
+          issue: 373
+          scope: capability-based ComfyUI compatibility and versioned existing FP8 profile
+          status: in_progress
+          selected_at: '2026-10-29'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R27, R31]
+          acceptance_checks: [C17, C20, C24, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner requires compatibility across ComfyUI versions, not a one-version whitelist.
+            Design per-capability adapters checking actual node/input/output contracts and
+            installed models, with explicit incompatibility reasons and safe fallbacks for
+            differing API/graph capabilities. Never claim universal operation when required
+            nodes/models are absent, and never bypass immutable recipe/digest/recovery guards.
+            Existing original recipe needs an absent FP4 encoder; the inspected0.19.3 node
+            has measured FP8 workflow nodes/files. Add a separate immutable FP8 recipe using
+            the documented checked profile, preserving old recipe identities and active jobs.
+            Consume integrated0280 six presets; use next free migration if schema expansion
+            is necessary. Distinguish connection, capability compatibility, model provenance
+            and actual GPU acceptance. No broad version downgrade or file renaming shortcut.
+            Read-only diagnostics:11434 is Ollama; ComfyUI at192.168.1.112:8188 answers all four
+            discovery routes from the TEST API container. This does not prove production
+            asa-lab.ru connectivity; production observed4ddc3a26/schema279, test813e1f00/schema275.
+            Desktop Commander returned monthly usage exhaustion: do not retry/reconnect it.
+            No new model hashes or GPU runs were obtained. User forbids site/Docker/config
+            updates; no deployment was started. Source-only work may continue.
+            Remaining owner repairs: readable Settings priority controls and visibility,
+            PR816 context/thinking preserving Qwen120K/xhigh, PR830 search test window with
+            user-entered query, expanded image instructions/local-vs-network guidance and
+            readable system prompt/tool documentation. Do not call these completed.
         - id: ASAI-IMAGE-PRESETS-ADAPTATION
           issue: 373
           scope: adapt prepared PR825 six image presets and approved brain navigation icon
@@ -647,7 +680,13 @@ parallel_lanes:
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R16, R19, R27, R31]
           acceptance_checks: [C17, C20, C24, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          integrated_sha: 86e55680276bcb34b5ba5aa69cb4ed3827d2095c
+          independent_review: source_challenge_pass
+          focused_tests: 214_pass
+          governance: pass
+          ci_status: remote_ci_pending
           owner_acceptance: pending
           demo_status: NOT_RUN
           source_pr: 825
@@ -679,7 +718,8 @@ parallel_lanes:
           candidate_sha: 4fac7ef6db5a401b468056446323bbc449f0e789
           integrated_sha: 4fac7ef6db5a401b468056446323bbc449f0e789
           independent_review: approved_exact_source
-          ci_status: unit_types_review_pass_browser_pending
+          ci_status: focused_ci_pass
+          focused_ci_run: 40785722748
           focused_tests: 185_pass_no_nx_cache
           owner_acceptance: pending
           demo_status: NOT_RUN
