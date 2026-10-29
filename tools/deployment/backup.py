@@ -10,6 +10,7 @@ import uuid
 
 from .contracts import atomic_json, inventory_files, require, verify_backup
 from .system import run
+from .restore_order import ordered_restore_toc
 
 PRIVILEGES_SQL = """
 SELECT COALESCE(json_agg(x ORDER BY x.relation), '[]'::json) FROM (
@@ -186,17 +187,44 @@ def restore_check(install, backup, database):
                              "-U", install.env["POSTGRES_USER"], "-d", install.env["POSTGRES_DB"], input_data=query + ";\n", capture=True)
     require(not exists, "RESTORE_EXISTS", "Restore-test database already exists.", "Choose a new *_test database; no database is deleted automatically.")
     remote = f"/tmp/asa-restore-{uuid.uuid4().hex}.dump"
+    remote_list = f"/tmp/asa-restore-{uuid.uuid4().hex}.list"
+    uploaded_list = False
+    created_target = False
     try:
         upload_dump(install, Path(backup).resolve() / "database.dump", remote)
-        install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
+        original_toc = install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
+        corrected_toc = ordered_restore_toc(original_toc)
+        restore_arguments = []
+        if corrected_toc != original_toc:
+            # The next line is a database dependency, not a reason to disable
+            # CHECK constraints, RLS, or any row. Keep the full pg_restore TOC.
+            uploaded_list = True
+            install.compose("exec", "-T", "postgres", "sh", "-eu", "-c",
+                            'umask 077; cat > "$1"', "asa-restore-list", remote_list,
+                            input_data=corrected_toc + "\n", capture=True)
+            restore_arguments = ["--use-list", remote_list]
         db_command(install, 'createdb -U "$POSTGRES_USER" "$RESTORE_DATABASE"', database=database)
+        created_target = True
         # Keep ACLs; target admin owns restored objects. Missing referenced roles
         # fail closed instead of silently weakening RLS or creating superusers.
         install.compose("exec", "-T", "postgres", "pg_restore", "--exit-on-error", "--single-transaction", "--no-owner",
-                        "-U", install.env["POSTGRES_USER"], "-d", database, remote)
+                        *restore_arguments, "-U", install.env["POSTGRES_USER"], "-d", database, remote)
         db_command(install, 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$RESTORE_DATABASE" -c "SELECT count(*) FROM schema_migrations"', database=database)
         require(privileges(install, database) == manifest["applicationPrivileges"],
                 "RESTORE_PRIVILEGES", "Restored application table privileges/RLS differ from the source.")
         print(f"RESTORE_CHECK verified database and object checksums: {database}; application journeys still require acceptance.")
+    except BaseException:
+        if created_target:
+            # This helper only created a new *_test database after confirming it
+            # did not exist. Drop that *new* failed target, never the live DB,
+            # and never force-disconnect other users to make cleanup succeed.
+            try:
+                install.compose("exec", "-T", "postgres", "dropdb", "--if-exists",
+                                "-U", install.env["POSTGRES_USER"], database, capture=True)
+                print("RESTORE_CLEANUP removed only the failed new test database")
+            except BaseException:
+                print("RESTORE_CLEANUP_BLOCKED test database remains for review; live database was not changed")
+        raise
     finally:
-        install.compose("exec", "-T", "postgres", "rm", "-f", remote, capture=True)
+        install.compose("exec", "-T", "postgres", "rm", "-f", remote,
+                        *([remote_list] if uploaded_list else []), capture=True)
