@@ -1,0 +1,37 @@
+name: One-time Polza PR formatting
+on:
+  push:
+    branches:
+      - feature/asa-polza-transcription-admin-20261029
+    paths:
+      - .github/workflows/polza-format-once.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format only Polza changed files
+        run: |
+          pnpm exec prettier --write             apps/api/src/ai-polza.service.ts             apps/api/src/ai-polza.controller.ts             apps/api/src/ai-polza.spec.ts             apps/api/src/app.module.ts             apps/api/src/app.factory.ts             apps/web/src/admin/AdminPolzaConnection.tsx             apps/web/src/admin/AdminAiTranscription.tsx             apps/web/src/admin/ai-polza-admin.ts             apps/web/src/admin/AiAdminWorkspace.tsx             apps/web/src/admin/ai-admin-navigation.ts             apps/web/src/admin/ai-media-admin.css             apps/web/src/ai/AiVoiceInput.tsx             apps/web/src/ai/AiChatPage.tsx             apps/web/src/ai/ai-voice-input.css             apps/web/src/admin/testing/ai-polza-transcription.spec.ts             e2e/ai-generation-policy.spec.ts             tests/migration/course-structure-forward-upgrade.pg.spec.ts
+      - name: Commit scoped formatting to draft branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- apps/api/src/ai-polza.service.ts apps/api/src/ai-polza.controller.ts apps/api/src/ai-polza.spec.ts apps/api/src/app.module.ts apps/api/src/app.factory.ts apps/web/src/admin/AdminPolzaConnection.tsx apps/web/src/admin/AdminAiTranscription.tsx apps/web/src/admin/ai-polza-admin.ts apps/web/src/admin/AiAdminWorkspace.tsx apps/web/src/admin/ai-admin-navigation.ts apps/web/src/admin/ai-media-admin.css apps/web/src/ai/AiVoiceInput.tsx apps/web/src/ai/AiChatPage.tsx apps/web/src/ai/ai-voice-input.css apps/web/src/admin/testing/ai-polza-transcription.spec.ts e2e/ai-generation-policy.spec.ts tests/migration/course-structure-forward-upgrade.pg.spec.ts
+          if ! git diff --cached --quiet; then
+            git commit -m "style(ai-polza): apply canonical Prettier formatting"
+            git push origin "HEAD:refs/heads/feature/asa-polza-transcription-admin-20261029"
+          fi
