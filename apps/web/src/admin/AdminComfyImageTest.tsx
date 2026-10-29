@@ -20,9 +20,11 @@ const initialState: ImageComposerState = {
 export function AdminComfyImageTest({
   principalId,
   config,
+  refreshToken = 0,
 }: {
   principalId: string;
   config: AiImageGenerationAdminConfig | null;
+  refreshToken?: number;
 }) {
   const storageKey = 'asa-ai-image-admin-preview:' + principalId;
   const [threadId, setThreadId] = useState<string | null>(() => {
@@ -71,7 +73,7 @@ export function AdminComfyImageTest({
     return () => {
       live = false;
     };
-  }, [config?.configurationVersion]);
+  }, [config?.configurationVersion, refreshToken]);
 
   const createThread = useCallback(async (): Promise<string | null> => {
     if (creating.current) return null;
