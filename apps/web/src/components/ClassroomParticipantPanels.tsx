@@ -279,7 +279,56 @@ export function ParticipantMeritsAndAvatars({
   const [avatarTitle, setAvatarTitle] = useState('');
   const [secret, setSecret] = useState(false);
   const [achievement, setAchievement] = useState('');
-  const [uploads, setUploads] = useState<Array<{ title: string; dataUrl: string; id: string }>>([]);
+  type AvatarUploadInput = {
+    title: string;
+    dataUrl: string;
+    secret: boolean;
+    meritId: string | null;
+    builtinAward: string | null;
+  };
+  const [uploads, setUploads] = useState<
+    Array<{
+      name: string;
+      suffix: string;
+      dataUrl: string;
+      id: string;
+      attempted?: boolean;
+      submitted?: { input: AvatarUploadInput; unlockLabel: string };
+    }>
+  >([]);
+  const uploadSubmitted = uploads.some((file) => file.submitted);
+  const uploadControlStyle = {
+    minHeight: 44,
+    minWidth: 44,
+    maxWidth: '100%',
+    boxSizing: 'border-box' as const,
+  };
+  const uploadAtCapacity = profile.avatars.length >= 24;
+  const uploadBlocked = uploadAtCapacity && !uploads.some((file) => file.attempted);
+  const preparedUploads = uploads.map((file) => ({
+    ...file,
+    submitted: file.submitted ?? {
+      input: {
+        title: (avatarTitle.trim() || file.name).slice(0, 55) + file.suffix,
+        dataUrl: file.dataUrl,
+        secret,
+        meritId: secret && achievement.startsWith('custom:') ? achievement.slice(7) : null,
+        builtinAward: secret && achievement.startsWith('builtin:') ? achievement.slice(8) : null,
+      },
+      unlockLabel:
+        (achievement.startsWith('custom:')
+          ? profile.merits.find((merit) => merit.id === achievement.slice(7))?.title
+          : SEAT_AWARDS.find((award) => `builtin:${award.key}` === achievement)?.label) ??
+        'Только по выдаче доступа',
+    },
+  }));
+  function cancelUpload(): void {
+    setUploads([]);
+    setAvatarTitle('');
+    setSecret(false);
+    setAchievement('');
+    setError(null);
+  }
   const [choice, setChoice] = useState<string | null>(
     profile.avatars.find((a) => a.selected && a.available)?.id ?? null,
   );
@@ -340,20 +389,20 @@ export function ParticipantMeritsAndAvatars({
     }
   }
   async function upload(): Promise<void> {
-    if (locked || uploads.length === 0) return;
+    if (locked || uploads.length === 0 || uploadBlocked) return;
     setBusy(true);
     setError(null);
     const token = scope.current;
+    // Bind the complete batch to its request IDs before the first request. A lost
+    // response must retry exactly the same payload, including the unlock rule.
+    setUploads(preparedUploads);
     try {
-      for (const file of uploads) {
-        const input = {
-          title: file.title,
-          dataUrl: file.dataUrl,
-          secret,
-          meritId: achievement.startsWith('custom:') ? achievement.slice(7) : null,
-          builtinAward: achievement.startsWith('builtin:') ? achievement.slice(8) : null,
-        };
-        if (!(await mutate('avatar', input, file.id))) break;
+      for (const file of preparedUploads) {
+        if (uploadAtCapacity && !file.attempted) break;
+        setUploads((current) =>
+          current.map((item) => (item.id === file.id ? { ...item, attempted: true } : item)),
+        );
+        if (!(await mutate('avatar', file.submitted.input, file.id))) break;
         setUploads((current) => current.filter((item) => item.id !== file.id));
       }
       if (token === scope.current) await onChanged();
@@ -543,7 +592,10 @@ export function ParticipantMeritsAndAvatars({
           </button>
         </div>
         {!readOnly ? (
-          <fieldset disabled={locked || profile.avatars.length >= 24}>
+          <fieldset
+            disabled={locked || (profile.avatars.length >= 24 && uploads.length === 0)}
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}
+          >
             <legend>Загрузить аватары · до 24 на класс</legend>
             <p>
               PNG, JPEG, WebP до 8 МБ исходный файл; 320×320 после уменьшения, до 220 КБ. SVG и HTML
@@ -553,13 +605,17 @@ export function ParticipantMeritsAndAvatars({
               Название аватара
               <input
                 maxLength={60}
+                style={uploadControlStyle}
+                disabled={uploadSubmitted}
                 value={avatarTitle}
                 onChange={(e) => setAvatarTitle(e.target.value)}
               />
             </label>
-            <label>
+            <label style={{ minHeight: 44, alignItems: 'center' }}>
               <input
                 type="checkbox"
+                style={{ width: 20, height: 20, minWidth: 20, flexShrink: 0 }}
+                disabled={uploadSubmitted}
                 checked={secret}
                 onChange={(e) => setSecret(e.target.checked)}
               />
@@ -568,7 +624,12 @@ export function ParticipantMeritsAndAvatars({
             {secret ? (
               <label>
                 Открыть при достижении
-                <select value={achievement} onChange={(e) => setAchievement(e.target.value)}>
+                <select
+                  style={uploadControlStyle}
+                  disabled={uploadSubmitted}
+                  value={achievement}
+                  onChange={(e) => setAchievement(e.target.value)}
+                >
                   <option value="">Только по выдаче доступа</option>
                   {SEAT_AWARDS.map((award) => (
                     <option key={award.key} value={`builtin:${award.key}`}>
@@ -587,6 +648,8 @@ export function ParticipantMeritsAndAvatars({
               Файлы аватаров
               <input
                 type="file"
+                style={{ ...uploadControlStyle, width: '100%' }}
+                disabled={uploadSubmitted || profile.avatars.length >= 24}
                 accept="image/png,image/jpeg,image/webp"
                 multiple
                 onChange={(event) => {
@@ -602,9 +665,8 @@ export function ParticipantMeritsAndAvatars({
                   const token = scope.current;
                   void Promise.all(
                     files.map(async (file, i) => ({
-                      title:
-                        (avatarTitle.trim() || file.name.replace(/\.[^.]+$/, '')).slice(0, 55) +
-                        (files.length > 1 ? ` ${i + 1}` : ''),
+                      name: file.name.replace(/\.[^.]+$/, ''),
+                      suffix: files.length > 1 ? ` ${i + 1}` : '',
                       dataUrl: await avatarPng(file),
                       id: newClientId(),
                     })),
@@ -629,14 +691,44 @@ export function ParticipantMeritsAndAvatars({
             {uploads.length > 0 ? (
               <>
                 <div className="participant-avatar-grid">
-                  {uploads.map((file) => (
-                    <img key={file.id} src={file.dataUrl} alt={file.title} width={64} height={64} />
+                  {preparedUploads.map((file) => (
+                    <div key={file.id}>
+                      <img
+                        src={file.dataUrl}
+                        alt={file.submitted.input.title}
+                        width={64}
+                        height={64}
+                      />
+                      <p>{file.submitted.input.title}</p>
+                      <small>
+                        {file.submitted.input.secret
+                          ? `Секретный · ${file.submitted.unlockLabel}`
+                          : 'Доступен всем ученикам класса'}
+                      </small>
+                    </div>
                   ))}
                 </div>
-                <button type="button" onClick={() => void upload()}>
+                {uploadSubmitted ? (
+                  <p role="status">
+                    Параметры отправлены. Повтор загрузки сохранит те же названия и условия доступа.
+                    Отмена уберёт очередь, но уже сохранённые аватары останутся в классе.
+                  </p>
+                ) : null}
+                {uploadAtCapacity ? (
+                  <p role="status">
+                    В классе уже 24 аватара. Можно повторить только ранее отправленные файлы.
+                    Остальные файлы остаются в очереди; её можно отменить.
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  style={uploadControlStyle}
+                  disabled={uploadBlocked}
+                  onClick={() => void upload()}
+                >
                   Загрузить {uploads.length}
                 </button>
-                <button type="button" onClick={() => setUploads([])}>
+                <button type="button" style={uploadControlStyle} onClick={cancelUpload}>
                   Отмена загрузки
                 </button>
               </>

@@ -483,6 +483,139 @@ describe('participant completion DOM behavior', () => {
     });
   }
 
+  it('previews edited upload metadata and retries an ambiguous response with the identical batch receipts', async () => {
+    const data = profile();
+    data.merits = [
+      { id: 'merit-a', title: 'Мастер', description: '', granted: false, grantedAt: null },
+    ];
+    const props = { classroomId: 'class', seatId: 'seat-a', profile: data, onChanged: vi.fn() };
+    vi.spyOn(avatarFiles, 'createAvatarDataUrl').mockResolvedValue('data:image/webp;base64,AA==');
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ close: vi.fn() }));
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
+      'data:image/png;base64,AA==',
+    );
+    const mutate = vi
+      .spyOn(participantsApi, 'mutate')
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 0,
+        error: { code: 'network_error', message: 'Ответ потерян' },
+      })
+      .mockResolvedValue(ok({ saved: true }));
+    await render(createElement(ParticipantMeritsAndAvatars, props));
+    const fileInput = labelled<HTMLInputElement>('Файлы аватаров');
+    await act(async () => {
+      Object.defineProperty(fileInput, 'files', {
+        configurable: true,
+        value: [
+          new File(['png'], 'first.png', { type: 'image/png' }),
+          new File(['png'], 'second.png', { type: 'image/png' }),
+        ],
+      });
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(host.querySelector('img[alt="first 1"]')).not.toBeNull();
+    await fill(labelled('Название аватара'), 'Новое имя');
+    const secret = labelled<HTMLInputElement>('Секретный аватар');
+    await act(async () => secret.click());
+    const unlock = host.querySelector<HTMLSelectElement>('select')!;
+    await act(async () => {
+      unlock.value = 'custom:merit-a';
+      unlock.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(host.querySelector('img[alt="Новое имя 1"]')).not.toBeNull();
+    expect(host.textContent).toContain('Секретный · Мастер');
+    await click('Загрузить 2');
+    const first = mutate.mock.calls[0]!;
+    expect(first.slice(0, 3)).toEqual([
+      'class',
+      'avatar',
+      {
+        title: 'Новое имя 1',
+        dataUrl: 'data:image/png;base64,AA==',
+        secret: true,
+        meritId: 'merit-a',
+        builtinAward: null,
+      },
+    ]);
+    expect(labelled<HTMLInputElement>('Название аватара').disabled).toBe(true);
+    expect(secret.disabled).toBe(true);
+    expect(unlock.disabled).toBe(true);
+    expect(fileInput.disabled).toBe(true);
+    // Even an injected change cannot alter the already submitted request.
+    await fill(labelled('Название аватара'), 'Другое имя');
+    await render(
+      createElement(ParticipantMeritsAndAvatars, {
+        ...props,
+        profile: {
+          ...data,
+          merits: [{ ...data.merits[0]!, title: 'Переименованная заслуга' }],
+          avatars: Array.from({ length: 24 }, (_, i) => ({
+            id: `stored-${i}`,
+            title: `Аватар ${i}`,
+            url: '/avatar',
+            secret: false,
+            available: true,
+            selected: false,
+            permitted: true,
+          })),
+        },
+      }),
+    );
+    expect(host.querySelector('img[alt="Новое имя 1"]')).not.toBeNull();
+    expect(host.textContent).toContain('Секретный · Мастер');
+    await click('Загрузить 2');
+    expect(mutate.mock.calls[1]).toEqual(first);
+    expect(mutate).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('img[alt="Новое имя 2"]')).not.toBeNull();
+    expect(
+      [...host.querySelectorAll('button')].find((b) => b.textContent === 'Загрузить 1')!.disabled,
+    ).toBe(true);
+    await click('Загрузить 1');
+    expect(mutate).toHaveBeenCalledTimes(2);
+    await click('Отмена загрузки');
+    expect(host.querySelector('img[alt="Новое имя 2"]')).toBeNull();
+    await render(createElement(ParticipantMeritsAndAvatars, props));
+
+    // A public draft must not retain an invisible secret unlock condition.
+    await act(async () => secret.click());
+    await act(async () => {
+      const rule = host.querySelector<HTMLSelectElement>('select')!;
+      rule.value = 'custom:merit-a';
+      rule.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => secret.click());
+    await act(async () => {
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(host.textContent).toContain('Доступен всем ученикам класса');
+    await click('Загрузить 2');
+    expect(mutate.mock.calls[2]![2]).toMatchObject({
+      secret: false,
+      meritId: null,
+      builtinAward: null,
+    });
+    expect(mutate.mock.calls[3]![2]).toEqual({ ...mutate.mock.calls[2]![2], title: 'second 2' });
+    expect(mutate.mock.calls[3]![3]).not.toBe(mutate.mock.calls[2]![3]);
+    expect(host.textContent).not.toContain('Загрузить 2');
+    await act(async () => fileInput.dispatchEvent(new Event('change', { bubbles: true })));
+    await click('Отмена загрузки');
+    expect(labelled('Название аватара').value).toBe('');
+    expect(secret.checked).toBe(false);
+    expect(host.textContent).not.toContain('Загрузить 2');
+    await act(async () => secret.click());
+    expect(host.querySelector<HTMLSelectElement>('select')!.value).toBe('');
+    await act(async () => fileInput.dispatchEvent(new Event('change', { bubbles: true })));
+    await render(createElement(ParticipantMeritsAndAvatars, { ...props, classroomId: 'other' }));
+    expect(host.textContent).not.toContain('Загрузить 2');
+    expect(labelled('Название аватара').value).toBe('');
+    expect(labelled<HTMLInputElement>('Секретный аватар').checked).toBe(false);
+    expect(mutate).toHaveBeenCalledTimes(4);
+  });
+
   it('does not label an archived teacher view as the teachers own pupil achievements', async () => {
     const data = profile();
     data.status = 'archived';
