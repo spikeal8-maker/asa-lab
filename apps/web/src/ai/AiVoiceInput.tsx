@@ -191,7 +191,8 @@ export function AiVoiceInput({
       disabled ||
       !status?.enabled ||
       !navigator.mediaDevices?.getUserMedia
-    ) return;
+    )
+      return;
 
     // The guard must change synchronously, before getUserMedia can resolve.
     // A state update alone would still allow a second click in the same tick.
@@ -312,14 +313,14 @@ export function AiVoiceInput({
         : mode === 'acquiring'
           ? 'Запрашиваем доступ к микрофону'
           : mode === 'transcribing'
-          ? 'Распознаём речь'
-          : available
-            ? 'Продиктовать сообщение'
-            : status?.enabled && typeof window !== 'undefined' && !window.isSecureContext
-              ? 'Для голосового ввода нужен HTTPS'
-              : status?.enabled
-                ? 'Браузер не поддерживает голосовой ввод'
-                : 'Голосовой ввод не подключён';
+            ? 'Распознаём речь'
+            : available
+              ? 'Продиктовать сообщение'
+              : status?.enabled && typeof window !== 'undefined' && !window.isSecureContext
+                ? 'Для голосового ввода нужен HTTPS'
+                : status?.enabled
+                  ? 'Браузер не поддерживает голосовой ввод'
+                  : 'Голосовой ввод не подключён';
 
   return (
     <div className="ai-voice-control">
@@ -330,7 +331,11 @@ export function AiVoiceInput({
         aria-label={label}
         aria-pressed={mode === 'recording'}
         title={label}
-        disabled={mode === 'transcribing' || mode === 'acquiring' || (mode === 'idle' && (!available || disabled))}
+        disabled={
+          mode === 'transcribing' ||
+          mode === 'acquiring' ||
+          (mode === 'idle' && (!available || disabled))
+        }
         onClick={() => {
           if (mode === 'recording') stop();
           else if (mode === 'confirm') cancel();
@@ -370,8 +375,8 @@ export function AiVoiceInput({
                 : mode === 'acquiring'
                   ? 'Ожидаем разрешения браузера на микрофон…'
                   : mode === 'transcribing'
-                  ? 'Распознаём речь…'
-                  : message}
+                    ? 'Распознаём речь…'
+                    : message}
           </span>
           {mode === 'confirm' ? (
             <>

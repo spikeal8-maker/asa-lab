@@ -150,9 +150,11 @@ it('enforces global speech budget atomically across real PostgreSQL connections'
 
 it('fails closed if the administrator changes duration settings between validation and reservation', async () => {
   const previous = await service.admin(platform.principal_id);
-  const baseline = (await admin.query<{ seconds: number }>(
-    'SELECT COALESCE(SUM(reserved_seconds),0)::integer AS seconds FROM public.ai_polza_daily_usage',
-  )).rows[0]!.seconds;
+  const baseline = (
+    await admin.query<{ seconds: number }>(
+      'SELECT COALESCE(SUM(reserved_seconds),0)::integer AS seconds FROM public.ai_polza_daily_usage',
+    )
+  ).rows[0]!.seconds;
 
   const latest = await service.save(platform.principal_id, {
     configurationVersion: previous.configurationVersion,
@@ -165,12 +167,16 @@ it('fails closed if the administrator changes duration settings between validati
   expect(latest.configurationVersion).toBeGreaterThan(previous.configurationVersion);
   await expect(
     second.query('SELECT public.ai_polza_stt_admit($1::uuid,$2::uuid,$3::bigint)', [
-      owner.principal_id, randomUUID(), previous.configurationVersion,
+      owner.principal_id,
+      randomUUID(),
+      previous.configurationVersion,
     ]),
   ).rejects.toThrow(/AI_CONFIG_CHANGED/);
-  const after = (await admin.query<{ seconds: number }>(
-    'SELECT COALESCE(SUM(reserved_seconds),0)::integer AS seconds FROM public.ai_polza_daily_usage',
-  )).rows[0]!.seconds;
+  const after = (
+    await admin.query<{ seconds: number }>(
+      'SELECT COALESCE(SUM(reserved_seconds),0)::integer AS seconds FROM public.ai_polza_daily_usage',
+    )
+  ).rows[0]!.seconds;
   expect(after).toBe(baseline);
 });
 

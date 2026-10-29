@@ -176,12 +176,14 @@ describe('STT admission and request isolation', () => {
       fetchImpl: upstream as typeof fetch,
       inspectDuration: async () => 5,
     });
-    await expect(service.transcribe(actor, {
-      requestId: randomUUID(),
-      audioBase64: sampleAudio,
-      mimeType: 'audio/webm',
-      durationSeconds: 5,
-    })).rejects.toMatchObject({ code: 'ai_polza_conflict', status: 409 });
+    await expect(
+      service.transcribe(actor, {
+        requestId: randomUUID(),
+        audioBase64: sampleAudio,
+        mimeType: 'audio/webm',
+        durationSeconds: 5,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_polza_conflict', status: 409 });
     expect(query).toHaveBeenCalledTimes(2);
     expect(upstream).not.toHaveBeenCalled();
   });
