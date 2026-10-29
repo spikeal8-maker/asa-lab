@@ -128,3 +128,22 @@ it('shows a refused URL or busy-job error without hiding it in collapsed details
     'http://192.168.5.21:8188',
   );
 });
+it('invalidates a previously connected GPU when a fresh status check fails', async () => {
+  await render();
+  expect(host.textContent).toContain('ComfyUI подключён');
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path === '/api/admin/v1/ai/comfyui/status')
+      return {
+        ok: false,
+        status: 503,
+        error: { code: 'ai_comfy_unreachable', message: 'Нет связи с ComfyUI' },
+      };
+    return original(path, init);
+  });
+  await click('Проверить состояние');
+  expect(host.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.querySelector('[aria-label="Состояние локальной генерации"]')).not.toBeNull();
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+  expect(host.textContent).not.toContain('Workflow совместим');
+});
