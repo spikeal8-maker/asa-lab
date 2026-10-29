@@ -98,10 +98,11 @@ it('probes the entered LAN origin without saving and saves it explicitly with a 
   expect(vi.mocked(call).mock.calls.at(-1)?.[0]).toBe('/api/admin/v1/ai/comfyui/probe');
   expect(host.textContent).toContain('ещё не сохранён');
   await click('Сохранить адрес');
-  const puts = vi.mocked(call).mock.calls.filter(
-    ([path, init]) =>
-      path === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
-  );
+  const puts = vi
+    .mocked(call)
+    .mock.calls.filter(
+      ([path, init]) => path === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+    );
   expect(puts).toHaveLength(1);
   const [, init] = puts[0]!;
   expect(JSON.parse(String(init?.body))).toMatchObject({
@@ -170,10 +171,11 @@ it('preserves the request ID after uncertain settings PUT', async () => {
   );
   expect(host.textContent).not.toContain('ComfyUI подключён');
   await click('Сохранить адрес');
-  const writes = vi.mocked(call).mock.calls.filter(
-    ([url, init]) =>
-      url === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
-  );
+  const writes = vi
+    .mocked(call)
+    .mock.calls.filter(
+      ([url, init]) => url === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+    );
   expect(writes).toHaveLength(2);
   expect(JSON.parse(String(writes[0]?.[1]?.body)).requestId).toBe(
     JSON.parse(String(writes[1]?.[1]?.body)).requestId,
