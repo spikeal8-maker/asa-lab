@@ -27,7 +27,9 @@ function poolWithRecipe(recipe: string) {
     query: vi.fn(async (sql: string) => {
       queries.push(sql);
       if (sql.includes('ai_comfyui_config('))
-        return { rows: [{ value: { configurationVersion: 4, baseUrl: 'http://192.168.1.112:8188' } }] };
+        return {
+          rows: [{ value: { configurationVersion: 4, baseUrl: 'http://192.168.1.112:8188' } }],
+        };
       if (sql.includes('ai_image_config()')) return { rows: [{ value: { recipe } }] };
       throw new Error('Unexpected query: ' + sql);
     }),
