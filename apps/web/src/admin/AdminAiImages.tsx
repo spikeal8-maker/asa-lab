@@ -7,9 +7,11 @@ import { newClientId } from '../client-id';
 export function AdminAiImages({
   onAccessDenied,
   onConfigChange,
+  refreshToken = 0,
 }: {
   onAccessDenied: () => void;
   onConfigChange?: (config: AiImageGenerationAdminConfig | null) => void;
+  refreshToken?: number;
 }) {
   const [config, setConfig] = useState<AiImageGenerationAdminConfig | null>(null);
   const [recipe, setRecipe] = useState<AiImageRecipe>('flux2-klein-4b-v1');
@@ -55,7 +57,7 @@ export function AdminAiImages({
     };
     // Config-change callback is notification only, not a trigger to refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onAccessDenied, reload]);
+  }, [onAccessDenied, reload, refreshToken]);
 
   const dirty =
     !!config &&
