@@ -98,9 +98,12 @@ it('probes the entered LAN origin without saving and saves it explicitly with a 
   expect(vi.mocked(call).mock.calls.at(-1)?.[0]).toBe('/api/admin/v1/ai/comfyui/probe');
   expect(host.textContent).toContain('ещё не сохранён');
   await click('Сохранить адрес');
-  const [path, init] = vi.mocked(call).mock.calls.at(-1)!;
-  expect(path).toBe('/api/admin/v1/ai/comfyui/settings');
-  expect(init?.method).toBe('PUT');
+  const puts = vi.mocked(call).mock.calls.filter(
+    ([path, init]) =>
+      path === '/api/admin/v1/ai/comfyui/settings' && init?.method === 'PUT',
+  );
+  expect(puts).toHaveLength(1);
+  const [, init] = puts[0]!;
   expect(JSON.parse(String(init?.body))).toMatchObject({
     baseUrl: 'http://192.168.5.20:8188',
     configurationVersion: 1,
