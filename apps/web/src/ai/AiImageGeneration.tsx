@@ -62,6 +62,7 @@ export function AiImageGeneration({
   headless = false,
   controllerRef,
   onStateChange,
+  onJobChange,
   providedStatus,
 }: {
   threadId: string | null;
@@ -78,6 +79,8 @@ export function AiImageGeneration({
   headless?: boolean;
   controllerRef?: Ref<ImageComposerController>;
   onStateChange?: (state: ImageComposerState) => void;
+  /** Optional observer for the admin preview; never submits or retries a job. */
+  onJobChange?: (job: AiImageGenerationJob | null) => void;
   providedStatus?: AiImageGenerationStatus | null;
 }) {
   const call = useRef(createAiScopeCall(seatId)).current;
@@ -86,6 +89,7 @@ export function AiImageGeneration({
   const [size, setSize] = useState<AiImageSize>(1024);
   const [job, setJob] = useState<AiImageGenerationJob | null>(null);
   const [notice, setNotice] = useState('');
+  useEffect(() => onJobChange?.(job), [job, onJobChange]);
   const [sending, setSending] = useState(false);
   const [unresolved, setUnresolved] = useState(false);
   const [check, setCheck] = useState(0);
