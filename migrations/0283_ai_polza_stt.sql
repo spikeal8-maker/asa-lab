@@ -5,6 +5,7 @@ CREATE TABLE public.ai_polza_settings (
   enabled boolean NOT NULL DEFAULT false,
   transcription_enabled boolean NOT NULL DEFAULT false,
   daily_seconds_limit integer NOT NULL DEFAULT 600 CHECK (daily_seconds_limit BETWEEN 60 AND 3600),
+  global_daily_seconds_limit integer NOT NULL DEFAULT 7200 CHECK (global_daily_seconds_limit BETWEEN 600 AND 86400),
   max_audio_seconds integer NOT NULL DEFAULT 20 CHECK (max_audio_seconds BETWEEN 5 AND 30),
   revision bigint NOT NULL DEFAULT 1 CHECK (revision > 0),
   api_key_ciphertext varchar(4096),
@@ -49,6 +50,7 @@ BEGIN
       'configurationVersion', revision, 'enabled', enabled,
       'transcriptionEnabled', transcription_enabled,
       'dailySecondsLimit', daily_seconds_limit,
+      'globalDailySecondsLimit', global_daily_seconds_limit,
       'maxAudioSeconds', max_audio_seconds,
       'apiKeyConfigured', api_key_ciphertext IS NOT NULL,
       'keyFingerprint', key_fingerprint,
@@ -68,6 +70,7 @@ DECLARE
   next_enabled boolean;
   next_stt boolean;
   next_limit integer;
+  next_global_limit integer;
   next_max integer;
   request_id uuid;
 BEGIN
@@ -81,11 +84,13 @@ BEGIN
   next_enabled := (p_body->>'enabled')::boolean;
   next_stt := (p_body->>'transcriptionEnabled')::boolean;
   next_limit := (p_body->>'dailySecondsLimit')::integer;
+  next_global_limit := (p_body->>'globalDailySecondsLimit')::integer;
   next_max := (p_body->>'maxAudioSeconds')::integer;
   request_id := (p_body->>'requestId')::uuid;
   IF key_action NOT IN ('keep', 'replace', 'clear')
      OR next_enabled IS NULL OR next_stt IS NULL
-     OR next_limit NOT BETWEEN 60 AND 3600 OR next_max NOT BETWEEN 5 AND 30
+     OR next_limit NOT BETWEEN 60 AND 3600 OR next_global_limit NOT BETWEEN 600 AND 86400
+     OR next_max NOT BETWEEN 5 AND 30
      OR request_id IS NULL OR (next_stt AND NOT next_enabled)
      OR (key_action = 'replace' AND (
        length(p_body->>'ciphertext') NOT BETWEEN 8 AND 4096
@@ -107,6 +112,7 @@ BEGIN
     enabled = next_enabled,
     transcription_enabled = next_stt,
     daily_seconds_limit = next_limit,
+    global_daily_seconds_limit = next_global_limit,
     max_audio_seconds = next_max,
     api_key_ciphertext = CASE key_action WHEN 'replace' THEN p_body->>'ciphertext'
       WHEN 'clear' THEN NULL ELSE old_row.api_key_ciphertext END,
@@ -133,12 +139,12 @@ GRANT EXECUTE ON FUNCTION public.ai_polza_admin_set(uuid,jsonb) TO asalab_app;
 CREATE FUNCTION public.ai_polza_runtime()
 RETURNS TABLE (
   enabled boolean, transcription_enabled boolean,
-  daily_seconds_limit integer, max_audio_seconds integer,
+  daily_seconds_limit integer, global_daily_seconds_limit integer, max_audio_seconds integer,
   api_key_ciphertext varchar, api_key_iv varchar,
   api_key_auth_tag varchar, revision bigint
 )
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-  SELECT enabled, transcription_enabled, daily_seconds_limit, max_audio_seconds,
+  SELECT enabled, transcription_enabled, daily_seconds_limit, global_daily_seconds_limit, max_audio_seconds,
          api_key_ciphertext, api_key_iv, api_key_auth_tag, revision
   FROM public.ai_polza_settings WHERE singleton_key
 $$;
@@ -155,7 +161,8 @@ BEGIN
   IF p_owner IS NULL OR p_request IS NULL THEN
     RAISE EXCEPTION 'AI_POLZA_INVALID' USING ERRCODE = '22023';
   END IF;
-  SELECT * INTO STRICT cfg FROM public.ai_polza_settings WHERE singleton_key FOR SHARE;
+  -- Exclusive lock serializes the global daily budget across all app replicas.
+  SELECT * INTO STRICT cfg FROM public.ai_polza_settings WHERE singleton_key FOR UPDATE;
   IF NOT cfg.enabled OR NOT cfg.transcription_enabled OR cfg.api_key_ciphertext IS NULL THEN
     RAISE EXCEPTION 'AI_STT_DISABLED' USING ERRCODE = '55000';
   END IF;
@@ -164,6 +171,10 @@ BEGIN
   ON CONFLICT DO NOTHING;
   GET DIAGNOSTICS changed = ROW_COUNT;
   IF changed <> 1 THEN RAISE EXCEPTION 'AI_STT_REPLAY_BLOCKED' USING ERRCODE = '40001'; END IF;
+  IF (SELECT COALESCE(SUM(reserved_seconds),0) FROM public.ai_polza_daily_usage WHERE utc_day = today_utc)
+       + cfg.max_audio_seconds > cfg.global_daily_seconds_limit THEN
+    RAISE EXCEPTION 'AI_STT_DAILY_LIMIT' USING ERRCODE = '55000';
+  END IF;
   -- Charge the configured MAX duration, not client-reported audio length, to prevent forged durations
   -- from bypassing the per-owner admission budget. This is reserved allowance, not billed seconds.
   INSERT INTO public.ai_polza_daily_usage(owner_principal_id,utc_day,reserved_seconds)

@@ -1,4 +1,6 @@
 import { AiImageService } from './ai-image.service.js';
+import { AiPolzaService } from './ai-polza.service.js';
+import { AI_POLZA_SERVICE, AdminPolzaController, AiSttController } from './ai-polza.controller.js';
 import {
   AI_IMAGE_SERVICE,
   AiImageController,
@@ -181,6 +183,7 @@ export class AppModule {
       images: aiImageService,
     });
     const aiAccessService = new AiAccessService(requirePool());
+    const aiPolzaService = new AiPolzaService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
       new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
@@ -236,6 +239,8 @@ export class AppModule {
         AiAttachmentController,
         AiImageController,
         AiImageAdminController,
+        AdminPolzaController,
+        AiSttController,
         AiAdminController,
         AiToolPolicyController,
         AdminLogsController,
@@ -292,6 +297,7 @@ export class AppModule {
         { provide: TOKENS.emailService, useValue: emailService },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
         { provide: AI_IMAGE_SERVICE, useValue: aiImageService },
+        { provide: AI_POLZA_SERVICE, useValue: aiPolzaService },
         { provide: TOKENS.aiAccessService, useValue: aiAccessService },
         { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
