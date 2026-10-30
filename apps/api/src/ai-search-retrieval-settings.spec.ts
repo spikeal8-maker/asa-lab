@@ -1,6 +1,6 @@
 import type pg from 'pg';
 import { expect, it, vi } from 'vitest';
-import { AiWebSearchService } from './ai-web-search';
+import { AiWebSearchService, boundSearchEvidence } from './ai-web-search';
 import { parseSearxResults } from './ai-web-search-provider';
 import * as publicReader from './ai-web-page-reader';
 import { aiAttachmentImageFixture } from './ai-attachments/validation.fixture';
@@ -144,4 +144,46 @@ it('loads an original only from the exact owner receipt and rejects disguised SV
   } finally {
     read.mockRestore();
   }
+});
+it('bounds complete multibyte receipts even when reading is disabled', async () => {
+  const parsed = parseSearxResults(
+    {
+      results: Array.from({ length: 12 }, (_, index) => ({
+        url: `https://source.example.org/${index}/` + 'a'.repeat(1500),
+        title: '界'.repeat(240),
+        content: '界'.repeat(1200),
+        thumbnail_src: `https://ts1.mm.bing.net/th?id=${index}`,
+        img_src: `https://images.example.org/${index}/` + 'b'.repeat(1500),
+      })),
+    },
+    true,
+    12,
+  );
+  const evidence = {
+    schemaVersion: 1 as const,
+    provider: 'searxng' as const,
+    mode: 'images' as const,
+    status: 'ready' as const,
+    query: 'images',
+    retrievedAt: new Date().toISOString(),
+    ...parsed,
+  };
+  expect(Buffer.byteLength(JSON.stringify(evidence))).toBeGreaterThan(65536);
+  const bounded = boundSearchEvidence(evidence);
+  expect(Buffer.byteLength(JSON.stringify(bounded))).toBeLessThanOrEqual(60000);
+  expect(bounded.images.length).toBeGreaterThan(0);
+  for (const image of bounded.images)
+    expect(bounded.sources.some((source) => source.url === image.sourceUrl)).toBe(true);
+  const query = vi.fn(async (sql: string, args: unknown[]) => {
+    expect(sql).toContain('ai_web_search_finish');
+    expect(Buffer.byteLength(String(args[3]))).toBeLessThanOrEqual(60000);
+    return { rows: [] };
+  });
+  await new AiWebSearchService({ query } as unknown as pg.Pool, vi.fn()).finish(
+    'owner',
+    'thread',
+    'request',
+    evidence,
+  );
+  expect(Buffer.byteLength(String(query.mock.calls[0]?.[1]?.[3]))).toBeLessThanOrEqual(60000);
 });

@@ -40,6 +40,47 @@ export class AiWebSearchError extends Error {
   }
 }
 
+/** Leave room for PostgreSQL jsonb formatting inside its immutable 64 KiB receipt. */
+export function boundSearchEvidence(evidence: AiWebSearchEvidence): AiWebSearchEvidence {
+  let result = evidence;
+  while (Buffer.byteLength(JSON.stringify(result), 'utf8') > 60000) {
+    if (result.sources.some((source) => source.snippet || source.pageText)) {
+      result = {
+        ...result,
+        sources: result.sources.map((source) => ({
+          ...source,
+          snippet: source.snippet.slice(0, Math.floor(source.snippet.length / 2)),
+          ...(source.pageText
+            ? { pageText: source.pageText.slice(0, Math.floor(source.pageText.length / 2)) }
+            : {}),
+        })),
+      };
+    } else if (result.images.length > 1) {
+      const images = result.images.slice(0, -1);
+      result = {
+        ...result,
+        images,
+        sources:
+          result.mode === 'images'
+            ? result.sources.filter((source) =>
+                images.some((image) => image.sourceUrl === source.url),
+              )
+            : result.sources,
+      };
+    } else if (result.sources.length > 1) {
+      const sources = result.sources.slice(0, -1);
+      result = {
+        ...result,
+        sources,
+        images: result.images.filter((image) =>
+          sources.some((source) => source.url === image.sourceUrl),
+        ),
+      };
+    } else break; // One validated URL/metadata record is bounded well below the receipt limit.
+  }
+  return result;
+}
+
 export function weatherCityFromPrompt(prompt: string): string | undefined {
   return prompt
     .match(
@@ -450,6 +491,7 @@ export class AiWebSearchService {
           );
       }
     } else evidence = await this.indexedEvidence(base, intent === 'images', lookupSignal, config);
+    evidence = boundSearchEvidence(evidence);
     if (!deferFinish) await this.finish(owner, thread, request, evidence);
     return evidence;
   }
@@ -463,7 +505,7 @@ export class AiWebSearchService {
       owner,
       thread,
       request,
-      JSON.stringify(evidence),
+      JSON.stringify(boundSearchEvidence(evidence)),
     ]);
   }
   async readPages(
@@ -486,23 +528,7 @@ export class AiWebSearchService {
           : { ...item, pageRead: 'unavailable' as const };
       }),
     );
-    // The immutable SQL receipt has a 64 KiB bound, including JSON escaping.
-    // Preserve the search list; shorten page excerpts if its remaining budget is small.
-    let result = { ...evidence, sources };
-    while (
-      Buffer.byteLength(JSON.stringify(result), 'utf8') > 64000 &&
-      result.sources.some((item) => item.pageText)
-    ) {
-      result = {
-        ...result,
-        sources: result.sources.map((item) =>
-          item.pageText
-            ? { ...item, pageText: item.pageText.slice(0, Math.floor(item.pageText.length / 2)) }
-            : item,
-        ),
-      };
-    }
-    return result;
+    return boundSearchEvidence({ ...evidence, sources });
   }
   private async indexedEvidence(
     base: AiWebSearchEvidence,

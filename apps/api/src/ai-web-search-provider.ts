@@ -347,6 +347,7 @@ export function publicWebUrl(value: unknown): string | null {
     const u = new URL(value);
     if (
       u.protocol !== 'https:' ||
+      u.href.length > 2048 ||
       u.username ||
       u.password ||
       (u.port && u.port !== '443') ||
