@@ -7607,109 +7607,121 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     accepted_slices:
-      - task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-        issue: 702
-        pr: 704
-        accepted_candidate_sha: d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0
-        integrated_sha: 107bbc6b80ae40516b6dd97c0665432143988e07
-        independent_review: approved
-        exact_candidate_focused_run: 40309167638
-        exact_candidate_general_run: 40309167651
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
-        issue: 713
-        pr: 717
-        accepted_candidate_sha: 68eae0f19b91099a36c89c81820bc06d5425cf16
-        integrated_sha: 7a6558cacd4fe7d4f50517a3e34c10287f698d30
-        independent_review: approved
-        exact_candidate_focused_run: 40316339667
-        exact_candidate_general_run: 40316339889
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-PUBLIC-PAGE-LAYOUT-001
-        issue: 211
-        pr: 780
-        accepted_candidate_sha: 94a969c5f147b984af9eb0fd68f82e4985ce6efe
-        integrated_sha: fbc37240624d4923b31facf747d632bfe04cb6f3
-        independent_review: approved
-        exact_candidate_focused_run: 40326845223
-        exact_candidate_general_run: 40326845387
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
-        issue: 211
-        pr: 781
-        accepted_candidate_sha: cb367606632018b85e8864efd4cf066ae81e9cfc
-        integrated_sha: ceb28cca228fb03f9b0c44a1b1509e7aea32a38c
-        independent_review: approved
-        exact_candidate_focused_run: 40336671237
-        exact_candidate_general_run: 40336671236
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-      - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
-        issue: 211
-        pr: 785
-        accepted_candidate_sha: 9f18bcc1d340c4606a0618c5fedddc5ed992ffa7
-        integrated_sha: 28055932d15e38eed4076249547fe09a227d42ca
-        independent_review: approved
-        exact_candidate_focused_run: 40361199752
-        exact_candidate_general_run: 40361199670
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
-      - task_id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
-        issue: 211
-        pr: 814
-        accepted_candidate_sha: 22d0cdcbfdb85166a5aaaec12dc6040a348a5a4d
-        integrated_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
-        independent_review: approved
-        exact_candidate_focused_run: 40679082270
-        exact_candidate_general_run: 40679082222
-        exact_candidate_public_projects_run: 40679082362
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
-      - task_id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
-        issue: 211
-        pr: 826
-        accepted_candidate_sha: 068e48bdc0095c1ae6445a3f08924f3ed4091872
-        integrated_sha: 5638358526d255886380fb52a3f8a1ebbc6d6db4
-        independent_review: approved
-        exact_candidate_focused_run: 40717387188
-        exact_candidate_general_run: 40717386887
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/student-policy-20261028-acceptance.md
-      - task_id: TASK-PROJ-ACQUISITION-CONTROLS-001
-        issue: 211
-        pr: 837
-        accepted_candidate_sha: 1d7133f6e7e14769d73c33a6a172fa39dd4b0f21
-        integrated_sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
-        independent_review: approved
-        exact_candidate_focused_run: 40733497724
-        exact_candidate_general_run: 40733497796
-        status: technical_accepted
-        owner_acceptance: pending
-        deployment: not_run
-        evidence: docs/product/projects/evidence/acquisition-controls-20261028-acceptance.md
+    - task_id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
+      issue: 702
+      pr: 704
+      accepted_candidate_sha: d95f1b75fa8c222aa80dbe5e2ee92f951dba8ff0
+      integrated_sha: 107bbc6b80ae40516b6dd97c0665432143988e07
+      independent_review: approved
+      exact_candidate_focused_run: 40309167638
+      exact_candidate_general_run: 40309167651
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
+      pr: 717
+      accepted_candidate_sha: 68eae0f19b91099a36c89c81820bc06d5425cf16
+      integrated_sha: 7a6558cacd4fe7d4f50517a3e34c10287f698d30
+      independent_review: approved
+      exact_candidate_focused_run: 40316339667
+      exact_candidate_general_run: 40316339889
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-PUBLIC-PAGE-LAYOUT-001
+      issue: 211
+      pr: 780
+      accepted_candidate_sha: 94a969c5f147b984af9eb0fd68f82e4985ce6efe
+      integrated_sha: fbc37240624d4923b31facf747d632bfe04cb6f3
+      independent_review: approved
+      exact_candidate_focused_run: 40326845223
+      exact_candidate_general_run: 40326845387
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-R7-03A-ARTIFACT-ENVELOPE-001
+      issue: 211
+      pr: 781
+      accepted_candidate_sha: cb367606632018b85e8864efd4cf066ae81e9cfc
+      integrated_sha: ceb28cca228fb03f9b0c44a1b1509e7aea32a38c
+      independent_review: approved
+      exact_candidate_focused_run: 40336671237
+      exact_candidate_general_run: 40336671236
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-VIEWER-001
+      issue: 211
+      pr: 785
+      accepted_candidate_sha: 9f18bcc1d340c4606a0618c5fedddc5ed992ffa7
+      integrated_sha: 28055932d15e38eed4076249547fe09a227d42ca
+      independent_review: approved
+      exact_candidate_focused_run: 40361199752
+      exact_candidate_general_run: 40361199670
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/electronics-viewer-20261026-acceptance.md
+    - task_id: TASK-PROJ-SCRATCH-PUBLIC-VIEWER-001
+      issue: 211
+      pr: 814
+      accepted_candidate_sha: 22d0cdcbfdb85166a5aaaec12dc6040a348a5a4d
+      integrated_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+      independent_review: approved
+      exact_candidate_focused_run: 40679082270
+      exact_candidate_general_run: 40679082222
+      exact_candidate_public_projects_run: 40679082362
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/scratch-viewer-20261028-acceptance.md
+    - task_id: TASK-PROJ-STUDENT-PUBLICATION-POLICY-001
+      issue: 211
+      pr: 826
+      accepted_candidate_sha: 068e48bdc0095c1ae6445a3f08924f3ed4091872
+      integrated_sha: 5638358526d255886380fb52a3f8a1ebbc6d6db4
+      independent_review: approved
+      exact_candidate_focused_run: 40717387188
+      exact_candidate_general_run: 40717386887
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/student-policy-20261028-acceptance.md
+    - task_id: TASK-PROJ-ACQUISITION-CONTROLS-001
+      issue: 211
+      pr: 837
+      accepted_candidate_sha: 1d7133f6e7e14769d73c33a6a172fa39dd4b0f21
+      integrated_sha: ab82a608b51fd9f84e6e3611be7b9d79d5953ce2
+      independent_review: approved
+      exact_candidate_focused_run: 40733497724
+      exact_candidate_general_run: 40733497796
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/acquisition-controls-20261028-acceptance.md
+    - task_id: TASK-PROJ-PUBLICATION-LIKES-001
+      issue: 211
+      pr: 866
+      accepted_candidate_sha: d90a263acfa43d129eb161971d377b0f46b0f9e7
+      integrated_sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
+      independent_review: approved
+      exact_candidate_focused_run: 41037641744
+      exact_candidate_general_run: 41037641010
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/publication-likes-20261030-acceptance.md
     task:
       id: TASK-PROJ-PUBLICATION-LIKES-001
       issue: 211
       branch: main
       candidate_branch: codex/publication-likes-20261030
       base_branch: main
-      pr: null
+      pr: 866
       pr_draft: false
-      status: in_progress
-      checkpoint: owner_approved_like_retention_selected
+      status: done
+      checkpoint: publication_likes_PR866_source_accepted
       kind: implementation
       risk: high
       semantic_change: 'yes'
@@ -7724,6 +7736,10 @@ parallel_lanes:
       - docs/product/projects/tasks/PROJ-PUBLICATION-LIKES.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
+      accepted_candidate_sha: d90a263acfa43d129eb161971d377b0f46b0f9e7
+      integrated_sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
+      evidence: docs/product/projects/evidence/publication-likes-20261030-acceptance.md
+      deployment: not_run
     integration_dependencies:
       - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
         issue: 836
@@ -8561,15 +8577,15 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: cd5be63911d659c186fa5075029a547437c5d7d4
+      convergence_baseline_sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
       head_sha: null
-      observed_at: '2026-10-30T07:57:42.720524+00:00'
+      observed_at: '2026-10-30T10:28:05.269670+00:00'
       main:
         branch: main
-        sha: cd5be63911d659c186fa5075029a547437c5d7d4
-      observation_note: Dated selection after accepted PR837 acquisition controls. Fetch main before writes. Owner resumed
-        likes as the next priority and approved DEC122 retention; no like implementation or new deployment acceptance
-        claimed.
+        sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
+      observation_note: Dated PR866 technical source acceptance after independent final Code/Security and exact General/Public
+        Projects success. Fetch main before writes. Likes accepted; Scratch asset-copy and physical exports remain separate
+        unfinished slices. No production update or owner visual acceptance in this slice.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
