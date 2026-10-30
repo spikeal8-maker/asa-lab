@@ -1,4 +1,4 @@
-import { aiImageSizeLabel } from '@asa-lab/contracts';
+import { aiImageDimensions, aiImageSizeLabel } from '@asa-lab/contracts';
 import {
   useEffect,
   useCallback,
@@ -166,6 +166,7 @@ export function AiChatPage({
   const [imageSize, setImageSize] = useState<AiImageSize>(1024);
   const imageController = useRef<ImageComposerController>(null);
   const imageHandoffPending = useRef(false);
+  const [imageJob, setImageJob] = useState<AiImageGenerationJob | null>(null);
   const [imageUi, setImageUi] = useState<ImageComposerState>({
     busy: false,
     canCancel: false,
@@ -1012,6 +1013,7 @@ export function AiChatPage({
       }
       setImageMode(true);
       restoreComposerFocus.current = focusWasInComposer;
+      setDraft('');
       await imageController.current?.submit(text, imageSize);
       return;
     }
@@ -1096,6 +1098,7 @@ export function AiChatPage({
       };
       const controller = new AbortController();
       activeStream.current = { threadId: id, requestId, controller };
+      setDraft('');
       try {
         const uploadIds: string[] = [];
         for (const file of attachments) {
@@ -1140,7 +1143,6 @@ export function AiChatPage({
           (message) => message.requestId === requestId && message.role === 'assistant',
         );
         if (!result.replayed || completed || result.imageJob) {
-          setDraft('');
           pendingRequest.current = null;
           clearFiles();
         } else {
@@ -1165,13 +1167,13 @@ export function AiChatPage({
               receipt.data.state,
             );
             imageController.current?.follow(receipt.data);
-            setDraft('');
             pendingRequest.current = null;
             clearFiles();
             setError(null);
             return;
           }
         }
+        setDraft((value) => value || text);
         setError(
           problem instanceof Error
             ? problem.message
@@ -1190,7 +1192,6 @@ export function AiChatPage({
           ) {
             // The persisted answer settles the original request. Never carry
             // its already-bound uploads into a new request after an SSE loss.
-            setDraft('');
             pendingRequest.current = null;
             clearFiles();
             setError(null);
@@ -1880,10 +1881,12 @@ export function AiChatPage({
                               </p>
                             </details>
                           ) : null}
-                          <AiMessageContent
-                            content={message.content}
-                            webSearch={message.webSearch}
-                          />
+                          {message.content !== 'Задание на создание изображения принято.' ? (
+                            <AiMessageContent
+                              content={message.content}
+                              webSearch={message.webSearch}
+                            />
+                          ) : null}
                           <AiWebEvidence
                             evidence={message.webSearch}
                             seatId={seatId}
@@ -1983,6 +1986,17 @@ export function AiChatPage({
                     </article>
                   ) : null}
                   {busy ? <AiActivity responding={Boolean(streamedText)} /> : null}
+                  {imageUi.busy && imageJob?.threadId === currentId && imageJob.prompt ? (
+                    <div className="ai-image-prompt-receipt">
+                      <strong>
+                        {imageUi.busy ? 'Генерирую изображение' : 'Промпт изображения'}
+                        {imageJob.size
+                          ? ` · ${aiImageDimensions(imageJob.size).width} × ${aiImageDimensions(imageJob.size).height}`
+                          : ''}
+                      </strong>
+                      <p>{imageJob.prompt}</p>
+                    </div>
+                  ) : null}
                   {imageUi.busy ? <AiActivity image /> : null}
                 </div>
               </div>
@@ -2168,7 +2182,7 @@ export function AiChatPage({
                   }}
                   rows={1}
                   placeholder="Спросить ASA Lab"
-                  disabled={interactionBusy || archived || schoolPolicyDenied}
+                  disabled={archived || schoolPolicyDenied}
                   aria-label="Сообщение ИИ"
                   aria-describedby="ai-composer-note"
                 />
@@ -2517,7 +2531,7 @@ export function AiChatPage({
                 providedStatus={imageStatus}
                 controllerRef={imageController}
                 onStateChange={onImageState}
-                onPromptChange={setDraft}
+                onJobChange={setImageJob}
                 threadId={currentId}
                 seatId={seatId}
                 disabled={interactionBusy || archived || !historyReady || schoolPolicyDenied}

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { AiGeneratedImage as ImageReceipt } from '@asa-lab/contracts';
 import { readGeneratedImage } from './read-generated-image';
 import { AiChatIcon } from './AiChatIcon';
+import { createAiScopeCall } from './ai-scope-api';
+import type { AiImageGenerationJob } from '@asa-lab/contracts';
 export { generatedImagePath } from './read-generated-image';
 
 export function AiGeneratedImage({
@@ -14,6 +16,7 @@ export function AiGeneratedImage({
   seatId?: string | undefined;
 }) {
   const [url, setUrl] = useState('');
+  const [prompt, setPrompt] = useState('');
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -23,6 +26,7 @@ export function AiGeneratedImage({
     const controller = new AbortController();
     let objectUrl = '';
     setUrl('');
+    setPrompt('');
     setError('');
     setActionError('');
     setCopied(false);
@@ -31,6 +35,16 @@ export function AiGeneratedImage({
     const load = async () => {
       if (started || controller.signal.aborted) return;
       started = true;
+      void createAiScopeCall(seatId)<AiImageGenerationJob>(
+        '/api/ai/threads/' +
+          encodeURIComponent(threadId) +
+          '/image-generations/' +
+          encodeURIComponent(image.requestId),
+      )
+        .then((reply) => {
+          if (!controller.signal.aborted && reply.ok) setPrompt(reply.data.prompt);
+        })
+        .catch(() => undefined);
       try {
         // Derive the closed route; a receipt never supplies a browser fetch URL.
         const blob = await readGeneratedImage(image, threadId, seatId, controller.signal);
@@ -81,6 +95,14 @@ export function AiGeneratedImage({
   const imageDetails = `${image.width}×${image.height} · PNG · ${image.sizeBytes.toLocaleString('ru-RU')} байт`;
   return (
     <figure ref={card} className="ai-generated-image">
+      {prompt ? (
+        <div className="ai-image-prompt-receipt">
+          <strong>
+            Промпт · {image.width} × {image.height}
+          </strong>
+          <p>{prompt}</p>
+        </div>
+      ) : null}
       {url ? (
         <>
           <img src={url} alt="Созданное изображение" />

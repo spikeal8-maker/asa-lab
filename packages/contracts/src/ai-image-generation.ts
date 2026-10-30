@@ -74,6 +74,7 @@ export interface AiImageGenerationRequest {
 }
 
 export interface AiImageGenerationJob {
+  readonly size?: AiImageStoredSize;
   readonly requestId: string;
   readonly threadId: string;
   readonly state: AiImageJobState;

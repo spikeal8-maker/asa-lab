@@ -160,6 +160,7 @@ function image(j: ImageJobRow): AiGeneratedImage {
 }
 export function imageJob(j: ImageJobRow): AiImageGenerationJob {
   return {
+    size: j.size,
     requestId: j.request_id,
     threadId: j.thread_id,
     state: j.state,

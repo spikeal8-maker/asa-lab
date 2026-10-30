@@ -1730,3 +1730,22 @@
     animation: none;
   }
 }
+
+.asa-ai-layout .ai-image-prompt-receipt {
+  margin: 18px 0 10px;
+  max-width: 680px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--ai-text) 4%, transparent);
+}
+.asa-ai-layout .ai-image-prompt-receipt strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.asa-ai-layout .ai-image-prompt-receipt p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

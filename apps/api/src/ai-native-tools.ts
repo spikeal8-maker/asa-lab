@@ -37,7 +37,13 @@ export function nativeTools(options: {
           additionalProperties: false,
           required: ['prompt', 'size', 'model'],
           properties: {
-            prompt: { type: 'string', minLength: 1, maxLength: 3000 },
+            prompt: {
+              type: 'string',
+              minLength: 1,
+              maxLength: 3000,
+              description:
+                'Write the complete image generation prompt in English, preserving the user requested scene and details.',
+            },
             size: {
               type: 'integer',
               enum: options.imageSizes,
