@@ -38,6 +38,11 @@ card viewers, 3D viewer or global shell/detail-page change.
 
 ## Owner author-name finding and remaining scope
 
+Correction after owner clarification DEC-PROJ-124: the existing registration
+display name already IS public. The suggested additional public-name choice below
+was a mistaken diagnosis, not a new requirement. PR884 fixes the incorrect
+whole-profile visibility dependency; see public-author-name-20261030-acceptance.md.
+
 Owner reported generic author labels during this work. SQL in0274 deliberately
 freezes `profiles.display_name` only when profile.visibility is public; otherwise
 it freezes 'Автор проекта'. Profiles default private (0010). A later profile

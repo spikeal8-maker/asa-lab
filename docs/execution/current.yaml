@@ -7880,16 +7880,28 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       evidence: docs/product/projects/evidence/catalog-layout-20261030-acceptance.md
+    - task_id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
+      issue: 211
+      pr: 884
+      accepted_candidate_sha: 343235de2bb208926e5920b81a36c82266e44e18
+      integrated_sha: edfbd0057f1a37a473ced5799c6598e8c49aede1
+      independent_review: approved
+      exact_candidate_focused_run: 41095438714
+      exact_candidate_general_run: 41095438423
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
       id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
       issue: 211
       branch: main
       candidate_branch: codex/public-author-name-20261030
       base_branch: main
-      pr: null
+      pr: 884
       pr_draft: false
-      status: in_progress
-      checkpoint: existing_public_display_name_projection_selected
+      status: done
+      checkpoint: existing_public_author_name_technical_accepted_main
       kind: implementation
       risk: high
       semantic_change: 'yes'
