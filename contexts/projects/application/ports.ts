@@ -131,6 +131,12 @@ export interface ProjectModule {
   readonly moduleKey: string;
   readonly defaultProjectTitlePrefix: string;
   validateDocument(value: unknown): ProjectDocumentValidation;
+  validateReplacement?(
+    previous: unknown,
+    next: unknown,
+  ):
+    | { readonly ok: true }
+    | { readonly ok: false; readonly message: string; readonly reasonCode?: string };
   /**
    * The card picture for an already-validated document. Null means the module
    * has nothing to draw yet, which is not an error — the card shows its title

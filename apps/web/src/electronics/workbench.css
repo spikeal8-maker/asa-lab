@@ -6050,3 +6050,107 @@ html.arduino-palette-resizing * {
   overflow-wrap: anywhere;
   box-shadow: 0 2px 6px #0003;
 }
+.workbench-text-icon {
+  font:
+    700 20px/1 Arial,
+    sans-serif;
+}
+.workbench-annotation {
+  cursor: move;
+  touch-action: none;
+  outline: none;
+}
+.workbench-annotation-box {
+  fill: #fffdf3;
+  fill-opacity: 0.94;
+  stroke: #a8a38e;
+  stroke-width: 1;
+}
+.workbench-annotation.selected .workbench-annotation-box,
+.workbench-annotation:focus-visible .workbench-annotation-box {
+  stroke: #1286b5;
+  stroke-width: 2;
+}
+.workbench-annotation-content {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 8px;
+  color: #202b35;
+  font-family: Arial, sans-serif;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  user-select: none;
+}
+.workbench-annotation-resize {
+  cursor: nwse-resize;
+}
+.workbench-annotation-editor {
+  position: absolute;
+  z-index: 7;
+  top: 12px;
+  right: 12px;
+  box-sizing: border-box;
+  width: min(320px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #b7c6d1;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 3px 12px #20303c26;
+  color: #233748;
+  font:
+    14px/1.3 Arial,
+    sans-serif;
+}
+.workbench-annotation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.workbench-annotation-heading button {
+  min-width: 36px;
+  min-height: 36px;
+  font-size: 22px;
+}
+.workbench-annotation-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.workbench-annotation-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  padding: 8px;
+  font:
+    14px/1.4 Arial,
+    sans-serif;
+}
+.workbench-annotation-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.workbench-annotation-fields input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px;
+  font-size: 14px;
+}
+.workbench-annotation-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.workbench-annotation-actions button {
+  flex: 1;
+  min-height: 40px;
+}

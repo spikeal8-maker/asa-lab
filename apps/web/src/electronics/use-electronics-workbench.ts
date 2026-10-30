@@ -11,6 +11,11 @@ import {
 import { flushSync } from 'react-dom';
 import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
+import { useCanvasAnnotations } from './use-canvas-annotations';
+import {
+  annotationOnlyDocumentChange,
+  createAnnotationRuntimeDocumentSelector,
+} from './workbench-annotations';
 import type {
   ComponentResult,
   ProductionStateValue,
@@ -329,12 +334,22 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   };
 
   const undo = () => {
+    if (simulationRunning) {
+      if (projectUndo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectUndo();
   };
 
   const redo = () => {
+    if (simulationRunning) {
+      if (projectRedo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectRedo();
@@ -343,9 +358,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
+  const annotationRuntimeSelector = useRef<ReturnType<
+    typeof createAnnotationRuntimeDocumentSelector
+  > | null>(null);
+  if (!annotationRuntimeSelector.current)
+    annotationRuntimeSelector.current = createAnnotationRuntimeDocumentSelector();
+  const electricalDocument = annotationRuntimeSelector.current(document);
   const runtimeDocument = useMemo(
-    () => applyRuntimeComponentOverrides(document, simulationRunning, runtimeOverrides),
-    [document, runtimeOverrides, simulationRunning],
+    () => applyRuntimeComponentOverrides(electricalDocument, simulationRunning, runtimeOverrides),
+    [electricalDocument, runtimeOverrides, simulationRunning],
   );
 
   useEffect(() => {
@@ -1134,6 +1155,27 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
+  const annotations = useCanvasAnnotations({
+    document,
+    selection,
+    clipboard: clipboardSelection,
+    setSelection,
+    setClipboard: setClipboardSelection,
+    getCurrentDocument,
+    commit: commitDocument,
+    notice: setNotice,
+    nextId,
+    center: visibleCenter,
+    scale: () => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      return rect && rect.width > 0 && rect.height > 0
+        ? Math.min(
+            STAGE_WIDTH / viewport.zoom / rect.width,
+            STAGE_HEIGHT / viewport.zoom / rect.height,
+          )
+        : 1;
+    },
+  });
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
@@ -1586,6 +1628,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function duplicateSelected(): void {
+    if (annotations.duplicate()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
@@ -1601,12 +1644,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function copySelected(): void {
+    if (annotations.copy()) return;
     if (selection?.kind !== 'component') return;
     setClipboardSelection({ ...selection, ids: [...selection.ids] });
     setNotice(selection.ids.length > 1 ? 'Компоненты скопированы.' : 'Компонент скопирован.');
   }
 
   function pasteCopied(): void {
+    if (annotations.paste()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
@@ -1626,6 +1671,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function removeSelection(): void {
+    if (annotations.remove()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || !selection) return;
     if (!structuralEditAllowed()) return;
@@ -2594,6 +2640,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function beginStagePointer(event: PointerEvent<SVGSVGElement>): void {
+    if ((event.target as Element | null)?.closest?.('[data-canvas-annotation]')) return;
     if (event.pointerType === 'touch') {
       if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) {
         event.preventDefault();
@@ -3199,11 +3246,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function fitScene(): void {
-    if (!document || document.components.length === 0) {
+    if (!document || (document.components.length === 0 && !document.annotations?.length)) {
       applyViewport(emptyInitialViewport());
       return;
     }
-    const bounds = sceneBounds(document);
+    const bounds = sceneBounds(document, true);
     const rect = stageRef.current?.getBoundingClientRect();
     applyViewport(
       bounds && rect
@@ -3221,6 +3268,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function nudgeSelection(dx: number, dy: number): void {
+    if (annotations.nudge(dx, dy)) return;
     const current = getCurrentDocument();
     if (!current || selection?.kind !== 'component') return;
     const selectedIds = selection.ids;
@@ -3551,7 +3599,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     duplicateSelected,
     copySelected,
     pasteCopied,
-    hasClipboard: clipboardSelection?.kind === 'component',
+    hasClipboard:
+      clipboardSelection?.kind === 'component' || clipboardSelection?.kind === 'annotation',
+    annotations,
+    annotationWorldPoint: toWorld,
+    addCanvasText: () => {
+      cancelInteraction();
+      setPendingTerminal(null);
+      annotations.add();
+    },
     removeSelection,
     removeWireVertexAt,
     rotateSelected,

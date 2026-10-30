@@ -100,7 +100,7 @@ export function canonicalSimulationInput(
     }));
   const payload: CanonicalObject = {
     digestVersion: SIMULATION_INPUT_DIGEST_VERSION,
-    documentSchemaVersion: document.schemaVersion,
+    documentSchemaVersion: document.schemaVersion === 5 ? 4 : document.schemaVersion,
     analysis: {
       electricalMode:
         simulationTimeMs > 0 ||

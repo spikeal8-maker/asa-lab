@@ -273,7 +273,7 @@ export function WorkbenchHeader({
             <ToolButton
               label="Копировать (Ctrl+C)"
               onClick={c.copySelected}
-              disabled={!hasComponentSelection}
+              disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
             >
               <DuplicateIcon />
             </ToolButton>
@@ -312,6 +312,15 @@ export function WorkbenchHeader({
             <span className="workbench-toolbar-divider" />
             <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
               <CommentIcon />
+            </ToolButton>
+            <ToolButton
+              label="Добавить текст на схему"
+              onClick={c.addCanvasText}
+              disabled={!c.document}
+            >
+              <span aria-hidden="true" className="workbench-text-icon">
+                T
+              </span>
             </ToolButton>
             <ToolButton
               label="Показать или скрыть заметки"
