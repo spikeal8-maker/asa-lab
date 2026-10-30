@@ -2189,6 +2189,88 @@ svg[data-servo-angle-degrees] {
   font-weight: 600;
   white-space: nowrap;
 }
+.workbench-simulation-pace {
+  flex-shrink: 0;
+}
+.workbench-simulation-time-prefix {
+  margin-right: 4px;
+}
+.workbench-simulation-clock-button {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.workbench-simulation-clock-button:hover {
+  background: #edf4f8;
+}
+.workbench-simulation-clock-button:focus-visible {
+  outline: 2px solid #009bc6;
+  outline-offset: -2px;
+}
+.workbench-simulation-rate {
+  min-width: 25px;
+  font-size: 12px;
+}
+.workbench-simulation-pace-panel {
+  position: fixed;
+  z-index: 1200;
+  width: min(300px, calc(100vw - 16px));
+  padding: 14px;
+  box-sizing: border-box;
+  border: 1px solid #cbd6de;
+  border-radius: 8px;
+  background: #fff;
+  color: #33495c;
+  box-shadow: 0 4px 18px #20344826;
+  font-size: 14px;
+}
+.workbench-simulation-pace-panel input {
+  width: 100%;
+  margin: 16px 0 4px;
+  accent-color: #009bc6;
+}
+.workbench-simulation-pace-scale,
+.workbench-simulation-pace-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.workbench-simulation-pace-actions {
+  margin-top: 12px;
+}
+.workbench-simulation-pace-actions button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid #cbd6de;
+  border-radius: 5px;
+  background: #f8fafc;
+  color: inherit;
+  cursor: pointer;
+}
+@media (max-width: 700px) {
+  .workbench-simulation-pace .workbench-simulation-time {
+    display: flex;
+    height: 42px;
+    padding: 0 3px;
+    font-size: 11px;
+  }
+  .workbench-simulation-time-prefix {
+    display: none;
+  }
+  .workbench-simulation-clock-button {
+    gap: 3px;
+    padding: 0 3px;
+  }
+  .workbench-simulation-rate {
+    font-size: 10px;
+  }
+}
 .workbench-simulation-message {
   padding: 7px 16px;
   border-bottom: 1px solid #e5d3bf;

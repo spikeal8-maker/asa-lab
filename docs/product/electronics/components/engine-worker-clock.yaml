@@ -134,16 +134,20 @@ components:
     ownership: asa
     risk: high
     contracts:
+    - docs/product/electronics/contracts/HOST_PACING_PAUSE_ADAPTER_V1.md#pause-boundary
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
     - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#ordinary-led-temporal-observation-v1
     sources:
     - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/simulation-pacing.ts
     - apps/web/src/electronics/load-simulation-worker-controller.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/electronics/use-workbench-project-state.ts
     - apps/web/src/electronics/led-temporal-presentation.ts
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/simulation-pacing.spec.ts
+    - apps/web/src/electronics/testing/simulation-speed.browser.mjs
     - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
     - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
     - e2e/electronics-simulation.spec.ts

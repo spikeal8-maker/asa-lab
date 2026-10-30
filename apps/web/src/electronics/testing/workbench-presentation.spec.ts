@@ -173,7 +173,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain(
       'useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock)',
     );
-    expect(headerSource).toContain('<SimulationClock port={c.nativeOpticalPresentation} />');
+    // Additional UI props do not change the sole authoritative clock port.
+    expect(headerSource).toMatch(
+      /<SimulationClock\s+port=\{c\.nativeOpticalPresentation\}(?:\s|\/>)/,
+    );
     expect(headerSource).toContain('formatSimulationTime(microseconds / 1_000_000)');
     expect(headerSource).not.toContain('formatSimulationTime(c.simulationTimeMs');
     expect(headerSource).not.toContain('Date.now() - startedAt');

@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom';
 import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
 import { useCanvasAnnotations } from './use-canvas-annotations';
+import { SimulationPacing } from './simulation-pacing';
 import {
   annotationOnlyDocumentChange,
   createAnnotationRuntimeDocumentSelector,
@@ -406,6 +407,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   // discarded history owner on every React render.
   const [ledPresentation] = useState(() => new LedTemporalPresentation());
   const [nativeOpticalPresentation] = useState(() => new NativeOpticalPresentation());
+  const [simulationPacing] = useState(() => new SimulationPacing());
+  const simulationPaceCommandRef = useRef<((rate: number) => void) | null>(null);
+  const settleSimulationPauseRef = useRef<(() => void) | null>(null);
+  function setSimulationRate(rate: number): void {
+    if (!simulationPacing.request(rate)) return;
+    if (simulationPaceCommandRef.current) simulationPaceCommandRef.current(rate);
+    else if (rate === 0) simulationPacing.settlePause();
+  }
   const setCommittedHorizonMicroseconds = (value: number) =>
     nativeOpticalPresentation.setClock(value);
   const setLiveObservation = (value: LiveOpticalObservation | null) =>
@@ -435,6 +444,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     ) {
       opticalPublicationRef.current = null;
       nativeOpticalPresentation.commit(publication.next);
+      settleSimulationPauseRef.current?.();
       // This state change is deliberate: native owners must receive a render
       // that retires the protected rollback lease even without another result.
       setRollbackLedAssets(null);
@@ -523,11 +533,28 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationStartedAtRef.current = null;
     normalHostClockRef.current = false;
     requestedHorizonMicrosecondsRef.current = 0;
+    simulationPacing.reset();
   }
 
   function readHostHorizonMicroseconds(): number | null {
     const startedAt = simulationStartedAtRef.current;
     if (startedAt === null) return null;
+    if (simulationPacing.explicit) {
+      const committed = simulationWorkerRef.current?.committedHorizonMicroseconds ?? 0;
+      const horizon = simulationPacing.horizon(
+        Math.round(window.performance.now() * 1000),
+        committed,
+      );
+      return horizon === null
+        ? null
+        : simulationHostOffsetMicrosecondsRef.current +
+            (normalHostClockRef.current
+              ? horizon
+              : Math.max(
+                  committed,
+                  Math.min(horizon, ledPresentation.presentedMicroseconds + 50_000),
+                ));
+    }
     const elapsed = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
     return normalHostClockRef.current
       ? simulationHostOffsetMicrosecondsRef.current + elapsed
@@ -620,6 +647,31 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       null;
     let nativePreparationSequence = 0;
     let nativePreparationSource = nativePreparationSourceRef.current;
+    let hostTransitionPending = false;
+    let paceTransition = 0;
+    const settlePause = () => {
+      if (!pending && !publishing && displayed && generationConfirmed)
+        simulationPacing.settlePause();
+    };
+    settleSimulationPauseRef.current = settlePause;
+    const changePace = (rate: number) => {
+      if (!currentSession()) return;
+      const transition = ++paceTransition;
+      const wall = Math.round(window.performance.now() * 1000);
+      ledPresentation.setPlaybackRate(rate, wall);
+      if (rate === 0) {
+        controller?.setPaused(true);
+        cancelNativePreparation();
+        settlePause();
+      } else {
+        hostTransitionPending = controller?.hasPendingAdvance ?? false;
+        controller?.setPaused(false, (committed) => {
+          if (transition === paceTransition) simulationPacing.reanchor(committed, wall);
+        });
+        if (!controller) simulationPacing.reanchor(latestCommittedHorizon, wall);
+      }
+    };
+    simulationPaceCommandRef.current = changePace;
     const cancelNativePreparation = () => {
       queuedNativePreparation = null;
       if (nativePreparation) {
@@ -702,6 +754,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const document = latestResultDocument;
       if (
         !document ||
+        (simulationPacing.read().rate === 0 && displayed !== null) ||
         pending ||
         publishing ||
         queuedNativePreparation?.document === document ||
@@ -719,6 +772,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         queuedNativePreparation = null;
         const current = () =>
           currentSession() &&
+          (simulationPacing.read().rate !== 0 || displayed === null) &&
           session?.active === true &&
           runtimeDocumentRef.current === document &&
           latestResultDocument === document &&
@@ -966,6 +1020,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
           ledPresentation.reset();
+          if (simulationPacing.explicit) {
+            const rate = simulationPacing.read().rate;
+            ledPresentation.setPlaybackRate(rate, Math.round(window.performance.now() * 1000));
+            if (rate === 0) {
+              simulationPacing.request(0);
+              worker.setPaused(true);
+            }
+          }
           cancelOpticalPublication();
           // Source-only edits intentionally keep the controller generation,
           // and onResult does not identify the dispatch source. Until a real
@@ -981,6 +1043,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
           requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
           simulationStartedAtRef.current = window.performance.now();
+          if (simulationPacing.explicit)
+            simulationPacing.reanchor(0, Math.round(simulationStartedAtRef.current * 1000));
         },
         onResult: (nextResult, ledTemporal, clockProfileId) => {
           if (!currentSession()) return;
@@ -1036,6 +1100,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onCommittedHorizon: (horizon) => {
           if (!currentSession()) return;
           latestCommittedHorizon = horizon;
+          if (hostTransitionPending) {
+            hostTransitionPending = false;
+            simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
+          }
         },
         onSerialProjection: (serial) => {
           if (!currentSession()) return;
@@ -1084,6 +1152,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (cancelNativePreparationRef.current === cancelNativePreparation)
         cancelNativePreparationRef.current = null;
       if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
+      if (simulationPaceCommandRef.current === changePace) simulationPaceCommandRef.current = null;
+      if (settleSimulationPauseRef.current === settlePause) settleSimulationPauseRef.current = null;
       controller?.stop();
     };
   }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
@@ -3549,6 +3619,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         : result;
     },
     nativeOpticalPresentation,
+    simulationPacing,
+    setSimulationRate,
     versions,
     status,
     saveStatus,

@@ -43,6 +43,9 @@ const transport = vi.hoisted(() => ({
     stop: ReturnType<typeof vi.fn>;
     restart: ReturnType<typeof vi.fn>;
     sendSerialRx: ReturnType<typeof vi.fn>;
+    setPaused: ReturnType<typeof vi.fn>;
+    committedHorizonMicroseconds: number;
+    hasPendingAdvance: boolean;
   }>,
 }));
 vi.mock('../live-simulation-worker-controller', () => ({
@@ -68,6 +71,11 @@ vi.mock('../live-simulation-worker-controller', () => ({
       }
     });
     sendSerialRx = vi.fn();
+    committedHorizonMicroseconds = 0;
+    hasPendingAdvance = false;
+    setPaused = vi.fn((paused: boolean, reanchor?: (committed: number) => void) => {
+      if (!paused) reanchor?.(this.committedHorizonMicroseconds);
+    });
     constructor() {
       transport.instances.push(this);
     }
@@ -334,6 +342,81 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe('mounted workbench host demand clock', () => {
+  it('does not backdate a paced event-history demand when accepted input work is ahead of display', async () => {
+    transport.autoReady = false;
+    await mount();
+    await act(async () => {
+      await workbench.toggleSimulation();
+    });
+    const worker = transport.instances[0]!;
+    await act(async () => {
+      worker.callbacks!.onInitialReady?.(0);
+      worker.callbacks!.onCommittedHorizon?.(0);
+      worker.callbacks!.onResult(
+        ready,
+        { profile: 'ordinary-led-held-v1', fromMicroseconds: 0, toMicroseconds: 0, components: [] },
+        'electrothermal-events-v2',
+      );
+    });
+    await frame(0);
+    worker.committedHorizonMicroseconds = 100000;
+    await act(async () => {
+      worker.callbacks!.onCommittedHorizon?.(100000);
+      worker.callbacks!.onResult(
+        { ...ready },
+        {
+          profile: 'ordinary-led-held-v1',
+          fromMicroseconds: 0,
+          toMicroseconds: 100000,
+          components: [],
+        },
+        'electrothermal-events-v2',
+      );
+      workbench.setSimulationRate(0.1);
+    });
+    await tick(10);
+    expect(worker.update.mock.calls.at(-1)?.[1]).toBe(100000);
+  });
+  it.each(['dc-inputs-v1', 'rc-inputs-v2', 'electrothermal-v1'] as const)(
+    'paces and pauses actual generic %s host demand without inventing observations',
+    async (profile) => {
+      transport.autoReady = false;
+      await mount();
+      await act(async () => {
+        await workbench.toggleSimulation();
+      });
+      const worker = transport.instances[0]!;
+      await act(async () => {
+        worker.callbacks!.onInitialReady?.(0);
+        worker.callbacks!.onCommittedHorizon?.(0);
+        worker.callbacks!.onResult(ready, undefined, profile);
+      });
+      await frame(0);
+      await act(async () => workbench.setSimulationRate(0.1));
+      await tick(100);
+      expect(worker.update.mock.calls.at(-1)?.[1]).toBe(10000);
+      expect(workbench.simulationTimeMs).toBe(0);
+      worker.committedHorizonMicroseconds = 10000;
+      await act(async () => {
+        worker.callbacks!.onCommittedHorizon?.(10000);
+        worker.callbacks!.onResult({ ...ready }, undefined, profile);
+      });
+      await frame(0);
+      expect(workbench.simulationTimeMs).toBe(10);
+      await act(async () => workbench.setSimulationRate(0));
+      expect(worker.setPaused).toHaveBeenLastCalledWith(true);
+      const calls = worker.update.mock.calls.length;
+      await tick(5000);
+      expect(worker.update).toHaveBeenCalledTimes(calls);
+      expect(workbench.simulationTimeMs).toBe(10);
+      await act(async () => workbench.setSimulationRate(0.1));
+      await tick(100);
+      expect(worker.update.mock.calls.at(-1)?.[1]).toBe(20000);
+      expect(worker.start).toHaveBeenCalledTimes(1);
+      expect(workbench.simulationTimeMs).toBe(10);
+    },
+  );
+
   it('restores normal demand from a real motor clock profile while publishing only actual ready frames', async () => {
     transport.autoReady = false;
     const motor: SchematicDocument = {
@@ -1450,6 +1533,36 @@ describe('mounted workbench LED temporal display', () => {
         ).toBeLessThanOrEqual(3);
     },
   );
+
+  it('settles only the existing cold native proposal before declaring Paused', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(opticalReady(0), true);
+    await frame();
+    const pending = workbench.preparedComponentLedAsset(led)!;
+    expect(pending.asset).toMatch(/_i080\.svg$/);
+    expect(workbench.result).toBeNull();
+    await act(async () => workbench.setSimulationRate(0));
+    expect(workbench.simulationPacing.read().phase).toBe('pausing');
+    expect(workbench.preparedComponentLedAsset(led)?.token).toBe(pending.token);
+    await loadMountedImages();
+    await frame();
+    assertCommitted(80, 'lit');
+    expect(workbench.simulationPacing.read().phase).toBe('paused');
+    const updates = worker().update.mock.calls.length;
+    await tick(1000);
+    await frames(3);
+    await loadMountedImages();
+    expect(worker().update).toHaveBeenCalledTimes(updates);
+    expect(workbench.simulationTimeMs).toBe(0);
+    assertCommitted(80, 'lit');
+    expect(workbench.preparedComponentLedAsset(led)).toEqual(pending);
+    await act(async () => workbench.setSimulationRate(0.1));
+    await tick(10);
+    await act(async () => intervalCallback()());
+    expect(worker().update.mock.calls.at(-1)?.[1]).toBe(1000);
+  });
 
   it('does not replace an unacknowledged native request with a later accepted asset', async () => {
     await mount();

@@ -1,0 +1,65 @@
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+const require = createRequire(import.meta.url);
+const { build } = createRequire(require.resolve('vite'))('esbuild');
+const before = process.argv[2] !== 'after';
+const name = before ? 'before-controller' : 'after-controller';
+const output = 'test-results/simulation-speed-861';
+mkdirSync(output, { recursive: true });
+const path = 'apps/web/src/electronics/live-simulation-worker-controller.ts';
+const source = before ? execFileSync('git', ['show', `9821f0f8d66d6d870646cfeaef8666547876f66f:${path}`], { encoding: 'utf8' }) : null;
+await build({ ...(before ? { stdin: { contents: source, loader: 'ts', resolveDir: resolve('apps/web/src/electronics') } } : { entryPoints: [path] }), bundle: true, platform: 'node', format: 'esm', outfile: `${output}/${name}-runtime.mjs`, logLevel: 'silent' });
+const { ElectronicsLiveSimulationWorkerController: Controller } = await import(pathToFileURL(resolve(`${output}/${name}-runtime.mjs`)).href);
+const copy = x => JSON.parse(JSON.stringify(x));
+const flush = async () => { for (let n = 0; n < 10; n++) await Promise.resolve(); };
+const result = { solved: true, status: 'solved', current: 0.01, components: [], nodes: [], diagnostics: [], iterations: 1, numericalResidual: 0, numericalTolerance: 1e-9 };
+const document = { schemaVersion: 4, components: [{ id: 'button', kind: 'button', componentTypeId: 'button-tactile-6mm', value: 1, state: false, position: {x:0,y:0} }, { id: 'uno', kind: 'visual', componentTypeId: 'arduino-uno', value: 5, position: {x:50,y:0}, pinIds: ['d13','power-gnd-1'], stateProperties: { arduinoSource: 'void setup(){Serial.begin(9600);}void loop(){delay(10);}' } }], connections: [], viewport: {x:0,y:0,zoom:1}, simulation: {running:true,maxIterations:24} };
+const records = [];
+for (const pullHost of [false, true]) {
+  const trace = [], waiting = [];
+  let preflightReady;
+  const executor = {
+    beginGeneration(id) { trace.push(['begin',id]); return 1; },
+    preflight(...args) { trace.push(['preflight',copy(args)]); return new Promise(resolve => { preflightReady = resolve; }); },
+    advance(...args) { trace.push(['advance',copy(args)]); return new Promise(resolve => waiting.push({args,resolve})); },
+    cancelActiveGeneration() { trace.push(['cancel']); }, dispose() { trace.push(['dispose']); },
+  };
+  const controller = new Controller(executor);
+  const callbacks = Object.fromEntries(['onGenerationPending','onInitialReady','onResult','onCommittedHorizon','onSerialProjection','onFailure'].map(key => [key,(...args)=>trace.push([key,copy(args)])]));
+  if (pullHost) callbacks.readHostHorizonMicroseconds = () => { trace.push(['readHost',90000]); return 90000; };
+  const complete = async (status = 'ready', committed) => {
+    const pending = waiting.shift();
+    if (!pending) throw new Error('missing advance');
+    const target = pending.args[3];
+    const at = committed ?? target;
+    const state = { version:1,lifecycle:'running',continuation:{version:1,clockContractVersion:1,engineContractVersion:1,clockProfileId:'dc-inputs-v1',documentDigest:'fixture',modelSetDigest:'models',committedHorizonMicroseconds:at,serializedState:JSON.stringify({boards:[{componentId:'uno',runtime:{programFingerprint:'once',actions:[{atMicroseconds:at,pin:13,value:1}],events:[{atMicroseconds:at,kind:'fixture'}]}}]})} };
+    pending.resolve({executionStatus:status,requestedHorizonMicroseconds:target,committedHorizonMicroseconds:at,state,result:status==='ready'?result:null,serial:[{componentId:'uno',begun:true,baudRate:9600,tx:[{sequence:1,atMicroseconds:0,text:'ready'}],rxPendingBytes:0}],diagnostics:[]});
+    await flush();
+  };
+  controller.start('oracle-session',document,callbacks);
+  controller.update(document,90000);
+  preflightReady(result); await flush();
+  await complete();
+  const pressed = {...document,components:document.components.map(c=>c.id==='button'?{...c,state:true}:c)};
+  controller.update(pressed,90000);
+  controller.sendSerialRx('uno','abc',90000);
+  await complete('yielded',500);
+  await complete();
+  await complete();
+  const released = {...pressed,components:pressed.components.map(c=>c.id==='button'?{...c,state:false}:c)};
+  controller.update(released,90000);
+  for(let n=0;n<8 && waiting.length;n++) await complete();
+  trace.push(['finalState',copy(controller.timedState)]);
+  controller.stop();
+  records.push({pullHost,trace});
+}
+const raw = Buffer.from(JSON.stringify(records));
+const receipt = { baseline:'9821f0f8d66d6d870646cfeaef8666547876f66f', compiledControllerSha256:createHash('sha256').update(before?source:readFileSync(path,'utf8').replace(/\r\n/g,'\n')).digest('hex'), scenarios:records.length, entries:records.reduce((n,c)=>n+c.trace.length,0),bytes:raw.length,sha256:createHash('sha256').update(raw).digest('hex') };
+writeFileSync(`${output}/${name}.json.gz`,gzipSync(raw,{mtime:0}));
+writeFileSync(`${output}/${name}-receipt.json`,JSON.stringify(receipt,null,2)+'\n');
+console.log(receipt);

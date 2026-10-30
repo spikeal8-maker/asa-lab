@@ -13349,7 +13349,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point14_source_verified_speed21_host_adapter_selected
+      checkpoint: remaining20_point14_and_speed21_source_verified_next_mixed_servo_repair
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13369,7 +13369,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Remainingplan_otheritems_and_speedslider_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
+      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Speedslider861_source_fad679_General41003731109_all4SUCCESS_independent382tests4native_and_canonical2550tests71freshNx_allcapsPASS; Remainingplan_otheritems_and_mixedServo862_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -15053,11 +15053,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_host_pacing_pause_adapter_preserve_default1_and_pending_ACK
+      checkpoint: independently_verified_rate_pause_all_profiles_default1_bytes_and_General_success
       owner_acceptance: pending
       execution_role: new_bounded_speed_executor_then_new_independent_review
       owner_authorization: Owner_requested_time_display_slider_0pause_fractional_slowdown_and_1to10_speed_and_explicit_complete_programme_continue. Point14_source_integrated5d086a3a_after_exactf6b3_General40996527370_all4success_independentAPPROVE_and_canonical2517tests71freshNx. No_server_Docker_liveDB_foreignchanges_refactor_or_capraise.
@@ -15083,6 +15083,18 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T03:50:00Z'
       observation_note: Fresh fetch main before edits. Source31blobs_exact_approvedf6b3_Main5d086_General_inprogress_not_inferredPASS. Readonly_design_refinement_completed. Preserve_current1path_bytes_and_all_clock_profiles. Author_records_preedit_oracle_before_source_mutation_and_candidate_caps_before_broadgate. Server_unchanged.
+
+    source_review_evidence:
+      rejected_source_candidate_sha: 3ebf0e16249e9a5c8c17e504e8179bfb6ba7b76d
+      first_review_verdict: REQUEST_CHANGES_obsolete_exact_clock_JSX_assertion
+      repaired_source_candidate_sha: fad679d57e803a38ac3a57e4abb9a6d0c926e137
+      verdict: APPROVE_new_independent_review_382tests_and_4fresh_native_journeys
+      canonical_gate: PASS_2550tests_71freshNx_no_cache_all8caps
+      general_ci: SUCCESS_41003731109_exact_fad679_all4jobs
+      native: desktop_mobile_pause_rates_inputonce_Serial_Reset_StopRun_and_lateoldresponse_dismissal_PASS
+      legacy_oracles: full144673bytes_b98bfe1f_and_controller36314bytes_a78deca9_BYTEquality_default1
+      independent_baseline_defect: Issue862_mixedServo_observation_missing_angle_preserved_not_repaired
+      report: docs/product/electronics/evidence/simulation-speed-861/GATES.md
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
