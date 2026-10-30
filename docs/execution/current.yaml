@@ -81,6 +81,60 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: devex-engine
+    worktree_id: devex-engine-20261030
+    owned_paths:
+      - tools/ci_metrics.py
+      - tools/test_ci_metrics.py
+      - tools/gate-governance.sh
+    task:
+      id: TASK-DEVEX-ENGINE-001
+      issue: 881
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: package_a_ci_measurement_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
+        of ASA-DEVEX-ENGINE-001 packages A-G on 2026-10-30. No production, live database, Docker or network operations.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+      head_sha: null
+      observed_at: '2026-10-30T17:22:31Z'
+      main:
+        branch: main
+        sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+      observation_note: >-
+        Dated bootstrap integration after reviewed source bbf6bb3223e1cbb9d4196741787b26e09eae7e34 and exact General
+        41093374361 succeeded; fetch main before writes. This selects package A only and does not claim programme
+        completion or owner acceptance.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    programme:
+      id: ASA-DEVEX-ENGINE-001
+      selected_slice: A
+      remaining_slices: [A, B, C, D, E, F, G]
+      deployment_authorized: false
+      working_database_actions_authorized: false
+      completed_slices:
+        - id: PREFLIGHT
+          source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
+          integrated_sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+          pr: 882
+          exact_source_general_run: 41093374361
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6528951157
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
