@@ -2185,7 +2185,7 @@ svg[data-servo-angle-degrees] {
   height: 48px;
   padding: 0 10px;
   color: var(--ink-muted);
-  font-size: 14px;
+  font-size: clamp(11px, 1.1vw, 14px);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -5136,16 +5136,26 @@ html.arduino-palette-resizing * {
   .workbench-toolbar-divider {
     height: 46px;
   }
-  .workbench-toolbar-spacer,
-  .workbench-simulation-time {
+  .workbench-toolbar-spacer {
+    display: none;
+  }
+  .workbench-toolbar .workbench-simulation-time {
+    display: flex;
+    flex-shrink: 0;
+    height: 44px;
+    padding: 0;
+    font-size: 11px;
+  }
+  .workbench-toolbar .workbench-simulation-time-prefix {
     display: none;
   }
   .workbench-toolbar-group.right {
     flex: 0 0 auto;
-    gap: 3px;
-    padding: 0 4px;
+    gap: 0;
+    padding: 0;
     background: #fff;
   }
+  .workbench-toolbar-group.right .workbench-pill.emergency-copy,
   .workbench-toolbar-group.right .workbench-pill.code,
   .workbench-toolbar-group.right .workbench-pill.save,
   .workbench-toolbar-group.right .workbench-pill.simulate,
@@ -5162,6 +5172,10 @@ html.arduino-palette-resizing * {
     font-size: 0;
     line-height: 1;
     border-radius: 5px;
+  }
+  .workbench-toolbar-group.right .workbench-pill.emergency-copy::after {
+    content: 'JSON';
+    font-size: 11px;
   }
   .workbench-mobile-library-toggle {
     border: 1px solid #c8d6df;
@@ -6235,4 +6249,24 @@ html.arduino-palette-resizing * {
 .workbench-annotation-actions button {
   flex: 1;
   min-height: 40px;
+}
+
+/* One mobile clock layout also contains the clock nested in the speed control. */
+@media (max-width: 980px) {
+  .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-clock-button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    min-height: 44px;
+    height: 44px;
+    padding: 0;
+  }
+  .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-time {
+    height: 22px;
+    padding: 0;
+  }
+  .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-rate {
+    min-width: 0;
+    line-height: 14px;
+  }
 }

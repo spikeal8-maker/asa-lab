@@ -1,0 +1,699 @@
+{
+  "candidate": "a94eba7bf3bf8c4623184996c022f907d0972509",
+  "baseline": "e1a16c578d582ee6157dfd7ffe5bb18719ad21d2",
+  "candidate_paths": [
+    {
+      "path": "apps/web/src/electronics/SimulationSpeedControl.tsx",
+      "git_blob": "91d350d6ab44c2d3a7deb0ac922fc4d1998689ee"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/emergency-toolbar.browser.mjs",
+      "git_blob": "f68efb20f2a5ce8e2ea02300907316f8d8d737b8"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench.css",
+      "git_blob": "97abc517740956dcf05bb3c9411d6c2cb4bce213"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/R1-RECEIPT.md",
+      "git_blob": "8b5cf2637e8d944e147e4440669291da04591699"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/R2-RECEIPT.md",
+      "git_blob": "d76f02e6099182c9f106bb56af389d0cf39e6e40"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/RECEIPT.md",
+      "git_blob": "5127d91ee9aef0420e1ebc8bbbb598fdfa2eefc0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/before/after-local-denial-error-stop-320.png",
+      "git_blob": "33025a76ef18ba4a78cb9e0f757f3d1a8f2ac997"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/before/after-toolbar-error-stop.json.gz",
+      "git_blob": "9bbb13d16446fc43f0599146ae51e7b4e0b70518"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/build.log.gz",
+      "git_blob": "ba15f1bc0b7bef5b2cd05f30f019ded1c7b51323"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/caps.log.gz",
+      "git_blob": "c0180494687d4fd8a217b08cee884c575c63ae47"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/focused.log.gz",
+      "git_blob": "4ff46df56b227fc1678a433647011f5e2e5b89a9"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/intermediate-attempt.json",
+      "git_blob": "08b1e372d330b69f1a6d8103ebfec98c1ec67679"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/manifest.json",
+      "git_blob": "2147e562decfc6cb7fb55d59a79edb1440e70feb"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/1024-1.25.png",
+      "git_blob": "97de703d790530e091c175f8a136cbb0c0137a9c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/1024-1.png",
+      "git_blob": "b8e1a49dfc2507ffbaaf30d33c8aff2f8dd10296"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/1152-1.25.png",
+      "git_blob": "09fd0663384882ea47c9ebcab0a0771c4278b0fd"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/1152-1.png",
+      "git_blob": "7b3c8cac2dc5a66a9942d23199d5395896ffa1ee"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/1440-1.25.png",
+      "git_blob": "2d99712472970f79fb5d345e5418ab483969b46a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/1440-1.png",
+      "git_blob": "6d2098398359e72f5c7f802ccd1398f5d4b472c3"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/320-1.25.png",
+      "git_blob": "291ce8204e627981100911b9b9e477635be81014"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/320-1.png",
+      "git_blob": "be947e0cb6a78801f6b0e39a5a92c3bfc0f21d9a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/390-1.25.png",
+      "git_blob": "8a20d7746b71f4150bf5943848c57ef1639060a7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/390-1.png",
+      "git_blob": "fe78feca902d364dd1e847e56966d4cf45617497"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-after/geometry.json.gz",
+      "git_blob": "f1cf3ba8e7a17ce4a475f35901847887038fbccf"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/1024-1.25.png",
+      "git_blob": "1786c51314e6d96afe15d657ef47d111f8224282"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/1024-1.png",
+      "git_blob": "4d6700412549dc56572a2b99cd4645ad59a932f0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/1152-1.25.png",
+      "git_blob": "f40537c73863e6bae4970023baed7b168b93ab66"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/1152-1.png",
+      "git_blob": "72776da302d585dd8376266115b3914f2e7ada42"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/1440-1.25.png",
+      "git_blob": "b26f47bb8e92ecfb3dbfe218ab8a166ff7afde2c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/1440-1.png",
+      "git_blob": "bec8a3d9f93e149b8db9eedafb77e49f27d6a7ce"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/320-1.25.png",
+      "git_blob": "fcb4e3e0157c29d59a4937ef7e16183d4353b166"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/320-1.png",
+      "git_blob": "10fab687a0356ac27bd9da79d4915b1654d98326"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/390-1.25.png",
+      "git_blob": "7944d75fab1eb2986d03e416234231953ca125c8"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/390-1.png",
+      "git_blob": "a1a960a2d9c2531bda3ab5693b5df8900e34fdcf"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/native-before/geometry.json.gz",
+      "git_blob": "04ca0a148a725571cb6e54b8c16f62a0f126fa64"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-before/provenance.json",
+      "git_blob": "2a2fd30218f4eca06ad84a791a922cbfae0eacdd"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-before/reviewer-pausing-geometry.json.gz",
+      "git_blob": "713b228146a98de71deb7b8b086edd68920a8734"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-build.log.gz",
+      "git_blob": "e1747cb0669327ca008155a075c430634bbed657"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-caps.log.gz",
+      "git_blob": "eb39a9d1d3fb9a827ce7c702bbd5f1ea736f14de"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-focused.log.gz",
+      "git_blob": "d662c7c612482b811c1894b0f577bb0d6e269e1b"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-harness-attempt/geometry.json.gz",
+      "git_blob": "b7f7d1635c2bff965f35f1aed4e341037a122fa6"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-manifest.json",
+      "git_blob": "f9172af2dbfd556f0a07bcae85d866cdb133767a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/1024-1-running-1.png",
+      "git_blob": "5219eb588d3235819bd05176e4212326d1249265"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/1024-1.25-running-1.png",
+      "git_blob": "ca8413d5f2e53c00fe442847c5670b3046282597"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/1152-1-running-1.png",
+      "git_blob": "996525420822eaeba10672a363dff7c2e3a9a37e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/1152-1.25-running-1.png",
+      "git_blob": "79b0e040b488273b3cecceeaa570e9884dffe599"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/1440-1-running-1.png",
+      "git_blob": "a7773e939884ffa4e1d676916b83d8c25ff72e4c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/1440-1.25-running-1.png",
+      "git_blob": "2d05fc8cdc05a0a21f5ac57b1e4a5b74611f731c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1-paused-0.png",
+      "git_blob": "0936f32e4e36075b87643b4e6b29847d386fd1e9"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1-pausing-0.png",
+      "git_blob": "2c8ec66d86a86ba050596e4b8f5d150e28eccb7a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1-running-0.1.png",
+      "git_blob": "517b55c6727f4a0584c8d010a421792bd01e1b4e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1-running-1.png",
+      "git_blob": "7406b969b11aa5f5b0c628e7722cd8ea1fcf92fb"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1-running-10.png",
+      "git_blob": "d19af2ca9ee92f283ed7000106099799ce7aa7e1"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1.25-paused-0.png",
+      "git_blob": "1092fd40fb151656135a53f54c0a44e9fbbfefe3"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1.25-pausing-0.png",
+      "git_blob": "41dbd985956fcebf6789d3c388a44bbbc3fa28af"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1.25-running-0.1.png",
+      "git_blob": "6c03b729fd0dcd444435a4f152190451f1208f6c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1.25-running-1.png",
+      "git_blob": "add2de1a99d749458043cef7a2b9164716d17176"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/320-1.25-running-10.png",
+      "git_blob": "6c5e4c086821b7c390b476087cfa813c9564db4e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1-paused-0.png",
+      "git_blob": "7096ebb20fc274d0ba74bf1fae2571b93db82c87"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1-pausing-0.png",
+      "git_blob": "47c222f3158e74dea0ad5c4767d8a8de6282c48c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1-running-0.1.png",
+      "git_blob": "786fed96d91cda35337a0bba5b2ea48420c83154"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1-running-1.png",
+      "git_blob": "8b8cf97c15aaec5faf4aef4e895fe9dbaee4b2c8"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1-running-10.png",
+      "git_blob": "96072f050b9834c778d4cf8b703df2a56d3e5df0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1.25-paused-0.png",
+      "git_blob": "58196a8693769eeedb10afcaa61b8dab0214b687"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1.25-pausing-0.png",
+      "git_blob": "5fad28e38c8ce0af11fc7a99b58bd82e5201a4ae"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1.25-running-0.1.png",
+      "git_blob": "a5f1871c6b64728f9748559315fbaca7fed3bb44"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1.25-running-1.png",
+      "git_blob": "d3e6e6a334049b5f68086ef1df1f4a6861c4e45a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/390-1.25-running-10.png",
+      "git_blob": "eedaa1836ae4f3566a2ec8411d37209287a85bfb"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-native-after/geometry.json.gz",
+      "git_blob": "114478d4a3764a6b7eacd45a16d4e782a61eeb4f"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r1-routing.log.gz",
+      "git_blob": "59092d09007732f2d75b51ffe22c6b6cbd9ebfdc"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/768-after/768-1-running-1.png",
+      "git_blob": "31de3a5a7dca8435a0c5ec7b029e38c1be69f521"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/768-after/768-1.25-running-1.png",
+      "git_blob": "e8a4ae547b20c19fc45cfae52a8a46793c34e1ae"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/768-after/geometry.json.gz",
+      "git_blob": "428b322d18a6caf34e19d51639de3140b6b30573"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/768-oldcss/768-1-running-1.png",
+      "git_blob": "4ba6ca0011b198f5d2255ddc16c50353d95fbce1"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/768-oldcss/768-1.25-running-1.png",
+      "git_blob": "7da5ebb3941c7b281b6d573c03a09b6082c489bb"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/768-oldcss/geometry.json.gz",
+      "git_blob": "aa6315ee8fc4d370ce0c84c59bc2ba3fdcfad09b"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/clock100h-visual/clipped-copy100h.png",
+      "git_blob": "c3ae95551b469e2c8715a17216ea488e092f62a6"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/clock100h-visual/geometry.json.gz",
+      "git_blob": "3a7fb9191d920d63b6cd559978d63563b4610821"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/provenance.json",
+      "git_blob": "41c077681789f8d9fa470541d76a93005b4dbcb7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1024-1-running-1.png",
+      "git_blob": "46065d94d688e0ce1b221d7cae647abc3a7710f2"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1024-1.25-running-1.png",
+      "git_blob": "e58e94d067c5ef3c0300df3e88a796a092b75585"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1152-1-running-1.png",
+      "git_blob": "5a9fab1c68e2290d1ad4f32ac54420ee9458da0a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1152-1.25-running-1.png",
+      "git_blob": "9dad53071ecb83ef364859b89307535dd949cfb7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1440-1-running-1.png",
+      "git_blob": "4cce70eee7466e29a80e716505d42220bf89c9d7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1440-1.25-running-1.png",
+      "git_blob": "3c45677125b9fdcba93c08d998d67f995d1643b4"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1536-1-running-1.png",
+      "git_blob": "03ad6e21c77b9e7c1e6fe2a13e807ec429e27534"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/1536-1.25-running-1.png",
+      "git_blob": "8915b585239d5deb36039f9f0ea330f52414a2d6"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1-paused-0.png",
+      "git_blob": "652103cfce9458c6217a9b51266d282988efc57d"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1-pausing-0.png",
+      "git_blob": "b86460fabad291baef7ab358cf9893f3b9a76e51"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1-running-0.1.png",
+      "git_blob": "2584ab80a901b02b867644bb60211c3a4a2ef77d"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1-running-1.png",
+      "git_blob": "aee0edd4833735746046f1e95331d6fa06df28e5"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1-running-10.png",
+      "git_blob": "170a73853ce6aa1b0643ff361dfcff902a50e727"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1.25-paused-0.png",
+      "git_blob": "73801c589a36fb87280f2cbd5fd6bf630d1febfc"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1.25-pausing-0.png",
+      "git_blob": "2fd1590567ebb64fa4891214720b7285ad0b1c78"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1.25-running-0.1.png",
+      "git_blob": "2ba2a4ede372449a7a9ea85c21d42fb5e6ecc886"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1.25-running-1.png",
+      "git_blob": "bb28383d163ca2dff38012b68c1bd2fdbe752c0e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/320-1.25-running-10.png",
+      "git_blob": "4499d803d526f8653ddf27c86d5958355300ec03"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1-paused-0.png",
+      "git_blob": "5995f5acfef200b2cc21eb03e016d9606feb8255"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1-pausing-0.png",
+      "git_blob": "3a525ff51e2734e7f0dc26ff3df4d6d9d110048c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1-running-0.1.png",
+      "git_blob": "173e0240c7f831e177a246929ecc9b23265287eb"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1-running-1.png",
+      "git_blob": "8d305bca16fce314a400a9417f44f5f9db684b74"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1-running-10.png",
+      "git_blob": "2df00c121dd284e916183bc2e7fed11dd2006411"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1.25-paused-0.png",
+      "git_blob": "58196a8693769eeedb10afcaa61b8dab0214b687"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1.25-pausing-0.png",
+      "git_blob": "649e0084fd9da77f4023d335b501270402b25465"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1.25-running-0.1.png",
+      "git_blob": "a5f1871c6b64728f9748559315fbaca7fed3bb44"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1.25-running-1.png",
+      "git_blob": "c43857ee25a7d839c0cc262fe968f6c59a22a236"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/390-1.25-running-10.png",
+      "git_blob": "4c245d547538013d8bb41b233f16fd4a32f57c99"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/391-1-running-1.png",
+      "git_blob": "d688102ab055d715d39acb9a015e8b8cdb522ae8"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/391-1.25-running-1.png",
+      "git_blob": "243f9d5d0d2b0b711971eac9fc8694d75d3d7a77"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/400-1-running-1.png",
+      "git_blob": "14560cec2f3a740692412ed2dd0278280123a92d"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/400-1.25-running-1.png",
+      "git_blob": "deddacc18a7d3cc8d64f10632468903a7bcf17df"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/480-1-running-1.png",
+      "git_blob": "3167421ebdfa63192d11018f51ea776c339a8c6c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/480-1.25-running-1.png",
+      "git_blob": "76092a5f2574d5606529de240cbb1d5a830bf523"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-before/required-plus-breakpoints/geometry.json.gz",
+      "git_blob": "9dd4d945948f7dc08f7d0284e5aa2d53c8deab9f"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-build.log.gz",
+      "git_blob": "9d4fe36f46fe380a346c31e87b2dfae7d02894c7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-caps.log.gz",
+      "git_blob": "c2c8d2e87f4d2a13edaffef305c7ac9e205dffa0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-first-attempt/build.log.gz",
+      "git_blob": "24c84e96871df22cd2cae77d9f69f474f17e37f8"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-first-attempt/caps.log.gz",
+      "git_blob": "a745c915993cf97e5e3935a1426a1e701ebf897d"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-first-attempt/geometry.json.gz",
+      "git_blob": "07c089d5f4bf6edb1041e3893243969c7bbf50a9"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-focused.log.gz",
+      "git_blob": "31869acd4141d2cf396bb4866b518fa36bdf01b7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-manifest.json",
+      "git_blob": "3a2b2c7d49f564038cd9b1971cf6276cc46c2b01"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1024-1-running-1-1000h.png",
+      "git_blob": "3b61d493767f63607a88b555d99f890166eee480"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1024-1.25-running-1-1000h.png",
+      "git_blob": "f60cb28717e92bdeaed9e9481f039f7aff022c14"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1152-1-running-1-1000h.png",
+      "git_blob": "3f6169013d29623ce8b2bd117912cf5da60ff6e0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1152-1.25-running-1-1000h.png",
+      "git_blob": "2bd1e3048001caede1c57f99cfa20bea155b8405"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1440-1-running-1-1000h.png",
+      "git_blob": "9b977770b6c87f9f2e7867517dbca4796a3fd505"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1440-1-running-1-1h.png",
+      "git_blob": "4cce70eee7466e29a80e716505d42220bf89c9d7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1440-1.25-running-1-1000h.png",
+      "git_blob": "388215975b5ef57d84c385096821d7687ad154e5"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1440-1.25-running-1-1h.png",
+      "git_blob": "b9dde6ba4df8863f6470bef17b1da7e4fd167c7f"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1536-1-running-1-1000h.png",
+      "git_blob": "99cb03c7c120d8f6b729677b86b7e3a88cc6599a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/1536-1.25-running-1-1000h.png",
+      "git_blob": "c6dc680e019a54ed725dfaf110a050195e76ef27"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1-paused-0-1000h.png",
+      "git_blob": "07a48bc1eeca2ddc1c2e442f1189fcffe986aff6"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1-pausing-0-1000h.png",
+      "git_blob": "13f8fa7cf7ac5a476a082289277ca09b437d5a1e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1-pausing-0-1h.png",
+      "git_blob": "ad8757b9d6f6295a0cf5167e205002bda84f6d97"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1-running-1-1000h.png",
+      "git_blob": "39177a3d613ef51eca45a5b9711b4e05acb58715"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1-running-1-1h.png",
+      "git_blob": "67d72641649c2df94c4db61457d55ff928d1e6cd"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1.25-paused-0-1000h.png",
+      "git_blob": "8038702d685ab6ceb15284fd6ee640d31e928aed"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1.25-pausing-0-1000h.png",
+      "git_blob": "1e04110ffa03ec16615b5981d7a93b4cb3dc808e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1.25-pausing-0-1h.png",
+      "git_blob": "f93e200d502a88cbdb485e508b925269091db73c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1.25-running-1-1000h.png",
+      "git_blob": "c7604504f081f27a50e4fc9f8885f0805aa0c91d"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/320-1.25-running-1-1h.png",
+      "git_blob": "9d758b1a897f0f93456e5811a78edbb804aec778"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/390-1-running-1-1000h.png",
+      "git_blob": "e47f29320f88f5f162d1a3f4552886f63b222aa0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/390-1.25-running-1-1000h.png",
+      "git_blob": "a2f821cd47988fa4ce60b74d25b59ff73a65a729"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/391-1-running-1-1000h.png",
+      "git_blob": "392f6c3d8a1a8050b41e10eedb067b3d900cd595"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/391-1.25-running-1-1000h.png",
+      "git_blob": "24ecf76abc6a5012f8ddf50eca60fb86b9e3c37c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/400-1-running-1-1000h.png",
+      "git_blob": "653744758a7f56b29848f2baa414e7e7150dee16"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/400-1.25-running-1-1000h.png",
+      "git_blob": "e77ded6860622b3adfd6ee8b4a1d9d4dc58170cd"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/480-1-running-1-1000h.png",
+      "git_blob": "0c324fedbebcf7520cc1407b2a33f4cc6d3ff8b3"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/480-1.25-running-1-1000h.png",
+      "git_blob": "bbff79def63faef8c4414cf48d40c574549b0e06"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1-paused-0-1000h.png",
+      "git_blob": "5ce78bf3815f1282e616790a157514d8dbc73466"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1-pausing-0-1000h.png",
+      "git_blob": "3d64d4e917638ba258fe8bd9ba7695e9aa841c0a"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1-running-1-1000h.png",
+      "git_blob": "9451723651f5fd4c219f7ae87e5a66f3eeac8a1e"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1-running-1-1h.png",
+      "git_blob": "105f2a76239f7752c4a33b3b39c21aa5a6ba1e16"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1.25-paused-0-1000h.png",
+      "git_blob": "aeafc69a1f6b42f08a56d788acdeeda9b959dbd0"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1.25-pausing-0-1000h.png",
+      "git_blob": "6e61dfdf835c1f3e3e5a28e82ac609310ad5d7f7"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1.25-running-1-1000h.png",
+      "git_blob": "714413a0db0c73d206cff1ed62fa609f15a5c345"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/768-1.25-running-1-1h.png",
+      "git_blob": "bfd7d01cb7af9908ef28d837c190fff96a24643b"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/980-1-running-1-1000h.png",
+      "git_blob": "6ea2ac65817a3f1d3e1bec58482df8b8dc7b5445"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/980-1.25-running-1-1000h.png",
+      "git_blob": "408374bf301fd0353250cdd2f3142a87d10db077"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/981-1-paused-0-1000h.png",
+      "git_blob": "66c4d7e0ed3d761313c64f9fc4be4acd9f391460"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/981-1-pausing-0-1000h.png",
+      "git_blob": "aaa71ce61b25d5c6bcff2133c003e465cecf3b27"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/981-1-running-1-1000h.png",
+      "git_blob": "7dfe6d7f9d64878be53d77f32b09922ec5800938"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/981-1.25-paused-0-1000h.png",
+      "git_blob": "482b5ef85de20a0d4823a42facf7a07db34f4be1"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/981-1.25-pausing-0-1000h.png",
+      "git_blob": "5952a72ef840693a85893e0f4cf55409699417fd"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/981-1.25-running-1-1000h.png",
+      "git_blob": "8ece2c424b914c334fd5eac328c2a777cd248c1c"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-native-after/geometry.json.gz",
+      "git_blob": "9ee7bb5217db0085bfcb28fe41da45e01764b093"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-routing.log.gz",
+      "git_blob": "258c915a6978de7f9e821a5d10244f00b61522b5"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-sizing-attempt/geometry.json.gz",
+      "git_blob": "de8f7073a3cbae6ed9dd2b04b4f55b506874fb21"
+    },
+    {
+      "path": "docs/product/electronics/evidence/emergency-toolbar-868/r2-sizing-attempt/workbench.css.gz",
+      "git_blob": "7d45b6445561ad43077999be8f6d23521de3d0ad"
+    }
+  ],
+  "product_and_fixture": [
+    {
+      "path": "apps/web/src/electronics/SimulationSpeedControl.tsx",
+      "bytes": 3949,
+      "sha256": "789370ec31c234527a319fd6e9eb81aadee2ac9eda7cd7b3cd2a80c592ff483f"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/emergency-toolbar.browser.mjs",
+      "bytes": 13804,
+      "sha256": "184d17f6e2f499ef86d098332aaf7a70c1b58d8cbf1502e461cfe2d647dff299"
+    },
+    {
+      "path": "apps/web/src/electronics/workbench.css",
+      "bytes": 141668,
+      "sha256": "a167ecf96a6567b19024af99efb4437c1afb020db5819a4fbd719ba3c135b99f"
+    }
+  ]
+}

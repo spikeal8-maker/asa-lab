@@ -1,0 +1,30 @@
+{
+  "rejected_source": "485112b50f45af24febcad11ab318f6549e24018",
+  "review": "REQUEST_CHANGES: 100h clock lefttools41.84375px; nested768 clock48px exceeds47px toolbar.",
+  "receipts": [
+    {
+      "group": "required-plus-breakpoints",
+      "raw_sha256": "4358ab08c13356b732ee077a67dcccb6537d9821b5e8e07c4902963034c8cb79",
+      "raw_bytes": 608536,
+      "png_count": 34
+    },
+    {
+      "group": "clock100h-visual",
+      "raw_sha256": "6d3c7d9378c262326a598a97ee9c910b85927a8198db1000158166f5b13f3f32",
+      "raw_bytes": 14063,
+      "png_count": 1
+    },
+    {
+      "group": "768-after",
+      "raw_sha256": "93fd720935ab6052ed0cefd60fa58e11009446e4e4eae5dc08555968c3fa5016",
+      "raw_bytes": 56120,
+      "png_count": 2
+    },
+    {
+      "group": "768-oldcss",
+      "raw_sha256": "0beb65495b74fc8755ed3d3e895c298249c0211938ed0dd2d18c1f4aa8426ddc",
+      "raw_bytes": 56040,
+      "png_count": 2
+    }
+  ]
+}

@@ -13391,7 +13391,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: field544_32native_independent_approved_emergency_toolbar868_selected
+      checkpoint: toolbar868_a94_independent_and_canonical_General4_success_source_integrated
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -15347,16 +15347,24 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: candidate4851_independent_requestchanges_nested_clock_and100h_R2repair
+      checkpoint: source_review_evidence_done_a94_General41038088189_all4SUCCESS
+      accepted_candidate_sha: a94eba7bf3bf8c4623184996c022f907d0972509
+      final_review_result: APPROVE_432native_states2928actions_all163manifest_entries
+      final_gate: canonical2565tests71freshNx_all8capsPASS_editor187859_Arduino1999925
+      general_ci_run: 41038088189
+      general_ci_observed: SUCCESS_all_four_jobs_exact_a94
+      source_publication: verified_candidate_main_source_not_release_or_owner_acceptance
+      source_review_evidence: done
+      final_report: docs/product/electronics/evidence/emergency-toolbar-868/GATES.md
       rejected_r1_candidate_sha: 485112b50f45af24febcad11ab318f6549e24018
       r1_review_result: REQUEST_CHANGES_100h_toolstrip41_844_and768_clock48_outside_toolbar47
       r1_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
       rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
-      review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
+      initial_rejected_review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
       candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
       repair_scope: CSS_and_toolbar_only_short_pausing_display_label_SimulationSpeedControl_no_timing_logic
       owner_acceptance: pending

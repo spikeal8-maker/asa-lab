@@ -1,0 +1,52 @@
+[
+  {
+    "path": "canonical-485112b5.log.gz",
+    "bytes": 11385,
+    "sha256": "53f2158bd4ab5e97a3b66203d2e197225284fd9fdeb2499a7593163c03593c83"
+  },
+  {
+    "path": "canonical-66146712.log.gz",
+    "bytes": 11552,
+    "sha256": "84fc7af0ebd91a788b0269f47daa43b98b366b8d7038ad660597f64f5a2ac938"
+  },
+  {
+    "path": "canonical-a94eba7b.log.gz",
+    "bytes": 11559,
+    "sha256": "d03bad9051546ac2d1f31e8632a25dcac6e65c6cd924e9bb5d3f707e78fd91fd"
+  },
+  {
+    "path": "caps-485112b5.log.gz",
+    "bytes": 434,
+    "sha256": "e33ca25201fb4570b54490c0d5d5c435dd0aa85f87ff964f999fbdac210746a4"
+  },
+  {
+    "path": "caps-a94eba7b.log.gz",
+    "bytes": 437,
+    "sha256": "1fdba9237a5a4a7d8e37c96d28bf12a3cfb57d2ce86818b892a8e30ed80236cd"
+  },
+  {
+    "path": "frozen-scope.json",
+    "bytes": 32114,
+    "sha256": "82457c716e29838180f919dd12e6e379f7a7d03d13d8d8407b2ef49c15c38dcf"
+  },
+  {
+    "path": "general-a94-final.json.gz",
+    "bytes": 1517,
+    "sha256": "01a4e632f51a9aa2cfd7326464433e5f162671b51542e14eff449dfeffb9139a"
+  },
+  {
+    "path": "general-a94-observed.json.gz",
+    "bytes": 1517,
+    "sha256": "01a4e632f51a9aa2cfd7326464433e5f162671b51542e14eff449dfeffb9139a"
+  },
+  {
+    "path": "independent-a94-native.zip",
+    "bytes": 5589724,
+    "sha256": "daec9ac6c2cfb27682972222a9019b725a54021ab47a5f7b7bff367931046b23"
+  },
+  {
+    "path": "independent-proof-manifest.json.gz",
+    "bytes": 13594,
+    "sha256": "be23714e882086943aff1cb250400ef152b9f66a298f75261181c7048408b893"
+  }
+]
