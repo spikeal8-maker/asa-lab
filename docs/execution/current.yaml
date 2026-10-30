@@ -13424,7 +13424,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: sevenseg_inspector872_verified_prepared_modulo789_completion_selected
+      checkpoint: prepared789_new_candidate_capblocked_instrument_projection873_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13435,7 +13435,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-BLOCK-MODULO-001
+      current_slice: TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15490,6 +15490,9 @@ parallel_lanes:
       semantic_change: 'no'
       checkpoint: source_review_evidence_done_db232_native16_canonical2565_71fresh
       accepted_candidate_sha: db232e8c436dc44d6029b8f1c45bea13cf8373e4
+      integrated_sha: 0e96139d26f8865c3a5441223caf842f60aa671c
+      general_ci_run: 41050784162
+      general_ci_result: SUCCESS_all_four_jobs_exact_db232
       source_review_evidence: done
       independent_review: APPROVE_actualWorker16_committed_readout_isolation
       report: docs/product/electronics/evidence/sevenseg-inspector-872/GATES.md
@@ -15516,6 +15519,44 @@ parallel_lanes:
       observed_at: '2026-10-30T11:29:31Z'
       observation_note: Fresh fetch main before writes equals clean roota2;870candidatea85verified45Gitpaths_fullnonheaderbytespreserved_independentnative16_andcanonical2565tests71freshNxPASS. Maina2General41045380393inprogress notclaimedPASS. CachedMATH6E fiveactive/threeinactiveStagePASS_theninspector9907zero; no fullbrowserrerun. Sourceplan required before edits.
 
+  - id: electronics-instrument-native-projection
+    parent_lane: electronics
+    worktree_id: electronics-instrument-native-projection
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001.md
+    task:
+      id: TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001
+      issue: 873
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'no'
+      checkpoint: selected_committed_live_instrument_projection_dependency_for_prepared525
+      owner_acceptance: pending
+      execution_role: bounded_native_projection_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001.md
+      owner_authorization: Owner explicitly finish prepared work no refactor/server/foreign edits. Cached525 fails initial native readings before mirrors; missing committed instrument view subscription is new bounded dependency. Original mirror geometry remains separate; no oldprototype wholesale restore. OwnerNOArduino cleanup remains.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 5b8eb8df51e1a7bc437048c778c191dd73b24bd2
+      convergence_baseline_sha: 5b8eb8df51e1a7bc437048c778c191dd73b24bd2
+      head_sha: null
+      observed_at: '2026-10-30T12:49:48Z'
+      observation_note: Fresh fetch main before edits; foreignAI metadata only since0e96139, own pending872General-success receipt disjoint. Exactdb232 General41050784162_all4SUCCESS independent16_native_andcanonical2565tests71fresh; 789307f singlecapFAIL696B_no broaderproof_done. New873 depends on real cached525stale0 notmirrorgeometryassumption; existingport hasall measurements, no protocolchange.
+
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
     worktree_id: electronics-owner45-block-modulo
@@ -15532,7 +15573,10 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: owner_requests_prepared_completion_new_bounded_candidate_caps_first
+      checkpoint: prepared_completion307f18_capfailed_preserved_no_cleanup
+      completion_candidate_sha: 307f18d98d309add057e150bd90e66365352801f
+      completion_result: NOT_READY_Arduino2000696of2000000_other7capsPASS_numeric22PASS_AVRnative_remainingproof_NOT_RUN
+      completion_report: docs/product/electronics/evidence/modulo-789-completion-20261030/candidate-report.json.gz
       completion_owner_instruction: Owner_explicitly_finish_prepared_after_panel_and_inspector_no_refactor_server_foreign_changes_2026_10_30
       measured_parent_budget: Arduino1999925of2000000_75bytes_headroom_Editor187859of222000
       resume_boundary: Recompose58112_do_not_apply_oldfiles_preserve_known_integral_generated_source_types_and_full_uint32_AVRproof_required

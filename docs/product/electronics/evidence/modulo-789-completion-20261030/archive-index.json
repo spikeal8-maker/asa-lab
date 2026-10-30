@@ -1,0 +1,22 @@
+[
+  {
+    "path": "bundle-caps.log.gz",
+    "bytes": 487,
+    "sha256": "31b8a89e9d5f811d6db7fe1128093d17e78bccc68cefc65bcaf775e63a19ac96"
+  },
+  {
+    "path": "candidate-report.json.gz",
+    "bytes": 2526,
+    "sha256": "3176006b32cb93891e3715c329ad9aaeeb79b0426215095053d409d57e1046d3"
+  },
+  {
+    "path": "not-ready-candidate.patch.gz",
+    "bytes": 7614,
+    "sha256": "ddedb1d12da0f3f4eb5cb99ca1bda9bdb9457ac99a6a35a459dc9bc61ec84a9b"
+  },
+  {
+    "path": "web-build.log.gz",
+    "bytes": 5078,
+    "sha256": "04bf0211a3cbdb9a548017508b69a9a6e3a2ce0f0a46debd8787e70bd124bfaf"
+  }
+]

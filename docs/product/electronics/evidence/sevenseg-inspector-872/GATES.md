@@ -40,3 +40,8 @@ not installed Save or owner acceptance. General41050784162 Governance/Code were
 successful; Data/Access remained pending at preparation, so no whole General or
 repository PASS is inferred. No server, Docker, live DB, dependency, protected
 asset, refactor or foreign change. Arduino cleanup remains deferred.
+
+Controller follow-up: General41050784162 subsequently completed SUCCESS in all
+four jobs on exactdb232. Source integrated in main0e96139d2, with only unrelated
+AI metadata convergence and identical reviewed product bytes. No source changed
+after independent verification; installed/owner/release acceptance stays separate.

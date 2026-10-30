@@ -10,6 +10,11 @@
     "sha256": "b3760bdb053c025a5cefb2d7123ddd0686df14b1f0e85e4878ab7405df6e81c6"
   },
   {
+    "path": "general-db232-final.json.gz",
+    "bytes": 1549,
+    "sha256": "d108b7d4ae436fe4083c47003ffbbe0cdec07e86c0b0015b1480c41b7a87cde3"
+  },
+  {
     "path": "independent-db232-native.zip",
     "bytes": 1883158,
     "sha256": "2847d3fa3bf4f26603ee564159d5d820c3d92e00ea3799716d27df1ed9e9230b"
