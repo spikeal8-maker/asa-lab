@@ -200,6 +200,31 @@ it('ignores a delayed background success after a newer manual probe fails', asyn
   expect(host.textContent).not.toContain('ComfyUI подключён');
 });
 
+it('ignores a delayed manual probe success after a newer status refresh fails', async () => {
+  await render();
+  let resolveProbe!: (value: unknown) => void;
+  const pendingProbe = new Promise((resolve) => {
+    resolveProbe = resolve;
+  });
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/probe')) return pendingProbe as never;
+    if (path.endsWith('/status'))
+      return {
+        ok: false,
+        status: 503,
+        error: { code: 'ai_comfy_unreachable', message: 'Нет связи с ComfyUI' },
+      };
+    return original(path, init);
+  });
+  await click('Проверить');
+  await click('Проверить состояние');
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
+  await act(async () => resolveProbe({ ok: true, status: 200, data: details }));
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+});
+
 it('reloads saved image readiness after explicitly changing the ComfyUI endpoint', async () => {
   await render();
   const before = vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images')).length;

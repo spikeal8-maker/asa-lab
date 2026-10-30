@@ -230,6 +230,7 @@ export function AdminComfyUiPage({
           type="button"
           className="asa-image-refresh"
           onClick={() => {
+            generation.current++;
             statusGeneration.current++;
             setDetails(null);
             setConnectionVerified(false);

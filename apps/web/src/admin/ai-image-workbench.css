@@ -444,7 +444,7 @@
   .asa-image-panel-heading {
     flex-wrap: wrap;
   }
-  .asa-image-subtabs button {
+  .asa-image-subtabs button[role='tab'] {
     flex: 1 1 0;
     min-width: 0;
     white-space: normal;
