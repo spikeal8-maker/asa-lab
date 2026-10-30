@@ -76,3 +76,32 @@
     animation: none;
   }
 }
+
+.asa-ai-layout .chat-transcript-overflow {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  background: var(--ai-surface);
+  color: var(--ai-text);
+}
+.asa-ai-layout .chat-transcript-overflow p {
+  margin: 0;
+}
+.asa-ai-layout .chat-transcript-overflow textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 110px;
+  padding: 8px;
+  resize: vertical;
+  border: 1px solid var(--ai-border);
+  border-radius: 8px;
+  background: var(--ai-bg);
+  color: var(--ai-text);
+}
+.asa-ai-layout .chat-transcript-overflow button {
+  justify-self: start;
+  min-height: 36px;
+}
