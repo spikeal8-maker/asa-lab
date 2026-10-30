@@ -11,20 +11,20 @@ const before = process.argv.includes('--before');
 const baseline = 'e1be12d19f8669c1145020c756551dd2188ed10f';
 const historical = (path) =>
   execFileSync('git', ['show', `${baseline}:${path}`], { encoding: 'utf8' });
-const output = resolve('test-results/emergency-toolbar-868', before ? 'before' : 'after');
+const output = resolve('test-results/emergency-toolbar-868-r1', before ? 'before' : 'after');
 await mkdir(output, { recursive: true });
 const bundle = await build({
   stdin: {
     resolveDir: resolve('apps/web/src/electronics'),
     loader: 'tsx',
-    contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WorkbenchHeader} from './WorkbenchHeader';
+    contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WorkbenchHeader} from './WorkbenchHeader';import {SimulationPacing} from './simulation-pacing';
 const counts={};const hit=n=>{counts[n]=(counts[n]||0)+1};
 const c={projectTitle:'Очень длинное название проекта с Arduino и электрической схемой '.repeat(3),project:{title:'Схема'},saveStatus:'saved',saveIssue:null,localCopySaved:true,busy:false,selection:{kind:'component'},hasClipboard:true,canUndo:true,canRedo:true,activeWireColor:'#149447',orthogonalWireMode:false,libraryOpen:true,simulationRunning:false,simulationStatus:'stopped',simulationMessage:null,nativeOpticalPresentation:{subscribeClock:()=>()=>{},readClock:()=>3661000000},saveNow:()=>hit('save'),toggleSimulation:()=>hit('run'),exportEmergencyCopy:()=>hit('copy'),setWireColor:()=>hit('wire')};
 for(const name of ['copySelected','pasteCopied','removeSelection','undo','redo','rotateSelected','mirrorSelected','toggleWireRoute','renameProject','setProjectTitle'])c[name]=()=>hit(name);
-const pace={rate:1,lastNonZero:1,phase:'running'};c.simulationPacing={subscribe:()=>()=>{},read:()=>pace};c.setSimulationRate=()=>hit('pace');
+const pace=new SimulationPacing();c.simulationPacing=pace;c.setSimulationRate=rate=>{hit('pace');pace.request(rate)};
 const root=createRoot(document.getElementById('app'));let view='breadboard',code=false;
 function render(){root.render(<div className={'workbench-shell'+(c.libraryOpen?'':' library-collapsed')}><WorkbenchHeader controller={c} user={{id:'fixture',displayName:'Проверка',identityKind:'student-seat'}} view={view} codeOpen={code} notesOpen={false} onBack={()=>{}} onViewChange={()=>{}} onToggleNotes={()=>{}} onToggleCode={()=>hit('code')} onToggleLibrary={()=>hit('library')} onOpenShare={()=>{}} onExportView={()=>{}}/><main className="workbench-main" data-testid="stage"/></div>)}
-window.fixture={counts,set:(state)=>{Object.assign(c,state);view=state.view??view;code=state.code??code;render()}};render();`,
+window.fixture={counts,readPacing:pace.read,set:(state)=>{Object.assign(c,state);if(state.pacing){pace.request(state.pacing.rate);if(state.pacing.phase==='paused')pace.settlePause()}view=state.view??view;code=state.code??code;render()}};render();`,
   },
   bundle: true,
   write: false,
@@ -70,10 +70,23 @@ try {
       await page.goto('https://toolbar-fixture.invalid/');
       await page.locator('.workbench-toolbar').waitFor();
       for (const code of [false, true])
-        for (const running of [false, true])
+        for (const pacing of [
+          { running: false, phase: 'running', rate: 1 },
+          { running: true, phase: 'running', rate: 1 },
+          ...(width <= 390
+            ? [
+                { running: true, phase: 'pausing', rate: 0 },
+                { running: true, phase: 'paused', rate: 0 },
+                { running: true, phase: 'running', rate: 0.1 },
+                { running: true, phase: 'running', rate: 10 },
+              ]
+            : []),
+        ])
           for (const emergency of [false, true]) {
+            const { running } = pacing;
             await page.evaluate((state) => window.fixture.set(state), {
               code,
+              pacing,
               simulationRunning: running,
               simulationStatus: running ? 'running' : 'stopped',
               saveStatus: emergency ? 'error' : 'dirty',
@@ -101,6 +114,7 @@ try {
                 };
               };
               return {
+                pacing: window.fixture.readPacing(),
                 toolbar: box('.workbench-toolbar'),
                 save: box('.save'),
                 run: box('.simulate'),
@@ -114,8 +128,10 @@ try {
                 pageWidth: document.documentElement.scrollWidth,
               };
             });
-            receipts.push({ width, dpr, code, running, emergency, geometry });
+            receipts.push({ width, dpr, code, running, emergency, pacing, geometry });
             if (!before) {
+              assert.equal(geometry.pacing.phase, pacing.phase);
+              assert.equal(geometry.pacing.rate, pacing.rate);
               assert.ok(geometry.pageWidth <= width, JSON.stringify(geometry));
               assert.ok(geometry.tools.w >= 44, JSON.stringify(geometry));
               const required = [
@@ -189,6 +205,13 @@ try {
                 await page
                   .getByRole('dialog', { name: 'Скорость моделирования', exact: true })
                   .waitFor();
+                if (pacing.phase === 'pausing')
+                  await page
+                    .getByText(
+                      '\u041f\u0440\u0438\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0430\u2026',
+                      { exact: true },
+                    )
+                    .waitFor();
                 await page.keyboard.press('Escape');
                 assert.equal(
                   await page
@@ -200,7 +223,9 @@ try {
               }
             }
             if (code && running && emergency)
-              await page.screenshot({ path: resolve(output, `${width}-${dpr}.png`) });
+              await page.screenshot({
+                path: resolve(output, `${width}-${dpr}-${pacing.phase}-${pacing.rate}.png`),
+              });
           }
     }
     await context.close();

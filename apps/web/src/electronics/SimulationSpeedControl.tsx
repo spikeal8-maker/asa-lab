@@ -61,7 +61,7 @@ export function SimulationSpeedControl({
       >
         {children}
         <span className="workbench-simulation-rate">
-          {state.phase === 'pausing' ? 'Приостановка…' : rateLabel(state.rate)}
+          {state.phase === 'pausing' ? 'Пауза…' : rateLabel(state.rate)}
         </span>
       </button>
       {open ? (
