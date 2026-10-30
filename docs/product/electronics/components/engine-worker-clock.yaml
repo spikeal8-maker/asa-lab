@@ -74,6 +74,8 @@ components:
     - contexts/electronics/testing/benchmark-corpus.spec.ts
     - contexts/electronics/testing/linear-system.spec.ts
     - contexts/electronics/testing/diode-active-set-cutoff.spec.ts
+    - contexts/electronics/testing/mixed-servo-observation.spec.ts
+    - apps/web/src/electronics/testing/mixed-servo-observation.browser.mjs
     dependencies:
     - electronics.engine.netlist
     - electronics.engine.device-model
@@ -81,6 +83,7 @@ components:
     symbols:
     - solveCircuit
     - solveCircuitWithHeldArduino
+    - solveRcCircuitWithHeldArduino
     - compileCircuit
     - analyseCircuit
   electronics.engine.device-model:
