@@ -61,6 +61,7 @@ const expectedPending = [
   '0280', // Six image presets.
   '0281', // Versioned image profiles.
   '0282', // Local inference overrides preserve legacy defaults.
+  '0283', // Canonical publication likes retain legacy reactions.
 ];
 
 interface Identity {
@@ -485,11 +486,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       });
 
       // Nonempty legacy like/wow rows must survive the new reaction namespace exactly.
-      const legacyReactor = (
-        await db.query<{ id: string }>('SELECT id FROM principals WHERE id<>$1 LIMIT 1', [
-          account.principal_id,
-        ])
-      ).rows[0]!.id;
+      const legacyReactor = stranger.principal_id;
       await db.query(
         "INSERT INTO project_reactions(project_id,reactor_principal_id,kind) VALUES($1,$2,'like'),($1,$2,'wow')",
         [legacy.projectId, legacyReactor],
