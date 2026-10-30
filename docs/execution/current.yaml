@@ -13434,7 +13434,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: prepared789_new_candidate_capblocked_instrument_projection873_selected
+      checkpoint: instrument873_source_native_canonical_verified_ready_for_main
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -15544,7 +15544,11 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'no'
-      checkpoint: selected_committed_live_instrument_projection_dependency_for_prepared525
+      checkpoint: candidate5b622a1_native_review_pass_canonical2566_71fresh_caps8_pass
+      accepted_candidate_sha: 5b622a1763548100f3475b5e606d384df538a380
+      source_review_evidence: done
+      independent_review: APPROVE_exact5b622a1_actualWorker_1440_390_committed_isolation
+      report: docs/product/electronics/evidence/instrument-native-projection-873/GATES.md
       owner_acceptance: pending
       execution_role: bounded_native_projection_executor_then_new_independent_review
       context_hints:

@@ -1,0 +1,19 @@
+[
+  {
+    "path": "canonical-5b622a1.log.gz",
+    "raw_sha256": "bf3395db629f32c5f2f5fa2488c27f8990a0bc115328ee8f04ec8d6a52b4230b",
+    "raw_bytes": 49644,
+    "sha256": "c6b711c551f12cac312abb18e0f7a4b28a621e9d97ac1d7930ff93e861e22c22"
+  },
+  {
+    "path": "caps-final-5b622a1.log.gz",
+    "raw_sha256": "3b0993b60cf6c80567a3e5d15d35fdd16c48b03b6572ebb33d6fda457996f78c",
+    "raw_bytes": 726,
+    "sha256": "266667c70cbffa2c08a3a26ccba768f7d0dd5a8e055c0f3cc3c63244edfd2edf"
+  },
+  {
+    "path": "independent-native-5b622a1.zip",
+    "bytes": 372909,
+    "sha256": "71487157ebc20387468ad5783b601df0aa41a6783d22b50090b555ef17858759"
+  }
+]
