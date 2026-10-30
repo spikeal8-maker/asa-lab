@@ -7827,26 +7827,26 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/catalog-layout-20261030-acceptance.md
     task:
-      id: TASK-PROJ-CATALOG-LAYOUT-001
+      id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
       issue: 211
       branch: main
-      candidate_branch: codex/projects-catalog-layout-20261030
+      candidate_branch: codex/public-author-name-20261030
       base_branch: main
-      pr: 880
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: compact_catalog_layout_technical_accepted_main
+      status: in_progress
+      checkpoint: existing_public_display_name_projection_selected
       kind: implementation
-      risk: medium
-      semantic_change: 'no'
+      risk: high
+      semantic_change: 'yes'
       owner_acceptance: pending
-      owner_authorization: Owner requested finding and implementing the existing canonical Projects catalog layout on 2026-10-30.
-        Compact search/header, horizontal real module filters and responsive image-first cards. Preserve existing search,
-        pagination, routes, authorization and real counts; no invented metrics or unsupported categories. No 3D viewer,
-        game-section changes, new ranking/search backend or site deployment. Bounded author and independent review,
-        focused catalog checks and actual built-browser visual proof before source integration.
+      owner_authorization: Owner explicitly clarified on 2026-10-30 that the existing registration display name is public,
+        always visible as author, and no user name-visibility switch exists. Remove incorrect dependency on whole-profile
+        visibility for this one field. No new duplicate author-name field or whole-profile exposure. Existing publications
+        must display the canonical public name without manual republishing while immutable source/history remain intact.
+        Exact Code and Security review plus real PG/API/browser and General before Main. No live DB or deployment.
       context_hints:
-      - docs/product/projects/tasks/PROJ-CATALOG-LAYOUT.md
+      - docs/product/projects/tasks/PROJ-PUBLIC-AUTHOR-NAME.md
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
