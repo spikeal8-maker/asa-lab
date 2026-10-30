@@ -76,6 +76,7 @@ import {
   getAiModelCatalog,
   isModelForProvider,
   isKnownModelForProvider,
+  supportsAiImageInput,
   type AiModel,
   type AiModelCatalog,
   type AiProvider,
@@ -1541,7 +1542,12 @@ export class AiChatService {
   private async prepareAttachmentInput(
     owner: string,
     uploads: readonly string[],
-  ): Promise<{ text: string; images: readonly string[]; imageBytes: number }> {
+  ): Promise<{
+    text: string;
+    images: readonly string[];
+    imageUrls: readonly string[];
+    imageBytes: number;
+  }> {
     if (!this.attachments)
       throw new AiServiceError('ai_attachment_unavailable', 503, 'Вложения сейчас недоступны.');
     if (
@@ -1557,6 +1563,7 @@ export class AiChatService {
     }
     const parts: string[] = [];
     const images: string[] = [];
+    const imageUrls: string[] = [];
     let total = 0;
     let imageBytes = 0;
     let remainingText = 16000;
@@ -1585,6 +1592,7 @@ export class AiChatService {
                 'Слишком много данных изображений.',
               );
             images.push(bytes.toString('base64'));
+            imageUrls.push(`data:${receipt.mediaType};base64,${bytes.toString('base64')}`);
           } else if (receipt.kind === 'text') {
             if (remainingText <= 0) return;
             const lines = bytes.toString('utf8').split(/\r?\n/);
@@ -1611,7 +1619,7 @@ export class AiChatService {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       throw problem;
     }
-    return { text: parts.join('\n\n'), images, imageBytes };
+    return { text: parts.join('\n\n'), images, imageUrls, imageBytes };
   }
 
   async sendStream(
@@ -1785,27 +1793,29 @@ export class AiChatService {
       ? await this.prepareAttachmentInput(principalId, effectiveUploads)
       : null;
     if (files?.images.length) {
-      if (!useLocal) {
-        throw new AiServiceError(
-          'ai_vision_unavailable',
-          409,
-          'Для выбранной облачной модели передача изображений ещё не подключена.',
-        );
-      }
-      let capabilities: readonly string[];
-      try {
-        capabilities = await describeOllamaModel(local!.base_url, local!.model, this.fetchImpl);
-      } catch (problem) {
-        if (problem instanceof OllamaError)
-          throw new AiServiceError(problem.code, problem.status, problem.message);
-        throw problem;
-      }
-      if (!capabilities.includes('vision'))
+      if (!useLocal && !supportsAiImageInput(runtime.provider, model)) {
         throw new AiServiceError(
           'ai_vision_unsupported',
           409,
-          'Установленная модель Ollama не поддерживает изображения. Выберите разрешённую модель с Vision.',
+          'Выбранная модель не поддерживает чтение изображений. Выберите модель с Vision.',
         );
+      }
+      if (useLocal) {
+        let capabilities: readonly string[];
+        try {
+          capabilities = await describeOllamaModel(local!.base_url, local!.model, this.fetchImpl);
+        } catch (problem) {
+          if (problem instanceof OllamaError)
+            throw new AiServiceError(problem.code, problem.status, problem.message);
+          throw problem;
+        }
+        if (!capabilities.includes('vision'))
+          throw new AiServiceError(
+            'ai_vision_unsupported',
+            409,
+            'Установленная модель Ollama не поддерживает изображения. Выберите разрешённую модель с Vision.',
+          );
+      }
     }
 
     let admitted: boolean;
@@ -2092,6 +2102,7 @@ export class AiChatService {
             apiKey,
             context,
             instructions,
+            ...(files?.imageUrls.length ? { images: files.imageUrls } : {}),
             signal: combined,
             onDelta,
           });

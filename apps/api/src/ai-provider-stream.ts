@@ -9,6 +9,7 @@ import {
   buildAiTextRequest,
   isModelForProvider,
   isKnownOllamaCloudModel,
+  supportsAiImageInput,
 } from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud';
@@ -33,6 +34,7 @@ interface StreamArgs {
   readonly apiKey: string;
   readonly context: readonly { role: 'user' | 'assistant'; content: string }[];
   readonly instructions: string;
+  readonly images?: readonly string[];
   readonly signal: AbortSignal;
   readonly onDelta: (delta: string) => void;
 }
@@ -167,6 +169,7 @@ export async function streamProviderText({
   apiKey,
   context,
   instructions,
+  images,
   signal,
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
@@ -174,14 +177,20 @@ export async function streamProviderText({
   if (!(isModelForProvider(provider, model) || isKnownOllamaCloudModel(provider, model))) {
     throw new ProviderStreamError('ai_model_invalid', 400, 'Выберите поддерживаемую модель.');
   }
-  const request = buildAiTextRequest(provider, model, context, instructions, true);
+  if (images?.length && !supportsAiImageInput(provider, model))
+    throw new ProviderStreamError(
+      'ai_vision_unsupported',
+      409,
+      'Выбранная модель не поддерживает чтение изображений. Выберите модель с Vision.',
+    );
+  const request = buildAiTextRequest(provider, model, context, instructions, true, images);
   const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
   const combined = AbortSignal.any([signal, timeout]);
   let response: Response;
   try {
     response = await fetchImpl(request.url, {
       method: 'POST',
-      ...(provider === 'ollama-cloud' ? { redirect: 'error' as const } : {}),
+      redirect: 'error',
       headers: {
         authorization: 'Bearer ' + apiKey,
         'content-type': 'application/json',
