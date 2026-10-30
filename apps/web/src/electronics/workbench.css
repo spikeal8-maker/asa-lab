@@ -5136,16 +5136,26 @@ html.arduino-palette-resizing * {
   .workbench-toolbar-divider {
     height: 46px;
   }
-  .workbench-toolbar-spacer,
-  .workbench-simulation-time {
+  .workbench-toolbar-spacer {
+    display: none;
+  }
+  .workbench-toolbar > .workbench-simulation-time {
+    display: flex;
+    flex-shrink: 0;
+    height: 44px;
+    padding: 0 3px;
+    font-size: 11px;
+  }
+  .workbench-toolbar > .workbench-simulation-time .workbench-simulation-time-prefix {
     display: none;
   }
   .workbench-toolbar-group.right {
     flex: 0 0 auto;
-    gap: 3px;
-    padding: 0 4px;
+    gap: 2px;
+    padding: 0 2px;
     background: #fff;
   }
+  .workbench-toolbar-group.right .workbench-pill.emergency-copy,
   .workbench-toolbar-group.right .workbench-pill.code,
   .workbench-toolbar-group.right .workbench-pill.save,
   .workbench-toolbar-group.right .workbench-pill.simulate,
@@ -5162,6 +5172,10 @@ html.arduino-palette-resizing * {
     font-size: 0;
     line-height: 1;
     border-radius: 5px;
+  }
+  .workbench-toolbar-group.right .workbench-pill.emergency-copy::after {
+    content: 'JSON';
+    font-size: 11px;
   }
   .workbench-mobile-library-toggle {
     border: 1px solid #c8d6df;
@@ -6235,4 +6249,23 @@ html.arduino-palette-resizing * {
 .workbench-annotation-actions button {
   flex: 1;
   min-height: 40px;
+}
+
+/* Keep a full tool target beside the recovery actions on the narrowest phones. */
+@media (max-width: 390px) {
+  .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-clock-button {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0;
+    min-height: 44px;
+    padding: 0 3px;
+  }
+  .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-time {
+    height: 22px;
+    padding: 0;
+  }
+  .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-rate {
+    min-width: 0;
+    line-height: 14px;
+  }
 }
