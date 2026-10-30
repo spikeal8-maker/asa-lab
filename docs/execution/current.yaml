@@ -11371,7 +11371,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_test_only_current_document_observer_and_slider_owned_point_repair
+      checkpoint: selected_test_only_correct_fixture_paint_order_and_forensic_failure_counts
+      paint_order_oracle_repair:
+        source_before_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+        source_before_run: 41080294495
+        actual_result: CANCELLED_global50min_focused_benchmark_PASS_0of16complete_due_false_DOMorder_after_saved_reopen
+        actual_evidence: All16_saved_reopened_full_docs_equal_32PUT200_CASplus1_no_ledger_errors_784readings588glyph_axis_errors_0window_center_endpoint_errors
+        independent_actual_review: NOT_READY_browser_collectors_final_screenshots_missing_preserve_original_failure_flags
+        selected_oracle: Explicit_fixture_paint_order_bench_supply_source_meter_load_generator_scope_preserve_strict_logical_document_order_elsewhere
+        selected_forensics: Snapshot_existing_both_browser_failure_counts_in_finally_preserve_success_assertions_and_screenshots
+        baseline_composition: reviewed877D_f2f94ad_pure_geometry_move_no_semantic_change
+        boundary: New_actual_complete16_BEFORE_required_before_product_AFTER_no_retrospective_PASS
       native_observer_slider_repair:
         source_before_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
         source_before_run: 41061516266
@@ -13526,7 +13536,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: oldblock865_verified_held_psu877_geometry_refactor_selected_while_strict_runs
+      checkpoint: oldblock865_held_psu877D_reviewed_mirror525_paint_order_oracle_repair_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13537,7 +13547,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001
+      current_slice: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15742,7 +15752,14 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_877D_pure_geometry_extraction_for_Stage_hygiene_General_failure
+      checkpoint: reviewed_f2f94ad_geometry_helper_new525_DOMorder_oracle_dependency_pending
+      refactor_candidate_sha: f2f94ad22728ed744539ec490f53a74e1c8e1f47
+      refactor_review: APPROVE_new_independent_source_equivalence_native91_hygiene_and_composition
+      refactored_Stage_bytes: 63752
+      refactored_helper_bytes: 5298
+      general_run: 41087390394
+      general_result: FAIL_Access_Classroom_observation_loginHandle_fixture_Code_Data_Governance_PASS
+      general_classification: C_unchanged_classroom_fixture_before_Electronics_module_load_API_and_Access_paths_unchanged_do_not_repair_foreign
       hygiene_repair:
         failed_general_run: 41080002633
         source_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
