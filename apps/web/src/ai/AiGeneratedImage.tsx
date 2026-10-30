@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AiGeneratedImage as ImageReceipt } from '@asa-lab/contracts';
 import { readGeneratedImage } from './read-generated-image';
+import { imageModelLabel } from './image-model-label';
+import type { AiImageRecipe } from '@asa-lab/contracts';
 import { AiImagePrompt } from './AiImagePrompt';
 import { AiChatIcon } from './AiChatIcon';
 import { createAiScopeCall } from './ai-scope-api';
@@ -11,17 +13,14 @@ export function AiGeneratedImage({
   image,
   threadId,
   seatId,
-  onTranslate,
-  translationDisabled,
 }: {
-  onTranslate?: ((prompt: string) => void) | undefined;
-  translationDisabled?: boolean;
   image: ImageReceipt;
   threadId: string;
   seatId?: string | undefined;
 }) {
   const [url, setUrl] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [recipe, setRecipe] = useState<AiImageRecipe>();
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
   const [copied, setCopied] = useState(false);
@@ -32,6 +31,7 @@ export function AiGeneratedImage({
     let objectUrl = '';
     setUrl('');
     setPrompt('');
+    setRecipe(undefined);
     setError('');
     setActionError('');
     setCopied(false);
@@ -47,7 +47,10 @@ export function AiGeneratedImage({
           encodeURIComponent(image.requestId),
       )
         .then((reply) => {
-          if (!controller.signal.aborted && reply.ok) setPrompt(reply.data.prompt);
+          if (!controller.signal.aborted && reply.ok) {
+            setPrompt(reply.data.prompt);
+            setRecipe(reply.data.recipe);
+          }
         })
         .catch(() => undefined);
       try {
@@ -103,9 +106,7 @@ export function AiGeneratedImage({
       {prompt ? (
         <AiImagePrompt
           prompt={prompt}
-          label={`Промпт · ${image.width} × ${image.height}`}
-          onTranslate={onTranslate}
-          translationDisabled={translationDisabled ?? false}
+          label={`Промпт · ${image.width} × ${image.height} · ${imageModelLabel(recipe)}`}
         />
       ) : null}
       {url ? (
@@ -116,10 +117,13 @@ export function AiGeneratedImage({
               <button
                 type="button"
                 onClick={() => void copyImage()}
-                aria-label={`Копировать изображение · ${imageDetails}`}
+                data-copied={copied || undefined}
+                aria-label={
+                  copied ? 'Изображение скопировано' : `Копировать изображение · ${imageDetails}`
+                }
                 title={`Копировать изображение · ${imageDetails}`}
               >
-                <AiChatIcon name="copy" size={18} />
+                <AiChatIcon name={copied ? 'check' : 'copy'} size={18} />
               </button>
               <a
                 href={url}
