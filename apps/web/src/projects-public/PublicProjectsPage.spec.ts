@@ -1,0 +1,101 @@
+// @vitest-environment jsdom
+import { act, createElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { PublicProjectListView } from '../creator-portal/navigation';
+import { PublicProjectsPage } from './PublicProjectsPage';
+import { publicProjectsApi, type PublicProject } from './api';
+
+let host: HTMLDivElement;
+let root: Root;
+const onView = vi.fn();
+const onOpen = vi.fn();
+const work: PublicProject = {
+  publicationId: 'published',
+  revisionId: 'revision',
+  revisionNo: 1,
+  versionNo: 1,
+  title: 'Схема автора',
+  summary: null,
+  description: null,
+  tags: [],
+  license: 'reserved',
+  moduleKey: 'electronics',
+  authorLabel: 'Автор проекта',
+  featured: true,
+  pinned: true,
+  likeCount: 7,
+  publishedAt: '2026-10-30T00:00:00Z',
+  preview: null,
+  capabilities: { viewer: 'static', canCopy: false, downloadFormats: [] },
+};
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  vi.spyOn(publicProjectsApi, 'list').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [work], nextOffset: null },
+  });
+});
+afterEach(async () => {
+  await act(async () => root.unmount());
+  host.remove();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+  vi.unstubAllGlobals();
+});
+async function render(view: PublicProjectListView) {
+  await act(async () => root.render(createElement(PublicProjectsPage, { view, onView, onOpen })));
+}
+function category(name: string) {
+  return [...host.querySelectorAll<HTMLButtonElement>('[aria-label="Среда проекта"] button')].find(
+    (button) => button.textContent?.trim() === name,
+  )!;
+}
+it('exposes real module chips and retains the committed search when switching categories', async () => {
+  await render({ kind: 'public-projects', search: 'лампа', module: 'electronics' });
+  expect(category('Электроника').getAttribute('aria-pressed')).toBe('true');
+  await act(async () => category('3D-моделирование').click());
+  expect(onView).toHaveBeenLastCalledWith({
+    kind: 'public-projects',
+    search: 'лампа',
+    module: 'three-d',
+  });
+  expect(publicProjectsApi.list).toHaveBeenCalledWith({ search: 'лампа', module: 'electronics' });
+});
+it('shows an unknown URL category honestly and allows returning to all without dropping search', async () => {
+  await render({ kind: 'public-projects', search: 'схема', module: 'future-module' });
+  expect(category('future-module').getAttribute('aria-pressed')).toBe('true');
+  await act(async () => category('Все').click());
+  expect(onView).toHaveBeenLastCalledWith({ kind: 'public-projects', search: 'схема' });
+});
+it('submits the current search value while preserving module filtering', async () => {
+  await render({ kind: 'public-projects', search: '  лампа  ', module: 'electronics' });
+  await act(async () =>
+    host
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  );
+  expect(onView).toHaveBeenLastCalledWith({
+    kind: 'public-projects',
+    search: 'лампа',
+    module: 'electronics',
+  });
+  const submit = host.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  expect(submit.getAttribute('aria-label')).toBe('Найти');
+});
+it('keeps immutable card navigation, actual likes and editorial metadata without invented totals', async () => {
+  await render({ kind: 'public-projects' });
+  const card = host.querySelector<HTMLAnchorElement>('.public-project-card-link')!;
+  expect(card.getAttribute('href')).toBe('/#/public-projects/published');
+  expect(card.querySelector('[aria-label="7 нравится"]')).not.toBeNull();
+  expect(card.querySelector('[data-testid="public-project-featured"]')).not.toBeNull();
+  expect(card.querySelector('[data-testid="public-project-pinned"]')).not.toBeNull();
+  expect(host.querySelector('.public-projects-results')?.textContent).toContain('Показано 1');
+  expect(host.textContent).not.toMatch(/просмотров|комментариев|ремиксов/);
+  await act(async () => card.click());
+  expect(onOpen).toHaveBeenCalledWith('published');
+});
