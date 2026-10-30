@@ -1,7 +1,8 @@
 // Real production editor/hook/Worker. API and static files are fixture ports;
 // save/reopen is a fixture JSON roundtrip, not server SaveCAS evidence.
-/* global window, document, URL, console */
+/* global window, document, URL, console, MutationObserver, requestAnimationFrame, getComputedStyle */
 import assert from 'node:assert/strict';
+import process from 'node:process';
 import { createRequire } from 'node:module';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -9,7 +10,8 @@ import { execFileSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 const require = createRequire(import.meta.url);
 const { build } = createRequire(require.resolve('vite'))('esbuild');
-const output = resolve('test-results/spst-runtime');
+const burnoutOnly = process.argv.includes('--led-burnout-only');
+const output = resolve(burnoutOnly ? 'test-results/led-burnout-858' : 'test-results/spst-runtime');
 await mkdir(output, { recursive: true });
 const opts = {
   bundle: true,
@@ -19,6 +21,7 @@ const opts = {
   jsx: 'automatic',
   loader: { '.css': 'empty', '.png': 'dataurl', '.svg': 'dataurl' },
   alias: {
+    '@asa-lab/electronics/rendering': resolve('contexts/electronics/rendering.ts'),
     '@asa-lab/electronics/simulation': resolve('contexts/electronics/simulation.ts'),
     '@asa-lab/electronics/engine': resolve('contexts/electronics/engine.ts'),
     '@asa-lab/electronics': resolve('contexts/electronics/index.ts'),
@@ -49,6 +52,7 @@ let initial={schemaVersion:4,components:[],connections:[],viewport:{x:0,y:0,zoom
 for(const [type,id,x,y] of [['battery-holder-aa-2','source',80,80],['switch-spst','switch',350,100],['resistor-axial','resistor',540,100],['led-5mm','led',700,100],['switch-spdt','original',550,320]]) initial=addComponentToDocument(initial,type,{x,y},id).document;
 const wire=(id,from,terminal,to,pin)=>({id,from:{componentId:from,terminal},to:{componentId:to,terminal:pin},color:'#149447',vertices:[]});
 initial.connections=[wire('feed','source','BAT+','switch','common'),wire('contact','switch','throw-left','resistor','lead-1'),wire('load','resistor','lead-2','led','anode')];
+if(${burnoutOnly}){initial.components=initial.components.filter(c=>!['switch','original'].includes(c.id)).map(c=>c.id==='resistor'?{...c,value:0}:c);initial.connections=[wire('feed','source','BAT+','resistor','lead-1'),wire('load','resistor','lead-2','led','anode'),wire('return','led','cathode','source','BAT-')];}
 let saved=JSON.parse(localStorage.getItem('fixture-server')||'null')||initial,revision=1;
 api.me=async()=>({ok:true,status:200,data:{authenticated:true,user:{id:'pupil',displayName:'Pupil'}}});
 api.openProject=async id=>({ok:true,status:200,data:{project:{id,moduleKey:'electronics',title:'SPST — два контакта',scope:'personal',classroomId:null,status:'active'},draft:{projectId:id,document:saved,revision,updatedAt:''},versions:[],result:null}});
@@ -104,6 +108,90 @@ try {
     try {
       await page.goto('https://spst-fixture.invalid/');
       await page.waitForFunction(() => window.fixture?.snapshot().status === 'ready');
+      if (burnoutOnly) {
+        await page.evaluate(() => {
+          window.fixture.wb.setLibraryOpen(false);
+          window.fixture.wb.fitScene();
+          window.fixture.firstFailureDom = null;
+          new MutationObserver(() => {
+            const observation =
+              window.fixture.wb.nativeOpticalPresentation.getSnapshot().observation;
+            if (
+              window.fixture.firstFailureDom ||
+              observation?.result.components.find((c) => c.componentId === 'led')?.damageState !==
+                'failed'
+            )
+              return;
+            window.fixture.firstFailureDom = {
+              cursor: observation.frame.atMicroseconds,
+              bodyState: document
+                .querySelector('[data-component-id="led"] [data-led-runtime-state]')
+                ?.getAttribute('data-led-runtime-state'),
+              burst: !!document.querySelector('[data-testid="led-burnout-explosion"]'),
+            };
+          }).observe(document.getElementById('app'), {
+            subtree: true,
+            childList: true,
+            attributes: true,
+          });
+        });
+        await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+        await page.waitForFunction(
+          () =>
+            window.fixture.wb.nativeOpticalPresentation
+              .getSnapshot()
+              .observation?.result.components.find((c) => c.componentId === 'led')?.damageState ===
+            'failed',
+        );
+        await page.evaluate(
+          () =>
+            new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+        );
+        const failure = await page.evaluate(() => {
+          const w = window.fixture.wb,
+            s = w.nativeOpticalPresentation.getSnapshot();
+          return {
+            result: s.observation.result,
+            cursor: s.observation.frame.atMicroseconds,
+            committedCursor: s.committed?.frame.atMicroseconds,
+            bodyState: document
+              .querySelector('[data-component-id="led"] [data-led-runtime-state]')
+              ?.getAttribute('data-led-runtime-state'),
+            burst: !!document.querySelector('[data-testid="led-burnout-explosion"]'),
+            firstFailureDom: window.fixture.firstFailureDom,
+          };
+        });
+        assert.equal(failure.bodyState, 'fault');
+        assert.equal(failure.burst, true);
+        assert.equal(failure.firstFailureDom.burst, true);
+        assert.equal(failure.firstFailureDom.bodyState, 'fault');
+        assert.ok(
+          failure.result.diagnostics.some(
+            (d) => d.code === 'led_burnout' && d.componentIds?.includes('led'),
+          ),
+        );
+        await page.screenshot({ path: resolve(output, `${width}-burnout.png`) });
+        await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+        assert.equal(await page.locator('[data-testid="led-burnout-explosion"]').count(), 0);
+        await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+        await page.waitForFunction(
+          () =>
+            window.fixture.wb.nativeOpticalPresentation
+              .getSnapshot()
+              .observation?.result.components.find((c) => c.componentId === 'led')
+              ?.presentationState === 'destructive',
+        );
+        assert.equal(await page.locator('[data-testid="led-burnout-explosion"]').count(), 0);
+        await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+        receipts.push({
+          width,
+          failure,
+          errors,
+          evidence:
+            'Real Worker thermal failure, body and burst without an extra user action; Stop and fresh generation clear it.',
+        });
+        continue;
+      }
       await page.waitForSelector('[data-family-id="spst-switch"]');
       const card = page.locator('[data-family-id="spst-switch"]');
       assert.equal(
@@ -117,6 +205,12 @@ try {
       await page.waitForSelector('[data-testid="catalog-placement-preview"]', {
         state: 'attached',
       });
+      assert.equal(
+        await page
+          .locator('[data-testid="catalog-placement-preview"] [data-testid="spdt-actuator"] > g')
+          .getAttribute('transform'),
+        null,
+      );
       await page.mouse.move(width * 0.65, 400);
       assert.equal(
         await page
@@ -158,11 +252,18 @@ try {
       await page.waitForFunction(
         () => window.fixture.snapshot().running && window.fixture.snapshot().result?.solved,
       );
-      await page.waitForFunction(
-        () =>
-          window.fixture.snapshot().result?.components.find((c) => c.componentId === 'led')?.lit,
+      assert.equal(
+        (await snapshot()).document.components.find((c) => c.id === 'switch').state,
+        true,
       );
-      const before = await snapshot();
+      assert.equal(
+        (await snapshot()).result.components.find((c) => c.componentId === 'switch').current,
+        0,
+      );
+      assert.equal(
+        (await snapshot()).result.components.find((c) => c.componentId === 'led').lit,
+        false,
+      );
       const actuator = page.locator('[data-component-id="switch"] [data-testid="spdt-actuator"]');
       const target = await actuator.evaluate((element) => {
         const r = element.getBoundingClientRect();
@@ -181,6 +282,35 @@ try {
         if (!points.length) throw Error('No reachable actuator');
         return points[0];
       });
+      const shadow = [];
+      const ordinaryShadow = await page
+        .locator('[data-component-id="original"] .workbench-part')
+        .evaluate((element) => getComputedStyle(element).filter);
+      const checkShadow = async (state) => {
+        for (const selected of [false, true]) {
+          await page.evaluate(
+            (selected) =>
+              selected
+                ? window.fixture.wb.selectComponent('switch', false)
+                : window.fixture.wb.setSelection(null),
+            selected,
+          );
+          const filter = await page
+            .locator('[data-component-id="switch"] .workbench-part')
+            .evaluate((element) => getComputedStyle(element).filter);
+          assert.equal(filter, ordinaryShadow);
+          assert.doesNotMatch(filter, /25, 151, 205/);
+          shadow.push({ state, selected, filter });
+        }
+      };
+      await checkShadow('open');
+      await page.mouse.click(target.x, target.y);
+      await page.waitForFunction(
+        () =>
+          window.fixture.snapshot().result?.components.find((c) => c.componentId === 'led')?.lit,
+      );
+      await checkShadow('closed');
+      const before = await snapshot();
       await page.mouse.click(target.x, target.y);
       await page.waitForFunction(
         () =>
@@ -221,6 +351,7 @@ try {
         reopened,
         events,
         errors,
+        shadow,
         evidence:
           'actual SchematicEditor/hook/Worker; fixture API JSON save/reopen; no server acceptance',
       });

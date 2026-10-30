@@ -1,0 +1,158 @@
+/* @vitest-environment jsdom */
+import { readFileSync } from 'node:fs';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+import { WorkbenchStage } from '../WorkbenchStage';
+import { NativeOpticalProvider } from '../NativeOpticalComponentVisual';
+import {
+  NativeOpticalPresentation,
+  type NativeOpticalObservation,
+} from '../native-optical-presentation';
+import { configureProductionLibrary } from '../production-manifest-adapter';
+import { addComponentToDocument, connectTerminals } from '../workbench-document';
+import { catalogEntry, visualAsset } from '../component-catalog';
+import { calculateLiveSimulation, advanceLiveSimulation } from '../live-simulation';
+import type { ElectronicsWorkbenchController } from '../use-electronics-workbench';
+import type { SchematicDocument, SolveResult } from '../../api';
+
+(
+  globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+afterEach(() => vi.unstubAllGlobals());
+
+it('renders physical LED failure with its native body without a parent render, and clears on reset', async () => {
+  configureProductionLibrary(
+    JSON.parse(
+      readFileSync('apps/web/public/assets/electronics/component-database/catalog.json', 'utf8'),
+    ),
+  );
+  let document: SchematicDocument = {
+    schemaVersion: 4,
+    components: [],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: true, maxIterations: 24 },
+  };
+  for (const [type, id] of [
+    ['battery-holder-aa-2', 'source'],
+    ['resistor-axial', 'resistor'],
+    ['led-5mm', 'led'],
+  ])
+    document = addComponentToDocument(document, type!, { x: 100, y: 100 }, id!).document;
+  document = {
+    ...document,
+    components: document.components.map((component) =>
+      component.id === 'resistor' ? { ...component, value: 0 } : component,
+    ),
+  };
+  for (const [id, from, terminal, to, pin] of [
+    ['feed', 'source', 'BAT+', 'resistor', 'lead-1'],
+    ['load', 'resistor', 'lead-2', 'led', 'anode'],
+    ['return', 'led', 'cathode', 'source', 'BAT-'],
+  ]) {
+    const connected = connectTerminals(
+      document,
+      { componentId: from!, terminal: terminal! },
+      { componentId: to!, terminal: pin! },
+      id!,
+      '#149447',
+    );
+    if (connected.kind === 'created') document = connected.document;
+  }
+  const healthy = calculateLiveSimulation(document, null, true)!;
+  const failed = advanceLiveSimulation(document, healthy, 4500);
+  expect(failed.components.find((component) => component.componentId === 'led')?.damageState).toBe(
+    'failed',
+  );
+  const port = new NativeOpticalPresentation();
+  const fallback = new Map([
+    ['led', failed.components.find((component) => component.componentId === 'led')!],
+  ]);
+  const fallbackDiagnostics = new Map([
+    ['led', failed.diagnostics.filter((diagnostic) => diagnostic.componentIds?.includes('led'))],
+  ]);
+  const visualState = vi.fn(() => 'off');
+  const controller = Object.freeze({
+    document,
+    simulationRunning: true,
+    nativeOpticalPresentation: port,
+    viewport: document.viewport,
+    viewBox: { x: 0, y: 0, width: 900, height: 600 },
+    stageRef: { current: null },
+    catalogPreviewRef: { current: null },
+    runtimePresentationResultByComponent: fallback,
+    diagnosticsByComponent: fallbackDiagnostics,
+    errorDiagnosticComponentIds: new Set(),
+    selection: null,
+    catalogPlacement: null,
+    componentVisualState: visualState,
+    componentLedBrightness: () => 0,
+    componentArduinoLActive: () => false,
+    preparedComponentLedAsset: () => undefined,
+    committedComponentLedAsset: () => undefined,
+    rollbackComponentLedAsset: () => undefined,
+    terminalConnectionCount: () => 0,
+    wirePreviewVertices: [],
+    wireGuide: null,
+    syncCatalogPreview: () => undefined,
+  }) as unknown as ElectronicsWorkbenchController;
+  vi.stubGlobal('requestAnimationFrame', () => 1);
+  vi.stubGlobal('cancelAnimationFrame', () => undefined);
+  const host = window.document.body.appendChild(window.document.createElement('div'));
+  const root = createRoot(host);
+  const observe = (result: SolveResult, atMicroseconds: number): NativeOpticalObservation => ({
+    result,
+    frame: {
+      token: `physical-led-${atMicroseconds}`,
+      atMicroseconds,
+      brightness: new Map([
+        ['led', result.components.find((c) => c.componentId === 'led')?.brightness ?? 0],
+      ]),
+      arduinoLStates: new Map(),
+    },
+    ledAssets: new Map(),
+  });
+  try {
+    await act(async () =>
+      root.render(
+        createElement(
+          NativeOpticalProvider,
+          { port },
+          createElement(WorkbenchStage, { controller, showGrid: false }),
+        ),
+      ),
+    );
+    const stageVisualReads = visualState.mock.calls.length;
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).toBeNull();
+    await act(async () => port.setObservation(observe(healthy, 0)));
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).toBeNull();
+    const failedObservation = observe(failed, 4500000);
+    await act(async () => port.setObservation(failedObservation, true));
+    expect(port.getSnapshot().committed?.result).toBe(healthy);
+    expect(
+      host.querySelector('[data-component-id="led"] [data-led-runtime-state="fault"]'),
+    ).not.toBeNull();
+    expect(
+      host.querySelector('[data-component-id="led"] .workbench-led-asset')?.getAttribute('href'),
+    ).toBe(
+      visualAsset(
+        catalogEntry('led-5mm')!,
+        document.components.find((c) => c.id === 'led')!,
+        'burned',
+      ),
+    );
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).not.toBeNull();
+    expect(fallback.get('led')?.damageState).toBe('failed');
+    expect(visualState.mock.calls.length).toBe(stageVisualReads);
+    await act(async () => port.commit(failedObservation));
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).not.toBeNull();
+    await act(async () => port.setObservation(null));
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).toBeNull();
+    await act(async () => port.setObservation(observe(healthy, 0)));
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
