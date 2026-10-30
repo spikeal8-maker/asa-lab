@@ -1,0 +1,25 @@
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const require = createRequire(import.meta.url);
+const { build } = createRequire(require.resolve('vite'))('esbuild');
+const stage = execFileSync('git', ['show', 'dabcfe06:apps/web/src/electronics/WorkbenchStage.tsx'], { encoding: 'utf8' });
+const start = stage.indexOf('      const componentDiagnostics =', stage.indexOf('  const diagnosticIndicators'));
+const end = stage.indexOf('\n    });\n  const unsupportedModelIndicators', start);
+const oldBody = stage.slice(start, end);
+const source = `import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';import {NativeLedDiagnostic} from './src/electronics/NativeLedDiagnostic';
+function Old({controller:c,component,entryKey,baseSize,badgeAnchor,badgeAnchorKind,badgeGeometry}){const entry={key:entryKey};${oldBody}}
+const cases=[];
+for(const kind of ['resistor','dc-motor','rgb-led'])for(const running of [false,true]){
+const diagnostic={code:kind==='rgb-led'?'led_burnout':'overload',severity:'error',message:'physical failure',componentIds:['part'],suggestedAction:'Disconnect power'};
+const c={simulationRunning:running,runtimePresentationResultByComponent:new Map([['part',{presentationState:'failed'}]]),diagnosticsByComponent:new Map([['part',[diagnostic]]]),errorDiagnosticComponentIds:new Set(['part']),selectComponent(){}};
+const p={controller:c,component:{id:'part',componentTypeId:kind,kind,value:0,position:{x:0,y:0}},entryKey:kind,baseSize:{width:30,height:50},badgeAnchor:{x:3,y:4},badgeAnchorKind:'owner-alpha-top-right',badgeGeometry:{radius:9,fontSize:12,textBaseline:4}};
+const before=renderToStaticMarkup(React.createElement(Old,p)),after=renderToStaticMarkup(React.createElement(NativeLedDiagnostic,p));
+if(before!==after)throw Error('Changed non-LED/RGB diagnostic markup '+kind+'/'+running);cases.push({kind,running,markup:after});
+}console.log(JSON.stringify({status:'PASS',baseline:'dabcfe06',cases}));`;
+const out = resolve('test-results/switch-burnout-858/non-led-markup.cjs');
+await build({stdin:{contents:source,resolveDir:resolve('apps/web'),loader:'tsx'},outfile:out,bundle:true,platform:'node',format:'cjs',jsx:'automatic',external:['react','react-dom/server']});
+const result = execFileSync(process.execPath,[out],{encoding:'utf8'});
+writeFileSync(resolve('test-results/switch-burnout-858/non-led-markup.json'), result);
+console.log('Exact old-fragment/new-child non-LED and RGB SSR markup PASS: 6 cases');

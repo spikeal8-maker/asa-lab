@@ -13360,7 +13360,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-SWITCH-BURNOUT-001
+      current_slice: TASK-ELECTRONICS-ARDUINO-SWITCH-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -13369,7 +13369,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Electrical819andoptical821verified. Helpers824source4c50 independentlyAPPROVED45tests_and_native1and4carry. Full24nativecases1to4_lineartext_helpertext_genuineBlockly_at1440and390_show72counterstates. Canonical2441tests71freshNxallcapsPASS_after_one_classD_asset_timeout_retry; legacy20byteexact_plus5numericmacrobaseline_cases. Performance_NOT_realtime_100to125msmodel_cost1.55to6.62swall; nextdependency_is_bounded_measured_solver_reuse. No wholepoint2_or_arbitraryCplusplus_installed_save_deploy_owneracceptance_claim. PreserveforeignAI_changes.
+      execution_coordination: Owner30Octoberregression858verified_source1b0_docs2584_independent28tests4nativecasesPASS. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Canonical2443tests71freshNxall8capsPASS_after_verified_single_classD_asset_timeout_retry. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Continue_remaining20_point6_switchcase859_candidatefirst_no_refactor_guardcapraise_server_or_foreignedits. No_wholeCplusplus_installed_or_owneracceptance_claim.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -14894,11 +14894,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_default_off_spst_no_actuator_glow_native_confirmed_burnout_overlay
+      checkpoint: independently_verified_default_off_no_glow_LED_burst_first_failed_frame
       owner_acceptance: pending
       execution_role: bounded_visual_defaults_executor_then_independent_review
       owner_authorization: Owner30OctoberrequestsnewSPSTdefaultOFF_no_weirdOFFshadow_and_restoredtimelyburnouteffect_thencontinueplan. Preservehistoricalstate_trueopen_falseclosed_and_oldprojects. Actualbody_native_result_vs_staleStageoverlayseam; subscribeonlysmalloverlay_noeditorperframerender. No physicalfailurethreshold_clock_solver_or_ownerassetchange.
@@ -14924,6 +14924,55 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T00:00:00Z'
       observation_note: Fresh fetch main before edits. General_Account_PublicProjects_Release_exactf2ab_success. Rootclean_sourcepaths_nooverlap; legacyforeignworkflowdiffs_excluded. DefaultSPSTfalseclosed_and_CSSactiveglow_excludesonlySPDT_reproducedsource; nativebodyupdateswhileStageoverlayreadsparentmap. Coordinateactualdirtysourcepathswith836beforeedits_no_seamoverwrite. No server_Docker_DB_refactor_guard_or_capraise.
+    source_review_evidence:
+      source_candidate_sha: 1b0bfd3d5b025ba771c44529c526af854db5ce14
+      evidence_candidate_sha: 2584bcef16468b594ad9e29e85f50f4326ad3a08
+      independent_review: APPROVE_exact_product_28tests_and4nativecases_1440_390
+      canonical_gate: PASS_2443tests_71freshNx_no_cache_after_one_verified_classD_asset_timeout_retry
+      bundles: all8PASS_Editor170581of222000_Arduino1999997of2000000_initial555421of600000
+      report: docs/product/electronics/evidence/switch-burnout-858/README.md
+
+  - id: electronics-arduino-switch-case
+    parent_lane: electronics
+    worktree_id: electronics-arduino-switch-case
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SWITCH-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-SWITCH-001
+      issue: 859
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_remaining20_point6_atomic_switch_dispatch_candidate_first
+      owner_acceptance: pending
+      execution_role: new_bounded_runtime_executor_then_new_independent_review
+      owner_authorization: Owner30Octoberexplicitlyrequestsrepair858_thencontinueplan. Remaining20_point6_is_independentnext_language_slice. Real_integral_switchcase_default_fallthrough_breakcontinue_scopes_onceeffects_JSON; preserveoldbytes_and_guards. No arbitraryCplusplus_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-SWITCH-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: dabcfe06968e7a4d8414a96061a320a85286a898
+      convergence_baseline_sha: dabcfe06968e7a4d8414a96061a320a85286a898
+      head_sha: null
+      observed_at: '2026-10-30T00:00:00Z'
+      observation_note: Fresh fetch main before edits. Main_dabc_General_success_at_integration;858source1b0_independentAPPROVE28tests4native_and_canonical2443tests71freshNxallcapsPASS. Publish858_before_runtime859_mutations. Runtime141778of153189; Arduinoentry1999997of2000000_candidatefirst_buildcaps_before_broadgate. No server_Docker_DB_orforeignchanges.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
