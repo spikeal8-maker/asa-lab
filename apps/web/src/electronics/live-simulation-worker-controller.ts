@@ -252,6 +252,13 @@ export class ElectronicsLiveSimulationWorkerController {
   private firstPositiveObservation = false;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
+  private paused = false;
+  private resuming = false;
+  private heldAdvance: {
+    generationId: number;
+    target: SimulationTarget;
+    advance: SimulationTimedAdvancePayload;
+  } | null = null;
   private readonly serialPrograms = new Map<
     string,
     { fingerprint: string | undefined; revision: number }
@@ -349,6 +356,39 @@ export class ElectronicsLiveSimulationWorkerController {
     this.beginGeneration(document, 0);
   }
 
+  get committedHorizonMicroseconds(): number {
+    return this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+  }
+
+  get hasPendingAdvance(): boolean {
+    return this.inFlightKind === 'advance';
+  }
+
+  /** A host transition drops obsolete wall demand, never input/continuation work. */
+  reanchorHostDemand(): void {
+    this.latestTarget =
+      this.canonicalDocument && !sameArduinoSources(this.dispatchedDocument, this.canonicalDocument)
+        ? { requestedHorizonMicroseconds: this.committedHorizonMicroseconds }
+        : null;
+  }
+
+  setPaused(paused: boolean, reanchor?: (committedMicroseconds: number) => void): void {
+    this.paused = paused;
+    if (paused) return;
+    if (this.resuming) {
+      reanchor?.(this.committedHorizonMicroseconds);
+      return;
+    }
+    this.resuming = true;
+    this.reanchorHostDemand();
+    const held = this.heldAdvance;
+    this.heldAdvance = null;
+    if (held) this.completeAdvance(held.generationId, held.target, held.advance);
+    reanchor?.(this.committedHorizonMicroseconds);
+    this.resuming = false;
+    this.pump();
+  }
+
   stop(): void {
     const active = this.generationId !== null;
     this.clearGeneration();
@@ -385,6 +425,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.dispatchedDocument = null;
+    this.heldAdvance = null;
     this.latestTarget = { requestedHorizonMicroseconds: canonicalHorizonMicroseconds };
     this.startupTarget = { requestedHorizonMicroseconds: 0 };
     this.continuationTarget = null;
@@ -423,6 +464,9 @@ export class ElectronicsLiveSimulationWorkerController {
     this.firstPositiveObservation = false;
     this.inFlight = false;
     this.inFlightKind = null;
+    this.paused = false;
+    this.resuming = false;
+    this.heldAdvance = null;
   }
 
   private retimePendingInputsAfterCommitted(
@@ -470,7 +514,15 @@ export class ElectronicsLiveSimulationWorkerController {
     const document = this.canonicalDocument;
     let pendingTarget =
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
-    if (generationId === null || !document || this.inFlight || !pendingTarget) return;
+    if (
+      generationId === null ||
+      !document ||
+      this.inFlight ||
+      !pendingTarget ||
+      this.resuming ||
+      (this.paused && pendingTarget !== this.startupTarget)
+    )
+      return;
     if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
       // A native RAF may acknowledge new progress between the last host tick
       // and this serial dispatch. Refresh the same bounded demand at its use.
@@ -479,6 +531,8 @@ export class ElectronicsLiveSimulationWorkerController {
         generationId !== this.generationId ||
         document !== this.canonicalDocument ||
         this.inFlight ||
+        this.paused ||
+        this.resuming ||
         pendingTarget !== this.latestTarget ||
         hostHorizon === null ||
         !Number.isSafeInteger(hostHorizon) ||
@@ -565,6 +619,10 @@ export class ElectronicsLiveSimulationWorkerController {
     advance: SimulationTimedAdvancePayload,
   ): void {
     if (generationId !== this.generationId) return;
+    if (this.paused && target !== this.startupTarget) {
+      this.heldAdvance = { generationId, target, advance };
+      return;
+    }
     this.inFlight = false;
     this.inFlightKind = null;
     if (advance.executionStatus === 'fault') {

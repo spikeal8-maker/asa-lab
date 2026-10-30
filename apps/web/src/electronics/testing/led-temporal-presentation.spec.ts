@@ -311,6 +311,60 @@ describe('actual browser joint provenance oracle counterexamples', () => {
 });
 
 describe('accepted per-LED temporal presentation', () => {
+  it.each([0.1, 0.5, 1, 2, 10])('presents actual accepted history at requested rate %s', (rate) => {
+    const presentation = new LedTemporalPresentation();
+    const observation = window(0, 125000, [square(0, 125000, 20000)]);
+    presentation.accept(electrical(observation), observation, 0);
+    drawFrame(presentation, 0);
+    presentation.setPlaybackRate(rate, 1000);
+    const frame = presentation.prepareFrame(11000)!;
+    expect(frame.atMicroseconds).toBe(10000 * rate);
+    expect(presentation.acknowledgeFrame(frame, 11000)).toBe(true);
+    expect(presentation.presentedMicroseconds).toBe(10000 * rate);
+  });
+
+  it('settles an old proposed frame once at the latest rate without rewinding after a slow change', () => {
+    const presentation = new LedTemporalPresentation();
+    const observation = window(0, 125000, [square(0, 125000, 20000)]);
+    presentation.accept(electrical(observation), observation, 0);
+    drawFrame(presentation, 0);
+    const old = presentation.prepareFrame(10000)!;
+    presentation.setPlaybackRate(10, 11000);
+    presentation.setPlaybackRate(0.1, 12000);
+    expect(presentation.prepareFrame(50000)).toBe(old);
+    expect(presentation.acknowledgeFrame(old, 50000)).toBe(true);
+    expect(presentation.prepareFrame(51000)!.atMicroseconds).toBe(10100);
+  });
+
+  it('pauses a pending frame through its existing ACK, then holds the cursor across wall time', () => {
+    const presentation = new LedTemporalPresentation();
+    const observation = window(0, 125000, [square(0, 125000, 20000)]);
+    presentation.accept(electrical(observation), observation, 0);
+    drawFrame(presentation, 0);
+    const proposed = presentation.prepareFrame(10000)!;
+    presentation.setPlaybackRate(0, 11000);
+    expect(presentation.prepareFrame(999999)).toBe(proposed);
+    expect(presentation.acknowledgeFrame(proposed, 999999)).toBe(true);
+    expect(presentation.prepareFrame(99999999)).toBeNull();
+    expect(presentation.presentedMicroseconds).toBe(10000);
+    presentation.setPlaybackRate(0.5, 99999999);
+    expect(presentation.prepareFrame(100001999)!.atMicroseconds).toBe(11000);
+  });
+
+  it('allows only the complete initial endpoint while paused, including generic profiles', () => {
+    const presentation = new LedTemporalPresentation();
+    const observation = window(0, 0);
+    presentation.setPlaybackRate(0, 0);
+    presentation.acceptSnapshot(electrical(observation), 0);
+    const initial = presentation.prepareFrame(50000)!;
+    expect(initial.atMicroseconds).toBe(0);
+    expect(presentation.acknowledgeFrame(initial, 50000)).toBe(true);
+    expect(presentation.prepareFrame(100000)).toBeNull();
+    presentation.setPlaybackRate(2, 100000);
+    presentation.acceptSnapshot(electrical(observation), 12345);
+    expect(presentation.prepareFrame(100001)!.atMicroseconds).toBe(12345);
+  });
+
   it('publishes a ready joint HIGH on the next 40 ms RAF after native H0 ACK', () => {
     const presentation = new LedTemporalPresentation();
     const initial = window(
@@ -1758,6 +1812,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
     state.nativeOpticalPresentation = { commit: () => {} };
+    state.settleSimulationPauseRef = { current: null };
     if (name === 'raf') {
       // Bind the real RAF's new display-only metric dependencies. The actual
       // mounted suite separately verifies source mismatch and lifecycle cancellation;

@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
@@ -59,7 +59,7 @@ for (const pullHost of [false, true]) {
   records.push({pullHost,trace});
 }
 const raw = Buffer.from(JSON.stringify(records));
-const receipt = { baseline:'9821f0f8d66d6d870646cfeaef8666547876f66f', compiledControllerSha256:createHash('sha256').update(before?source:execFileSync('git',['hash-object',path],{encoding:'utf8'})).digest('hex'), scenarios:records.length, entries:records.reduce((n,c)=>n+c.trace.length,0),bytes:raw.length,sha256:createHash('sha256').update(raw).digest('hex') };
+const receipt = { baseline:'9821f0f8d66d6d870646cfeaef8666547876f66f', compiledControllerSha256:createHash('sha256').update(before?source:readFileSync(path,'utf8').replace(/\r\n/g,'\n')).digest('hex'), scenarios:records.length, entries:records.reduce((n,c)=>n+c.trace.length,0),bytes:raw.length,sha256:createHash('sha256').update(raw).digest('hex') };
 writeFileSync(`${output}/${name}.json.gz`,gzipSync(raw,{mtime:0}));
 writeFileSync(`${output}/${name}-receipt.json`,JSON.stringify(receipt,null,2)+'\n');
 console.log(receipt);

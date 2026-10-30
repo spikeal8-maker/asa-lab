@@ -233,6 +233,211 @@ async function completeCanonicalStart(
 }
 
 describe('Electronics canonical Worker controller', () => {
+  it('completes H0 at zero rate but blocks positive demand until explicit resume', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onResult = vi.fn();
+    controller.start('paused-start', circuit, {
+      onResult,
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds: () => 90000,
+    });
+    controller.setPaused(true);
+    controller.update(circuit, 90000);
+    await completeCanonicalStart(executor, 1);
+    expect(executor.advances).toHaveLength(1);
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(controller.committedHorizonMicroseconds).toBe(0);
+    const reanchor = vi.fn();
+    controller.setPaused(false, reanchor);
+    expect(reanchor).toHaveBeenCalledWith(0);
+    controller.update(circuit, 1000);
+    expect(executor.generation).toBe(1);
+    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(1000);
+  });
+
+  it('holds a late response and Serial, then accepts once and retimes paused input after C', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onResult = vi.fn(),
+      onSerialProjection = vi.fn();
+    controller.start('held', serialCircuit, { onResult, onSerialProjection, onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(serialCircuit, 25000);
+    controller.setPaused(true);
+    const pressed = {
+      ...serialCircuit,
+      components: serialCircuit.components.map((c) =>
+        c.id === 'button' ? { ...c, state: true } : c,
+      ),
+    };
+    controller.update(pressed, 90000);
+    controller.sendSerialRx('uno', 'abc', 90000);
+    const response = {
+      ...timedAdvance('ready', 25000, 25000),
+      serial: [
+        {
+          componentId: 'uno',
+          begun: true,
+          tx: [{ sequence: 1, atMicroseconds: 10, text: 'once' }],
+          rxPendingBytes: 0,
+        },
+      ],
+    };
+    const serialCalls = onSerialProjection.mock.calls.length;
+    executor.advances[1]!.deferred.resolve(response);
+    await flush();
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onSerialProjection).toHaveBeenCalledTimes(serialCalls);
+    expect(controller.committedHorizonMicroseconds).toBe(0);
+    expect(executor.advances).toHaveLength(2);
+    const reanchor = vi.fn();
+    onSerialProjection.mockImplementationOnce(() => controller.setPaused(false));
+    controller.setPaused(false, reanchor);
+    expect(reanchor).toHaveBeenCalledWith(25000);
+    expect(onSerialProjection).toHaveBeenCalledTimes(serialCalls + 1);
+    expect(executor.advances).toHaveLength(3);
+    expect(
+      executor.advances[2]!.inputEvents.map((e) => [e.atMicroseconds, e.operation, e.payload]),
+    ).toEqual([
+      [25001, 'state', true],
+      [25002, 'serialRx', 'abc'],
+    ]);
+    expect(executor.generation).toBe(1);
+    controller.setPaused(true);
+    controller.setPaused(false);
+    expect(onSerialProjection).toHaveBeenCalledTimes(serialCalls + 1);
+  });
+
+  it('holds a yielded continuation without dispatching and resumes its observation once', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('yield-pause', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 20000);
+    controller.setPaused(true);
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 20000, 500));
+    await flush();
+    expect(controller.committedHorizonMicroseconds).toBe(0);
+    expect(executor.advances).toHaveLength(2);
+    controller.setPaused(false);
+    expect(controller.committedHorizonMicroseconds).toBe(500);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(500);
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(500);
+  });
+
+  it.each(['onInitialReady', 'onResult'] as const)(
+    'honours a reentrant pause in %s before any positive pump',
+    async (key) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      controller.start('reentrant', circuit, {
+        onResult: vi.fn(),
+        onFailure: vi.fn(),
+        readHostHorizonMicroseconds: () => 90000,
+        [key]: () => controller.setPaused(true),
+      });
+      await completeCanonicalStart(executor, 1);
+      await flush();
+      expect(executor.advances).toHaveLength(1);
+    },
+  );
+
+  it.each(['stop', 'restart', 'dispose', 'structure'] as const)(
+    'discards a held old-generation result on %s',
+    async (operation) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onResult = vi.fn();
+      controller.start('discard', circuit, { onResult, onFailure: vi.fn() });
+      await completeCanonicalStart(executor, 1);
+      controller.update(circuit, 20000);
+      controller.setPaused(true);
+      executor.advances[1]!.deferred.resolve(timedAdvance('ready', 20000, 20000));
+      await flush();
+      if (operation === 'stop') controller.stop();
+      else if (operation === 'dispose') controller.dispose();
+      else if (operation === 'structure')
+        controller.update(
+          {
+            ...circuit,
+            components: [
+              ...circuit.components,
+              { id: 'new-r', kind: 'resistor', value: 1000, position: { x: 90, y: 0 } },
+            ],
+          },
+          20000,
+        );
+      else controller.restart(circuit);
+      controller.setPaused(false);
+      expect(onResult).toHaveBeenCalledTimes(1);
+      expect(controller.committedHorizonMicroseconds).toBe(0);
+    },
+  );
+
+  it('preserves an edited source synchronization while discarding obsolete ordinary demand on resume', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('source-held', serialCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(serialCircuit, 25000);
+    controller.setPaused(true);
+    const edited = {
+      ...serialCircuit,
+      components: serialCircuit.components.map((c) =>
+        c.id === 'uno'
+          ? { ...c, stateProperties: { arduinoSource: 'void loop(){delay(20);}' } }
+          : c,
+      ),
+    };
+    controller.update(edited, 90000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25000, 25000));
+    await flush();
+    controller.setPaused(false);
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(25000);
+    expect(
+      executor.advances[2]!.document.components.find((c) => c.id === 'uno')!.stateProperties
+        ?.arduinoSource,
+    ).toBe('void loop(){delay(20);}');
+  });
+
+  it('blocks the remaining positive pump when onResult requests pause reentrantly', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let frames = 0;
+    controller.start('positive-reentrant', circuit, {
+      onResult: () => {
+        if (++frames === 2) controller.setPaused(true);
+      },
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 90000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25000, 25000));
+    await flush();
+    expect(controller.committedHorizonMicroseconds).toBe(25000);
+    expect(executor.advances).toHaveLength(2);
+  });
+
+  it('rechecks a pause requested inside the host-demand callback before dispatch', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let pauseOnRead = false;
+    controller.start('host-reentrant', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds: () => {
+        if (pauseOnRead) controller.setPaused(true);
+        return pauseOnRead ? 90000 : 0;
+      },
+    });
+    await completeCanonicalStart(executor, 1);
+    pauseOnRead = true;
+    controller.update(circuit, 90000);
+    expect(executor.advances).toHaveLength(1);
+  });
+
   it('pulls already elapsed positive host demand immediately after H0 without an external tick', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
