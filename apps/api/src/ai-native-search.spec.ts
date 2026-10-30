@@ -494,3 +494,40 @@ describe('native local internet tools', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+it('streams ordinary text before completion even when native tools are offered', async () => {
+  const f = fixture('auto');
+  const original = f.fetchImpl.getMockImplementation()!;
+  let finish = (): void => undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encode = (content: string, done: boolean): Uint8Array =>
+        new TextEncoder().encode(JSON.stringify({ message: { content }, done }) + '\n');
+      controller.enqueue(encode('Первая часть. ', false));
+      finish = () => {
+        controller.enqueue(encode('Вторая часть.', true));
+        controller.close();
+      };
+    },
+  });
+  f.fetchImpl.mockImplementation(async (url, options) => {
+    if (String(url).endsWith('/api/chat')) {
+      expect(JSON.parse(String(options?.body)).tools.length).toBeGreaterThan(0);
+      return new Response(stream);
+    }
+    return original(url, options);
+  });
+  let completed = false;
+  const sent = f.send().then((result) => {
+    completed = true;
+    return result;
+  });
+  try {
+    await vi.waitFor(() => expect(f.deltas.join('')).toBe('Первая часть. '));
+    expect(completed).toBe(false);
+  } finally {
+    finish();
+    await sent;
+  }
+  expect(f.deltas).toEqual(['Первая часть. ', 'Вторая часть.']);
+});

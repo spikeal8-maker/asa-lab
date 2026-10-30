@@ -16,6 +16,7 @@ import { AiMessageContent } from './AiMessageContent';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
 import { AiChatTooltips } from './AiChatTooltips';
+import { AiActivity } from './AiActivity';
 import { AiCompactSelect } from './AiCompactSelect';
 import { AiVoiceInput } from './AiVoiceInput';
 import { mergeVoiceTranscript } from './voice-transcript-draft';
@@ -1981,13 +1982,8 @@ export function AiChatPage({
                       </div>
                     </article>
                   ) : null}
-                  {busy ? (
-                    <div className="chat-runtime-note" role="status">
-                      {webSearchStatus && webSearchMode !== 'off'
-                        ? 'Готовлю ответ…'
-                        : 'Модель формирует ответ…'}
-                    </div>
-                  ) : null}
+                  {busy ? <AiActivity responding={Boolean(streamedText)} /> : null}
+                  {imageUi.busy ? <AiActivity image /> : null}
                 </div>
               </div>
             </div>

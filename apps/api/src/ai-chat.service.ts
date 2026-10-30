@@ -2080,7 +2080,9 @@ export class AiChatService {
                 : ''),
             ...(permittedTools.length ? { tools: permittedTools } : {}),
             signal: combined,
-            onDelta: permittedTools.length ? () => undefined : onDelta,
+            // Tool availability must not buffer an ordinary text answer. The adapter
+            // emits content only; structured tool calls are handled separately.
+            onDelta,
             fetchImpl: this.fetchImpl,
           })
         : await streamProviderText({
@@ -2273,7 +2275,6 @@ export class AiChatService {
           stopped: followup.stopped,
         };
       }
-      if (permittedTools.length && result.text) onDelta(result.text);
       if (result.text.trim()) {
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
