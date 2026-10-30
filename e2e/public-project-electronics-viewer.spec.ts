@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import { expect, test, type Page } from '@playwright/test';
-import type { ElectronicsDisplayArtifact } from '../packages/contracts/src/public-project-display-artifact';
+import type { ElectronicsSimulationArtifact } from '../packages/contracts/src/public-project-display-artifact';
 import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 
@@ -19,7 +19,7 @@ function publicScriptEvidence(page: Page, revision: string) {
   const forbiddenModules = [
     /apps\/web\/src\/pages\/SchematicEditor\.tsx$/,
     /apps\/web\/src\/electronics\/(?:use-electronics-workbench|use-workbench-project-state|workbench-autosave|workbench-runtime-controls|WorkbenchStage|WorkbenchSidebars|WorkbenchHeader|AlternateWorkbenchViews)(?:\.|\/)/,
-    /apps\/web\/src\/electronics\/(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
+    /apps\/web\/src\/electronics\/(?!(?:simulation-worker-client|simulation-worker-protocol|live-simulation-worker-controller)\.ts$)(?:.*worker.*|live-simulation|use-piezo-audio|ArduinoSerialMonitor|ArduinoCodePanel|ArduinoBlocksEditor)(?:\.|\/)/i,
     /apps\/web\/src\/electronics\/(?:arduino-blocks|arduino-block-ui|arduino-program-state|arduino-pin-inputs)(?:\.|\/)/,
     /contexts\/electronics\/(?:engine|simulation|module)\.ts$/,
     /contexts\/electronics\/domain\/(?:solver|simulation|arduino-.*runtime|models\/.*(?:runtime|transient-model|audio-model))(?:\.|\/)/,
@@ -104,8 +104,12 @@ async function artifact(page: Page, publicationId: string, revisionId: string) {
     `/api/public-projects/${publicationId}/artifact?revisionId=${revisionId}`,
   );
   expect(response.status()).toBe(200);
-  const value = (await response.json()).artifact as ElectronicsDisplayArtifact;
-  expect(value).toMatchObject({ schemaVersion: 2, status: 'display', viewerFamily: 'electronics' });
+  const value = (await response.json()).artifact as ElectronicsSimulationArtifact;
+  expect(value).toMatchObject({
+    schemaVersion: 3,
+    status: 'simulation',
+    viewerFamily: 'electronics',
+  });
   return value;
 }
 async function capture(page: Page, name: string) {

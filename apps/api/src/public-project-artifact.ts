@@ -2,6 +2,8 @@ import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import {
   validatePublicProjectDisplayArtifact,
+  PUBLIC_ELECTRONICS_PROPERTIES,
+  PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   type PublicProjectDisplayArtifact,
   type PublicArtifactProvenance,
 } from '@asa-lab/contracts';
@@ -81,6 +83,7 @@ export function createPublicArtifactAdapters(
         const source = parsed.document as {
           components: Record<string, unknown>[];
           connections: Record<string, unknown>[];
+          simulation: { maxIterations: number };
         };
         const candidate = {
           schemaVersion: 2,
@@ -105,7 +108,48 @@ export function createPublicArtifactAdapters(
           ),
         };
         const validated = validatePublicProjectDisplayArtifact(candidate);
-        return validated.ok ? validated.artifact : null;
+        if (!validated.ok) return null;
+        // Unknown physical configuration fails closed to the inert V2 viewer.
+        // Only explicitly classified editor metadata is omitted from execution.
+        const simulationComponents = source.components.map((c, index) => {
+          const component = {
+            ...candidate.components[index],
+            ...pick(c, [
+              'electricalModelId',
+              'electricalModelVersion',
+              'modelProfileId',
+              'modelProfileVersion',
+              'wiperPosition',
+              'holeBindings',
+              'internalConnections',
+            ]),
+          };
+          if (c.stateProperties && typeof c.stateProperties === 'object') {
+            const properties = c.stateProperties as Record<string, unknown>;
+            if (
+              Object.keys(properties).some(
+                (key) =>
+                  !PUBLIC_ELECTRONICS_PROPERTIES.includes(key) &&
+                  !PUBLIC_ELECTRONICS_EDITOR_PROPERTIES.includes(key),
+              )
+            )
+              return null;
+            return {
+              ...component,
+              stateProperties: pick(properties, PUBLIC_ELECTRONICS_PROPERTIES),
+            };
+          }
+          return component;
+        });
+        if (simulationComponents.some((c) => c === null)) return validated.artifact;
+        const simulation = validatePublicProjectDisplayArtifact({
+          ...candidate,
+          schemaVersion: 3,
+          status: 'simulation',
+          solverIterations: source.simulation?.maxIterations,
+          components: simulationComponents,
+        });
+        return simulation.ok ? simulation.artifact : validated.artifact;
       },
     ],
   ]);

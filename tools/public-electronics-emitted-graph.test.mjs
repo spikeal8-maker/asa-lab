@@ -63,6 +63,43 @@ test('browser and graph guard classify exact executable entries while allowing p
     );
 });
 
+for (const corruption of [
+  'worker-hash',
+  'worker-revision',
+  'worker-authoring',
+  'worker-unknown-domain',
+  'worker-escaped-import',
+]) {
+  test(`rejects ${corruption} in separately emitted Worker evidence`, () => {
+    const sample = fixture();
+    try {
+      const path = `apps/web/private-symbols/web-electronics-worker-rendered-modules-${sample.revision}.json`;
+      const index = JSON.parse(readFileSync(resolve(sample.root, path), 'utf8'));
+      const worker = index.assets['/assets/simulation.worker-abcdefgh.js'];
+      if (corruption === 'worker-hash') worker.sha256 = '0'.repeat(64);
+      if (corruption === 'worker-revision') index.revision = '0'.repeat(40);
+      if (corruption === 'worker-authoring')
+        worker.modules.push({
+          id: 'apps/web/src/electronics/ArduinoCodePanel.tsx',
+          renderedLength: 20,
+        });
+      if (corruption === 'worker-unknown-domain')
+        worker.modules.push({
+          id: 'contexts/electronics/domain/unapproved-runtime.ts',
+          renderedLength: 20,
+        });
+      if (corruption === 'worker-escaped-import') worker.imports.push('../escape.js');
+      sample.write(path, index);
+      const result = sample.run();
+      assert.notEqual(result.status, 0);
+      assert.equal(result.receipt.status, 'FAIL');
+      assert.ok(result.receipt.error);
+    } finally {
+      rmSync(sample.root, { recursive: true, force: true });
+    }
+  });
+}
+
 function fixture(mutate = () => {}) {
   const root = mkdtempSync(resolve(tmpdir(), 'asa-rendered-evidence-'));
   const write = (path, value) => {
@@ -117,11 +154,14 @@ function fixture(mutate = () => {}) {
       shared: {
         type: 'chunk',
         fileName: 'assets/shared-abcdefgh.js',
-        code: 'export const helper = 1;',
+        code: 'export const helper = "assets/simulation.worker-abcdefgh.js";',
         imports: [],
         dynamicImports: [],
         modules: {
           [resolve(root, 'apps/web/src/modules/project-draft-storage.ts')]: { renderedLength: 24 },
+          [resolve(root, 'apps/web/src/electronics/simulation-worker-client.ts')]: {
+            renderedLength: 24,
+          },
           [resolve(root, 'apps/web/src/electronics/use-electronics-workbench.ts')]: {
             renderedLength: 0,
           },
@@ -174,6 +214,28 @@ function fixture(mutate = () => {}) {
       format: 'asa-web-rendered-modules-v1',
       revision,
       assets,
+    });
+    const workerCode = 'self.onmessage=()=>{};';
+    write('apps/web/dist/assets/simulation.worker-abcdefgh.js', workerCode);
+    write(`apps/web/private-symbols/web-electronics-worker-rendered-modules-${revision}.json`, {
+      format: 'asa-web-rendered-modules-v1',
+      revision,
+      assets: {
+        '/assets/simulation.worker-abcdefgh.js': {
+          sha256: createHash('sha256').update(workerCode).digest('hex'),
+          bytes: Buffer.byteLength(workerCode),
+          imports: [],
+          dynamicImports: [],
+          modules: [
+            {
+              id: 'apps/web/src/electronics/simulation.worker.ts',
+              renderedLength: workerCode.length,
+            },
+          ],
+          zeroLengthModules: [],
+          dynamicImportOwners: [],
+        },
+      },
     });
     for (const chunk of Object.values(bundle)) write(`apps/web/dist/${chunk.fileName}`, chunk.code);
     write('apps/web/dist/build-metadata.json', { revision, builtAt: 'fixture' });

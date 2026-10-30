@@ -1,5 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
-import type { ElectronicsDisplayArtifact } from '@asa-lab/contracts';
+import type { ElectronicsDisplayArtifact, ElectronicsSimulationArtifact } from '@asa-lab/contracts';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
 
@@ -30,9 +30,13 @@ export function PublicationArtifact({
   readonly publication: PublicProject;
   readonly onUnavailable: () => void;
 }): JSX.Element {
-  const [artifact, setArtifact] = useState<ElectronicsDisplayArtifact | null>(null);
+  const [artifact, setArtifact] = useState<
+    ElectronicsDisplayArtifact | ElectronicsSimulationArtifact | null
+  >(null);
   const [state, setState] = useState<'loading' | 'fallback' | 'error'>('loading');
   useEffect(() => {
+    setArtifact(null);
+    setState('loading');
     if (publication.moduleKey !== 'electronics') {
       setState('fallback');
       return;
@@ -61,8 +65,8 @@ export function PublicationArtifact({
           return;
         }
         if (
-          value.schemaVersion === 2 &&
-          value.status === 'display' &&
+          (value.schemaVersion === 2 || value.schemaVersion === 3) &&
+          (value.status === 'display' || value.status === 'simulation') &&
           value.viewerFamily === 'electronics'
         ) {
           const library = await import('../electronics/production-manifest-adapter');
@@ -117,7 +121,10 @@ export function PublicationArtifact({
             </p>
           }
         >
-          <Scene artifact={artifact} />
+          <Scene
+            key={`${artifact.provenance.publicationId}:${artifact.provenance.revisionNumber}`}
+            artifact={artifact}
+          />
         </Suspense>
       </SceneBoundary>
     );

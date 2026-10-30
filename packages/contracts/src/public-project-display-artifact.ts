@@ -60,7 +60,101 @@ export interface ElectronicsDisplayArtifact {
   readonly components: readonly PublicDisplayComponent[];
   readonly connections: readonly PublicDisplayConnection[];
 }
-export type PublicProjectDisplayArtifact = PublicArtifact | ElectronicsDisplayArtifact;
+/** Public execution inputs, not a serialized editor or persisted runtime. */
+export interface PublicSimulationComponent extends PublicDisplayComponent {
+  readonly electricalModelId?: string;
+  readonly electricalModelVersion?: number;
+  readonly modelProfileId?: string;
+  readonly modelProfileVersion?: number;
+  readonly wiperPosition?: number;
+  readonly stateProperties?: Readonly<
+    Record<string, string | number | boolean | readonly string[]>
+  >;
+  readonly holeBindings?: Readonly<
+    Record<string, { readonly breadboardComponentId: string; readonly holeId: string }>
+  >;
+  readonly internalConnections?: readonly (readonly [string, string])[];
+}
+export interface ElectronicsSimulationArtifact extends Omit<
+  ElectronicsDisplayArtifact,
+  'schemaVersion' | 'status' | 'components'
+> {
+  readonly schemaVersion: 3;
+  readonly status: 'simulation';
+  readonly solverIterations: number;
+  readonly components: readonly PublicSimulationComponent[];
+}
+export type PublicProjectDisplayArtifact =
+  PublicArtifact | ElectronicsDisplayArtifact | ElectronicsSimulationArtifact;
+/** Only canonical physical configuration and inert native presentation inputs. */
+export const PUBLIC_ELECTRONICS_PROPERTIES = Object.freeze([
+  'mirrorX',
+  'mirrorY',
+  'pinLayout',
+  'ledColour',
+  'segmentColor',
+  'ambientTemperatureCelsius',
+  'commonMode',
+  'continuousCurrentAmp',
+  'displayEnabled',
+  'distanceMeters',
+  'illumination',
+  'initialVoltageVolt',
+  'internalResistanceOhm',
+  'maxCollectorCurrent',
+  'maxContinuousCurrentAmp',
+  'maxDrainCurrent',
+  'maxPower',
+  'measurementMode',
+  'moisturePercent',
+  'motionDetected',
+  'outputEnabled',
+  'outputLoadTorqueNewtonMeter',
+  'piezoMode',
+  'powerRatingWatt',
+  'shaftLocked',
+  'temperatureCelsius',
+  'thresholdVoltage',
+  'transconductanceFactor',
+  'transistorType',
+  'voltageRatingVolt',
+  'waveform',
+  'voltageSetpointVolt',
+  'currentLimitAmp',
+  'frequencyHz',
+  'amplitudeVpp',
+  'dcOffsetVolt',
+  'voltsPerDivision',
+  'timePerDivisionMs',
+  'triggerLevelVolt',
+  'meterRange',
+  'arduinoSource',
+  'arduinoCodeMode',
+  'cells',
+  'colour',
+  'tolerancePercent',
+  'resistanceUnit',
+  'piezoVariant',
+  'currentGain',
+  'baseEmitterVoltage',
+  'saturationVoltage',
+  'motorAssemblyProfileId',
+  'outputResistanceOhm',
+  'coupling',
+]);
+export const PUBLIC_ELECTRONICS_EDITOR_PROPERTIES = Object.freeze([
+  'arduinoWorkspace',
+  'arduinoSerialOpen',
+  'arduinoBaudRate',
+  'ledBrightness',
+  'ledFault',
+  'red',
+  'green',
+  'blue',
+  'lampLevel',
+  'contactState',
+  'selectedThrow',
+]);
 export const ELECTRONICS_DISPLAY_LIMITS = Object.freeze({
   maxBytes: 524288,
   maxDepth: 8,
@@ -121,6 +215,12 @@ export function validatePublicProjectDisplayArtifact(
   | { readonly ok: false; readonly reason: 'invalid-public-artifact' } {
   const v1 = validatePublicArtifact(input);
   if (v1.ok) return v1;
+  if (
+    input &&
+    typeof input === 'object' &&
+    Object.getOwnPropertyDescriptor(input, 'schemaVersion')?.value === 3
+  )
+    return validateSimulationArtifact(input);
   try {
     let nodes = 0;
     const seen = new Set<object>();
@@ -242,6 +342,181 @@ export function validatePublicProjectDisplayArtifact(
         Object.freeze(v);
       }
     }
+    freeze(result);
+    return { ok: true, artifact: result };
+  } catch {
+    return { ok: false, reason: 'invalid-public-artifact' };
+  }
+}
+
+function validateSimulationArtifact(
+  input: unknown,
+):
+  | { readonly ok: true; readonly artifact: ElectronicsSimulationArtifact }
+  | { readonly ok: false; readonly reason: 'invalid-public-artifact' } {
+  try {
+    let nodes = 0;
+    const seen = new Set<object>();
+    function inspect(value: unknown, depth: number): void {
+      if (++nodes > 50000 || depth > 10) throw Error();
+      if (typeof value === 'string') {
+        if (value.length > 65536) throw Error();
+        return;
+      }
+      if (value === null || typeof value === 'boolean') return;
+      if (typeof value === 'number') {
+        num(value, Number.MAX_VALUE);
+        return;
+      }
+      if (!value || typeof value !== 'object' || seen.has(value)) throw Error();
+      seen.add(value);
+      if (
+        Object.getPrototypeOf(value) !== (Array.isArray(value) ? Array.prototype : Object.prototype)
+      )
+        throw Error();
+      if (Array.isArray(value) && Reflect.ownKeys(value).length !== value.length + 1) throw Error();
+      for (const key of Reflect.ownKeys(value)) {
+        if (Array.isArray(value) && key === 'length') continue;
+        const d = Object.getOwnPropertyDescriptor(value, key);
+        if (typeof key !== 'string' || !d?.enumerable || !('value' in d)) throw Error();
+        inspect(d.value, depth + 1);
+      }
+    }
+    inspect(input, 0);
+    if (new TextEncoder().encode(JSON.stringify(input)).byteLength > 524288) throw Error();
+    const a = object(input, [
+      'schemaVersion',
+      'status',
+      'viewerFamily',
+      'provenance',
+      'capabilities',
+      'components',
+      'connections',
+      'solverIterations',
+    ]);
+    if (a.schemaVersion !== 3 || a.status !== 'simulation' || !Array.isArray(a.components))
+      throw Error();
+    if (
+      !Number.isInteger(a.solverIterations) ||
+      Number(a.solverIterations) < 4 ||
+      Number(a.solverIterations) > 100
+    )
+      throw Error();
+    const components = a.components.map((raw) => {
+      const c = object(
+        raw,
+        ['id', 'kind', 'position', 'value'],
+        [
+          'componentTypeId',
+          'variantId',
+          'rotation',
+          'name',
+          'pinIds',
+          'state',
+          'visualProperties',
+          'electricalModelId',
+          'electricalModelVersion',
+          'modelProfileId',
+          'modelProfileVersion',
+          'wiperPosition',
+          'stateProperties',
+          'holeBindings',
+          'internalConnections',
+        ],
+      );
+      for (const key of ['electricalModelId', 'modelProfileId']) if (key in c) str(c[key]);
+      for (const key of ['electricalModelVersion', 'modelProfileVersion'])
+        if (key in c && (!Number.isSafeInteger(c[key]) || Number(c[key]) < 1)) throw Error();
+      if (
+        'wiperPosition' in c &&
+        (typeof c.wiperPosition !== 'number' || c.wiperPosition < 0 || c.wiperPosition > 1)
+      )
+        throw Error();
+      if ('stateProperties' in c) {
+        const properties = object(c.stateProperties, [], [...PUBLIC_ELECTRONICS_PROPERTIES]);
+        if (
+          ('arduinoSource' in properties || 'arduinoCodeMode' in properties) &&
+          c.componentTypeId !== 'arduino-uno' &&
+          c.variantId !== 'arduino-uno'
+        )
+          throw Error();
+        if (
+          'arduinoCodeMode' in properties &&
+          !['blocks', 'blocks-text', 'text'].includes(String(properties.arduinoCodeMode))
+        )
+          throw Error();
+        for (const [key, value] of Object.entries(properties)) {
+          if (key === 'arduinoSource') {
+            if (
+              typeof value !== 'string' ||
+              !value.trim() ||
+              value.length > 65536 ||
+              value.includes(String.fromCharCode(0))
+            )
+              throw Error();
+          } else if (Array.isArray(value)) {
+            if (key !== 'pinLayout' || value.length > 128) throw Error();
+            value.forEach((v) => str(v));
+          } else if (typeof value === 'string') str(value, 128);
+          else if (typeof value === 'number') num(value, 1e15);
+          else if (typeof value !== 'boolean') throw Error();
+        }
+      }
+      if (c.componentTypeId === 'arduino-uno' || c.variantId === 'arduino-uno') {
+        const properties = c.stateProperties as Record<string, unknown> | undefined;
+        if (typeof properties?.arduinoSource !== 'string' || !properties.arduinoSource.trim())
+          throw Error();
+      }
+      if ('holeBindings' in c) {
+        const bindings = c.holeBindings as Record<string, unknown>;
+        object(bindings, [], Object.keys(bindings));
+        if (Object.keys(bindings).length > 128) throw Error();
+        for (const [terminal, rawBinding] of Object.entries(bindings)) {
+          str(terminal);
+          const binding = object(rawBinding, ['breadboardComponentId', 'holeId']);
+          str(binding.breadboardComponentId);
+          str(binding.holeId);
+        }
+      }
+      if ('internalConnections' in c) {
+        if (!Array.isArray(c.internalConnections) || c.internalConnections.length > 128)
+          throw Error();
+        for (const pair of c.internalConnections) {
+          if (!Array.isArray(pair) || pair.length !== 2) throw Error();
+          pair.forEach((v) => str(v));
+        }
+      }
+      const display = { ...c };
+      for (const key of [
+        'electricalModelId',
+        'electricalModelVersion',
+        'modelProfileId',
+        'modelProfileVersion',
+        'wiperPosition',
+        'stateProperties',
+        'holeBindings',
+        'internalConnections',
+      ])
+        delete display[key];
+      return display;
+    });
+    const display = validatePublicProjectDisplayArtifact({
+      viewerFamily: a.viewerFamily,
+      provenance: a.provenance,
+      capabilities: a.capabilities,
+      connections: a.connections,
+      schemaVersion: 2,
+      status: 'display',
+      components,
+    });
+    if (!display.ok || display.artifact.schemaVersion !== 2) throw Error();
+    const result = JSON.parse(JSON.stringify(input)) as ElectronicsSimulationArtifact;
+    const freeze = (value: unknown): void => {
+      if (value && typeof value === 'object') {
+        Object.values(value).forEach(freeze);
+        Object.freeze(value);
+      }
+    };
     freeze(result);
     return { ok: true, artifact: result };
   } catch {

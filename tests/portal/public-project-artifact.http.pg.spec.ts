@@ -125,6 +125,73 @@ async function read(
   };
 }
 describe('public Electronics artifact real HTTP and restricted PostgreSQL', () => {
+  it('publishes exact saved Arduino source readonly, omits workspace and never reads a newer private draft', async () => {
+    const source =
+      'void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}';
+    const doc = {
+      ...document(),
+      components: [
+        {
+          id: 'uno',
+          kind: 'visual',
+          componentTypeId: 'arduino-uno',
+          variantId: 'arduino-uno',
+          position: { x: 100, y: 100 },
+          value: 5,
+          pinIds: ['d13', 'power-gnd-1'],
+          stateProperties: {
+            arduinoSource: source,
+            arduinoCodeMode: 'blocks',
+            arduinoWorkspace: 'PRIVATE WORKSPACE EDITOR METADATA',
+          },
+        },
+      ],
+      connections: [],
+    };
+    const f = await fixture(doc);
+    const first = await read(f.publication);
+    expect(first.statusCode).toBe(200);
+    expect(first.json().artifact).toMatchObject({
+      schemaVersion: 3,
+      status: 'simulation',
+      components: [{ stateProperties: { arduinoSource: source, arduinoCodeMode: 'blocks' } }],
+    });
+    expect(first.body).not.toMatch(/WORKSPACE|arduinoWorkspace|viewport/);
+    await admin.query('UPDATE project_drafts SET document_json=$2::jsonb WHERE project_id=$1', [
+      f.projectId,
+      JSON.stringify({
+        ...doc,
+        components: doc.components.map((c) => ({
+          ...c,
+          stateProperties: { arduinoSource: 'PRIVATE-DRAFT-SECRET' },
+        })),
+      }),
+    ]);
+    expect((await read(f.publication)).json()).toEqual(first.json());
+    await admin.query('SELECT project_publication_revoke($1,$2)', [f.principal, f.projectId]);
+    expect((await read(f.publication)).statusCode).toBe(404);
+  });
+  it('keeps missing Arduino source inert rather than silently substituting default Blink', async () => {
+    const f = await fixture({
+      ...document(),
+      components: [
+        {
+          id: 'uno',
+          kind: 'visual',
+          componentTypeId: 'arduino-uno',
+          variantId: 'arduino-uno',
+          position: { x: 100, y: 100 },
+          value: 5,
+          stateProperties: { arduinoCodeMode: 'blocks', arduinoWorkspace: '{}' },
+        },
+      ],
+      connections: [],
+    });
+    const response = await read(f.publication);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().artifact.schemaVersion).toBe(2);
+    expect(response.body).not.toContain('arduinoSource');
+  });
   it('publishes native switch/mirror/RGB geometry configuration while excluding Arduino and private properties', async () => {
     const doc = document();
     const native = {
