@@ -69,7 +69,36 @@
       "path": "led-burnout-mobile.png",
       "sha256": "0aaf987e77954615438b0fbd5dca34960999bf89f4fce5483077e9d41dc9a22a",
       "bytes": 28445
+    },
+    {
+      "path": "gate-first.log.gz",
+      "raw_bytes": 23180,
+      "raw_sha256": "3569c7116a606994c9466e9d27c4d9d7539513b55729bd546ff6f446db33f957",
+      "sha256": "9c87c3286a0e9c0156d31c1952216b74f4ff5c720c9f38bade2d10f3b4cdd931"
+    },
+    {
+      "path": "asset-isolated.log.gz",
+      "raw_bytes": 381,
+      "raw_sha256": "c4597618b4c1c6aa430a4c2f601bb5707db9cf4310e355895c535b931a951832",
+      "sha256": "a18f9495621a204faa64fcc6b45c34886ce4e4b4b29d959c253f6af4664a1d6e"
+    },
+    {
+      "path": "gate-final.log.gz",
+      "raw_bytes": 47378,
+      "raw_sha256": "dd8704cac460e3764f0cba10ac6e26e5ef1602fbb15c045921383c3037f6b75d",
+      "sha256": "e494a721b19f6dc17e8e9d322d3960990654d320f26efc47c71b00d03e7ebe1b"
+    },
+    {
+      "path": "bundle.log.gz",
+      "raw_bytes": 726,
+      "raw_sha256": "877c228ab081095d32c8a2e5a52a72353922d4d7b598326b622dadbb79d72112",
+      "sha256": "e687ab80c072c2b3385a1a039f09cc4c3a4d05b06127bc7ce61f264f639d3170"
     }
   ],
-  "artifact_hash_basis": "canonical Git blob bytes; text LF-normalized by repository attributes"
+  "artifact_hash_basis": "canonical Git blob bytes; text LF-normalized by repository attributes",
+  "source_sha": "1b0bfd3d5b025ba771c44529c526af854db5ce14",
+  "canonical_gate": "PASS_after_one_unchanged_classD_retry",
+  "canonical_tests": 2443,
+  "fresh_nx_stage_tasks": 71,
+  "bundle_caps": "all_eight_PASS_unchanged_limits"
 }

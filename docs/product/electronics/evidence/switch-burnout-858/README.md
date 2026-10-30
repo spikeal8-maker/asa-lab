@@ -49,7 +49,7 @@ distinct from confirmed damage. RGB/non-LED diagnostics retain their old path.
   byte-equal** (resistor, DC motor, RGB × running/stopped). Handlers and geometry
   are preserved in the target fragment.
 - ESLint, Web TypeScript, format/diff and task routing PASS before the final gate.
-  Stage is **61,456 bytes**, down from 65,613; no source guard or bundle cap raised.
+  Stage is **61,463 bytes**, down from 65,613; no source guard or bundle cap raised.
 
 `manifest.json` binds the four product blobs and compressed/raw artifact hashes.
 Native receipts were captured before the source commit; the manifest product
