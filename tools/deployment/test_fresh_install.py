@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager
 from deployment import fresh_install
+from deployment.backup import write_recovery_compose_files
 from deployment.contracts import Blocked, read_env
 from deployment.system import Installation
 
@@ -244,6 +245,24 @@ class FreshOptionTests(unittest.TestCase):
             self.assertTrue(apply.call_args.kwargs["fresh"])
             self.assertEqual(apply.call_args.args[0].project,"asa-lab-cleanqa")
             self.assertEqual(read_env(root/".env")["ASA_WEB_PORT"],"18610")
+
+    def test_backup_includes_nested_private_docker_compose_overlay(self):
+        with tempfile.TemporaryDirectory() as temp:
+            config = Path(temp) / "configuration"
+            config.mkdir()
+            overlay = '{"networks":{"database":{"ipam":{"config":[{"subnet":"10.250.244.0/27"}]}}}}'
+            backup = {"files": {"compose.yaml": "services: {}",
+                                ".asa/docker-networks.yaml": overlay}}
+            write_recovery_compose_files(config, backup, list(backup["files"]))
+            self.assertEqual((config / "compose.yaml").read_text(encoding="utf-8"),
+                             "services: {}")
+            self.assertEqual((config / ".asa" / "docker-networks.yaml").read_text(
+                encoding="utf-8"), overlay)
+            with self.assertRaises(Blocked) as fail:
+                write_recovery_compose_files(config, {"files": {"../escape": "bad"}},
+                                             ["../escape"])
+            self.assertEqual(fail.exception.code, "BACKUP_CONFIGURATION")
+            self.assertFalse((Path(temp) / "escape").exists())
 
     def test_windows_setup_powershell_parses_without_running_docker(self):
         script=Path(__file__).resolve().parents[1]/"asa-setup.ps1"
