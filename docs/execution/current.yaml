@@ -15004,7 +15004,7 @@ parallel_lanes:
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_remaining20_point14_persisted_nonelectrical_text
+      checkpoint: selected_remaining20_point14_schema5_annotations_preserve_canonical4
       owner_acceptance: pending
       execution_role: new_bounded_annotation_executor_then_new_independent_review
       owner_authorization: Ownerexplicitprogrammecontinue_after30October858repair. Source859newindependentAPPROVE379tests_and_canonical2489tests71freshNxallcapsPASS. Choose_independent_remaining20point14_old39_new_canvas_text_not_browserlocalNotesPanel. Preserveoldprojects_and_liveclock; no server_DB_migration_RLS_refactor_or_capraise.
@@ -15029,7 +15029,7 @@ parallel_lanes:
       convergence_baseline_sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
       head_sha: null
       observed_at: '2026-10-30T00:00:00Z'
-      observation_note: Fresh fetch main before edits. General40984218563_exact7d5f_success_all4jobs. Publishverified859_before860mutations. Readonlyinventoryfound_noexistingcanvasannotations;domainparserdropsunknownfields_APItype_duplicate_workerstructureincludesannotationsbydefault. PreservebrowserlocalNotesPanel;versionedformatmustpreventolderclientdroppingnotes. Exact7sourcepaths_checked72worktrees_no_dirty_overlap. No liveDB_server_Docker_orforeignchanges.
+      observation_note: Fresh fetch main before edits. General40984218563_exact7d5f_success_all4jobs. Verified859published0c78_before860mutations. BEFOREedit_dual_sourceinspection_corrected_initial_inventory_schema_assumptions;actualcanonical4_legacy1to3migration_newannotationformat5_not2. Required_normalizeLoadedDocument_and_threeway_merge_equality_candidate_preservation;digestdocumentversion5to4_onlyannotation_semantics_and_workerstructure_omitannotations. PreserveEMPTY4_and_browserlocalNotesPanel;old4clientsreject5. Exact7sourcepaths_checked72worktrees_no_dirty_overlap. No liveDB_server_Docker_orforeignchanges.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics

@@ -24,38 +24,50 @@ Render user text with React text escaping, never innerHTML or uploaded SVG.
 Apply bounded IDs, counts, text length, dimensions, font and coordinates.
 
 Annotations are a separate document collection, never electrical components.
-Preserve old schema1 documents without adding empty fields or altering bytes.
+Preserve existing canonical schema4 documents without adding empty fields or
+altering bytes; retain the existing schema1..3-to4 migration behavior.
 Current parser discards unknown top-level keys, so persistence must explicitly
 validate/preserve the new field. Protect against silent loss by older clients:
-prefer a supported new schema2 document only when annotations are introduced,
-with schema1 still accepted unchanged. Older schema1-only clients then fail
-closed instead of dropping comments. If an existing versioned extension contract
+use the next supported schema5 document when annotations are introduced,
+with canonical schema4 still accepted unchanged. Current schema4-only clients
+then fail closed instead of dropping comments. Do not reuse legacy schema2.
+If an existing versioned extension contract
 provides equivalent protection, report the concrete alternative before edits.
 No SQL migration, tenant/RLS change or live database action is authorized.
 
-Keep the duplicate frontend API type in sync with the domain parser. Prove
+Keep the duplicate frontend API type in sync with the domain parser.
+`normalizeLoadedDocument()` currently forces version4, while
+`electronics-document-merge.ts` compares/reconstructs only old collections and
+hardcodes version4. Explicitly preserve notes/version through these paths,
+including three-way CAS merge and equality; do not rely on spreads alone.
+Do not silently discard declared annotations on a legacy-format input.
+Prove
 server/module validation plus full document roundtrip, offline/emergency copy,
 normalization and history preserve annotations. Do not claim installed Save/CAS
 from an in-memory browser API fixture; real API persistence proof belongs in
 isolated CI, not a working database or a new local deployment.
 
 Text-only edits must preserve running generation, continuation, Serial and
-electrical input digest. Existing electrical digest already selects known fields;
+electrical input digest. Existing electrical digest selects known fields but
+includes the document version; normalize only the annotation-only5-to4 distinction.
 live-worker structural comparison currently spreads the document and omits only
 viewport. Omit annotations and normalize only the supported annotation-only
-schema distinction there. Do not change genuine electrical/source comparisons,
+schema5/4 distinction there. Do not change genuine electrical/source comparisons,
 physical equations, clocks, cadence, quality, thermal history or numerical output.
 
 Expected source boundary: domain document type/parser and related tests;
-frontend API type; new cohesive annotation operations/hook/layer; minimal
+frontend API type, project-state normalization, document equality/CAS merge;
+module highest-supported schema metadata if required without changing old defaults;
+new cohesive annotation operations/hook/layer; minimal
 workbench controller/Stage/Header/CSS integration and shortcut/clipboard routing;
 live-worker structural comparison; required component routing and focused tests.
 Inspect actual mapped contracts first and report the exact implementation
 strategy. No extraction of unrelated old functions or source/bundle cap increase.
 Keep new logic in its own cohesive files rather than growing guarded owners.
 
-Proof: add/edit/move/resize/text size/copy/paste/delete and history; old v1 and new
-document parse roundtrip, malicious text as literal text, malformed/excessive data
+Proof: add/edit/move/resize/text size/copy/paste/delete and history; old v4,
+existing legacy1..3 migrations and newv5 document parse/merge roundtrips;
+malicious text as literal text, malformed/excessive data
 rejected; unchanged electrical digest/results and live generation through note
 edits. Actual browser mouse/keyboard/touch at1440/390, reload through the full
 validated document and keep browser-local NotesPanel independent. Show no lost
