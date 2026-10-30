@@ -1,7 +1,15 @@
 import type { AiProvider } from './ai-model-config';
 
-export type AiProviderChoice = AiProvider | 'ollama';
-export type AiSection = 'overview' | 'settings' | 'connections' | 'comfyui' | 'prompt' | 'internet';
+export type AiProviderChoice = AiProvider | 'ollama' | 'polza';
+export type AiSection =
+  | 'overview'
+  | 'settings'
+  | 'connections'
+  | 'comfyui'
+  | 'video'
+  | 'transcription'
+  | 'prompt'
+  | 'internet';
 export interface AiAdminNavigation {
   readonly section: AiSection;
   readonly provider: AiProviderChoice;
@@ -14,9 +22,11 @@ export const AI_ADMIN_SECTIONS: readonly { id: AiSection; label: string }[] = [
   { id: 'prompt', label: 'Системный промпт' },
   { id: 'internet', label: 'Интернет-поиск' },
   { id: 'comfyui', label: 'Изображения' },
+  { id: 'video', label: 'Видео' },
+  { id: 'transcription', label: 'Транскрибация' },
 ];
 
-const PROVIDERS: readonly string[] = ['ollama', 'ollama-cloud', 'deepseek', 'openai'];
+const PROVIDERS: readonly string[] = ['ollama', 'ollama-cloud', 'deepseek', 'openai', 'polza'];
 const DEFAULT: AiAdminNavigation = { section: 'overview', provider: 'ollama' };
 const preferenceKey = (principalId: string) => `asa-ai-admin-navigation:v1:${principalId}`;
 

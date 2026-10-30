@@ -18,6 +18,19 @@ async function adminFixture(page: Page) {
     searchInstructions: '',
   };
   let conflict = false;
+  const polzaWrites: Record<string, unknown>[] = [];
+  let polza = {
+    configurationVersion: 1,
+    enabled: false,
+    transcriptionEnabled: false,
+    dailySecondsLimit: 600,
+    globalDailySecondsLimit: 7200,
+    maxAudioSeconds: 20,
+    apiKeyConfigured: false,
+    keyFingerprint: null as string | null,
+    updatedAt: '2026-10-29T00:00:00.000Z',
+    encryptionReady: true,
+  };
   const writes: Record<string, unknown>[] = [];
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -92,6 +105,28 @@ async function adminFixture(page: Page) {
           paidOperationsPerHour: 5,
         }),
       );
+    if (path === '/api/admin/v1/ai/polza' && request.method() === 'GET') return json(polza);
+    if (path === '/api/admin/v1/ai/polza' && request.method() === 'PUT') {
+      const input = request.postDataJSON() as Record<string, unknown>;
+      polzaWrites.push(input);
+      if (input.configurationVersion !== polza.configurationVersion)
+        return json({ error: { code: 'ai_polza_conflict', message: 'Settings changed' } }, 409);
+      polza = {
+        ...polza,
+        enabled: Boolean(input.enabled),
+        transcriptionEnabled: Boolean(input.transcriptionEnabled),
+        dailySecondsLimit: Number(input.dailySecondsLimit),
+        globalDailySecondsLimit: Number(input.globalDailySecondsLimit),
+        maxAudioSeconds: Number(input.maxAudioSeconds),
+        apiKeyConfigured: Boolean(input.apiKey) || (polza.apiKeyConfigured && !input.clearApiKey),
+        keyFingerprint: input.apiKey ? 'test-fingerprint' : polza.keyFingerprint,
+        configurationVersion: polza.configurationVersion + 1,
+        updatedAt: '2026-10-29T00:02:00.000Z',
+      };
+      return json(polza);
+    }
+    if (path === '/api/admin/v1/ai/polza/check')
+      return json({ ready: true, latencyMs: 180, checkedAt: '2026-10-29T00:02:01.000Z' });
     if (path === '/api/admin/v1/ai/ollama-cloud/keys' && request.method() === 'GET')
       return json({
         configurationVersion: 1,
@@ -175,6 +210,7 @@ async function adminFixture(page: Page) {
   });
   return {
     writes,
+    polzaWrites,
     errors,
     conflict: () => {
       conflict = true;
@@ -212,6 +248,8 @@ for (const width of [1440, 1024, 390, 320]) {
       'Системный промпт',
       'Интернет-поиск',
       'Изображения',
+      'Видео',
+      'Транскрибация',
     ]);
     await page.getByRole('tab', { name: 'Системный промпт', exact: true }).click();
     const guideLink = page.getByRole('button', {
@@ -379,14 +417,14 @@ test('AI section tabs support arrow, Home and End keyboard navigation', async ({
   const connections = page.getByRole('tab', { name: 'Подключения', exact: true });
   await connections.focus();
   await connections.press('End');
-  const images = page.getByRole('tab', { name: 'Изображения', exact: true });
-  await expect(images).toBeFocused();
-  await expect(images).toHaveAttribute('aria-selected', 'true');
-  await images.press('ArrowLeft');
-  const internet = page.getByRole('tab', { name: 'Интернет-поиск', exact: true });
-  await expect(internet).toBeFocused();
-  await expect(internet).toHaveAttribute('aria-selected', 'true');
-  await internet.press('Home');
+  const transcription = page.getByRole('tab', { name: 'Транскрибация', exact: true });
+  await expect(transcription).toBeFocused();
+  await expect(transcription).toHaveAttribute('aria-selected', 'true');
+  await transcription.press('ArrowLeft');
+  const video = page.getByRole('tab', { name: 'Видео', exact: true });
+  await expect(video).toBeFocused();
+  await expect(video).toHaveAttribute('aria-selected', 'true');
+  await video.press('Home');
   const overview = page.getByRole('tab', { name: 'Обзор', exact: true });
   await expect(overview).toBeFocused();
   await expect(overview).toHaveAttribute('aria-selected', 'true');
@@ -397,4 +435,72 @@ test('AI section tabs support arrow, Home and End keyboard navigation', async ({
   await settings.press('Home');
   await expect(overview).toBeFocused();
   await expect(overview).toHaveAttribute('aria-selected', 'true');
+});
+
+test('Polza admin connection and transcription stay compact on desktop and mobile', async ({
+  page,
+}, testInfo) => {
+  test.slow();
+  const fixture = await adminFixture(page);
+  await page.goto('/#/admin/ai?section=connections&provider=polza');
+  await expect(page.getByRole('heading', { name: 'Polza AI', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Сохранить', exact: true })).toBeDisabled();
+  const key = page.getByLabel('API-ключ Polza AI');
+  await key.fill('pza_fixture_polza_admin_20261029');
+  await page.getByRole('checkbox', { name: 'Использовать Polza AI' }).check();
+  await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+  await expect(page.getByText('Подключение подтверждено', { exact: false })).toBeVisible();
+  await expect(key).toHaveValue('');
+  expect(fixture.polzaWrites).toHaveLength(1);
+  expect(fixture.polzaWrites[0]?.apiKey).toBe('pza_fixture_polza_admin_20261029');
+
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await noOverflow(page);
+      await expect(page.getByRole('heading', { name: 'Polza AI', exact: true })).toBeVisible();
+      if (width <= 390) {
+        const heights = await page
+          .locator('.asa-ai-provider-card')
+          .evaluateAll((cards) => cards.map((card) => card.getBoundingClientRect().height));
+        expect(Math.max(...heights)).toBeLessThanOrEqual(94);
+      }
+      if (colorScheme === 'dark') {
+        await expect(page.locator('.asa-polza-confirmed')).toHaveCSS('color', 'rgb(131, 212, 181)');
+      }
+      await page.screenshot({
+        path: testInfo.outputPath('polza-' + width + '-' + colorScheme + '.png'),
+        fullPage: true,
+      });
+    }
+  }
+
+  await page.getByRole('tab', { name: 'Транскрибация', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Транскрибация' })).toBeVisible();
+  await expect(page.getByText('GigaAM-v3', { exact: true })).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Голосовой ввод в чате' }).check();
+  await page.getByRole('button', { name: 'Сохранить настройки' }).click();
+  await expect(
+    page.getByText('Настройки транскрибации сохранены.', { exact: false }),
+  ).toBeVisible();
+  expect(fixture.polzaWrites).toHaveLength(2);
+  expect(fixture.polzaWrites[1]?.transcriptionEnabled).toBe(true);
+
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: width < 600 ? 844 : 900 });
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      await noOverflow(page);
+      await page.screenshot({
+        path: testInfo.outputPath('transcription-' + width + '-' + colorScheme + '.png'),
+        fullPage: true,
+      });
+    }
+  }
+  await page.getByText('Подробнее о лимитах и HTTPS').click();
+  await expect(
+    page.getByText('Резервируется максимальная длина записи', { exact: false }),
+  ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
 });
