@@ -176,6 +176,21 @@ describe('server-issued internet evidence', () => {
     expect(html).toContain('попытка');
     expect(html).not.toContain('получено');
   });
+  it('distinguishes bounded empty, domain filtering and partial provider responses', () => {
+    for (const [reason, expected] of [
+      ['upstream_empty', 'провайдер не вернул результатов'],
+      ['invalid_results', 'не оказалось допустимых публичных источников'],
+      ['domain_filtered', 'исключены сохранёнными правилами доменов'],
+      ['provider_partial_failure', 'Результат может быть неполным'],
+    ] as const) {
+      const html = renderToStaticMarkup(
+        createElement(AiWebEvidence, {
+          evidence: { ...evidence, status: 'empty', reason, sources: [] },
+        }),
+      );
+      expect(html).toContain(expected);
+    }
+  });
   it('renders a scrollable multi-image gallery with distinct source links and a truthful temperature card', () => {
     const basePath =
       '/api/ai/threads/11111111-1111-4111-8111-111111111111/web-search/22222222-2222-4222-8222-222222222222/images/';

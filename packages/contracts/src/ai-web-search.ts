@@ -44,6 +44,7 @@ export interface AiWebSearchEvidence {
   readonly retrievedAt: string;
   readonly sources: readonly AiWebSource[];
   readonly images: readonly AiWebImage[];
+  readonly diagnostics?: AiWebSearchDiagnostics;
   readonly weather?: AiWebWeather;
   readonly locationChoices?: readonly string[];
   readonly reason?:
@@ -53,7 +54,31 @@ export interface AiWebSearchEvidence {
     | 'location_required'
     | 'location_ambiguous'
     | 'rate_limit'
-    | 'unsafe_query';
+    | 'unsafe_query'
+    | 'upstream_empty'
+    | 'invalid_results'
+    | 'domain_filtered'
+    | 'provider_partial_failure';
+}
+
+/** Bounded counts from one provider response, never a claim about the whole web. */
+export interface AiWebSearchDiagnostics {
+  readonly rawCount: number;
+  readonly validatedCount: number;
+  readonly postDomainCount: number;
+  readonly engineFailureCount: number;
+  readonly partial: boolean;
+}
+
+export interface AiWebSearchProbeResult {
+  readonly schemaVersion: 1;
+  readonly checkedAt: string;
+  readonly modes: readonly {
+    readonly mode: 'web' | 'images';
+    readonly status: 'results' | 'empty' | 'invalid' | 'filtered' | 'partial' | 'unavailable';
+    readonly durationMs: number;
+    readonly diagnostics?: AiWebSearchDiagnostics;
+  }[];
 }
 
 export interface AiWebSearchStatus {

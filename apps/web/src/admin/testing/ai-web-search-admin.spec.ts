@@ -153,3 +153,42 @@ it('does not send arbitrary URLs, ports or wildcard domain masks', async () => {
   }
   expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
 });
+it('runs the neutral probe only after an explicit click and displays bounded outcomes', async () => {
+  await render();
+  expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: {
+      schemaVersion: 1,
+      checkedAt: '2026-10-28T12:00:00.000Z',
+      modes: [
+        {
+          mode: 'web',
+          status: 'empty',
+          durationMs: 20,
+          diagnostics: {
+            rawCount: 0,
+            validatedCount: 0,
+            postDomainCount: 0,
+            engineFailureCount: 0,
+            partial: false,
+          },
+        },
+        { mode: 'images', status: 'unavailable', durationMs: 12000 },
+      ],
+    },
+  });
+  const button = [...host.querySelectorAll('button')].find(
+    (item) => item.textContent === 'Проверить сейчас',
+  )!;
+  await act(async () => button.click());
+  expect(vi.mocked(call)).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(call).mock.calls[1]).toEqual([
+    '/api/admin/v1/ai/web-search/probe',
+    { method: 'POST', body: '{}' },
+  ]);
+  expect(host.textContent).toContain('Пусто в этом ограниченном запросе');
+  expect(host.textContent).toContain('Не удалось проверить провайдера');
+  expect(host.textContent).toContain('после фильтра доменов: 0');
+});

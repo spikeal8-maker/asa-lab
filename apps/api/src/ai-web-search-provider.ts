@@ -71,9 +71,18 @@ export function searchThumbnailUrl(value: unknown): string | null {
 export function parseSearxResults(
   value: unknown,
   imageMode: boolean,
-): { sources: AiWebSource[]; images: AiWebImage[] } {
+): {
+  sources: AiWebSource[];
+  images: AiWebImage[];
+  rawCount: number;
+  engineFailureCount: number;
+} {
   const data = record(value);
   if (!Array.isArray(data['results'])) throw new AiWebProviderError();
+  const rawCount = Math.min(data['results'].length, 32);
+  const engineFailureCount = Array.isArray(data['unresponsive_engines'])
+    ? Math.min(data['unresponsive_engines'].length, 32)
+    : 0;
   const sources: AiWebSource[] = [],
     images: AiWebImage[] = [],
     seen = new Set<string>();
@@ -92,12 +101,10 @@ export function parseSearxResults(
     });
     if (imageMode) {
       const thumbnailUrl = searchThumbnailUrl(item['thumbnail_src']);
-      if (thumbnailUrl && images.length < 6)
-        images.push({ id: images.length + 1, title, sourceUrl: url, thumbnailUrl });
+      if (thumbnailUrl) images.push({ id: images.length + 1, title, sourceUrl: url, thumbnailUrl });
     }
-    if (sources.length === 8) break;
   }
-  return { sources, images };
+  return { sources, images, rawCount, engineFailureCount };
 }
 function cityLabel(item: Record<string, unknown>): string {
   const address = record(item['address']);

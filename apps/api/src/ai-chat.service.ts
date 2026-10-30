@@ -400,6 +400,9 @@ export class AiChatService {
   webSearchAdmin(actor: string) {
     return this.web.admin(actor);
   }
+  webSearchProbe(actor: string) {
+    return this.web.probe(actor);
+  }
   saveWebSearch(actor: string, input: AiWebSearchAdminUpdate, requestId: string) {
     return this.web.save(actor, input, requestId);
   }

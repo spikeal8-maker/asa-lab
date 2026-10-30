@@ -12,6 +12,11 @@ const notices: Partial<Record<NonNullable<AiWebSearchEvidence['reason']>, string
   location_required: 'Для прогноза укажите город.',
   location_ambiguous: 'Найдено несколько мест. Уточните город и регион.',
   rate_limit: 'Достигнут лимит интернет-поиска. Свежие источники не получены.',
+  upstream_empty:
+    'В этой ограниченной выдаче провайдер не вернул результатов. Это не означает, что сведений нет в интернете.',
+  invalid_results: 'В этой ограниченной выдаче не оказалось допустимых публичных источников.',
+  domain_filtered: 'Найденные источники исключены сохранёнными правилами доменов.',
+  provider_partial_failure: 'Часть поисковых движков не ответила. Результат может быть неполным.',
 };
 
 function ImagePreview({
@@ -113,7 +118,7 @@ export function AiWebEvidence({
   const notice = data.reason
     ? notices[data.reason]
     : data.status === 'empty'
-      ? 'По этому запросу источники не найдены.'
+      ? 'В этой ограниченной выдаче источники не получены.'
       : null;
   return (
     <section className="asa-ai-web-evidence" aria-label="Результаты интернет-поиска">

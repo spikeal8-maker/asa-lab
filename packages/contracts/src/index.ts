@@ -33,6 +33,8 @@ export type {
   AiWebImage,
   AiWebWeather,
   AiWebSearchEvidence,
+  AiWebSearchDiagnostics,
+  AiWebSearchProbeResult,
   AiWebSearchStatus,
   AiWebSearchAdminConfig,
   AiWebSearchAdminUpdate,
