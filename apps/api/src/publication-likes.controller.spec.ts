@@ -11,9 +11,11 @@ const REVISION = '22222222-2222-4222-8222-222222222222';
 function fixture(cookies: Record<string, string> = { [SESSION_COOKIE]: 'account-token' }) {
   const resolve = vi.fn(async () => ({ principalId: ID }));
   const resolveExisting = vi.fn(async (token) => (token ? { principalId: REVISION } : null));
-  const query = vi.fn(async (_sql: string, _values: unknown[]) => ({
-    rows: [{ result: { liked: true } }],
-  }));
+  const query = vi.fn(async (sql: string, values: unknown[]) => {
+    void sql;
+    void values;
+    return { rows: [{ result: { liked: true } }] };
+  });
   const api = new PublicProjectsController(
     { query } as unknown as pg.Pool,
     { resolve } as unknown as ActiveContextUseCase,
