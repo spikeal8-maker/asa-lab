@@ -63,3 +63,50 @@ General до Main. Затронутые Electronics runtime contracts получ
 Тяжёлые build/PG/browser только GitHub; no dependency reinstall/relink, local
 Docker/live DB, CI bypass, Games, рейтинги, Scratch copy или file export.
 Автор отдаёт SHA/отчёт и STOP, контроллер ведёт review/CI/integration.
+
+## Реализация и границы проверки
+
+V3 содержит только проекцию опубликованного immutable document, явный allowlist
+физических/визуальных свойств, model identity/connectivity и сохранённый
+`arduinoSource`; `arduinoWorkspace` и производные editor/display поля исключаются.
+Сохранённый `maxIterations` передаётся как `solverIterations` (4–100), без смены
+физических параметров. Неизвестная конфигурация или Arduino без source остаётся
+инертным V2, а не запускается с default Blink. Saved Blockly генерирует source
+в настоящем редакторе до публикации; public host не импортирует Blockly.
+
+Host budgets: один Worker request, deadline 4 секунды, сессия 5 минут, максимум
+30 изменённых inputs/секунду и 512/сессию. Повторные одинаковые release исключены
+до очереди. Превышение отменяет весь Worker/generation вместе с pending inputs;
+release не отбрасывается при живом зажатом вводе. Потенциометр управляется
+дискретным нажатием/стрелками, не неограниченным pointermove. Native asset lease
+ожидается до 3 секунд; ACK только после общего layout и active/current leases.
+Фон/потеря фокуса останавливают просмотр, Stop/reset очищают transient state.
+
+Разрешён механический перенос export `ordinaryLedVisualState` из Workbench в
+`apps/web/src/electronics/component-result-presentation.ts`; тело без изменений,
+normalized-whitespace SHA256:
+`10f0847a670d7f7af373d427dcc8f342022cd56460daca1ab65bef7285cd3ee4`.
+Ни lifecycle, ни solver/editor semantics в Workbench не изменяются.
+
+Build admission: отдельный private exact-revision Worker module index рядом с
+существующим private web index, вне dist; фиксированный список 53 canonical
+runtime modules в `tools/public-electronics-worker-modules.json`, SHA/bytes,
+dependency closure и emitted client→worker link. Main-thread solver, authoring,
+IDE и Blockly сохраняются запрещёнными. Docker public `/srv` получает только
+dist; private indices остаются в существующем `/usr/share/asa-web-symbols`.
+
+Приёмка остаётся обязательной: локальные focused проверки не заменяют real
+PG/API/native built browser screenshots и независимые exact-SHA reviewers.
+
+Дополнительно разрешён механический pure leaf `contexts/electronics/timed-state.ts`
+с package subpath `@asa-lab/electronics/timed-state`. Он содержит прежние timed
+version constant и reset function; engine импортирует и реэкспортирует их без
+изменения поведения/идентичности. Controller runtime import переключён на leaf;
+engine остаётся только type import. Причина: engine статически тянет simulation,
+solver и top-level registries, что недопустимо в main-thread public closure.
+Константа normalized SHA256:
+`3acdc50340324fb0a4577bc1ef12220cbce84f492909eb54ebc187ebeb0051ad`;
+reset normalized SHA256:
+`d0bd1f4d516faa68b87eadc712863a85e16fac45d1f3ca3e13726971783cb7cc`.
+Solver/clock/model semantics и wire version не меняются. После добавления leaf
+Worker admission содержит 53 точных module IDs; main engine/solver запрещены.

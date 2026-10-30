@@ -1,9 +1,9 @@
-import {
-  resetElectronicsTimedState,
-  type ElectronicsArduinoSerialProjection,
-  type ElectronicsLedTemporalObservation,
-  type ElectronicsTimedInputEvent,
-  type ElectronicsTimedState,
+import { resetElectronicsTimedState } from '@asa-lab/electronics/timed-state';
+import type {
+  ElectronicsArduinoSerialProjection,
+  ElectronicsLedTemporalObservation,
+  ElectronicsTimedInputEvent,
+  ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import type { ProductionStateValue, SchematicDocument, SolveResult } from '../api';
 import {

@@ -13,10 +13,12 @@ function renderedModuleEvidence({
   revision,
   repositoryRoot,
   output,
+  electronicsWorker = false,
 }: {
   revision: string;
   repositoryRoot: string;
   output: string;
+  electronicsWorker?: boolean;
 }): Plugin {
   return {
     name: 'asa-publication-rendered-module-evidence',
@@ -81,9 +83,21 @@ function renderedModuleEvidence({
           };
         }
         if (!Object.keys(assets).length) throw Error('No rendered module evidence');
+        if (
+          electronicsWorker &&
+          !Object.values(assets).some((asset) =>
+            asset.modules.some(
+              (module) => module.id === 'apps/web/src/electronics/simulation.worker.ts',
+            ),
+          )
+        )
+          return;
         mkdirSync(output, { recursive: true });
         writeFileSync(
-          resolve(output, `web-rendered-modules-${revision}.json`),
+          resolve(
+            output,
+            `${electronicsWorker ? 'web-electronics-worker' : 'web'}-rendered-modules-${revision}.json`,
+          ),
           JSON.stringify({
             format: 'asa-web-rendered-modules-v1',
             revision,
@@ -156,6 +170,20 @@ export default defineConfig(({ command }) => {
 
   return {
     root,
+    worker: {
+      format: 'es',
+      plugins: () =>
+        process.env['ASA_CAPTURE_PUBLICATION_GRAPH'] === 'true'
+          ? [
+              renderedModuleEvidence({
+                revision: buildRevision,
+                repositoryRoot,
+                output: resolve(root, 'private-symbols'),
+                electronicsWorker: true,
+              }),
+            ]
+          : [],
+    },
     plugins: [
       react(),
       ...(process.env['ASA_CAPTURE_PUBLICATION_GRAPH'] === 'true'
@@ -182,6 +210,10 @@ export default defineConfig(({ command }) => {
     ],
     resolve: {
       alias: [
+        {
+          find: '@asa-lab/electronics/timed-state',
+          replacement: resolve(repositoryRoot, 'contexts/electronics/timed-state.ts'),
+        },
         {
           find: /^@asa-lab\/contracts$/,
           replacement: resolve(repositoryRoot, 'packages/contracts/src/index.ts'),

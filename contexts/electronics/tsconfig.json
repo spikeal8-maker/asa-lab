@@ -10,6 +10,7 @@
   "include": [
     "index.ts",
     "engine.ts",
+    "timed-state.ts",
     "simulation.ts",
     "rendering.ts",
     "domain/**/*.ts",
