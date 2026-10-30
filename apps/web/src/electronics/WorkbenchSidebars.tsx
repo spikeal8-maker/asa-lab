@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   INCANDESCENT_LAMP_PROFILE,
   ledForwardVoltageAtCurrent,
@@ -39,6 +39,7 @@ import {
 } from './workbench-values';
 import { SEVEN_SEGMENT_COLOUR_OPTIONS } from './production-asset-contracts';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
+import type { NativeOpticalPresentation } from './native-optical-presentation';
 import {
   componentInformationProfile,
   readMetricBinding,
@@ -248,6 +249,8 @@ const RGB_CHANNELS = [
 ] as const;
 
 const SEVEN_SEGMENT_IDS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] as const;
+const idleSubscribe = () => () => {};
+const noMeasurement = () => undefined;
 
 function RgbLedMeasurements({
   measurement,
@@ -288,12 +291,23 @@ function RgbLedMeasurements({
 }
 
 function SevenSegmentMeasurements({
-  measurement,
+  measurement: fallback,
   isConnected,
+  nativePort,
+  componentId,
 }: {
   readonly measurement: ComponentResult | undefined;
   readonly isConnected: (terminal: string) => boolean;
+  readonly nativePort: NativeOpticalPresentation | null;
+  readonly componentId: string;
 }): JSX.Element {
+  // Only this readout follows accepted physics; proposals cannot refresh its values.
+  const committedMeasurement = useSyncExternalStore(
+    nativePort?.subscribe ?? idleSubscribe,
+    nativePort ? () => nativePort.resultMap().get(componentId) : noMeasurement,
+    noMeasurement,
+  );
+  const measurement = nativePort ? committedMeasurement : fallback;
   const active = SEVEN_SEGMENT_IDS.filter(
     (segment) => (measurement?.branchBrightness?.[segment] ?? 0) > 0,
   );
@@ -1912,6 +1926,8 @@ export function WorkbenchSidebars({
               {stateOpen && selectedIsSevenSegment ? (
                 <SevenSegmentMeasurements
                   measurement={measurement}
+                  nativePort={c.simulationRunning ? c.nativeOpticalPresentation : null}
+                  componentId={c.selectedComponent.id}
                   isConnected={(terminal) =>
                     c.terminalConnectionCount(c.selectedComponent!.id, terminal) > 0
                   }

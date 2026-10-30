@@ -166,6 +166,7 @@ try {
     for (const anode of [false, true])
       for (const mask of ['abdeg', 'bc', 'abcdefgdp', 'afdp']) {
         if (before && (width !== 1440 || anode || mask !== 'abdeg')) continue;
+        if (process.argv.includes('--smoke') && (anode || mask !== 'abdeg')) continue;
         const context = await browser.newContext({
           viewport: { width, height: 900 },
           hasTouch: true,
@@ -243,6 +244,40 @@ try {
           assert.equal(paused.snapshot.running, true);
           await page.evaluate(() => window.fixture.wb.fitScene());
           await page.screenshot({ path: resolve(output, key + '.png') });
+          let restarted = null;
+          if (!anode && mask === 'abdeg') {
+            await page
+              .getByRole('button', { name: 'Остановить моделирование', exact: true })
+              .click();
+            await page.waitForFunction(
+              () =>
+                !window.fixture.wb.simulationRunning &&
+                window.fixture.wb.nativeOpticalPresentation.getSnapshot().committed === null,
+            );
+            await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+            await page.evaluate(() => window.fixture.wb.setSimulationRate(1));
+            await page.waitForFunction(() => {
+              const s = window.fixture.wb.nativeOpticalPresentation.getSnapshot().committed;
+              return s?.frame.atMicroseconds > 5000;
+            });
+            await page.evaluate(() => window.fixture.wb.setSimulationRate(0));
+            await page.waitForFunction(
+              () => window.fixture.wb.simulationPacing.read().phase === 'paused',
+            );
+            const previous = await readout(page);
+            check(previous, mask);
+            await page.evaluate(() =>
+              window.fixture.worker.dispatchEvent(
+                new MessageEvent('message', {
+                  data: window.fixture.responses.find((r) => r.kind === 'advance'),
+                }),
+              ),
+            );
+            await page.waitForTimeout(50);
+            restarted = await readout(page);
+            check(restarted, mask);
+            assert.equal(restarted.snapshot.committed.token, previous.snapshot.committed.token);
+          }
           const count = await page.evaluate(() => ({
             editor: window.fixture.editorRenders,
             sidebar: window.fixture.sidebarRenders,
@@ -315,32 +350,6 @@ try {
             };
           });
           assert.equal(retiredGeneration.snapshot.committed, null);
-          let restarted = null;
-          if (!anode && mask === 'abdeg') {
-            await page.evaluate(() => window.fixture.wb.setSimulationRate(1));
-            await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-            await page.waitForFunction(() => {
-              const s = window.fixture.wb.nativeOpticalPresentation.getSnapshot().committed;
-              return s?.frame.atMicroseconds > 5000;
-            });
-            await page.evaluate(() => window.fixture.wb.setSimulationRate(0));
-            await page.waitForFunction(
-              () => window.fixture.wb.simulationPacing.read().phase === 'paused',
-            );
-            const previous = await readout(page);
-            check(previous, mask);
-            await page.evaluate(() =>
-              window.fixture.worker.dispatchEvent(
-                new MessageEvent('message', {
-                  data: window.fixture.responses.find((r) => r.kind === 'advance'),
-                }),
-              ),
-            );
-            await page.waitForTimeout(50);
-            restarted = await readout(page);
-            check(restarted, mask);
-            assert.equal(restarted.snapshot.committed.token, previous.snapshot.committed.token);
-          }
           assert.deepEqual(errors, []);
           receipts.push({
             key,
