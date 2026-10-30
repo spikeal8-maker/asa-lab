@@ -549,7 +549,7 @@ describe('explicit Public Projects on real PostgreSQL', () => {
       description: metadata.description,
       tags: ['circuit', 'robot'],
       license: 'cc-by',
-      author_label: 'Автор проекта',
+      author_label: 'Педагог public-frozen',
       revision_id: first.revisionId,
       revision_no: 1,
       version_no: 1,
@@ -1564,19 +1564,51 @@ describe('explicit Public Projects on real PostgreSQL', () => {
     expect(await counts(teacher)).toEqual({ versions: 0, revisions: 0, states: 0 });
   });
 
-  it('freezes only a public profile label and never uses a private display name or login fallback', async () => {
+  it('uses the existing public display name independently of whole-profile visibility without rewriting attribution history', async () => {
     const source = await fixture('safe-label');
     await admin.query(
       "UPDATE profiles SET display_name=$2,visibility='private' WHERE account_id=$1",
-      [source.accountId, source.teacher.email],
+      [source.accountId, 'Мастер Север'],
     );
     const first = await publish(source);
-    expect((await publicRead(first.publicationId)).rows[0].author_label).toBe('Автор проекта');
+    expect((await publicRead(first.publicationId)).rows[0].author_label).toBe('Мастер Север');
+    const frozen = await admin.query(
+      'SELECT to_jsonb(revision) AS value FROM project_publication_revisions revision WHERE id=$1',
+      [first.revisionId],
+    );
     await admin.query(
-      "UPDATE profiles SET display_name='Public maker',visibility='public' WHERE account_id=$1",
+      "UPDATE profiles SET display_name='Public maker',visibility='restricted' WHERE account_id=$1",
       [source.accountId],
     );
-    expect((await publicRead(first.publicationId)).rows[0].author_label).toBe('Автор проекта');
+    const current = (await publicRead(first.publicationId)).rows[0];
+    expect(current.author_label).toBe('Public maker');
+    expect(JSON.stringify(current)).not.toContain(source.teacher.email);
+    expect(
+      await admin.query(
+        'SELECT to_jsonb(revision) AS value FROM project_publication_revisions revision WHERE id=$1',
+        [first.revisionId],
+      ),
+    ).toMatchObject({ rows: frozen.rows });
+    await expect(
+      runtime.query('SELECT project_publication_author_label($1,$2)', [
+        source.principalId,
+        'other',
+      ]),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(
+      (await runtime.query('SELECT * FROM gallery_work(NULL,$1)', [source.projectId])).rows[0]
+        .author_label,
+    ).toBe('Public maker');
+    const reader = await fixture('different-author');
+    const saved = await collection(reader, source);
+    expect(
+      (
+        await runtime.query('SELECT * FROM collection_items_list($1,$2)', [
+          reader.principalId,
+          saved,
+        ])
+      ).rows[0].author_label,
+    ).toBe('Public maker');
     const second = await publish(source);
     expect(second).toMatchObject({
       publicationId: first.publicationId,
