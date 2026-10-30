@@ -37,12 +37,31 @@ need, server/Docker/DB/ports/assets or foreign edits. Keep textual floating perc
 invalid. Test actual Workspace variable add/mod, fractions/negative/zero, same/mixed
 AVR integral types and uint32above2^24, collision, pendingonce, oldbyteoracles.
 
-Current ArduinoCodePanel1999997/2000000 leaves ONLY3bytes. This is CANDIDATE-FIRST:
+The original selection's 1999997/2000000 size is historical. Read the current
+measured parent budget from current.yaml and remeasure. This is CANDIDATE-FIRST:
 targeted proof then ONE actual Web build/cap measure before any broad gate. If
 budget FAIL, preserve candidate/proof and STOP this slice; no cap raise, adjacent
 cleanup or minification chase. Programme continues independent work. Real Arduino
 AVR GNU++11 compilation proof required before final acceptance; if toolchain not
 available report NOT_RUN and preserve, do not disguise host-only proof as AVR.
 No full focused gate before budget-safe candidate exists. Author must coordinate
-CPU with independent751tooltip writer; source paths/worktrees separate. Controller
+CPU with the programme controller; source paths/worktrees stay separate. Controller
 alone owns currentyaml. One candidate then STOP; independent review before closure.
+
+## Completion of the preserved candidate
+
+Reconcile the preserved58112cb5 implementation onto accepted main instead of
+restoring old files wholesale. Its unconditional helper rewrite also changes
+valid integral generated source; preserve existing demonstrably integral output
+and establish mounted baseline/candidate compatibility. Floating or unknown
+inputs need type-correct overload behavior, not broad coercion or changed variable
+types. Report the concrete type/collision/admission plan before edits.
+
+The existing tools/run-arduino-numeric-reference.sh uses checksum-pinned Arduino
+AVR Boards1.8.6/AVR GCC7.3, GNU++11 and simavr/avr-gdb in isolated Linux CI.
+Its existing fixture does not validate this adapter. A minimal extension of
+that existing reference fixture/script to compile actual generated helper/source
+and observe typed results is allowed where necessary; retain the pinned route
+and every old observation. No Windows host installation or new CI infrastructure
+is authorized. Perform the single early Web cap measurement before expensive
+reference/native/gate work. Cleanup/refactor and cap increases remain forbidden.

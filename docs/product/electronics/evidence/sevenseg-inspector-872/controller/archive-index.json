@@ -1,0 +1,17 @@
+[
+  {
+    "path": "canonical-db232e8c.log.gz",
+    "bytes": 11447,
+    "sha256": "96ebccd10ecd32b93bdc8a5448cdd2280bbf19c6d5a7041d509f30a92af8b2e4"
+  },
+  {
+    "path": "caps-db232e8c.log.gz",
+    "bytes": 435,
+    "sha256": "b3760bdb053c025a5cefb2d7123ddd0686df14b1f0e85e4878ab7405df6e81c6"
+  },
+  {
+    "path": "independent-db232-native.zip",
+    "bytes": 1883158,
+    "sha256": "2847d3fa3bf4f26603ee564159d5d820c3d92e00ea3799716d27df1ed9e9230b"
+  }
+]
