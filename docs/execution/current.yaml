@@ -13360,7 +13360,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-NPN-REUSE-001
+      current_slice: TASK-ELECTRONICS-SWITCH-BURNOUT-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
       consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
@@ -14882,6 +14882,48 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-28T14:54:00Z'
       observation_note: Main242d401f_published_helpers824; General40710169237_inprogress_notPASS. Independenthelper45tests_native1and4PASS; canonical2441tests71freshNxallcapsPASS. ExistingcacheexcludesNPN_hypothesis_for_measuredlag. Authoroneboundedsolverfile_plusmeaningfultests_androuting_thenSTOP; independentnewreview_required. ForeignProjects_baselinereport_task_and_allforeignfields_preserved. Fresh fetch main is required before integration.
+
+  - id: electronics-switch-burnout
+    parent_lane: electronics
+    worktree_id: electronics-switch-burnout
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SWITCH-BURNOUT-001.md
+    task:
+      id: TASK-ELECTRONICS-SWITCH-BURNOUT-001
+      issue: 858
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_default_off_spst_no_actuator_glow_native_confirmed_burnout_overlay
+      owner_acceptance: pending
+      execution_role: bounded_visual_defaults_executor_then_independent_review
+      owner_authorization: Owner30OctoberrequestsnewSPSTdefaultOFF_no_weirdOFFshadow_and_restoredtimelyburnouteffect_thencontinueplan. Preservehistoricalstate_trueopen_falseclosed_and_oldprojects. Actualbody_native_result_vs_staleStageoverlayseam; subscribeonlysmalloverlay_noeditorperframerender. No physicalfailurethreshold_clock_solver_or_ownerassetchange.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SWITCH-BURNOUT-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: f2ab693d60fe35824abbba9f48206dfec49eb7e0
+      convergence_baseline_sha: f2ab693d60fe35824abbba9f48206dfec49eb7e0
+      head_sha: null
+      observed_at: '2026-10-30T00:00:00Z'
+      observation_note: Fresh fetch main before edits. General_Account_PublicProjects_Release_exactf2ab_success. Rootclean_sourcepaths_nooverlap; legacyforeignworkflowdiffs_excluded. DefaultSPSTfalseclosed_and_CSSactiveglow_excludesonlySPDT_reproducedsource; nativebodyupdateswhileStageoverlayreadsparentmap. Coordinateactualdirtysourcepathswith836beforeedits_no_seamoverwrite. No server_Docker_DB_refactor_guard_or_capraise.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
