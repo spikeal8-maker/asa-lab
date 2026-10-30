@@ -166,7 +166,7 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
   }));
   let normalized: SchematicDocument = {
     ...document,
-    schemaVersion: 4,
+    schemaVersion: document.schemaVersion === 5 ? 5 : 4,
     components,
     connections,
     viewport: legacy.viewport ?? { x: 0, y: 0, zoom: 1 },
@@ -583,22 +583,39 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     historyRef.current.cursor < historyRef.current.entries.length - 1;
   void historyTick;
 
-  function undo(): void {
+  function undo(
+    allow?: (current: SchematicDocument, target: SchematicDocument) => boolean,
+  ): boolean {
     const history = historyRef.current;
-    if (history.cursor <= 0) return;
+    const current = documentRef.current;
+    const target = history.entries[history.cursor - 1];
+    if (history.cursor <= 0 || !current || !target || (allow && !allow(current, target)))
+      return false;
     history.cursor -= 1;
-    setDocument(cloneJson(history.entries[history.cursor] as SchematicDocument));
+    setDocument(retainAnnotationVersion(current, cloneJson(target)));
     setHistoryTick((value) => value + 1);
     setNotice('Последнее изменение отменено.');
+    return true;
   }
 
-  function redo(): void {
+  function redo(
+    allow?: (current: SchematicDocument, target: SchematicDocument) => boolean,
+  ): boolean {
     const history = historyRef.current;
-    if (history.cursor >= history.entries.length - 1) return;
+    const current = documentRef.current;
+    const target = history.entries[history.cursor + 1];
+    if (
+      history.cursor >= history.entries.length - 1 ||
+      !current ||
+      !target ||
+      (allow && !allow(current, target))
+    )
+      return false;
     history.cursor += 1;
-    setDocument(cloneJson(history.entries[history.cursor] as SchematicDocument));
+    setDocument(retainAnnotationVersion(current, cloneJson(target)));
     setHistoryTick((value) => value + 1);
     setNotice('Изменение повторено.');
+    return true;
   }
 
   const failSave = useCallback(
@@ -1085,3 +1102,4 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
   };
 }
 import { reportClientDiagnostic } from '../client-diagnostics';
+import { retainAnnotationVersion } from './workbench-annotations';

@@ -55,11 +55,16 @@ components:
     - apps/web/src/electronics/WorkbenchTooltip.tsx
     - apps/web/src/electronics/workbench-geometry.ts
     - apps/web/src/electronics/workbench-drag-preview.ts
+    - apps/web/src/electronics/CanvasAnnotationLayer.tsx
+    - apps/web/src/electronics/use-canvas-annotations.ts
+    - apps/web/src/electronics/workbench-annotations.ts
     - apps/web/src/electronics/component-hit-testing.ts
     - apps/web/src/electronics/production-asset-contracts.ts
     - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
+    - apps/web/src/electronics/testing/workbench-annotations.spec.ts
+    - apps/web/src/electronics/testing/canvas-annotations.browser.mjs
     - apps/web/src/electronics/testing/workbench-shortcuts.spec.ts
     - apps/web/src/electronics/testing/workbench-keyboard-ui.browser.mjs
     - apps/web/src/electronics/testing/reverse-led-colour.browser.mjs
@@ -162,6 +167,11 @@ components:
     sources:
     - apps/web/src/components/editor-chrome/EditorPersistenceIndicator.tsx
     - apps/web/src/electronics/use-workbench-project-state.ts
+    - contexts/electronics/module.ts
+    - packages/module-sdk/src/index.ts
+    - contexts/projects/application/ports.ts
+    - contexts/projects/application/project.usecases.ts
+    - apps/api/src/app.module.ts
     - apps/web/src/electronics/ArduinoCodePanel.tsx
     - apps/web/src/electronics/electronics-document-merge.ts
     - apps/web/src/electronics/workbench-autosave.ts
@@ -173,6 +183,8 @@ components:
     - apps/web/src/modules/project-local-draft.ts
     tests:
     - apps/web/src/components/editor-chrome/testing/editor-persistence-indicator.spec.ts
+    - contexts/projects/testing/projects.spec.ts
+    - tests/capacity/prepared-draft-save.pg.spec.ts
     - apps/web/src/electronics/testing/workbench-project-state.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts

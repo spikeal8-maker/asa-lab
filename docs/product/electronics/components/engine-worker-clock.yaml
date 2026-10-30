@@ -37,8 +37,10 @@ components:
     - docs/product/electronics/README.md#5-circuitdocument
     sources:
     - contexts/electronics/domain/document.ts
+    - contexts/electronics/domain/canvas-annotations.ts
     tests:
     - contexts/electronics/testing/simulation-contract.spec.ts
+    - contexts/electronics/testing/canvas-annotations.spec.ts
     - contexts/electronics/testing/simulation-input-digest.spec.ts
     dependencies: []
     symbols:

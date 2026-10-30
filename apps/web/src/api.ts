@@ -1469,12 +1469,21 @@ export interface SchematicConnection {
   vertices?: { x: number; y: number }[];
 }
 
+export interface SchematicAnnotation {
+  id: string;
+  text: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  fontSize: number;
+}
+
 export interface SchematicDocument {
-  schemaVersion: 4;
+  schemaVersion: 4 | 5;
   components: SchematicComponent[];
   connections: SchematicConnection[];
   viewport: { x: number; y: number; zoom: number };
   simulation: { running: boolean; maxIterations: number };
+  annotations?: SchematicAnnotation[];
 }
 
 export interface Diagnostic {

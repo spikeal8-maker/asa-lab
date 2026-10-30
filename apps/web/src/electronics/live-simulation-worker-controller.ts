@@ -89,6 +89,8 @@ function boundedInputObservationHorizon(
 function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
   const withoutViewport = { ...document } as Partial<SchematicDocument>;
   delete withoutViewport.viewport;
+  delete withoutViewport.annotations;
+  if (withoutViewport.schemaVersion === 5) withoutViewport.schemaVersion = 4;
   return {
     ...withoutViewport,
     simulation: { ...document.simulation, running: false },

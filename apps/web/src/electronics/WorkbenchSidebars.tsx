@@ -877,7 +877,7 @@ export function WorkbenchSidebars({
         ) : null}
       </aside>
 
-      {c.selection ? (
+      {c.selection && c.selection.kind !== 'annotation' ? (
         <aside
           className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
             selectedIsPotentiometer ? ' is-potentiometer' : ''

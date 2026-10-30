@@ -23,6 +23,7 @@ import {
 } from './component-catalog';
 import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
 import { NativeLedDiagnostic } from './NativeLedDiagnostic';
+import { CanvasAnnotationEditor, CanvasAnnotationLayer } from './CanvasAnnotationLayer';
 import { productionBreadboard } from './production-manifest-adapter';
 import {
   diagnosticBadgeGeometry,
@@ -1476,6 +1477,9 @@ export function WorkbenchStage({
             height={Math.abs(c.marquee.current.y - c.marquee.start.y)}
           />
         ) : null}
+        {c.annotations ? (
+          <CanvasAnnotationLayer controller={c.annotations} toWorld={c.annotationWorldPoint} />
+        ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
           <g className="workbench-stage-readout-layer" pointerEvents="none">
             {motorReadouts}
@@ -1484,6 +1488,7 @@ export function WorkbenchStage({
           {unsupportedModelIndicators}
         </g>
       </svg>
+      {c.annotations ? <CanvasAnnotationEditor controller={c.annotations} /> : null}
       {placementEntry ? (
         <div className="workbench-placement">
           <p role="status">
