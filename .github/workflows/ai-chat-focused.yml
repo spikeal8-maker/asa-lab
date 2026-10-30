@@ -243,6 +243,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Chromium dependencies
         run: pnpm exec playwright install --with-deps chromium
+      - name: Install audio probe for real MediaRecorder evidence
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: AI browser journeys without provider credentials
         run: pnpm e2e:ai-chat
       - if: always()

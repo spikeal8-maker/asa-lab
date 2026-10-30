@@ -15,6 +15,8 @@ import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './st
 import { AiMessageContent } from './AiMessageContent';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
+import { AiVoiceInput } from './AiVoiceInput';
+import { mergeVoiceTranscript } from './voice-transcript-draft';
 import {
   AiImageGeneration,
   imageGenerationStatusShape,
@@ -230,6 +232,8 @@ export function AiChatPage({
   const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
+  const [overflowTranscript, setOverflowTranscript] = useState<string | null>(null);
+  useEffect(() => setOverflowTranscript(null), [currentId, seatId]);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerMaximized, setComposerMaximized] = useState(false);
   const [attachments, setAttachments] = useState<readonly AiChatFileDraft[]>([]);
@@ -2393,27 +2397,24 @@ export function AiChatPage({
                         </span>
                       )}
                     </div>
-                    <button
-                      className="chat-microphone"
-                      type="button"
-                      disabled
-                      title="Голосовой ввод пока не доступен"
-                      aria-label="Голосовой ввод пока не доступен"
-                    >
-                      <svg
-                        width="19"
-                        height="19"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        aria-hidden="true"
-                      >
-                        <rect x="9" y="2" width="6" height="13" rx="3" />
-                        <path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8" />
-                      </svg>
-                    </button>
+                    <AiVoiceInput
+                      key={(seatId ?? 'personal') + ':' + (currentId ?? 'new')}
+                      call={call}
+                      disabled={
+                        interactionBusy ||
+                        archived ||
+                        schoolPolicyDenied ||
+                        imageMode ||
+                        !historyReady
+                      }
+                      onTranscript={(text) => {
+                        const result = mergeVoiceTranscript(draft, text);
+                        setDraft(result.draft);
+                        setOverflowTranscript(result.overflow);
+                        composer.current?.focus();
+                        return result.overflow === null ? 'inserted' : 'overflow';
+                      }}
+                    />
                     <button
                       type={composerBusy ? 'button' : 'submit'}
                       className="chat-send-button"
@@ -2478,6 +2479,18 @@ export function AiChatPage({
                 </div>
                 <span className="chat-composer-hint sr-only">Shift + Enter — новая строка</span>
                 <span className="chat-character-count sr-only">{draft.length} / 3000</span>
+                {overflowTranscript !== null ? (
+                  <div role="alert" className="chat-transcript-overflow">
+                    <p>
+                      Расшифровка не поместилась в сообщение. Черновик сохранён. Скопируйте текст и
+                      добавьте нужную часть вручную.
+                    </p>
+                    <textarea aria-label="Полная расшифровка" readOnly value={overflowTranscript} />
+                    <button type="button" onClick={() => setOverflowTranscript(null)}>
+                      Закрыть расшифровку
+                    </button>
+                  </div>
+                ) : null}
               </form>
               <AiImageGeneration
                 headless

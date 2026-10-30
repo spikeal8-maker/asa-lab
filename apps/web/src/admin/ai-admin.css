@@ -21,7 +21,7 @@
 }
 .asa-ai-provider-cards {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 9px;
 }
 .asa-ai-provider-card {
@@ -30,8 +30,8 @@
   align-content: start;
   gap: 5px;
   text-align: left;
-  min-height: 97px;
-  padding: 13px 15px;
+  min-height: 88px;
+  padding: 11px 12px;
   border: 1px solid #d5e0e9;
   border-radius: 10px;
   background: #fff;
@@ -259,14 +259,19 @@
   outline: 2px solid #1686c5;
   outline-offset: 2px;
 }
+@media (max-width: 1100px) {
+  .asa-ai-provider-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 680px) {
   .asa-ai-provider-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
   }
   .asa-ai-provider-card {
-    padding: 10px 8px;
-    min-height: 99px;
+    padding: 9px 9px;
+    min-height: 76px;
   }
   .asa-ai-provider-card-top strong {
     font-size: 12px;
@@ -292,7 +297,7 @@
 }
 @media (max-width: 360px) {
   .asa-ai-provider-cards {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .asa-ai-provider-card {
     min-height: 0;

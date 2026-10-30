@@ -54,6 +54,12 @@ RUN python -c "import gzip, json, sqlite3, tempfile, zipfile; db = sqlite3.conne
 
 FROM ${NODE_IMAGE} AS runtime
 
+# Validate compressed speech duration before any potentially billable Polza request.
+# ffprobe runs on bounded in-memory input; no audio is written to disk.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 ARG ASA_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
 ENV NODE_ENV=production
