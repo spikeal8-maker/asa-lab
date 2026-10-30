@@ -31,9 +31,16 @@ export function NativeOpticalProvider({
 export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisual>) {
   const port = useContext(Context);
   const componentId = props.component.id;
-  const nativeKind = ['led-5mm', 'arduino-uno', 'servo-motor', 'seven-segment-display'].indexOf(
-    props.entry.key,
-  );
+  const nativeKind = [
+    'led-5mm',
+    'arduino-uno',
+    'servo-motor',
+    'seven-segment-display',
+    'multimeter',
+    'regulated-power-supply',
+    'signal-generator',
+    'oscilloscope',
+  ].indexOf(props.entry.key);
   const opticalPort = props.simulationRunning && nativeKind >= 0 ? port : null;
   const snapshot = useSyncExternalStore(
     opticalPort?.subscribe ?? idleSubscribe,
@@ -45,9 +52,10 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
     return undefined;
   }, [opticalPort, componentId, snapshot]);
   if (!opticalPort) return <OwnerVisual {...props} />;
-  // Servo and raw display follow committed physics without waiting for an editor render.
+  // Instruments, servo and raw display follow committed physics without an editor render.
   // Proposed optical frames still belong to the LED/native-asset commit barrier.
   const observation =
+    nativeKind >= 4 ||
     nativeKind === 2 ||
     (nativeKind === 3 && !snapshot.observation?.frame.sevenSegmentBrightness?.has(componentId))
       ? snapshot.committed
