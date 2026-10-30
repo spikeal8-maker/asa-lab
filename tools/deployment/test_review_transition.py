@@ -74,7 +74,7 @@ class FreshNamespaceTests(unittest.TestCase):
             with self.assertRaises(Blocked):
                 private_destination(root, root / "backup")
             private = Path(folder) / "private"
-            private.mkdir()
+            private.mkdir(mode=0o700)
             target = private / "new"
             if os.name == "nt":
                 with patch("deployment.review_transition.subprocess.run") as process:
