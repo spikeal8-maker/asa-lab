@@ -1595,10 +1595,14 @@ describe('explicit Public Projects on real PostgreSQL', () => {
         'other',
       ]),
     ).rejects.toMatchObject({ code: '42501' });
+    // Retired Gallery projections deliberately stay empty: fixing the current
+    // author name must not resurrect legacy detail/document or project-ID lists.
     expect(
-      (await runtime.query('SELECT * FROM gallery_work(NULL,$1)', [source.projectId])).rows[0]
-        .author_label,
-    ).toBe('Public maker');
+      (await runtime.query('SELECT * FROM gallery_work(NULL,$1)', [source.projectId])).rows,
+    ).toEqual([]);
+    expect(
+      (await runtime.query("SELECT * FROM gallery_list(NULL,'recent',NULL,60,0)")).rows,
+    ).toEqual([]);
     const reader = await fixture('different-author');
     const saved = await collection(reader, source);
     expect(
