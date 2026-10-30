@@ -1,0 +1,149 @@
+{
+  "task": "TASK-ELECTRONICS-BLOCK-MODULO-001",
+  "issue": 789,
+  "status": "CANDIDATE_NOT_READY_BUNDLE_CAP_FAILED",
+  "base_sha": "0e96139d26f8865c3a5441223caf842f60aa671c",
+  "branch": "codex/block-modulo-789-completion",
+  "recorded_at": "2026-10-30T12:41:37.565469+00:00",
+  "boundary": "One candidate; product edits stopped immediately after first actual Web cap failure. No second build, cleanup, cap change or deployment.",
+  "preserved_wip_sha": "58112cb5dada2917e91056617d1e1eecd5bfd203",
+  "implementation": {
+    "integral_source": "Proven integral literal/hardware/arithmetic reporters retain original generated percent; global and captured variable reporters remain conservative.",
+    "adapter": "C++11 integral decltype(a%b) overload preserves promotions/result types and full uint32; floating/mixed inputs select double/double fmod, AVR double32 modeled by existing conversions.",
+    "admission": "Only exact canonical helper definitions at top level with reserved legal generated names; normal parser rejects other definitions. Generator, runtime and capability consume new shared helper module. No old code moved.",
+    "evaluation": "Call arguments use existing evaluator/replay. Increment-once targeted proof passes; pending/RNG proof NOT_RUN. C++11 does not guarantee ordering of function argument evaluation.",
+    "limits": "No real AVR compilation or native-browser result claimed. Candidate is incomplete until cap and all remaining proof pass."
+  },
+  "checks": [
+    {
+      "command": "pnpm agent:preflight --scope electronics-owner45-block-modulo --check",
+      "result": "RECOVERY_REQUIRED_CLASSIFIED",
+      "details": "remote refresh and control plane PASS; zero blockers. Only preserved unrelated untracked reports and two foreign workflow worktree overlaps. No tracked/index diff before authoring."
+    },
+    {
+      "command": "pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-BLOCK-MODULO-001",
+      "result": "PASS",
+      "tests": 114
+    },
+    {
+      "command": "pnpm exec vitest run apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts",
+      "result": "PASS",
+      "tests": 22,
+      "details": [
+        "real Workspace variable add/mod, fractions/signs",
+        "baseline floating-percent replay rejected",
+        "literal integral source preserved",
+        "helper variable collision",
+        "same/mixed integral and float overload modeled types, uint32 above2^24, downstream division",
+        "increments once",
+        "zero/nonfinite failclosed",
+        "altered/additional helper definitions rejected"
+      ]
+    },
+    {
+      "command": "pnpm exec nx build electronics --skip-nx-cache",
+      "result": "PASS",
+      "fresh_nx_tasks": 2,
+      "cache": "Skipped",
+      "duration_seconds": 7.4
+    },
+    {
+      "command": "pnpm exec nx run web:build --skip-nx-cache",
+      "result": "PASS",
+      "fresh_nx_tasks": 7,
+      "cache": "Skipped",
+      "NX_SKIP_NX_CACHE": "true",
+      "duration_seconds": 36.4
+    },
+    {
+      "command": "pnpm bundle:check",
+      "result": "FAIL",
+      "caps": [
+        [
+          "initial application",
+          382841,
+          570000,
+          "PASS"
+        ],
+        [
+          "electronics editor",
+          187859,
+          222000,
+          "PASS"
+        ],
+        [
+          "chess editor",
+          244236,
+          255000,
+          "PASS"
+        ],
+        [
+          "checkers editor",
+          158901,
+          160000,
+          "PASS"
+        ],
+        [
+          "3D editor",
+          2870467,
+          2900000,
+          "PASS"
+        ],
+        [
+          "Three.js vendor",
+          602992,
+          620000,
+          "PASS"
+        ],
+        [
+          "Arduino editor",
+          2000696,
+          2000000,
+          "FAIL"
+        ],
+        [
+          "initial JS/CSS graph",
+          555957,
+          600000,
+          "PASS"
+        ]
+      ],
+      "parent_arduino_bytes": 1999925,
+      "arduino_delta_bytes": 771,
+      "overflow_bytes": 696
+    },
+    {
+      "command": "pnpm exec tsc -p apps/web/tsconfig.json --noEmit",
+      "result": "INITIAL_FAIL_STALE_PACKAGE_EXPORT_NOT_RERUN",
+      "details": "Attempt before electronics dist rebuild could not resolve newly exported source helper. Package build subsequently PASS; web-specific tsc not rerun after cap STOP."
+    }
+  ],
+  "not_run": [
+    "AVR GNU++11 compile/simavr reference extension and all19 observations",
+    "native Workspace fraction1440/390",
+    "pending/RNG replay",
+    "mounted old227179-byte integer oracle comparison",
+    "focused gate",
+    "repository gate",
+    "independent review",
+    "deployment",
+    "owner acceptance"
+  ],
+  "source_sha256": {
+    "apps/web/src/electronics/arduino-blocks.ts": "da440eff48644ce06851e50083fa2cbc71d4b00c09c56edd892d8c15c703dfcf",
+    "contexts/electronics/domain/arduino-modulo-adapter.ts": "ac175a421faed350443af042fa4d0c2e5f479e5295d4119cd3be766e3ff2dab1",
+    "contexts/electronics/domain/arduino-program-runtime.ts": "55173e3edefe3d3e46f6a7881e2cea13dd5f83c299819d8fd3bbc82af95c3e74",
+    "contexts/electronics/domain/arduino-capabilities.ts": "26b58f3d4ce0811c1759b0f3443f403ad19c8ddb9c8ae108741318592f515c5a",
+    "contexts/electronics/index.ts": "a06a538b6bf8e472293dca583db1a17319257e7a89f82da73d79d436c8f15ccf",
+    "apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts": "b6901443483acf01a87732554fe4edd10436cff3e36d783378c43ef079ffa76e"
+  },
+  "local_ignored_logs": [
+    "reports/block-modulo-789-completion/web-build.log",
+    "reports/block-modulo-789-completion/bundle-caps.log"
+  ],
+  "preserved_untracked_reports": [
+    "reports/arduino-seven-segment-matrix/",
+    "reports/field-boundary-544-proof-41026543811/"
+  ],
+  "next_allowed_action": "STOP / controller review of blocked candidate; no production cleanup or budget adjustment authorized."
+}

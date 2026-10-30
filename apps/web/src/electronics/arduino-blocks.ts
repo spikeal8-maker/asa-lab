@@ -14,7 +14,7 @@ import {
   type ArduinoPinReporter,
 } from './arduino-pin-inputs';
 import * as ScratchBlocks from 'scratch-blocks';
-import { arduinoBlockSupport } from '@asa-lab/electronics';
+import { arduinoBlockSupport, arduinoModuloAdapterSource } from '@asa-lab/electronics';
 
 export type ArduinoBlockCategory =
   'output' | 'input' | 'comment' | 'control' | 'data' | 'variables';
@@ -1219,6 +1219,48 @@ function duration(
   return scale === 1 ? value : `(${value} * ${scale})`;
 }
 
+// Globals and captured bindings are float; classify only demonstrably integral reporters.
+function integralExpression(block: ScratchBlocks.Block | null): boolean {
+  if (!block) return true;
+  if (block.type === 'asa_number')
+    return /^[-+]?(?:0[xX][0-9a-fA-F]+|[0-9]+)[uUlL]*$/.test(field(block, 'VALUE', '0'));
+  if (
+    [
+      'asa_pin',
+      'asa_pwm_pin',
+      'asa_analog_pin',
+      'asa_level',
+      'asa_digital_read',
+      'asa_analog_read',
+      'asa_ir_read',
+      'asa_pulse_in',
+      'asa_millis',
+      'asa_servo_read',
+      'asa_serial_available',
+      'asa_serial_read',
+      'asa_random',
+      'asa_map',
+      'asa_compare_lt',
+      'asa_compare_eq',
+      'asa_compare_gt',
+      'asa_logic_and',
+      'asa_logic_or',
+      'asa_logic_not',
+    ].includes(block.type)
+  )
+    return true;
+  return (
+    [
+      'asa_math_add',
+      'asa_math_minus',
+      'asa_math_multiply',
+      'asa_math_divide',
+      'asa_math_modulo',
+    ].includes(block.type) &&
+    ['A', 'B'].every((name) => integralExpression(block.getInputTargetBlock(name)))
+  );
+}
+
 function expression(
   block: ScratchBlocks.Block | null,
   bindings?: ReadonlyMap<string, string>,
@@ -1268,7 +1310,9 @@ function expression(
     case 'asa_math_divide':
       return `(${input('A')} / ${input('B')})`;
     case 'asa_math_modulo':
-      return `(${input('A')} % ${input('B')})`;
+      return integralExpression(block)
+        ? `(${input('A')} % ${input('B')})`
+        : `${workspaceIdentifier(block.workspace, 'asaBlockModulo')}(${input('A')}, ${input('B')})`;
     case 'asa_compare_lt':
       return `(${input('A')} < ${input('B')})`;
     case 'asa_compare_eq':
@@ -1662,6 +1706,8 @@ export function generateArduinoCode(workspace: ScratchBlocks.Workspace): string 
   } = activeArduinoGraph(workspace);
   const blockTypes = new Set(allBlocks.map((block) => block.type));
   const declarations: string[] = [];
+  if (allBlocks.some((block) => block.type === 'asa_math_modulo' && !integralExpression(block)))
+    declarations.push(arduinoModuloAdapterSource(workspaceIdentifier(workspace, 'asaBlockModulo')));
   const setupLines: string[] = [];
 
   const digitalPins = new Set<string>();
