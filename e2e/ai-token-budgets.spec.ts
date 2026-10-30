@@ -202,7 +202,7 @@ test('Settings saves real monthly limits; a complete admitted answer crosses the
         ).toBeDisabled();
         await expect(
           chat.getByRole('button', { name: 'Отправить сообщение', exact: true }),
-        ).toHaveAttribute('title', 'Месячный бюджет модели исчерпан');
+        ).toHaveAttribute('data-ai-tooltip', 'Месячный бюджет модели исчерпан');
         // Change the real admin policy while this exhausted chat stays mounted.
         const current = await (await page.request.get('/api/admin/v1/ai/token-budgets')).json();
         const raised = await page.request.put('/api/admin/v1/ai/token-budgets', {

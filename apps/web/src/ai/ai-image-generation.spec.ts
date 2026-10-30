@@ -35,6 +35,10 @@ const job = {
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.mocked(call).mockReset();
+  vi.mocked(call).mockResolvedValue({
+    ok: false,
+    error: { code: 'unavailable', message: 'Unavailable' },
+  });
   vi.mocked(fetchWithSessionRefresh).mockReset();
   complete.mockReset();
   sessionStorage.clear();
