@@ -1,0 +1,27 @@
+{
+  "head": "f6b3a0a6eec281d2e972ee4ea929b5722089a4d5",
+  "sourcePaths": 31,
+  "sourceDigest": "a07c7a986cceced93ffc5e027e65b177b20f36df47755c94cb6822c7805ffa04",
+  "command": "NX_SKIP_NX_CACHE=true pnpm gate:electronics-m1",
+  "conclusion": "PASS",
+  "coreTests": 1405,
+  "webTests": 1112,
+  "nxFreshExecutions": 71,
+  "nxSkippedCachePhases": 3,
+  "allBundleCaps": "PASS",
+  "remoteGeneralRun": 40996527370,
+  "remoteGeneral": "PENDING",
+  "independentReview": "PENDING",
+  "files": [
+    {
+      "path": "canonical-final-f6b3a0a6.log",
+      "bytes": 47635,
+      "sha256": "f3fe8e069767175f2ed391949bd9a51e610dcb7aa42c54fcedb62d8a72fb222c"
+    },
+    {
+      "path": "final-budgets-f6b3a0a6.log",
+      "bytes": 563,
+      "sha256": "227e35fbbccfb3eba34efcf38762552962fb6b19d16907095a15d1c9d41e38ac"
+    }
+  ]
+}

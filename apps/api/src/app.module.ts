@@ -198,6 +198,42 @@ export class AppModule {
       moduleKey: entry.manifest.moduleKey,
       defaultProjectTitlePrefix: entry.manifest.defaultProjectTitlePrefix,
       validateDocument: (value) => validationMessage(entry, value),
+      ...(entry.provider?.validateReplacement !== undefined
+        ? {
+            validateReplacement: (previous: unknown, next: unknown) => {
+              if (typeof entry.provider?.validateReplacement !== 'function')
+                return { ok: false as const, message: 'Invalid document replacement validation' };
+              const result = entry.provider!.validateReplacement!(previous, next);
+              if (
+                result &&
+                typeof result === 'object' &&
+                !Array.isArray(result) &&
+                result.ok === true &&
+                Object.keys(result).length === 1
+              )
+                return { ok: true as const };
+              if (
+                result &&
+                result.ok === false &&
+                Array.isArray(result.diagnostics) &&
+                result.diagnostics.every(
+                  (item) =>
+                    item && typeof item.message === 'string' && typeof item.code === 'string',
+                )
+              )
+                return {
+                  ok: false as const,
+                  message:
+                    result.diagnostics.map((item) => item.message).join('; ') ||
+                    'Invalid document replacement',
+                  ...(result.diagnostics[0]?.code
+                    ? { reasonCode: result.diagnostics[0].code }
+                    : {}),
+                };
+              return { ok: false as const, message: 'Invalid document replacement validation' };
+            },
+          }
+        : {}),
       // Project Core hands back the document it just validated, so the provider
       // sees its own payload type and the validation never runs twice.
       describePreview: (document) => entry.provider?.createPreview(document) ?? null,

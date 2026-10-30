@@ -1,0 +1,577 @@
+[
+  {
+    "width": 1440,
+    "passed": true,
+    "annotationCount": 2,
+    "liveBefore": {
+      "requests": [
+        {
+          "kind": "preflight",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        }
+      ],
+      "time": 0,
+      "digest": "3831c34ed6a2becd2ade88539840e021f683c7b00fade90dfac02e57da126b56"
+    },
+    "liveAfter": {
+      "requests": [
+        {
+          "kind": "preflight",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        }
+      ],
+      "running": true,
+      "time": 404.5,
+      "digest": "3831c34ed6a2becd2ade88539840e021f683c7b00fade90dfac02e57da126b56",
+      "serial": [
+        {
+          "sequence": 0,
+          "atMicroseconds": 2,
+          "text": "0\n"
+        },
+        {
+          "sequence": 1,
+          "atMicroseconds": 20005,
+          "text": "20\n"
+        },
+        {
+          "sequence": 2,
+          "atMicroseconds": 40008,
+          "text": "40\n"
+        },
+        {
+          "sequence": 3,
+          "atMicroseconds": 60011,
+          "text": "60\n"
+        },
+        {
+          "sequence": 4,
+          "atMicroseconds": 80014,
+          "text": "80\n"
+        },
+        {
+          "sequence": 5,
+          "atMicroseconds": 100017,
+          "text": "100\n"
+        },
+        {
+          "sequence": 6,
+          "atMicroseconds": 120020,
+          "text": "120\n"
+        },
+        {
+          "sequence": 7,
+          "atMicroseconds": 140023,
+          "text": "140\n"
+        },
+        {
+          "sequence": 8,
+          "atMicroseconds": 160026,
+          "text": "160\n"
+        },
+        {
+          "sequence": 9,
+          "atMicroseconds": 180029,
+          "text": "180\n"
+        },
+        {
+          "sequence": 10,
+          "atMicroseconds": 200032,
+          "text": "200\n"
+        },
+        {
+          "sequence": 11,
+          "atMicroseconds": 220035,
+          "text": "220\n"
+        },
+        {
+          "sequence": 12,
+          "atMicroseconds": 240038,
+          "text": "240\n"
+        },
+        {
+          "sequence": 13,
+          "atMicroseconds": 260041,
+          "text": "260\n"
+        },
+        {
+          "sequence": 14,
+          "atMicroseconds": 280044,
+          "text": "280\n"
+        },
+        {
+          "sequence": 15,
+          "atMicroseconds": 300047,
+          "text": "300\n"
+        },
+        {
+          "sequence": 16,
+          "atMicroseconds": 320050,
+          "text": "320\n"
+        },
+        {
+          "sequence": 17,
+          "atMicroseconds": 340053,
+          "text": "340\n"
+        },
+        {
+          "sequence": 18,
+          "atMicroseconds": 360056,
+          "text": "360\n"
+        },
+        {
+          "sequence": 19,
+          "atMicroseconds": 380059,
+          "text": "380\n"
+        },
+        {
+          "sequence": 20,
+          "atMicroseconds": 400062,
+          "text": "400\n"
+        },
+        {
+          "sequence": 21,
+          "atMicroseconds": 420065,
+          "text": "420\n"
+        }
+      ]
+    },
+    "pendingAcknowledgement": {
+      "requestId": "electronics-1-4",
+      "generationId": 1,
+      "horizon": 7100
+    },
+    "saveAcknowledgedWhileRunAndAdvanceHeld": true,
+    "trustedPointerEvents": 17,
+    "fixtureSaveReopen": true,
+    "notesPanelIndependent": true,
+    "laterComponentCopyReplacesNoteClipboard": true,
+    "installedSave": "NOT_RUN"
+  },
+  {
+    "width": 390,
+    "passed": true,
+    "annotationCount": 2,
+    "liveBefore": {
+      "requests": [
+        {
+          "kind": "preflight",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        }
+      ],
+      "time": 0,
+      "digest": "3831c34ed6a2becd2ade88539840e021f683c7b00fade90dfac02e57da126b56"
+    },
+    "liveAfter": {
+      "requests": [
+        {
+          "kind": "preflight",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        },
+        {
+          "kind": "advance",
+          "generationId": 1
+        }
+      ],
+      "running": true,
+      "time": 441.2,
+      "digest": "3831c34ed6a2becd2ade88539840e021f683c7b00fade90dfac02e57da126b56",
+      "serial": [
+        {
+          "sequence": 0,
+          "atMicroseconds": 2,
+          "text": "0\n"
+        },
+        {
+          "sequence": 1,
+          "atMicroseconds": 20005,
+          "text": "20\n"
+        },
+        {
+          "sequence": 2,
+          "atMicroseconds": 40008,
+          "text": "40\n"
+        },
+        {
+          "sequence": 3,
+          "atMicroseconds": 60011,
+          "text": "60\n"
+        },
+        {
+          "sequence": 4,
+          "atMicroseconds": 80014,
+          "text": "80\n"
+        },
+        {
+          "sequence": 5,
+          "atMicroseconds": 100017,
+          "text": "100\n"
+        },
+        {
+          "sequence": 6,
+          "atMicroseconds": 120020,
+          "text": "120\n"
+        },
+        {
+          "sequence": 7,
+          "atMicroseconds": 140023,
+          "text": "140\n"
+        },
+        {
+          "sequence": 8,
+          "atMicroseconds": 160026,
+          "text": "160\n"
+        },
+        {
+          "sequence": 9,
+          "atMicroseconds": 180029,
+          "text": "180\n"
+        },
+        {
+          "sequence": 10,
+          "atMicroseconds": 200032,
+          "text": "200\n"
+        },
+        {
+          "sequence": 11,
+          "atMicroseconds": 220035,
+          "text": "220\n"
+        },
+        {
+          "sequence": 12,
+          "atMicroseconds": 240038,
+          "text": "240\n"
+        },
+        {
+          "sequence": 13,
+          "atMicroseconds": 260041,
+          "text": "260\n"
+        },
+        {
+          "sequence": 14,
+          "atMicroseconds": 280044,
+          "text": "280\n"
+        },
+        {
+          "sequence": 15,
+          "atMicroseconds": 300047,
+          "text": "300\n"
+        },
+        {
+          "sequence": 16,
+          "atMicroseconds": 320050,
+          "text": "320\n"
+        },
+        {
+          "sequence": 17,
+          "atMicroseconds": 340053,
+          "text": "340\n"
+        },
+        {
+          "sequence": 18,
+          "atMicroseconds": 360056,
+          "text": "360\n"
+        },
+        {
+          "sequence": 19,
+          "atMicroseconds": 380059,
+          "text": "380\n"
+        },
+        {
+          "sequence": 20,
+          "atMicroseconds": 400062,
+          "text": "400\n"
+        },
+        {
+          "sequence": 21,
+          "atMicroseconds": 420065,
+          "text": "420\n"
+        },
+        {
+          "sequence": 22,
+          "atMicroseconds": 440068,
+          "text": "440\n"
+        }
+      ]
+    },
+    "pendingAcknowledgement": {
+      "requestId": "electronics-1-4",
+      "generationId": 1,
+      "horizon": 5900
+    },
+    "saveAcknowledgedWhileRunAndAdvanceHeld": true,
+    "trustedPointerEvents": 17,
+    "fixtureSaveReopen": true,
+    "notesPanelIndependent": true,
+    "laterComponentCopyReplacesNoteClipboard": true,
+    "installedSave": "NOT_RUN"
+  }
+]

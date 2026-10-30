@@ -47,6 +47,7 @@ import {WorkbenchStage} from './src/electronics/WorkbenchStage';
 import {rawDisplayCircuit,rawDisplaySource,OWNER_HIGH_WRITES,RAW_DISPLAY_PINS} from '../../contexts/electronics/testing/fixtures/raw-seven-segment';
 import {sevenSegmentDiodeMatrix} from '../../contexts/electronics/testing/fixtures/seven-segment-diode-matrix';
 import {helperDisplayCounterSource} from '../../contexts/electronics/testing/fixtures/arduino-helper-display-counter';
+import {SWITCH_DISPLAY_SOURCE} from '../../contexts/electronics/testing/fixtures/arduino-switch-display';
 import {arduinoSevenSegmentMatrix,matrixLinearSource,matrixCommands,outputCommonMatrix,gpioCommonMatrix,outputCommonCommands} from '../../contexts/electronics/testing/fixtures/arduino-seven-segment-matrix';
 import {configureProductionLibrary} from './src/electronics/production-manifest-adapter';
 import {catalogEntry} from './src/electronics/component-catalog';
@@ -117,7 +118,7 @@ load(a,blocks=false){current=circuit(a);if(blocks)current.components[0].statePro
 pendingStop:()=>new Promise(resolve=>{window.probe.stopOnAdvance=request=>{const before=window.fixture.potSnapshot();wb.toggleSimulation();resolve({requestId:request.requestId,requestGeneration:request.generationId,projectSessionId:request.projectSessionId,beforeGeneration:before.lastResponse?.generationId,requestedWhileAdvanceInFlight:true});};}),
 loadMulti(){current=multiCircuit();isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
 loadButtons(saved){current=saved??sevenSegmentDiodeMatrix();isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,projectSessionId:'servo-project-'+epoch};},
-loadHelperCounter(count,helpers){const generated=helpers==='blocks'?blockCounter(count):null;current=arduinoSevenSegmentMatrix(count,generated?.source??helperDisplayCounterSource(count,helpers));isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,projectSessionId:'servo-project-'+epoch,blockTypes:generated?.blockTypes??[],blockCount:generated?.blockCount??0};},
+loadHelperCounter(count,helpers){const generated=helpers==='blocks'?blockCounter(count):null;current=arduinoSevenSegmentMatrix(count,helpers==='switch'?SWITCH_DISPLAY_SOURCE:generated?.source??helperDisplayCounterSource(count,helpers));isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,projectSessionId:'servo-project-'+epoch,blockTypes:generated?.blockTypes??[],blockCount:generated?.blockCount??0};},
 loadMatrix(count,blocks,optical=false,patterns){let blockTypes=[];if(blocks){registerArduinoBlocks();Blocks.Events.disable();const w=new Blocks.Workspace();try{const loop=w.newBlock('asa_loop');let previous=null;for(const command of (optical?matrixCommands(count,patterns):outputCommonCommands(count))){let next;if('waitMs' in command){next=w.newBlock('asa_wait');next.setFieldValue('MILLISECONDS','UNIT');const n=w.newBlock('asa_number');n.setFieldValue(String(command.waitMs),'VALUE');next.getInput('TIME').connection.connect(n.outputConnection);}else{next=w.newBlock('asa_digital_write');const pin=w.newBlock('asa_pin'),level=w.newBlock('asa_level');pin.setFieldValue(String(command.pin),'VALUE');level.setFieldValue(command.high?'HIGH':'LOW','LEVEL');next.getInput('PIN').connection.connect(pin.outputConnection);next.getInput('LEVEL').connection.connect(level.outputConnection);}if(previous)previous.nextConnection.connect(next.previousConnection);else loop.getInput('DO').connection.connect(next.previousConnection);previous=next;}blockTypes=w.getAllBlocks(false).map(b=>b.type).sort();current=optical?arduinoSevenSegmentMatrix(count,generateArduinoCode(w)):outputCommonMatrix(count,generateArduinoCode(w));}finally{w.dispose();Blocks.Events.enable();}}else current=optical?arduinoSevenSegmentMatrix(count,matrixLinearSource(count,patterns)):gpioCommonMatrix(count);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);return {document:current,blockTypes,projectSessionId:'servo-project-'+epoch};},
 async multiReplay({saved,document}){const doc=JSON.parse(JSON.stringify(document));const generation=client.beginGeneration('multi-replay');async function through(state,horizon){let result;do{result=await client.advance(generation,doc,JSON.parse(JSON.stringify(state)),horizon);state=result.state;}while(result.executionStatus==='yielded');if(result.executionStatus!=='ready')throw new Error('Short replay fault: '+JSON.stringify(result));return result;}const target=200000;const restored=await through(saved,target);const fresh=await through(resetElectronicsTimedState(),target);return {serializedByteEqual:JSON.stringify(restored.state)===JSON.stringify(fresh.state),restored:restored.state,fresh:fresh.state,target};},
 loadPot(blocks){current=potCircuit(blocks);isDirect=false;epoch++;root.render(<Demo key={epoch}/>);},
@@ -986,6 +987,14 @@ async function checkHelperCounter(page, width, count, helpers) {
     const board = JSON.parse(snapshot.response.advance.state.continuation.serializedState)
       .boards[0];
     assert.equal(board.loadedSource, loaded.document.components[0].stateProperties.arduinoSource);
+    if (helpers === 'switch') {
+      assert.equal(board.runtime.serial.begun, true);
+      const text = board.runtime.serial.tx.map((entry) => entry.text).join('');
+      assert.ok(text.includes(String(digits[0])));
+      assert.ok(
+        loaded.document.components[0].stateProperties.arduinoSource.includes('switch(value)'),
+      );
+    }
     snapshots.push({
       digits,
       frame: snapshot.frame,
@@ -995,7 +1004,7 @@ async function checkHelperCounter(page, width, count, helpers) {
       wallMs: Date.now() - started,
     });
   }
-  if (count === 4)
+  if (count === 4 || helpers === 'switch')
     await page.screenshot({
       path: resolve(
         output,
@@ -1327,6 +1336,12 @@ try {
         (await readFile('apps/web/src/electronics/workbench.css', 'utf8')) +
         '\n#app{--wb-library-width:0px}.workbench-stage{position:relative;height:700px;width:100%}',
     });
+    if (process.argv.includes('--switch-display-only')) {
+      all.push(await checkHelperCounter(page, width, 1, 'switch'));
+      assert.deepEqual(errors, []);
+      await page.close();
+      continue;
+    }
     if (process.argv.includes('--helper-display-counters-only')) {
       for (const count of process.argv.includes('--helpers-pilot') ? [1, 4] : [1, 2, 3, 4])
         for (const helpers of process.argv.includes('--helpers-pilot')
@@ -1511,44 +1526,48 @@ try {
     });
     await page.close();
   }
-  const receiptName = process.argv.includes('--helper-display-counters-only')
-    ? 'arduino-helper-display-counters-824.json'
-    : process.argv.includes('--seven-segment-optical-only')
-      ? 'seven-segment-optical-821.json'
-      : process.argv.includes('--arduino-seven-segment-pilot-only')
-        ? 'arduino-seven-segment-pilot-817.json'
-        : process.argv.includes('--seven-segment-buttons-only')
-          ? 'seven-segment-diode-matrix-815.json'
-          : process.argv.includes('--seven-segment-parity-only')
-            ? 'seven-segment-parity-788' +
-              (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
-              '.json'
-            : process.argv.includes('--multi-servo-sustained-only')
-              ? 'servo-multi-sustained-786.json'
-              : process.argv.includes('--potentiometer-only')
-                ? 'servo-potentiometer-784.json'
-                : process.argv.includes('--horn-clip-only')
-                  ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
-                  : 'receipts.json';
+  const receiptName = process.argv.includes('--switch-display-only')
+    ? 'arduino-switch-display-859.json'
+    : process.argv.includes('--helper-display-counters-only')
+      ? 'arduino-helper-display-counters-824.json'
+      : process.argv.includes('--seven-segment-optical-only')
+        ? 'seven-segment-optical-821.json'
+        : process.argv.includes('--arduino-seven-segment-pilot-only')
+          ? 'arduino-seven-segment-pilot-817.json'
+          : process.argv.includes('--seven-segment-buttons-only')
+            ? 'seven-segment-diode-matrix-815.json'
+            : process.argv.includes('--seven-segment-parity-only')
+              ? 'seven-segment-parity-788' +
+                (process.argv.includes('--seven-segment-parity-pilot') ? '-pilot' : '') +
+                '.json'
+              : process.argv.includes('--multi-servo-sustained-only')
+                ? 'servo-multi-sustained-786.json'
+                : process.argv.includes('--potentiometer-only')
+                  ? 'servo-potentiometer-784.json'
+                  : process.argv.includes('--horn-clip-only')
+                    ? `horn-${process.argv.includes('--horn-clip-baseline') ? 'before' : 'after'}-receipts.json`
+                    : 'receipts.json';
   await writeFile(resolve(output, receiptName), JSON.stringify(all, null, 2));
   console.log(
-    process.argv.includes('--helper-display-counters-only')
-      ? 'PASS real linear/helper Arduino display counters with visible carry; not arbitrary C++ or realtime acceptance.'
-      : process.argv.includes('--seven-segment-optical-only')
-        ? 'PASS physically observed multiplexed raw display optical projection; not function-runtime or realtime acceptance.'
-        : process.argv.includes('--arduino-seven-segment-pilot-only')
-          ? 'BLOCKED Arduino display qualification: unsupported user functions, NPN/LED quality fault, and instantaneous multiplex optics require separate repairs. Pilot is not a full matrix PASS.'
-          : process.argv.includes('--seven-segment-buttons-only')
-            ? 'PASS physical 2AA ten-button diode matrix: 0–9 press/release and saved circuit reopen, real Worker/Stage desktop/mobile; no Arduino.'
-            : process.argv.includes('--seven-segment-parity-only')
-              ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
-              : process.argv.includes('--multi-servo-sustained-only')
-                ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
-                : process.argv.includes('--potentiometer-only')
-                  ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
-                  : process.argv.includes('--horn-clip-only')
-                    ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
-                    : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
+    process.argv.includes('--switch-display-only')
+      ? 'PASS real Arduino switch display counter and Serial; no arbitrary C++ or realtime claim.'
+      : process.argv.includes('--helper-display-counters-only')
+        ? 'PASS real linear/helper Arduino display counters with visible carry; not arbitrary C++ or realtime acceptance.'
+        : process.argv.includes('--seven-segment-optical-only')
+          ? 'PASS physically observed multiplexed raw display optical projection; not function-runtime or realtime acceptance.'
+          : process.argv.includes('--arduino-seven-segment-pilot-only')
+            ? 'BLOCKED Arduino display qualification: unsupported user functions, NPN/LED quality fault, and instantaneous multiplex optics require separate repairs. Pilot is not a full matrix PASS.'
+            : process.argv.includes('--seven-segment-buttons-only')
+              ? 'PASS physical 2AA ten-button diode matrix: 0–9 press/release and saved circuit reopen, real Worker/Stage desktop/mobile; no Arduino.'
+              : process.argv.includes('--seven-segment-parity-only')
+                ? 'PASS real Blockly/text raw seven-segment common-mode parity; fixture only, not counters/buttons or realtime.'
+                : process.argv.includes('--multi-servo-sustained-only')
+                  ? 'PASS two physical Servo models sustained complementary cycles 10s MODEL, correlated native horns1440/390, JSON replay/reset/Stop.'
+                  : process.argv.includes('--potentiometer-only')
+                    ? 'PASS live Stage potentiometer → physical ADC → fixed text/Blockly → PWM → Servo/horn 1440/390.'
+                    : process.argv.includes('--horn-clip-only')
+                      ? 'PASS Servo native Stage horn clipping: five angles at 1440/390, actual CSS and hidden-viewport control.'
+                      : 'PASS Servo real Worker/client/full workbench hook/Stage owner horn at 1440/390; API/static fixture ports, no server/DB/SaveCAS/listening ports.',
   );
 } finally {
   await browser.close();

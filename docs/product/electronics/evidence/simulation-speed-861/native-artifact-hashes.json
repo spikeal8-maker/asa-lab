@@ -1,0 +1,23 @@
+[
+  {
+    "path": "receipt.json.gz",
+    "rawBytes": 373800,
+    "rawSha256": "f0474565956291972259d9ccbb096b9a7f9aef69e54c1a95c5dea80bb60cdf0f",
+    "gzipBytes": 15867,
+    "gzipSha256": "7cdcb6a6df0c411a903e31f958b36fd7125237f2d9c4479e8e308005d20fa141"
+  },
+  {
+    "path": "combined-full-diagnostic.json.gz",
+    "rawBytes": 291886,
+    "rawSha256": "3140ce37d54584c52ac7935332de141dbbdd8df73a5d11e8aa7a0b37c8dc7e2e",
+    "gzipBytes": 21572,
+    "gzipSha256": "82ab17d6234ee6d5a1f58d7323034cc98f8fb59e6ab389176a73be72861a77f2"
+  },
+  {
+    "path": "combined-baseline-replay.json.gz",
+    "rawBytes": 64289,
+    "rawSha256": "32331d302aa2ef95a5d4086310df935be67292b787672036fc816f3f19f4fbe8",
+    "gzipBytes": 6798,
+    "gzipSha256": "a439ed35846cdde5e896269731e198a47448eb936a082dca51727bade3dabec5"
+  }
+]

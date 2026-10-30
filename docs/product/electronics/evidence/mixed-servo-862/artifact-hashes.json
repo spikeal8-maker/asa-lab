@@ -1,0 +1,66 @@
+{
+  "files": [
+    {
+      "path": "candidate-build.log.gz",
+      "raw_bytes": 18535,
+      "raw_sha256": "d080a23ab5844fb6dfbad4eae12a9684e4b21e3fe1dac8c9ac3559c097ce8b3e",
+      "stored_bytes": 4981,
+      "stored_sha256": "d465bda56d3f80cfa6467612b07f9ee57a05ab51eefd68f8fd9855734204d60b"
+    },
+    {
+      "path": "candidate-budgets.log.gz",
+      "raw_bytes": 726,
+      "raw_sha256": "78e43f8ae4f97dbfcf9eaa259ef20f8d84ecc5931e114cfcfaf11e08c1474479",
+      "stored_bytes": 434,
+      "stored_sha256": "e8934e12ce38d054b26aa730242dbaed66e64914629747677239419a0eb5bc20"
+    },
+    {
+      "path": "focused-first.log.gz",
+      "raw_bytes": 1829,
+      "raw_sha256": "7e3131511935d932112f79b520825eb43ec4e0aab86e2aa9b735e80d953d414a",
+      "stored_bytes": 868,
+      "stored_sha256": "504682fd44407a826aff701a60475ed57363caa293b135ef5a300c1a20a7e071"
+    },
+    {
+      "path": "focused-final.log.gz",
+      "raw_bytes": 1658,
+      "raw_sha256": "482fc724495842ee979c9285c3542657e0ec23f75a6df93a732728ccd985b9cb",
+      "stored_bytes": 705,
+      "stored_sha256": "1fbb6f4d875fcff3c3898e9674bd2224ad551ed773504e09ab5fe2fe1abcb6f5"
+    },
+    {
+      "path": "native-run.log.gz",
+      "raw_bytes": 138,
+      "raw_sha256": "cf64aa2b7dea4da32a51c2ca80a0d573a2a78baa849866840a7215c72bfcbfad",
+      "stored_bytes": 140,
+      "stored_sha256": "5787b2d8ceb7add28ea054bfd400d546006a83666717bf609e7345b5d9734656"
+    },
+    {
+      "path": "native-receipt.json.gz",
+      "raw_bytes": 1748423,
+      "raw_sha256": "0b05978ce5422b614b1b37d8407101bce632ddc2b5ceb5d44bd28ba4e67c8ef2",
+      "stored_bytes": 128878,
+      "stored_sha256": "18f2d50d724481d921f2081d7f253791633ee3797425c1270d5020f15868dc3e"
+    },
+    {
+      "path": "mixed-1440-135.png",
+      "bytes": 146586,
+      "sha256": "6214e0c2f146161ce0684fadbe5926edf422bf73b6ba48aab8f2e93040fa3830"
+    },
+    {
+      "path": "mixed-1440-45.png",
+      "bytes": 146677,
+      "sha256": "59fb246f20189bcc771861e3563cd703c7863a8b5b3f75f973dcc82a454c3e28"
+    },
+    {
+      "path": "mixed-390-135.png",
+      "bytes": 37533,
+      "sha256": "ba062fc266f8c695dc7690d95f72a251386f5419b688f5fbbd43cb554c837470"
+    },
+    {
+      "path": "mixed-390-45.png",
+      "bytes": 37547,
+      "sha256": "bcf4f02e88b7953ee8999ee4f03c6e30f9ab2ea9c2751376edd830be6d0793e7"
+    }
+  ]
+}

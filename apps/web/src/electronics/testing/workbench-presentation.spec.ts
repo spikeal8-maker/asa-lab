@@ -10,6 +10,7 @@ import {
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
+const diagnosticSource = readFileSync(resolve(electronicsRoot, 'NativeLedDiagnostic.tsx'), 'utf8');
 const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
 const headerSource = readFileSync(resolve(electronicsRoot, 'WorkbenchHeader.tsx'), 'utf8');
 const editorSource = readFileSync(resolve(electronicsRoot, '../pages/SchematicEditor.tsx'), 'utf8');
@@ -172,7 +173,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain(
       'useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock)',
     );
-    expect(headerSource).toContain('<SimulationClock port={c.nativeOpticalPresentation} />');
+    // Additional UI props do not change the sole authoritative clock port.
+    expect(headerSource).toMatch(
+      /<SimulationClock\s+port=\{c\.nativeOpticalPresentation\}(?:\s|\/>)/,
+    );
     expect(headerSource).toContain('formatSimulationTime(microseconds / 1_000_000)');
     expect(headerSource).not.toContain('formatSimulationTime(c.simulationTimeMs');
     expect(headerSource).not.toContain('Date.now() - startedAt');
@@ -252,20 +256,21 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('pointerEvents="all"');
     expect(stageSource).toContain('c.simulationRunning &&');
     expect(stageSource).toContain('c.errorDiagnosticComponentIds.has(component.id)');
-    expect(stageSource).toContain("'led-diagnostic-badge'");
-    expect(stageSource).toContain('const showDiagnosticIndicator = isLedIndicator');
-    expect(stageSource).toContain('? ledOvercurrent || ledBurned');
-    expect(stageSource).toContain("'rgb-led-burnout-explosion'");
-    expect(stageSource).toContain("'component-diagnostic-indicator'");
-    expect(stageSource).toContain('!c.simulationRunning || !primaryDiagnostic');
+    expect(diagnosticSource).toContain("'led-diagnostic-badge'");
+    expect(diagnosticSource).toContain('const showDiagnosticIndicator = isLedIndicator');
+    expect(diagnosticSource).toContain('? ledOvercurrent || ledBurned');
+    expect(diagnosticSource).toContain("'rgb-led-burnout-explosion'");
+    expect(diagnosticSource).toContain("'component-diagnostic-indicator'");
+    expect(diagnosticSource).toContain('!c.simulationRunning || !primaryDiagnostic');
     expect(stageSource).toContain('workbench-diagnostic-layer');
     expect(stageSource).toContain('diagnosticBadgeGeometry(c.viewport.zoom)');
-    expect(stageSource).toContain('r={badgeGeometry.radius}');
-    expect(stageSource).toContain('fontSize={badgeGeometry.fontSize}');
-    expect(stageSource).toContain('aria-label={diagnosticText}');
+    expect(diagnosticSource).toContain('r={badgeGeometry.radius}');
+    expect(diagnosticSource).toContain('fontSize={badgeGeometry.fontSize}');
+    expect(diagnosticSource).toContain('aria-label={diagnosticText}');
     expect(stageSource).toContain('pointerEvents="all"');
-    expect(stageSource).toContain("'led-burnout-explosion'");
-    expect(stageSource).toContain('workbench-led-burnout-explosion');
+    expect(diagnosticSource).toContain("'led-burnout-explosion'");
+    expect(diagnosticSource).toContain('workbench-led-burnout-explosion');
+    expect(diagnosticSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).not.toContain('workbench-component-diagnostic-tooltip');
     expect(stageSource).toContain('data-testid="component-model-warning"');
     expect(stageSource).toContain('data-screen-upright="true"');

@@ -1,5 +1,10 @@
 import { draw, seed, valid } from './arduino-random.js';
 import {
+  arduinoSwitchSections,
+  arduinoSwitchType,
+  arduinoSwitchCase,
+} from './arduino-switch-syntax.js';
+import {
   maskArduinoFunctionSyntax,
   parseArduinoVoidFunctions,
   reservedArduinoFunctionIdentifier,
@@ -321,12 +326,20 @@ interface UserCallInstruction {
   readonly line: number;
 }
 type ReturnInstruction = { readonly kind: 'return'; readonly line: number };
+interface SwitchInstruction {
+  readonly kind: 'switch';
+  readonly selector: string;
+  readonly cases: { expression: string; target: number; value?: number }[];
+  defaultTarget: number;
+  readonly line: number;
+}
 type CompiledInstruction =
   | SimpleInstruction
   | BranchInstruction
   | JumpInstruction
   | ScopeInstruction
   | UserCallInstruction
+  | SwitchInstruction
   | ReturnInstruction;
 
 const MAX_STATEMENTS = 512;
@@ -402,6 +415,7 @@ function toneStateIsValid(tone: ArduinoToneState): boolean {
 
 function incrementWaitText(instruction: CompiledInstruction | undefined): string | undefined {
   if (instruction?.kind === 'user-call') return instruction.args.join(';') || undefined;
+  if (instruction?.kind === 'switch') return instruction.selector;
   const text =
     instruction?.kind === 'simple'
       ? instruction.statement
@@ -1978,7 +1992,7 @@ function controlledStatement(
       ? { content: source.slice(start, end + 1), offset: start, end: end + 1 }
       : null;
   }
-  const control = /^(if|while|for)\b/.exec(source.slice(start));
+  const control = /^(if|while|for|switch)\b/.exec(source.slice(start));
   if (control) {
     const header = balancedSlice(
       source,
@@ -2014,9 +2028,11 @@ function controlledStatement(
   return null;
 }
 
-interface CompilingLoop {
+interface CompilingBreak {
   readonly scopeDepth: number;
   readonly breaks: JumpInstruction[];
+}
+interface CompilingLoop extends CompilingBreak {
   readonly continues: JumpInstruction[];
 }
 
@@ -2033,6 +2049,7 @@ function compileStatements(
   scopeDepth = 0,
   functions?: ReadonlyMap<string, ArduinoVoidFunction>,
   helperBody = false,
+  breakable: CompilingBreak | undefined = loop,
 ): readonly CompiledInstruction[] {
   const lineAt = (offset: number): number =>
     firstLine + (source.slice(0, offset).match(/\n/g)?.length ?? 0);
@@ -2042,6 +2059,7 @@ function compileStatements(
     headerName?: string,
     bodyLoop = loop,
     parentDepth = scopeDepth,
+    bodyBreak = bodyLoop === loop ? breakable : bodyLoop,
   ): void => {
     instructions.push({ kind: 'enter-scope' });
     compileStatements(
@@ -2057,6 +2075,7 @@ function compileStatements(
       parentDepth + 1,
       functions,
       helperBody,
+      bodyBreak,
     );
     instructions.push({ kind: 'exit-scope' });
   };
@@ -2082,6 +2101,78 @@ function compileStatements(
     const remaining = source.slice(index);
     end = index + (/^[A-Za-z_]\w*/.exec(remaining)?.[0].length ?? 1);
     const line = lineAt(index);
+    if (/^switch\b/.test(remaining)) {
+      const opening = skipWhitespace(source, index + 6);
+      const selector = balancedSlice(source, opening, '(', ')');
+      const bodyStart = selector ? skipWhitespace(source, selector.end) : -1;
+      const body = bodyStart >= 0 ? balancedSlice(source, bodyStart, '{', '}') : null;
+      if (!selector || !body) {
+        error('После switch ожидаются условие и блок.');
+        break;
+      }
+      try {
+        const sections = arduinoSwitchSections(body.content);
+        const dispatch: SwitchInstruction = {
+          kind: 'switch',
+          selector: selector.content,
+          cases: [],
+          defaultTarget: -1,
+          line,
+        };
+        instructions.push({ kind: 'enter-scope' });
+        record(dispatch, opening + 1, selector.content.length);
+        const context: CompilingBreak = { scopeDepth: scopeDepth + 1, breaks: [] };
+        for (const [sectionIndex, section] of sections.entries()) {
+          if (section.isDefault) dispatch.defaultTarget = instructions.length;
+          if (section.expression !== undefined) {
+            const entry = { expression: section.expression, target: instructions.length };
+            dispatch.cases.push(entry);
+            locations.set(entry, {
+              start: firstOffset + bodyStart + 1 + section.labelOffset!,
+              length: section.labelLength!,
+            });
+          }
+          const from = instructions.length;
+          compileStatements(
+            section.body,
+            instructions,
+            diagnostics,
+            scope,
+            lineAt(bodyStart + 1 + section.offset),
+            undefined,
+            firstOffset + bodyStart + 1 + section.offset,
+            locations,
+            loop,
+            scopeDepth + 1,
+            functions,
+            helperBody,
+            context,
+          );
+          let depth = 0;
+          for (const instruction of instructions.slice(from)) {
+            if (instruction.kind === 'enter-scope') depth++;
+            if (instruction.kind === 'exit-scope') depth--;
+            if (
+              sectionIndex < sections.length - 1 &&
+              depth === 0 &&
+              instruction.kind === 'simple' &&
+              parseDeclaration(instruction.statement)
+            )
+              throw new SyntaxError(
+                'Объявление перед следующей меткой case требует отдельного блока.',
+              );
+          }
+        }
+        if (dispatch.defaultTarget < 0) dispatch.defaultTarget = instructions.length;
+        for (const jump of context.breaks) jump.target = instructions.length;
+        instructions.push({ kind: 'exit-scope' });
+      } catch (caught) {
+        if (!(caught instanceof SyntaxError)) throw caught;
+        error(caught.message, index, 6);
+      }
+      index = body.end;
+      continue;
+    }
     if (source[index] === '{') {
       const block = balancedSlice(source, index, '{', '}');
       if (!block) {
@@ -2280,17 +2371,18 @@ function compileStatements(
       break;
     }
     if (statement === 'break' || statement === 'continue') {
-      if (!loop) {
+      const target = statement === 'break' ? breakable : loop;
+      if (!target) {
         error(`Команда ${statement} допустима только внутри цикла.`);
         break;
       }
       const jump: JumpInstruction = {
         kind: 'jump',
         target: -1,
-        unwindScopes: scopeDepth - loop.scopeDepth,
+        unwindScopes: scopeDepth - target.scopeDepth,
       };
       record(jump);
-      (statement === 'break' ? loop.breaks : loop.continues).push(jump);
+      (statement === 'break' ? target.breaks : loop!.continues).push(jump);
     } else if (statement === 'return' && helperBody) {
       record({ kind: 'return', line });
     } else if (statement) {
@@ -2341,7 +2433,7 @@ function declareVariable(
   const scope = state.scopes[state.scopes.length - 1]!;
   if (scope.has(name)) throw new SyntaxError(`Повторное объявление «${name}» в одной области.`);
   if (
-    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|do|break|continue)$/.test(
+    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|do|break|continue|switch)$/.test(
       name,
     )
   )
@@ -2834,6 +2926,67 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
         position = locations.get(declaration)!;
       });
       const globals = new Map(validation.scopes[0]);
+      const hasSwitch = [
+        ...setupInstructions,
+        ...loopInstructions,
+        ...Object.values(functions).flatMap((fn) => fn.instructions),
+      ].some((instruction) => instruction.kind === 'switch');
+      const constantValues = new WeakMap<object, ArduinoValue>();
+      const constantValue = (expression: string): ArduinoValue => {
+        const tokens = tokenize(expression);
+        for (const [index, token] of tokens.entries()) {
+          if (['++', '--', '.'].includes(token.value))
+            throw new SyntaxError('Метка case требует константного выражения.');
+          if (
+            token.kind !== 'identifier' ||
+            lexicalValue(token) ||
+            ['unsigned', 'int', 'long', 'float', 'double', 'bool', 'boolean', 'byte'].includes(
+              token.value,
+            ) ||
+            (['min', 'max', 'abs', 'constrain'].includes(token.value) &&
+              tokens[index + 1]?.value === '(')
+          )
+            continue;
+          const binding = bindingFor(validation.scopes, token.value);
+          if (!binding || !constantValues.has(binding))
+            throw new SyntaxError('Метка case требует константного выражения.');
+        }
+        return evaluateValue(expression, {
+          ...validation,
+          validateOnly: false,
+          scopes: validation.scopes.map(
+            (scope) =>
+              new Map(
+                [...scope].map(([name, binding]) => [
+                  name,
+                  { ...binding, value: constantValues.get(binding)?.value ?? null },
+                ]),
+              ),
+          ),
+        });
+      };
+      const retainConstant = (declaration: GlobalDeclaration): void => {
+        if (
+          !hasSwitch ||
+          !declaration.constant ||
+          !declaration.initializer ||
+          ['float', 'double'].includes(declaration.type)
+        )
+          return;
+        try {
+          const value = convertValue(constantValue(declaration.initializer), declaration.type);
+          const binding = bindingFor(validation.scopes, declaration.name);
+          if (binding) constantValues.set(binding, value);
+        } catch {
+          /* A legal runtime initializer is not necessarily a case constant. */
+        }
+      };
+      for (const declaration of declarations) {
+        if (hasSwitch) position = locations.get(declaration)!;
+        if (hasSwitch && reservedArduinoFunctionIdentifier(declaration.name))
+          throw new SyntaxError(`Зарезервированное имя «${declaration.name}».`);
+        retainConstant(declaration);
+      }
       for (const [instructions, parameters, helper] of [
         [setupInstructions, [], false],
         [loopInstructions, [], false],
@@ -2857,11 +3010,24 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
           validation.statementCount = 0;
           validation.actions.length = 0;
           if (instruction.kind === 'branch') evaluate(instruction.condition, validation);
+          if (instruction.kind === 'switch') {
+            const type = arduinoSwitchType(evaluateValue(instruction.selector, validation).type);
+            const values = new Set<number>();
+            for (const entry of instruction.cases) {
+              position = locations.get(entry) ?? position;
+              entry.value = arduinoSwitchCase(constantValue(entry.expression), type);
+              if (values.has(entry.value)) throw new SyntaxError('Повторная метка case.');
+              values.add(entry.value);
+            }
+          }
           if (instruction.kind === 'simple') {
-            const declaration = helper ? parseDeclaration(instruction.statement) : null;
+            const declaration =
+              helper || hasSwitch ? parseDeclaration(instruction.statement) : null;
             if (declaration && reservedArduinoFunctionIdentifier(declaration.name))
               throw new SyntaxError(`Зарезервированное имя «${declaration.name}».`);
             executeSimpleStatement(instruction.statement, validation);
+            const constant = hasSwitch ? parseDeclaration(instruction.statement) : null;
+            if (constant) retainConstant(constant);
             prepareLiteralCommand(instruction, validation);
             instruction.prepared = prepareStatement(instruction.statement);
           }
@@ -3136,12 +3302,13 @@ export function createOwnedClockedArduinoRuntime(source: string, initial?: Ardui
     ) ||
     [...compilation.setupInstructions, ...compilation.loopInstructions].some(
       (instruction) =>
-        instruction.kind === 'simple' &&
-        (instruction.prepared?.member ||
-          (instruction.prepared?.call &&
-            !['pinMode', 'digitalWrite', 'analogWrite', 'delay', 'delayMicroseconds'].includes(
-              instruction.prepared.call[1]!,
-            ))),
+        instruction.kind === 'switch' ||
+        (instruction.kind === 'simple' &&
+          (instruction.prepared?.member ||
+            (instruction.prepared?.call &&
+              !['pinMode', 'digitalWrite', 'analogWrite', 'delay', 'delayMicroseconds'].includes(
+                instruction.prepared.call[1]!,
+              )))),
     )
   )
     return null;
@@ -3590,7 +3757,14 @@ function advanceRuntime(
     const executionTimeMs = resumeAtMs;
 
     try {
-      if (instruction.kind === 'branch') {
+      if (instruction.kind === 'switch') {
+        if (!consumeStatement(instructionState)) break;
+        const selector = evaluateValue(instruction.selector, instructionState);
+        arduinoSwitchType(selector.type);
+        programCounter =
+          instruction.cases.find((entry) => entry.value === selector.value)?.target ??
+          instruction.defaultTarget;
+      } else if (instruction.kind === 'branch') {
         if (!consumeStatement(instructionState)) break;
         programCounter =
           evaluate(instruction.condition, instructionState) !== 0

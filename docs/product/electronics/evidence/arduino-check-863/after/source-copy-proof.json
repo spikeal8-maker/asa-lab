@@ -1,0 +1,366 @@
+{
+  "proofs": [
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "nonCopyAst": "BYTE_EQUAL",
+      "baselineBlob": "7669ac70d23f411288bb6ac3c47bcd8536b412c7",
+      "candidateGitLfSha256": "154a7087eee2fd9e896f6ea056156c34a0be84f55f18b1ec31ba64fa0505a3e7"
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "nonCopyAst": "BYTE_EQUAL",
+      "baselineBlob": "66fb179d93eabd3ea4827f70850b4eeae1ee5f33",
+      "candidateGitLfSha256": "cfdb9a4d0c630816e1b13cded5a794bb053e01f41e336f1246c242724876d1ef"
+    }
+  ],
+  "intentionalPublicCopyChanges": [
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "JsxText",
+      "before": "\n            Ограничений: ",
+      "after": "\n            Примечаний: "
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "StringLiteral",
+      "before": "Код исполняется упрощённо",
+      "after": "Можно запускать · есть примечания"
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "StringLiteral",
+      "before": "Симулятор пока не исполняет эти команды. Это проверка модели ASA Lab, а не компиляция Arduino C++.",
+      "after": "Исправьте указанные ошибки и неподдерживаемые команды перед запуском. Это проверка симулятора, не компиляция C++."
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "StringLiteral",
+      "before": "Код запускается, но перечисленные возможности моделируются упрощённо. Это не ошибки компиляции.",
+      "after": "Примечания ниже не блокируют запуск. Нажмите на строку, чтобы перейти к команде."
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "StringLiteral",
+      "before": "Все использованные команды исполняются симулятором. Это проверка модели ASA Lab, а не компиляция Arduino C++.",
+      "after": "Ошибок для симулятора не найдено. Это не компиляция Arduino C++."
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "TemplateHead",
+      "before": "Проверка Arduino: ",
+      "after": "Проверка Arduino: блокирующих ошибок — "
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "LastTemplateToken",
+      "before": " команд пока не работают. Расчёт будет заблокирован.",
+      "after": ". Исправьте их перед запуском."
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "TemplateHead",
+      "before": "Проверка Arduino: код исполняется с ",
+      "after": "Проверка Arduino: можно запускать. Примечаний — "
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "LastTemplateToken",
+      "before": " ограничениями модели.",
+      "after": "; подробности ниже."
+    },
+    {
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "kind": "StringLiteral",
+      "before": "Проверка Arduino: все использованные команды поддерживаются.",
+      "after": "Проверка Arduino: ошибок для симулятора не найдено."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.",
+      "after": "setup() выполняется один раз после Reset."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "loop() моделируется ограниченным циклом, а не полным AVR-рантаймом.",
+      "after": "Повторяет команды loop() после setup()."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Цикл исполняется по условию в пределах лимита операций.",
+      "after": "Повторяет команды заданное число раз."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Бесконечный цикл останавливается защитным лимитом операций.",
+      "after": "Повторяет команды; delay() делает паузу перед продолжением."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Условие вычисляется электрическим рантаймом.",
+      "after": "Выполняет команды, если условие истинно."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Условие повторяется в пределах защитного лимита операций.",
+      "after": "Повторяет команды, пока условие истинно."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Заголовок и тело повторяются в пределах защитного лимита операций.",
+      "after": "Повторяет тело цикла с проверкой условия и изменением счётчика."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Servo.write() управляет canonical 50 Hz waveform на attached GPIO.",
+      "after": "Задаёт угол Servo импульсами 50 Гц на подключённом выводе."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Формирует canonical timed 0/5 V waveform без AVR timer accuracy.",
+      "after": "Создаёт сигнал 0/5 В заданной частоты; такты таймера AVR не воспроизводятся."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Формирует canonical timed tone waveform без AVR timer accuracy.",
+      "after": "Создаёт звуковой сигнал выбранной ноты."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Немедленно останавливает canonical tone waveform.",
+      "after": "Останавливает звуковой сигнал на выводе."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Передаёт детерминированный Serial TX в bounded runtime history без UI Monitor и UART bit timing.",
+      "after": "Выводит число или текст в монитор порта; побитовый сигнал UART не воспроизводится."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Поддержан exact adapter readUltrasonicCm(triggerPin, echoPin) поверх canonical GPIO/delay/pulseIn.",
+      "after": "Измеряет расстояние через trigger/echo функцией readUltrasonicCm()."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.",
+      "after": "Измеряет длительность импульса HIGH/LOW во времени симуляции."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Возвращает детерминированное время текущего шага симуляции.",
+      "after": "Возвращает время симуляции в миллисекундах."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Servo.read() возвращает последний commanded angle Servo object.",
+      "after": "Возвращает последний заданный угол Servo."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Возвращает число pending Serial RX bytes без UI Monitor.",
+      "after": "Возвращает число входящих байтов в очереди монитора порта."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Читает один pending Serial RX byte или -1 без UI Monitor.",
+      "after": "Читает входящий байт из монитора порта или −1, если очередь пуста."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Для этого блока нет подтверждённой модели исполнения.",
+      "after": "Симулятор пока не исполняет этот блок."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Точка входа поддерживается ограниченным runtime state.",
+      "after": "Выполняет команды один раз после Reset."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Цикл моделируется в пределах детерминированного шага.",
+      "after": "Повторяет команды после setup()."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Формирует canonical timed 0/5 V waveform без AVR timer accuracy.",
+      "after": "Создаёт сигнал 0/5 В заданной частоты; такты таймера AVR не воспроизводятся."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Немедленно останавливает canonical tone waveform.",
+      "after": "Останавливает звуковой сигнал на выводе."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Возвращает время текущего шага симуляции.",
+      "after": "Возвращает время симуляции в миллисекундах."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Возвращает виртуальное время в микросекундах.",
+      "after": "Возвращает время симуляции в микросекундах."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Exact built-in adapter для ASA Lab: trigger/echo последовательность поверх pinMode(), digitalWrite(), delayMicroseconds() и pulseIn().",
+      "after": "Измеряет расстояние через trigger/echo; использует pinMode(), digitalWrite(), delayMicroseconds() и pulseIn()."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Задаёт скорость для виртуального монитора порта.",
+      "after": "Задаёт скорость порта; побитовый сигнал UART не воспроизводится."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "char, String и строковые операции не исполняются; quoted literal разрешён только как аргумент Serial.print/println.",
+      "after": "char, String и строковые операции не исполняются; текст в кавычках разрешён только в Serial.print/println."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Типизированные globals и вложенные locals сохраняются через паузы; локальные имена исчезают при выходе из области. Сложные типы пока не поддерживаются.",
+      "after": "Значения переменных сохраняются через паузы; локальные переменные доступны внутри своего блока. Сложные типы не поддерживаются."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Заголовок и тело for исполняются по условию в пределах защитного лимита операций.",
+      "after": "Повторяет тело for с проверкой условия и изменением счётчика."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Условие while повторяется в пределах защитного лимита операций.",
+      "after": "Повторяет тело while, пока условие истинно."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Тело выполняется до проверки условия; действует защитный лимит операций.",
+      "after": "Выполняет тело do/while, затем проверяет условие повторения."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Команда не входит в подтверждённый Arduino-рантайм ASA Lab.",
+      "after": "Симулятор пока не исполняет эту команду."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Разрешён только bounded adapter #include <Servo.h>; остальные директивы fail-closed.",
+      "after": "Разрешён только #include <Servo.h>; остальные директивы блокируют запуск."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "TemplateHead",
+      "before": "",
+      "after": "Симулятор пока не исполняет "
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "LastTemplateToken",
+      "before": "() пока не исполняется Arduino-рантаймом.",
+      "after": "()."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "TemplateHead",
+      "before": "",
+      "after": "Симулятор пока не исполняет "
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "LastTemplateToken",
+      "before": "() не входит в подтверждённый Arduino-рантайм ASA Lab.",
+      "after": "()."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "TemplateHead",
+      "before": "",
+      "after": "Симулятор пока не исполняет "
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "LastTemplateToken",
+      "before": " не входит в подтверждённое подмножество Arduino C++.",
+      "after": "."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "TemplateHead",
+      "before": "",
+      "after": "Симулятор пока не исполняет "
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "LastTemplateToken",
+      "before": " и строковые операции ещё не исполняются Arduino-рантаймом.",
+      "after": " и строковые операции."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Цикл исполняется по условию в пределах защитного лимита операций.",
+      "after": "Повторяет команды, пока условие истинно."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "tone/noTone используют canonical timed waveform без AVR timer accuracy.",
+      "after": "tone() задаёт частоту сигнала 0/5 В, noTone() выключает его; такты таймера AVR не воспроизводятся."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "pulseIn() ждёт canonical входные фронты и timeout без AVR cycle accuracy.",
+      "after": "pulseIn() ждёт импульс HIGH/LOW и возвращает его длительность; по таймауту возвращает 0."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "readUltrasonicCm() поддержан только как exact built-in adapter ASA Lab поверх canonical GPIO/delay/pulseIn.",
+      "after": "readUltrasonicCm() измеряет расстояние через выводы trigger/echo."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "millis()/micros() возвращают детерминированное время текущего шага симуляции.",
+      "after": "millis() возвращает миллисекунды, micros() — микросекунды времени симуляции."
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "kind": "StringLiteral",
+      "before": "Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.",
+      "after": "++ увеличивает переменную на 1, -- уменьшает; const и bool изменять нельзя."
+    }
+  ]
+}

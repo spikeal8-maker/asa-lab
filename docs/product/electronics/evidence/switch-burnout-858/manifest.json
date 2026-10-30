@@ -1,0 +1,104 @@
+{
+  "baseline_sha": "dabcfe06968e7a4d8414a96061a320a85286a898",
+  "production_blobs": {
+    "apps/web/src/electronics/production-manifest-adapter.ts": "c216a5f12ba978b88448bec3f77e246adb0bdcdb",
+    "apps/web/src/electronics/workbench.css": "9887598cefe5b88db48945a201a293439b54c907",
+    "apps/web/src/electronics/WorkbenchStage.tsx": "144af56440b4a4873070f807a61080fdfb1f2c64",
+    "apps/web/src/electronics/NativeLedDiagnostic.tsx": "b4ab02b1d4b3a390567d1b2bd738afb23b4f5e54"
+  },
+  "stage_before_bytes": 65613,
+  "stage_after_bytes": 61463,
+  "stage_reviewed_limit_bytes": 65854.8,
+  "source_guard_raised": false,
+  "artifacts": [
+    {
+      "path": "spst-native.json.gz",
+      "raw_bytes": 79404,
+      "raw_sha256": "001d9eac296131a868e283dca1ddbf2406416fbba65991802742de2585e7a7bb",
+      "sha256": "cd85d38d52f2e285a9842e64ef73eb68b44388393f07518104de73a16046c20d"
+    },
+    {
+      "path": "led-native.json.gz",
+      "raw_bytes": 11424,
+      "raw_sha256": "10b5ba208c0e370d067ca16a1d8014288e63aa03e1c76fc7b1825192325e52a2",
+      "sha256": "12c5a75fa0c257757e1b019291e36e0b83b455ef2c98f182bba9a02acfd3029f"
+    },
+    {
+      "path": "non-led-markup.json.gz",
+      "raw_bytes": 2315,
+      "raw_sha256": "be61807c4d248c62f31722afa9a235d7f849831ef71006b73dc64afbd76b6ebc",
+      "sha256": "841a131c22ffc39fed1e82f636968d5f968c711488890242e07a43c6a3303d34"
+    },
+    {
+      "path": "before-unit.log.gz",
+      "raw_bytes": 1159,
+      "raw_sha256": "af65a538a63b39d10e47d2828fe54457b18c3dcb68120e72f68d61213551e173",
+      "sha256": "af00566d50cd4229a62a08453cc211ef4f502b0b48b28b64aec910ec18b8763a"
+    },
+    {
+      "path": "before-unit.spec.ts.txt",
+      "sha256": "6f0ae17cbd075c303c8edd8cfebbbac29e970225f41825e3d076a258d3b66c7c",
+      "bytes": 6171
+    },
+    {
+      "path": "before.config.mts.txt",
+      "sha256": "10525ba10433a9784d257affc6850c42802f82f0237280c817bf751c36eb7be6",
+      "bytes": 771
+    },
+    {
+      "path": "non-led-markup.mjs.txt",
+      "sha256": "727577d25b270ec94212fbd3c9cd436ad150c592bc65dd08c2600cc43c9075c4",
+      "bytes": 2584
+    },
+    {
+      "path": "spst-open.png",
+      "sha256": "b546c8077dd5bc88831b2a317094f74836f887caacbda5f7ad2058659cadfa19",
+      "bytes": 87887
+    },
+    {
+      "path": "spst-open-mobile.png",
+      "sha256": "12574693b5bca25a9544512ee18c635e6a36d77356123a2a7cc6f42e7ec301fd",
+      "bytes": 31250
+    },
+    {
+      "path": "led-burnout.png",
+      "sha256": "9ca3ce26351fe75f14763340cb14003b8047ae7793a1279817e56f2a07b461f6",
+      "bytes": 76671
+    },
+    {
+      "path": "led-burnout-mobile.png",
+      "sha256": "0aaf987e77954615438b0fbd5dca34960999bf89f4fce5483077e9d41dc9a22a",
+      "bytes": 28445
+    },
+    {
+      "path": "gate-first.log.gz",
+      "raw_bytes": 23180,
+      "raw_sha256": "3569c7116a606994c9466e9d27c4d9d7539513b55729bd546ff6f446db33f957",
+      "sha256": "9c87c3286a0e9c0156d31c1952216b74f4ff5c720c9f38bade2d10f3b4cdd931"
+    },
+    {
+      "path": "asset-isolated.log.gz",
+      "raw_bytes": 381,
+      "raw_sha256": "c4597618b4c1c6aa430a4c2f601bb5707db9cf4310e355895c535b931a951832",
+      "sha256": "a18f9495621a204faa64fcc6b45c34886ce4e4b4b29d959c253f6af4664a1d6e"
+    },
+    {
+      "path": "gate-final.log.gz",
+      "raw_bytes": 47378,
+      "raw_sha256": "dd8704cac460e3764f0cba10ac6e26e5ef1602fbb15c045921383c3037f6b75d",
+      "sha256": "e494a721b19f6dc17e8e9d322d3960990654d320f26efc47c71b00d03e7ebe1b"
+    },
+    {
+      "path": "bundle.log.gz",
+      "raw_bytes": 726,
+      "raw_sha256": "877c228ab081095d32c8a2e5a52a72353922d4d7b598326b622dadbb79d72112",
+      "sha256": "e687ab80c072c2b3385a1a039f09cc4c3a4d05b06127bc7ce61f264f639d3170"
+    }
+  ],
+  "artifact_hash_basis": "canonical Git blob bytes; text LF-normalized by repository attributes",
+  "source_sha": "1b0bfd3d5b025ba771c44529c526af854db5ce14",
+  "canonical_gate": "PASS_after_one_unchanged_classD_retry",
+  "canonical_tests": 2443,
+  "fresh_nx_stage_tasks": 71,
+  "bundle_caps": "all_eight_PASS_unchanged_limits"
+}

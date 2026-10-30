@@ -1,4 +1,5 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { SimulationSpeedControl } from './SimulationSpeedControl';
 import type { PublicUser } from '../api';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { EditorPersistenceIndicator } from '../components/editor-chrome/EditorPersistenceIndicator';
@@ -150,18 +151,31 @@ function formatSimulationTime(totalSeconds: number): string {
 
 function SimulationClock({
   port,
+  controller,
 }: {
   readonly port: ElectronicsWorkbenchController['nativeOpticalPresentation'];
+  readonly controller: ElectronicsWorkbenchController;
 }) {
   const microseconds = useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock);
-  return (
+  const clock = (
     <span
       className="workbench-simulation-time"
       aria-label="Время моделирования"
       data-time-ms={microseconds / 1000}
     >
-      Время моделирования: {formatSimulationTime(microseconds / 1_000_000)}
+      <span className="workbench-simulation-time-prefix">Время моделирования: </span>
+      {formatSimulationTime(microseconds / 1_000_000)}
     </span>
+  );
+  return controller.simulationPacing ? (
+    <SimulationSpeedControl
+      pacing={controller.simulationPacing}
+      onChange={controller.setSimulationRate}
+    >
+      {clock}
+    </SimulationSpeedControl>
+  ) : (
+    clock
   );
 }
 
@@ -273,7 +287,7 @@ export function WorkbenchHeader({
             <ToolButton
               label="Копировать (Ctrl+C)"
               onClick={c.copySelected}
-              disabled={!hasComponentSelection}
+              disabled={!hasComponentSelection && c.selection?.kind !== 'annotation'}
             >
               <DuplicateIcon />
             </ToolButton>
@@ -312,6 +326,15 @@ export function WorkbenchHeader({
             <span className="workbench-toolbar-divider" />
             <ToolButton label="Заметки" active={notesOpen} onClick={onToggleNotes}>
               <CommentIcon />
+            </ToolButton>
+            <ToolButton
+              label="Добавить текст на схему"
+              onClick={c.addCanvasText}
+              disabled={!c.document}
+            >
+              <span aria-hidden="true" className="workbench-text-icon">
+                T
+              </span>
             </ToolButton>
             <ToolButton
               label="Показать или скрыть заметки"
@@ -409,7 +432,9 @@ export function WorkbenchHeader({
             </button>
           </div>
         )}
-        {c.simulationRunning ? <SimulationClock port={c.nativeOpticalPresentation} /> : null}
+        {c.simulationRunning ? (
+          <SimulationClock port={c.nativeOpticalPresentation} controller={c} />
+        ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
           {c.saveStatus === 'error' || (c.saveStatus !== 'saved' && !c.localCopySaved) ? (

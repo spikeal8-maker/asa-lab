@@ -1,5 +1,6 @@
 /** Schema-versioned Electronics document stored inside a mutable ProjectDraft. */
 import { resolveElectricalModelIdentity } from './model-identity.js';
+import { parseCanvasAnnotations, type CanvasAnnotation } from './canvas-annotations.js';
 
 export type ComponentKind =
   | 'source'
@@ -78,11 +79,12 @@ export interface SimulationSettings {
 }
 
 export interface ElectronicsDocument {
-  readonly schemaVersion: 4;
+  readonly schemaVersion: 4 | 5;
   readonly components: readonly SchematicComponent[];
   readonly connections: readonly SchematicConnection[];
   readonly viewport: ElectronicsViewport;
   readonly simulation: SimulationSettings;
+  readonly annotations?: readonly CanvasAnnotation[];
 }
 
 export const DEFAULT_VIEWPORT: ElectronicsViewport = { x: 0, y: 0, zoom: 1 };
@@ -163,6 +165,8 @@ export function terminalsForComponent(component: SchematicComponent): readonly T
 }
 
 export const ELECTRONICS_DOCUMENT_VALIDATION_REASONS = [
+  'electronics_annotations',
+  'electronics_annotation_version',
   'electronics_component_id',
   'electronics_component_kind',
   'electronics_component_name',
@@ -206,7 +210,7 @@ export type DocumentParseResult =
       readonly reasonCode: (typeof ELECTRONICS_DOCUMENT_VALIDATION_REASONS)[number];
     };
 
-/** Accepts historical schema v1-v3 and normalises additively to production schema v4. */
+/** Historical v1-v3 normalise to v4; v5 adds explicit non-electrical annotations. */
 export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   if (!isPlainObject(value))
     return {
@@ -215,13 +219,30 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       message: 'document must be an object',
     };
   const schemaVersion = value['schemaVersion'];
-  if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
+  if (
+    schemaVersion !== 1 &&
+    schemaVersion !== 2 &&
+    schemaVersion !== 3 &&
+    schemaVersion !== 4 &&
+    schemaVersion !== 5
+  ) {
     return {
       ok: false,
       reasonCode: 'electronics_schema_version',
       message: 'unsupported document schemaVersion',
     };
   }
+  if (schemaVersion !== 5 && value['annotations'] !== undefined) {
+    return {
+      ok: false,
+      reasonCode: 'electronics_annotation_version',
+      message: 'annotations require document schemaVersion 5',
+    };
+  }
+  const annotations =
+    schemaVersion === 5 ? parseCanvasAnnotations(value['annotations']) : undefined;
+  if (typeof annotations === 'string')
+    return { ok: false, reasonCode: 'electronics_annotations', message: annotations };
   const rawComponents = value['components'];
   const rawConnections = value['connections'];
   if (!Array.isArray(rawComponents) || !Array.isArray(rawConnections)) {
@@ -637,9 +658,26 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     };
   }
 
+  if (
+    annotations?.some(
+      (annotation) => seenComponents.has(annotation.id) || seenConnections.has(annotation.id),
+    )
+  )
+    return {
+      ok: false,
+      reasonCode: 'electronics_annotations',
+      message: 'annotation identities must be separate from circuit identities',
+    };
   return {
     ok: true,
-    migrated: schemaVersion !== 4,
-    document: { schemaVersion: 4, components, connections, viewport, simulation },
+    migrated: schemaVersion < 4,
+    document: {
+      schemaVersion: schemaVersion === 5 ? 5 : 4,
+      components,
+      connections,
+      viewport,
+      simulation,
+      ...(annotations === undefined ? {} : { annotations }),
+    },
   };
 }

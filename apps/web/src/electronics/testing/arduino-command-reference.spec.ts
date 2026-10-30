@@ -43,7 +43,7 @@ describe('Arduino command reference', () => {
       ['type-int', 'supported'],
       ['for', 'limited'],
       ['type-text', 'unsupported'],
-      ['switch', 'unsupported'],
+      ['switch', 'limited'],
     ]) {
       expect(
         ARDUINO_LANGUAGE_REFERENCE.find((entry) => entry.id === `language:${expected[0]}`)?.status,

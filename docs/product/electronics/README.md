@@ -113,6 +113,23 @@ Component Library
 
 ## 5. CircuitDocument
 
+Canvas text is persisted separately from electrical `components` and `connections`.
+Default/ordinary projects retain canonical schema 4; legacy schemas 1–3 still
+migrate to 4. Adding canvas text explicitly upgrades the document to schema 5
+with a bounded `annotations` array (ID, literal text, position, box and font size).
+Deleting the last text or undoing its creation keeps schema 5 with an empty array.
+The manifest's existing schema 4 describes the unchanged default; the provider
+accepts both explicit document formats. Browser-local project notes remain separate.
+
+Annotation-only edits do not change electrical input digests, Worker generations,
+continuations or pending observation identity. The module-owned replacement check
+rejects writes below an already stored format floor (5 or higher). Project Core
+binds its authorized read to the same command identity and existing atomic CAS;
+future revision guesses are rejected, while stale requests retain receipt/replay
+semantics. Explicit version restoration remains a separate intentional operation.
+Once schema 5 is stored, backend rollback to a writer without this guard is unsafe:
+use a forward fix preserving schema 5, not an old writer that could strip text.
+
 Deleting a breadboard detaches only the surviving components' bindings to the deleted
 board; components, wires between survivors and bindings to other boards remain intact.
 Invalid documents are still rejected. Validation failures carry additive finite
@@ -1594,6 +1611,11 @@ profiles и browser harness разрешена, если она не включ�
 будущий этап.
 
 ## 15. Arduino и программирование
+
+Управление темпом и паузой описывает отдельный
+[Host pacing/pause adapter v1](contracts/HOST_PACING_PAUSE_ADAPTER_V1.md).
+Он сохраняет каноническое время, продолжение программы и электрическую модель;
+множитель не является обещанием вычислительной производительности.
 
 ### 15.1. Честная граница продукта
 

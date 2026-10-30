@@ -22,6 +22,8 @@ import {
   terminalPosition,
 } from './component-catalog';
 import { ProductionComponentVisual } from './NativeOpticalComponentVisual';
+import { NativeLedDiagnostic } from './NativeLedDiagnostic';
+import { CanvasAnnotationEditor, CanvasAnnotationLayer } from './CanvasAnnotationLayer';
 import { productionBreadboard } from './production-manifest-adapter';
 import {
   diagnosticBadgeGeometry,
@@ -224,6 +226,7 @@ function PickedUpPart({
     variantId: entry.variantId,
     position: { x: 0, y: 0 },
     value: entry.defaultValue,
+    ...(entry.defaultState === undefined ? {} : { state: entry.defaultState }),
     rotation: entry.defaultRotation,
     stateProperties: { ...entry.defaultStateProperties },
   };
@@ -242,7 +245,7 @@ function PickedUpPart({
             component={component}
             width={size.width}
             height={size.height}
-            visualState="default"
+            visualState={entry.key === SPST_COMPONENT_TYPE && entry.defaultState ? 'on' : 'default'}
             effectiveBrightness={0}
           />
         </g>
@@ -788,102 +791,17 @@ export function WorkbenchStage({
       const badgeAnchor = topRightBadgeAnchor(paintedBounds, badgeGeometry.radius);
       const badgeAnchorKind =
         entry.key === 'gearmotor' ? 'primary-body-top-right' : 'owner-alpha-top-right';
-      const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
-      const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
-      const actionableDiagnostics = componentDiagnostics.filter(
-        (diagnostic) => diagnostic.severity !== 'info',
-      );
-      const isLedIndicator = entry.key === 'led-5mm';
-      const isRgbLed = entry.key === 'rgb-led';
-      const ledBurned =
-        (isLedIndicator || isRgbLed) &&
-        (c.runtimePresentationResultByComponent.get(component.id)?.presentationState === 'failed' ||
-          (isRgbLed && diagnostics.includes('led_burnout')));
-      const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
-      const primaryDiagnostic = ledBurned
-        ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_burnout')
-        : ledOvercurrent
-          ? actionableDiagnostics.find((diagnostic) => diagnostic.code === 'led_overcurrent')
-          : actionableDiagnostics[0];
-      const diagnosticText = primaryDiagnostic
-        ? `${primaryDiagnostic.message}${
-            primaryDiagnostic.suggestedAction ? ` ${primaryDiagnostic.suggestedAction}` : ''
-          }`
-        : '';
-      // The ordinary Tinkercad LED keeps reverse and disconnected states
-      // visually quiet. Its on-canvas marker exists only for actual
-      // over-current, and the destructive state replaces it with the
-      // starburst. Other components retain their existing diagnostics.
-      const showDiagnosticIndicator = isLedIndicator
-        ? ledOvercurrent || ledBurned
-        : !isRgbLed || ledBurned;
-      if (!c.simulationRunning || !primaryDiagnostic || !showDiagnosticIndicator) return null;
       return (
-        // Слой рисуется поверх схемы, поэтому метка обязана называть свою
-        // деталь: иначе по разметке не понять, о чём предупреждение, — ни
-        // тесту, ни человеку, который читает страницу.
-        <g
+        <NativeLedDiagnostic
           key={component.id}
-          transform={`translate(${badgeAnchor.x} ${badgeAnchor.y})`}
-          data-testid="component-diagnostic"
-          data-screen-upright="true"
-          data-anchor={badgeAnchorKind}
-          data-component-id={component.id}
-          data-component-type={component.componentTypeId}
-          data-kind={component.kind}
-        >
-          <g
-            className={`workbench-component-diagnostic-indicator${
-              ledBurned ? ' workbench-led-burnout-explosion' : ''
-            }${c.errorDiagnosticComponentIds.has(component.id) ? ' error' : ''}`}
-            data-testid={
-              ledBurned
-                ? entry.key === 'rgb-led'
-                  ? 'rgb-led-burnout-explosion'
-                  : 'led-burnout-explosion'
-                : isLedIndicator
-                  ? 'led-diagnostic-badge'
-                  : 'component-diagnostic-indicator'
-            }
-            data-diagnostic-count={actionableDiagnostics.length}
-            pointerEvents="all"
-            role="img"
-            tabIndex={0}
-            aria-label={diagnosticText}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              c.selectComponent(component.id, event.shiftKey);
-            }}
-          >
-            {ledBurned ? (
-              // Sized from the part, not from the screen: the burst is ~85% of
-              // the component's smaller side and lives in world units, so it
-              // grows and shrinks together with the LED when zooming instead of
-              // covering it at every zoom level.
-              <g
-                transform={`scale(${(Math.min(baseSize.width, baseSize.height) * 0.85) / 68})`}
-                aria-hidden="true"
-              >
-                <path
-                  className="workbench-led-explosion-outer"
-                  d="M0-30 7-17 20-24 18-9 33-8 22 3 34 13 18 14 19 30 6 21 0 35-7 21-20 29-18 14-34 13-22 3-33-8-18-9-20-24-7-17Z"
-                />
-                <path
-                  className="workbench-led-explosion-inner"
-                  d="M0-22 5-11 16-16 13-5 24 0 13 5 16 16 5 11 0 23-5 11-16 16-13 5-24 0-13-5-16-16-5-11Z"
-                />
-              </g>
-            ) : (
-              <>
-                <circle r={badgeGeometry.radius} vectorEffect="non-scaling-stroke" />
-                <text y={badgeGeometry.textBaseline} fontSize={badgeGeometry.fontSize}>
-                  !
-                </text>
-              </>
-            )}
-          </g>
-        </g>
+          controller={c}
+          component={component}
+          entryKey={entry.key}
+          baseSize={baseSize}
+          badgeAnchor={badgeAnchor}
+          badgeAnchorKind={badgeAnchorKind}
+          badgeGeometry={badgeGeometry}
+        />
       );
     });
   const unsupportedModelIndicators = orderedComponents
@@ -1559,6 +1477,9 @@ export function WorkbenchStage({
             height={Math.abs(c.marquee.current.y - c.marquee.start.y)}
           />
         ) : null}
+        {c.annotations ? (
+          <CanvasAnnotationLayer controller={c.annotations} toWorld={c.annotationWorldPoint} />
+        ) : null}
         <g className="workbench-diagnostic-layer" data-testid="diagnostic-layer">
           <g className="workbench-stage-readout-layer" pointerEvents="none">
             {motorReadouts}
@@ -1567,6 +1488,7 @@ export function WorkbenchStage({
           {unsupportedModelIndicators}
         </g>
       </svg>
+      {c.annotations ? <CanvasAnnotationEditor controller={c.annotations} /> : null}
       {placementEntry ? (
         <div className="workbench-placement">
           <p role="status">

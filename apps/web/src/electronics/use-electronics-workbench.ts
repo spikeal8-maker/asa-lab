@@ -11,6 +11,12 @@ import {
 import { flushSync } from 'react-dom';
 import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
+import { useCanvasAnnotations } from './use-canvas-annotations';
+import { SimulationPacing } from './simulation-pacing';
+import {
+  annotationOnlyDocumentChange,
+  createAnnotationRuntimeDocumentSelector,
+} from './workbench-annotations';
 import type {
   ComponentResult,
   ProductionStateValue,
@@ -329,12 +335,22 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   };
 
   const undo = () => {
+    if (simulationRunning) {
+      if (projectUndo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectUndo();
   };
 
   const redo = () => {
+    if (simulationRunning) {
+      if (projectRedo(annotationOnlyDocumentChange)) markDocumentMutation();
+      else structuralEditAllowed();
+      return;
+    }
     if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectRedo();
@@ -343,9 +359,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
+  const annotationRuntimeSelector = useRef<ReturnType<
+    typeof createAnnotationRuntimeDocumentSelector
+  > | null>(null);
+  if (!annotationRuntimeSelector.current)
+    annotationRuntimeSelector.current = createAnnotationRuntimeDocumentSelector();
+  const electricalDocument = annotationRuntimeSelector.current(document);
   const runtimeDocument = useMemo(
-    () => applyRuntimeComponentOverrides(document, simulationRunning, runtimeOverrides),
-    [document, runtimeOverrides, simulationRunning],
+    () => applyRuntimeComponentOverrides(electricalDocument, simulationRunning, runtimeOverrides),
+    [electricalDocument, runtimeOverrides, simulationRunning],
   );
 
   useEffect(() => {
@@ -385,6 +407,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   // discarded history owner on every React render.
   const [ledPresentation] = useState(() => new LedTemporalPresentation());
   const [nativeOpticalPresentation] = useState(() => new NativeOpticalPresentation());
+  const [simulationPacing] = useState(() => new SimulationPacing());
+  const simulationPaceCommandRef = useRef<((rate: number) => void) | null>(null);
+  const settleSimulationPauseRef = useRef<(() => void) | null>(null);
+  function setSimulationRate(rate: number): void {
+    if (!simulationPacing.request(rate)) return;
+    if (simulationPaceCommandRef.current) simulationPaceCommandRef.current(rate);
+    else if (rate === 0) simulationPacing.settlePause();
+  }
   const setCommittedHorizonMicroseconds = (value: number) =>
     nativeOpticalPresentation.setClock(value);
   const setLiveObservation = (value: LiveOpticalObservation | null) =>
@@ -414,6 +444,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     ) {
       opticalPublicationRef.current = null;
       nativeOpticalPresentation.commit(publication.next);
+      settleSimulationPauseRef.current?.();
       // This state change is deliberate: native owners must receive a render
       // that retires the protected rollback lease even without another result.
       setRollbackLedAssets(null);
@@ -502,11 +533,28 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationStartedAtRef.current = null;
     normalHostClockRef.current = false;
     requestedHorizonMicrosecondsRef.current = 0;
+    simulationPacing.reset();
   }
 
   function readHostHorizonMicroseconds(): number | null {
     const startedAt = simulationStartedAtRef.current;
     if (startedAt === null) return null;
+    if (simulationPacing.explicit) {
+      const committed = simulationWorkerRef.current?.committedHorizonMicroseconds ?? 0;
+      const horizon = simulationPacing.horizon(
+        Math.round(window.performance.now() * 1000),
+        committed,
+      );
+      return horizon === null
+        ? null
+        : simulationHostOffsetMicrosecondsRef.current +
+            (normalHostClockRef.current
+              ? horizon
+              : Math.max(
+                  committed,
+                  Math.min(horizon, ledPresentation.presentedMicroseconds + 50_000),
+                ));
+    }
     const elapsed = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
     return normalHostClockRef.current
       ? simulationHostOffsetMicrosecondsRef.current + elapsed
@@ -599,6 +647,31 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       null;
     let nativePreparationSequence = 0;
     let nativePreparationSource = nativePreparationSourceRef.current;
+    let hostTransitionPending = false;
+    let paceTransition = 0;
+    const settlePause = () => {
+      if (!pending && !publishing && displayed && generationConfirmed)
+        simulationPacing.settlePause();
+    };
+    settleSimulationPauseRef.current = settlePause;
+    const changePace = (rate: number) => {
+      if (!currentSession()) return;
+      const transition = ++paceTransition;
+      const wall = Math.round(window.performance.now() * 1000);
+      ledPresentation.setPlaybackRate(rate, wall);
+      if (rate === 0) {
+        controller?.setPaused(true);
+        cancelNativePreparation();
+        settlePause();
+      } else {
+        hostTransitionPending = controller?.hasPendingAdvance ?? false;
+        controller?.setPaused(false, (committed) => {
+          if (transition === paceTransition) simulationPacing.reanchor(committed, wall);
+        });
+        if (!controller) simulationPacing.reanchor(latestCommittedHorizon, wall);
+      }
+    };
+    simulationPaceCommandRef.current = changePace;
     const cancelNativePreparation = () => {
       queuedNativePreparation = null;
       if (nativePreparation) {
@@ -681,6 +754,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const document = latestResultDocument;
       if (
         !document ||
+        (simulationPacing.read().rate === 0 && displayed !== null) ||
         pending ||
         publishing ||
         queuedNativePreparation?.document === document ||
@@ -698,6 +772,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         queuedNativePreparation = null;
         const current = () =>
           currentSession() &&
+          (simulationPacing.read().rate !== 0 || displayed === null) &&
           session?.active === true &&
           runtimeDocumentRef.current === document &&
           latestResultDocument === document &&
@@ -945,6 +1020,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
           ledPresentation.reset();
+          if (simulationPacing.explicit) {
+            const rate = simulationPacing.read().rate;
+            ledPresentation.setPlaybackRate(rate, Math.round(window.performance.now() * 1000));
+            if (rate === 0) {
+              simulationPacing.request(0);
+              worker.setPaused(true);
+            }
+          }
           cancelOpticalPublication();
           // Source-only edits intentionally keep the controller generation,
           // and onResult does not identify the dispatch source. Until a real
@@ -960,6 +1043,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
           requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
           simulationStartedAtRef.current = window.performance.now();
+          if (simulationPacing.explicit)
+            simulationPacing.reanchor(0, Math.round(simulationStartedAtRef.current * 1000));
         },
         onResult: (nextResult, ledTemporal, clockProfileId) => {
           if (!currentSession()) return;
@@ -1015,6 +1100,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onCommittedHorizon: (horizon) => {
           if (!currentSession()) return;
           latestCommittedHorizon = horizon;
+          if (hostTransitionPending) {
+            hostTransitionPending = false;
+            simulationPacing.reanchor(horizon, Math.round(window.performance.now() * 1000));
+          }
         },
         onSerialProjection: (serial) => {
           if (!currentSession()) return;
@@ -1063,6 +1152,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (cancelNativePreparationRef.current === cancelNativePreparation)
         cancelNativePreparationRef.current = null;
       if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
+      if (simulationPaceCommandRef.current === changePace) simulationPaceCommandRef.current = null;
+      if (settleSimulationPauseRef.current === settlePause) settleSimulationPauseRef.current = null;
       controller?.stop();
     };
   }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
@@ -1134,6 +1225,27 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   const [selection, setSelection] = useState<Selection>(null);
   const [clipboardSelection, setClipboardSelection] = useState<Selection>(null);
+  const annotations = useCanvasAnnotations({
+    document,
+    selection,
+    clipboard: clipboardSelection,
+    setSelection,
+    setClipboard: setClipboardSelection,
+    getCurrentDocument,
+    commit: commitDocument,
+    notice: setNotice,
+    nextId,
+    center: visibleCenter,
+    scale: () => {
+      const rect = stageRef.current?.getBoundingClientRect();
+      return rect && rect.width > 0 && rect.height > 0
+        ? Math.min(
+            STAGE_WIDTH / viewport.zoom / rect.width,
+            STAGE_HEIGHT / viewport.zoom / rect.height,
+          )
+        : 1;
+    },
+  });
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
@@ -1586,6 +1698,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function duplicateSelected(): void {
+    if (annotations.duplicate()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
@@ -1601,12 +1714,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function copySelected(): void {
+    if (annotations.copy()) return;
     if (selection?.kind !== 'component') return;
     setClipboardSelection({ ...selection, ids: [...selection.ids] });
     setNotice(selection.ids.length > 1 ? 'Компоненты скопированы.' : 'Компонент скопирован.');
   }
 
   function pasteCopied(): void {
+    if (annotations.paste()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
@@ -1626,6 +1741,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function removeSelection(): void {
+    if (annotations.remove()) return;
     const currentDocument = getCurrentDocument();
     if (!currentDocument || !selection) return;
     if (!structuralEditAllowed()) return;
@@ -2594,6 +2710,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function beginStagePointer(event: PointerEvent<SVGSVGElement>): void {
+    if ((event.target as Element | null)?.closest?.('[data-canvas-annotation]')) return;
     if (event.pointerType === 'touch') {
       if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) {
         event.preventDefault();
@@ -3199,11 +3316,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function fitScene(): void {
-    if (!document || document.components.length === 0) {
+    if (!document || (document.components.length === 0 && !document.annotations?.length)) {
       applyViewport(emptyInitialViewport());
       return;
     }
-    const bounds = sceneBounds(document);
+    const bounds = sceneBounds(document, true);
     const rect = stageRef.current?.getBoundingClientRect();
     applyViewport(
       bounds && rect
@@ -3221,6 +3338,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function nudgeSelection(dx: number, dy: number): void {
+    if (annotations.nudge(dx, dy)) return;
     const current = getCurrentDocument();
     if (!current || selection?.kind !== 'component') return;
     const selectedIds = selection.ids;
@@ -3501,6 +3619,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         : result;
     },
     nativeOpticalPresentation,
+    simulationPacing,
+    setSimulationRate,
     versions,
     status,
     saveStatus,
@@ -3551,7 +3671,15 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     duplicateSelected,
     copySelected,
     pasteCopied,
-    hasClipboard: clipboardSelection?.kind === 'component',
+    hasClipboard:
+      clipboardSelection?.kind === 'component' || clipboardSelection?.kind === 'annotation',
+    annotations,
+    annotationWorldPoint: toWorld,
+    addCanvasText: () => {
+      cancelInteraction();
+      setPendingTerminal(null);
+      annotations.add();
+    },
     removeSelection,
     removeWireVertexAt,
     rotateSelected,

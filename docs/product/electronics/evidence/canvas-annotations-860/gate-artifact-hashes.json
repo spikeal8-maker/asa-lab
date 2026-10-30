@@ -1,0 +1,37 @@
+{
+  "canonicalHead": "71574f66cd705dea0f29ae019ecb0e205fba7f3f",
+  "canonicalRawLog": {
+    "bytes": 47044,
+    "sha256": "ee76b671ed852716ce967638cae250e756dfc994d809353438c86e5753f02315"
+  },
+  "generalDataRun": 40994231062,
+  "generalDataJob": 123865772092,
+  "artifacts": [
+    {
+      "path": "canonical-repair-71574f66.log.gz",
+      "bytes": 11150,
+      "sha256": "6c159c3d27a1572b0930af4156965b6bf8d1fd79622776d5f082c055b5ea7f98"
+    },
+    {
+      "path": "canonical-71574f66-receipt.json",
+      "bytes": 777,
+      "sha256": "d4359f0116d16f42aac12eb0565cfc62e128f1a0ce2f34c21feb71a5352e019f"
+    },
+    {
+      "path": "budgets-71574f66.txt",
+      "bytes": 563,
+      "sha256": "7f00109e713818d0d46a5c03fb87fd0ffbb952b8afff84edbdd8a22944c455ae"
+    },
+    {
+      "path": "general-data-71574f66-fragment.txt",
+      "bytes": 3068,
+      "sha256": "e880cb2073accb6b2f77ee6c9817c2b37db7b09bd54ddd1a4b89eba5bfacf514"
+    },
+    {
+      "path": "api-repair-focused.txt",
+      "bytes": 301,
+      "sha256": "5cd9465f3fd03bd7d25e92143848ef90a6d274c996ebc10dc7db62093fed35d0"
+    }
+  ],
+  "serialization": "Git index LF blobs; compressed log retains original raw bytes"
+}

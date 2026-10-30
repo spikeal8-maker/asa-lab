@@ -1,0 +1,50 @@
+[
+  {
+    "original_path": "canonical-failure-84f65b41.log.gz",
+    "durable_path": "canonical-failure-84f65b41.log.gz",
+    "raw_bytes": 5792,
+    "raw_sha256": "e85fe0d9fcf6e63a5df35691d05672d5846a094ca6be8eda61ea9f01ae4a821f",
+    "stored_bytes": 5792,
+    "stored_sha256": "e85fe0d9fcf6e63a5df35691d05672d5846a094ca6be8eda61ea9f01ae4a821f"
+  },
+  {
+    "original_path": "canonical-failure-84f65b41-receipt.json",
+    "durable_path": "canonical-failure-84f65b41-receipt.json.gz",
+    "raw_bytes": 518,
+    "raw_sha256": "53d95115d80aa33db6e51f1c348d8d2644306dcbb12f24d16f84a419733ef919",
+    "stored_bytes": 357,
+    "stored_sha256": "7b79b8d907aa18b653b7683d6503e339afb01b0957237d21a5c28e2fdbb41e4d"
+  },
+  {
+    "original_path": "ownership-isolated-current.log",
+    "durable_path": "ownership-isolated-current.log.gz",
+    "raw_bytes": 483,
+    "raw_sha256": "4a64dd77261485b8d245e1603bf453c51378d68d00b49a35cbba6b66a451b208",
+    "stored_bytes": 340,
+    "stored_sha256": "e3c97ec8d31a1d71e279df9a11fcdc00ecb7f15734c47c054b08f42648804b01"
+  },
+  {
+    "original_path": "ownership-profile-path.json",
+    "durable_path": "ownership-profile-path.json.gz",
+    "raw_bytes": 685,
+    "raw_sha256": "4ed617fad9ce89ec67b8b16490f6d7e8fb2af9b38e54f3a561e533cc62b4f259",
+    "stored_bytes": 396,
+    "stored_sha256": "bebdaa891294611e967839f6598bd8e23dc717f4d9e5ecfc8d158dac2c2372ab"
+  },
+  {
+    "original_path": "ownership-prior-fad679-fragment.txt",
+    "durable_path": "ownership-prior-fad679-fragment.txt.gz",
+    "raw_bytes": 167,
+    "raw_sha256": "92b407b0ea3f710897bae594d1b6b9502fe6debbc459c0158785f194bdf98351",
+    "stored_bytes": 112,
+    "stored_sha256": "d89fbabbfd748c3801d6f9a5cb0e6764753cc22ca1dc4a468996fc06ff956ea0"
+  },
+  {
+    "original_path": "ownership-timeout-classification.json",
+    "durable_path": "ownership-timeout-classification.json.gz",
+    "raw_bytes": 2486,
+    "raw_sha256": "9d2c7213cc89b0da2b18b770e174126a05aba5c5b7327174bac24c8b6c425491",
+    "stored_bytes": 1268,
+    "stored_sha256": "8f405bbc98b25658bb1733dd607a0ab4338a9d920c519c631b36e624c2b19e10"
+  }
+]
