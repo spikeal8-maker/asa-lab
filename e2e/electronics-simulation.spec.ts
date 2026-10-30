@@ -5258,7 +5258,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
       }
       assertFits(observation.primary);
       if ([1180, 1181, 1373, 1374].includes(observation.viewport.width)) {
-        expect(observation.toolbar.height).toBe(observation.viewport.width <= 1373 ? 96 : 48);
+        expect(observation.toolbar.height).toBe(48);
         expect(observation.headerGroups).toHaveLength(2);
         for (const group of observation.headerGroups) {
           expect(group.rect.left).toBeGreaterThanOrEqual(0);
@@ -5268,11 +5268,18 @@ for (const { mode, segment, widths } of compactControlSegments) {
         }
         expect(observation.headerControls).toHaveLength(
           observation.view.includes('breadboard')
-            ? 15
+            ? 16
             : observation.view.includes('schematic')
               ? 8
               : 6,
         );
+        if (observation.view.includes('breadboard')) {
+          expect(
+            observation.headerControls.filter(
+              (control) => control.ariaLabel === 'Добавить текст на схему',
+            ),
+          ).toHaveLength(1);
+        }
         for (const control of observation.headerControls) {
           assertFits(control);
           expect(control.rect.width).toBeGreaterThan(0);

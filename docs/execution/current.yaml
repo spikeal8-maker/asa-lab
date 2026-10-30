@@ -13389,7 +13389,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: toolbar868_integrated62ca_composition_approved_toolbar_oracle870_selected
+      checkpoint: toolbar_oracle870_done_sevenseg_inspector872_selected_prepared_audit_complete
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13400,7 +13400,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-TOOLBAR-ORACLE-001
+      current_slice: TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15305,6 +15305,7 @@ parallel_lanes:
       candidate_sha: 46d388c04c876546dccf1427b7758e34792d901e
       candidate_publication: published
       candidate_acceptance: blocked
+      owner_cleanup_decision: Owner_explicitly_keep_candidate_continue_others_no_Arduino_cleanup_2026_10_30
       size_evidence: Arduino2000170of2000000_other7capsPASS_reader13PASS_nativeAFTER_canonical_independentreview_NOT_RUN
       report: reports/arduino-block-mount-865/README.md
       owner_acceptance: pending
@@ -15405,11 +15406,15 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_proven_stale_desktop_header_oracle_test_only
+      checkpoint: source_review_evidence_done_a85_native16_canonical2565_71fresh
+      accepted_candidate_sha: a85c5a2a68db9fe83755e2b0168aa7fadde69f74
+      source_review_evidence: done
+      independent_review: APPROVE_initial_header_only_not_full_journeys
+      report: docs/product/electronics/evidence/toolbar-oracle-870/GATES.md
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       context_hints:
@@ -15432,6 +15437,45 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T11:00:46Z'
       observation_note: Fresh fetch main before edits; clean root HEAD equals origin62ca after reviewed868 source integration. Exacta94General41038088189_all4SUCCESS, composed62ca canonical2565tests71fresh/all8caps and independent compositionAPPROVE; newmainGeneral41043528373inprogress not PASS. No newfullbrowserclaim. PreserveforeignProjects1193 andalloldproof.
+
+  - id: electronics-sevenseg-inspector
+    parent_lane: electronics
+    worktree_id: electronics-sevenseg-inspector
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001.md
+    task:
+      id: TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001
+      issue: 872
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'no'
+      checkpoint: selected_confirmed_native_stage_lit_inspector_stale_zero
+      owner_acceptance: pending
+      execution_role: bounded_native_inspector_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SEVENSEG-INSPECTOR-001.md
+      owner_authorization: Owner explicitly asks finish panel in main then repair sevensegment inspector and all genuinely prepared work; no refactor/server/foreign edits. Earlier explicitNOArduino cleanup remains,865candidate kept. Prepared789 independent completion remains subsequent; superseded751/819 and rejected833 are not deliverables to restore.
+      product_boundary: selected_sevensegment_committed_readout_subscription_only_no_editor_perframe_render_or_physics_protocol_change
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: a2e380a26abbf10165a914efb609194222bf9c30
+      convergence_baseline_sha: a2e380a26abbf10165a914efb609194222bf9c30
+      head_sha: null
+      observed_at: '2026-10-30T11:29:31Z'
+      observation_note: Fresh fetch main before writes equals clean roota2;870candidatea85verified45Gitpaths_fullnonheaderbytespreserved_independentnative16_andcanonical2565tests71freshNxPASS. Maina2General41045380393inprogress notclaimedPASS. CachedMATH6E fiveactive/threeinactiveStagePASS_theninspector9907zero; no fullbrowserrerun. Sourceplan required before edits.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
