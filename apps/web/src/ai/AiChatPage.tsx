@@ -15,6 +15,7 @@ import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './st
 import { AiMessageContent } from './AiMessageContent';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
+import { AiCompactSelect } from './AiCompactSelect';
 import { AiVoiceInput } from './AiVoiceInput';
 import { mergeVoiceTranscript } from './voice-transcript-draft';
 import {
@@ -335,12 +336,14 @@ export function AiChatPage({
     window.visualViewport?.addEventListener('resize', reposition);
     window.visualViewport?.addEventListener('scroll', reposition);
     const dismissMenu = (event: PointerEvent): void => {
+      if ((event.target as Element).closest?.('.ai-compact-popup')) return;
       if (toolsMenu.current && !toolsMenu.current.contains(event.target as Node)) {
         toolsMenu.current.removeAttribute('open');
       }
     };
     const closeOnEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') toolsMenu.current?.removeAttribute('open');
+      if (event.key === 'Escape' && !document.querySelector('.ai-compact-popup'))
+        toolsMenu.current?.removeAttribute('open');
     };
     document.addEventListener('pointerdown', dismissMenu);
     document.addEventListener('keydown', closeOnEscape);
@@ -2255,8 +2258,8 @@ export function AiChatPage({
                           <AiChatIcon name="search" size={19} /> Поиск в интернете
                         </button>
                         {webSearchStatus ? (
-                          <select
-                            aria-label="Режим интернет-поиска"
+                          <AiCompactSelect
+                            label="Режим интернет-поиска"
                             value={
                               !webSearchStatus.configured && webSearchMode !== 'weather'
                                 ? 'off'
@@ -2267,30 +2270,31 @@ export function AiChatPage({
                               !webSearchStatus.enabled ||
                               (!webSearchStatus.configured && !webSearchStatus.weatherConfigured)
                             }
-                            title={
-                              webSearchStatus.enabled &&
-                              (webSearchStatus.configured || webSearchStatus.weatherConfigured)
-                                ? 'Поиск через сервер ASA · SearxNG'
-                                : 'Поиск не подключён администратором'
-                            }
-                            onChange={(event) => {
-                              setWebSearchMode(event.target.value as AiWebSearchMode);
+                            options={[
+                              {
+                                value: 'auto',
+                                label: 'Авто',
+                                disabled: !webSearchStatus.configured,
+                              },
+                              { value: 'off', label: 'Выключен' },
+                              {
+                                value: 'web',
+                                label: 'Веб-поиск',
+                                disabled: !webSearchStatus.configured,
+                              },
+                              {
+                                value: 'images',
+                                label: 'Картинки',
+                                disabled: !webSearchStatus.configured,
+                              },
+                              { value: 'weather', label: 'Погода' },
+                            ]}
+                            onChange={(value) => {
+                              setWebSearchMode(value as AiWebSearchMode);
                               toolsMenu.current?.removeAttribute('open');
-                              composer.current?.focus();
                             }}
-                          >
-                            <option value="auto" disabled={!webSearchStatus.configured}>
-                              Авто
-                            </option>
-                            <option value="off">Выключен</option>
-                            <option value="web" disabled={!webSearchStatus.configured}>
-                              Веб-поиск
-                            </option>
-                            <option value="images" disabled={!webSearchStatus.configured}>
-                              Картинки
-                            </option>
-                            <option value="weather">Погода</option>
-                          </select>
+                            onSelect={() => composer.current?.focus()}
+                          />
                         ) : null}
                       </div>
                       <div className="chat-tools-option-row">
@@ -2316,20 +2320,22 @@ export function AiChatPage({
                         >
                           <AiChatIcon name="sparkles" size={20} /> Изображение
                         </button>
-                        <select
-                          aria-label="Генерация изображений"
+                        <AiCompactSelect
+                          label="Генерация изображений"
                           value={imageSelection}
                           disabled={interactionBusy}
-                          onChange={(event) => {
-                            const mode = event.target.value as ImageGenerationMode;
+                          options={[
+                            { value: 'off', label: 'Выключено' },
+                            { value: 'auto', label: 'Авто' },
+                            { value: 'flux2-klein-4b-v1', label: 'FLUX.2 Klein 4B' },
+                          ]}
+                          onChange={(value) => {
+                            const mode = value as ImageGenerationMode;
                             setImageSelection(mode);
                             setImageMode(mode === 'flux2-klein-4b-v1');
                           }}
-                        >
-                          <option value="off">Выключено</option>
-                          <option value="auto">Авто</option>
-                          <option value="flux2-klein-4b-v1">FLUX.2 Klein 4B</option>
-                        </select>
+                          onSelect={() => composer.current?.focus()}
+                        />
                       </div>
                       <div className="chat-tools-option-row chat-tools-video-row">
                         <button type="button" disabled title="Видео — скоро">
@@ -2347,43 +2353,55 @@ export function AiChatPage({
                       ) : (status?.availableModels?.length ?? 0) > 1 ||
                         (status?.enabled &&
                           !status.availableModels?.includes(selectedModel || status.model)) ? (
-                        <select
+                        <AiCompactSelect
                           className="asa-ai-model-picker"
-                          aria-label="Модель ИИ"
-                          title="Выбрать модель"
-                          onFocus={() => void refreshModelChoices()}
-                          value={selectedModel || status?.model}
-                          onChange={(event) => setSelectedModel(event.target.value)}
+                          label="Модель ИИ"
+                          onOpen={() => void refreshModelChoices()}
+                          value={selectedModel || status?.model || ''}
+                          displayLabel={
+                            status &&
+                            !status.availableModels?.includes(selectedModel || status.model)
+                              ? 'Модель недоступна'
+                              : (status?.modelChoices?.find(
+                                  (m) => m.id === (selectedModel || status.model),
+                                )?.label ??
+                                ((selectedModel || status?.model) === 'ollama-local'
+                                  ? status?.ollamaModel || 'Локальная модель'
+                                  : selectedModel || status?.model))
+                          }
+                          onChange={setSelectedModel}
                           disabled={interactionBusy || !status?.enabled}
-                        >
-                          {status &&
-                          !status.availableModels?.includes(selectedModel || status.model) ? (
-                            <option value={selectedModel || status.model} disabled>
-                              Выбранная модель недоступна — выберите другую
-                            </option>
-                          ) : null}
-                          {status?.availableModels?.map((name) => (
-                            <option
-                              key={name}
-                              value={name}
-                              disabled={tokenBudgets?.models?.some(
+                          options={[
+                            ...(status &&
+                            !status.availableModels?.includes(selectedModel || status.model)
+                              ? [
+                                  {
+                                    value: selectedModel || status.model,
+                                    label: 'Выбранная модель недоступна — выберите другую',
+                                    disabled: true,
+                                  },
+                                ]
+                              : []),
+                            ...(status?.availableModels?.map((name) => ({
+                              value: name,
+                              disabled: tokenBudgets?.models?.some(
                                 (row) => row.model === name && !row.available,
-                              )}
-                            >
-                              {status.modelChoices?.find((m) => m.id === name)?.label ??
-                                (name === 'ollama-local'
-                                  ? status.ollamaModel || 'Локальная модель'
-                                  : name)}
-                              {tokenBudgets?.models?.find((row) => row.model === name)?.reason ===
-                              'ai_budget_pending'
-                                ? ' · расход ожидает подтверждения'
-                                : tokenBudgets?.models?.find((row) => row.model === name)
-                                      ?.reason === 'ai_budget_exhausted'
-                                  ? ' · бюджет исчерпан'
-                                  : ''}
-                            </option>
-                          ))}
-                        </select>
+                              ),
+                              label:
+                                (status.modelChoices?.find((m) => m.id === name)?.label ??
+                                  (name === 'ollama-local'
+                                    ? status.ollamaModel || 'Локальная модель'
+                                    : name)) +
+                                (tokenBudgets?.models?.find((row) => row.model === name)?.reason ===
+                                'ai_budget_pending'
+                                  ? ' · расход ожидает подтверждения'
+                                  : tokenBudgets?.models?.find((row) => row.model === name)
+                                        ?.reason === 'ai_budget_exhausted'
+                                    ? ' · бюджет исчерпан'
+                                    : ''),
+                            })) ?? []),
+                          ]}
+                        />
                       ) : (
                         <span className="asa-ai-model-single">
                           {status?.enabled

@@ -264,7 +264,20 @@ async function send(page: Page, mode: string, message: string) {
   const menu = page.locator('details.chat-tools-menu');
   if ((await menu.getAttribute('open')) === null)
     await page.locator('summary.chat-attach-button').click();
-  await page.getByRole('combobox', { name: 'Режим интернет-поиска' }).selectOption(mode);
+  await page.getByRole('button', { name: 'Режим интернет-поиска' }).click();
+  const label = (
+    {
+      auto: 'Авто',
+      off: 'Выключен',
+      web: 'Веб-поиск',
+      images: 'Картинки',
+      weather: 'Погода',
+    } as Record<string, string>
+  )[mode];
+  await page
+    .getByRole('listbox', { name: 'Режим интернет-поиска' })
+    .getByRole('option', { name: label })
+    .click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill(message);
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
@@ -431,7 +444,7 @@ test('missing provider configuration does not disable ordinary chat', async ({ p
   fake.setEvidence(null);
   await page.goto('/#/ai');
   await page.locator('summary.chat-attach-button').click();
-  await expect(page.getByRole('combobox', { name: 'Режим интернет-поиска' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Режим интернет-поиска' })).toBeDisabled();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Объясни закон Ома');
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
@@ -453,10 +466,16 @@ test('native forecast mode can be chosen without an installed search component',
   });
   await page.goto('/#/ai');
   await page.locator('summary.chat-attach-button').click();
-  const mode = page.getByRole('combobox', { name: 'Режим интернет-поиска' });
+  const mode = page.getByRole('button', { name: 'Режим интернет-поиска' });
   await expect(mode).toBeEnabled();
-  await expect(mode).toHaveValue('off');
-  await expect(mode.locator('option[value=web]')).toHaveJSProperty('disabled', true);
+  await expect(mode).toContainText('Выключен');
+  await mode.click();
+  await expect(
+    page
+      .getByRole('listbox', { name: 'Режим интернет-поиска' })
+      .getByRole('option', { name: 'Веб-поиск' }),
+  ).toBeDisabled();
+  await mode.press('Escape');
   await send(page, 'weather', 'Узнать прогноз погоды');
   expect(fake.requests[0]?.webSearchMode).toBe('weather');
   await expect(page.getByText('Для прогноза укажите город.')).toBeVisible();

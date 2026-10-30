@@ -1154,7 +1154,7 @@ for (const theme of ['light', 'dark'] as const) {
       }
       await expect(page.locator('.asa-ai-layout')).toHaveAttribute('data-chat-theme', theme);
       await expect(page.locator('.chat-start-state')).toBeVisible();
-      await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Модель ИИ' })).toBeVisible();
       await expect(page.locator('summary.chat-attach-button')).toBeVisible();
       await expect(page.locator('.asa-ai-layout')).toHaveCSS(
         'background-color',
@@ -1843,16 +1843,56 @@ test('AI renders GFM tables, code and safe links without injecting HTML', async 
 test('AI model picker uses only admin-allowed OpenAI models', async ({ page }) => {
   const fake = await fixture(page);
   await page.goto('/#/ai');
-  const picker = page.getByRole('combobox', { name: 'Модель ИИ' });
+  const picker = page.getByRole('button', { name: 'Модель ИИ' });
   await expect(picker).toBeVisible();
-  await expect(picker.getByRole('option')).toHaveCount(2);
-  await picker.selectOption('gpt-4.1-mini');
+  await picker.click();
+  const choices = page.getByRole('listbox', { name: 'Модель ИИ' });
+  await expect(choices.getByRole('option')).toHaveCount(2);
+  await choices.getByRole('option', { name: 'gpt-4.1-mini' }).click();
+  await expect(picker).toContainText('gpt-4.1-mini');
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Выбранная модель');
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();
   fake.release();
   await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
   expect(fake.requests).toHaveLength(1);
   expect(fake.models).toEqual(['gpt-4.1-mini']);
+});
+
+test('compact chat menus preserve keyboard escape, draft and right alignment', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 390, height: 750 });
+  await page.goto('/#/ai');
+  const draft = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await draft.fill('Сохранённый черновик');
+  const model = page.getByRole('button', { name: 'Модель ИИ' });
+  await model.focus();
+  await model.press('ArrowDown');
+  const modelMenu = page.getByRole('listbox', { name: 'Модель ИИ' });
+  await expect(modelMenu).toBeVisible();
+  await modelMenu.press('Escape');
+  await expect(modelMenu).toHaveCount(0);
+  await expect(model).toBeFocused();
+  await expect(draft).toHaveValue('Сохранённый черновик');
+
+  const tools = page.locator('.chat-tools-menu');
+  await tools.locator('summary').click();
+  const imageMode = tools.getByRole('button', { name: 'Генерация изображений' });
+  await imageMode.click();
+  const submenu = page.getByRole('listbox', { name: 'Генерация изображений' });
+  await expect(submenu).toBeVisible();
+  const bounds = await submenu.boundingBox();
+  const trigger = await imageMode.boundingBox();
+  expect(Math.abs(bounds!.x + bounds!.width - (trigger!.x + trigger!.width))).toBeLessThan(12);
+  await submenu.press('Escape');
+  await expect(submenu).toHaveCount(0);
+  await expect(tools).toHaveAttribute('open', '');
+  await imageMode.click();
+  await page
+    .getByRole('listbox', { name: 'Генерация изображений' })
+    .getByRole('option', { name: 'Авто' })
+    .click();
+  await expect(imageMode).toContainText('Авто');
+  await expect(draft).toHaveValue('Сохранённый черновик');
 });
 
 for (const width of [1440, 600, 390, 320]) {
@@ -2184,19 +2224,13 @@ test('AI theme is explicitly light by default and respects the chosen appearance
     await expect(popup).toHaveCSS('color', text);
     await expect(popup).toHaveCSS('color-scheme', theme);
     await expect(tools.getByRole('button', { name: 'Фото и файлы' })).toBeVisible();
-    const select = tools.getByRole('combobox', { name: 'Генерация изображений' });
-    await expect(select).toHaveCSS('background-color', surface);
-    await expect(select).toHaveCSS('color', text);
-    await expect(select.locator('option').first()).toHaveCSS('background-color', surface);
-    await select.focus();
-    await expect(select).toHaveCSS('outline-width', '2px');
-    await select.hover();
-    await expect(select).toHaveCSS(
-      'background-color',
-      theme === 'dark' ? 'rgb(50, 50, 53)' : 'rgb(234, 234, 234)',
-    );
-    await select.selectOption('auto');
-    await expect(select).toHaveValue('auto');
+    const select = tools.getByRole('button', { name: 'Генерация изображений' });
+    await select.click();
+    const submenu = page.getByRole('listbox', { name: 'Генерация изображений' });
+    await expect(submenu).toHaveCSS('background-color', surface);
+    await expect(submenu).toHaveCSS('color', text);
+    await submenu.getByRole('option', { name: 'Авто' }).click();
+    await expect(select).toContainText('Авто');
     await tools.locator('summary').click();
   }
   await checkMenu('dark');

@@ -1392,6 +1392,123 @@
 .asa-ai-layout .chat-tools-video-row .chat-tools-model-caption {
   text-align: right;
 }
+
+/* Compact selectors keep the name and chevron together; the popup is portalled
+ * so composer and history overflow cannot clip long model names. */
+.asa-ai-layout .ai-compact-select,
+.asa-ai-layout .asa-ai-model-picker.ai-compact-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  width: auto;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 5px 7px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ai-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asa-ai-layout .ai-compact-select:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ai-text) 6%, transparent);
+}
+.asa-ai-layout .ai-compact-select-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asa-ai-layout .ai-compact-select-chevron {
+  flex: none;
+  font-size: 17px;
+  line-height: 1;
+  transform: translateY(-2px);
+}
+.asa-ai-layout .chat-tools-option-row > .ai-compact-select {
+  flex: 0 1 auto;
+  max-width: min(46%, 150px);
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+.asa-ai-layout .chat-tools-option-row > .ai-compact-select:focus-visible,
+.asa-ai-layout .asa-ai-model-picker.ai-compact-select:focus-visible {
+  outline: 2px solid var(--ai-accent);
+  outline-offset: 2px;
+}
+.asa-ai-layout .chat-history-list {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ai-muted) 38%, transparent) transparent;
+}
+.asa-ai-layout .chat-history-list::-webkit-scrollbar {
+  width: 7px;
+}
+.asa-ai-layout .chat-history-list::-webkit-scrollbar-thumb {
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ai-muted) 38%, transparent);
+}
+.asa-ai-layout .chat-history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ai-compact-popup {
+  position: fixed;
+  z-index: 9999;
+  display: grid;
+  width: max-content;
+  min-width: 160px;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid #e5e5e5;
+  border-radius: 15px;
+  background: #fff;
+  color: #202123;
+  box-shadow: 0 12px 34px #0002;
+  font:
+    13px 'Segoe UI',
+    system-ui,
+    sans-serif;
+}
+.ai-compact-popup[data-chat-theme='dark'] {
+  border-color: #3a3a3d;
+  background: #1d1d1f;
+  color: #f5f5f5;
+  box-shadow: 0 12px 34px #0008;
+}
+.ai-compact-popup > button {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.ai-compact-popup > button:is(:hover, :focus-visible, [aria-selected='true']) {
+  background: #eaeaea;
+}
+.ai-compact-popup[data-chat-theme='dark']
+  > button:is(:hover, :focus-visible, [aria-selected='true']) {
+  background: #303033;
+}
+.ai-compact-popup > button:focus-visible {
+  outline: 2px solid #0877b3;
+}
+.ai-compact-popup > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 @media (max-width: 600px) {
   .asa-ai-layout .chat-composer.compact:has(.chat-attachment-drafts) {
     grid-template-areas: 'files' 'input' 'controls';
