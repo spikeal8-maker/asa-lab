@@ -38,6 +38,7 @@ async function fixture(page: Page) {
   const histories = new Map<string, Record<string, unknown>[]>();
   const requests: Record<string, unknown>[] = [];
   const writes: Record<string, unknown>[] = [];
+  const imageReads: string[] = [];
   let evidence: AiWebSearchEvidence | null = baseEvidence;
   let available = true;
   let weatherAvailable = true;
@@ -51,6 +52,9 @@ async function fixture(page: Page) {
     weatherConfigured: true,
     weatherEnabled: true,
     operationsPerHour: 100,
+    resultsLimit: 8,
+    pagesLimit: 2,
+    pageCharLimit: 4500,
     configurationVersion: 4,
   };
   const errors: string[] = [];
@@ -127,6 +131,9 @@ async function fixture(page: Page) {
           enabled: Boolean(data.enabled),
           operationsPerHour: Number(data.operationsPerHour),
           weatherEnabled: Boolean(data.weatherEnabled),
+          resultsLimit: Number(data.resultsLimit),
+          pagesLimit: Number(data.pagesLimit),
+          pageCharLimit: Number(data.pageCharLimit),
           configurationVersion: config.configurationVersion + 1,
         };
       }
@@ -148,11 +155,13 @@ async function fixture(page: Page) {
       histories.set(id, []);
       return json({ id }, 201);
     }
-    if (/\/web-search\/[^/]+\/images\/\d+$/.test(path))
+    if (/\/web-search\/[^/]+\/images\/\d+$/.test(path)) {
+      imageReads.push(req.url());
       return route.fulfill({
         contentType: 'image/png',
         body: readFileSync('apps/web/public/landing/electronics-simulation.png'),
       });
+    }
     if (/\/attachments$/.test(path)) return json({ items: [] });
     if (path.endsWith('/stop')) {
       release?.();
@@ -227,6 +236,7 @@ async function fixture(page: Page) {
   });
   return {
     requests,
+    imageReads,
     writes,
     errors,
     setEvidence: (value: AiWebSearchEvidence | null) => {
@@ -333,10 +343,18 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(
         page.getByRole('region', { name: 'Найденные изображения, прокрутка по горизонтали' }),
       ).toBeVisible();
-      await expect(page.locator('.asa-ai-web-images a').first()).toHaveAttribute(
-        'href',
-        'https://example.org/project',
-      );
+      await page
+        .getByRole('button', {
+          name: 'Открыть изображение: Электронная схема для учебного проекта',
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole('dialog', { name: 'Просмотр изображения' })).toBeVisible();
+      await expect(
+        page.getByRole('dialog').getByRole('link', { name: 'Источник' }),
+      ).toHaveAttribute('href', 'https://example.org/project');
+      await noOverflow(page);
+      await page.getByRole('button', { name: 'Закрыть просмотр', exact: true }).click();
       if (width <= 390) {
         expect(
           await page
@@ -495,6 +513,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.getByText('Прогноз погоды', { exact: true }).click();
     await expect(page.getByRole('checkbox', { name: 'Включить прогноз погоды' })).toBeChecked();
     await page.getByRole('spinbutton', { name: 'Лимит поисковых операций за час' }).fill('50');
+    await page.getByRole('spinbutton', { name: 'Результатов поиска', exact: true }).fill('6');
+    await page.getByRole('spinbutton', { name: 'Страниц для чтения', exact: true }).fill('1');
+    await page.getByRole('spinbutton', { name: 'Символов со страницы', exact: true }).fill('2500');
     await page.getByRole('button', { name: 'Сохранить поиск', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Поисковый запрос не выполнялся.'),
@@ -503,6 +524,9 @@ for (const width of [1440, 1024, 390, 320]) {
       enabled: true,
       weatherEnabled: true,
       operationsPerHour: 50,
+      resultsLimit: 6,
+      pagesLimit: 1,
+      pageCharLimit: 2500,
       configurationVersion: 4,
     });
     expect(fake.requests).toHaveLength(0);
@@ -536,6 +560,7 @@ test('found images copy repeatedly and download the displayed file without navig
         title: 'Тестовая картинка',
         thumbnailUrl: '',
         sourceUrl: 'https://example.org/image',
+        originalUrl: 'https://images.example.org/original.png',
       },
     ],
   });
@@ -552,9 +577,10 @@ test('found images copy repeatedly and download the displayed file without navig
   await card.getByRole('button', { name: 'Изображение скопировано', exact: true }).click();
   await expect(copy).toBeVisible({ timeout: 5000 });
   const downloadEvent = page.waitForEvent('download');
-  await card.getByRole('link', { name: 'Скачать изображение', exact: true }).click();
+  await card.getByRole('button', { name: 'Скачать изображение', exact: true }).click();
   const download = await downloadEvent;
   expect(download.suggestedFilename()).toBe('Тестовая картинка.png');
+  expect(fake.imageReads.filter((url) => url.includes('original=1'))).toHaveLength(1);
   const path = await download.path();
   expect(readFileSync(path!).subarray(0, 8)).toEqual(
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),

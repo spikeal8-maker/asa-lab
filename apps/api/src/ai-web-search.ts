@@ -17,8 +17,11 @@ import {
 } from './ai-web-search-provider.js';
 import { validateAiAttachment } from './ai-attachments/validation.js';
 import { AiToolPolicyService, toolRule } from './ai-tool-policy.js';
-import { readPublicPage } from './ai-web-page-reader.js';
+import { readPublicPage, readPublicImage } from './ai-web-page-reader.js';
 interface ConfigRow {
+  results_limit?: number;
+  pages_limit?: number;
+  page_char_limit?: number;
   allowed_domains?: readonly string[];
   blocked_domains?: readonly string[];
   search_instructions?: string;
@@ -219,6 +222,13 @@ export class AiWebSearchService {
       weatherEnabled: r.weather_enabled,
       operationsPerHour: r.operations_per_hour,
       configurationVersion: Number(r.revision),
+      ...(r.results_limit !== undefined
+        ? {
+            resultsLimit: r.results_limit,
+            pagesLimit: r.pages_limit ?? 2,
+            pageCharLimit: r.page_char_limit ?? 4500,
+          }
+        : {}),
       allowedDomains: r.allowed_domains ?? [],
       blockedDomains: r.blocked_domains ?? [],
       searchInstructions: r.search_instructions ?? '',
@@ -240,6 +250,9 @@ export class AiWebSearchService {
             'allowedDomains',
             'blockedDomains',
             'searchInstructions',
+            'resultsLimit',
+            'pagesLimit',
+            'pageCharLimit',
           ].includes(key),
       ) ||
       typeof input.enabled !== 'boolean' ||
@@ -256,6 +269,34 @@ export class AiWebSearchService {
         'Проверьте настройки интернет-поиска.',
       );
     const previous = await this.row(actor);
+    const retrieval = [
+      input.resultsLimit ?? previous.results_limit ?? 8,
+      input.pagesLimit ?? previous.pages_limit ?? 2,
+      input.pageCharLimit ?? previous.page_char_limit ?? 4500,
+    ];
+    if (
+      !retrieval.every(Number.isSafeInteger) ||
+      retrieval[0]! < 1 ||
+      retrieval[0]! > 12 ||
+      retrieval[1]! < 0 ||
+      retrieval[1]! > 2 ||
+      retrieval[2]! < 500 ||
+      retrieval[2]! > 8000
+    )
+      throw new AiWebSearchError(
+        'ai_web_config_invalid',
+        400,
+        'Результаты: 1–12; чтение: 0–2 страницы; текст: 500–8000 символов.',
+      );
+    if (
+      previous.results_limit === undefined &&
+      [input.resultsLimit, input.pagesLimit, input.pageCharLimit].some((v) => v !== undefined)
+    )
+      throw new AiWebSearchError(
+        'ai_web_schema_required',
+        409,
+        'Для новых настроек требуется обновить схему поиска.',
+      );
     const allowed = normalizeSearchDomains(input.allowedDomains ?? previous.allowed_domains ?? []);
     const blocked = normalizeSearchDomains(input.blockedDomains ?? previous.blocked_domains ?? []);
     const instructions = input.searchInstructions ?? previous.search_instructions ?? '';
@@ -267,7 +308,9 @@ export class AiWebSearchService {
       );
     try {
       await this.pool.query(
-        'SELECT ai_web_search_policy_set($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)',
+        previous.results_limit === undefined
+          ? 'SELECT ai_web_search_policy_set($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9)'
+          : 'SELECT ai_web_search_retrieval_set($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9,$10,$11,$12)',
         [
           actor,
           input.enabled,
@@ -278,6 +321,7 @@ export class AiWebSearchService {
           JSON.stringify(allowed),
           JSON.stringify(blocked),
           instructions,
+          ...(previous.results_limit === undefined ? [] : retrieval),
         ],
       );
     } catch (e) {
@@ -315,13 +359,25 @@ export class AiWebSearchService {
       throw new AiWebSearchError('ai_web_query_invalid', 400, 'Укажите поисковый запрос.');
     const lookupSignal = AbortSignal.any([signal, AbortSignal.timeout(18000)]);
     const config = await this.row();
+    const retrievalOptions = {
+      resultsLimit: config.results_limit ?? 8,
+      pagesLimit: config.pages_limit ?? 2,
+      pageCharLimit: config.page_char_limit ?? 4500,
+    };
     const toolPolicy = await this.toolPolicy.snapshot(owner, thread, request);
     const toolName =
       intent === 'web' ? 'web_search' : intent === 'images' ? 'image_search' : 'weather';
     const status = (
       await this.pool.query<{ status: string }>(
         'SELECT ai_web_search_claim($1,$2,$3,$4,$5,$6) AS status',
-        [owner, thread, request, intent, query, deferFinish && intent === 'web' ? 3 : 1],
+        [
+          owner,
+          thread,
+          request,
+          intent,
+          query,
+          deferFinish && intent === 'web' ? 1 + retrievalOptions.pagesLimit : 1,
+        ],
       )
     ).rows[0]?.status;
     if (status === 'replay') return this.evidence(owner, thread, request, false);
@@ -334,6 +390,7 @@ export class AiWebSearchService {
       retrievedAt: new Date().toISOString(),
       sources: [],
       images: [],
+      retrievalOptions,
       ...({ searchInstructions: config.search_instructions ?? '' } as object),
     };
     let evidence: AiWebSearchEvidence;
@@ -416,11 +473,13 @@ export class AiWebSearchService {
   ): Promise<AiWebSearchEvidence> {
     const sources = await Promise.all(
       evidence.sources.map(async (item) => {
-        if (!ids.slice(0, 2).includes(item.id)) return item;
+        if (!ids.slice(0, evidence.retrievalOptions?.pagesLimit ?? 2).includes(item.id))
+          return item;
         const text = await readPublicPage(
           item.url,
           signal,
           (url) => new URL(url).hostname === new URL(item.url).hostname,
+          { textLimit: evidence.retrievalOptions?.pageCharLimit ?? 4500 },
         );
         return text
           ? { ...item, pageText: text, pageRead: 'read' as const }
@@ -453,7 +512,12 @@ export class AiWebSearchService {
     reason?: AiWebSearchEvidence['reason'],
   ): Promise<AiWebSearchEvidence> {
     try {
-      const found = await this.provider.search(base.query, images, signal);
+      const found = await this.provider.search(
+        base.query,
+        images,
+        signal,
+        base.retrievalOptions?.resultsLimit ?? 8,
+      );
       const sources = found.sources.filter((item) =>
         searchDomainAllowed(item.url, config.allowed_domains ?? [], config.blocked_domains ?? []),
       );
@@ -495,6 +559,7 @@ export class AiWebSearchService {
     thread: string,
     request: string,
     imageId: number,
+    original = false,
   ): Promise<{ bytes: Buffer; mediaType: string }> {
     const now = Date.now();
     for (const [id, item] of this.imageReads)
@@ -514,19 +579,26 @@ export class AiWebSearchService {
     });
     const evidence = await this.evidence(owner, thread, request, false);
     const image = evidence?.images.find((i) => i.id === imageId),
-      url = searchThumbnailUrl(image?.thumbnailUrl);
+      url = original ? image?.originalUrl : searchThumbnailUrl(image?.thumbnailUrl);
     if (!url) throw new AiWebSearchError('ai_web_image_missing', 404, 'Изображение недоступно.');
     if (AiWebSearchService.activeImageFetches >= 8)
       throw new AiWebSearchError('ai_web_image_busy', 503, 'Просмотр изображений временно занят.');
     AiWebSearchService.activeImageFetches++;
     try {
-      const response = await this.fetchImpl(url, {
-        redirect: 'error',
-        credentials: 'omit',
-        signal: AbortSignal.timeout(12000),
-        headers: { accept: 'image/jpeg,image/png,image/webp' },
-      });
-      const bytes = await boundedWebResponse(response, 2 * 1024 * 1024);
+      let bytes: Buffer;
+      if (original) {
+        const fetched = await readPublicImage(url, AbortSignal.timeout(12000));
+        if (!fetched) throw new AiWebProviderError();
+        bytes = fetched;
+      } else {
+        const response = await this.fetchImpl(url, {
+          redirect: 'error',
+          credentials: 'omit',
+          signal: AbortSignal.timeout(12000),
+          headers: { accept: 'image/jpeg,image/png,image/webp' },
+        });
+        bytes = await boundedWebResponse(response, 2 * 1024 * 1024);
+      }
       const extension = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
         ? 'png'
         : bytes.subarray(0, 4).toString() === 'RIFF'
@@ -537,9 +609,9 @@ export class AiWebSearchService {
         valid.kind !== 'image' ||
         valid.width === null ||
         valid.height === null ||
-        valid.width * valid.height > 2_000_000 ||
-        valid.width > 2048 ||
-        valid.height > 2048 ||
+        valid.width * valid.height > (original ? 16_000_000 : 2_000_000) ||
+        valid.width > (original ? 8192 : 2048) ||
+        valid.height > (original ? 8192 : 2048) ||
         !['image/jpeg', 'image/png', 'image/webp'].includes(valid.mediaType)
       )
         throw new AiWebProviderError();

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pageText, publicPageAddress, readPublicPage } from './ai-web-page-reader';
+import { pageText, publicPageAddress, readPublicPage, readPublicImage } from './ai-web-page-reader';
 import { pageReadTool, parseNativeToolCalls } from './ai-native-tools';
 
 const body = Buffer.from(
@@ -123,5 +123,50 @@ describe('bounded public page reading', () => {
     expect(parseNativeToolCalls(calls([2, 3]), offered)[0]?.arguments.sourceIds).toEqual([2, 3]);
     for (const ids of [[9], [1, 1], [], [1, 2, 3], ['https://example.org']])
       expect(() => parseNativeToolCalls(calls(ids), offered)).toThrow();
+  });
+  it('honors the configured page count and character budget', async () => {
+    const call = [{ function: { name: 'read_page', arguments: { sourceIds: [1, 2] } } }];
+    expect(() => parseNativeToolCalls(call, [pageReadTool([1, 2], 1)])).toThrow();
+    expect(pageText('a'.repeat(9000), 8000)).toHaveLength(8000);
+    expect(pageText('a'.repeat(9000), 500)).toHaveLength(500);
+  });
+  it('loads only bounded public raster originals and revalidates redirect DNS', async () => {
+    const original = await readPublicImage('https://images.example.org/full.png', signal(), {
+      resolve,
+      transport: async () => ({
+        status: 200,
+        type: 'image/png',
+        body: Buffer.from('validated later'),
+      }),
+    });
+    expect(original?.toString()).toBe('validated later');
+    const connect = vi.fn(async () => ({
+      status: 302,
+      type: '',
+      location: 'https://private.example.org/x',
+      body: Buffer.alloc(0),
+    }));
+    const dns = vi
+      .fn()
+      .mockResolvedValueOnce([{ address: '93.184.215.14', family: 4 }])
+      .mockResolvedValueOnce([{ address: '192.168.1.112', family: 4 }]);
+    expect(
+      await readPublicImage('https://images.example.org/full.png', signal(), {
+        resolve: dns,
+        transport: connect,
+      }),
+    ).toBeNull();
+    expect(connect).toHaveBeenCalledTimes(1);
+    for (const reply of [
+      { status: 200, type: 'image/svg+xml', body },
+      { status: 200, type: 'image/png', body: Buffer.alloc(8 * 1024 * 1024 + 1) },
+    ]) {
+      expect(
+        await readPublicImage('https://images.example.org/full.png', signal(), {
+          resolve,
+          transport: async () => reply,
+        }),
+      ).toBeNull();
+    }
   });
 });

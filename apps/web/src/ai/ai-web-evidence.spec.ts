@@ -139,7 +139,7 @@ describe('server-issued internet evidence', () => {
     for (const value of [
       'https://avatars.mds.yandex.net/image.jpg',
       path + '?url=https://evil.org/',
-      path.replace(/\/1$/, '/9'),
+      path.replace(/\/1$/, '/13'),
       '//evil.org/x.png',
       'data:image/svg+xml,x',
     ])
@@ -212,7 +212,8 @@ describe('server-issued internet evidence', () => {
     );
     expect(html).toContain('aria-label="Найденные изображения, прокрутка по горизонтали"');
     expect(html.match(/class="asa-ai-web-image-preview"/g)).toHaveLength(3);
-    for (const id of [1, 2, 3]) expect(html).toContain(`href="https://example.org/image-${id}"`);
+    for (const id of [1, 2, 3]) expect(html).toContain(`aria-label="Фото ${id}"`);
+    expect(html).not.toContain('asa-ai-web-image-caption');
     expect(html).toContain('Температура 12 °C');
     expect(html).toContain('💧 65%');
     expect(html).toContain('💨 3.0 м/с');

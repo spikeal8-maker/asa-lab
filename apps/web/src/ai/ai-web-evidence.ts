@@ -28,7 +28,9 @@ export function publicSourceUrl(value: unknown): string | null {
 
 export function searchThumbnailUrl(value: unknown): string | null {
   return typeof value === 'string' &&
-    /^\/api\/ai\/threads\/[a-f0-9-]{36}\/web-search\/[a-f0-9-]{36}\/images\/[1-6]$/.test(value)
+    /^\/api\/ai\/threads\/[a-f0-9-]{36}\/web-search\/[a-f0-9-]{36}\/images\/(?:[1-9]|1[0-2])$/.test(
+      value,
+    )
     ? value
     : null;
 }
@@ -54,7 +56,7 @@ export function readWebEvidence(value: unknown): AiWebSearchEvidence | null {
   )
     return null;
   const sources: AiWebSource[] = [];
-  for (const item of value.sources.slice(0, 10)) {
+  for (const item of value.sources.slice(0, 12)) {
     if (!record(item)) continue;
     const url = publicSourceUrl(item.url);
     if (
@@ -79,12 +81,22 @@ export function readWebEvidence(value: unknown): AiWebSearchEvidence | null {
           : {}),
       });
   }
-  const images = value.images.slice(0, 8).flatMap((item) => {
+  const images = value.images.slice(0, 12).flatMap((item) => {
     if (!record(item) || typeof item.title !== 'string' || !Number.isInteger(item.id)) return [];
     const thumbnailUrl = searchThumbnailUrl(item.thumbnailUrl);
     const sourceUrl = publicSourceUrl(item.sourceUrl);
     return thumbnailUrl && sourceUrl
-      ? [{ id: Number(item.id), title: item.title.slice(0, 300), thumbnailUrl, sourceUrl }]
+      ? [
+          {
+            id: Number(item.id),
+            title: item.title.slice(0, 300),
+            thumbnailUrl,
+            sourceUrl,
+            ...(publicSourceUrl(item.originalUrl)
+              ? { originalUrl: publicSourceUrl(item.originalUrl)! }
+              : {}),
+          },
+        ]
       : [];
   });
   const weather = record(value.weather) ? value.weather : null;

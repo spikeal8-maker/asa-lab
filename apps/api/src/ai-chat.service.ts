@@ -466,8 +466,8 @@ export class AiChatService {
     const saved = await this.toolPolicy.save(actor, raw);
     return this.toolPolicyAdmin(actor, saved);
   }
-  webSearchImage(owner: string, thread: string, request: string, id: number) {
-    return this.web.image(owner, thread, request, id);
+  webSearchImage(owner: string, thread: string, request: string, id: number, original = false) {
+    return this.web.image(owner, thread, request, id, original);
   }
 
   private async ollamaRuntime(): Promise<OllamaRow> {
@@ -2211,7 +2211,7 @@ export class AiChatService {
           status: webEvidence?.status ?? 'unavailable',
           reason: webEvidence?.reason,
           retrievedAt: webEvidence?.retrievedAt,
-          sources: webEvidence?.sources.slice(0, 8),
+          sources: webEvidence?.sources.slice(0, 12),
           images: webEvidence?.images.slice(0, 5),
           weather: webEvidence?.weather
             ? {
@@ -2222,8 +2222,14 @@ export class AiChatService {
           locationChoices: webEvidence?.locationChoices,
         });
         const pageTool =
-          mode === 'web' && webEvidence?.sources.length
-            ? pageReadTool(webEvidence.sources.map((source) => source.id))
+          mode === 'web' &&
+          webEvidence?.sources.length &&
+          (webEvidence.retrievalOptions?.pagesLimit ?? 2) > 0
+            ? pageReadTool(
+                webEvidence.sources.map((source) => source.id),
+                webEvidence.retrievalOptions?.pagesLimit ?? 2,
+                webEvidence.retrievalOptions?.pageCharLimit ?? 4500,
+              )
             : null;
         const finalRuntime = {
           ...promptRuntime,

@@ -19,6 +19,8 @@ export interface AiWebImage {
   readonly sourceUrl: string;
   readonly width?: number;
   readonly height?: number;
+  /** Source original; browsers must still use the authenticated byte route. */
+  readonly originalUrl?: string;
 }
 
 export interface AiWebWeather {
@@ -47,6 +49,11 @@ export interface AiWebSearchEvidence {
   readonly retrievedAt: string;
   readonly sources: readonly AiWebSource[];
   readonly images: readonly AiWebImage[];
+  readonly retrievalOptions?: {
+    readonly resultsLimit: number;
+    readonly pagesLimit: number;
+    readonly pageCharLimit: number;
+  };
   readonly weather?: AiWebWeather;
   readonly locationChoices?: readonly string[];
   readonly reason?:
@@ -68,6 +75,9 @@ export interface AiWebSearchStatus {
 }
 
 export interface AiWebSearchAdminConfig extends AiWebSearchStatus {
+  readonly resultsLimit?: number;
+  readonly pagesLimit?: number;
+  readonly pageCharLimit?: number;
   readonly allowedDomains: readonly string[];
   readonly blockedDomains: readonly string[];
   readonly searchInstructions: string;
@@ -77,6 +87,9 @@ export interface AiWebSearchAdminConfig extends AiWebSearchStatus {
 }
 
 export interface AiWebSearchAdminUpdate {
+  readonly resultsLimit?: number;
+  readonly pagesLimit?: number;
+  readonly pageCharLimit?: number;
   readonly allowedDomains?: readonly string[];
   readonly blockedDomains?: readonly string[];
   readonly searchInstructions?: string;

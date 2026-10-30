@@ -19,9 +19,11 @@ async function pngBlob(blob: Blob): Promise<Blob> {
   }
 }
 
-export async function copyImageBlob(blob: Blob): Promise<void> {
+export async function copyImageBlob(blob: Blob | Promise<Blob>): Promise<void> {
   if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined')
     throw new Error('image clipboard unavailable');
   // Call write in the user gesture; conversion may finish asynchronously.
-  await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob(blob) })]);
+  await navigator.clipboard.write([
+    new ClipboardItem({ 'image/png': Promise.resolve(blob).then(pngBlob) }),
+  ]);
 }

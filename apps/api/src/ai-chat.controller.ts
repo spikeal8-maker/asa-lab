@@ -149,9 +149,14 @@ export class AiChatController {
     @Param('threadId') thread: string,
     @Param('requestId') requestId: string,
     @Param('imageId') imageId: string,
+    @Query('original') original?: string,
   ) {
     const owner = await this.requireOwner(request);
-    if (!UUID.test(requestId) || !/^[1-6]$/.test(imageId))
+    if (
+      !UUID.test(requestId) ||
+      !/^(?:[1-9]|1[0-2])$/.test(imageId) ||
+      (original !== undefined && original !== '1')
+    )
       return reject('ai_web_image_missing', 'Изображение недоступно.', 404);
     const image = await this.safe(() =>
       this.ai.webSearchImage(
@@ -159,6 +164,7 @@ export class AiChatController {
         this.threadId(thread),
         requestId.toLowerCase(),
         Number(imageId),
+        original === '1',
       ),
     );
     reply
