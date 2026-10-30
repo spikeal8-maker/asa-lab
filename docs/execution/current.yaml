@@ -645,14 +645,15 @@ parallel_lanes:
           status: in_progress
           selected_at: '2026-10-30'
           source_pr: 856
-          candidate_sha: edf765f8e24a53a264e53f3c8eaaa9e1b26a3f30
+          candidate_sha: 1dd4fc0a195ffea737c6d517c36f91c25307bfc7
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R27, R31]
           acceptance_checks: [C17, C20, C24, C28]
           implementation_started: true
           implementation_complete: true
           independent_review: approved_exact_source
-          focused_tests: 24_pass
+          focused_tests: 25_pass
+          narrow_browser: 3_pass
           ci_status: pending_exact_final_head
           main_integration: pending
           browser_visual_acceptance: light_compact_reviewed_dark_not_verified
@@ -666,6 +667,7 @@ parallel_lanes:
             no false paid-provider connection, no paid requests or browser secrets. Independent
             exact-source review and required gates before main. Source publication is not
             deployment; no Docker/server/working DB/config/GPU or production host mutations.
+          owner_refinement: Always-visible endpoint and actions; one actual GPU status line; visible compact sizes; one optional technical help; no nested essential controls. GPU compatibility is capability-based, not an RTX3060 requirement.
         - id: ASAI-COMPACT-HUMAN-SETTINGS
           issue: 373
           scope: urgent human-readable provider/model order and compact monthly budgets
