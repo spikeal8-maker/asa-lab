@@ -210,19 +210,28 @@ function centerArduinoProgram(workspace: ScratchBlocks.WorkspaceSvg): void {
   window.setTimeout(() => workspace.endCanvasTransition(), 500);
 }
 
-function DrawerResizeHandle({
+function HorizontalResizeHandle({
   width,
   onWidthChange,
+  kind,
+  direction,
+  step,
+  shiftStep,
 }: {
   width: number;
   onWidthChange: (width: number) => void;
+  kind: 'drawer' | 'palette';
+  direction: -1 | 1;
+  step: number;
+  shiftStep: number;
 }): JSX.Element {
+  const resizingClass = `arduino-${kind}-resizing`;
   const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
 
   function stopResize(event: PointerEvent<HTMLDivElement>): void {
     if (dragRef.current?.pointerId !== event.pointerId) return;
     dragRef.current = null;
-    document.documentElement.classList.remove('arduino-drawer-resizing');
+    document.documentElement.classList.remove(resizingClass);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -231,15 +240,17 @@ function DrawerResizeHandle({
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    const step = event.shiftKey ? 48 : 16;
-    onWidthChange(width + (event.key === 'ArrowLeft' ? step : -step));
+    const increment = event.shiftKey ? shiftStep : step;
+    onWidthChange(width + (event.key === 'ArrowRight' ? direction : -direction) * increment);
   }
 
   return (
     <div
-      className="arduino-drawer-resize-handle"
+      className={`arduino-${kind}-resize-handle`}
       role="separator"
-      aria-label="Изменить ширину редактора кода"
+      aria-label={
+        kind === 'drawer' ? 'Изменить ширину редактора кода' : 'Изменить ширину палитры блоков'
+      }
       aria-orientation="vertical"
       aria-valuenow={Math.round(width)}
       tabIndex={0}
@@ -252,19 +263,23 @@ function DrawerResizeHandle({
           startWidth: width,
         };
         event.currentTarget.setPointerCapture(event.pointerId);
-        document.documentElement.classList.add('arduino-drawer-resizing');
+        document.documentElement.classList.add(resizingClass);
         event.preventDefault();
       }}
       onPointerMove={(event) => {
         const drag = dragRef.current;
         if (!drag || drag.pointerId !== event.pointerId) return;
-        onWidthChange(drag.startWidth + drag.startX - event.clientX);
+        onWidthChange(
+          direction === -1
+            ? drag.startWidth + drag.startX - event.clientX
+            : drag.startWidth + event.clientX - drag.startX,
+        );
       }}
       onPointerUp={stopResize}
       onPointerCancel={stopResize}
       onLostPointerCapture={() => {
         dragRef.current = null;
-        document.documentElement.classList.remove('arduino-drawer-resizing');
+        document.documentElement.classList.remove(resizingClass);
       }}
     />
   );
@@ -342,66 +357,6 @@ function MobileCodeHandle({
         ×
       </button>
     </div>
-  );
-}
-
-function PaletteResizeHandle({
-  width,
-  onWidthChange,
-}: {
-  width: number;
-  onWidthChange: (width: number) => void;
-}): JSX.Element {
-  const dragRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
-
-  function stopResize(event: PointerEvent<HTMLDivElement>): void {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    dragRef.current = null;
-    document.documentElement.classList.remove('arduino-palette-resizing');
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    event.preventDefault();
-    const step = event.shiftKey ? 40 : 12;
-    onWidthChange(width + (event.key === 'ArrowRight' ? step : -step));
-  }
-
-  return (
-    <div
-      className="arduino-palette-resize-handle"
-      role="separator"
-      aria-label="Изменить ширину палитры блоков"
-      aria-orientation="vertical"
-      aria-valuenow={Math.round(width)}
-      tabIndex={0}
-      onKeyDown={onKeyDown}
-      onPointerDown={(event) => {
-        if (event.button !== 0) return;
-        dragRef.current = {
-          pointerId: event.pointerId,
-          startX: event.clientX,
-          startWidth: width,
-        };
-        event.currentTarget.setPointerCapture(event.pointerId);
-        document.documentElement.classList.add('arduino-palette-resizing');
-        event.preventDefault();
-      }}
-      onPointerMove={(event) => {
-        const drag = dragRef.current;
-        if (!drag || drag.pointerId !== event.pointerId) return;
-        onWidthChange(drag.startWidth + event.clientX - drag.startX);
-      }}
-      onPointerUp={stopResize}
-      onPointerCancel={stopResize}
-      onLostPointerCapture={() => {
-        dragRef.current = null;
-        document.documentElement.classList.remove('arduino-palette-resizing');
-      }}
-    />
   );
 }
 
@@ -1367,7 +1322,14 @@ export function ArduinoCodePanel({
         aria-label="Редактор кода Arduino"
         aria-hidden={!open}
       >
-        <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
+        <HorizontalResizeHandle
+          kind="drawer"
+          direction={-1}
+          step={16}
+          shiftStep={48}
+          width={drawerWidth}
+          onWidthChange={onDrawerWidthChange}
+        />
         <MobileCodeHandle
           height={mobileHeightPercent}
           onHeightChange={onMobileHeightChange}
@@ -1388,7 +1350,14 @@ export function ArduinoCodePanel({
       aria-hidden={!open}
       style={{ '--arduino-flyout-width': `${flyoutWidth}px` } as CSSProperties}
     >
-      <DrawerResizeHandle width={drawerWidth} onWidthChange={onDrawerWidthChange} />
+      <HorizontalResizeHandle
+        kind="drawer"
+        direction={-1}
+        step={16}
+        shiftStep={48}
+        width={drawerWidth}
+        onWidthChange={onDrawerWidthChange}
+      />
       <MobileCodeHandle
         height={mobileHeightPercent}
         onHeightChange={onMobileHeightChange}
@@ -1507,7 +1476,11 @@ export function ArduinoCodePanel({
         />
         {program.mode !== 'text' ? (
           <div className="arduino-block-editor">
-            <PaletteResizeHandle
+            <HorizontalResizeHandle
+              kind="palette"
+              direction={1}
+              step={12}
+              shiftStep={40}
               width={flyoutWidth}
               onWidthChange={(width) =>
                 setPreferredFlyoutWidth(
