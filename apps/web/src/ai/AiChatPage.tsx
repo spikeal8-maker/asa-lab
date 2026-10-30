@@ -40,6 +40,7 @@ import type {
 import { AiAnswerDownloads } from './AiAnswerDownloads';
 import type { AiWebSearchEvidence, AiWebSearchMode, AiWebSearchStatus } from '@asa-lab/contracts';
 import { AiWebEvidence } from './AiWebEvidence';
+import { AiAttachmentPreview } from './AiAttachmentPreview';
 import { AiHistoryAttachment as SavedAttachmentCard } from './AiHistoryAttachment';
 import {
   AI_CHAT_FILE_ACCEPT,
@@ -405,7 +406,10 @@ export function AiChatPage({
   }
 
   function addFiles(files: readonly File[]): void {
-    if (interactionBusy || requestBusy.current || currentArchived.current) return;
+    if (interactionBusy || requestBusy.current || currentArchived.current) {
+      setError('Дождитесь окончания ответа или остановите его перед добавлением файлов.');
+      return;
+    }
     const selected = [...attachments.map((item) => item.file), ...files];
     const issue = checkAiChatFiles(selected);
     if (issue) {
@@ -1882,6 +1886,10 @@ export function AiChatPage({
                           <AiWebEvidence
                             evidence={message.webSearch}
                             seatId={seatId}
+                            onUseImage={(file) => {
+                              addFiles([file]);
+                              composer.current?.focus();
+                            }}
                             onChooseLocation={(location) => {
                               setDraft('Погода в ' + location);
                               setWebSearchMode('weather');
@@ -2057,7 +2065,7 @@ export function AiChatPage({
                         data-ai-tooltip={`${item.file.name} · ${attachmentSize(item.file.size)}`}
                       >
                         {item.preview ? (
-                          <img src={item.preview} alt={item.file.name} />
+                          <AiAttachmentPreview src={item.preview} name={item.file.name} />
                         ) : (
                           <span className="chat-attachment-file-icon">
                             <AiChatIcon name="file" size={20} />
@@ -2132,6 +2140,21 @@ export function AiChatPage({
                   value={draft}
                   maxLength={3000}
                   onChange={(event) => setDraft(event.target.value)}
+                  onPaste={(event) => {
+                    const files = Array.from(event.clipboardData.files);
+                    if (!files.length) return;
+                    event.preventDefault();
+                    addFiles(files);
+                    const text = event.clipboardData.getData('text/plain');
+                    if (text) {
+                      const input = event.currentTarget;
+                      const start = input.selectionStart;
+                      const end = input.selectionEnd;
+                      setDraft((current) =>
+                        (current.slice(0, start) + text + current.slice(end)).slice(0, 3000),
+                      );
+                    }
+                  }}
                   onKeyDown={(event) => {
                     if (
                       imageMode &&

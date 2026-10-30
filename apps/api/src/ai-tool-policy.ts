@@ -60,10 +60,12 @@ export const toolMetadata: Record<
     usageDescription:
       'В режиме «Авто» локальная Ollama с поддержкой tools может искать свежие сведения, когда сервер разрешил инструмент и источник готов. При явном выборе интернет-поиска ASA подготавливает ссылки до ответа модели.',
     parameters: ['query: запрос, до 400 символов'],
-    resultDescription: 'Проверенные ссылки и короткие описания найденных страниц.',
+    resultDescription:
+      'До 8 ссылок и поисковые выдержки. В режиме «Авто» модель может вызвать read_page для выбранных источников и получить текст страницы либо явный отказ.',
     hardLimits: [
       'Только бесплатный SearxNG; доменные фильтры и защита приватных адресов обязательны.',
       'Одна операция на запрос; действует общий часовой лимит.',
+      'read_page: один вызов после поиска, до двух выбранных страниц, до 4500 символов текста каждой, 6 секунд и 512 КБ на страницу. Только публичный HTTPS; JavaScript сайта не выполняется.',
     ],
   },
   image_search: {
@@ -172,7 +174,14 @@ function policy(value: unknown): ToolPolicy {
   return { configurationVersion: Number(raw.revision), tools: TOOL_IDS.map((id) => byId.get(id)!) };
 }
 export function toolRule(p: ToolPolicy, id: NativeToolName): ToolRule {
-  return p.tools.find((item) => item.id === id) ?? { id, enabled: false, instructions: '' };
+  const policyId = id === 'read_page' ? 'web_search' : id;
+  return (
+    p.tools.find((item) => item.id === policyId) ?? {
+      id: policyId,
+      enabled: false,
+      instructions: '',
+    }
+  );
 }
 export class AiToolPolicyService {
   constructor(private readonly pool: pg.Pool) {}

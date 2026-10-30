@@ -22,11 +22,13 @@ function ImagePreview({
   title,
   sourceUrl,
   seatId,
+  onUseImage,
 }: {
   readonly path: string;
   readonly title: string;
   readonly sourceUrl: string;
   readonly seatId?: string | undefined;
+  readonly onUseImage?: ((file: File) => void) | undefined;
 }): JSX.Element {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -34,6 +36,7 @@ function ImagePreview({
   const bytes = useRef<Blob | null>(null);
   const [mediaType, setMediaType] = useState('image/png');
   const [actionError, setActionError] = useState('');
+  const [dimensions, setDimensions] = useState('');
   const { copied, confirmCopy, resetCopy } = useCopyFeedback(path);
   useEffect(() => {
     const controller = new AbortController();
@@ -43,6 +46,7 @@ function ImagePreview({
     setFailed(false);
     bytes.current = null;
     setActionError('');
+    setDimensions('');
     const load = async () => {
       if (started) return;
       started = true;
@@ -107,6 +111,7 @@ function ImagePreview({
   const fileName =
     (safeTitle
       .replace(/[<>:"/\\|?*]/g, '-')
+      .replace(/\.{2,}/g, '-')
       .slice(0, 80)
       .trim() || 'asa-image') +
     '.' +
@@ -122,6 +127,10 @@ function ImagePreview({
               loading="lazy"
               referrerPolicy="no-referrer"
               onError={() => setFailed(true)}
+              onLoad={(event) => {
+                const image = event.currentTarget;
+                setDimensions(`${image.naturalWidth} × ${image.naturalHeight}`);
+              }}
             />
           </a>
           <div className="asa-ai-web-image-actions">
@@ -129,7 +138,11 @@ function ImagePreview({
               type="button"
               data-copied={copied || undefined}
               aria-label={copied ? 'Изображение скопировано' : 'Копировать изображение'}
-              data-ai-tooltip={copied ? 'Скопировано' : 'Копировать изображение'}
+              data-ai-tooltip={
+                copied
+                  ? 'Скопировано'
+                  : `Копировать изображение${dimensions ? ' · ' + dimensions : ''}`
+              }
               onClick={() => void copy()}
             >
               <AiChatIcon name={copied ? 'check' : 'copy'} size={copied ? 22 : 18} />
@@ -138,10 +151,23 @@ function ImagePreview({
               href={src}
               download={fileName}
               aria-label="Скачать изображение"
-              data-ai-tooltip="Скачать показанное изображение"
+              data-ai-tooltip={`Скачать показанное изображение${dimensions ? ' · ' + dimensions : ''}${bytes.current ? ' · ' + Math.ceil(bytes.current.size / 1024) + ' КБ' : ''}`}
             >
               <AiChatIcon name="download" size={18} />
             </a>
+            {onUseImage ? (
+              <button
+                type="button"
+                aria-label="Использовать в чате"
+                data-ai-tooltip={`Использовать в чате${dimensions ? ' · ' + dimensions : ''}`}
+                onClick={() => {
+                  if (bytes.current)
+                    onUseImage(new File([bytes.current], fileName, { type: mediaType }));
+                }}
+              >
+                <AiChatIcon name="attachment" size={18} />
+              </button>
+            ) : null}
           </div>
           <span className="sr-only" role="status">
             {copied ? 'Изображение скопировано' : ''}
@@ -163,10 +189,12 @@ export function AiWebEvidence({
   evidence,
   onChooseLocation,
   seatId,
+  onUseImage,
 }: {
   readonly evidence: unknown;
   readonly onChooseLocation?: (location: string) => void;
   readonly seatId?: string | undefined;
+  readonly onUseImage?: ((file: File) => void) | undefined;
 }): JSX.Element | null {
   const data = readWebEvidence(evidence);
   if (!data) return null;
@@ -281,6 +309,7 @@ export function AiWebEvidence({
                 title={image.title}
                 sourceUrl={image.sourceUrl}
                 seatId={seatId}
+                onUseImage={onUseImage}
               />
               <a
                 className="asa-ai-web-image-caption"
@@ -306,7 +335,14 @@ export function AiWebEvidence({
                 <a href={source.url} target="_blank" rel="noreferrer noopener">
                   <span className="asa-ai-source-number">{source.id}</span>
                   <span>
-                    <small>{source.hostname}</small>
+                    <small>
+                      {source.hostname}
+                      {source.pageRead === 'read'
+                        ? ' · Страница прочитана'
+                        : source.pageRead === 'unavailable'
+                          ? ' · Только поисковая выдержка'
+                          : ''}
+                    </small>
                     <strong>{source.title}</strong>
                   </span>
                   <span aria-hidden="true">↗</span>

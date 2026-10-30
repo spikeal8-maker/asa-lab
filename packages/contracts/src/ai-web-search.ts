@@ -7,6 +7,9 @@ export interface AiWebSource {
   readonly url: string;
   readonly hostname: string;
   readonly snippet: string;
+  /** Bounded page text, distinct from the search-engine excerpt. */
+  readonly pageText?: string;
+  readonly pageRead?: 'read' | 'unavailable';
 }
 
 export interface AiWebImage {

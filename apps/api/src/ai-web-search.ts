@@ -17,6 +17,7 @@ import {
 } from './ai-web-search-provider.js';
 import { validateAiAttachment } from './ai-attachments/validation.js';
 import { AiToolPolicyService, toolRule } from './ai-tool-policy.js';
+import { readPublicPage } from './ai-web-page-reader.js';
 interface ConfigRow {
   allowed_domains?: readonly string[];
   blocked_domains?: readonly string[];
@@ -142,6 +143,7 @@ export function webEvidenceContext(evidence: AiWebSearchEvidence | null | undefi
     'Используй только предоставленные источники и ссылайся как [1](точный URL источника), не придумывай ссылки. Не выводи технические коды статусов. Если город не найден, попроси уточнить его название; разрешение геопозиции для поиска по городу не требуется. ' +
     'Метаданные изображений не являются анализом их пикселей. Не утверждай, что видел содержимое картинки. ' +
     'retrievedAt — время получения. Погода — модельный прогноз, не измерение станции; показывай forecastUpdatedAt и forecastAt. При недоступности/пустом результате прямо сообщи, что свежие данные не проверены.\n' +
+    'pageText — ограниченный текст прочитанной страницы, snippet — только выдержка поисковика. Если pageRead не read, не утверждай, что прочитал страницу. Чтение не доказывает достоверность утверждений сайта.\n' +
     JSON.stringify({
       status: evidence.status,
       reason: evidence.reason,
@@ -297,6 +299,7 @@ export class AiWebSearchService {
     mode: AiWebSearchMode,
     signal: AbortSignal,
     weatherCity?: string,
+    deferFinish = false,
   ): Promise<AiWebSearchEvidence | null> {
     const intent = internetIntent(prompt, mode);
     if (!intent) return null;
@@ -318,7 +321,7 @@ export class AiWebSearchService {
     const status = (
       await this.pool.query<{ status: string }>(
         'SELECT ai_web_search_claim($1,$2,$3,$4,$5,$6) AS status',
-        [owner, thread, request, intent, query, 1],
+        [owner, thread, request, intent, query, deferFinish && intent === 'web' ? 3 : 1],
       )
     ).rows[0]?.status;
     if (status === 'replay') return this.evidence(owner, thread, request, false);
@@ -390,13 +393,57 @@ export class AiWebSearchService {
           );
       }
     } else evidence = await this.indexedEvidence(base, intent === 'images', lookupSignal, config);
+    if (!deferFinish) await this.finish(owner, thread, request, evidence);
+    return evidence;
+  }
+  async finish(
+    owner: string,
+    thread: string,
+    request: string,
+    evidence: AiWebSearchEvidence,
+  ): Promise<void> {
     await this.pool.query('SELECT ai_web_search_finish($1,$2,$3,$4::jsonb)', [
       owner,
       thread,
       request,
       JSON.stringify(evidence),
     ]);
-    return evidence;
+  }
+  async readPages(
+    evidence: AiWebSearchEvidence,
+    ids: readonly number[],
+    signal: AbortSignal,
+  ): Promise<AiWebSearchEvidence> {
+    const sources = await Promise.all(
+      evidence.sources.map(async (item) => {
+        if (!ids.slice(0, 2).includes(item.id)) return item;
+        const text = await readPublicPage(
+          item.url,
+          signal,
+          (url) => new URL(url).hostname === new URL(item.url).hostname,
+        );
+        return text
+          ? { ...item, pageText: text, pageRead: 'read' as const }
+          : { ...item, pageRead: 'unavailable' as const };
+      }),
+    );
+    // The immutable SQL receipt has a 64 KiB bound, including JSON escaping.
+    // Preserve the search list; shorten page excerpts if its remaining budget is small.
+    let result = { ...evidence, sources };
+    while (
+      Buffer.byteLength(JSON.stringify(result), 'utf8') > 64000 &&
+      result.sources.some((item) => item.pageText)
+    ) {
+      result = {
+        ...result,
+        sources: result.sources.map((item) =>
+          item.pageText
+            ? { ...item, pageText: item.pageText.slice(0, Math.floor(item.pageText.length / 2)) }
+            : item,
+        ),
+      };
+    }
+    return result;
   }
   private async indexedEvidence(
     base: AiWebSearchEvidence,

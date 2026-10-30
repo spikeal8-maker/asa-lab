@@ -71,6 +71,12 @@ export function readWebEvidence(value: unknown): AiWebSearchEvidence | null {
         snippet: item.snippet.slice(0, 1500),
         url,
         hostname: new URL(url).hostname,
+        ...(item.pageRead === 'read' || item.pageRead === 'unavailable'
+          ? { pageRead: item.pageRead }
+          : {}),
+        ...(item.pageRead === 'read' && typeof item.pageText === 'string'
+          ? { pageText: item.pageText.slice(0, 4500) }
+          : {}),
       });
   }
   const images = value.images.slice(0, 8).flatMap((item) => {

@@ -560,4 +560,30 @@ test('found images copy repeatedly and download the displayed file without navig
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
   );
   await expect(page).toHaveURL(/#\/ai$/);
+  await card.getByRole('button', { name: 'Использовать в чате', exact: true }).click();
+  await expect(page.locator('.chat-attachment-drafts img')).toHaveAttribute(
+    'alt',
+    'Тестовая картинка.png',
+  );
+  await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toBeFocused();
+  await page.getByRole('button', { name: 'Удалить Тестовая картинка.png', exact: true }).click();
+  const input = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await input.fill('Объясни: ');
+  await input.evaluate((element, png) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['print(42)'], 'example.py', { type: 'text/plain' }));
+    transfer.items.add(
+      new File([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], 'clipboard.png', {
+        type: 'image/png',
+      }),
+    );
+    transfer.setData('text/plain', 'этот пример');
+    element.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }),
+    );
+  }, readFileSync('apps/web/public/landing/electronics-simulation.png').toString('base64'));
+  await expect(input).toHaveValue('Объясни: этот пример');
+  await expect(page.locator('.chat-attachment-chip')).toHaveCount(2);
+  await expect(page.locator('.chat-attachment-drafts img')).toHaveAttribute('alt', 'clipboard.png');
+  await expect(page.getByRole('button', { name: 'Удалить example.py', exact: true })).toBeVisible();
 });
