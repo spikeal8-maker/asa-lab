@@ -1,0 +1,92 @@
+{
+  "baseline": "a01fd522a78318137d7f7815b706078020ec3ba6",
+  "legacyCases": 5,
+  "legacyAdvances": 25,
+  "legacyBytes": 144673,
+  "legacySha256": "b98bfe1f9115686632fb5c4d4cebc6d3528750a67eb4fe4034f745a816b2d36c",
+  "actualDcServoAdvances": 5,
+  "mixedAdvances": 5,
+  "rawBytes": 343737,
+  "rawSha256": "5c4a8bbad1e778ab2bb249babd3cc4ad9e20d8121fd0c5eac2487249fd500f04",
+  "mixedAngles": [
+    {
+      "horizon": 0,
+      "decoded": [
+        {
+          "componentId": "servo",
+          "runtime": {
+            "version": 1,
+            "powered": true,
+            "signalHigh": false,
+            "angleDegrees": 90
+          }
+        }
+      ],
+      "reported": null
+    },
+    {
+      "horizon": 1000,
+      "decoded": [
+        {
+          "componentId": "servo",
+          "runtime": {
+            "version": 1,
+            "powered": true,
+            "signalHigh": true,
+            "angleDegrees": 90,
+            "signalHighStartedAtMicroseconds": 1
+          }
+        }
+      ],
+      "reported": null
+    },
+    {
+      "horizon": 26000,
+      "decoded": [
+        {
+          "componentId": "servo",
+          "runtime": {
+            "version": 1,
+            "powered": true,
+            "signalHigh": false,
+            "angleDegrees": 135,
+            "lastValidPulseWidthMicroseconds": 1936
+          }
+        }
+      ],
+      "reported": null
+    },
+    {
+      "horizon": 51000,
+      "decoded": [
+        {
+          "componentId": "servo",
+          "runtime": {
+            "version": 1,
+            "powered": true,
+            "signalHigh": false,
+            "angleDegrees": 45,
+            "lastValidPulseWidthMicroseconds": 1008
+          }
+        }
+      ],
+      "reported": null
+    },
+    {
+      "horizon": 100000,
+      "decoded": [
+        {
+          "componentId": "servo",
+          "runtime": {
+            "version": 1,
+            "powered": true,
+            "signalHigh": false,
+            "angleDegrees": 45,
+            "lastValidPulseWidthMicroseconds": 1008
+          }
+        }
+      ],
+      "reported": null
+    }
+  ]
+}
