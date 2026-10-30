@@ -40,3 +40,17 @@ layout and callback reachability, not installed Save durability. The prior full
 Electronics browser run41026543811 remains red with86 independent failures;
 no overall Electronics release acceptance or owner acceptance is asserted.
 No server, Docker, live database, protected assets or foreign changes were made.
+
+## Main composition
+
+Integrated source: `62ca03bb55f82539286ebff35705ccf76b33c11b`.
+One controlled convergence preserved the unrelated Projects publication changes
+at parent1193a0890. All169 frozen candidate paths and all29 foreign product files
+were independently verified unchanged; only the relevant execution lanes differ.
+Fresh independent final-composition verdict: APPROVE.
+
+The identical canonical command passed again at exact62ca:2565 tests,71 fresh
+Nx tasks, all caches skipped. All8 caps pass; editor187859, Arduino1999925,
+combined initial graph555957/600000 after the foreign addition. Logs are retained
+under controller/. New-main General CI remains separate from the successful
+exacta94 General evidence; no new-main green conclusion is inferred.

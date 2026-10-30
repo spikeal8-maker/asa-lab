@@ -13391,7 +13391,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: toolbar868_a94_independent_and_canonical_General4_success_source_integrated
+      checkpoint: toolbar868_integrated62ca_composition_approved_toolbar_oracle870_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13402,7 +13402,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-EMERGENCY-TOOLBAR-001
+      current_slice: TASK-ELECTRONICS-TOOLBAR-ORACLE-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15353,6 +15353,9 @@ parallel_lanes:
       semantic_change: 'no'
       checkpoint: source_review_evidence_done_a94_General41038088189_all4SUCCESS
       accepted_candidate_sha: a94eba7bf3bf8c4623184996c022f907d0972509
+      integrated_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
+      composition_review: APPROVE_169candidate_and29foreign_blobs_preserved
+      composition_gate: exact62ca_2565tests71freshNx_all8capsPASS_initialgraph555957
       final_review_result: APPROVE_432native_states2928actions_all163manifest_entries
       final_gate: canonical2565tests71freshNx_all8capsPASS_editor187859_Arduino1999925
       general_ci_run: 41038088189
@@ -15392,6 +15395,45 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T09:12:21Z'
       observation_note: Fresh fetch main before edits; only foreignAI metadata since exact e1 proof, preserved by fast-forward. Exact e1 General all4SUCCESS, focusedPASS, browserFAIL183pass86fail but field32 independently verified. New868 cause confirmed320 Save outside viewport, no data loss reproduced.
+
+  - id: electronics-toolbar-oracle
+    parent_lane: electronics
+    worktree_id: electronics-toolbar-oracle
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-ORACLE-001.md
+    task:
+      id: TASK-ELECTRONICS-TOOLBAR-ORACLE-001
+      issue: 870
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: low
+      semantic_change: 'no'
+      checkpoint: selected_proven_stale_desktop_header_oracle_test_only
+      owner_acceptance: pending
+      execution_role: bounded_test_executor_then_new_independent_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-ORACLE-001.md
+      owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
+      acceptance_boundary: Initial_header_oracle_only_not_four_complete_Code_Save_journeys
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
+      convergence_baseline_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
+      head_sha: null
+      observed_at: '2026-10-30T11:00:46Z'
+      observation_note: Fresh fetch main before edits; clean root HEAD equals origin62ca after reviewed868 source integration. Exacta94General41038088189_all4SUCCESS, composed62ca canonical2565tests71fresh/all8caps and independent compositionAPPROVE; newmainGeneral41043528373inprogress not PASS. No newfullbrowserclaim. PreserveforeignProjects1193 andalloldproof.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics

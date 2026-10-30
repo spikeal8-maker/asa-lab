@@ -28,3 +28,9 @@ reviews remain preserved and were not overridden without repair and replay.
 
 Controller follow-up: exact General run41038088189 subsequently completed
 SUCCESS in all four jobs before main publication. No product source changed.
+
+Final-composition follow-up: the same independent reviewer approved exact
+62ca03bb55f82539286ebff35705ccf76b33c11b after checking169 candidate and29 foreign
+Git blobs and its fresh canonical2565/71-task/all8-cap receipts. Product bytes
+are identical to a94; the prior432-state replay remains applicable. No new-main
+General CI, installed Save, overall release or owner acceptance is claimed.
