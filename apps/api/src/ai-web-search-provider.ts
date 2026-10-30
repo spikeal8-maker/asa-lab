@@ -364,6 +364,18 @@ export function publicWebUrl(value: unknown): string | null {
   }
 }
 
+export function providedPageUrls(prompt: string): string[] {
+  if (/не\s+(?:открывай|читай|переходи)|do not (?:open|read|visit)/iu.test(prompt)) return [];
+  return [
+    ...new Set(
+      (prompt.match(/https:\/\/[^\s<>"`]+/giu) ?? []).flatMap((raw) => {
+        const url = publicWebUrl(raw.replace(/[),.;]+$/g, ''));
+        return url ? [url] : [];
+      }),
+    ),
+  ].slice(0, 3);
+}
+
 export async function boundedWebResponse(response: Response, limit = MAX_BODY): Promise<Buffer> {
   if (
     !response.ok ||

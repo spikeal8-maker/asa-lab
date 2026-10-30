@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pageText, publicPageAddress, readPublicPage, readPublicImage } from './ai-web-page-reader';
+import {
+  pageText,
+  publicPageAddress,
+  readPublicPage,
+  readPublicImage,
+  readPublicDocument,
+} from './ai-web-page-reader';
 import { pageReadTool, parseNativeToolCalls } from './ai-native-tools';
 
 const body = Buffer.from(
@@ -169,4 +175,33 @@ describe('bounded public page reading', () => {
       ).toBeNull();
     }
   });
+});
+
+it('extracts bounded inert raster image metadata using the final page URL', async () => {
+  const document = await readPublicDocument(
+    'https://example.org/posts/article',
+    signal(),
+    () => true,
+    {
+      resolve,
+      transport: async () => ({
+        status: 200,
+        type: 'text/html',
+        body: Buffer.from(
+          '<head><img src="/hidden.png"></head><script><img src="/script.png"></script>' +
+            '<img src="/small.png" width="1"><img src="/logo.svg">' +
+            '<img data-src="/fallback.jpg" src="../real.png" alt="Photo &amp; landscape">' +
+            '<img src="../real.png"><img src="http://example.org/insecure.png">' +
+            '<img src="https://127.0.0.1/private.png"><p>' +
+            'Article facts. '.repeat(20) +
+            '</p>',
+        ),
+      }),
+      textLimit: 500,
+    },
+  );
+  expect(document?.images).toEqual([
+    { url: 'https://example.org/real.png', alt: 'Photo & landscape' },
+  ]);
+  expect(document?.text).toContain('Article facts.');
 });

@@ -10,6 +10,7 @@ export interface AiWebSource {
   /** Bounded page text, distinct from the search-engine excerpt. */
   readonly pageText?: string;
   readonly pageRead?: 'read' | 'unavailable';
+  readonly pageImages?: readonly { readonly url: string; readonly alt: string }[];
 }
 
 export interface AiWebImage {

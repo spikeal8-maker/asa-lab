@@ -37,8 +37,8 @@ export function publicPageAddress(address: string): boolean {
     : family === 6 && /^[23][0-9a-f]{3}:/i.test(address) && !blocked.check(address, 'ipv6');
 }
 
-/** Text only: never execute HTML, scripts, remote images or page-supplied instructions. */
-export function pageText(html: string, limit = 4500): string {
+/** Extract inert text and image metadata; never execute page content. */
+export function pageText(html: string, limit = 4500, onImage?: (tag: string) => void): string {
   // Monotonic scanner avoids quadratic regex backtracking on hostile malformed HTML.
   const lower = html.toLowerCase();
   const hidden = new Set([
@@ -71,6 +71,7 @@ export function pageText(html: string, limit = 4500): string {
     if (end < 0) break;
     const tag = /^([a-z][a-z0-9]*)\b/i.exec(html.slice(open + 1, end))?.[1]?.toLowerCase();
     cursor = end + 1;
+    if (tag === 'img' && end - open <= 4096) onImage?.(html.slice(open, end + 1));
     if (tag && hidden.has(tag)) {
       const close = lower.indexOf('</' + tag, cursor);
       if (close < 0) break;
@@ -115,8 +116,22 @@ interface PageReply {
 }
 export interface PageReaderOptions {
   textLimit?: number;
+  allowedImage?: (url: string) => boolean;
+  onDocument?: (document: PublicPageDocument) => void;
   resolve?: (hostname: string) => Promise<Address[]>;
   transport?: (url: URL, address: Address, signal: AbortSignal) => Promise<PageReply>;
+}
+export interface PublicPageDocument {
+  text: string;
+  url: string;
+  images: readonly { url: string; alt: string }[];
+}
+function imageAttribute(tag: string, name: string): string {
+  const match = new RegExp(
+    '(?:^|\\s)' + name + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|([^\\s>]+))',
+    'i',
+  ).exec(tag);
+  return (match?.[1] ?? match?.[2] ?? match?.[3] ?? '').replace(/&amp;/gi, '&');
 }
 const MAX_BYTES = 512 * 1024;
 let active = 0;
@@ -222,11 +237,49 @@ export async function readPublicPage(
         )
           return null;
         const charset = /charset\s*=\s*["']?([\w-]+)/i.exec(reply.type)?.[1] ?? 'utf-8';
+        const images: { url: string; alt: string }[] = [];
         const text = pageText(
           new TextDecoder(charset, { fatal: true }).decode(reply.body),
           options.textLimit,
+          (tag) => {
+            if (
+              images.length >= 4 ||
+              ['width', 'height'].some((key) => {
+                const value = Number(imageAttribute(tag, key));
+                return value > 0 && value < 64;
+              })
+            )
+              return;
+            for (const attr of ['src', 'data-src']) {
+              try {
+                const raw = imageAttribute(tag, attr);
+                if (!raw) continue;
+                const imageUrl = publicWebUrl(new URL(raw, url).href);
+                if (
+                  imageUrl &&
+                  !/\.(?:svg|gif)(?:$|[?#])/i.test(imageUrl) &&
+                  !images.some((image) => image.url === imageUrl)
+                )
+                  images.push({
+                    url: imageUrl,
+                    alt: imageAttribute(tag, 'alt')
+                      .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
+                      .slice(0, 200),
+                  });
+                if (imageUrl) break;
+              } catch {
+                /* Ignore malformed site metadata. */
+              }
+            }
+          },
         );
-        return text.length >= 80 ? text : null;
+        if (text.length < 80 && !images.length) return null;
+        options.onDocument?.({
+          text: text || 'Страница содержит изображения.',
+          url: url.href,
+          images,
+        });
+        return text || 'Страница содержит изображения.';
       }
       return null;
     };
@@ -246,6 +299,23 @@ export async function readPublicPage(
   }
 }
 
+export async function readPublicDocument(
+  input: string,
+  signal: AbortSignal,
+  allowed: (url: string) => boolean,
+  options: PageReaderOptions = {},
+): Promise<PublicPageDocument | null> {
+  let document: PublicPageDocument | null = null;
+  const text = await readPublicPage(input, signal, allowed, {
+    ...options,
+    onDocument: (value) => {
+      document = value;
+      options.onDocument?.(value);
+    },
+  });
+  return text ? document : null;
+}
+
 /** Exact source original selected from an owner-bound receipt, never a client URL. */
 export async function readPublicImage(
   input: string,
@@ -262,7 +332,7 @@ export async function readPublicImage(
       for (let hop = 0; hop < 3; hop += 1) {
         deadline.throwIfAborted();
         const safe = publicWebUrl(next);
-        if (!safe) return null;
+        if (!safe || (options.allowedImage && !options.allowedImage(safe))) return null;
         const url = new URL(safe);
         const addresses = await (options.resolve ?? ((host) => lookup(host, { all: true })))(
           url.hostname,

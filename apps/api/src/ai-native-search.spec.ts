@@ -11,7 +11,7 @@ const REQUEST = '33333333-3333-4333-8333-333333333333';
 
 function fixture(
   mode: 'auto' | 'off',
-  tool: 'web_search' | 'image_search' | 'weather' = 'web_search',
+  tool: 'web_search' | 'image_search' | 'weather' | 'read_page' = 'web_search',
   toolQuery = 'Казань новости',
   disabledTools: readonly ('web_search' | 'image_search' | 'weather')[] = [],
   weatherVariant: 'complete' | 'partial' | 'ambiguous' | 'future' = 'complete',
@@ -170,7 +170,12 @@ function fixture(
                   {
                     function: {
                       name: tool,
-                      arguments: tool === 'weather' ? { city: 'Казань' } : { query: toolQuery },
+                      arguments:
+                        tool === 'weather'
+                          ? { city: 'Казань' }
+                          : tool === 'read_page'
+                            ? { url: toolQuery }
+                            : { query: toolQuery },
                     },
                   },
                 ],
@@ -584,4 +589,42 @@ it('streams ordinary text before completion even when native tools are offered',
     await sent;
   }
   expect(f.deltas).toEqual(['Первая часть. ', 'Вторая часть.']);
+});
+
+it('offers only user-provided URLs, executes a selected direct read and follows up without search', async () => {
+  const url = 'https://example.org/article';
+  const read = vi.spyOn(AiWebSearchService.prototype, 'prepareDirect').mockResolvedValue({
+    schemaVersion: 1,
+    provider: 'searxng',
+    mode: 'web',
+    status: 'ready',
+    query: 'Страница',
+    retrievedAt: new Date().toISOString(),
+    images: [],
+    sources: [
+      {
+        id: 1,
+        url,
+        hostname: 'example.org',
+        title: 'Article',
+        snippet: '',
+        pageRead: 'read',
+        pageText: 'Actual full article text from the provided address.',
+      },
+    ],
+  });
+  try {
+    const f = fixture('auto', 'read_page', url, [], 'complete', true, 'Проанализируй ' + url);
+    await f.send();
+    expect(read).toHaveBeenCalledWith(OWNER, THREAD, REQUEST, url, expect.any(AbortSignal), true);
+    expect(f.requests.some((item) => item.url.includes('/search?'))).toBe(false);
+    const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
+    expect(rounds).toHaveLength(2);
+    expect(JSON.stringify(rounds[0]!.body!.tools)).toContain(url);
+    expect(JSON.stringify(rounds[1]!.body!.messages)).toContain('Actual full article text');
+    expect(rounds[1]!.body!.tools).toBeUndefined();
+    expect(f.calls.filter((item) => item.sql.includes('ai_web_search_finish'))).toHaveLength(1);
+  } finally {
+    read.mockRestore();
+  }
 });

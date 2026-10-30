@@ -24,6 +24,7 @@ export function nativeTools(options: {
   imageRecipe?: AiImageRecipe;
   search: boolean;
   weather: boolean;
+  pageUrls?: readonly string[];
 }): readonly NativeToolDefinition[] {
   const result: NativeToolDefinition[] = [];
   if (options.imageSizes?.length)
@@ -88,6 +89,21 @@ export function nativeTools(options: {
           additionalProperties: false,
           required: ['city'],
           properties: { city: { type: 'string', minLength: 2, maxLength: 100 } },
+        },
+      },
+    });
+  if (options.pageUrls?.length)
+    result.push({
+      type: 'function',
+      function: {
+        name: 'read_page',
+        description:
+          'Открыть ссылку, которую пользователь дал в сообщении. Получить ограниченный текст страницы и доступные изображения для анализа. Не ищи страницу по заголовку вместо чтения. Адреса берутся только из явно переданного списка; сервер проверяет домены, публичный HTTPS и лимиты. Это не браузер с JavaScript: недоступность страницы или изображений нужно сообщить честно.',
+        parameters: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['url'],
+          properties: { url: { type: 'string', enum: options.pageUrls } },
         },
       },
     });
@@ -160,12 +176,23 @@ export function parseNativeToolCalls(
     )
       throw new Error('AI_TOOL_CALL_INVALID');
   } else if (name === 'read_page') {
+    if (keys === 'url') {
+      const property = (
+        offered.find((tool) => tool.function.name === name)!.function.parameters.properties as {
+          url?: { enum: readonly string[] };
+        }
+      ).url;
+      if (!property || typeof values.url !== 'string' || !property.enum.includes(values.url))
+        throw new Error('AI_TOOL_CALL_INVALID');
+      return [{ name, arguments: values }];
+    }
     const rule = (
       offered.find((tool) => tool.function.name === name)!.function.parameters.properties as {
-        sourceIds: { maxItems: number; items: { enum: readonly number[] } };
+        sourceIds?: { maxItems: number; items: { enum: readonly number[] } };
       }
     ).sourceIds;
     if (
+      !rule ||
       keys !== 'sourceIds' ||
       !Array.isArray(values.sourceIds) ||
       values.sourceIds.length < 1 ||
