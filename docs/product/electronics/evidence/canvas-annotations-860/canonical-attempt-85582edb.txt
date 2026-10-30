@@ -39,4 +39,3 @@ TypeError: Cannot read properties of undefined (reading 'closest')
    Duration  14.80s (transform 46.65s, setup 0ms, import 76.64s, tests 50.18s, environment 39.91s)
 
  ELIFECYCLE  Command failed with exit code 1.
-
