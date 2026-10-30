@@ -110,6 +110,7 @@ class RuntimeSearchPrebackupTests(unittest.TestCase):
                     "prepare_collector": lambda *a: {"readerGroupChanged": False},
                     "validate_resolved_images": validated_target,
                     "check_resources": lambda *a: None,
+                    "prepare_support_images": lambda *a, **k: None,
                     "Installation": factory,
                 }
                 # Exercise real export_backup and its real finally/wait_ready.

@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import urllib.request
 import uuid
@@ -70,6 +71,66 @@ def fetch_images(release):
         revision = run(["docker", "image", "inspect", "--format", '{{index .Config.Labels "org.opencontainers.image.revision"}}', reference], capture=True)
         if service != "minio":
             require(revision == release["revision"], "IMAGE_REVISION", f"{service} image revision differs.")
+
+
+_IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
+
+
+def prepare_support_images(install, release, config, records, *, fresh=False):
+    """Reuse a verified running PostgreSQL engine; never pull it on an app update.
+
+    Only a fresh installation downloads PostgreSQL. On an existing installation,
+    both the Compose image reference and the cached image *content ID* must
+    match the running container. A missing, retagged or replaced engine is a
+    fail-closed operator action, not permission to upgrade the live database.
+    The MinIO init job uses the same immutable image as the verified MinIO
+    server, already downloaded by fetch_images().
+    """
+    services = config["services"]
+    postgres_ref = services["postgres"]["image"]
+    minio_ref = services["minio"]["image"]
+    require(services["minio-init"]["image"] == minio_ref == release["images"]["minio"],
+            "IMAGE_OVERRIDE", "MinIO init image differs from the pinned server image.",
+            "Do not deploy a mixed or unverified MinIO image.")
+    try:
+        minio_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", minio_ref], capture=True)
+    except Blocked as exc:
+        raise Blocked("MINIO_IMAGE_MISSING",
+                      "The verified MinIO image is not cached after release download.",
+                      "Inspect the pinned image fetch; do not replace the running object volume.") from exc
+    require(bool(_IMAGE_ID.fullmatch(minio_id)), "MINIO_IMAGE_ID",
+            "The cached MinIO image identifier is invalid.", "Check the Docker image cache.")
+
+    if fresh:
+        install.compose("pull", "postgres")
+        print("SUPPORT_IMAGE postgres: fresh installation downloaded required engine", flush=True)
+        print("SUPPORT_IMAGE minio-init: using verified local MinIO digest", flush=True)
+        return
+
+    postgres = records.get("postgres")
+    require(postgres and postgres.get("running") is True and postgres.get("id"),
+            "POSTGRES_RUNNING", "The existing PostgreSQL container is not running.",
+            "Inspect the original PostgreSQL container; do not initialize another database.")
+    require(postgres.get("image") == postgres_ref, "DATABASE_ENGINE",
+            "Compose PostgreSQL image differs from the running engine reference.",
+            "Restore the approved Compose configuration; never upgrade the engine in an application update.")
+
+    running_id = run(["docker", "inspect", "--format", "{{.Image}}", postgres["id"]], capture=True)
+    require(bool(_IMAGE_ID.fullmatch(running_id)), "POSTGRES_IMAGE_ID",
+            "Cannot verify the running PostgreSQL image content ID.",
+            "Inspect the existing container and its image before maintenance.")
+    try:
+        cached_id = run(["docker", "image", "inspect", "--format", "{{.Id}}", postgres_ref], capture=True)
+    except Blocked as exc:
+        raise Blocked("POSTGRES_IMAGE_MISSING",
+                      "The running PostgreSQL image tag is absent from the local Docker cache.",
+                      "Verify the original engine image and restore its exact tag; do not pull a mutable tag or change database volumes.") from exc
+    require(bool(_IMAGE_ID.fullmatch(cached_id)) and cached_id == running_id,
+            "POSTGRES_IMAGE_DRIFT",
+            "The local PostgreSQL tag does not identify the running PostgreSQL image.",
+            "Inspect the engine image IDs; preserve the running PostgreSQL instance and data volumes.")
+    print("SUPPORT_IMAGE postgres: local engine matches running content ID; Docker Hub pull skipped", flush=True)
+    print("SUPPORT_IMAGE minio-init: using verified local MinIO digest", flush=True)
 
 
 def apply_release_environment(install, release):
