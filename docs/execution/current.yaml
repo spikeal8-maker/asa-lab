@@ -13514,7 +13514,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: psu877_strict_running_oldblock865_completion_after_resize876_selected
+      checkpoint: oldblock865_verified_held_psu877_geometry_refactor_selected_while_strict_runs
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13525,7 +13525,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001
+      current_slice: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15426,7 +15426,12 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: completion_after_approved_resize876_selected_preserve46d_as_history
+      checkpoint: completion_e4d_verified_2576tests71fresh_caps8_native_ready_held_for877
+      completion_candidate_sha: e4d3712d1db47aeb762bc9401781257bd4b66ad0
+      completion_review: APPROVE_new_independent_exact_source_native_and_canonical
+      completion_canonical: PASS_2576tests_71freshNx_cacheSkipped_all8caps_Arduino1999233
+      completion_native: Original16fixtures_and_source_bytes_exact_six_noedit_mounts_and_genuine_edit_export_reopen_adapter_both_widths_PASS
+      completion_publication: source_candidate_pushed_not_integrated_pending_primary877
       completion_resume:
         checkpoint: selected_recompose_preserved_candidate_after_approved_resize876
         measured_reference_arduino_bytes: 1998988
@@ -15725,7 +15730,17 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: source_native_runningframe_reviews_APPROVE_3a9b3e1_strict41080294495_running
+      checkpoint: selected_877D_pure_geometry_extraction_for_Stage_hygiene_General_failure
+      hygiene_repair:
+        failed_general_run: 41080002633
+        source_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+        classification: B_current_Stage_growth_exceeds_existing_review_threshold
+        current_Stage_git_bytes: 67514
+        reviewed_Stage_bytes: 54879
+        max_Stage_bytes: 65854
+        excess_bytes: 1660
+        selected_repair: Move_only_new_4428byte_pure_PSU_switch_clip_geometry_into_one_real_helper_Stage_keeps_projection_authority_state_DOM_handlers_and_clip_JSX
+        preservation: No_hygiene_baseline_or_cap_increase_no_semantic_layer_or_geometry_change_f335_spec_frozen
       candidate_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
       preliminary_review: APPROVE_independent_source_native91_running_frame_and_final_test_metadata_composition
       frozen_browser_blob: b450bd6d148285008ba226bb688a315f1120eb1a
