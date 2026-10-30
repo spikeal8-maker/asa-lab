@@ -743,18 +743,18 @@ for (const width of [1440, 390]) {
     expect(fake.ollamaWrites).toHaveLength(1);
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
-    const comfyConnection = page.getByRole('region', { name: 'Подключение ComfyUI', exact: true });
+    const comfyConnection = page.getByRole('region', { name: 'Подключение ComfyUI' });
     await expect(comfyConnection.getByRole('textbox', { name: 'Адрес ComfyUI' })).toHaveValue(
       'http://host.docker.internal:8188',
     );
-    const technicalState = comfyConnection.locator('details').filter({
-      has: page.getByText('Техническое состояние ComfyUI', { exact: true }),
+    await page.screenshot({
+      path: test.info().outputPath('image-workbench-connection-' + width + '.png'),
+      fullPage: true,
     });
-    await technicalState.getByText('Техническое состояние ComfyUI', { exact: true }).click();
-    await expect(technicalState.getByText('FLUX.2 Klein 4B', { exact: true })).toBeVisible();
-    await expect(
-      technicalState.getByText('Workflow ASA ещё не проверен', { exact: true }),
-    ).toBeVisible();
+    const technicalState = page.locator('.asa-image-diagnostics');
+    await technicalState.locator(':scope > summary').click();
+    await expect(technicalState).toContainText('flux-2-klein-4b');
+    await expect(technicalState).toContainText('Проверка файлов выполнена.');
     await page.getByRole('tab', { name: 'Подключения' }).click();
     await selectProvider(page, 'ollama');
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');

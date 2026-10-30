@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: image_workbench_856_source_ready_exact_ci_pending
+      checkpoint: image_workbench_856_source_integrated_runtime_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -645,7 +645,7 @@ parallel_lanes:
           status: in_progress
           selected_at: '2026-10-30'
           source_pr: 856
-          candidate_sha: 1dd4fc0a195ffea737c6d517c36f91c25307bfc7
+          candidate_sha: 9667aa2a1dc604dcb9639b9ec4747402525c5aa7
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R27, R31]
           acceptance_checks: [C17, C20, C24, C28]
@@ -653,9 +653,16 @@ parallel_lanes:
           implementation_complete: true
           independent_review: approved_exact_source
           focused_tests: 25_pass
-          narrow_browser: 3_pass
-          ci_status: pending_exact_final_head
-          main_integration: pending
+          narrow_browser: 3_ui_pass_and_1_final_repair_pass
+          ci_status: focused_and_code_pass_general_pending
+          main_integration: merged
+          integrated_sha: 9d7cfaac0d065d9b8cb7221a4692697619092161
+          integrated_at: 2026-10-30T09:31:20Z
+          focused_ci_run: 41031386477
+          code_ci_job: 123983393378
+          nx_code_gate_tasks: 97_uncached
+          runtime_gpu_acceptance: NOT_RUN
+          api_provider_integration: issue857_not_connected
           browser_visual_acceptance: light_compact_reviewed_dark_not_verified
           owner_acceptance: pending
           demo_status: NOT_RUN
@@ -668,6 +675,7 @@ parallel_lanes:
             exact-source review and required gates before main. Source publication is not
             deployment; no Docker/server/working DB/config/GPU or production host mutations.
           owner_refinement: Always-visible endpoint and actions; one actual GPU status line; visible compact sizes; one optional technical help; no nested essential controls. GPU compatibility is capability-based, not an RTX3060 requirement.
+          final_repair_evidence: Four new cached-thread denial and uncertain/storage-failure tests plus21 existing image lifecycle tests PASS; final source independently approved. Replacement is explicit after known preadmission403 and verified UUID removal, never a retry of unknown admission.
         - id: ASAI-COMPACT-HUMAN-SETTINGS
           issue: 373
           scope: urgent human-readable provider/model order and compact monthly budgets
@@ -15327,7 +15335,11 @@ parallel_lanes:
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_proven320_save_clipping_with_emergency_copy
+      checkpoint: candidate6614_independent_requestchanges_pausing_label_bounded_repair
+      rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
+      review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
+      candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
+      repair_scope: CSS_and_toolbar_only_short_pausing_display_label_SimulationSpeedControl_no_timing_logic
       owner_acceptance: pending
       execution_role: bounded_css_executor_then_fresh_independent_review
       context_hints:

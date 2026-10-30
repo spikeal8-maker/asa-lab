@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { AiImageRecipe } from '@asa-lab/contracts';
 import { ollamaBaseUrl } from './ai-ollama.js';
 import { ComfyUiError, discoverComfyUi } from './ai-comfyui.js';
 import { ComfyImageTransport } from './ai-image-comfyui.js';
@@ -46,12 +47,24 @@ export class ComfyUiSettings {
   async probe(actor: string, raw: unknown) {
     await this.config(actor);
     const baseUrl = comfyUiOrigin(raw);
+    // The endpoint and the actual saved image recipe are separate settings.
+    // Never report the legacy FP4 recipe as the readiness of a saved FP8 profile.
+    const selected = await this.pool.query<{ value: { recipe: AiImageRecipe } }>(
+      'SELECT ai_image_config() AS value',
+    );
+    const recipe = selected.rows[0]?.value?.recipe;
+    if (recipe !== 'flux2-klein-4b-v1' && recipe !== 'flux2-klein-4b-fp8-izo-v1')
+      throw new ComfyUiError(
+        'ai_comfy_recipe_unknown',
+        503,
+        'Не удалось проверить выбранный профиль генерации.',
+      );
     const status = await discoverComfyUi(baseUrl, this.fetchImpl);
     const readiness = await new ComfyImageTransport({
       baseUrl,
       fetchImpl: this.fetchImpl,
-    }).readiness();
-    return { ...status, recipeReady: readiness.ready };
+    }).readiness(recipe);
+    return { ...status, recipe, recipeReady: readiness.ready, recipeReason: readiness.reason };
   }
   async status(actor: string) {
     const c = await this.config(actor);

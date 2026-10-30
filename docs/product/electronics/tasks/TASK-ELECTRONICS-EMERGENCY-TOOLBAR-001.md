@@ -49,3 +49,14 @@ rerun just to observe this narrow CSS change. Root owns execution metadata.
 Only workbench.css is intended product scope. If another product path is required,
 report the concrete reason before editing. No refactor, budget increases, server,
 Docker, live DB, local listening ports, deployment or foreign edits.
+
+## Independent pausing-label repair boundary
+
+The independent native check established that the toolbar's long pausing label
+widens the speed control and leaves only 16.516px for tools at 320px. In addition
+to the CSS scope, permit a concise equivalent toolbar-only pausing label in
+`SimulationSpeedControl.tsx`; keep the full dialog explanation, accessible
+control name and all timing/state behavior. Add actual running/pausing/paused
+and rates0/0.1/10 to the native matrix, preserve the failed receipt, and repeat
+final-SHA checks with a fresh independent reviewer. This is a bounded display
+repair, not permission to change the pacing implementation.

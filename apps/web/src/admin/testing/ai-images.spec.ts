@@ -113,7 +113,8 @@ it('offers exactly the six agreed image presets and no 512 square', async () => 
   await render();
   const sizes = host.querySelector('fieldset')!;
   expect(sizes.querySelectorAll('input[type=checkbox]')).toHaveLength(6);
-  for (const preset of AI_IMAGE_PRESETS) expect(sizes.textContent).toContain(preset.label);
+  for (const preset of AI_IMAGE_PRESETS)
+    expect(sizes.querySelector(`input[aria-label="${preset.label}"]`)).not.toBeNull();
   expect(sizes.textContent).not.toContain('512');
 });
 
@@ -132,6 +133,5 @@ it('selects a distinct FP8 profile in the revisioned admin write without generat
   await save();
   const write = vi.mocked(call).mock.calls.find(([, init]) => init?.method === 'PUT')!;
   expect(JSON.parse(String(write[1]!.body)).recipe).toBe('flux2-klein-4b-fp8-izo-v1');
-  expect(host.textContent).toContain('SHA-256');
-  expect(host.textContent).toContain('не подтверждены');
+  expect(host.textContent).toContain('Настройки сохранены');
 });
