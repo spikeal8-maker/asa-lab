@@ -707,7 +707,13 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       }
       await guest.screenshot({ path: `${EVIDENCE}/catalogue-${width}.png`, fullPage: true });
       const link = guest.getByRole('link', { name: `Открыть проект «${longTitle}»` });
+      // A programmatic focus after clicking a category retains pointer modality.
+      // Leave and return through real keyboard navigation before asserting the
+      // browser's :focus-visible presentation; do not force a class or style.
       await link.focus();
+      await guest.keyboard.press('Shift+Tab');
+      await expect(link).not.toBeFocused();
+      await guest.keyboard.press('Tab');
       await expect(link).toBeFocused();
       const visibleFocus = await link.evaluate((element) => {
         const style = getComputedStyle(element);
