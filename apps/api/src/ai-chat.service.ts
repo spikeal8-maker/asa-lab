@@ -1,3 +1,4 @@
+import { repositoryHelpContext } from './ai-repository-help.js';
 import type { AiImageRecipe } from '@asa-lab/contracts';
 import { discoverProviderModels, applyCatalogObservation } from './ai-provider-catalog.js';
 import { AiTokenBudgetStore } from './ai-token-budgets.js';
@@ -1396,6 +1397,7 @@ export class AiChatService {
       );
       const context = await this.history.generationContext(principalId, threadId, requestId);
       const promptRuntime = {
+        repositoryHelp: repositoryHelpContext(prompt),
         webSearch: webEvidence,
         attachmentCount: 0,
         readableAttachmentText: false,
@@ -2030,6 +2032,7 @@ export class AiChatService {
             };
       const preparedPageImages = await pageInput(webEvidence);
       const promptRuntime = {
+        repositoryHelp: repositoryHelpContext(prompt),
         webSearch: webEvidence,
         attachmentCount: attachmentIds.length,
         readableAttachmentText: !!files?.text,

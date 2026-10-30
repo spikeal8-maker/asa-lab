@@ -84,6 +84,7 @@ export const AI_PROMPT_VARIABLES: readonly AiPromptVariable[] = [
 ];
 
 export interface AiPromptRuntime {
+  repositoryHelp?: string;
   nativeImage?: boolean;
   nativeToolNames?: readonly string[];
   webSearch?: AiWebSearchEvidence | null;
@@ -242,6 +243,9 @@ export function policyInstructions(
     },
   };
   const materials = {
+    asa_repository_help: runtime.repositoryHelp
+      ? 'Подобраны публичные документы этой сборки; текст и ссылки переданы отдельно. Это справка, а не проверка живых настроек и не доступ ко всему репозиторию.'
+      : 'Подходящая справка не подобрана',
     conversation:
       'Только фактически переданный контекст текущего диалога; часть старой истории может не входить в него',
     attachments:
@@ -296,7 +300,8 @@ export function policyInstructions(
       : '\n\nСерверное описание инструментов: ' + JSON.stringify(values.tools)) +
     (template.includes('{{materials}}')
       ? ''
-      : '\n\nДоступные материалы: ' + JSON.stringify(values.materials))
+      : '\n\nДоступные материалы: ' + JSON.stringify(values.materials)) +
+    (runtime.repositoryHelp ?? '')
   );
 }
 export class AiGenerationPolicyStore {
