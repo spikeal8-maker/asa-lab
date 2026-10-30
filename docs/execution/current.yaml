@@ -7778,16 +7778,28 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       evidence: docs/product/projects/evidence/publication-likes-20261030-acceptance.md
+    - task_id: TASK-PROJ-ELECTRONICS-PUBLIC-PLAYBACK-001
+      issue: 211
+      pr: 875
+      accepted_candidate_sha: 33fa430d64b79fdaa04f6bbe4d35f311823b2bbe
+      integrated_sha: fbdbdaefdda82391eda31640c06b1005538fefcb
+      independent_review: approved
+      exact_candidate_focused_run: 41068782161
+      exact_candidate_general_run: 41068782074
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/electronics-playback-20261030-acceptance.md
     task:
       id: TASK-PROJ-ELECTRONICS-PUBLIC-PLAYBACK-001
       issue: 211
       branch: main
       candidate_branch: codex/electronics-public-playback-20261030
       base_branch: main
-      pr: null
+      pr: 875
       pr_draft: false
-      status: in_progress
-      checkpoint: public_electronics_runtime_and_layout_selected
+      status: done
+      checkpoint: public_electronics_playback_technical_accepted_main
       kind: implementation
       risk: high
       semantic_change: 'yes'
