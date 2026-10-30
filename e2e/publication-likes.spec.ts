@@ -170,6 +170,28 @@ for (const { width, seat } of [
         .locator('.admin-publications-list > li')
         .filter({ hasText: 'Updated title; same liked work' });
       await expect(item).toBeVisible();
+      const reactionSummary = item.getByTestId('admin-publication-reactions').locator('summary');
+      await expect(reactionSummary).toContainText('1 нравится');
+      // Real user reactions change neither publication revision nor admin CAS.
+      // A successful list refresh must still replace the displayed count.
+      for (const expectedCount of ['0', '1']) {
+        const reaction = reader.waitForResponse(
+          (r) =>
+            r.url().endsWith(`/api/public-projects/${publication.publicationId}/like`) &&
+            r.request().method() === 'PUT',
+        );
+        await button.click();
+        expect((await reaction).status()).toBe(200);
+        await expect(reader.getByTestId('publication-like-count')).toHaveText(expectedCount);
+        await moderator.getByRole('button', { name: 'Обновить', exact: true }).click();
+        await expect(reactionSummary).toContainText(`${expectedCount} нравится`);
+        if (expectedCount === '0') {
+          await moderator.screenshot({
+            path: `${EVIDENCE}/${seat ? 'seat' : 'account'}-admin-refreshed-count.png`,
+            fullPage: true,
+          });
+        }
+      }
       await item.getByTestId('admin-publication-reactions').locator('summary').click();
       await expect(item.getByRole('button', { name: 'Отключить реакции' })).toBeDisabled();
       await item.getByLabel('Причина изменения реакций').fill('Reviewed test reactions');

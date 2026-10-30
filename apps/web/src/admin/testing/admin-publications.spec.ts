@@ -485,3 +485,94 @@ describe('publications moderation', () => {
     expect(button('Открепить')).toBeUndefined();
   });
 });
+
+describe('authoritative reaction list refresh', () => {
+  function reactionPage(count = 1) {
+    return {
+      ok: true as const,
+      status: 200,
+      data: {
+        items: [{ ...publication, likeCount: count, reactionsEnabled: true, reactionsVersion: 0 }],
+        nextOffset: null,
+      },
+    };
+  }
+  async function mountReactions() {
+    vi.mocked(call).mockResolvedValueOnce(reactionPage());
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+  }
+  function reactionInput(): HTMLInputElement {
+    return host.querySelector<HTMLInputElement>('[aria-label="Причина изменения реакций"]')!;
+  }
+  async function typeReactionReason(value: string) {
+    await act(async () => {
+      const field = reactionInput();
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, value);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+  it('accepts fresh counts only after a successful full read and preserves a form during rerender/loading/failed refresh', async () => {
+    await mountReactions();
+    await typeReactionReason('Unsaved reason');
+    const originalInput = reactionInput();
+    await act(async () =>
+      root.render(createElement(AdminPublicationsPage, { onAccessDenied: denied })),
+    );
+    expect(reactionInput()).toBe(originalInput);
+    expect(reactionInput().value).toBe('Unsaved reason');
+    let finish!: (value: ReturnType<typeof reactionPage>) => void;
+    vi.mocked(call).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    await click('Обновить');
+    expect(reactionInput()).toBe(originalInput);
+    expect(reactionInput().value).toBe('Unsaved reason');
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('1 нравится');
+    await act(async () => finish(reactionPage(2)));
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('2 нравится');
+    expect(reactionInput().value).toBe('');
+    await typeReactionReason('Retain on failure');
+    const refreshedInput = reactionInput();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'private' },
+    });
+    await click('Обновить');
+    expect(reactionInput()).toBe(refreshedInput);
+    expect(reactionInput().value).toBe('Retain on failure');
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('2 нравится');
+  });
+  it('recovers a failed mutation from a successful list refresh even when count, revision and settings version are identical', async () => {
+    await mountReactions();
+    await typeReactionReason('Reviewed setting');
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'private' },
+    });
+    await click('Отключить реакции');
+    expect(reactionInput()).toBeNull();
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('обновите список');
+    vi.mocked(call).mockResolvedValueOnce(reactionPage());
+    await click('Обновить');
+    expect(
+      host.querySelector('[data-testid="admin-publication-reactions"]')!.textContent,
+    ).toContain('1 нравится · Реакции включены');
+    expect(reactionInput().value).toBe('');
+    await typeReactionReason('Retry after authoritative refresh');
+    expect(button('Отключить реакции').disabled).toBe(false);
+  });
+});

@@ -67,6 +67,7 @@ export function AdminPublicationsPage({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [items, setItems] = useState<readonly Publication[]>([]);
+  const [listEpoch, setListEpoch] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +128,10 @@ export function AdminPublicationsPage({
             ],
       );
       setNextOffset(result.data.nextOffset);
+      // Only a successful full list read replaces each row's authoritative
+      // reaction state, including unchanged counts/versions after a failed write.
+      // Loading, failed reads and appending another page retain existing forms.
+      if (offset === 0) setListEpoch((previous) => previous + 1);
     },
     [fail],
   );
@@ -403,7 +408,7 @@ export function AdminPublicationsPage({
               typeof item.reactionsVersion === 'number' &&
               typeof item.likeCount === 'number' ? (
                 <PublicationReactionSettings
-                  key={`${item.publicationId}:${item.reactionsVersion}:${item.revisionId}`}
+                  key={`${item.publicationId}:${item.reactionsVersion}:${item.revisionId}:${listEpoch}`}
                   publicationId={item.publicationId}
                   revisionId={item.revisionId}
                   initial={{
