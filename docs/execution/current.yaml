@@ -7685,38 +7685,29 @@ parallel_lanes:
         deployment: not_run
         evidence: docs/product/projects/evidence/acquisition-controls-20261028-acceptance.md
     task:
-      id: TASK-PROJ-ACQUISITION-CONTROLS-001
+      id: TASK-PROJ-PUBLICATION-LIKES-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-project-acquisition-controls-20261028
+      candidate_branch: codex/publication-likes-20261030
       base_branch: main
-      pr: 837
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: acquisition_controls_accepted_PR837_native_copies_verified
+      status: in_progress
+      checkpoint: owner_approved_like_retention_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
-      owner_authorization: >-
-        Continue the owner-commissioned publication programme after accepted PR826.
-        Owner clarified that download means both adding a personal project copy and
-        physically exporting a file. Global admin OFF overrides every Account/teacher/
-        StudentSeat and direct API. Class/Seat permissions cannot bypass it. Owner
-        approved author consent default OFF including old publications. DEC121 records
-        these decisions. Select one bounded slice: global/author controls and existing
-        native Electronics/3D public-domain copy for Account and allowed StudentSeat,
-        using canonical immutable source and Project writer, with real edit/save/reopen.
-        No second Account, Games, solver, AI, native export or like implementation in
-        this slice. One new author, independent exact Code/Security, real PG/browser
-        focused and General before Main. Controller continues remaining dependencies
-        after acceptance. Final guarded working-site update remains owner-authorized;
-        no working server/database actions in this source-only slice.
+      owner_authorization: Owner resumed unfinished publisher likes on 2026-10-30 and explicitly approved retaining
+        likes through update/revoke/republish and allowing own unlike after administrator disables reactions. DEC116/118/122
+        select Account and active StudentSeat likes, no self-like, one canonical reaction domain, real admin counts
+        and audited per-publication disable. No old Gallery transfer, ratings, AI bonuses, downloads, Scratch copy,
+        Games or deployment in this bounded source slice. Independent exact Code/Security, real PG/API/browser focused
+        and General gates before Main.
       context_hints:
-        - docs/product/projects/tasks/PROJ-ACQUISITION-CONTROLS.md
-        - docs/product/projects/DECISION_LEDGER.md
-        - docs/agent/contracts/identity.yaml
-        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
+      - docs/product/projects/tasks/PROJ-PUBLICATION-LIKES.md
+      - docs/product/projects/DECISION_LEDGER.md
+      - docs/agent/contracts/identity.yaml
     integration_dependencies:
       - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
         issue: 836
@@ -8554,18 +8545,15 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
+      convergence_baseline_sha: cd5be63911d659c186fa5075029a547437c5d7d4
       head_sha: null
-      observed_at: '2026-10-28T12:10:13Z'
+      observed_at: '2026-10-30T07:57:42.720524+00:00'
       main:
         branch: main
-        sha: 06df71f28fb1322d2ad9ddbfb30a732728044269
-      observation_note: >-
-        PR814 merged after exact source independent reviews and all required candidate gates.
-        Scratch run40679082270 attempt2 passed all three jobs; attempt1 PowerShell startup
-        timeout was infrastructure D, not bypassed. General40679082222 and Public Projects
-        40679082362 passed. Fetch main before writes. Select only the next audited class/Seat
-        permission and publishing slice; exports/reactions and final deployment are subsequent.
+        sha: cd5be63911d659c186fa5075029a547437c5d7d4
+      observation_note: Dated selection after accepted PR837 acquisition controls. Fetch main before writes. Owner resumed
+        likes as the next priority and approved DEC122 retention; no like implementation or new deployment acceptance
+        claimed.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
