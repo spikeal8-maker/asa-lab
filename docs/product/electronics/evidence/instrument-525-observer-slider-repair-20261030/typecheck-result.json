@@ -1,0 +1,118 @@
+{
+  "classification": "ad hoc spec typecheck; existing baseline diagnostics preserved, not canonical gate PASS",
+  "identical": true,
+  "baseline": [
+    {
+      "code": 2304,
+      "file": "apps/web/src/client-diagnostics.ts",
+      "message": "Cannot find name '__ASA_BUILD_REVISION__'."
+    },
+    {
+      "code": 2304,
+      "file": "apps/web/src/client-diagnostics.ts",
+      "message": "Cannot find name '__ASA_BUILD_REVISION__'."
+    },
+    {
+      "code": 2304,
+      "file": "apps/web/src/client-diagnostics.ts",
+      "message": "Cannot find name '__ASA_BUILD_REVISION__'."
+    },
+    {
+      "code": 2304,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Cannot find name 'Locator'."
+    },
+    {
+      "code": 2322,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Type '{ id: string; kind: \"resistor\"; componentTypeId: string; variantId: string; name: string; position: { x: number; y: number; }; rotation: number; value: number; pinIds: string[]; stateProperties: { tolerancePercent: number; resistanceUnit: string; }; }' is not assignable to type 'SchematicComponent'.\n  Types of property 'rotation' are incompatible.\n    Type 'number' is not assignable to type 'Rotation'."
+    },
+    {
+      "code": 2322,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Type 'number' is not assignable to type 'Rotation'."
+    },
+    {
+      "code": 2339,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "Property 'sequence' does not exist on type 'unknown'."
+    },
+    {
+      "code": 2339,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "Property 'streamId' does not exist on type 'unknown'."
+    },
+    {
+      "code": 2339,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Property 'elementFromPoint' does not exist on type 'SchematicDocument'."
+    },
+    {
+      "code": 2556,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "A spread argument must either have a tuple type or be passed to a rest parameter."
+    },
+    {
+      "code": 2740,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "Type '{}' is missing the following properties from type 'QualitySnapshot': schemaVersion, eventId, pipeline, streamId, and 7 more."
+    }
+  ],
+  "candidate": [
+    {
+      "code": 2304,
+      "file": "apps/web/src/client-diagnostics.ts",
+      "message": "Cannot find name '__ASA_BUILD_REVISION__'."
+    },
+    {
+      "code": 2304,
+      "file": "apps/web/src/client-diagnostics.ts",
+      "message": "Cannot find name '__ASA_BUILD_REVISION__'."
+    },
+    {
+      "code": 2304,
+      "file": "apps/web/src/client-diagnostics.ts",
+      "message": "Cannot find name '__ASA_BUILD_REVISION__'."
+    },
+    {
+      "code": 2304,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Cannot find name 'Locator'."
+    },
+    {
+      "code": 2322,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Type '{ id: string; kind: \"resistor\"; componentTypeId: string; variantId: string; name: string; position: { x: number; y: number; }; rotation: number; value: number; pinIds: string[]; stateProperties: { tolerancePercent: number; resistanceUnit: string; }; }' is not assignable to type 'SchematicComponent'.\n  Types of property 'rotation' are incompatible.\n    Type 'number' is not assignable to type 'Rotation'."
+    },
+    {
+      "code": 2322,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Type 'number' is not assignable to type 'Rotation'."
+    },
+    {
+      "code": 2339,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "Property 'sequence' does not exist on type 'unknown'."
+    },
+    {
+      "code": 2339,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "Property 'streamId' does not exist on type 'unknown'."
+    },
+    {
+      "code": 2339,
+      "file": "e2e/electronics-simulation.spec.ts",
+      "message": "Property 'elementFromPoint' does not exist on type 'SchematicDocument'."
+    },
+    {
+      "code": 2556,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "A spread argument must either have a tuple type or be passed to a rest parameter."
+    },
+    {
+      "code": 2740,
+      "file": "apps/web/src/telemetry-quality.ts",
+      "message": "Type '{}' is missing the following properties from type 'QualitySnapshot': schemaVersion, eventId, pipeline, streamId, and 7 more."
+    }
+  ]
+}
