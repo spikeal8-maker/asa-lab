@@ -16,7 +16,7 @@ from contextlib import nullcontext
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
 from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
-from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
+from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, prepare_support_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
 from deployment.contracts import proxy_provenance_diagnostic
@@ -197,10 +197,13 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     # service) must not become requirements of the previous application.
     backup_install = None if fresh else Installation(install.root, install.profile)
     apply_release_environment(install, release)
-    validate_resolved_images(install, release)
-    check_resources(install, install.identity(existing=not fresh))
-    # Download support images while the previous application remains available.
-    install.compose("pull", "postgres", "minio-init")
+    config = validate_resolved_images(install, release)
+    records = install.identity(existing=not fresh)
+    check_resources(install, records)
+    # Existing PostgreSQL must retain the exact running engine image. MinIO
+    # init reuses the already verified immutable MinIO digest from fetch_images.
+    # No Docker Hub request is required during an ordinary application update.
+    prepare_support_images(install, release, config, records, fresh=fresh)
     if scheduled:
         # Reserve fifteen minutes before starting any downtime. Downloading late
         # in the window is harmless; database work is never forcibly killed at 05:00.
