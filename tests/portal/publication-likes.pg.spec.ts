@@ -365,6 +365,12 @@ describe('canonical publication likes with real restricted PostgreSQL and HTTP',
         [seat.seatId],
       )
     ).rows[0]!;
+    // Match the existing school-scoped Account-link evidence workflow: persist
+    // this Account on the exact Seat before admitting its learner link.
+    await admin.query('UPDATE classroom_student_seats SET account_id=$2 WHERE id=$1', [
+      seat.seatId,
+      linked.account,
+    ]);
     await admin.query(
       "INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,account_id) VALUES($1,$2,$3,$4,'account',$5)",
       [
@@ -394,22 +400,35 @@ describe('canonical publication likes with real restricted PostgreSQL and HTTP',
         ])
       ).rows[0]!.result,
     ).toMatchObject({ liked: true, canUnlike: true });
+    // A separate persisted Seat proves the author's alias, without relinking
+    // the reader's Seat or inventing a second Account for either participant.
+    const ownerSeat = await studentProjectPolicyFixture(admin, runtime);
+    const ownerLearner = (
+      await admin.query(
+        "SELECT learner_identity_id,tenant_id,school_id FROM learner_identity_links WHERE seat_id=$1 AND status='active'",
+        [ownerSeat.seatId],
+      )
+    ).rows[0]!;
+    await admin.query('UPDATE classroom_student_seats SET account_id=$2 WHERE id=$1', [
+      ownerSeat.seatId,
+      s.owner.account,
+    ]);
     await admin.query(
       "INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,account_id) VALUES($1,$2,$3,$4,'account',$5)",
       [
         randomUUID(),
-        learner.tenant_id,
-        learner.school_id,
-        learner.learner_identity_id,
+        ownerLearner.tenant_id,
+        ownerLearner.school_id,
+        ownerLearner.learner_identity_id,
         s.owner.account,
       ],
     );
     await expect(
       runtime.query('SELECT publication_like_write($1,$2,$3,true,$4)', [
-        seat.principal,
+        ownerSeat.principal,
         s.publicationId,
         s.revisionId,
-        seat.hash,
+        ownerSeat.hash,
       ]),
     ).rejects.toMatchObject({ code: 'P5R02' });
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
