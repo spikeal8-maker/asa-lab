@@ -1,0 +1,76 @@
+{
+  "status": "FOCUSED_AND_CANDIDATE_BUDGET_PASS_CANONICAL_REVIEW_PENDING",
+  "baseline_sha": "7d5f6d93fb8555a6064e01c89a3e54538aa68911",
+  "product_blobs": {
+    "contexts/electronics/domain/arduino-program-runtime.ts": "f4f33c552293b0dbc80cad14507fe40df1f43747",
+    "contexts/electronics/domain/arduino-switch-syntax.ts": "4587c910b35d03e4c825a781e5239ddff5f947c8",
+    "contexts/electronics/domain/arduino-capabilities.ts": "66fb179d93eabd3ea4827f70850b4eeae1ee5f33",
+    "apps/web/src/electronics/arduino-command-reference.ts": "a3bff9c465e84b2fcac017dffe6885fd8cac9203"
+  },
+  "artifacts": {
+    "candidate-build.log.gz": {
+      "bytes": 4991,
+      "sha256": "7fd5a2395389ab7a6d4a7060d3bbac26b438ac21918123e7924dc20f18c4649f",
+      "raw_bytes": 18536,
+      "raw_sha256": "62d510a13b611e53b67b1822acc85849bb763ec6e71525a641cf10f5c47c15e8"
+    },
+    "candidate-bundle.log.gz": {
+      "bytes": 438,
+      "sha256": "8c2bab59fb236391bb21c618178ad3bac7fc355a15f49b769e3cbcb52046c745",
+      "raw_bytes": 726,
+      "raw_sha256": "761fc4b203f5b4cf0d6803abb85084e47200b9e432780824d4d261f5d74ae2bb"
+    },
+    "display-1440.png": {
+      "bytes": 113762,
+      "sha256": "864a3189b88f915d4085511ca7e74c7ae1ba0311728f97f427bb8fe05b1378e1"
+    },
+    "display-390.png": {
+      "bytes": 59296,
+      "sha256": "1046e4c74607276c2a6eaa064a33381293a5920f148c17649381ed381189f366"
+    },
+    "feature-before.json.gz": {
+      "bytes": 790,
+      "sha256": "2c11a932c054e1a88d3eeee2ef1f3ae4fdca2e6ee1da11e20a0c569dad8c81b4",
+      "raw_bytes": 1697,
+      "raw_sha256": "a7b6d6ca6b3c7b831d70b758c2e94f81ebba8db7173b7b4472ac5a2c09b94589"
+    },
+    "feature-before.mjs.txt": {
+      "bytes": 1616,
+      "sha256": "6ff70a5cce695830504a26fc80632f761077473be020c03fcca05c9c2bcec69f"
+    },
+    "legacy-after-receipt.json": {
+      "bytes": 205,
+      "sha256": "85bff76194bcff4e8f81cf379c013cafd9ade7a26e91f0921bbf1100d1cfb665"
+    },
+    "legacy-after.json.gz": {
+      "bytes": 40623,
+      "sha256": "dd8843d3b5752e6a48e9b1d9cc61792c63d116dd8de5d30f29f72dd30700616d",
+      "raw_bytes": 1295122,
+      "raw_sha256": "0afe4c1dd4c051d41d98eca513f8feb7b124277b82b3076fca229ff6103a643d"
+    },
+    "legacy-before-receipt.json": {
+      "bytes": 205,
+      "sha256": "2aa987012c088400f477e8424f81a72311bd8934a4c07515925729fcda036cff"
+    },
+    "legacy-before.json.gz": {
+      "bytes": 40623,
+      "sha256": "dd8843d3b5752e6a48e9b1d9cc61792c63d116dd8de5d30f29f72dd30700616d",
+      "raw_bytes": 1295122,
+      "raw_sha256": "0afe4c1dd4c051d41d98eca513f8feb7b124277b82b3076fca229ff6103a643d"
+    },
+    "legacy-oracle.mjs.txt": {
+      "bytes": 5286,
+      "sha256": "4a06ed2d00265ac1da908d7008b2c2ecb396fe486be0eed365b660cac5d8d48d"
+    },
+    "native-display.json.gz": {
+      "bytes": 4765,
+      "sha256": "43939bdf28ed04a7da93a716ed96ed93d835ece4b867432537e7b719a1b3aeee",
+      "raw_bytes": 131743,
+      "raw_sha256": "c0bb0bf8ef3872d6d3fbc60448265ad68734667271e9ae8749e8cc1f5723b5a0"
+    },
+    "switch-display.ino": {
+      "bytes": 2340,
+      "sha256": "e2a729a890d435d2550887fa6bf8eb48118ac37cc80c26ab3970af6edd389a49"
+    }
+  }
+}

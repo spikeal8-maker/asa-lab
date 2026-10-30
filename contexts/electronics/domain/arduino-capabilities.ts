@@ -217,7 +217,7 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   'if-else': SUPPORTED('Исполняется ровно одна ветвь if/else.'),
   for: LIMITED('Заголовок и тело for исполняются по условию в пределах защитного лимита операций.'),
   while: LIMITED('Условие while повторяется в пределах защитного лимита операций.'),
-  switch: UNSUPPORTED('switch/case ещё не входит в подтверждённое подмножество.'),
+  switch: LIMITED('Целочисленные switch/case/default; объявления ветвей — в блоках.'),
   'do-while': LIMITED('Тело выполняется до проверки условия; действует защитный лимит операций.'),
   comparison: SUPPORTED('Поддерживаются <, <=, > и >=.'),
   equality: SUPPORTED('Поддерживаются == и !=.'),
@@ -263,7 +263,7 @@ const SUPPORTED_CALLS = new Set([
   'readultrasoniccm',
 ]);
 
-const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch']);
+const CONTROL_CALLS = new Set(['if', 'while', 'for', 'switch', 'case']);
 
 const UNSUPPORTED_CALL_MESSAGES = new Map<string, string>([
   ['shiftin', 'shiftIn() ещё не исполняется.'],
@@ -443,7 +443,7 @@ export function analyseArduinoSourceSupport(
     );
   }
 
-  for (const match of clean.matchAll(/\b(?:switch|goto)\b/gi)) {
+  for (const match of clean.matchAll(/\bgoto\b/gi)) {
     add(
       'unsupported-syntax',
       'unsupported',
