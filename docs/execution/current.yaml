@@ -9901,38 +9901,35 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: owner_resumed_preserved_candidate_composition_selected
+      checkpoint: current_source_proof_only_32native_boundary_cases_selected
       kind: repair
       owner_acceptance: pending
       selected_at: '2026-10-20T17:06:38.290383+00:00'
       owner_instruction: Owner selected issue544 with "займись этим"; resume only this paused field-grab task.
       repair_scope: >-
-        Recompose only proven SVG-root/grid alpha fallback and componentDragDelta artificial-bound removal,
-        preserving accepted main and mobile cue/Header, all foreign hook/Stage changes and priorities.
-        Append the exact preserved field regression block to current interactions prefix; restore mounted
-        workbench-field-drag regression and its single component registration only if absent.
-        Generated digest only when canonical generator requires a changed registered path.
+        Proof only on current main: confirm preserved SVG-root alpha fallback and unbounded finite drag
+        and existing32 native field scenarios. No product repair or repeated BEFORE. Run existing canonical
+        isolated GitHub CI, retain full native whole-document Save/PUT/revision/cookies-only reopen/regrab
+        evidence and fresh independent exact-SHA review. No local stack or workflow/test weakening.
       preserved_candidate_sha: a126dc75620eefb6c6f63b5fc2521b4338829688
       preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
       preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
       preserved_oracle_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
       historical_evidence: 32 whole-document native drag/Save/revision/cookies-only reopen journeys passed historically; not current exact-SHA acceptance.
       acceptance_dependency_issue: 548
-      next_action: One bounded author composes preserved hunks on accepted main; short focused checks and new independent exact-SHA review, ordinary source publication and CI in background. No repeated BEFORE or polling.
+      next_action: New bounded proof executor confirms source/test identity and existing workflow route, then executes one isolated current-source qualification. Classify failures before any new repair selection. Existing548 acceptance dependency and owner acceptance remain open.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 88d10f34ed4eb2540fb420800940250d6824786a
+      convergence_baseline_sha: 46aab6bc166b706f643b7e2e850f263b84ec1f25
       head_sha: null
       observed_at: '2026-10-20T17:06:38.290383+00:00'
       main:
         branch: main
-        sha: 88d10f34ed4eb2540fb420800940250d6824786a
+        sha: 46aab6bc166b706f643b7e2e850f263b84ec1f25
       observation_note: >-
-        Dated selection only; fetch main and refresh current/dirty paths before writes. General39460089425 failed;
-        Release39461012617 and Scratch documentation39460089400 passed. No new runtime evidence claimed.
-        Existing 554 accepted lane and all historical paused snapshots remain unchanged. Owner resume
-        supersedes the former pause only for issue544. No core/LED/clock/worker/physics/assets/API/persistence,
-        CSS, mobile cue/Header, workflows, infrastructure or package edits. Actual dirty overlap stops writes.
+        Fresh fetch main before writes, clean controller HEAD46aab6 equals origin. General41025135797
+        in_progress not PASS. Source root-or-grid fallback and field regression present; source must be
+        checked by executor before dispatch. Proof-only dependency independent of Arduino cap blocker865.
     execution_lease:
       executor_id: electronics-field-544-resume
       holder: unassigned
@@ -13358,7 +13355,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: auto_wait864_before_proved_legacy_overwrite_mount_repair865_selected
+      checkpoint: mount865_candidate_capblocked_preserved_field544_proof_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13369,7 +13366,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001
+      current_slice: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15270,7 +15267,12 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_reproduced_legacy_noedit_source_workspace_overwrite
+      checkpoint: candidate46d388c_preserved_notready_Arduino170bytes_overcap
+      candidate_sha: 46d388c04c876546dccf1427b7758e34792d901e
+      candidate_publication: published
+      candidate_acceptance: blocked
+      size_evidence: Arduino2000170of2000000_other7capsPASS_reader13PASS_nativeAFTER_canonical_independentreview_NOT_RUN
+      report: reports/arduino-block-mount-865/README.md
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_review
       context_hints:
