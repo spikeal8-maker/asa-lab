@@ -35,6 +35,29 @@ If an existing versioned extension contract
 provides equivalent protection, report the concrete alternative before edits.
 No SQL migration, tenant/RLS change or live database action is authorized.
 
+Actual old-client proof found that the old GET/normalization/merge path changes
+5 to4 and drops annotations before its accepting parser. Therefore a version
+number alone is insufficient. Add an optional module-owned replacement validator
+through ModuleProviderV1, ProjectModule and their API adapter. For opted-in
+Electronics saves only, bind validation to an authorized current draft revision:
+if it matches baseRevision, reject version regressions from stored5 or newer;
+if current is newer preserve existing stale-CAS/idempotent replay behavior;
+reject a future baseRevision before attempting a write. Existing SQL CAS then
+binds the checked state to the write and rejects a concurrent4-to5 race.
+Do not add a racy unbound precheck, a global floor for other modules, a module-key
+hardcode, row locks or SQL/RLS changes. Absent validator keeps other modules'
+behavior/query path unchanged. Throwing/malformed validators fail closed; pass
+detached documents and do not permit validator mutation of the saved payload.
+
+This authorizes necessary narrow shared edits in module-sdk, Projects application
+ports/SaveDraftUseCase and the existing API module-catalog bridge. Exact paths
+were checked for foreign dirty work before approval. Test prepared/unprepared
+saves, current/stale/future revision, replay and a controlled real SQL CAS race
+in isolated CI, plus refusal preserving stored bytes/revision. Preserve deliberate
+RestoreVersion behavior. Keep v5 sticky after annotation deletion/local Undo so
+current clients do not send accidental downgrades. Document safe forward-fix/
+rollback handling for v5 data; no deployment/restore action is authorized.
+
 Keep the duplicate frontend API type in sync with the domain parser.
 `normalizeLoadedDocument()` currently forces version4, while
 `electronics-document-merge.ts` compares/reconstructs only old collections and
