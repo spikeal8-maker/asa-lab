@@ -205,3 +205,14 @@ it('extracts bounded inert raster image metadata using the final page URL', asyn
   ]);
   expect(document?.text).toContain('Article facts.');
 });
+
+it('reads valid HTML with an omitted closing head tag, keeping metadata hidden', () => {
+  const images: string[] = [];
+  const text = pageText(
+    '<html><head><title>Metadata</title><img src="hidden.png"><body><main>Actual body text<img src="visible.png"></main>',
+    500,
+    (tag) => images.push(tag),
+  );
+  expect(text).toBe('Actual body text');
+  expect(images).toEqual(['<img src="visible.png">']);
+});

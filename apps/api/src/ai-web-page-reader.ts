@@ -74,6 +74,16 @@ export function pageText(html: string, limit = 4500, onImage?: (tag: string) => 
     if (tag === 'img' && end - open <= 4096) onImage?.(html.slice(open, end + 1));
     if (tag && hidden.has(tag)) {
       const close = lower.indexOf('</' + tag, cursor);
+      // HTML permits omitting </head>; the explicit body still ends metadata.
+      if (close < 0 && tag === 'head') {
+        const body = /<body(?:\s|>)/g;
+        body.lastIndex = cursor;
+        const start = body.exec(lower);
+        if (start) {
+          cursor = start.index;
+          continue;
+        }
+      }
       if (close < 0) break;
       const closeEnd = html.indexOf('>', close);
       cursor = closeEnd < 0 ? html.length : closeEnd + 1;
