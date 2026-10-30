@@ -11346,6 +11346,11 @@ parallel_lanes:
         author_scope: Existing_test_observer_named_idempotent_initScript_plus_current_evaluate_readiness_and_existing_RECT_helper_generalized_for_two_slider_clicks
         preservation: All16_full_matrix_full_document_ledger_CAS_finalSave_reopen_context_closures_native_action_counts_deadlines_and_unrelated_spec_bytes_unchanged
         boundary: No_product_AFTER_before_new_complete16_causal_mirror_only_soft_failure_evidence_and_actual_review
+        preserved_candidate_sha: f33577dc27fc94caa5cf451bcbe957693fcbdb1d
+        source_review: APPROVE_frozen_test_dependency_only_no_complete_repair
+        full_browser_blob: b450bd6d148285008ba226bb688a315f1120eb1a
+        full_browser_sha256: d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c
+        actual_remaining_cause: All9_native_points_blocked_by_wire_segment_hits_in6_verified_pose_reconstructions_need_separate877_dependency
       resumed_before_qualification:
         source_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
         source_review: APPROVE_new_independent_exact_source_and_final_composition
@@ -13487,7 +13492,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: resize876_integrated_mirror525_test_observer_and_slider_repair_selected
+      checkpoint: resize876_integrated_test525_frozen_native_psu_switch877_dependency_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13498,7 +13503,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
+      current_slice: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15645,6 +15650,8 @@ parallel_lanes:
       checkpoint: source_native_review_done_84e4acc1_canonical2566_71fresh_caps8_PASS
       accepted_candidate_sha: 84e4acc1a6459d7feab5334db76824336fcaac6b
       integrated_sha: 3b8e6e6acbced9f3f3f6eab1a7600de3ad96a9cf
+      general_ci_run: 41067824259
+      general_ci_result: SUCCESS_all_four_jobs_exact84e4acc1
       source_review_evidence: done
       independent_review: APPROVE_exact84e4acc1_native_parity_and_corrected_empty
       report: docs/product/electronics/evidence/arduino-resize-dedup-876/GATES.md
@@ -15672,6 +15679,48 @@ parallel_lanes:
       convergence_baseline_sha: b0508299f640f9d08e2d1edbccf480975a0ebf85
       observed_at: '2026-10-30T13:35:49Z'
       observation_note: Fresh fetch main required before writes. Main was clean at b050;873 exact5b622a1 General41060131759 all4SUCCESS. Mirror BEFORE41061516266 running exact8ebe, focused and benchmark PASS, actual browser pending. Readonly source plan identifies duplicated horizontal resize lifecycle, no edits or inferred byte saving. New remote3927f513 contains disjoint AI34paths without dependency or electronics changes; preserve all foreign bytes on convergence.
+
+  - id: electronics-psu-switch-native-hit
+    parent_lane: electronics
+    worktree_id: electronics-psu-switch-native-hit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001.md
+    task:
+      id: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001
+      issue: 877
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_native_live_switch_capsule_priority_over_ordinary_wire_hits_only
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_source_native_review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001.md
+      owner_authorization: Owner finish mirror point in main and conduct refactoring, no server or foreign edits. Actual6 switch hit failures block complete525before; separate877 native hit dependency only, no mirror compensation. Compose frozen independently approved f33577d test dependency unchanged.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 837392b26e4a182f6b2cf3c3acc9986a7fc91a7c
+      convergence_baseline_sha: 837392b26e4a182f6b2cf3c3acc9986a7fc91a7c
+      head_sha: null
+      observed_at: '2026-10-30T14:41:43Z'
+      observation_note: Fresh fetch main required before writes. New837392b2 includes foreign Projects shared engine/package exports/Vite graph and controller imports; no Stage/ProductionVisual/e2e simulation overlap. Preserve all foreign code and AI/Projects state on one unpublished-doc convergence; new executor builds exact inherited baseline, no historical cap guarantee. Mirror41061516266 exact8ebe failed0of16complete; focused and benchmarkPASS. Actual16 raw archived in main. Frozenf33577d test dependency independently approved but all9 switch points blocked in6 reconstructed poses. Readonly clipping probe establishes feasibility only, not production proof. Refactor876 integrated3b8e6 and exact84 General41067824259 all4SUCCESS.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
