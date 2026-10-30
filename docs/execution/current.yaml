@@ -11304,7 +11304,15 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_test_only_finalization_phase_repair
+      checkpoint: selected_test_only_current_document_observer_and_slider_owned_point_repair
+      native_observer_slider_repair:
+        source_before_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
+        source_before_run: 41061516266
+        source_before_full_browser_blob: 06174a9675a5e670e3798a4adb7e40239a729a3a
+        cause: Ten_observer_addInitScript_after_initial_load_hash_navigation_never_installs_six_slider_centers_intercepted_by_wire
+        author_scope: Existing_test_observer_named_idempotent_initScript_plus_current_evaluate_readiness_and_existing_RECT_helper_generalized_for_two_slider_clicks
+        preservation: All16_full_matrix_full_document_ledger_CAS_finalSave_reopen_context_closures_native_action_counts_deadlines_and_unrelated_spec_bytes_unchanged
+        boundary: No_product_AFTER_before_new_complete16_causal_mirror_only_soft_failure_evidence_and_actual_review
       resumed_before_qualification:
         source_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
         source_review: APPROVE_new_independent_exact_source_and_final_composition
@@ -11433,7 +11441,7 @@ parallel_lanes:
         reopen: Cookies-only fresh context/origins and pre-app local-session empty;postload localdraft empty plus exact fixture saved hint,journal before assertions. Full fresh GET/server/rendered equality and no extra write through both closures;complete only after final durable ledger and both contexts closed.
         delivery: Freeze NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW exactSHA independent source/finalcomposition review before ONE justified existing strict run. All16complete plus NEWactualreview with causal mirror-only softfail before separate product AFTER. No acceptance/closure/release/deploy.
         evidence: docs/product/electronics/evidence/instrument-525-finalization-repair-selection-20261021.md
-      next_action: Assign ONE bounded TEST-ONLY finalization repair author under finalization_phase_contract;freeze unpublished for NEW independent source review. Do not wait for unrelated679/682 qualification or edit their paths.
+      next_action: Assign ONE bounded TEST-ONLY observer_installation_and_slider_ownership repair author under new30October_contract;freeze for NEW independent exactSHA source/finalcomposition review before one justified strict run. Preserve finalization_phase_contract and all unrelated paths.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
@@ -13446,7 +13454,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: resize876_verified_mirror525_hard_failures_classified_test_repair_next
+      checkpoint: resize876_integrated_mirror525_test_observer_and_slider_repair_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13457,7 +13465,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001
+      current_slice: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15603,6 +15611,7 @@ parallel_lanes:
       semantic_change: 'no'
       checkpoint: source_native_review_done_84e4acc1_canonical2566_71fresh_caps8_PASS
       accepted_candidate_sha: 84e4acc1a6459d7feab5334db76824336fcaac6b
+      integrated_sha: 3b8e6e6acbced9f3f3f6eab1a7600de3ad96a9cf
       source_review_evidence: done
       independent_review: APPROVE_exact84e4acc1_native_parity_and_corrected_empty
       report: docs/product/electronics/evidence/arduino-resize-dedup-876/GATES.md

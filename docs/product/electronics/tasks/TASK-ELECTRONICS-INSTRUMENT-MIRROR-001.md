@@ -12,6 +12,68 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected test-only observer and slider ownership repair — 30 October 2026
+
+Exact8ebe3f2b2 / strict41061516266 completes0/16 journeys. Focused gate and
+benchmark pass. Selected raw16 proof is preserved under
+`../evidence/instrument-525-before-41061516266/`; the1.93GB artifact was read by
+validated HTTP206 ranges, not downloaded wholesale. The accepted873 dependency
+fixes stale initial readings; it does not supply mirror compensation.
+
+Ten journeys reach final270 geometry then checkpoint Save fails. Every case
+records a real HTTP200 PUT revision2→3 with request/response document equality.
+The public dispatch observer was only registered with addInitScript AFTER the
+initial page.goto('/'); the following hash-only navigation does not install it.
+Both public-fetch checkpoints and nativeDelivered are absent. The response
+observer waits for dispatches.has(mutationId), fails its5000ms poll, then records
+the otherwise successful response. This is a demonstrated observer-installation
+defect; no product Save defect is established.
+
+Six remaining journeys (320x/xy,390x/xy,1024xy,1440xy) stop at the bench-supply
+power slider: its center is intercepted by the supply-negative wire hit path.
+The existing waveform helper already uses actual SVG RECT coordinates, CTM and
+elementFromPoint ownership to perform one native click.
+
+Authorize ONE bounded test-only repair author. Product write paths are only
+e2e/electronics-simulation.spec.ts and the canonical generated
+component-coverage.json browserEvidenceSha256. Proof files may be added under
+this task's evidence directory. No production/controller/persistence/solver,
+workflow, dependency, timeout, fixture/wire geometry, cap or unrelated test edit.
+
+Name the existing browser observer installer and make installation idempotent.
+Register it for new documents with addInitScript AND install it once in the
+already-open document with evaluate. Assert/journal readiness before measured
+actions. Preserve the exact transparent Reflect.apply fetch forwarding,
+synchronous storage snapshot, native listeners, bindings, request/response
+bijection, full-document/CAS checks and lifecycle/closure coverage. One actual
+installation per document, no duplicate listeners or fetch wrappers, reloads,
+extra Save/Enter, new waits or relaxed deadlines.
+
+Generalize only the existing owned-RECT helper and use it for both existing
+bench-supply slider clicks and existing waveform calls. Preserve the same nine
+interior candidate points/order, genuine current getScreenCTM mapping and strict
+elementFromPoint ownership. Journal candidate ownership before exactly one
+native mouse click. No force, overlay deletion, fixture/pan change, fallback
+click or retry. If no owned point exists, fail closed with the witness.
+
+Preserve the complete finalization_phase_contract below: all16 isolated
+journeys,64configs perwidth, eight readouts, all rotations/mirrors/native actions,
+CTM/own-center/window/endpoint oracles, full-document ledger/CAS, clean boundary,
+exactly one original final Save and fresh cookies-only reopen through both
+context closures. All unrelated spec bytes and generated fields stay unchanged.
+Preserve original hard failures and the original-before full-spec blob.
+
+Before a new expensive strict run, independently prove the installer in an
+already-loaded document plus hash navigation/new document/repeated install,
+transparent actual fetch delivery with exactly-one native event/dispatch and
+storage checkpoint, and the owned slider helper with genuine SVG/wire hits in
+the failed poses. Freeze/push/self-review STOP; NEW independent exact-SHA source
+and final-composition review precedes ONE justified existing strict run. The new
+full browser blob remains byte-identical for future BEFORE/AFTER. Only all16
+completed journeys with causal mirror-only soft failures and a NEW actual review
+can authorize a separate product AFTER. No technical acceptance/closure/release
+or deployment is granted by this repair selection.
+
 ## Selected TEST-ONLY finalization phase repair — 21 October 2026
 
 NEW independent proposal review selects one test-only repair in simulation spec
