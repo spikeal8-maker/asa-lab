@@ -60,3 +60,15 @@ control name and all timing/state behavior. Add actual running/pausing/paused
 and rates0/0.1/10 to the native matrix, preserve the failed receipt, and repeat
 final-SHA checks with a fresh independent reviewer. This is a bounded display
 repair, not permission to change the pacing implementation.
+
+## Nested clock and long-duration display repair boundary
+
+The next independent review established two display defects: at 320px a
+supported 100-hour elapsed value leaves less than a full tool target; at 768px
+the restored nested clock is 48px tall and extends beyond the toolbar. Correct
+the mobile clock selectors/sizing for the real nested speed control, preserving
+the complete time value, all actions and readable typography. Include the actual
+100-hour value and nearby responsive boundaries in the native matrix, with
+explicit vertical containment as well as horizontal checks. Preserve rejected
+raw receipts and the frozen original-CSS comparison. No clock computation,
+pacing, persistence or extra product path is authorized by this display repair.
