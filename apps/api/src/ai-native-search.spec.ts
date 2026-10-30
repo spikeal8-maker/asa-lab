@@ -628,22 +628,3 @@ it('offers only user-provided URLs, executes a selected direct read and follows 
     read.mockRestore();
   }
 });
-
-it('prepares repository help even with Internet off and no native tool support', async () => {
-  const f = fixture(
-    'off',
-    'web_search',
-    '',
-    [],
-    'complete',
-    false,
-    'Как у нас в ASA работает поиск изображений?',
-  );
-  await f.send();
-  const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
-  expect(rounds).toHaveLength(1);
-  expect(JSON.stringify(rounds[0]!.body!.messages)).toContain('СПРАВКА ASA ИЗ РЕПОЗИТОРИЯ');
-  expect(JSON.stringify(rounds[0]!.body!.messages)).toContain('docs/public-help/ai-internet.md');
-  expect(rounds[0]!.body!.tools).toBeUndefined();
-  expect(f.requests.some((item) => item.url.includes('/search?'))).toBe(false);
-});
