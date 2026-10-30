@@ -1,0 +1,46 @@
+import { createRequire } from 'node:module';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
+const require = createRequire(import.meta.url);
+const { build } = createRequire(require.resolve('vite'))('esbuild');
+const output = 'test-results/simulation-speed-861';
+mkdirSync(output, { recursive: true });
+const name = process.argv[2] ?? 'before';
+await build({ stdin: { contents: `export * from './contexts/electronics/engine'; export * from './contexts/electronics/testing/fixtures/raw-seven-segment'; export * from './apps/web/src/electronics/led-temporal-presentation';`, resolveDir: process.cwd() }, bundle: true, platform: 'node', format: 'esm', outfile: `${output}/${name}-runtime.mjs`, logLevel: 'silent' });
+const m = await import(pathToFileURL(`${process.cwd()}/${output}/${name}-runtime.mjs`).href);
+const empty = { schemaVersion: 4, components: [], connections: [], viewport: { x: 0, y: 0, zoom: 1 }, simulation: { running: true, maxIterations: 24 } };
+const dc = { ...empty, components: [{ id: 's', kind: 'source', value: 3, position: { x: 0, y: 0 } }, { id: 'r', kind: 'resistor', value: 1000, position: { x: 20, y: 0 } }], connections: [{ id: 'a', from: { componentId: 's', terminal: 'a' }, to: { componentId: 'r', terminal: 'a' } }, { id: 'b', from: { componentId: 's', terminal: 'b' }, to: { componentId: 'r', terminal: 'b' } }] };
+const sketches = ['void setup(){Serial.begin(9600);pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);Serial.println(1);delay(10);digitalWrite(13,LOW);delay(10);}', '#include <Servo.h>\nServo motor;void setup(){motor.attach(9);}void loop(){motor.write(45);delay(10);motor.write(135);delay(10);}'];
+const uno = source => ({ ...empty, components: [{ id: 'uno', kind: 'visual', componentTypeId: 'arduino-uno', value: 5, position: { x: 0, y: 0 }, pinIds: ['d9','d13','power-5v','power-3v3','power-gnd-1'], stateProperties: { arduinoSource: source } }] });
+const inputs = [empty, dc, ...sketches.map(uno), m.rawDisplayCircuit({ source: m.rawDisplaySource() + '\n' })];
+const serialise = value => JSON.parse(JSON.stringify(value, (_key, v) => v instanceof Map ? [...v] : v));
+const cases = inputs.map(input => {
+  const parsed = m.parseElectronicsEngineDocument(input);
+  if (!parsed.ok) throw new Error(parsed.message);
+  let state = m.resetElectronicsTimedState();
+  const presenter = new m.LedTemporalPresentation();
+  const advances = [], frames = [];
+  for (const horizon of [0, 1000, 10000, 25000, 50000]) {
+    const session = m.createElectronicsAdvanceSession(parsed.document, { state, requestedHorizonMicroseconds: horizon, maxEvents: 1024 }, { observeLedTemporal: true, observeSevenSegmentTemporal: true });
+    let advance;
+    do { advance = session.step(); } while (advance === null);
+    if (advance.executionStatus !== 'ready') throw new Error(JSON.stringify(advance));
+    state = advance.state;
+    advances.push(serialise({ ...advance, serial: m.projectElectronicsArduinoSerial(advance.state) }));
+    const result = { ...advance.observation, status: advance.observation.solved ? 'solved' : 'invalid' };
+    if (advance.observation.ledTemporal) presenter.accept(result, advance.observation.ledTemporal, horizon + 100);
+    else presenter.acceptSnapshot(result, horizon);
+    const native = presenter.nextNativeAssetFrameAt(horizon + 100);
+    const frame = presenter.prepareFrame(horizon + 100);
+    frames.push(serialise({ native, frame, host: m.classroomRequestedHorizon(0, horizon, presenter.presentedMicroseconds) }));
+    if (frame && !presenter.acknowledgeFrame(frame, horizon + 100)) throw new Error('ACK');
+  }
+  return { input, advances, frames };
+});
+const raw = Buffer.from(JSON.stringify(cases));
+const receipt = { baseline: '9821f0f8d66d6d870646cfeaef8666547876f66f', cases: cases.length, fullAdvances: cases.reduce((n,c)=>n+c.advances.length,0), bytes: raw.length, sha256: createHash('sha256').update(raw).digest('hex') };
+writeFileSync(`${output}/${name}.json.gz`, gzipSync(raw, { mtime: 0 }));
+writeFileSync(`${output}/${name}-receipt.json`, JSON.stringify(receipt, null, 2)+'\n');
+console.log(receipt);
