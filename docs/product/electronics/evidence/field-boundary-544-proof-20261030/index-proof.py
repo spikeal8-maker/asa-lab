@@ -47,4 +47,3 @@ failed=[l.split('Z ',1)[-1].strip() for l in lines if re.search(r'Z\s+\d+\) e2e/
 assert len(failed)==86,len(failed)
 (root/'failed86.txt').write_text('\n'.join(failed)+'\n\nFirst failure: issue682 short20 timing acceptance expected []; actual edge-lateness/period/phase-duration diagnostic violations (e2e/electronics-interactions.spec.ts:1292:35). No source edits or retry.\n',encoding='utf-8')
 print(json.dumps({'fieldCases':32,'checksPerCase':len(cases[0]['checks']),'phasePNGs':index['phasePngCount'],'failedNames':len(failed),'index':str(root/'field32-index.json')}))
-
