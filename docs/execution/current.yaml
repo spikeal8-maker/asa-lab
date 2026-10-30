@@ -87,6 +87,11 @@ parallel_lanes:
       - tools/ci_metrics.py
       - tools/test_ci_metrics.py
       - tools/gate-governance.sh
+      - tools/devex_plan.py
+      - tools/devex-dependencies.mjs
+      - tools/test_devex_plan.py
+      - tools/test-devex-dependencies.mjs
+      - tools/test_devex_plan_integration.py
     task:
       id: TASK-DEVEX-ENGINE-001
       issue: 881
@@ -95,23 +100,24 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_a_ci_measurement_selected
+      checkpoint: package_b_shadow_planner_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
-        of ASA-DEVEX-ENGINE-001 packages A-G on 2026-10-30. No production, live database, Docker or network operations.
+        of ASA-DEVEX-ENGINE-001 packages A-G on 2026-10-30. No production, live database, local Docker runtime or
+        host network operations. Docker/browser/data execution uses isolated CI only.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+      convergence_baseline_sha: 5905889681b40b58d757680fda16e247b49c7869
       head_sha: null
-      observed_at: '2026-10-30T17:22:31Z'
+      observed_at: '2026-10-30T19:35:56Z'
       main:
         branch: main
-        sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+        sha: 5905889681b40b58d757680fda16e247b49c7869
       observation_note: >-
-        Dated bootstrap integration after reviewed source bbf6bb3223e1cbb9d4196741787b26e09eae7e34 and exact General
-        41093374361 succeeded; fetch main before writes. This selects package A only and does not claim programme
-        completion or owner acceptance.
+        Dated package A integration after independently reviewed source 2c5407f3711903203dabd3d71b28a78981e5dd77
+        and exact General 41111731364 succeeded; fetch main before writes. Select package B in SHADOW only;
+        existing gates remain enabled. Programme completion, speed gains and owner acceptance are not claimed.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -123,8 +129,8 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: A
-      remaining_slices: [A, B, C, D, E, F, G]
+      selected_slice: B
+      remaining_slices: [B, C, D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -135,6 +141,14 @@ parallel_lanes:
           exact_source_general_run: 41093374361
           independent_review: approved
           evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6528951157
+        - id: A
+          source_sha: 2c5407f3711903203dabd3d71b28a78981e5dd77
+          integrated_sha: 5905889681b40b58d757680fda16e247b49c7869
+          pr: 887
+          exact_source_general_run: 41111731364
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6531875035
+          baseline_report: docs/testing/evidence/devex-baseline-20261030.json
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
