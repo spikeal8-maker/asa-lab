@@ -639,6 +639,30 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-LOCAL-CLEAN-TRANSITION-001
+          issue: 373
+          scope: guarded clean database and bucket transition of existing local review installation
+          status: in_progress
+          selected_at: '2026-10-30'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner explicitly orders a complete current-version local installation at
+            the existing loopback portal and selects a clean new database while retaining
+            the entire old database and files. Implement one guarded explicit legacy-review
+            transition, not a relaxation of normal identity/update/backup guards. Preserve
+            canonical root, single Compose project, ports, PostgreSQL/MinIO volumes, old
+            database/bucket, secrets, unpublished branches, WIP and owner backups. Verify
+            complete old DB/object/config/source export first; use a pinned eligible published
+            main release. Create separate fresh DB and object bucket within existing services,
+            then attest target identity and exact service/schema revisions. No old migration
+            ledger rewrites, no tenant/RLS policy change, no volume deletion, no second stack,
+            no host network/security changes. Require negative tests, isolated success evidence
+            and independent exact-source review before the owner-authorized live transition.
         - id: ASAI-CHAT-VISUAL-CONTROLS-001
           issue: 373
           scope: compact accessible model and tool menus plus subtle history scrollbar
