@@ -94,8 +94,44 @@ def assert_clean_install_destination(root, spec):
     return True
 
 
-def provision_private_network_overlay(root, literal):
-    """Opt-in project-only Compose subnets; no Docker daemon/Windows route change.
+def select_free_subnets(occupied):
+    """Choose three /27s within one free private /24, deterministically."""
+    import ipaddress
+    blocked = [ipaddress.ip_network(value, strict=False) for value in occupied]
+    for candidate in ipaddress.ip_network('10.0.0.0/8').subnets(new_prefix=24):
+        if not any(candidate.version == net.version and candidate.overlaps(net)
+                   for net in blocked):
+            return ','.join(str(net) for net in list(candidate.subnets(new_prefix=27))[:3])
+    raise Blocked('FRESH_NETWORK_EXHAUSTED', 'No free private Docker subnet found.',
+                  'Inspect LAN/VPN routes; do not delete networks or disable VPN.')
+
+
+def automatic_network_cidrs():
+    """Read all Docker networks and host routes; never change either."""
+    import json
+    occupied = []
+    ids = run(['docker', 'network', 'ls', '-q'], capture=True).split()
+    if ids:
+        networks = json.loads(run(['docker', 'network', 'inspect', *ids], capture=True))
+        occupied.extend(config['Subnet'] for network in networks
+                        for config in network.get('IPAM', {}).get('Config') or []
+                        if config.get('Subnet'))
+    if os.name == 'nt':
+        routes = run(['powershell', '-NoProfile', '-Command',
+                      '(Get-NetRoute -AddressFamily IPv4 | Select-Object -ExpandProperty DestinationPrefix) -join ";"'],
+                     capture=True).split(';')
+    else:
+        rows = json.loads(run(['ip', '-json', '-4', 'route', 'show', 'table', 'all'], capture=True))
+        routes = [row['dst'] for row in rows if row.get('dst')]
+    routes = [route.strip() for route in routes if route.strip()
+              and route.strip() not in ('default', '0.0.0.0/0')]
+    require(bool(routes), 'FRESH_NETWORK_ROUTES', 'Host routing inventory is empty.',
+            'Restore route inspection; automatic selection must not guess.')
+    return select_free_subnets(occupied + routes)
+
+
+def provision_private_network_overlay(root, literal=None):
+    """Project-only Compose subnets; no Docker daemon/Windows route change.
 
     Only a new installation can create this private Compose file. The Compose
     engine itself later creates networks with exact project labels/config hash.
@@ -107,6 +143,8 @@ def provision_private_network_overlay(root, literal):
     path = root / ".asa" / "docker-networks.yaml"
     require(not path.exists(), "FRESH_NETWORK_EXISTS",
             "A private network overlay already exists; preserve it.")
+    if literal is None:
+        literal = automatic_network_cidrs()
     require(isinstance(literal, str) and bool(literal.strip()),
             "FRESH_NETWORK", "Explicit network CIDRs are required.")
     pieces = [v.strip() for v in literal.split(",")]

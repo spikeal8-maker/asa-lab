@@ -388,8 +388,7 @@ def main(argv=None):
                                          args.install_blocks_port if args.install_blocks_port is not None else 4613)
                     clean_checkout(install)
                     assert_clean_install_destination(install.root, spec)
-                    if args.install_network_cidrs:
-                        provision_private_network_overlay(install.root, args.install_network_cidrs)
+                    provision_private_network_overlay(install.root, args.install_network_cidrs)
                     first_environment(install.root, install.profile, project=spec["project"],
                                       web_port=spec["web"], blocks_port=spec["blocks"])
                     install = Installation(install.root, install.profile)

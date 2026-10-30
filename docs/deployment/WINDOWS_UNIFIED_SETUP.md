@@ -121,3 +121,19 @@ Web 18610/Scratch 18613 не смог создать database network из-за
 **Изоляция — PASS:** до/после тестов 4610/4620/18570 сохранили exact revision/schema и те же Docker container IDs, в восстановленной базе 4620 осталось 94 аккаунта / 31 класс / 433 ученических места / 1730 проектов. Школьный production H-04 не затрагивался.
 
 **Оставшиеся ограничения:** штатный installer лишь проверяет наличие Git/Python/Docker и предлагает ручную установку missing prerequisites (не ставит системные компоненты без разрешения). Режим DataSource=backup проверяет архив и блокирует фактический импорт как RESTORE_IMPORT_PENDING. Испытано восстановление SQL в отдельную БД, НЕ полная миграция S3/ключей на другое устройство. Публичный TLS/FRP и нагрузка 3000 одновременных не проверялись. PR остаётся Draft до точного CI и независимого ревью.
+
+
+## Automatic Docker subnets
+
+A new blank installation always saves explicit IPAM for database, application
+and scratch in `.asa/docker-networks.yaml`. Without `-NetworkCidrs`, it selects
+three /27 networks from a free private 10.x /24 after inspecting every Docker
+network and host LAN/VPN route. Empty/unavailable routing inventory or pool
+exhaustion blocks installation before credentials or containers are created.
+The default route is excluded; more specific VPN routes are respected.
+Windows uses Get-NetRoute; Linux requires iproute2 (`ip -json`).
+
+Existing installations keep their saved networks; update never rotates them.
+Explicit `-NetworkCidrs` remains available. No host route, VPN, firewall or
+Docker global address pool is changed. Docker also rejects a subnet claimed
+concurrently by another installer; do not remove that other installation.

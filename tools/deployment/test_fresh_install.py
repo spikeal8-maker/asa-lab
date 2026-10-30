@@ -283,3 +283,31 @@ class FreshOptionTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+
+
+class AutomaticSubnetTests(unittest.TestCase):
+    def test_skips_docker_lan_and_vpn(self):
+        chosen = fresh_install.select_free_subnets([
+            '192.168.0.0/20', '10.0.0.0/24', '10.0.1.0/24', '10.0.2.0/23'])
+        self.assertEqual(chosen, '10.0.4.0/27,10.0.4.32/27,10.0.4.64/27')
+
+    def test_exhaustion_fails_closed(self):
+        with self.assertRaises(Blocked) as failure:
+            fresh_install.select_free_subnets(['10.0.0.0/8'])
+        self.assertEqual(failure.exception.code, 'FRESH_NETWORK_EXHAUSTED')
+
+    def test_invalid_inventory_is_not_ignored(self):
+        with self.assertRaises(ValueError):
+            fresh_install.select_free_subnets(['invalid route'])
+
+    def test_default_persists_and_existing_overlay_is_preserved(self):
+        cidrs = '10.249.232.0/27,10.249.232.32/27,10.249.232.64/27'
+        with tempfile.TemporaryDirectory() as td:
+            outputs = [''] + (['192.168.1.0/24'] if os.name == 'nt' else [])
+            with patch.object(fresh_install, 'automatic_network_cidrs', return_value=cidrs), patch.object(fresh_install, 'run', side_effect=outputs):
+                fresh_install.provision_private_network_overlay(Path(td))
+            self.assertIn('.asa/docker-networks.yaml', Installation(Path(td), 'production').files)
+            with patch.object(fresh_install, 'automatic_network_cidrs') as select:
+                with self.assertRaises(Blocked):
+                    fresh_install.provision_private_network_overlay(Path(td))
+                select.assert_not_called()
