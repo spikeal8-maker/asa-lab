@@ -1,0 +1,5 @@
+
+> @asa-lab/source@0.0.0 validate:electronics-component-information C:\Users\spike\.codex\worktrees\electronics-reverse-led-simple\ASA-lab
+> node tools/validate-electronics-component-information.mjs
+
+component-information PASS (4 schemas, 10 information decisions, 23 math decisions, 23 requirements, 44 component rows)

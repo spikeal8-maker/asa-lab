@@ -1,0 +1,66 @@
+{
+  "verdict": "PASS supplemental actual RUNNING frame isolation only",
+  "head": "bd733f49115fc7c28bcc12db3842b813c930be46",
+  "rows": [
+    {
+      "width": 1440,
+      "responses": [
+        26,
+        51
+      ],
+      "atMicroseconds": [
+        281400,
+        533000
+      ],
+      "editor": [
+        10,
+        10
+      ],
+      "stage": [
+        11,
+        11
+      ],
+      "nativeRenders": [
+        140,
+        196
+      ],
+      "availabilityCalls": [
+        3,
+        3
+      ]
+    },
+    {
+      "width": 390,
+      "responses": [
+        25,
+        48
+      ],
+      "atMicroseconds": [
+        264500,
+        492600
+      ],
+      "editor": [
+        10,
+        10
+      ],
+      "stage": [
+        11,
+        11
+      ],
+      "nativeRenders": [
+        132,
+        188
+      ],
+      "availabilityCalls": [
+        3,
+        3
+      ]
+    }
+  ],
+  "sourceGitBlobs": {
+    "apps/web/src/electronics/WorkbenchStage.tsx": "a7310ad54f8eac223b05b0d1af5a14a08828672d",
+    "apps/web/src/electronics/ProductionComponentVisual.tsx": "344293bc354c1ad01f0f859acf05e72d265c9688"
+  },
+  "coverage": "Actual production Chromium Worker commits, native subscription renders, stable editor/Stage counters and supply availability/clip DOM after owner assets settled; instrument physical positives; pause, Stop clears presentation and late stale Worker rejected. Context close unmount only; reset not separately asserted. Numeric readout strings constant for constant input. Existing synthetic publisher and calculation tests remain separately classified; do not establish actual Worker isolation. No full CI/backend Save/544/owner closure claim.",
+  "fixtureOnlyChanges": "Report output path; timed-state source alias because package export otherwise resolves dist in in-memory bundler; read-only availability and native-render counters; running sample assertions. No production changes."
+}

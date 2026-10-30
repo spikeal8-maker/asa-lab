@@ -1,0 +1,14 @@
+{
+  "text_hashes": "canonical LF; gzip binary bytes unchanged",
+  "files": {
+    "candidate-full.spec.ts.gz": "a857febb733dc73d483fe538290844c6067fb496a8095378cf9ad5bd050fe35c",
+    "collector-proof-result.json": "d5eb0df5a6ad1e452e83764b90d17b5c19f177496e81f7e9bbab0d41118e1448",
+    "collector-proof.mjs": "819f37e6d5025e7edd319f424a51674a340d82c1a9b0710c2f994cbe2c561df6",
+    "composition-manifest.json": "76dddb05f5b8bd8646ce47a2d4b43b62c59101164e05c2b7c33cd2191a42471c",
+    "edits.json": "832778b7f12a3748087ac88d3698e58eede0dc0fd39dfe4e6a70475ad53f978c",
+    "original-f2-full.spec.ts.gz": "160bdb28e2c0bbecff1c6eb9e12095ae76af2e3f0abf72a4281520f4d2ec0a6a",
+    "proof-result.json": "c78a8ea02a8dce9e6997da5f2182c20e65c0bf31104072478843dd07b66d5860",
+    "proof.py": "76524551300794bca536a4eda6227071bb8a845bb364d047450b83d82f6aa432",
+    "README.md": "72e4089e99762fedf87f47a6b3a4e97c9c7654326dab47e70f297b9dae9b1662"
+  }
+}

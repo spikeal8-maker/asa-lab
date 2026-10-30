@@ -42,6 +42,8 @@ function load(extra: Record<string, unknown> = {}) {
       DOMPoint: Point,
       useState: React.useState,
       useMemo: React.useMemo,
+      useRef: React.useRef,
+      useLayoutEffect: React.useLayoutEffect,
       regulatedPowerSupplyRuntimeMarkup,
       signalGeneratorRuntimeMarkup,
       ...extra,

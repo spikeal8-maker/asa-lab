@@ -1,0 +1,86 @@
+{
+  "parent": "3a9b3e1d97c370e650d8a895e488897c2a455d07",
+  "sourceCommit": "09e410e4ae73b2a81335a4e36c427acc06eff5f4",
+  "sourceGitBlobs": {
+    "apps/web/src/electronics/WorkbenchStage.tsx": "f000e8600012157a461974a1e478af55b770c2e9",
+    "apps/web/src/electronics/supply-switch-hit-geometry.ts": "26e86bcdb38df687dc87b3f3b7c03fc1b8806f5f",
+    "apps/web/src/electronics/testing/supply-switch-hit-geometry.spec.ts": "ed8e886dcd183189cfecc21d4a74876be53475f2"
+  },
+  "equivalence": {
+    "parent": "3a9b3e1d97c370e650d8a895e488897c2a455d07",
+    "movedGeometryTokensEqual": true,
+    "parameterSubstitutions": [
+      "pendingTerminal",
+      "projectPoint",
+      "projectBounds",
+      "viewBox",
+      "hitDomainPoints",
+      "stageBounds"
+    ],
+    "canonicalStagePrefixAndSuffixUnchanged": true,
+    "bodyPaintOrderUnchanged": true,
+    "unchangedGitBlobs": {
+      "apps/web/src/electronics/ProductionComponentVisual.tsx": "344293bc354c1ad01f0f859acf05e72d265c9688",
+      "e2e/electronics-simulation.spec.ts": "b450bd6d148285008ba226bb688a315f1120eb1a",
+      "docs/product/electronics/generated/component-coverage.json": "48cfb6e64b609b1ab1f5e12f3bc8c0f00e838b91"
+    },
+    "geometryTokenSha256": "239c7a539e6181a9077451a6c1e7bf6222aa47e3fd787eb783d732cead7eeb3c",
+    "sizes": {
+      "oldStageGitBytes": 67514,
+      "stageWorkingBytes": 63752,
+      "stageLfBytes": 63752,
+      "helperBytes": 5298,
+      "reviewedBytes": 54879,
+      "ceilingBytes": 65854.8
+    },
+    "runningFrameProofReuse": "Previous actual Worker proof remains supplemental; control-flow equivalence proves no readiness/subscription change. Fresh91 native Stage proof supplied; no new actual Worker run claimed."
+  },
+  "stageProjectedCrlfBytes": 65334,
+  "nativeReceipts": 91,
+  "webSuite": {
+    "initial": "1149 PASS/1 unrelated5s Worker timeout under contention; preserved",
+    "isolatedRetry": "69files/1150testsPASS16.47s"
+  },
+  "routing": "114units+actualvalidatorPASS",
+  "componentInformation": "PASS",
+  "typecheck": "PASS",
+  "build": "7tasks fresh37.9s cacheSKIPPED",
+  "bundleCaps": "all8PASS",
+  "priorProofUnchangedGitBlobs": {
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/README.md": "ae93d91e285a8f7879e990198abef0deb31adf59",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/component-info-877C.log": "113961b471531afed129bee9d1fe1316b8873081",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/composition-guard-877B.log": "113961b471531afed129bee9d1fe1316b8873081",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/final-bundle-caps.log": "0f3a3278b8318d1dd8e45a29e50ec2bc8b20be44",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/final-web-build.log": "8f69a53313c69ae7e51ca329e2a89cb2197880eb",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/focused-tests.log": "a6c60ca1aa7a10c239edb90c6cab45726e9db7da",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/manifest.json": "3e11e3e60725bfbaac232352f0acddda649ee767",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/native-1024.png": "fe36f5956038bffed423fae93bf76a99e7d7080d",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/native-1440.png": "37da5c63c3d83c1fb51f2989c70ae8f6ef07b5f1",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/native-320.png": "c0916a7dbb40b404690b21e8a1fb1418d12de359",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/native-390.png": "4ad3a8c1ee9b5fa114a33cdb461ad12774f98968",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/native-result.json": "29dae0d305cf22e17678e901b1d017765189fd23",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/native.mjs": "658663e09530e1a260194ca5f1d76e9a54ec5237",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/running-frame-provenance-bd733.json": "d148cb46a5ea8f4a7e691433032aa5748a551336",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/running-frame-review-bd733.json": "0e939753cae36d88ede72181848e61033c7640f0",
+    "docs/product/electronics/evidence/psu-switch-native-hit-877/web-electronics-877C.log": "04fb4fc73867511a1b67c18a1a8d3b78bb522543"
+  },
+  "priorRawHashQualification": "Historical manifests record original executed Windows working bytes; switching checkouts can normalize CRLF/LF. Canonical Git blobs above establish unchanged prior proof artifacts.",
+  "artifactSha256CanonicalGitBytes": {
+    "README.md": "b8e7877138d654a7ff7cc820dd35dc669c9474af34a5d286d18474ee0a613266",
+    "bundle-caps.log.gz": "53f0fe31402b66cc5d7fc179bdd192297e1fb398a06f7454f5d6542d9d7bc121",
+    "component-info.log.gz": "a94ede0c645aa2fe70a0c82bb8a8c2d02e38f7bb60bab86b6973286771b8ef77",
+    "move-equivalence.json": "235c22cd597cd95ce5fe1520a6cfc202ca9e4cafb9405ac6a4837902a0f1c669",
+    "move-equivalence.mjs": "6c52162dead94ca75792faa228d0aae5e98b676caf01929e1fe8caa05170579f",
+    "native-1024.png": "03321d9b4ff43803be64099efafb97f09d4157cf983e69780dbb893261e3c819",
+    "native-1440.png": "b88685e1b9cbc018d7296eb3ea0ec0b7475217d704e811f23d7b61b133e5e509",
+    "native-320.png": "ed36e9e4b7594b4b395e76aa39108cea669ca7bf1357206b6176c6d585fc942b",
+    "native-390.png": "3a5052876c1d9b3d0232206f8ce4b8a81488f115411e500623e0411afdcf1914",
+    "native-result.json": "b498e929a0f695027aff39a5aa21f1d550214690895a47d83e195d96cc8acd94",
+    "native.mjs": "924ceee4d396e80b7c70b9c1f5c96a528a30004184587263c70586dee8d99e90",
+    "routing-guard.log.gz": "bcfad2be46d83dfe270667898c43d94da0e576f5d505a362ccfc507d190a2b18",
+    "typecheck.log.gz": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+    "web-build.log.gz": "58a8f9499d3b28ea8e30180b836e787b7d7681637086e634ba8a7000bf2ab4e8",
+    "web-tests-isolated.log.gz": "33becdb44fd00370fa0ddf233a664cf5677ecdf7ff9d65b9178739c33af7640f",
+    "web-tests.log.gz": "970a31605a3d1fc2c12dca458cf8c50e45c46e3c23a01ac7482832459879eada"
+  }
+}

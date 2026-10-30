@@ -1,0 +1,72 @@
+{
+  "status": "PASS",
+  "scope": "genuine Chromium, actual unchanged collectors; no backend or product journey",
+  "earlyFailureBeforeReopen": {
+    "original": {
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    },
+    "reopened": null
+  },
+  "empty": {
+    "original": {
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    },
+    "reopened": {
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    }
+  },
+  "beforeCleanup": {
+    "original": {
+      "consoleErrors": 1,
+      "pageErrors": 1,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    },
+    "reopened": {
+      "consoleErrors": 1,
+      "pageErrors": 1,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    }
+  },
+  "afterCleanup": {
+    "original": {
+      "consoleErrors": 1,
+      "pageErrors": 1,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    },
+    "reopened": {
+      "consoleErrors": 1,
+      "pageErrors": 1,
+      "failedRequests": 0,
+      "httpServerErrors": 0,
+      "allowedAnonymousSessionProbes": 0,
+      "allowedAdminAccessProbes": 0
+    }
+  },
+  "assertEmptyStillRejectsBothCollectors": true,
+  "requestsMade": 0,
+  "uiActions": 0
+}

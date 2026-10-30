@@ -1,0 +1,324 @@
+{
+  "base_main": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+  "approved_composition_source": "f2f94ad22728ed744539ec490f53a74e1c8e1f47",
+  "candidate_restore_paths": [
+    {
+      "path": "apps/web/src/electronics/ProductionComponentVisual.tsx",
+      "f2_blob": "344293bc354c1ad01f0f859acf05e72d265c9688",
+      "candidate_blob": "344293bc354c1ad01f0f859acf05e72d265c9688",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "apps/web/src/electronics/WorkbenchStage.tsx",
+      "f2_blob": "f000e8600012157a461974a1e478af55b770c2e9",
+      "candidate_blob": "f000e8600012157a461974a1e478af55b770c2e9",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "apps/web/src/electronics/supply-switch-hit-geometry.ts",
+      "f2_blob": "26e86bcdb38df687dc87b3f3b7c03fc1b8806f5f",
+      "candidate_blob": "26e86bcdb38df687dc87b3f3b7c03fc1b8806f5f",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "apps/web/src/electronics/testing/instrument-knob-controls.spec.ts",
+      "f2_blob": "d3103ac2b68ed433af1f542d5b1781e4844fd055",
+      "candidate_blob": "d3103ac2b68ed433af1f542d5b1781e4844fd055",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "apps/web/src/electronics/testing/supply-switch-hit-geometry.spec.ts",
+      "f2_blob": "ed8e886dcd183189cfecc21d4a74876be53475f2",
+      "candidate_blob": "ed8e886dcd183189cfecc21d4a74876be53475f2",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/README.md",
+      "f2_blob": "ff88b74163cc9ded40ff9e6f83dacd625494c26e",
+      "candidate_blob": "ff88b74163cc9ded40ff9e6f83dacd625494c26e",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/candidate-full.spec.ts.gz",
+      "f2_blob": "e68a9d735ee2cbb960c344404b4a0985eea5c05e",
+      "candidate_blob": "e68a9d735ee2cbb960c344404b4a0985eea5c05e",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/initial-failed-reconstruction.json",
+      "f2_blob": "ce4333f1f1d1476a6b2dfccafe0ff07ae4b3dfd8",
+      "candidate_blob": "ce4333f1f1d1476a6b2dfccafe0ff07ae4b3dfd8",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/narrow-browser-result.json",
+      "f2_blob": "c58f2b29d7eaa132aaec11cfa479311a6d08b3d5",
+      "candidate_blob": "c58f2b29d7eaa132aaec11cfa479311a6d08b3d5",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/narrow-browser.mjs",
+      "f2_blob": "d936502047e228469f6f808f62c8b4e9be1c8d8a",
+      "candidate_blob": "d936502047e228469f6f808f62c8b4e9be1c8d8a",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/original-before.spec.ts.gz",
+      "f2_blob": "295f06dd6f4c4e34be405c1e70cb3fe4d5dc7631",
+      "candidate_blob": "295f06dd6f4c4e34be405c1e70cb3fe4d5dc7631",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/typecheck-result.json",
+      "f2_blob": "25c9c01583abbada8d448881a8fb8b91f812938f",
+      "candidate_blob": "25c9c01583abbada8d448881a8fb8b91f812938f",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/typecheck.mjs",
+      "f2_blob": "8f42082a054cc97a93015e918b2fe7052289fe43",
+      "candidate_blob": "8f42082a054cc97a93015e918b2fe7052289fe43",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/README.md",
+      "f2_blob": "ae93d91e285a8f7879e990198abef0deb31adf59",
+      "candidate_blob": "ae93d91e285a8f7879e990198abef0deb31adf59",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/component-info-877C.log",
+      "f2_blob": "113961b471531afed129bee9d1fe1316b8873081",
+      "candidate_blob": "113961b471531afed129bee9d1fe1316b8873081",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/composition-guard-877B.log",
+      "f2_blob": "113961b471531afed129bee9d1fe1316b8873081",
+      "candidate_blob": "113961b471531afed129bee9d1fe1316b8873081",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/final-bundle-caps.log",
+      "f2_blob": "0f3a3278b8318d1dd8e45a29e50ec2bc8b20be44",
+      "candidate_blob": "0f3a3278b8318d1dd8e45a29e50ec2bc8b20be44",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/final-web-build.log",
+      "f2_blob": "8f69a53313c69ae7e51ca329e2a89cb2197880eb",
+      "candidate_blob": "8f69a53313c69ae7e51ca329e2a89cb2197880eb",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/focused-tests.log",
+      "f2_blob": "a6c60ca1aa7a10c239edb90c6cab45726e9db7da",
+      "candidate_blob": "a6c60ca1aa7a10c239edb90c6cab45726e9db7da",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/manifest.json",
+      "f2_blob": "3e11e3e60725bfbaac232352f0acddda649ee767",
+      "candidate_blob": "3e11e3e60725bfbaac232352f0acddda649ee767",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/native-1024.png",
+      "f2_blob": "fe36f5956038bffed423fae93bf76a99e7d7080d",
+      "candidate_blob": "fe36f5956038bffed423fae93bf76a99e7d7080d",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/native-1440.png",
+      "f2_blob": "37da5c63c3d83c1fb51f2989c70ae8f6ef07b5f1",
+      "candidate_blob": "37da5c63c3d83c1fb51f2989c70ae8f6ef07b5f1",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/native-320.png",
+      "f2_blob": "c0916a7dbb40b404690b21e8a1fb1418d12de359",
+      "candidate_blob": "c0916a7dbb40b404690b21e8a1fb1418d12de359",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/native-390.png",
+      "f2_blob": "4ad3a8c1ee9b5fa114a33cdb461ad12774f98968",
+      "candidate_blob": "4ad3a8c1ee9b5fa114a33cdb461ad12774f98968",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/native-result.json",
+      "f2_blob": "29dae0d305cf22e17678e901b1d017765189fd23",
+      "candidate_blob": "29dae0d305cf22e17678e901b1d017765189fd23",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/native.mjs",
+      "f2_blob": "658663e09530e1a260194ca5f1d76e9a54ec5237",
+      "candidate_blob": "658663e09530e1a260194ca5f1d76e9a54ec5237",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/running-frame-provenance-bd733.json",
+      "f2_blob": "d148cb46a5ea8f4a7e691433032aa5748a551336",
+      "candidate_blob": "d148cb46a5ea8f4a7e691433032aa5748a551336",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/running-frame-review-bd733.json",
+      "f2_blob": "0e939753cae36d88ede72181848e61033c7640f0",
+      "candidate_blob": "0e939753cae36d88ede72181848e61033c7640f0",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877/web-electronics-877C.log",
+      "f2_blob": "04fb4fc73867511a1b67c18a1a8d3b78bb522543",
+      "candidate_blob": "04fb4fc73867511a1b67c18a1a8d3b78bb522543",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/README.md",
+      "f2_blob": "b4b1f32f5951762723039aed24112b7e0b6eec46",
+      "candidate_blob": "b4b1f32f5951762723039aed24112b7e0b6eec46",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/bundle-caps.log.gz",
+      "f2_blob": "3af57ca3327307e5bb1902d533bf343b9ccb3796",
+      "candidate_blob": "3af57ca3327307e5bb1902d533bf343b9ccb3796",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/component-info.log.gz",
+      "f2_blob": "96b526f8724d45b635d239769a63687387bfd278",
+      "candidate_blob": "96b526f8724d45b635d239769a63687387bfd278",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/manifest.json",
+      "f2_blob": "1aa71b8b43de0a42554e3edacd56964626ef12ff",
+      "candidate_blob": "1aa71b8b43de0a42554e3edacd56964626ef12ff",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/move-equivalence.json",
+      "f2_blob": "3fa1aa861de2695f5e04d75dd1e51e4f5f29b069",
+      "candidate_blob": "3fa1aa861de2695f5e04d75dd1e51e4f5f29b069",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/move-equivalence.mjs",
+      "f2_blob": "1a5b3964520def466547d8502e4b33f3595356ea",
+      "candidate_blob": "1a5b3964520def466547d8502e4b33f3595356ea",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/native-1024.png",
+      "f2_blob": "fe36f5956038bffed423fae93bf76a99e7d7080d",
+      "candidate_blob": "fe36f5956038bffed423fae93bf76a99e7d7080d",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/native-1440.png",
+      "f2_blob": "37da5c63c3d83c1fb51f2989c70ae8f6ef07b5f1",
+      "candidate_blob": "37da5c63c3d83c1fb51f2989c70ae8f6ef07b5f1",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/native-320.png",
+      "f2_blob": "c0916a7dbb40b404690b21e8a1fb1418d12de359",
+      "candidate_blob": "c0916a7dbb40b404690b21e8a1fb1418d12de359",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/native-390.png",
+      "f2_blob": "4ad3a8c1ee9b5fa114a33cdb461ad12774f98968",
+      "candidate_blob": "4ad3a8c1ee9b5fa114a33cdb461ad12774f98968",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/native-result.json",
+      "f2_blob": "47d760af69d1430a83fc6d10e675b5fb5f8b57a3",
+      "candidate_blob": "47d760af69d1430a83fc6d10e675b5fb5f8b57a3",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/native.mjs",
+      "f2_blob": "e761246983118e10e262f70b5bbf0ca5772de702",
+      "candidate_blob": "e761246983118e10e262f70b5bbf0ca5772de702",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/routing-guard.log.gz",
+      "f2_blob": "b3ce35b789f4d5af3d4dca992b60130895b43fd4",
+      "candidate_blob": "b3ce35b789f4d5af3d4dca992b60130895b43fd4",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/typecheck.log.gz",
+      "f2_blob": "86e43ea3218b5890302b754bbf8927f94e79f7ee",
+      "candidate_blob": "86e43ea3218b5890302b754bbf8927f94e79f7ee",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/web-build.log.gz",
+      "f2_blob": "833660bd52f3e365d9060544387f1c9a5f66200a",
+      "candidate_blob": "833660bd52f3e365d9060544387f1c9a5f66200a",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/web-tests-isolated.log.gz",
+      "f2_blob": "63f25f53ad8372d53915d7f01fab5c21a19199d1",
+      "candidate_blob": "63f25f53ad8372d53915d7f01fab5c21a19199d1",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/evidence/psu-switch-native-hit-877D/web-tests.log.gz",
+      "f2_blob": "9c22125a9ef21a72f60d0dbb54953eb45253a7e1",
+      "candidate_blob": "9c22125a9ef21a72f60d0dbb54953eb45253a7e1",
+      "restored_exact_f2": true
+    },
+    {
+      "path": "docs/product/electronics/generated/component-coverage.json",
+      "f2_blob": "48cfb6e64b609b1ab1f5e12f3bc8c0f00e838b91",
+      "candidate_blob": "12312259132aa9522328667f2b2a57bcdf960b78",
+      "restored_exact_f2": false
+    },
+    {
+      "path": "e2e/electronics-simulation.spec.ts",
+      "f2_blob": "b450bd6d148285008ba226bb688a315f1120eb1a",
+      "candidate_blob": "a3d5830c0b637e165cc60c8a43126e8f2ae8718f",
+      "restored_exact_f2": false
+    }
+  ],
+  "disjoint_main_paths_preserved": [
+    "apps/web/src/projects-public/PublicProjectsPage.spec.ts",
+    "apps/web/src/projects-public/PublicProjectsPage.tsx",
+    "apps/web/src/projects-public/public-projects.css",
+    "docs/execution/current.yaml",
+    "docs/product/electronics/evidence/instrument-525-before-41080294495/archive-index.json",
+    "docs/product/electronics/evidence/instrument-525-before-41080294495/selected-raw16.zip",
+    "docs/product/electronics/evidence/saved-blocks-completion-865-controller/archive-index.json",
+    "docs/product/electronics/evidence/saved-blocks-completion-865-controller/canonical-e4d3712.log.gz",
+    "docs/product/electronics/evidence/saved-blocks-completion-865-controller/caps-final-e4d3712.log.gz",
+    "docs/product/electronics/evidence/saved-blocks-completion-865-controller/independent-native-e4d3712.zip",
+    "docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-MOUNT-PRESERVATION-001.md",
+    "docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-MIRROR-001.md",
+    "docs/product/projects/DECISION_LEDGER.md",
+    "docs/product/projects/evidence/catalog-layout-20261030-acceptance.md",
+    "docs/product/projects/tasks/PROJ-CATALOG-LAYOUT.md",
+    "docs/product/projects/tasks/PROJ-PUBLIC-AUTHOR-NAME.md",
+    "e2e/public-projects.spec.ts",
+    "tools/projects-publication-gate.mjs"
+  ],
+  "overlap": [],
+  "new_spec_blob": "a3d5830c0b637e165cc60c8a43126e8f2ae8718f",
+  "new_spec_sha256": "09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1",
+  "new_spec_bytes": 514218,
+  "source_changes_by_this_repair": [],
+  "write_scope": "five exact spec hunks plus canonical browserEvidenceSha256 and own evidence only",
+  "strict_run": "NOT_RUN: independent source/final composition review required",
+  "CI": "NOT_TRIGGERED",
+  "deployment": "NOT_RUN",
+  "database_actions": "NONE"
+}

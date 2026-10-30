@@ -1,0 +1,327 @@
+{
+  "status": "PASS",
+  "scope": "oracle/source proof only; original run remains invalid BEFORE",
+  "source_before_sha": "f2f94ad22728ed744539ec490f53a74e1c8e1f47",
+  "before_sha256": "d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c",
+  "after_sha256": "09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1",
+  "negative_cases_rejected": [
+    "wrong_logical_order",
+    "wrong_identity",
+    "missing",
+    "duplicate_replacing_identity",
+    "extra_duplicate",
+    "wrong_paint_order"
+  ],
+  "actual_raw16": [
+    {
+      "width": 390,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-135a0--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "3ee9efb8254c1327c6efd2a426556ed4d2921e067c3b712cfeab6711968beeb2",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1440,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-23bc8--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "43d690a396a37ebaafb80d8d4d224c14d6ce078971f1563de2a0f9a3e3acb9b9",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1440,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-3dc78--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "facb9fe33e12c4a7bdea35d807d946382f9f0d88a7b34546f3db5e4c81648e65",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1440,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-4754b--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "e512fac7907b3e9e804e2859a450713c1d3342317d29d6004e0282091d01661e",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 390,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-4960f--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "cae035b035eedf1409b83b3f43e93428eb13ff3c20ee05213baa0632e4601190",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 390,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-5c642--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "cbad5f5117d3fef6e21d22851ae13bd6f6e58272effe4572800585d059d8dd65",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1024,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-7d04e--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "6442f60633f0b576246c3ab078dbca8ff14e384ea484f235344e22c44e76d814",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1024,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-7e8b3--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "307c403db6b014cf100bf6ef18160adf007baf067917356e5bf71382b85f13d3",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1024,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-87d15--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "552574fb14b9ca12906496ab7ab47a5d94fbb09c38854d336c3277c4f6520277",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 390,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-940ba--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "034add3ef8d9983ffc3ad7c96c8338a50baf9b1935954d9b9917f25d32957248",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 320,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-a136f--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "5a88a3b1a4145e211b424e7debd2c776b35af2fc97307a9569fd12833f544a3e",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 320,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-b3b07--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "fe3bda4b593433e66e795a177318ab516926b925d4e36574605508524d0e117d",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 320,
+      "mirror": {
+        "name": "x",
+        "x": true,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-b9bf6--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "61841abebb993e238a710e55b03935eafceb9eff15b676be613e38629b990efb",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 320,
+      "mirror": {
+        "name": "none",
+        "x": false,
+        "y": false
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-bedff--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "8009306135d212a190ae2ffd7cf34e40859be9695441974024e078a20d9b4efe",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1024,
+      "mirror": {
+        "name": "y",
+        "x": false,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-cdbb8--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "148754f94dd382324f3147e3736c04999f4a998116a765ad475f235528861404",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    },
+    {
+      "width": 1440,
+      "mirror": {
+        "name": "xy",
+        "x": true,
+        "y": true
+      },
+      "file": "reports\\playwright\\electronics-simulation-ELE-f3205--through-all-four-rotations\\instrument525-raw.json",
+      "sha256": "4237d775a4a9b986ce773a3cdcdcde0fd19bbf0a717e63c62703cdbc897072d9",
+      "ids": [
+        "bench-supply",
+        "source",
+        "meter",
+        "load",
+        "generator",
+        "scope"
+      ],
+      "journeyComplete": false
+    }
+  ],
+  "success_path_native_assertions_screenshots_browser_asserts_byte_identical": true,
+  "all_other_spec_bytes_preserved_by_reverse_exact_hunks": true,
+  "metadata_only_browser_hash_changed": {
+    "before": "d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c",
+    "after": "09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1"
+  }
+}

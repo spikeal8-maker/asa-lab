@@ -1,0 +1,22 @@
+[
+  [
+    "        let reopenedContext: import('@playwright/test').BrowserContext | undefined;\n        let cleanupError: unknown;",
+    "        let reopenedContext: import('@playwright/test').BrowserContext | undefined;\n        let reopenedFailureCollector: ReturnType<typeof collectBrowserFailures> | undefined;\n        let cleanupError: unknown;"
+  ],
+  [
+    "          const reopenedFailures = collectBrowserFailures(reopened, {\n            allowAdminAccessProbe: true,\n          });\n          await recordPuts(reopened, 'reopened');",
+    "          const reopenedFailures = collectBrowserFailures(reopened, {\n            allowAdminAccessProbe: true,\n          });\n          reopenedFailureCollector = reopenedFailures;\n          await recordPuts(reopened, 'reopened');"
+  ],
+  [
+    "          expect(rendered.map((item) => item.id)).toEqual(\n            expected.components.map((item) => item.id),\n          );",
+    "          // The regulated supply body paints below wires, ahead of ordinary fixture bodies.\n          expect(rendered.map((item) => item.id)).toEqual([\n            'bench-supply',\n            'source',\n            'meter',\n            'load',\n            'generator',\n            'scope',\n          ]);"
+  ],
+  [
+    "          write();\n          for (const target of [reopenedContext, context]) {",
+    "          checkpoint('browser-failures-before-cleanup', {\n            original: failures.counts,\n            reopened: reopenedFailureCollector?.counts ?? null,\n          });\n          write();\n          for (const target of [reopenedContext, context]) {"
+  ],
+  [
+    "          }\n        }\n        await settleLedger();\n        acknowledge('both-contexts-closed',",
+    "          }\n          checkpoint('browser-failures-after-cleanup', {\n            original: failures.counts,\n            reopened: reopenedFailureCollector?.counts ?? null,\n          });\n        }\n        await settleLedger();\n        acknowledge('both-contexts-closed',"
+  ]
+]

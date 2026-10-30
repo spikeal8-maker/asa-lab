@@ -1,0 +1,1068 @@
+{
+  "specSha256": "d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c",
+  "browser": "140.0.7339.186",
+  "observer": [
+    {
+      "label": "already-loaded + hash-navigation + repeated install",
+      "requests": 1,
+      "dispatches": 1,
+      "nativeTypes": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ],
+      "synchronousSnapshot": [
+        [
+          "synchronous",
+          "before"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "header": "unchanged",
+        "body": "native-response",
+        "storage": "after"
+      }
+    },
+    {
+      "label": "new-document init + repeated install",
+      "requests": 1,
+      "dispatches": 1,
+      "nativeTypes": [
+        "pointerdown",
+        "pointerup",
+        "click"
+      ],
+      "synchronousSnapshot": [
+        [
+          "synchronous",
+          "before"
+        ]
+      ],
+      "response": {
+        "status": 200,
+        "header": "unchanged",
+        "body": "native-response",
+        "storage": "after"
+      }
+    }
+  ],
+  "geometry": [
+    {
+      "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+      "outcome": "Error: No owned supply-power-slider native point",
+      "width": 390,
+      "mirror": "xy",
+      "rawSha256": "906af70de34a0b1c2f4ec7486a06b10b608a051f5f9c1963ca8b9ac0b4bd0eda",
+      "bodyCTM": [
+        -0.5357142857142857,
+        0,
+        0,
+        -0.5357142857142857,
+        234.37500000000003,
+        425.741087777274
+      ],
+      "worldCTM": [
+        0.5357142857142857,
+        0,
+        0,
+        0.5357142857142857,
+        -165.80357142857142,
+        346.1875163487026
+      ],
+      "wireId": "supply-negative",
+      "wire": "M 667 41.25 L 813.5550000000001 36.35",
+      "stroke": 24,
+      "witnesses": [
+        {
+          "name": "supply-power-slider-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 217.36607386171818,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fully-covered-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 217.36607386171818,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              }
+            ]
+          }
+        }
+      ],
+      "clicks": []
+    },
+    {
+      "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+      "outcome": "Error: No owned supply-power-slider native point",
+      "width": 390,
+      "mirror": "x",
+      "rawSha256": "25d7f7d0bdb95a4efb61f525e8b6b1570b9be3b5bd202bf402c82e1d884034ae",
+      "bodyCTM": [
+        -0.5357142857142857,
+        0,
+        0,
+        0.5357142857142857,
+        234.37500000000003,
+        362.25892857142856
+      ],
+      "worldCTM": [
+        0.5357142857142857,
+        0,
+        0,
+        0.5357142857142857,
+        -165.80357142857142,
+        346.1875
+      ],
+      "wireId": "supply-positive",
+      "wire": "M 680.25 137.25 L 864.355 36.35",
+      "stroke": 24,
+      "witnesses": [
+        {
+          "name": "supply-power-slider-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 217.36607386171818,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fully-covered-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 217.36607386171818,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 217.36607386171818,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 219.70982352644205,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 215.0223241969943,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              }
+            ]
+          }
+        }
+      ],
+      "clicks": []
+    },
+    {
+      "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+      "outcome": "Error: No owned supply-power-slider native point",
+      "width": 1024,
+      "mirror": "xy",
+      "rawSha256": "54ede6ce6f272638a3cdcbf6badac181f0ef814db90dca37579e2ff1750525dc",
+      "bodyCTM": [
+        -0.6457142857142857,
+        0,
+        0,
+        -0.6457142857142857,
+        421.46000000000004,
+        495.8586108398437
+      ],
+      "worldCTM": [
+        0.6457142857142857,
+        0,
+        0,
+        0.6457142857142857,
+        -60.88857142857137,
+        399.9700394112723
+      ],
+      "wireId": "supply-negative",
+      "wire": "M 667 41.25 L 813.5550000000001 36.35",
+      "stroke": 14,
+      "witnesses": [
+        {
+          "name": "supply-power-slider-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 400.95856297016144,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 403.7835629582405,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 398.13356298208237,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 400.95856297016144,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 403.7835629582405,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 398.13356298208237,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 400.95856297016144,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 403.7835629582405,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 398.13356298208237,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fully-covered-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 400.95856297016144,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 403.7835629582405,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 398.13356298208237,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 400.95856297016144,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 403.7835629582405,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 398.13356298208237,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 400.95856297016144,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 403.7835629582405,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 398.13356298208237,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              }
+            ]
+          }
+        }
+      ],
+      "clicks": []
+    },
+    {
+      "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+      "outcome": "Error: No owned supply-power-slider native point",
+      "width": 320,
+      "mirror": "xy",
+      "rawSha256": "361ba3c188c1f6aed00a5d7b06792c811d42fe7d46baa6ef7bf4c0794793de1c",
+      "bodyCTM": [
+        -0.5357142857142857,
+        0,
+        0,
+        -0.5357142857142857,
+        199.37500000000006,
+        425.741087777274
+      ],
+      "worldCTM": [
+        0.5357142857142857,
+        0,
+        0,
+        0.5357142857142857,
+        -200.8035714285714,
+        346.1875163487026
+      ],
+      "wireId": "supply-negative",
+      "wire": "M 667 41.25 L 813.5550000000001 36.35",
+      "stroke": 24,
+      "witnesses": [
+        {
+          "name": "supply-power-slider-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 182.36607386171818,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fully-covered-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 182.36607386171818,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 368.1518113911152,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 369.89288257062435,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 366.410740211606,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              }
+            ]
+          }
+        }
+      ],
+      "clicks": []
+    },
+    {
+      "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+      "outcome": "Error: No owned supply-power-slider native point",
+      "width": 320,
+      "mirror": "x",
+      "rawSha256": "09af37a6276c0dbd2cf325777b2670dc2d2c90b5db5c916360a53ffb4ef73b25",
+      "bodyCTM": [
+        -0.5357142857142857,
+        0,
+        0,
+        0.5357142857142857,
+        199.37500000000006,
+        362.25892857142856
+      ],
+      "worldCTM": [
+        0.5357142857142857,
+        0,
+        0,
+        0.5357142857142857,
+        -200.8035714285714,
+        346.1875
+      ],
+      "wireId": "supply-positive",
+      "wire": "M 680.25 137.25 L 864.355 36.35",
+      "stroke": 24,
+      "witnesses": [
+        {
+          "name": "supply-power-slider-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 182.36607386171818,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 680.25 137.25 L 864.355 36.35\"></path>"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fully-covered-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 182.36607386171818,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 419.84821912646294,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 418.1071479469538,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 182.36607386171818,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 184.70982352644205,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 180.0223241969943,
+                "y": 421.5892903059721,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              }
+            ]
+          }
+        }
+      ],
+      "clicks": []
+    },
+    {
+      "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+      "outcome": "Error: No owned supply-power-slider native point",
+      "width": 1440,
+      "mirror": "xy",
+      "rawSha256": "202521dc9765cd4d6a8128672353b01953665b4bf888ecce2ce736e29c41e297",
+      "bodyCTM": [
+        -0.6457142857142857,
+        0,
+        0,
+        -0.6457142857142857,
+        629.4600197056361,
+        495.8586108398437
+      ],
+      "worldCTM": [
+        0.6457142857142857,
+        0,
+        0,
+        0.6457142857142857,
+        147.11144827706477,
+        399.9700394112723
+      ],
+      "wireId": "supply-negative",
+      "wire": "M 667 41.25 L 813.5550000000001 36.35",
+      "stroke": 14,
+      "witnesses": [
+        {
+          "name": "supply-power-slider-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 608.9585934877396,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 611.7835934758186,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 606.1335934996605,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 608.9585934877396,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 611.7835934758186,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 606.1335934996605,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 608.9585934877396,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 611.7835934758186,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              },
+              {
+                "x": 606.1335934996605,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+              }
+            ]
+          }
+        },
+        {
+          "name": "fully-covered-owned-candidates",
+          "value": {
+            "candidates": [
+              {
+                "x": 608.9585934877396,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 611.7835934758186,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 606.1335934996605,
+                "y": 426.4443266391754,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 608.9585934877396,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 611.7835934758186,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 606.1335934996605,
+                "y": 428.5428980588913,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 608.9585934877396,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 611.7835934758186,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              },
+              {
+                "x": 606.1335934996605,
+                "y": 424.34575521945953,
+                "eligible": false,
+                "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+              }
+            ]
+          }
+        }
+      ],
+      "clicks": []
+    }
+  ],
+  "syntheticNegative": [
+    {
+      "width": 390,
+      "mirror": "xy",
+      "fullOcclusion": "strict failure, zero clicks"
+    },
+    {
+      "width": 390,
+      "mirror": "x",
+      "fullOcclusion": "strict failure, zero clicks"
+    },
+    {
+      "width": 1024,
+      "mirror": "xy",
+      "fullOcclusion": "strict failure, zero clicks"
+    },
+    {
+      "width": 320,
+      "mirror": "xy",
+      "fullOcclusion": "strict failure, zero clicks"
+    },
+    {
+      "width": 320,
+      "mirror": "x",
+      "fullOcclusion": "strict failure, zero clicks"
+    },
+    {
+      "width": 1440,
+      "mirror": "xy",
+      "fullOcclusion": "strict failure, zero clicks"
+    }
+  ],
+  "preservation": {
+    "unrelatedBeforeAndAfterMatrix": "byte-identical UTF-8",
+    "baselineBlob": "06174a9675a5e670e3798a4adb7e40239a729a3a"
+  },
+  "syntheticPositive": {
+    "classification": "synthetic, not actual failed pose",
+    "trustedClicks": 1,
+    "positiveWitness": [
+      {
+        "name": "synthetic-partial-wire-owned-candidates",
+        "value": {
+          "selected": {
+            "x": 142,
+            "y": 162.5,
+            "eligible": true,
+            "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+          },
+          "candidates": [
+            {
+              "x": 142,
+              "y": 145,
+              "eligible": false,
+              "hit": "<path d=\"M 31.5 20 V 46\" stroke=\"red\" stroke-width=\"2\" pointer-events=\"stroke\"></path>"
+            },
+            {
+              "x": 142,
+              "y": 162.5,
+              "eligible": true,
+              "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+            },
+            {
+              "x": 142,
+              "y": 127.5,
+              "eligible": true,
+              "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+            },
+            {
+              "x": 155,
+              "y": 145,
+              "eligible": false,
+              "hit": "<path d=\"M 31.5 20 V 46\" stroke=\"red\" stroke-width=\"2\" pointer-events=\"stroke\"></path>"
+            },
+            {
+              "x": 155,
+              "y": 162.5,
+              "eligible": true,
+              "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+            },
+            {
+              "x": 155,
+              "y": 127.5,
+              "eligible": true,
+              "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+            },
+            {
+              "x": 129,
+              "y": 145,
+              "eligible": false,
+              "hit": "<path d=\"M 31.5 20 V 46\" stroke=\"red\" stroke-width=\"2\" pointer-events=\"stroke\"></path>"
+            },
+            {
+              "x": 129,
+              "y": 162.5,
+              "eligible": true,
+              "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+            },
+            {
+              "x": 129,
+              "y": 127.5,
+              "eligible": true,
+              "hit": "<rect x=\"14\" y=\"20\" width=\"35\" height=\"26\" fill=\"gray\"></rect>"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "verdict": "BLOCKED: selected nine-point helper has no owned candidate in some failed poses; no complete16 claim or strict CI authorization"
+}
