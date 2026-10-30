@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: image_workbench_856_source_integrated_runtime_pending
+      checkpoint: image_workbench_856_deployed_test_real_fp8_png_verified
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -654,18 +654,18 @@ parallel_lanes:
           independent_review: approved_exact_source
           focused_tests: 25_pass
           narrow_browser: 3_ui_pass_and_1_final_repair_pass
-          ci_status: focused_and_code_pass_general_pending
+          ci_status: focused_and_general_pass_on_source_9667aa2a
           main_integration: merged
           integrated_sha: 9d7cfaac0d065d9b8cb7221a4692697619092161
           integrated_at: 2026-10-30T09:31:20Z
           focused_ci_run: 41031386477
           code_ci_job: 123983393378
           nx_code_gate_tasks: 97_uncached
-          runtime_gpu_acceptance: NOT_RUN
+          runtime_gpu_acceptance: PASS_test_explicit_1024_png_and_reload
           api_provider_integration: issue857_not_connected
           browser_visual_acceptance: light_compact_reviewed_dark_not_verified
           owner_acceptance: pending
-          demo_status: NOT_RUN
+          demo_status: PARTIAL_test_real_image_smoke
           selection: >-
             Owner explicitly orders completion and source publication of existing PR856.
             Preserve workbench rather than create competing page. Compact connection/profile
@@ -676,6 +676,20 @@ parallel_lanes:
             deployment; no Docker/server/working DB/config/GPU or production host mutations.
           owner_refinement: Always-visible endpoint and actions; one actual GPU status line; visible compact sizes; one optional technical help; no nested essential controls. GPU compatibility is capability-based, not an RTX3060 requirement.
           final_repair_evidence: Four new cached-thread denial and uncertain/storage-failure tests plus21 existing image lifecycle tests PASS; final source independently approved. Replacement is explicit after known preadmission403 and verified UUID removal, never a retry of unknown admission.
+          ci_source_sha: 9667aa2a1dc604dcb9639b9ec4747402525c5aa7
+          general_ci_run: 41031386411
+          learning_ci_run: 41031386381
+          runtime_owner_authorization: Owner explicitly requested updating test.asa-lab.ru and testing real ComfyUI generation with the FP8 profile on 2026-10-30; this supersedes the preceding source-only no-deployment boundary for this test installation only.
+          deployment_test_revision: e1a16c578d582ee6157dfd7ffe5bb18719ad21d2
+          deployment_test_updated_at: '2026-10-30T11:53:55.855043Z'
+          deployment_test_schema: 282
+          deployment_test_backup: verified_pre_update_full_database_objects_configuration
+          deployment_test_health: six_healthy_services_api_web_scratch_same_revision
+          runtime_image_recipe: flux2-klein-4b-fp8-izo-v1
+          runtime_image_dimensions: 1024x1024
+          runtime_image_bytes: 713517
+          runtime_image_png_sha256: 1a8cf8c7462f190fb0d291930edb8e790fb86b7963ac5b2ab5e0d6f1d2a526c2
+          runtime_image_scope: Explicit image tool in own personal chat after update, complete job and decoded PNG; both pre-update and post-update images reload from saved history. Automatic text-model tool choice, other GPUs and fresh weight hashes are not accepted by this smoke. Owner acceptance remains pending.
         - id: ASAI-COMPACT-HUMAN-SETTINGS
           issue: 373
           scope: urgent human-readable provider/model order and compact monthly budgets
