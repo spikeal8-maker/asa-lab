@@ -7713,33 +7713,31 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/publication-likes-20261030-acceptance.md
     task:
-      id: TASK-PROJ-PUBLICATION-LIKES-001
+      id: TASK-PROJ-ELECTRONICS-PUBLIC-PLAYBACK-001
       issue: 211
       branch: main
-      candidate_branch: codex/publication-likes-20261030
+      candidate_branch: codex/electronics-public-playback-20261030
       base_branch: main
-      pr: 866
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: publication_likes_PR866_source_accepted
+      status: in_progress
+      checkpoint: public_electronics_runtime_and_layout_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
-      owner_authorization: Owner resumed unfinished publisher likes on 2026-10-30 and explicitly approved retaining
-        likes through update/revoke/republish and allowing own unlike after administrator disables reactions. DEC116/118/122
-        select Account and active StudentSeat likes, no self-like, one canonical reaction domain, real admin counts
-        and audited per-publication disable. No old Gallery transfer, ratings, AI bonuses, downloads, Scratch copy,
-        Games or deployment in this bounded source slice. Independent exact Code/Security, real PG/API/browser focused
-        and General gates before Main.
+      owner_authorization: Owner requested actual public Electronics simulation with interactive controls and integration
+        of the publication page layout on 2026-10-30. Owner explicitly selected published Arduino program as public
+        with readonly code viewing, superseding separate code-consent requirements for this slice (DEC123). Reuse canonical
+        bounded Worker/controller/presentation primitives, not a fork or full Workbench. One bounded native passive/button
+        and Arduino playback plus immutable V3 public artifact, compact controls/page, no Project writes or deployment.
+        Independent exact Code/Security, real Worker/native browser/PG, public bundle admission and General before Main.
       context_hints:
-      - docs/product/projects/tasks/PROJ-PUBLICATION-LIKES.md
+      - docs/product/projects/tasks/PROJ-ELECTRONICS-PUBLIC-PLAYBACK.md
+      - docs/product/projects/tasks/PROJ-R7-04B-ELECTRONICS.md
+      - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
-      accepted_candidate_sha: d90a263acfa43d129eb161971d377b0f46b0f9e7
-      integrated_sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
-      evidence: docs/product/projects/evidence/publication-likes-20261030-acceptance.md
-      deployment: not_run
     integration_dependencies:
       - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
         issue: 836
@@ -8577,15 +8575,15 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
+      convergence_baseline_sha: a2e380a26abbf10165a914efb609194222bf9c30
       head_sha: null
-      observed_at: '2026-10-30T10:28:05.269670+00:00'
+      observed_at: '2026-10-30T11:22:26.491925+00:00'
       main:
         branch: main
-        sha: 388a60ee8dc8bd49a12aaec2bd9f35defd910dda
-      observation_note: Dated PR866 technical source acceptance after independent final Code/Security and exact General/Public
-        Projects success. Fetch main before writes. Likes accepted; Scratch asset-copy and physical exports remain separate
-        unfinished slices. No production update or owner visual acceptance in this slice.
+        sha: a2e380a26abbf10165a914efb609194222bf9c30
+      observation_note: Dated owner selection after accepted likes PR866. Fetch main before writes. Existing Electronics
+        viewer is geometry only; V2 strips runtime/program properties and forces simulation off. Native public playback
+        is not yet implemented or accepted.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
