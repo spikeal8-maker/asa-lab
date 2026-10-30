@@ -13370,7 +13370,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_Arduino_check_messages863_source_verified_next_slice_selection
+      checkpoint: remaining20_messages863_integrated_owner_approved10ms_auto_wait864_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13381,7 +13381,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-ARDUINO-CHECK-MESSAGES-001
+      current_slice: TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15222,6 +15222,48 @@ parallel_lanes:
       general_ci: SUCCESS_41016628210_exact097f2dba_all4jobs
       frozen_manifest: 49GitLF_hashes_and_blobs_verified
       report: docs/product/electronics/evidence/arduino-check-863/GATES.md
+
+  - id: electronics-block-auto-wait
+    parent_lane: electronics
+    worktree_id: electronics-block-auto-wait
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001
+      issue: 864
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_owner10ms_new_programs_legacy_explicit_optin_codegen_policy
+      owner_acceptance: pending
+      execution_role: new_bounded_codegen_executor_then_new_independent_review
+      owner_authorization: Owner30Octoberexplicitasyncanswer_10ms_newprojects_recommended_to_question_aboutgeneratedCpp_repeatbody_without_userwait_and_oldprojects_unchanged_until_explicit_enable. Completeprogrammecontinue. Source863integrateddc2e1fc8_after097General41016628210_all4SUCCESS_independent108tests16native_canonical2565tests71freshNx_one_unchanged_retry. No hidden_workerwait_or_silentlegacy_retiming_no_refactor_capraise_server_foreignchanges.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-AUTO-WAIT-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: dc2e1fc8acef5f7c2b1985d0c139d824e20a72a1
+      convergence_baseline_sha: dc2e1fc8acef5f7c2b1985d0c139d824e20a72a1
+      head_sha: null
+      observed_at: '2026-10-30T07:44:56Z'
+      observation_note: Fresh fetch main before edits. All49frozen863blobs_match097_all4GeneralSUCCESS; maindc2General41019911586_inprogress_notinferredPASS. Point7readonlyinventoryactual_generator_verbatim_no_autodelay_existingworkspace_publish_onmount_oldprojects_risk. No_duration_invention_owner_now_approved10ms. Newauthorreportsconcrete_compatibility_provenance_and_nested_body_plan_before_source_mutation; beforeproof_and_capsfirst_Arduino1999925of2000000. StandaloneScratch_not_this_scope.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
