@@ -13349,7 +13349,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_mixed_servo862_integrated_concrete_Arduino_check_messages863_selected
+      checkpoint: remaining20_Arduino_check_messages863_source_verified_next_slice_selection
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13369,7 +13369,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Speedslider861_source_fad679_General41003731109_all4SUCCESS_independent382tests4native_and_canonical2550tests71freshNx_allcapsPASS; MixedServo862_source84f65_General41009745129_all4SUCCESS_independent222tests4native_and_canonical2556tests71freshNx_on_one_unchanged_retry; Remainingplan_otheritems_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
+      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Speedslider861_source_fad679_General41003731109_all4SUCCESS_independent382tests4native_and_canonical2550tests71freshNx_allcapsPASS; MixedServo862_source84f65_General41009745129_all4SUCCESS_independent222tests4native_and_canonical2556tests71freshNx_on_one_unchanged_retry; Arduino_check_messages863_source097f2dba_General41016628210_all4SUCCESS_independent108tests16native_and_canonical2565tests71freshNx_one_unchanged_retry; Remainingplan_otheritems_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -15160,11 +15160,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_concrete_check_results_and_command_notes_preserve_support_statuses
+      checkpoint: independently_verified_copy_only_notes_and_blockers_General_success
       owner_acceptance: pending
       execution_role: new_bounded_message_executor_then_new_independent_review
       owner_authorization: Ownerexplicitclear_non_educational_command_help_and_completeprogramme_easiest_first. Rootpoint7readonlyinventoryfoundno_autodelay_policy_and_realoldprojectcompatibility_issue; foundsmallerstale_checkProgram_model_limits_phrase. Onlycopy_and_presentation_no_support_reclassification_or_runtimefeatures. Source862integrated858ec30d_after84f65General41009745129_all4SUCCESS_independent222tests4native_canonical2556tests71freshNx_one_unchanged_retry. No_server_foreignchanges_refactor_or_capraise.
@@ -15190,6 +15190,17 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T06:33:07Z'
       observation_note: Fresh fetch main before edits. Rootcleanexceptownnewcard_and_catalogue_speed21_stale_status_correction. Main858General41012801030_inprogress_notPASSclaim; 5kernel_sourceblobs_match_approved84f65_all4GeneralSUCCESS. Point7inventoryreadonlycomplete_no_new_policy_or_code_started. Newauthorrecords_before_diagnostics_structures_then_copyonly_preserve_status_codes_ranges_and_execution; actualrawcapsfirst_Arduino1999981of2000000. No oldCI_task_resume.
+
+    source_review_evidence:
+      source_candidate_sha: 097f2dba6b376130244c3fbbb3bdc1f65520dc6a
+      verdict: APPROVED_new_independent_review_108tests_16fresh_native_cases
+      source_invariance: 2production_files_58public_copy_leaves_only_all_noncopy_AST_identical
+      behavior_invariance: all_status_codes_severities_ranges_admission_runtime_generated_downloaded_and_savedsource_unchanged
+      canonical_gate: PASS_2565tests_71freshNx_no_cache_all8caps_one_unchanged_retry
+      initial_gate_failure: existing697asset_hash_timeout10262ms_limit5000_isolated139ms_fullretry313ms_allassets_bytes_unchanged_Dvariance_supported_no_test_timeout_edits
+      general_ci: SUCCESS_41016628210_exact097f2dba_all4jobs
+      frozen_manifest: 49GitLF_hashes_and_blobs_verified
+      report: docs/product/electronics/evidence/arduino-check-863/GATES.md
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
