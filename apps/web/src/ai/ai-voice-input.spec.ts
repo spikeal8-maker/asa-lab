@@ -3,6 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { AiVoiceInput } from './AiVoiceInput';
+import { mergeVoiceTranscript } from './voice-transcript-draft';
 
 const ebml = new Uint8Array([
   0x1a, 0x45, 0xdf, 0xa3, 0x42, 0x86, 0x81, 0x01, 0x42, 0xf7, 0x81, 0x01, 0x42, 0xf2, 0x81, 0x04,
@@ -11,7 +12,7 @@ let root: Root;
 let host: HTMLDivElement;
 let stopTrack: ReturnType<typeof vi.fn>;
 let acquire: ReturnType<typeof vi.fn>;
-const transcript = vi.fn<(text: string) => void>();
+const transcript = vi.fn<(text: string) => 'inserted' | 'overflow'>(() => 'inserted');
 const requests: Array<{ path: string; init: RequestInit | undefined }> = [];
 let speechResponse = 'Объясни мне алгоритм сортировки.';
 
@@ -89,6 +90,7 @@ beforeEach(() => {
     value: { getUserMedia: acquire },
   });
   transcript.mockReset();
+  transcript.mockImplementation(() => 'inserted');
   requests.splice(0);
   speechResponse = 'Объясни мне алгоритм сортировки.';
   host = document.createElement('div');
@@ -201,6 +203,26 @@ it('stops and transcribes into a draft only, without sending a chat message', as
   expect(body.durationSeconds).toBeGreaterThan(0);
   expect(requests.filter((r) => r.path.includes('/messages'))).toEqual([]);
   expect(stopTrack).toHaveBeenCalled();
+});
+
+it('reports a full transcript separately when the existing draft cannot fit it', async () => {
+  let draft = 'Unsent question';
+  let overflow: string | null = null;
+  speechResponse = 'Р'.repeat(6000);
+  transcript.mockImplementation((text) => {
+    const result = mergeVoiceTranscript(draft, text);
+    draft = result.draft;
+    overflow = result.overflow;
+    return overflow === null ? 'inserted' : 'overflow';
+  });
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => button('Разрешить голосовой ввод').click());
+  await act(async () => button('Остановить запись и распознать').click());
+  await vi.waitFor(() => expect(host.textContent).toContain('Расшифровка не поместилась'));
+  expect(draft).toBe('Unsent question');
+  expect(overflow).toBe(speechResponse);
+  expect(host.textContent).not.toContain('Текст добавлен в сообщение');
 });
 
 it('cancels a recording without transmitting audio or adding text', async () => {

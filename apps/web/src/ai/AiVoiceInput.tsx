@@ -30,7 +30,7 @@ export function AiVoiceInput({
 }: {
   readonly call: ScopedCall;
   readonly disabled: boolean;
-  readonly onTranscript: (text: string) => void;
+  readonly onTranscript: (text: string) => 'inserted' | 'overflow';
 }) {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
   const [mode, setMode] = useState<RecordingMode>('idle');
@@ -177,8 +177,12 @@ export function AiVoiceInput({
     pending.current = null;
     setMode('idle');
     if (result.ok && result.data.text) {
-      callback.current(result.data.text);
-      setMessage('Текст добавлен в сообщение. Проверьте его перед отправкой.');
+      const placement = callback.current(result.data.text);
+      setMessage(
+        placement === 'overflow'
+          ? 'Расшифровка не поместилась в сообщение. Черновик сохранён; полный текст доступен ниже.'
+          : 'Текст добавлен в сообщение. Проверьте его перед отправкой.',
+      );
       return;
     }
     setMessage(result.ok ? 'Речь не распознана.' : result.error.message);
