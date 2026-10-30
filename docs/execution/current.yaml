@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: image_workbench_856_completion_selected
+      checkpoint: image_workbench_856_source_ready_exact_ci_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -645,11 +645,17 @@ parallel_lanes:
           status: in_progress
           selected_at: '2026-10-30'
           source_pr: 856
-          candidate_sha: 6084f61a8ce3ea14701d16ee532ba5852cb462dc
+          candidate_sha: edf765f8e24a53a264e53f3c8eaaa9e1b26a3f30
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R27, R31]
           acceptance_checks: [C17, C20, C24, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          independent_review: approved_exact_source
+          focused_tests: 24_pass
+          ci_status: pending_exact_final_head
+          main_integration: pending
+          browser_visual_acceptance: light_compact_reviewed_dark_not_verified
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
