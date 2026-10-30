@@ -644,12 +644,22 @@ parallel_lanes:
           scope: finish existing PR853 encrypted Polza keys and microphone transcription
           status: in_progress
           selected_at: '2026-10-30'
-          source_pr: 853
-          candidate_sha: 57829c509373e02c2087fa9e8eb16bde10f9dd11
+          source_pr: 874
+          supersedes_pr: 853
+          candidate_sha: 8307d3afa7899c87cde9f7ec53cbdae8b37d5071
           task_contract: docs/product/ai/TASK_CONTRACT.md
           requirements: [R19, R28, R31]
           acceptance_checks: [C17, C20, C25, C28]
-          implementation_started: false
+          implementation_started: true
+          implementation_complete: true
+          independent_review: approved_exact_source
+          ci_status: pending_exact_8307d3af
+          focused_ci_run: 41060067681
+          general_ci_run: 41060067663
+          local_transcription: not_implemented
+          paid_live_test: pending_key_and_runtime
+          paid_test_authorization: one_synthetic_audio_up_to_10_seconds_max_1_RUB
+          deployment: not_performed
           owner_acceptance: pending
           demo_status: NOT_RUN
           selection: >-
