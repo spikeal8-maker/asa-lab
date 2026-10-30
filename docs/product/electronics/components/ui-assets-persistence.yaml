@@ -180,6 +180,7 @@ components:
     - apps/web/vite.config.ts
     - apps/web/src/electronics/workbench-document.ts
     - apps/api/src/validation.ts
+    - apps/api/src/server-diagnostics.ts
     - apps/web/src/modules/project-local-draft.ts
     tests:
     - apps/web/src/components/editor-chrome/testing/editor-persistence-indicator.spec.ts

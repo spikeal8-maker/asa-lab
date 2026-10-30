@@ -9,6 +9,18 @@
       "sha256": "c0b18adcc97c00b9d2521d60b9d1b0adcb950c7408d6dd69e0967b537085c1f5"
     },
     {
+      "path": "apps/api/src/electronics-save-validation.spec.ts",
+      "gitBlob": "0bd7d0853a5c97dffcbde124247bed73d83d742b",
+      "bytes": 5436,
+      "sha256": "afcbf7bec2cbbc4d2c7574d7f4de07c64f96357232a1683259e637d0b8fbf510"
+    },
+    {
+      "path": "apps/api/src/server-diagnostics.ts",
+      "gitBlob": "4438728e7086b83d5a21feb04845b8da5b3ec753",
+      "bytes": 7660,
+      "sha256": "cff1478a0a3a63f03af9769bcb6530e35104847a8c91354e2d405325499e1f91"
+    },
+    {
       "path": "apps/web/src/api.ts",
       "gitBlob": "48dafe4b030fa43ce958d6c62909491fb30c56ac",
       "bytes": 118774,
@@ -177,5 +189,5 @@
       "sha256": "52f5a229f55064ac6df3336e085c571b4bf9fc3cc3802f82a19e8b8086c33fde"
     }
   ],
-  "sourceDigest": "fdbb20acbdcfb7d600465826165fd4f61fe7637035633214102b7b38ff4d8537"
+  "sourceDigest": "a07c7a986cceced93ffc5e027e65b177b20f36df47755c94cb6822c7805ffa04"
 }
