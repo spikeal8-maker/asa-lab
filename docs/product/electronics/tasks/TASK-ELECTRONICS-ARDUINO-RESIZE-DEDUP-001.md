@@ -1,6 +1,6 @@
 ---
 task_id: TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001
-kind: refactor
+kind: maintenance
 risk: high
 semantic_change: no
 roadmap_slice: null

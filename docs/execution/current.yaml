@@ -15596,7 +15596,7 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      kind: refactor
+      kind: maintenance
       risk: high
       semantic_change: 'no'
       checkpoint: owner_explicit_refactoring_selected_two_desktop_resize_handles_only
