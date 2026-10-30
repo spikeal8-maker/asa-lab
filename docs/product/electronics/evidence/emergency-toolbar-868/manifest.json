@@ -30,8 +30,8 @@
     },
     {
       "path": "intermediate-attempt.json",
-      "bytes": 1014,
-      "sha256": "8415135c5c48809d2a1976ad174e3c8921f8f83251664875ae400c820acd3c54"
+      "bytes": 982,
+      "sha256": "a927712590d6099c83bc8d11110e7c7a6f103bbd72c13d640607f018586d6281"
     },
     {
       "path": "native-after/1024-1.25.png",
@@ -145,8 +145,9 @@
     },
     {
       "path": "RECEIPT.md",
-      "bytes": 3888,
-      "sha256": "e777d8448e47ffc7b38de47237bbcd45e9d3b3f8c19bb4c8b8561d77668eeb26"
+      "bytes": 3887,
+      "sha256": "e52210b7d859beb61937a4743a08c35e16f083d7ec40167ab35504ab66c657f5"
     }
-  ]
+  ],
+  "hash_scope": "Git blob bytes after LF normalization; gzip payloads preserve original raw receipt bytes."
 }
