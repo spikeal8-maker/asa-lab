@@ -1,6 +1,7 @@
 """Cheap fail-closed checks for the one-time local fresh namespace transition."""
 
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -75,7 +76,15 @@ class FreshNamespaceTests(unittest.TestCase):
             private = Path(folder) / "private"
             private.mkdir()
             target = private / "new"
-            self.assertEqual(private_destination(root, target), target)
+            if os.name == "nt":
+                with patch("deployment.review_transition.subprocess.run") as process:
+                    process.return_value.returncode = 0
+                    self.assertEqual(private_destination(root, target), target)
+                    process.return_value.returncode = 3
+                    with self.assertRaises(Blocked):
+                        private_destination(root, target)
+            else:
+                self.assertEqual(private_destination(root, target), target)
             target.mkdir()
             with self.assertRaises(Blocked):
                 private_destination(root, target)
@@ -128,7 +137,19 @@ class FreshNamespaceTests(unittest.TestCase):
             env = {"ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4610",
                    "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610",
                    "ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610",
-                   "POSTGRES_DB": "asalab", "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks"}
+                   "POSTGRES_DB": "asalab", "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks",
+                   "APP_DATABASE_URL": "postgres://app:secret@postgres:5432/asalab",
+                   "ASA_OBJECT_STORAGE_ACCESS_KEY": "private-key",
+                   "ASA_OBJECT_STORAGE_SECRET_KEY": "private-secret",
+                   "POSTGRES_USER": "admin", "POSTGRES_PASSWORD": "db-secret",
+                   "ASA_SEARCH_SECRET": "search-secret"}
+            for key in ("ASA_SETTINGS_ENCRYPTION_KEY", "CLASSROOM_CODE_SECRET",
+                        "ASA_STUDENT_CODE_PROTECTION_MODE", "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON",
+                        "ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID", "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON",
+                        "ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID", "ASA_BLOCKS_RUNTIME_SIGNING_KEY",
+                        "ASA_OBJECT_STORAGE_ENDPOINT", "ASA_OBJECT_STORAGE_REGION",
+                        "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE"):
+                env[key] = "private-" + key
             (root / ".env").write_text("POSTGRES_DB=asalab\n")
             records = {name: {"id": name, "image": "old-image", "mounts": [], "running": True}
                        for name in ("postgres", "minio", "search", "scratch", "api", "web")}
@@ -174,8 +195,21 @@ class FreshNamespaceTests(unittest.TestCase):
                 def containers(self):
                     return list(records.values())
 
-                def container_environment(self, _record):
-                    return {"safe": "value"}
+                def container_environment(self, record):
+                    if record["id"] == "api":
+                        return dict(env)
+                    if record["id"] == "postgres":
+                        return {key: env[key] for key in ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")}
+                    if record["id"] == "minio":
+                        return {"MINIO_ROOT_USER": env["ASA_OBJECT_STORAGE_ACCESS_KEY"],
+                                "MINIO_ROOT_PASSWORD": env["ASA_OBJECT_STORAGE_SECRET_KEY"]}
+                    if record["id"] == "scratch":
+                        return {"ASA_BLOCKS_PARENT_ORIGIN": env["ASA_BLOCKS_PARENT_ORIGIN"]}
+                    if record["id"] == "web":
+                        return {"ASA_BLOCKS_RUNTIME_ORIGIN": env["ASA_BLOCKS_RUNTIME_ORIGIN"]}
+                    if record["id"] == "search":
+                        return {"ASA_SEARCH_SECRET": env["ASA_SEARCH_SECRET"]}
+                    return {}
 
             fake = FakeInstallation()
             patches = [patch("deployment.review_transition.APPROVED_OVERLAY_SHA256", file_hash(overlay)),
@@ -205,6 +239,12 @@ class FreshNamespaceTests(unittest.TestCase):
                     with self.assertRaises(Blocked):
                         review_snapshot(fake, **inputs)
                     item[key] = original
+                original_environment = fake.container_environment
+                fake.container_environment = lambda record: ({**original_environment(record),
+                    **({"ASA_SEARCH_SECRET": "unreviewed-secret"} if record["id"] == "search" else {})})
+                with self.assertRaises(Blocked):
+                    review_snapshot(fake, **inputs)
+                fake.container_environment = original_environment
                 records["foreign"] = {"id": "foreign", "image": "foreign", "mounts":
                                       [{"Type": "volume", "Name": "asa-lab-dev_postgres-data"}], "running": True}
                 with self.assertRaises(Blocked):

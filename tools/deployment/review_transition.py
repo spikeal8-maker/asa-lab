@@ -44,6 +44,13 @@ PHASE_FILE = "review-fresh-operation.json"
 OLD_SERVICES = ("postgres", "minio", "search", "scratch", "api", "web")
 NAMESPACE_NAME = re.compile(r"[a-z][a-z0-9_]{2,47}\Z")
 BUCKET_NAME = re.compile(r"[a-z0-9][a-z0-9.-]{2,61}[a-z0-9]\Z")
+PRESERVED_API_KEYS = ("ASA_SETTINGS_ENCRYPTION_KEY", "CLASSROOM_CODE_SECRET",
+                      "ASA_STUDENT_CODE_PROTECTION_MODE", "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON",
+                      "ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID", "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON",
+                      "ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID", "ASA_BLOCKS_RUNTIME_SIGNING_KEY",
+                      "ASA_BLOCKS_RUNTIME_ORIGIN", "ASA_OBJECT_STORAGE_ENDPOINT",
+                      "ASA_OBJECT_STORAGE_REGION", "ASA_OBJECT_STORAGE_ACCESS_KEY",
+                      "ASA_OBJECT_STORAGE_SECRET_KEY", "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE")
 
 
 def digest(value):
@@ -52,12 +59,32 @@ def digest(value):
 
 
 def private_destination(root, path):
-    root, path = Path(root).resolve(), Path(path).absolute()
+    root, path = Path(root).resolve(), Path(path).resolve()
     plain_paths(path.parent, (path.name,))
     require(not path.is_relative_to(root) and not root.is_relative_to(path),
             "REVIEW_OUTPUT", "Transition evidence must be outside the installation.")
     require(path.parent.is_dir() and not path.exists(), "REVIEW_OUTPUT",
             "Choose a new path under an existing private directory; no evidence is overwritten.")
+    if os.name == "nt":
+        require(path.is_relative_to(Path.home().resolve()), "REVIEW_OUTPUT",
+                "Private transition evidence must stay inside the operator profile.")
+        script = ('$acl=Get-Acl -LiteralPath $env:ASA_REVIEW_PRIVATE_PARENT; '
+                  '$me=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value; '
+                  '$owner=([Security.Principal.NTAccount]$acl.Owner).Translate([Security.Principal.SecurityIdentifier]).Value; '
+                  'if($owner -ne $me){exit 2}; '
+                  '$allowed=@($me,"S-1-5-18","S-1-5-32-544"); '
+                  'foreach($entry in $acl.Access){ '
+                  '$sid=$entry.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value; '
+                  'if($sid -notin $allowed -and $entry.AccessControlType -eq "Allow"){exit 3}}')
+        result = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                                env={**os.environ, "ASA_REVIEW_PRIVATE_PARENT": str(path.parent)},
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        require(result.returncode == 0, "REVIEW_OUTPUT",
+                "Private evidence parent ACL permits another owner or broad read/write access.")
+    else:
+        stat = path.parent.stat()
+        require(stat.st_uid == os.getuid() and stat.st_mode & 0o077 == 0,
+                "REVIEW_OUTPUT", "Private evidence parent must be owned by the operator with mode 0700.")
     return path
 
 
@@ -148,7 +175,7 @@ def _git(root, *args, binary=False):
 
 def wip_snapshot(root):
     root = Path(root)
-    status = _git(root, "status", "--porcelain=v1", "-z", binary=True)
+    status = _git(root, "status", "--porcelain=v1", "--untracked-files=all", "-z", binary=True)
     require(not _git(root, "diff", "--cached", "--name-only"), "REVIEW_INDEX",
             "The canonical index contains staged work; preserve it separately first.")
     entries = [item.decode("utf-8") for item in status.split(b"\0") if item]
@@ -265,6 +292,25 @@ def review_snapshot(install, *, overlay_sha256, database, bucket, expected_old_r
         require(len(mounted) == 1 and mounted[0].get("Type") == "volume"
                 and mounted[0].get("Name") == name, "REVIEW_VOLUME",
                 f"The {service} volume differs from the known canonical storage.")
+    api_env = install.container_environment(records["api"])
+    postgres_env = install.container_environment(records["postgres"])
+    minio_env = install.container_environment(records["minio"])
+    for key in ("APP_DATABASE_URL", "ASA_OBJECT_STORAGE_BUCKET", *PRESERVED_API_KEYS):
+        require(key in install.env and api_env.get(key) == install.env[key], "REVIEW_ENV",
+                f"Running API {key} differs from the private installation configuration.")
+    require(postgres_env.get("POSTGRES_DB") == install.env["POSTGRES_DB"]
+            and postgres_env.get("POSTGRES_USER") == install.env["POSTGRES_USER"]
+            and postgres_env.get("POSTGRES_PASSWORD") == install.env["POSTGRES_PASSWORD"]
+            and minio_env.get("MINIO_ROOT_USER") == install.env["ASA_OBJECT_STORAGE_ACCESS_KEY"]
+            and minio_env.get("MINIO_ROOT_PASSWORD") == install.env["ASA_OBJECT_STORAGE_SECRET_KEY"],
+            "REVIEW_ENV", "Running database or object-store credentials/namespace differ.")
+    require(install.container_environment(records["scratch"]).get("ASA_BLOCKS_PARENT_ORIGIN")
+            == install.env["ASA_BLOCKS_PARENT_ORIGIN"]
+            and install.container_environment(records["web"]).get("ASA_BLOCKS_RUNTIME_ORIGIN")
+            == install.env["ASA_BLOCKS_RUNTIME_ORIGIN"]
+            and install.container_environment(records["search"]).get("ASA_SEARCH_SECRET")
+            == install.env["ASA_SEARCH_SECRET"],
+            "REVIEW_ENV", "Running editor, Web or Search origin/secret differs.")
     config = json.loads(install.compose("config", "--format", "json", capture=True))
     require(set(config["services"]) == {"postgres", "migration", "minio", "minio-init",
                                          "api", "web", "scratch", "search"},
@@ -366,17 +412,20 @@ def selected_release(install, revision):
     return release
 
 
-def verify_manager_review(review_url):
-    """Require independent review and exact-SHA checks for the executing tool."""
+def verify_manager_source(reviewed_tool_sha):
+    """Pin the executing tool to the operator-attested SHA and exact CI."""
     source = Path(__file__).resolve().parents[2]
     require(not _git(source, "status", "--porcelain"), "REVIEW_TOOL",
             "The transition manager source checkout must be clean.")
     revision = _git(source, "rev-parse", "HEAD")
-    parsed = urlsplit(review_url or "")
-    match = re.fullmatch(r"/spikeal8-maker/asa-lab/pull/([1-9][0-9]*)", parsed.path)
-    fragment = re.fullmatch(r"pullrequestreview-([1-9][0-9]*)", parsed.fragment)
-    require(parsed.scheme == "https" and parsed.netloc == "github.com" and not parsed.query
-            and match and fragment, "REVIEW_TOOL", "An exact independent GitHub review URL is required.")
+    require(reviewed_tool_sha == revision, "REVIEW_TOOL",
+            "Executing manager source differs from the operator-attested reviewed SHA.")
+    require(_git(source, "remote", "get-url", "origin").removesuffix(".git") in
+            ("https://github.com/spikeal8-maker/asa-lab", "git@github.com:spikeal8-maker/asa-lab"),
+            "REVIEW_TOOL", "Manager source origin is not the approved repository.")
+    published = _git(source, "ls-remote", "origin", "refs/heads/codex/local-clean-transition-20261030")
+    require(published.split("\t", 1)[0] == revision, "REVIEW_TOOL",
+            "The reviewed manager SHA is not the published transition branch head.")
     headers = {"Accept": "application/vnd.github+json", "User-Agent": "asa-review-fresh"}
     token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if token:
@@ -388,16 +437,6 @@ def verify_manager_review(review_url):
                 return json.load(response)
         except (OSError, ValueError, KeyError) as exc:
             raise Blocked("REVIEW_TOOL_CI", "Cannot verify reviewed manager source.") from exc
-    review = read(f"pulls/{match[1]}/reviews/{fragment[1]}")
-    body = review.get("body") or ""
-    require(review.get("commit_id") == revision
-            and review.get("state") in ("APPROVED", "COMMENTED")
-            and "INDEPENDENT_REVIEW" in body and "VERDICT: APPROVE" in body
-            and f"REVIEWED_SHA: {revision}" in body, "REVIEW_TOOL",
-            "Independent review does not approve this exact manager SHA.")
-    pull = read(f"pulls/{match[1]}")
-    require(pull.get("head", {}).get("sha") == revision, "REVIEW_TOOL",
-            "The reviewed PR head moved.")
     runs = read(f"actions/runs?head_sha={revision}&per_page=100").get("workflow_runs", [])
     for name, path in (("ASA Lab Governance and Code Gates", ".github/workflows/spec-validation.yml"),
                        ("ASA Review Fresh Transition", ".github/workflows/review-fresh-transition.yml")):
@@ -617,10 +656,10 @@ def _ensure_new_bucket_absent(install, bucket):
             "The selected fresh bucket now exists; no existing bucket is reused.")
 
 
-def apply_plan(root, *, plan_path, output, review_url):
+def apply_plan(root, *, plan_path, output, reviewed_tool_sha):
     """Apply exactly one reviewed plan; any interrupted phase needs manual audit."""
     plan = _read_plan(plan_path)
-    manager_sha = verify_manager_review(review_url)
+    manager_sha = verify_manager_source(reviewed_tool_sha)
     old = ReviewInstallation(root)
     output = private_destination(old.root, output)
     require(Path(plan_path).resolve() != output, "REVIEW_OUTPUT", "Plan and backup paths must differ.")
@@ -638,8 +677,10 @@ def apply_plan(root, *, plan_path, output, review_url):
         # Pull immutable application images before interrupting any old writer.
         fetch_images(release)
         output.mkdir(mode=0o700)
+        private_destination(old.root, output / ".acl-attestation")
         journal = {"format": "asa-review-fresh-operation-v1", "planSha256": plan["sha256"],
-                   "managerRevision": manager_sha, "independentReview": review_url,
+                   "managerRevision": manager_sha, "operatorAttestedReviewedSha": reviewed_tool_sha,
+                   "independentReviewOperatorAttested": True,
                    "old": expected["old"], "selected": release, "output": str(output),
                    "phase": "preserving_source", "automaticDatabaseRestore": False}
         _journal(old, journal)
@@ -691,7 +732,17 @@ def apply_plan(root, *, plan_path, output, review_url):
                     and target.project == expected["project"], "REVIEW_IDENTITY",
                     "The target must use only the ordinary dev Compose files in the same project.")
             apply_release_environment(target, release)
-            validate_resolved_images(target, release)
+            resolved = validate_resolved_images(target, release)
+            for key in PRESERVED_API_KEYS:
+                require(resolved["services"]["api"]["environment"].get(key) == old.env[key],
+                        "REVIEW_ENV", f"Target API {key} differs from the preserved private configuration.")
+            require(resolved["services"]["scratch"]["environment"].get("ASA_BLOCKS_PARENT_ORIGIN")
+                    == old.env["ASA_BLOCKS_PARENT_ORIGIN"]
+                    and resolved["services"]["postgres"]["environment"].get("POSTGRES_PASSWORD")
+                    == old.env["POSTGRES_PASSWORD"]
+                    and resolved["services"]["minio"]["environment"].get("MINIO_ROOT_PASSWORD")
+                    == old.env["ASA_OBJECT_STORAGE_SECRET_KEY"], "REVIEW_ENV",
+                    "Target editor/database/object-store values differ from preserved configuration.")
             # The old PostgreSQL container is still attached to the same volume.
             _database_absent(old, expected["newDatabase"])
             db_command(old, 'createdb -U "$POSTGRES_USER" "$RESTORE_DATABASE"',

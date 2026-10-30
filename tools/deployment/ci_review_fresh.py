@@ -171,7 +171,7 @@ def run_fixture():
         with patch("deployment.review_transition.APPROVED_OLD_REVISION", OLD_REVISION), \
              patch("deployment.review_transition.APPROVED_REVIEW_IMAGE", image), \
              patch("deployment.review_transition.APPROVED_OVERLAY_SHA256", file_hash(overlay)), \
-             patch("deployment.review_transition.verify_manager_review", return_value="ci-self-boundary"):
+             patch("deployment.review_transition.verify_manager_source", return_value="ci-self-boundary"):
             old = ReviewInstallation(root)
             bootstrap_old(old, source, old_release)
             old_names = database_names(old)
@@ -185,7 +185,7 @@ def run_fixture():
             try:
                 try:
                     apply_plan(root, plan_path=plan_path, output=private / "blocked-overlay",
-                               review_url="https://github.com/spikeal8-maker/asa-lab/pull/1#pullrequestreview-1")
+                               reviewed_tool_sha="ci-self-boundary")
                 except Blocked as error:
                     require(error.code == "REVIEW_OVERLAY", "CI_NEGATIVE", "Overlay drift was not rejected precisely.")
                 else:
@@ -195,7 +195,7 @@ def run_fixture():
             require(not (root / ".asa/review-fresh-operation.json").exists(), "CI_NEGATIVE",
                     "Rejected drift began maintenance.")
             apply_plan(root, plan_path=plan_path, output=private / "evidence",
-                       review_url="https://github.com/spikeal8-maker/asa-lab/pull/1#pullrequestreview-1")
+                       reviewed_tool_sha="ci-self-boundary")
             target = Installation(root, "dev")
             apply_release_environment(target, target_release)
             require(target.readiness(TARGET_REVISION, target_release["schema"])["revision"] == TARGET_REVISION,

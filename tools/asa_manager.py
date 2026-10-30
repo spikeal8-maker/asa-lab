@@ -267,7 +267,7 @@ def main(argv=None):
     parser.add_argument("--new-database", help="Unique empty database in the existing PostgreSQL volume")
     parser.add_argument("--new-bucket", help="Unique empty bucket in the existing MinIO volume")
     parser.add_argument("--plan", type=Path, help="Private exact review-fresh plan for apply")
-    parser.add_argument("--review-url", help="Independent exact-SHA GitHub review for review-fresh-apply")
+    parser.add_argument("--reviewed-tool-sha", help="Operator-attested exact independently reviewed manager SHA")
     args = parser.parse_args(argv)
     try:
         if args.action.startswith("review-fresh-"):
@@ -283,8 +283,9 @@ def main(argv=None):
                             overlay_sha256=args.overlay_sha256, database=args.new_database,
                             bucket=args.new_bucket, output=args.output)
             else:
-                require(args.plan and args.output and args.review_url, "ARGUMENT", "Apply requires --plan, --review-url and a new private --output directory.")
-                apply_plan(args.root, plan_path=args.plan, output=args.output, review_url=args.review_url)
+                require(args.plan and args.output and args.reviewed_tool_sha, "ARGUMENT", "Apply requires --plan, --reviewed-tool-sha and a new private --output directory.")
+                apply_plan(args.root, plan_path=args.plan, output=args.output,
+                           reviewed_tool_sha=args.reviewed_tool_sha)
             return 0
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
