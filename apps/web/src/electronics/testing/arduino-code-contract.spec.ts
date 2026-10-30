@@ -130,12 +130,12 @@ describe('Arduino programming room contract', () => {
   it('opens as independent resizable drawer and palette without moving the circuit', () => {
     expect(editorSource).toContain("codeOpen ? ' code-open' : ''");
     expect(editorSource).toContain("'--arduino-code-panel-width'");
-    expect(panelSource).toContain('DrawerResizeHandle');
+    expect(panelSource).toContain('HorizontalResizeHandle');
     expect(panelSource).toContain('role="separator"');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MIN_WIDTH = 220');
     expect(panelSource).toContain('ARDUINO_FLYOUT_MAX_WIDTH = 520');
     expect(panelSource).toContain('ARDUINO_FLYOUT_DEFAULT_WIDTH = 290');
-    expect(panelSource).toContain('PaletteResizeHandle');
+    expect(panelSource).toContain('kind="palette"');
     expect(panelSource).toContain('Изменить ширину палитры блоков');
     expect(panelSource).toContain('Уменьшить блоки в палитре');
     expect(panelSource).toContain('Увеличить блоки в палитре');

@@ -11313,7 +11313,9 @@ parallel_lanes:
         dependency: committed_instrument_projection873_integrated_not_mirror_product
         workflow_run: 41061516266
         qualification_profile: strict-real-time
-        observed_result: queued_not_PASS
+        observed_result: FAIL_browser_0of16_complete_focused_and_benchmark_PASS
+        actual_evidence: docs/product/electronics/evidence/instrument-525-before-41061516266/archive-index.json
+        hard_causes: Ten_original_document_observer_not_installed_checkpoint_dispatch_missing_six_slider_center_intercepted_by_supply_negative_wire
         boundary: Existing_full16_BEFORE_only_no_product_AFTER_until_complete_and_new_actual_review
       kind: repair
       owner_acceptance: pending
@@ -13444,7 +13446,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: mirror525_before_running_owner_authorized_resize_refactor876_selected
+      checkpoint: resize876_verified_mirror525_hard_failures_classified_test_repair_next
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -15599,7 +15601,14 @@ parallel_lanes:
       kind: maintenance
       risk: high
       semantic_change: 'no'
-      checkpoint: owner_explicit_refactoring_selected_two_desktop_resize_handles_only
+      checkpoint: source_native_review_done_84e4acc1_canonical2566_71fresh_caps8_PASS
+      accepted_candidate_sha: 84e4acc1a6459d7feab5334db76824336fcaac6b
+      source_review_evidence: done
+      independent_review: APPROVE_exact84e4acc1_native_parity_and_corrected_empty
+      report: docs/product/electronics/evidence/arduino-resize-dedup-876/GATES.md
+      arduino_bundle_bytes: 1998988
+      historical_873_savings_bytes: 937
+      canonical_attempt_note: First_unchanged_asset_hash_timeout_D_isolated175ms_PASS_single_controlled_sameSHA_retryPASS_no_timeout_or_source_changes
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_reviewer
       context_hints:
