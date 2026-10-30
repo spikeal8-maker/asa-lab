@@ -329,7 +329,14 @@ test('image workbench: responsive settings and an explicit preview', async ({ pa
     expect(
       await collapsed.evaluateAll((elements) => elements.every((el) => !el.hasAttribute('open'))),
     ).toBe(true);
-    await noOverflow(page);
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await noOverflow(page);
+      await page.screenshot({
+        path: test.info().outputPath('image-workbench-' + width + '-' + scheme + '.png'),
+        fullPage: true,
+      });
+    }
   }
 
   await api.click();
@@ -342,7 +349,7 @@ test('image workbench: responsive settings and an explicit preview', async ({ pa
   await page
     .getByRole('textbox', { name: 'Описание тестового изображения' })
     .fill('Школьный робот на светлом фоне');
-  await page.getByRole('button', { name: 'Создать тестовое изображение' }).click();
+  await page.getByRole('button', { name: 'Сгенерировать' }).click();
   await expect.poll(() => fixture.imagePosts.length).toBe(1);
   expect(fixture.imagePosts[0]).toMatchObject({
     prompt: 'Школьный робот на светлом фоне',
@@ -353,6 +360,10 @@ test('image workbench: responsive settings and an explicit preview', async ({ pa
     timeout: 18000,
   });
   await noOverflow(page);
+  await page.screenshot({
+    path: test.info().outputPath('image-workbench-result.png'),
+    fullPage: true,
+  });
 });
 
 test('image intent is a removable token in the same input and preserves the draft', async ({

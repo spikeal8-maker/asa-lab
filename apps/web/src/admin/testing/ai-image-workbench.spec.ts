@@ -142,7 +142,7 @@ it('requires an explicit user action before submitting the preview job', async (
     root.render(createElement(AdminComfyImageTest, { principalId: 'owner-1', config: cfg })),
   );
   const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-    (element) => element.textContent === 'Создать тестовое изображение',
+    (element) => element.textContent === 'Сгенерировать',
   )!;
   expect(button.disabled).toBe(true);
   expect(submitted).not.toHaveBeenCalled();
@@ -174,7 +174,7 @@ it('does not submit an image when the saved ComfyUI profile is incompatible', as
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
   const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-    (element) => element.textContent === 'Создать тестовое изображение',
+    (element) => element.textContent === 'Сгенерировать',
   )!;
   expect(button.disabled).toBe(true);
   expect(submitted).not.toHaveBeenCalled();
@@ -217,12 +217,86 @@ it.each([
     expect(host.textContent).toContain('ComfyUI подключён');
     expect(host.textContent).toContain('Требует настройки');
     const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-      (element) => element.textContent === 'Создать тестовое изображение',
+      (element) => element.textContent === 'Сгенерировать',
     )!;
     expect(button).toBeDefined();
     expect(button.disabled).toBe(true);
     await act(async () => button.click());
     expect(submitted).not.toHaveBeenCalled();
     expect(vi.mocked(apiCall).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  },
+);
+
+it('blocks the preview and explains a rejected personal readiness request', async () => {
+  vi.mocked(apiCall).mockRejectedValue(new TypeError('network lost'));
+  await act(async () =>
+    root.render(createElement(AdminComfyImageTest, { principalId: 'owner-network', config: cfg })),
+  );
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    'Не удалось проверить доступность',
+  );
+  const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (element) => element.textContent === 'Сгенерировать',
+  )!;
+  expect(button.disabled).toBe(true);
+  expect(submitted).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  'refreshes preview readiness after endpoint save from ready=%s',
+  async (initialReady) => {
+    let saved = false;
+    const nextUrl = 'http://192.168.1.113:8188';
+    vi.mocked(adminCall).mockImplementation(async (path, init) => {
+      if (path.endsWith('/settings')) {
+        if (init?.method === 'PUT') {
+          saved = true;
+          return {
+            ok: true,
+            status: 200,
+            data: {
+              config: { configurationVersion: 3, baseUrl: nextUrl, source: 'saved' },
+              status: { ...status, baseUrl: nextUrl, recipeReady: !initialReady },
+            },
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          data: { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' },
+        };
+      }
+      const ready = saved ? !initialReady : initialReady;
+      return {
+        ok: true,
+        status: 200,
+        data: path.endsWith('/images')
+          ? { ...cfg, ready }
+          : { ...status, baseUrl: saved ? nextUrl : status.baseUrl, recipeReady: ready },
+      };
+    });
+    await act(async () =>
+      root.render(
+        createElement(AdminComfyUiPage, { onAccessDenied: vi.fn(), principalId: 'endpoint-owner' }),
+      ),
+    );
+    const field = host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        field,
+        nextUrl,
+      );
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      [...host.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === 'Сохранить адрес')!
+        .click(),
+    );
+    const preview = host.querySelector('[aria-label="Пробная генерация"]')!;
+    expect(preview.textContent).toContain(initialReady ? 'Проверка недоступна' : 'Готов к тесту');
+    expect(
+      host.querySelector('[aria-label="Состояние локальной генерации"]')!.textContent,
+    ).toContain(initialReady ? 'Требует настройки' : 'Готов');
   },
 );

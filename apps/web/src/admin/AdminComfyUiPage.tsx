@@ -58,6 +58,7 @@ export function AdminComfyUiPage({
   const attempt = useRef<{ signature: string; id: string } | null>(null);
   const flight = useRef(false);
   const generation = useRef(0);
+  const statusGeneration = useRef(0);
   const [statusReload, setStatusReload] = useState(0);
   const onImageConfigChange = useCallback(
     (next: AiImageGenerationAdminConfig | null) => setImageConfig(next),
@@ -96,13 +97,14 @@ export function AdminComfyUiPage({
   // Revalidate when the saved profile, endpoint, or explicit refresh changes.
   useEffect(() => {
     if (!imageConfig || !config) return;
+    const request = ++statusGeneration.current;
     let active = true;
     setDetails(null);
     setConnectionVerified(false);
     setError('');
     void call<ComfyUiStatus>('/api/admin/v1/ai/comfyui/status')
       .then((result) => {
-        if (!active) return;
+        if (!active || request !== statusGeneration.current) return;
         if (result.ok && validStatus(result.data) && result.data.baseUrl === config.baseUrl) {
           setDetails(result.data);
           setConnectionVerified(true);
@@ -119,7 +121,7 @@ export function AdminComfyUiPage({
         }
       })
       .catch(() => {
-        if (!active) return;
+        if (!active || request !== statusGeneration.current) return;
         setDetails(null);
         setConnectionVerified(false);
         setError('Не удалось проверить состояние ComfyUI.');
@@ -132,6 +134,7 @@ export function AdminComfyUiPage({
   async function connect(save: boolean) {
     if (!config || flight.current) return;
     flight.current = true;
+    statusGeneration.current++;
     setBusy(true);
     setError('');
     setNotice('');
@@ -178,6 +181,8 @@ export function AdminComfyUiPage({
         attempt.current = null;
         setConfig(next.config);
         setUrl(next.config.baseUrl);
+        setImageConfig(null);
+        setStatusReload((n) => n + 1);
         setNotice('Адрес сохранён. Готовность профиля проверяется отдельно.');
       } else
         setNotice(
@@ -225,6 +230,7 @@ export function AdminComfyUiPage({
           type="button"
           className="asa-image-refresh"
           onClick={() => {
+            statusGeneration.current++;
             setDetails(null);
             setConnectionVerified(false);
             setStatusReload((n) => n + 1);
@@ -326,6 +332,7 @@ export function AdminComfyUiPage({
                   disabled={loading || busy || !config}
                   onChange={(event) => {
                     generation.current++;
+                    statusGeneration.current++;
                     setUrl(event.target.value);
                     setDetails(null);
                     setConnectionVerified(false);

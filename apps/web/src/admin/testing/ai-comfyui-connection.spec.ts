@@ -181,3 +181,34 @@ it('preserves the request ID after uncertain settings PUT', async () => {
     JSON.parse(String(writes[1]?.[1]?.body)).requestId,
   );
 });
+
+it('ignores a delayed background success after a newer manual probe fails', async () => {
+  let resolveStatus!: (value: unknown) => void;
+  const pending = new Promise((resolve) => {
+    resolveStatus = resolve;
+  });
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation(async (path, init) => {
+    if (path.endsWith('/status')) return pending as never;
+    if (path.endsWith('/probe')) throw new TypeError('network lost');
+    return original(path, init);
+  });
+  await render();
+  await click('Проверить');
+  await act(async () => resolveStatus({ ok: true, status: 200, data: details }));
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
+  expect(host.textContent).not.toContain('ComfyUI подключён');
+});
+
+it('reloads saved image readiness after explicitly changing the ComfyUI endpoint', async () => {
+  await render();
+  const before = vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images')).length;
+  await input('http://192.168.5.20:8188');
+  await click('Сохранить адрес');
+  expect(vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images'))).toHaveLength(
+    before + 1,
+  );
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!.value).toBe(
+    'http://192.168.5.20:8188',
+  );
+});

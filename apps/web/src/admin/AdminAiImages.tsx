@@ -56,7 +56,6 @@ export function AdminAiImages({
       live = false;
     };
     // Config-change callback is notification only, not a trigger to refetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onAccessDenied, reload, refreshToken]);
 
   const dirty =

@@ -6,12 +6,13 @@
   --image-muted: var(--ai-muted, #587184);
   --image-surface: var(--ai-surface, #fff);
   --image-accent: var(--ai-accent, #0879b5);
-  --image-copy-size: clamp(13px, 0.76vw, 17px);
-  --image-caption-size: clamp(11px, 0.63vw, 14px);
+  --image-copy-size: clamp(14px, 0.76vw, 17px);
+  --image-caption-size: clamp(12px, 0.63vw, 14px);
   color: var(--image-fg);
   display: grid;
   gap: clamp(12px, 1.35vw, 20px);
   min-width: 0;
+  max-width: 100%;
   width: 100%;
 }
 .asa-image-workbench *,
@@ -51,7 +52,7 @@
 }
 .asa-image-workbench button {
   cursor: pointer;
-  min-height: 36px;
+  min-height: 44px;
   border-radius: 8px;
   border: 1px solid var(--image-border);
   background: var(--image-surface);
@@ -89,7 +90,7 @@
 }
 .asa-image-subtabs button[role='tab'] {
   padding: 8px 14px;
-  min-height: 36px;
+  min-height: 44px;
   border: 0;
   background: transparent;
   color: var(--image-muted);
@@ -440,8 +441,14 @@
   .asa-image-subtabs {
     width: 100%;
   }
+  .asa-image-panel-heading {
+    flex-wrap: wrap;
+  }
   .asa-image-subtabs button {
     flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .asa-image-preview-controls > label {
     flex: 1 1 100%;

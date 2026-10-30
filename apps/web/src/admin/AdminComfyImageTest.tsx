@@ -61,19 +61,26 @@ export function AdminComfyImageTest({
     let live = true;
     setStatus(null);
     setLoadError('');
-    void call<AiImageGenerationStatus>('/api/ai/image-generation/status').then((response) => {
-      if (!live) return;
-      if (response.ok && imageGenerationStatusShape(response.data)) {
-        setStatus(response.data);
-        setSize((previous) =>
-          response.data.sizes.includes(previous) ? previous : response.data.sizes[0]!,
-        );
-      } else {
-        setLoadError(
-          response.ok ? 'API вернул несовместимый статус генерации.' : response.error.message,
-        );
-      }
-    });
+    void call<AiImageGenerationStatus>('/api/ai/image-generation/status')
+      .then((response) => {
+        if (!live) return;
+        if (response.ok && imageGenerationStatusShape(response.data)) {
+          setStatus(response.data);
+          setSize((previous) =>
+            response.data.sizes.includes(previous) ? previous : response.data.sizes[0]!,
+          );
+        } else {
+          setLoadError(
+            response.ok ? 'API вернул несовместимый статус генерации.' : response.error.message,
+          );
+        }
+      })
+      .catch(() => {
+        if (live) {
+          setStatus(null);
+          setLoadError('Не удалось проверить доступность генерации. Повторите проверку состояния.');
+        }
+      });
     return () => {
       live = false;
     };
@@ -100,6 +107,9 @@ export function AdminComfyImageTest({
         // inside AiImageGeneration still fails closed when sessionStorage is off.
       }
       return reply.data.id;
+    } catch {
+      if (mounted.current) setLoadError('Не удалось создать тестовый диалог. Повторите попытку.');
+      return null;
     } finally {
       creating.current = false;
     }
@@ -123,7 +133,7 @@ export function AdminComfyImageTest({
           <p>Результат через тот же защищённый путь, что и в чате</p>
         </div>
         <span className={'asa-image-state ' + (ready ? 'is-ready' : 'is-warning')}>
-          {ready ? 'GPU доступен' : 'Проверка недоступна'}
+          {ready ? 'Готов к тесту' : 'Проверка недоступна'}
         </span>
       </header>
       <div className="asa-image-preview-body">
@@ -166,7 +176,7 @@ export function AdminComfyImageTest({
               void controller.current?.submit(prompt.trim(), currentSize);
             }}
           >
-            Создать тестовое изображение
+            Сгенерировать
           </button>
           {state.canCancel ? (
             <button type="button" onClick={() => void controller.current?.cancel()}>
