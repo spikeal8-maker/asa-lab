@@ -13349,7 +13349,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point2_physical_multiplex_verified_user_helpers_selected
+      checkpoint: remaining20_point6_source_verified_point14_annotations_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13360,16 +13360,16 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-ARDUINO-SWITCH-001
-      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
-      consolidated_partial: [13, 14, 15, 16, 17, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
+      current_slice: TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001
+      consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38]
+      consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: [39]
       consolidated_status_boundary: Sourceverified means scoped source and actualactions proof only, notinstalled owner release or completeCpluspluscompatibility. Point9 fixedbudget prevents oldprototype;38verifiedexistingruntimegeometryderivation andtrue2pinmodel;40/41 lackfullsync or confidentialincidentproof;45deployment explicitlyunauthorized. No globalstop whileindependentwork remains.
       consolidated_plan: docs/product/electronics/OWNER_CONSOLIDATED_PLAN_45.md
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Owner30Octoberregression858verified_source1b0_docs2584_independent28tests4nativecasesPASS. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Canonical2443tests71freshNxall8capsPASS_after_verified_single_classD_asset_timeout_retry. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Continue_remaining20_point6_switchcase859_candidatefirst_no_refactor_guardcapraise_server_or_foreignedits. No_wholeCplusplus_installed_or_owneracceptance_claim.
+      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Remainingplan_otheritems_and_speedslider_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -14931,6 +14931,9 @@ parallel_lanes:
       canonical_gate: PASS_2443tests_71freshNx_no_cache_after_one_verified_classD_asset_timeout_retry
       bundles: all8PASS_Editor170581of222000_Arduino1999997of2000000_initial555421of600000
       report: docs/product/electronics/evidence/switch-burnout-858/README.md
+      integrated_main_sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
+      general_ci_run: 40984218563
+      general_ci_conclusion: success_all4jobs_exact_integrated_sha
 
   - id: electronics-arduino-switch-case
     parent_lane: electronics
@@ -14943,11 +14946,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_remaining20_point6_atomic_switch_dispatch_candidate_first
+      checkpoint: repaired_integral_switch_source_verified_new_independent_review_approved
       owner_acceptance: pending
       execution_role: new_bounded_runtime_executor_then_new_independent_review
       owner_authorization: Owner30Octoberexplicitlyrequestsrepair858_thencontinueplan. Remaining20_point6_is_independentnext_language_slice. Real_integral_switchcase_default_fallthrough_breakcontinue_scopes_onceeffects_JSON; preserveoldbytes_and_guards. No arbitraryCplusplus_refactor_or_capraise.
@@ -14973,6 +14976,60 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T00:00:00Z'
       observation_note: Fresh fetch main before edits. Main_dabc_General_success_at_integration;858source1b0_independentAPPROVE28tests4native_and_canonical2443tests71freshNxallcapsPASS. Publish858_before_runtime859_mutations. Runtime141778of153189; Arduinoentry1999997of2000000_candidatefirst_buildcaps_before_broadgate. No server_Docker_DB_orforeignchanges.
+    source_review_evidence:
+      rejected_source_candidate_sha: 0b79cc42901fa8cad890509d6f6f12558f1cd7bb
+      first_review_verdict: REQUEST_CHANGES
+      reason: Newly_admitted_invalid_global_identifier_switch_executedGPIO_after_removing_old_keyword_ban
+      allowed_repair: Exact_case_sensitive_switch_identifier_reject_beforeGPIO_and_negative_proof;replace5obsolete_switch_unsupported_fixtures_with_valid_goto_preserving_contracts_and_add_positive_solver_scheduler_witnesses
+      repaired_source_candidate_sha: f74194ea85c6a70214c0cb7848d2e37a5ed1e331
+      evidence_candidate_sha: 0c9050eabc1332735c08fa4cf9f4d10e87a68f15
+      verdict: APPROVE_new_independent_review_exact_repaired_source
+      independent_tests: 379focused_PASS_old25programs1295122bytes_0afe4c1d_byteequal_and_native1440_390_display8_9_0_Serial_qualityPASS
+      canonical_gate: PASS_2489tests_71freshNx_no_cache_after_actual_code_and_obsolete_fixture_repair
+      bundles: all8PASS_Runtime149171of153189_Arduino1999981of2000000_Editor170581of222000_initial555421of600000
+      report: docs/product/electronics/evidence/arduino-switch-859/README.md
+
+  - id: electronics-canvas-annotations
+    parent_lane: electronics
+    worktree_id: electronics-canvas-annotations
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001.md
+    task:
+      id: TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001
+      issue: 860
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_remaining20_point14_persisted_nonelectrical_text
+      owner_acceptance: pending
+      execution_role: new_bounded_annotation_executor_then_new_independent_review
+      owner_authorization: Ownerexplicitprogrammecontinue_after30October858repair. Source859newindependentAPPROVE379tests_and_canonical2489tests71freshNxallcapsPASS. Choose_independent_remaining20point14_old39_new_canvas_text_not_browserlocalNotesPanel. Preserveoldprojects_and_liveclock; no server_DB_migration_RLS_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
+      convergence_baseline_sha: 7d5f6d93fb8555a6064e01c89a3e54538aa68911
+      head_sha: null
+      observed_at: '2026-10-30T00:00:00Z'
+      observation_note: Fresh fetch main before edits. General40984218563_exact7d5f_success_all4jobs. Publishverified859_before860mutations. Readonlyinventoryfound_noexistingcanvasannotations;domainparserdropsunknownfields_APItype_duplicate_workerstructureincludesannotationsbydefault. PreservebrowserlocalNotesPanel;versionedformatmustpreventolderclientdroppingnotes. Exact7sourcepaths_checked72worktrees_no_dirty_overlap. No liveDB_server_Docker_orforeignchanges.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics

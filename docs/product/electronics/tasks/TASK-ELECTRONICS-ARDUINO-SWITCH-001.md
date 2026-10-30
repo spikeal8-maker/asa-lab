@@ -47,6 +47,10 @@ Production boundary: arduino-program-runtime.ts and arduino-capabilities.ts;
 optional cohesive NEW switch-syntax module for new code only. Read their mapped
 contracts and preserve old full compilation/state/action/event bytes for programs
 without switch. No unrelated API expansion or old parser extraction.
+The existing switch command card in
+`apps/web/src/electronics/arduino-command-reference.ts` currently declares it
+blocked. Correct only that card's status, precise limits and insertable example
+to match the implemented subset; no general command-panel rewrite.
 
 Focused proof: default absent/present/in middle, grouped/fallthrough cases,
 nested switches, switch-inside-loop and loop-inside-switch break/continue,
