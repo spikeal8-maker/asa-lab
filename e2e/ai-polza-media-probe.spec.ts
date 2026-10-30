@@ -53,17 +53,15 @@ test('real microphone MediaRecorder bytes pass ffprobe and reach only mocked Pol
         return {
           rows: [
             {
-              value: {
-                enabled: true,
-                transcription_enabled: true,
-                daily_seconds_limit: 600,
-                global_daily_seconds_limit: 7200,
-                max_audio_seconds: 20,
-                api_key_ciphertext: ciphertext.toString('base64url'),
-                api_key_iv: iv.toString('base64url'),
-                api_key_auth_tag: cipher.getAuthTag().toString('base64url'),
-                revision: 1,
-              },
+              enabled: true,
+              transcription_enabled: true,
+              daily_seconds_limit: 600,
+              global_daily_seconds_limit: 7200,
+              max_audio_seconds: 20,
+              api_key_ciphertext: ciphertext.toString('base64url'),
+              api_key_iv: iv.toString('base64url'),
+              api_key_auth_tag: cipher.getAuthTag().toString('base64url'),
+              revision: 1,
             },
           ],
         };

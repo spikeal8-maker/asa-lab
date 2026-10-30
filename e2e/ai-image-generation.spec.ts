@@ -288,6 +288,12 @@ test('image tab never widens the mobile viewport during keyboard navigation', as
   await page.goto('/#/admin/ai?section=overview');
   await page.getByRole('tab', { name: 'Обзор', exact: true }).focus();
   await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Транскрибация', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.keyboard.press('ArrowLeft'); // Видео
+  await page.keyboard.press('ArrowLeft'); // Изображения
   await expect(page.getByRole('tab', { name: 'Изображения', exact: true })).toHaveAttribute(
     'aria-selected',
     'true',
