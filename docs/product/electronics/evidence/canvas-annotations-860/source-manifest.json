@@ -76,9 +76,9 @@
     },
     {
       "path": "apps/web/src/electronics/use-electronics-workbench.ts",
-      "gitBlob": "9a3e8efac44738cf9683288d691d1459f3818b39",
-      "bytes": 137597,
-      "sha256": "8b07a63d0aaa5be15e7e25c6a99b30222ee4fa3cf55c2faa6e4de4128d2e125a"
+      "gitBlob": "054504280c2ddcb63a9ff4bc70c93b2a66472931",
+      "bytes": 137607,
+      "sha256": "99fef8203724b37278610d7cbb3597e99c03793af4825f074ff4124ce1e33607"
     },
     {
       "path": "apps/web/src/electronics/use-workbench-project-state.ts",
@@ -177,5 +177,5 @@
       "sha256": "52f5a229f55064ac6df3336e085c571b4bf9fc3cc3802f82a19e8b8086c33fde"
     }
   ],
-  "sourceDigest": "b30a608bcd67254429e15c75f69bd6555ecb160d42c0936e0df885f255dcf04c"
+  "sourceDigest": "fdbb20acbdcfb7d600465826165fd4f61fe7637035633214102b7b38ff4d8537"
 }

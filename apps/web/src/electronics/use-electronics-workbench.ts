@@ -2640,7 +2640,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function beginStagePointer(event: PointerEvent<SVGSVGElement>): void {
-    if ((event.target as Element).closest('[data-canvas-annotation]')) return;
+    if ((event.target as Element | null)?.closest?.('[data-canvas-annotation]')) return;
     if (event.pointerType === 'touch') {
       if (pinchRef.current && !pinchRef.current.ids.includes(event.pointerId)) {
         event.preventDefault();

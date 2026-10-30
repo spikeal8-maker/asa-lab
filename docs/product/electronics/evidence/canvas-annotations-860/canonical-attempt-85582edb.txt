@@ -1,0 +1,42 @@
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-annotations.spec.ts (5 tests) 17ms
+ ✓ |parallel| apps/web/src/electronics/testing/electronics-document-merge.spec.ts (6 tests) 13ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts (2 tests) 8ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-program-state.spec.ts (6 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-selection.spec.ts (3 tests) 8ms
+ ✓ |parallel| apps/web/src/electronics/testing/component-information.spec.ts (20 tests) 27ms
+ ✓ |parallel| apps/web/src/electronics/testing/native-optical-presentation.spec.ts (5 tests) 13ms
+ ✓ |parallel| apps/web/src/electronics/testing/pir-sensor-controls.spec.ts (1 test) 66ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-source-language.spec.ts (5 tests) 10ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-block-messages.spec.ts (3 tests) 69ms
+ ✓ |parallel| apps/web/src/electronics/testing/gearmotor-information.spec.ts (2 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/servo-visual.spec.ts (2 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/diagnostic-presentation.spec.ts (2 tests) 7ms
+ ✓ |parallel| apps/web/src/electronics/testing/photoresistor-presentation.spec.ts (2 tests) 6ms
+ ✓ |parallel| apps/web/src/electronics/testing/component-help-content.spec.ts (2 tests) 7ms
+ ✓ |parallel| apps/web/src/electronics/testing/electronics-project-recovery.spec.ts (7 tests) 22ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |parallel| apps/web/src/electronics/testing/workbench-native-wheel.spec.ts > mounted production native wheel > keeps the pinch interaction guard while cancelling the wheel
+TypeError: Cannot read properties of undefined (reading 'closest')
+ ❯ Object.beginStagePointer apps/web/src/electronics/use-electronics-workbench.ts:2643:35
+    2641|
+    2642|   function beginStagePointer(event: PointerEvent<SVGSVGElement>): void…
+    2643|     if ((event.target as Element).closest('[data-canvas-annotation]'))…
+       |                                   ^
+    2644|     if (event.pointerType === 'touch') {
+    2645|       if (pinchRef.current && !pinchRef.current.ids.includes(event.poi…
+ ❯ apps/web/src/electronics/testing/workbench-native-wheel.spec.ts:209:22
+ ❯ Proxy.act node_modules/.pnpm/react@18.3.1/node_modules/react/cjs/react.development.js:2512:16
+ ❯ apps/web/src/electronics/testing/workbench-native-wheel.spec.ts:188:13
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 64 passed (65)
+      Tests  1 failed | 1111 passed (1112)
+   Start at  05:51:23
+   Duration  14.80s (transform 46.65s, setup 0ms, import 76.64s, tests 50.18s, environment 39.91s)
+
+ ELIFECYCLE  Command failed with exit code 1.
+
