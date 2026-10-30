@@ -25,6 +25,7 @@ for (const path of browser
       'tests/portal/publication-likes.pg.spec.ts',
       'apps/api/src/publication-likes.controller.spec.ts',
       'apps/web/src/projects-public/PublicationLike.spec.ts',
+      'apps/web/src/projects-public/PublicProjectsPage.spec.ts',
       'apps/web/src/admin/testing/publication-reactions.spec.ts',
       'tests/portal/student-project-policy.pg.spec.ts',
       'apps/api/src/project-distribution.controller.spec.ts',
