@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: polza_stt_853_completion_selected
+      checkpoint: chat_visual_controls_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,27 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-CHAT-VISUAL-CONTROLS-001
+          issue: 373
+          scope: compact accessible model and tool menus plus subtle history scrollbar
+          status: in_progress
+          selected_at: '2026-10-30'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner commissions the nine-point chat refinement programme and authorizes
+            incremental review on existing D2R2 Docker portal http://127.0.0.1:4610.
+            First bounded slice: subtle history scrollbar, compact model selector,
+            rounded readable model/tool menus with right-aligned mode and chevron.
+            Preserve model authorization, ranking, tool semantics, drafts and attachments.
+            Validate light/dark, keyboard and mobile with independent review before publication.
+            Preview only through existing canonical installation workflow; preserve live WIP,
+            database, secrets and other Docker projects. Later slices separately cover real
+            streaming/animation, found-image actions, isolated HTML/SVG previews and copy blocks.
         - id: ASAI-POLZA-STT-853
           issue: 373
           scope: finish existing PR853 encrypted Polza keys and microphone transcription
