@@ -7815,28 +7815,26 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/electronics-playback-20261030-acceptance.md
     task:
-      id: TASK-PROJ-ELECTRONICS-PUBLIC-PLAYBACK-001
+      id: TASK-PROJ-CATALOG-LAYOUT-001
       issue: 211
       branch: main
-      candidate_branch: codex/electronics-public-playback-20261030
+      candidate_branch: codex/projects-catalog-layout-20261030
       base_branch: main
-      pr: 875
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: public_electronics_playback_technical_accepted_main
+      status: in_progress
+      checkpoint: catalog_canonical_compact_layout_selected
       kind: implementation
-      risk: high
-      semantic_change: 'yes'
+      risk: medium
+      semantic_change: 'no'
       owner_acceptance: pending
-      owner_authorization: Owner requested actual public Electronics simulation with interactive controls and integration
-        of the publication page layout on 2026-10-30. Owner explicitly selected published Arduino program as public
-        with readonly code viewing, superseding separate code-consent requirements for this slice (DEC123). Reuse canonical
-        bounded Worker/controller/presentation primitives, not a fork or full Workbench. One bounded native passive/button
-        and Arduino playback plus immutable V3 public artifact, compact controls/page, no Project writes or deployment.
-        Independent exact Code/Security, real Worker/native browser/PG, public bundle admission and General before Main.
+      owner_authorization: Owner requested finding and implementing the existing canonical Projects catalog layout on 2026-10-30.
+        Compact search/header, horizontal real module filters and responsive image-first cards. Preserve existing search,
+        pagination, routes, authorization and real counts; no invented metrics or unsupported categories. No 3D viewer,
+        game-section changes, new ranking/search backend or site deployment. Bounded author and independent review,
+        focused catalog checks and actual built-browser visual proof before source integration.
       context_hints:
-      - docs/product/projects/tasks/PROJ-ELECTRONICS-PUBLIC-PLAYBACK.md
-      - docs/product/projects/tasks/PROJ-R7-04B-ELECTRONICS.md
+      - docs/product/projects/tasks/PROJ-CATALOG-LAYOUT.md
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
