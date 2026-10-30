@@ -1,0 +1,169 @@
+{
+  "status": "SIZE_VERIFICATION_ONLY_NOT_READY",
+  "main": "10dddd83782d2c906932500c953e25b930fb27ff",
+  "rows": [
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "apps/web/src/electronics/ProductionComponentVisual.tsx",
+      "base_tree": "100644 blob f36b8d50312c105ece9b7c69b4698ea65a30d20b\tapps/web/src/electronics/ProductionComponentVisual.tsx",
+      "main_tree": "100644 blob f36b8d50312c105ece9b7c69b4698ea65a30d20b\tapps/web/src/electronics/ProductionComponentVisual.tsx",
+      "frozen_tree": "100644 blob 344293bc354c1ad01f0f859acf05e72d265c9688\tapps/web/src/electronics/ProductionComponentVisual.tsx"
+    },
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "apps/web/src/electronics/WorkbenchStage.tsx",
+      "base_tree": "100644 blob bd0bcd0742683f40a038768640d002d2436e4f32\tapps/web/src/electronics/WorkbenchStage.tsx",
+      "main_tree": "100644 blob bd0bcd0742683f40a038768640d002d2436e4f32\tapps/web/src/electronics/WorkbenchStage.tsx",
+      "frozen_tree": "100644 blob f000e8600012157a461974a1e478af55b770c2e9\tapps/web/src/electronics/WorkbenchStage.tsx"
+    },
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "apps/web/src/electronics/supply-switch-hit-geometry.ts",
+      "base_tree": "",
+      "main_tree": "",
+      "frozen_tree": "100644 blob 26e86bcdb38df687dc87b3f3b7c03fc1b8806f5f\tapps/web/src/electronics/supply-switch-hit-geometry.ts"
+    },
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "apps/web/src/electronics/testing/instrument-knob-controls.spec.ts",
+      "base_tree": "100644 blob 159fd07a00d1b745cb39dc608a12132e397c1bee\tapps/web/src/electronics/testing/instrument-knob-controls.spec.ts",
+      "main_tree": "100644 blob 159fd07a00d1b745cb39dc608a12132e397c1bee\tapps/web/src/electronics/testing/instrument-knob-controls.spec.ts",
+      "frozen_tree": "100644 blob d3103ac2b68ed433af1f542d5b1781e4844fd055\tapps/web/src/electronics/testing/instrument-knob-controls.spec.ts"
+    },
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "apps/web/src/electronics/testing/supply-switch-hit-geometry.spec.ts",
+      "base_tree": "",
+      "main_tree": "",
+      "frozen_tree": "100644 blob ed8e886dcd183189cfecc21d4a74876be53475f2\tapps/web/src/electronics/testing/supply-switch-hit-geometry.spec.ts"
+    },
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "docs/product/electronics/generated/component-coverage.json",
+      "base_tree": "100644 blob ef767da12122d41d4431a5c574765f710337a53d\tdocs/product/electronics/generated/component-coverage.json",
+      "main_tree": "100644 blob ef767da12122d41d4431a5c574765f710337a53d\tdocs/product/electronics/generated/component-coverage.json",
+      "frozen_tree": "100644 blob 12312259132aa9522328667f2b2a57bcdf960b78\tdocs/product/electronics/generated/component-coverage.json"
+    },
+    {
+      "candidate": "A",
+      "base": "d9e747ebf6397e8ef8e54515c6b83e0a6d709c08",
+      "source": "b4c723b30abc5fa8e77b162fc27ccca59c2793f8",
+      "path": "e2e/electronics-simulation.spec.ts",
+      "base_tree": "100644 blob 06174a9675a5e670e3798a4adb7e40239a729a3a\te2e/electronics-simulation.spec.ts",
+      "main_tree": "100644 blob 06174a9675a5e670e3798a4adb7e40239a729a3a\te2e/electronics-simulation.spec.ts",
+      "frozen_tree": "100644 blob a3d5830c0b637e165cc60c8a43126e8f2ae8718f\te2e/electronics-simulation.spec.ts"
+    },
+    {
+      "candidate": "B",
+      "base": "00003a3832383356ac863d838498d65eed714b3d",
+      "source": "e4d3712d1db47aeb762bc9401781257bd4b66ad0",
+      "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "base_tree": "100644 blob f038c059948a7c29fe2f5ec2d4381ea8bfe620aa\tapps/web/src/electronics/ArduinoCodePanel.tsx",
+      "main_tree": "100644 blob f038c059948a7c29fe2f5ec2d4381ea8bfe620aa\tapps/web/src/electronics/ArduinoCodePanel.tsx",
+      "frozen_tree": "100644 blob aa60c977bde4f75ebf0058c04b960bc0686e78c1\tapps/web/src/electronics/ArduinoCodePanel.tsx"
+    },
+    {
+      "candidate": "B",
+      "base": "00003a3832383356ac863d838498d65eed714b3d",
+      "source": "e4d3712d1db47aeb762bc9401781257bd4b66ad0",
+      "path": "apps/web/src/electronics/arduino-program-state.ts",
+      "base_tree": "100644 blob 94c48cb96e128edded2372e3883745ec072b426b\tapps/web/src/electronics/arduino-program-state.ts",
+      "main_tree": "100644 blob 94c48cb96e128edded2372e3883745ec072b426b\tapps/web/src/electronics/arduino-program-state.ts",
+      "frozen_tree": "100644 blob d138396912155b799a76b8db432af009e1836d31\tapps/web/src/electronics/arduino-program-state.ts"
+    },
+    {
+      "candidate": "B",
+      "base": "00003a3832383356ac863d838498d65eed714b3d",
+      "source": "e4d3712d1db47aeb762bc9401781257bd4b66ad0",
+      "path": "apps/web/src/electronics/testing/arduino-preservation-865.browser.mjs",
+      "base_tree": "",
+      "main_tree": "",
+      "frozen_tree": "100644 blob f78aa71e2b771741e7603461aa3ad95ad096234a\tapps/web/src/electronics/testing/arduino-preservation-865.browser.mjs"
+    },
+    {
+      "candidate": "B",
+      "base": "00003a3832383356ac863d838498d65eed714b3d",
+      "source": "e4d3712d1db47aeb762bc9401781257bd4b66ad0",
+      "path": "apps/web/src/electronics/testing/arduino-preservation-before-865.browser.mjs",
+      "base_tree": "",
+      "main_tree": "",
+      "frozen_tree": "100644 blob ffdbbfe1d10a3f8228e837455718e1e11aed2438\tapps/web/src/electronics/testing/arduino-preservation-before-865.browser.mjs"
+    },
+    {
+      "candidate": "B",
+      "base": "00003a3832383356ac863d838498d65eed714b3d",
+      "source": "e4d3712d1db47aeb762bc9401781257bd4b66ad0",
+      "path": "apps/web/src/electronics/testing/arduino-program-state.spec.ts",
+      "base_tree": "100644 blob dff6e3768a40b9fbfc2ceeffb59f99afaa7f9418\tapps/web/src/electronics/testing/arduino-program-state.spec.ts",
+      "main_tree": "100644 blob dff6e3768a40b9fbfc2ceeffb59f99afaa7f9418\tapps/web/src/electronics/testing/arduino-program-state.spec.ts",
+      "frozen_tree": "100644 blob 263b0281a99ff21893e2d88a7f49a8e4e7c9de70\tapps/web/src/electronics/testing/arduino-program-state.spec.ts"
+    },
+    {
+      "candidate": "C",
+      "base": "0e96139d26f8865c3a5441223caf842f60aa671c",
+      "source": "307f18d98d309add057e150bd90e66365352801f",
+      "path": "apps/web/src/electronics/arduino-blocks.ts",
+      "base_tree": "100644 blob a6ee629a1289c3bc57f03c3ff84caf7c68bf6a62\tapps/web/src/electronics/arduino-blocks.ts",
+      "main_tree": "100644 blob a6ee629a1289c3bc57f03c3ff84caf7c68bf6a62\tapps/web/src/electronics/arduino-blocks.ts",
+      "frozen_tree": "100644 blob 7d42ac9b38a5b0acbe3e77916b059aede3e93b50\tapps/web/src/electronics/arduino-blocks.ts"
+    },
+    {
+      "candidate": "C",
+      "base": "0e96139d26f8865c3a5441223caf842f60aa671c",
+      "source": "307f18d98d309add057e150bd90e66365352801f",
+      "path": "apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts",
+      "base_tree": "100644 blob 7ab947a7c175d10aa62a8e2da3cb2b4b8a0fe82d\tapps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts",
+      "main_tree": "100644 blob 7ab947a7c175d10aa62a8e2da3cb2b4b8a0fe82d\tapps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts",
+      "frozen_tree": "100644 blob 6be66c867a301173db5cfdeaf6530d09d41c3005\tapps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts"
+    },
+    {
+      "candidate": "C",
+      "base": "0e96139d26f8865c3a5441223caf842f60aa671c",
+      "source": "307f18d98d309add057e150bd90e66365352801f",
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "base_tree": "100644 blob 492238f72e409e108ba9a37bd8c60662e6e95f77\tcontexts/electronics/domain/arduino-capabilities.ts",
+      "main_tree": "100644 blob 492238f72e409e108ba9a37bd8c60662e6e95f77\tcontexts/electronics/domain/arduino-capabilities.ts",
+      "frozen_tree": "100644 blob 56a262a356ab6639a24c11ecbb3c55e69288e6f0\tcontexts/electronics/domain/arduino-capabilities.ts"
+    },
+    {
+      "candidate": "C",
+      "base": "0e96139d26f8865c3a5441223caf842f60aa671c",
+      "source": "307f18d98d309add057e150bd90e66365352801f",
+      "path": "contexts/electronics/domain/arduino-modulo-adapter.ts",
+      "base_tree": "",
+      "main_tree": "",
+      "frozen_tree": "100644 blob b05de3e64e213e8a3a9a05a7f2b1fd2bc44bd78a\tcontexts/electronics/domain/arduino-modulo-adapter.ts"
+    },
+    {
+      "candidate": "C",
+      "base": "0e96139d26f8865c3a5441223caf842f60aa671c",
+      "source": "307f18d98d309add057e150bd90e66365352801f",
+      "path": "contexts/electronics/domain/arduino-program-runtime.ts",
+      "base_tree": "100644 blob 24a2e0238dc205a0926349a4e57252c9b3ce9ec4\tcontexts/electronics/domain/arduino-program-runtime.ts",
+      "main_tree": "100644 blob 24a2e0238dc205a0926349a4e57252c9b3ce9ec4\tcontexts/electronics/domain/arduino-program-runtime.ts",
+      "frozen_tree": "100644 blob 3e78763082971420919d23b313c18a942ff02f09\tcontexts/electronics/domain/arduino-program-runtime.ts"
+    },
+    {
+      "candidate": "C",
+      "base": "0e96139d26f8865c3a5441223caf842f60aa671c",
+      "source": "307f18d98d309add057e150bd90e66365352801f",
+      "path": "contexts/electronics/index.ts",
+      "base_tree": "100644 blob 66093c0b240e40bf9484309a5f4f7b5a1adfb6bf\tcontexts/electronics/index.ts",
+      "main_tree": "100644 blob 66093c0b240e40bf9484309a5f4f7b5a1adfb6bf\tcontexts/electronics/index.ts",
+      "frozen_tree": "100644 blob 6223fce842a5eedeeaf40c8d87466d1822ed7d5f\tcontexts/electronics/index.ts"
+    }
+  ],
+  "omitted": "Old reports/evidence retained at frozen refs; no current.yaml/task-card overwrite"
+}

@@ -1,3 +1,4 @@
+import { admittedArduinoModuloAdapters } from './arduino-modulo-adapter.js';
 import { analyseArduinoProgramSyntax } from './arduino-program-runtime.js';
 import { parseArduinoVoidFunctions } from './arduino-user-functions.js';
 import { arduinoServoDeclarationNames } from './arduino-servo-runtime.js';
@@ -336,7 +337,8 @@ function sourcePosition(
 export function analyseArduinoSourceSupport(
   source: string,
 ): readonly ArduinoSourceSupportDiagnostic[] {
-  const clean = maskCommentsAndStrings(source);
+  const modulo = admittedArduinoModuloAdapters(maskCommentsAndStrings(source));
+  const clean = modulo.source;
   const servoDeclarations = new Set(arduinoServoDeclarationNames(clean));
   const diagnostics: ArduinoSourceSupportDiagnostic[] = [];
   const dedupe = new Set<string>();
@@ -424,7 +426,8 @@ export function analyseArduinoSourceSupport(
       insideMemberCall ||
       SUPPORTED_CALLS.has(lower) ||
       CONTROL_CALLS.has(lower) ||
-      helperNames.has(name)
+      helperNames.has(name) ||
+      modulo.names.includes(name)
     )
       continue;
     const knownMessage = UNSUPPORTED_CALL_MESSAGES.get(lower);

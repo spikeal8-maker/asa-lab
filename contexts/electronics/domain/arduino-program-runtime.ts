@@ -1,3 +1,4 @@
+import { admittedArduinoModuloAdapters } from './arduino-modulo-adapter.js';
 import { draw, seed, valid } from './arduino-random.js';
 import {
   arduinoSwitchSections,
@@ -277,6 +278,7 @@ interface ArduinoEvaluationReplay {
 }
 
 interface RuntimeState {
+  readonly moduloAdapters?: readonly string[] | undefined;
   readonly scopes: ArduinoScope[];
   evaluationReplay?: ArduinoEvaluationReplay | undefined;
   randomState?: number | undefined;
@@ -1359,6 +1361,18 @@ class ExpressionParser {
   }
 
   call(name: string, argumentsList: readonly ArduinoValue[]): ArduinoValue {
+    if (this.state.moduloAdapters?.includes(name)) {
+      if (argumentsList.length !== 2 || this.state.scopes.some((scope) => scope.has(name)))
+        throw new SyntaxError('Недопустимый вызов остатка.');
+      const [left, right] = argumentsList as readonly [ArduinoValue, ArduinoValue];
+      if (![left.type, right.type].some((type) => type === 'float' || type === 'double'))
+        return binaryValue('%', left, right, this.validateOnly);
+      if (this.validateOnly) return zeroValue('double');
+      const a = convertValue(left, 'double').value;
+      const b = convertValue(right, 'double').value;
+      if (b === 0) throw new ArduinoArithmeticError('Остаток от деления на ноль.');
+      return numericValue('double', a % b);
+    }
     validateCallArguments(name, argumentsList.length, true);
     if (this.state.scopes.some((scope) => scope.has(name)))
       throw new SyntaxError(`«${name}» — переменная, а не функция.`);
@@ -2517,6 +2531,7 @@ function initializeGlobals(
 }
 
 interface ArduinoProgramCompilation {
+  readonly moduloAdapters: readonly string[];
   readonly cleanSource: string;
   readonly fingerprint: string;
   readonly declarations: readonly GlobalDeclaration[];
@@ -2764,7 +2779,8 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
 
 function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilation {
   const offsets: number[] = [];
-  const cleanSource = removeComments(source, offsets);
+  const modulo = admittedArduinoModuloAdapters(removeComments(source, offsets));
+  const cleanSource = modulo.source;
   offsets.push(source.length);
   const messages: CompileMessage[] = [];
   const locations = new Map<object, { start: number; length: number }>();
@@ -2904,6 +2920,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   // This is validation of the bounded language, not execution of the sketch.
   if (messages.length === 0) {
     const validation: RuntimeState = {
+      moduloAdapters: modulo.names,
       scopes: [new Map()],
       validateOnly: true,
       inputs: {},
@@ -3065,6 +3082,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   }
   return {
     cleanSource,
+    moduloAdapters: modulo.names,
     fingerprint: programFingerprint(source),
     declarations,
     servoDeclarations,
@@ -3123,6 +3141,7 @@ export function arduinoRuntimeStateMatchesProgram(
     )
       return false;
     const validation: RuntimeState = {
+      moduloAdapters: compilation.moduloAdapters,
       scopes: state.scopes.map((scope) => new Map(Object.entries(scope))),
       validateOnly: true,
       inputs: {},
@@ -3515,6 +3534,7 @@ function advanceRuntime(
 
   if (!compatible) {
     const initializationState: RuntimeState = {
+      moduloAdapters: compilation.moduloAdapters,
       scopes,
       expressions: compilation.expressions,
       get inputs() {
@@ -3575,6 +3595,7 @@ function advanceRuntime(
     workspace.state.statementCount = clocked ? 0 : continuousStatementCount;
   }
   const instructionState: RuntimeState = workspace?.state ?? {
+    moduloAdapters: compilation.moduloAdapters,
     scopes,
     expressions: compilation.expressions,
     get inputs() {

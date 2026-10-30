@@ -19,6 +19,30 @@ describe('Arduino saved program ownership', () => {
     });
   });
 
+  it.each(['', '  ', '// owner\r\nvoid setup(){}\r\nvoid loop(){}\r\n'])(
+    'preserves source-only text exactly, including explicit empty text: %j',
+    (savedSource) => {
+      expect(readArduinoProgramState({ arduinoSource: savedSource })).toMatchObject({
+        mode: 'text',
+        source: savedSource,
+        workspaceJson: '',
+      });
+    },
+  );
+
+  it.each(['', '{invalid-json', '{}', '{"blocks":{"blocks":[]}}'])(
+    'preserves explicit saved workspace bytes without substituting defaults: %j',
+    (workspaceJson) => {
+      expect(
+        readArduinoProgramState({ arduinoSource: '', arduinoWorkspace: workspaceJson }),
+      ).toMatchObject({
+        mode: 'blocks',
+        source: '',
+        workspaceJson,
+      });
+    },
+  );
+
   it.each(['blocks', 'blocks-text', 'text'] as const)('respects an explicit %s choice', (mode) => {
     expect(readArduinoProgramState({ arduinoCodeMode: mode, arduinoSource: source }).mode).toBe(
       mode,

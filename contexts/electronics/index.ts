@@ -241,3 +241,5 @@ export {
   type SimulationStatus,
 } from './domain/simulation.js';
 export { ELECTRONICS_MODULE } from './module.js';
+
+export { arduinoModuloAdapterSource } from './domain/arduino-modulo-adapter.js';
