@@ -436,7 +436,7 @@ export function ElectronicsPublicationScene({
   );
 }
 
-function PublicComponentVisual({
+export function PublicComponentVisual({
   runtime,
   ...props
 }: Omit<Parameters<typeof ProductionComponentVisual>[0], 'visualState' | 'simulationRunning'> & {
@@ -464,6 +464,7 @@ function PublicComponentVisual({
       visualState={state}
       result={result}
       simulationRunning={Boolean(runtime)}
+      simulationTimeMs={(snapshot.committed?.frame.atMicroseconds ?? 0) / 1000}
       {...(runtime ? { onLedAssetReadiness: runtime.assetReadiness } : {})}
     />
   );
