@@ -511,3 +511,53 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(fake.errors).toEqual([]);
   });
 }
+
+test('found images copy repeatedly and download the displayed file without navigating', async ({
+  page,
+}) => {
+  const fake = await fixture(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        write: async (items: ClipboardItem[]) => {
+          const image = await items[0]!.getType('image/png');
+          if (!image.size) throw new Error('Empty image');
+        },
+      },
+    });
+  });
+  fake.setEvidence({
+    ...baseEvidence,
+    mode: 'images',
+    images: [
+      {
+        id: 1,
+        title: 'Тестовая картинка',
+        thumbnailUrl: '',
+        sourceUrl: 'https://example.org/image',
+      },
+    ],
+  });
+  await page.goto('/#/ai');
+  await send(page, 'images', 'Найди картинки');
+  const card = page.locator('.asa-ai-web-image-card');
+  await card.hover();
+  const copy = card.getByRole('button', { name: 'Копировать изображение', exact: true });
+  await copy.click();
+  await expect(
+    card.getByRole('button', { name: 'Изображение скопировано', exact: true }),
+  ).toBeEnabled();
+  // The same button remains usable; changing tabs or the feedback timeout resets its icon.
+  await card.getByRole('button', { name: 'Изображение скопировано', exact: true }).click();
+  await expect(copy).toBeVisible({ timeout: 5000 });
+  const downloadEvent = page.waitForEvent('download');
+  await card.getByRole('link', { name: 'Скачать изображение', exact: true }).click();
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toBe('Тестовая картинка.png');
+  const path = await download.path();
+  expect(readFileSync(path!).subarray(0, 8)).toEqual(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
+  await expect(page).toHaveURL(/#\/ai$/);
+});

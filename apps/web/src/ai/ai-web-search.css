@@ -37,7 +37,7 @@
   scroll-snap-type: x mandatory;
   scrollbar-width: thin;
 }
-.asa-ai-web-images a {
+.asa-ai-web-images > .asa-ai-web-image-card {
   flex: 0 0 clamp(145px, 38%, 212px);
   min-width: 145px;
   overflow: hidden;
@@ -65,17 +65,17 @@
   text-align: center;
   font-size: 11px;
 }
-.asa-ai-web-images :is(span, small) {
+.asa-ai-web-image-caption :is(span, small) {
   display: block;
   margin: 7px 9px;
   overflow-wrap: anywhere;
 }
-.asa-ai-web-images span {
+.asa-ai-web-image-caption span {
   color: var(--ai-text, #20252b);
   font-weight: 600;
   line-height: 1.4;
 }
-.asa-ai-web-images small {
+.asa-ai-web-image-caption small {
   font-size: 10px;
 }
 .asa-ai-web-sources {
@@ -261,7 +261,71 @@
   font-size: 10px;
 }
 @media (max-width: 480px) {
-  .asa-ai-web-images a {
+  .asa-ai-web-images > .asa-ai-web-image-card {
     flex-basis: min(68vw, 200px);
+  }
+}
+
+.asa-ai-web-image-preview {
+  position: relative;
+}
+.asa-ai-web-image-preview > a {
+  display: block;
+  width: 100%;
+}
+.asa-ai-web-image-caption {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.asa-ai-web-image-actions {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+.asa-ai-web-image-card:is(:hover, :focus-within) .asa-ai-web-image-actions {
+  opacity: 1;
+  transform: none;
+}
+.asa-ai-web-image-actions :is(button, a) {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: #fffffff0;
+  color: #202123;
+  box-shadow: 0 2px 8px #0002;
+  cursor: pointer;
+}
+.asa-ai-web-image-actions :is(button, a):hover {
+  background: #fff;
+}
+.asa-ai-layout .asa-ai-web-image-actions button[data-copied='true'] {
+  color: #16834f;
+}
+.asa-ai-web-image-error {
+  grid-column: 1;
+  padding: 6px;
+  font-size: 12px;
+}
+@media (hover: none) {
+  .asa-ai-web-image-actions {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asa-ai-web-image-actions {
+    transition: none;
   }
 }

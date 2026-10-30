@@ -4,6 +4,7 @@ import { readGeneratedImage } from './read-generated-image';
 import { imageModelLabel } from './image-model-label';
 import type { AiImageRecipe } from '@asa-lab/contracts';
 import { AiImagePrompt } from './AiImagePrompt';
+import { useCopyFeedback } from './use-copy-feedback';
 import { AiChatIcon } from './AiChatIcon';
 import { createAiScopeCall } from './ai-scope-api';
 import type { AiImageGenerationJob } from '@asa-lab/contracts';
@@ -23,7 +24,7 @@ export function AiGeneratedImage({
   const [recipe, setRecipe] = useState<AiImageRecipe>();
   const [error, setError] = useState('');
   const [actionError, setActionError] = useState('');
-  const [copied, setCopied] = useState(false);
+  const { copied, confirmCopy, resetCopy } = useCopyFeedback(image.requestId);
   const bytes = useRef<Blob | null>(null);
   const card = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -34,7 +35,7 @@ export function AiGeneratedImage({
     setRecipe(undefined);
     setError('');
     setActionError('');
-    setCopied(false);
+    resetCopy();
     bytes.current = null;
     let started = false;
     const load = async () => {
@@ -84,10 +85,10 @@ export function AiGeneratedImage({
       bytes.current = null;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [image.requestId, image.sizeBytes, seatId, threadId]);
+  }, [image.requestId, image.sizeBytes, seatId, threadId, resetCopy]);
   async function copyImage(): Promise<void> {
     setActionError('');
-    setCopied(false);
+    resetCopy();
     if (!bytes.current) return;
     if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
       setActionError('Копирование изображений недоступно в этом браузере. Скачайте PNG.');
@@ -95,7 +96,7 @@ export function AiGeneratedImage({
     }
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': bytes.current })]);
-      setCopied(true);
+      confirmCopy();
     } catch {
       setActionError('Не удалось скопировать изображение. Скачайте PNG.');
     }
@@ -123,7 +124,7 @@ export function AiGeneratedImage({
                 }
                 title={`Копировать изображение · ${imageDetails}`}
               >
-                <AiChatIcon name={copied ? 'check' : 'copy'} size={18} />
+                <AiChatIcon name={copied ? 'check' : 'copy'} size={copied ? 22 : 18} />
               </button>
               <a
                 href={url}

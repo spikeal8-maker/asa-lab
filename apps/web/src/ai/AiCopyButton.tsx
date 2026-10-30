@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useCopyFeedback } from './use-copy-feedback';
 import { AiChatIcon } from './AiChatIcon';
 
 export function AiCopyButton({
@@ -12,16 +13,15 @@ export function AiCopyButton({
   size?: number;
   showLabel?: boolean;
 }): JSX.Element {
-  const [copiedText, setCopiedText] = useState<string | null>(null);
-  const copied = copiedText === text;
+  const { copied, confirmCopy, resetCopy } = useCopyFeedback(text);
   const [error, setError] = useState(false);
   async function copy(): Promise<void> {
     setError(false);
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedText(text);
+      confirmCopy();
     } catch {
-      setCopiedText(null);
+      resetCopy();
       setError(true);
     }
   }
@@ -34,7 +34,7 @@ export function AiCopyButton({
       data-ai-tooltip={error ? 'Не удалось скопировать' : copied ? 'Скопировано' : label}
       onClick={() => void copy()}
     >
-      <AiChatIcon name={copied ? 'check' : 'copy'} size={size} />
+      <AiChatIcon name={copied ? 'check' : 'copy'} size={copied ? Math.max(22, size + 3) : size} />
       {showLabel ? <span>{copied ? 'Скопировано' : label}</span> : null}
       <span className="sr-only" role="status">
         {error ? 'Не удалось скопировать' : copied ? 'Скопировано' : ''}

@@ -1,5 +1,8 @@
 import type { AiWebSearchEvidence } from '@asa-lab/contracts';
 import { useEffect, useRef, useState } from 'react';
+import { AiChatIcon } from './AiChatIcon';
+import { useCopyFeedback } from './use-copy-feedback';
+import { copyImageBlob } from './copy-image-blob';
 import { readWebEvidence } from './ai-web-evidence';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import { aiScopeHeaders } from './ai-scope-api';
@@ -17,21 +20,29 @@ const notices: Partial<Record<NonNullable<AiWebSearchEvidence['reason']>, string
 function ImagePreview({
   path,
   title,
+  sourceUrl,
   seatId,
 }: {
   readonly path: string;
   readonly title: string;
+  readonly sourceUrl: string;
   readonly seatId?: string | undefined;
 }): JSX.Element {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const host = useRef<HTMLDivElement>(null);
+  const bytes = useRef<Blob | null>(null);
+  const [mediaType, setMediaType] = useState('image/png');
+  const [actionError, setActionError] = useState('');
+  const { copied, confirmCopy, resetCopy } = useCopyFeedback(path);
   useEffect(() => {
     const controller = new AbortController();
     let objectUrl: string | null = null;
     let started = false;
     setSrc(null);
     setFailed(false);
+    bytes.current = null;
+    setActionError('');
     const load = async () => {
       if (started) return;
       started = true;
@@ -50,6 +61,8 @@ function ImagePreview({
         const blob = await response.blob();
         if (blob.size > 2 * 1024 * 1024 || blob.size === 0) throw new Error('image size');
         if (controller.signal.aborted) return;
+        bytes.current = blob;
+        setMediaType(blob.type);
         objectUrl = URL.createObjectURL(blob);
         setSrc(objectUrl);
       } catch {
@@ -73,22 +86,75 @@ function ImagePreview({
     return () => {
       controller.abort();
       observer?.disconnect();
+      bytes.current = null;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [path, seatId]);
+  async function copy(): Promise<void> {
+    if (!bytes.current) return;
+    resetCopy();
+    setActionError('');
+    try {
+      await copyImageBlob(bytes.current);
+      confirmCopy();
+    } catch {
+      setActionError('Не удалось скопировать картинку. Используйте скачивание.');
+    }
+  }
+  const extension =
+    mediaType === 'image/jpeg' ? 'jpg' : mediaType === 'image/webp' ? 'webp' : 'png';
+  const safeTitle = Array.from(title, (c) => (c.charCodeAt(0) < 32 ? '-' : c)).join('');
+  const fileName =
+    (safeTitle
+      .replace(/[<>:"/\\|?*]/g, '-')
+      .slice(0, 80)
+      .trim() || 'asa-image') +
+    '.' +
+    extension;
   return (
     <div ref={host} className="asa-ai-web-image-preview">
       {src && !failed ? (
-        <img
-          src={src}
-          alt={title}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
-        />
+        <>
+          <a href={sourceUrl} target="_blank" rel="noreferrer noopener">
+            <img
+              src={src}
+              alt={title}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={() => setFailed(true)}
+            />
+          </a>
+          <div className="asa-ai-web-image-actions">
+            <button
+              type="button"
+              data-copied={copied || undefined}
+              aria-label={copied ? 'Изображение скопировано' : 'Копировать изображение'}
+              data-ai-tooltip={copied ? 'Скопировано' : 'Копировать изображение'}
+              onClick={() => void copy()}
+            >
+              <AiChatIcon name={copied ? 'check' : 'copy'} size={copied ? 22 : 18} />
+            </button>
+            <a
+              href={src}
+              download={fileName}
+              aria-label="Скачать изображение"
+              data-ai-tooltip="Скачать показанное изображение"
+            >
+              <AiChatIcon name="download" size={18} />
+            </a>
+          </div>
+          <span className="sr-only" role="status">
+            {copied ? 'Изображение скопировано' : ''}
+          </span>
+        </>
       ) : (
         <span>{failed ? 'Изображение недоступно' : 'Загрузка изображения…'}</span>
       )}
+      {actionError ? (
+        <p role="alert" className="asa-ai-web-image-error">
+          {actionError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -209,11 +275,23 @@ export function AiWebEvidence({
           aria-label="Найденные изображения, прокрутка по горизонтали"
         >
           {data.images.map((image) => (
-            <a key={image.id} href={image.sourceUrl} target="_blank" rel="noreferrer noopener">
-              <ImagePreview path={image.thumbnailUrl} title={image.title} seatId={seatId} />
-              <span>{image.title}</span>
-              <small>{new URL(image.sourceUrl).hostname}</small>
-            </a>
+            <article key={image.id} className="asa-ai-web-image-card">
+              <ImagePreview
+                path={image.thumbnailUrl}
+                title={image.title}
+                sourceUrl={image.sourceUrl}
+                seatId={seatId}
+              />
+              <a
+                className="asa-ai-web-image-caption"
+                href={image.sourceUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <span>{image.title}</span>
+                <small>{new URL(image.sourceUrl).hostname}</small>
+              </a>
+            </article>
           ))}
         </div>
       ) : null}
