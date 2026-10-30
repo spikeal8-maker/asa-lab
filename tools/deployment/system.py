@@ -68,6 +68,11 @@ class Installation:
         import re
         require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*", self.project), "PROJECT", "Invalid project name.")
         self.files = ["compose.yaml"] + ([] if self.profile == "base" else [f"compose.{self.profile}.yaml"])
+        # An opt-in first-install subnet override lives in the private .asa
+        # directory, not a dirty Git checkout or Docker daemon configuration.
+        # Its presence is part of immutable Compose-file identity.
+        if (self.state / "docker-networks.yaml").is_file():
+            self.files.append(".asa/docker-networks.yaml")
         if (self.root / "compose.frp.yaml").exists():
             self.files.append("compose.frp.yaml")
         self.process_env = dict(os.environ)

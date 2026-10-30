@@ -118,6 +118,76 @@ class FreshOptionTests(unittest.TestCase):
                 self.assertEqual(issue.exception.code,code)
                 ports.assert_not_called()
 
+    def test_explicit_private_docker_subnets_generate_compose_overlay_only(self):
+        cidrs="10.249.232.0/27,10.249.232.32/27,10.249.232.64/27"
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            outputs=[""]
+            if os.name=="nt":
+                outputs.append("192.168.1.0/24;172.19.176.0/20")
+            with patch.object(fresh_install,"run",side_effect=outputs) as commands:
+                overlay=fresh_install.provision_private_network_overlay(root,cidrs)
+            self.assertEqual(overlay["networks"]["database"]["ipam"]["config"][0]["subnet"],
+                             "10.249.232.0/27")
+            self.assertEqual(overlay["networks"]["application"]["ipam"]["config"][0]["subnet"],
+                             "10.249.232.32/27")
+            self.assertEqual(overlay["networks"]["scratch-runtime"]["ipam"]["config"][0]["subnet"],
+                             "10.249.232.64/27")
+            self.assertEqual(commands.call_args_list[0].args[0][:3],
+                             ["docker","network","ls"])
+            network_file=root/".asa"/"docker-networks.yaml"
+            self.assertTrue(network_file.is_file())
+            i=Installation(root,"production")
+            self.assertIn(".asa/docker-networks.yaml",i.files)
+            with patch.object(fresh_install,"run") as docker:
+                with self.assertRaises(Blocked) as error:
+                    fresh_install.provision_private_network_overlay(root,cidrs)
+            self.assertEqual(error.exception.code,"FRESH_NETWORK_EXISTS")
+            # An existing private overlay may never be overwritten or rotated.
+            docker.assert_not_called()
+
+    def test_explicit_docker_cidrs_never_overlap_other_projects(self):
+        cidrs="10.249.232.0/27,10.249.232.32/27,10.249.232.64/27"
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with patch.object(fresh_install,"run",side_effect=[
+                "existing-network-id",
+                '[{"IPAM":{"Config":[{"Subnet":"10.249.232.0/24"}]}}]'
+            ]):
+                with self.assertRaises(Blocked) as error:
+                    fresh_install.provision_private_network_overlay(root,cidrs)
+            self.assertEqual(error.exception.code,"FRESH_NETWORK_COLLISION")
+            self.assertFalse((root/".asa"/"docker-networks.yaml").exists())
+
+    @unittest.skipUnless(os.name=="nt","Windows routes only")
+    def test_explicit_cidrs_cannot_overlap_windows_vpn_or_lan_route(self):
+        cidrs="10.249.232.0/27,10.249.232.32/27,10.249.232.64/27"
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            with patch.object(fresh_install,"run",side_effect=[
+                "", "10.249.232.0/24;192.168.1.0/24"
+            ]):
+                with self.assertRaises(Blocked) as error:
+                    fresh_install.provision_private_network_overlay(root,cidrs)
+            self.assertEqual(error.exception.code,"FRESH_NETWORK_ROUTE")
+            self.assertFalse((root/".asa"/"docker-networks.yaml").exists())
+
+    def test_invalid_docker_subnet_text_cannot_allocate_any_networks(self):
+        inputs=(
+            "10.249.232.0/24,10.249.232.32/27,10.249.232.64/27",
+            "100.64.0.0/24,10.249.232.32/27,10.249.232.64/27",
+            "10.249.232.1/27,10.249.232.32/27,10.249.232.64/27",
+            "10.249.232.0/27,10.249.232.32/27",
+        )
+        for cidrs in inputs:
+            with self.subTest(cidrs=cidrs), tempfile.TemporaryDirectory() as td:
+                root=Path(td)
+                with patch.object(fresh_install,"run") as docker:
+                    with self.assertRaises(Blocked):
+                        fresh_install.provision_private_network_overlay(root,cidrs)
+                docker.assert_not_called()
+                self.assertFalse((root/".asa"/"docker-networks.yaml").exists())
+
     def test_existing_private_env_blocks_first_install_preflight(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td)

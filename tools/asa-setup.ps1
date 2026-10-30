@@ -8,6 +8,8 @@ param(
   [string]$Project='asa-lab-install',
   [int]$WebPort=4610,
   [int]$BlocksPort=4613,
+  [string]$NetworkCidrs,
+  [switch]$ConfirmPrivateDockerNetworks,
   [ValidateSet('dev','production','staging')][string]$Profile='production',
   [switch]$Apply,
   [switch]$ConfirmBlankDatabase,
@@ -81,12 +83,21 @@ function Invoke-Manager([string]$action,[string[]]$opts) {
       $command=@($scriptFile,$action,'--root',$script:TargetRoot,'--profile',$Profile)
     }
     Say INFO ('Running '+$action+', attempt '+$i)
-    $lines=@(& $exe @pyArgs @command 2>&1 | ForEach-Object {
-      $text=[string]$_
-      Write-Host $text
-      $text
-    })
-    $code=$LASTEXITCODE
+    # PowerShell 5 treats a native tool's stderr as ErrorRecord. With
+    # ErrorActionPreference=Stop that would abort before we can inspect the
+    # numeric exit code and handle the documented RETRY_NEW_MANAGER barrier.
+    $previousErrorAction=$ErrorActionPreference
+    try{
+      $ErrorActionPreference='Continue'
+      $lines=@(& $exe @pyArgs @command 2>&1 | ForEach-Object {
+        $text=[string]$_
+        Write-Host $text
+        $text
+      })
+      $code=$LASTEXITCODE
+    }finally{
+      $ErrorActionPreference=$previousErrorAction
+    }
     if($code -eq 0){return}
     if($i -eq 1 -and ($lines -join [Environment]::NewLine) -match 'BLOCKED RETRY_NEW_MANAGER:'){
       Say WARN 'Verified published manager was selected; retrying only once'
@@ -114,6 +125,9 @@ $chosen=$Mode
 if($chosen -eq 'auto'){$chosen=if($installed){'update'}else{'clean'}}
 if($chosen -eq 'clean' -and $installed){Fail ALREADY_INSTALLED 'Use update; this installation has a published-release receipt.'}
 if($chosen -eq 'update' -and -not $installed){Fail NOT_INSTALLED 'Use clean; there is no installed release.'}
+if($chosen -eq 'update' -and $NetworkCidrs){
+  Fail UPDATE_NETWORK_CHANGE 'Network CIDRs can only be chosen before a new project exists.'
+}
 if($chosen -eq 'update' -and $DataSource -ne 'blank'){
   Fail UPDATE_DATA_SOURCE 'Updating always preserves existing data; backup choice belongs to first installation.'
 }
@@ -137,6 +151,7 @@ if($DataSource -eq 'backup'){
 }
 if($chosen -eq 'clean'){
   Say INFO ('New project='+$Project+' Web='+$WebPort+' Scratch='+$BlocksPort)
+  if($NetworkCidrs){Say WARN ('Explicit QA Docker networks requested: '+$NetworkCidrs)}
   if(-not $exists){Say INFO 'Would clone the official ASA Lab checkout into the fresh directory'}
 }else{
   Say INFO 'Found installed ASA Lab; preserve private keys, Compose identity and Docker volumes'
@@ -152,6 +167,9 @@ if(-not $Apply){
 }
 if($chosen -eq 'clean'){
   Confirm-Selection 'Create NEW EMPTY PostgreSQL and MinIO without importing previous user data?' ([bool]$ConfirmBlankDatabase)
+  if($NetworkCidrs){
+    Confirm-Selection 'Create isolated Compose-only networks with the selected private subnets?' ([bool]$ConfirmPrivateDockerNetworks)
+  }
   if(-not $exists){
     $parent=Split-Path -Parent $TargetRoot
     if(-not (Test-Path $parent)){Fail PARENT_NOT_FOUND 'Create the intended parent folder explicitly first.'}
@@ -159,8 +177,10 @@ if($chosen -eq 'clean'){
     & git clone --filter=blob:none $Canonical $TargetRoot
     if($LASTEXITCODE -ne 0){Fail CLONE_FAILED 'Git clone failed. No unrelated directory was removed.'}
   }
-  Invoke-Manager install @('--install-project',$Project,'--install-web-port',[string]$WebPort,
-                            '--install-blocks-port',[string]$BlocksPort)
+  $installOptions=@('--install-project',$Project,'--install-web-port',[string]$WebPort,
+                    '--install-blocks-port',[string]$BlocksPort)
+  if($NetworkCidrs){$installOptions+=@('--install-network-cidrs',$NetworkCidrs)}
+  Invoke-Manager install $installOptions
   Say PASS ('Fresh ASA Lab installed at http://127.0.0.1:'+$WebPort)
 }else{
   Invoke-Manager update @()

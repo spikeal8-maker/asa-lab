@@ -75,6 +75,30 @@ Settings ключи, MinIO объекты, PostgreSQL роли/ACL/RLS, origin �
 входа, сохранения и повторного открытия проекта проводится отдельно.
 Публикация портов в LAN/Internet и включение автоподновления не производится.
 
-На D2R2 изолированная пробная установка использует
-проект asa-lab-cleanqa-20261030, порт Web 18610 и Scratch 18613.
-Существующие порты 4610, 4620, 18570 и production H-04 не изменяются.
+## Docker Desktop с исчерпанным пулом подсетей
+
+На компьютере с большим количеством проектов Docker Compose может получить
+ошибку all predefined address pools have been fully subnetted. Не меняйте
+конфигурацию Docker Desktop, Windows VPN/WSL/routes и не удаляйте сети
+других проектов ради чистой установки ASA.
+
+Для одного **нового** изолированного QA-проекта можно явно выбрать три
+свободных private 10.x subnet диапазона (/24..28). Перед записью приватного
+Compose overlay мастер проверит их на взаимное пересечение, существующие
+Docker networks и маршруты Windows. В overlay .asa/docker-networks.yaml
+сохраняются **только сети этого Compose project**, без изменения настроек
+Docker Engine или хоста. Требуется дополнительное согласие
+-ConfirmPrivateDockerNetworks. Пример с D2R2:
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\asa-setup.ps1 -Root 'D:\ASA-CleanQA' -Mode auto -DataSource blank -Project 'asa-lab-cleannetqa-20261030' -WebPort 18620 -BlocksPort 18623 -NetworkCidrs '10.249.232.0/27,10.249.232.32/27,10.249.232.64/27' -Profile production -Apply -ConfirmBlankDatabase -ConfirmPrivateDockerNetworks
+
+Это **не** автоматическое резервирование CIDR для всех компьютеров.
+На обычном чистом Docker Desktop параметр -NetworkCidrs не требуется;
+сети выделяются штатно. При коллизии CIDR установка останавливается.
+
+На D2R2 первый пробный проект asa-lab-cleanqa-20261030,
+Web 18610/Scratch 18613 не смог создать database network из-за
+переполненного штатного пула. Его пустые тома и журналы ошибки оставлены
+для аудита, без очистки. Новый независимый тест с явными CIDR работает в
+проекте asa-lab-cleannetqa-20261030, Web 18620/Scratch 18623.
+Существующие 4610, 4620, 18570 и production H-04 не изменяются.

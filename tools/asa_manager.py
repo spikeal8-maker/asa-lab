@@ -22,7 +22,7 @@ from deployment.collector import prepare as prepare_collector, reconcile as reco
 from deployment.contracts import proxy_provenance_diagnostic
 from deployment.resources import check_resources
 from deployment.search_secret import InvalidSearchSecret
-from deployment.fresh_install import fresh_options, assert_clean_install_destination
+from deployment.fresh_install import fresh_options, assert_clean_install_destination, provision_private_network_overlay
 
 
 def clean_checkout(install):
@@ -353,6 +353,7 @@ def main(argv=None):
     parser.add_argument("--install-project", help="Unique Compose project for first installation only")
     parser.add_argument("--install-web-port", type=int, help="Fresh localhost Web port")
     parser.add_argument("--install-blocks-port", type=int, help="Fresh localhost Scratch port")
+    parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     args = parser.parse_args(argv)
     try:
         if args.action == "verify-backup":
@@ -387,10 +388,14 @@ def main(argv=None):
                                          args.install_blocks_port if args.install_blocks_port is not None else 4613)
                     clean_checkout(install)
                     assert_clean_install_destination(install.root, spec)
+                    if args.install_network_cidrs:
+                        provision_private_network_overlay(install.root, args.install_network_cidrs)
                     first_environment(install.root, install.profile, project=spec["project"],
                                       web_port=spec["web"], blocks_port=spec["blocks"])
                     install = Installation(install.root, install.profile)
                 else:
+                    require(args.install_network_cidrs is None, "FRESH_NETWORK_EXISTS",
+                            "An existing private environment cannot change its Docker network CIDRs.")
                     require(args.install_project is None or args.install_project == install.project,
                             "FRESH_PROJECT", "Selected project differs from existing private .env.")
                     require(args.install_web_port is None or str(args.install_web_port) == install.env.get("ASA_WEB_PORT"),

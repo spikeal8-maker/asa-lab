@@ -92,3 +92,77 @@ def assert_clean_install_destination(root, spec):
     for port in (spec["web"], spec["api"], spec["blocks"]):
         check_reserved_port(port)
     return True
+
+
+def provision_private_network_overlay(root, literal):
+    """Opt-in project-only Compose subnets; no Docker daemon/Windows route change.
+
+    Only a new installation can create this private Compose file. The Compose
+    engine itself later creates networks with exact project labels/config hash.
+    """
+    import ipaddress
+    import json
+    from .contracts import atomic_json
+    root = Path(root).resolve()
+    path = root / ".asa" / "docker-networks.yaml"
+    require(not path.exists(), "FRESH_NETWORK_EXISTS",
+            "A private network overlay already exists; preserve it.")
+    require(isinstance(literal, str) and bool(literal.strip()),
+            "FRESH_NETWORK", "Explicit network CIDRs are required.")
+    pieces = [v.strip() for v in literal.split(",")]
+    require(len(pieces) == 3 and all(pieces),
+            "FRESH_NETWORK", "Provide exactly three network CIDRs: database, application, scratch.")
+    nets = []
+    try:
+        for item in pieces:
+            subnet = ipaddress.ip_network(item, strict=True)
+            require(subnet.version == 4 and subnet.is_private
+                    and 24 <= subnet.prefixlen <= 28
+                    and subnet.subnet_of(ipaddress.ip_network("10.0.0.0/8")),
+                    "FRESH_NETWORK", "Only explicitly approved private 10.x networks /24 to /28 are supported.")
+            require(all(not subnet.overlaps(previous) for previous in nets),
+                    "FRESH_NETWORK", "Proposed Docker networks overlap each other.")
+            nets.append(subnet)
+    except ValueError as exc:
+        raise Blocked("FRESH_NETWORK", "Invalid network CIDR; use canonical private subnet notation.",
+                      "Review the actual Docker networks and host routes first.") from exc
+
+    ids = run(["docker", "network", "ls", "-q"], capture=True).split()
+    if ids:
+        inspected = json.loads(run(["docker", "network", "inspect", *ids], capture=True))
+        for network in inspected:
+            for record in (network.get("IPAM", {}).get("Config") or []):
+                name = record.get("Subnet")
+                if not name:
+                    continue
+                assigned = ipaddress.ip_network(name, strict=False)
+                require(all(not subnet.overlaps(assigned) for subnet in nets),
+                        "FRESH_NETWORK_COLLISION",
+                        "Proposed isolated network overlaps an existing Docker subnet.",
+                        "Choose another free private range, without deleting any Docker network.")
+    if os.name == "nt":
+        routes = run(["powershell", "-NoProfile", "-Command",
+                      "(Get-NetRoute -AddressFamily IPv4 | Select-Object -ExpandProperty DestinationPrefix) -join ';'"],
+                     capture=True)
+        for route in routes.split(";"):
+            route = route.strip()
+            if not route or route == "0.0.0.0/0":
+                continue
+            try:
+                network = ipaddress.ip_network(route, strict=False)
+            except ValueError:
+                continue
+            require(all(not subnet.overlaps(network) for subnet in nets),
+                    "FRESH_NETWORK_ROUTE",
+                    "Proposed Docker subnet overlaps an existing Windows route.",
+                    "Do not change VPN/WSL/Windows routes; choose different test-only subnets.")
+    directory = Path(root).resolve() / ".asa"
+    path = directory / "docker-networks.yaml"
+    require(not path.exists(), "FRESH_NETWORK_EXISTS",
+            "A private network overlay already exists; preserve it.")
+    overlay = {"networks": {
+        key: {"ipam": {"config": [{"subnet": str(cidr)}]}}
+        for key, cidr in zip(("database", "application", "scratch-runtime"), nets)
+    }}
+    atomic_json(path, overlay)
+    return overlay
