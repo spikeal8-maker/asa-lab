@@ -46,7 +46,7 @@ METHODOLOGY = {
     "builds": "Executed step names matching build/compile (excluding post steps) with valid timestamps; a metadata proxy. Actual compiler rebuilds, Nx/cache hits and repeated deterministic builds cannot be inferred without separate logs/artifacts.",
     "duplicates": "Same head SHA + workflow_id with both push and pull_request events. Lists run IDs; indicates duplicate triggers, not proven redundant validation.",
     "failure": "Failed run/job/step conclusions and names only. Root cause UNKNOWN: metadata cannot prove a product or infrastructure cause. No full logs downloaded.",
-    "readiness": "PR creation/ready_for_review event/merge timestamps are lifecycle only. Successful workflow completion after a commit is not proof the required check set was ready. CI-ready/change-to-ready, regression escape and L0/L1 class metrics unavailable without check-set/classification evidence.",
+    "readiness": "PR creation/ready_for_review event/merge timestamps are lifecycle only. First observed success considers every completed successful attempt for a matching commit SHA, independently of the run's latest conclusion. Successful workflow completion after a commit is not proof the required check set was ready. CI-ready/change-to-ready, regression escape and L0/L1 class metrics unavailable without check-set/classification evidence.",
     "billing": "Current public visibility implies no GitHub Actions billable minutes under documented public-repository policy. Historical visibility, paid runner products and invoices are not collected. Private-repo billable minutes and all monetary costs remain unknown. No savings claim.",
     "boundedness": "API pages up to 100, maximum 10 pages per full list, maximum 20 attempts/run and explicit global request/report-size limits. GET requests retry transport/timeouts or HTTP 502/503/504 at most twice with short backoff. Hitting a bound fails collection rather than silently truncating. Workflow-source unavailability is retained explicitly.",
 }
@@ -440,7 +440,10 @@ def analyze(report):
                      "ci_ready_at": None, "change_to_ci_ready_seconds": None, "reason": "Required-check readiness and original review-ready time are not established by lifecycle/Actions metadata."}
         after_commit = []
         for commit in pr["commits"]:
-            completions = [observed_times(r["attempts"][-1])["last_job_completed_at"] for r in cohort if r["head_sha"] == commit["sha"] and r["conclusion"] == "success"]
+            completions = [observed_times(attempt)["last_job_completed_at"]
+                           for r in cohort if r["head_sha"] == commit["sha"]
+                           for attempt in r["attempts"]
+                           if attempt.get("status") == "completed" and attempt.get("conclusion") == "success"]
             deltas = [seconds(commit["committed_at"], end) for end in completions]
             after_commit.append(min((v for v in deltas if v is not None), default=None))
         result["prs"][number] = {**summarize_group(cohort, raw["workflow_sources"]), "lifecycle": lifecycle,

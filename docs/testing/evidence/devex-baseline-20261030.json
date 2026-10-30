@@ -31,7 +31,7 @@
     "builds": "Executed step names matching build/compile (excluding post steps) with valid timestamps; a metadata proxy. Actual compiler rebuilds, Nx/cache hits and repeated deterministic builds cannot be inferred without separate logs/artifacts.",
     "duplicates": "Same head SHA + workflow_id with both push and pull_request events. Lists run IDs; indicates duplicate triggers, not proven redundant validation.",
     "failure": "Failed run/job/step conclusions and names only. Root cause UNKNOWN: metadata cannot prove a product or infrastructure cause. No full logs downloaded.",
-    "readiness": "PR creation/ready_for_review event/merge timestamps are lifecycle only. Successful workflow completion after a commit is not proof the required check set was ready. CI-ready/change-to-ready, regression escape and L0/L1 class metrics unavailable without check-set/classification evidence.",
+    "readiness": "PR creation/ready_for_review event/merge timestamps are lifecycle only. First observed success considers every completed successful attempt for a matching commit SHA, independently of the run's latest conclusion. Successful workflow completion after a commit is not proof the required check set was ready. CI-ready/change-to-ready, regression escape and L0/L1 class metrics unavailable without check-set/classification evidence.",
     "billing": "Current public visibility implies no GitHub Actions billable minutes under documented public-repository policy. Historical visibility, paid runner products and invoices are not collected. Private-repo billable minutes and all monetary costs remain unknown. No savings claim.",
     "boundedness": "API pages up to 100, maximum 10 pages per full list, maximum 20 attempts/run and explicit global request/report-size limits. GET requests retry transport/timeouts or HTTP 502/503/504 at most twice with short backoff. Hitting a bound fails collection rather than silently truncating. Workflow-source unavailability is retained explicitly."
   },
@@ -68712,5 +68712,5 @@
       "ci_ready_latency": null
     }
   },
-  "analysis_tool_sha256": "a9df1740795c55dccc4884e17ce95c12ff281c6af8ea09d33fdb28c9d40a2863"
+  "analysis_tool_sha256": "df81fa1c03bc60fe442001448965a2b1fe48dbc7e6c9fec429e72dd74ee60613"
 }

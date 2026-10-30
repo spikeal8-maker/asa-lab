@@ -274,6 +274,43 @@ class MeasurementTests(unittest.TestCase):
         self.assertIsNone(result["prs"]["850"]["lifecycle"]["ci_ready_at"])
         self.assertEqual(result["prs"]["850"]["commit_to_first_observed_success"]["median_seconds"], 60)
 
+    def _pr_rerun_fixture(self, latest_conclusion):
+        first = run()["attempts"][0]
+        later_start, later_end = "2026-10-30T10:05:00Z", "2026-10-30T10:06:00Z"
+        record = run(run_attempt=2, conclusion=latest_conclusion,
+                     jobs=[job(2, conclusion=latest_conclusion, started_at=later_start, completed_at=later_end)])
+        latest = record["attempts"][0]
+        latest.update(number=2, run_started_at=later_start)
+        record["attempts"] = [first, latest]
+        fixture = report([record])
+        fixture["raw"]["prs"] = {"850": {"run_ids": [1], "created_at": START, "merged_at": None,
+                                          "readiness_events": [], "commits": [{"sha": record["head_sha"], "committed_at": START}]}}
+        return fixture
+
+    def test_pr_first_success_precedes_later_successful_rerun(self):
+        result = m.analyze(self._pr_rerun_fixture("success"))["prs"]["850"]
+        self.assertEqual(result["commit_to_first_observed_success"], {"n": 1, "missing": 0, "median_seconds": 60, "p90_seconds": 60})
+        self.assertIsNone(result["lifecycle"]["ci_ready_at"])
+
+    def test_pr_first_success_survives_later_failed_rerun(self):
+        result = m.analyze(self._pr_rerun_fixture("failure"))["prs"]["850"]
+        self.assertEqual(result["commit_to_first_observed_success"], {"n": 1, "missing": 0, "median_seconds": 60, "p90_seconds": 60})
+        self.assertIsNone(result["lifecycle"]["ci_ready_at"])
+
+    def test_pr_first_success_unknown_without_completed_observable_attempt(self):
+        for invalid in ("missing_end", "inverted_end", "no_runner", "not_completed"):
+            with self.subTest(invalid=invalid):
+                fixture = self._pr_rerun_fixture("failure")
+                first = fixture["raw"]["runs"][0]["attempts"][0]
+                if invalid == "not_completed":
+                    first["status"] = "in_progress"
+                elif invalid == "no_runner":
+                    first["jobs"][0]["runner_id"] = None
+                else:
+                    first["jobs"][0]["completed_at"] = None if invalid == "missing_end" else "2026-10-30T09:59:59Z"
+                result = m.analyze(fixture)["prs"]["850"]["commit_to_first_observed_success"]
+                self.assertEqual(result, {"n": 0, "missing": 1, "median_seconds": None, "p90_seconds": None})
+
     def test_per_attempt_collection_preserves_earlier_failure(self):
         original = run(event="pull_request", run_attempt=2)
         first = {**original, "conclusion": "failure"}
