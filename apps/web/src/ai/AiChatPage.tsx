@@ -715,7 +715,7 @@ export function AiChatPage({
     } else {
       node.scrollTo({ top: node.scrollHeight });
     }
-  }, [messages, busy, streamedText]);
+  }, [messages, busy, streamedText, imageUi.busy]);
 
   const refreshModelChoices = useCallback(async () => {
     if (requestBusy.current) return;
