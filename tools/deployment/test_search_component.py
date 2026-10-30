@@ -232,6 +232,7 @@ class SearchComponentTests(unittest.TestCase):
                 "apply_release_environment": lambda *a, **k: None,
                 "validate_resolved_images": lambda *a, **k: None,
                 "check_resources": lambda *a, **k: None,
+                "prepare_support_images": lambda *a, **k: None,
                 "export_backup": make_backup,
                 "verify_embedded_entry_http": lambda *a, **k: None,
                 "save_settings": lambda *a, **k: None,
