@@ -50,15 +50,15 @@ def privileges(install, database=None):
     return json.loads(install.compose(*args, capture=True))
 
 
-def recovery_configuration(install, runtime):
+def recovery_configuration(install, runtime, *, live_files=False):
     saved = install.state / "runtime-configuration.json"
-    if saved.exists():
+    if saved.exists() and not live_files:
         snapshot = json.loads(saved.read_text(encoding="utf-8"))
         if snapshot.get("revision") == runtime["revision"]:
             return snapshot
     files = {}
     for file in install.files:
-        if (install.root / ".git").exists() and install.git("ls-files", "--", file):
+        if not live_files and (install.root / ".git").exists() and install.git("ls-files", "--", file):
             files[file] = install.git("show", f"{runtime['revision']}:{file}") + "\n"
         else:
             # Private transport overlays are not in Git; CI uses an isolated
@@ -69,12 +69,24 @@ def recovery_configuration(install, runtime):
             "installedRelease": json.loads(installed.read_text(encoding="utf-8")) if installed.exists() else None}
 
 
-def attest_backup_mounts(root, config):
+def attest_backup_mounts(root, config, *, readonly_bind_allowlist=()):
     known_data = {("postgres", "/var/lib/postgresql/data"), ("minio", "/data")}
     external_diagnostics = False
     expected_store = (Path(root) / ".asa" / "diagnostics" / "store").resolve()
+    allowed = {(service, target): (Path(root) / source).resolve()
+               for service, target, source in readonly_bind_allowlist}
+    seen_allowed = set()
     for name, service in config["services"].items():
         for mount in service.get("volumes", []):
+            key = (name, mount.get("target"))
+            if key in allowed:
+                require(key not in seen_allowed and mount.get("type") == "bind"
+                        and mount.get("read_only") is True
+                        and isinstance(mount.get("source"), str)
+                        and Path(mount["source"]).resolve() == allowed[key],
+                        "BACKUP_REVIEW_MOUNT", "Review source mount differs from the exact read-only allowlist.")
+                seen_allowed.add(key)
+                continue
             if (name == "api" and mount.get("type") == "volume"
                     and mount.get("target") == "/var/lib/asa-application-logs"
                     and service.get("environment", {}).get("ASA_APPLICATION_LOG_STORE") == "/var/lib/asa-application-logs"):
@@ -96,19 +108,21 @@ def attest_backup_mounts(root, config):
             require(mount.get("type") == "volume" and (name, mount.get("target")) in known_data,
                     "BACKUP_MOUNTS", "Additional persistent mounts need an explicit export adapter.",
                     "Inventory custom volumes and transport config files before claiming a complete export.")
+    require(seen_allowed == set(allowed), "BACKUP_REVIEW_MOUNT", "Expected review source mounts are missing.")
     return external_diagnostics
 
 
-def export_backup(install, destination=None):
+def export_backup(install, destination=None, *, readonly_bind_allowlist=(), live_files=False,
+                  hold_writers=False):
     records = install.identity()
     require("minio" in records and records["postgres"]["running"], "BACKUP_SERVICES", "PostgreSQL and local MinIO are required for a complete export.")
     require(install.env.get("ASA_OBJECT_STORAGE_ENDPOINT") == "http://minio:9000",
             "BACKUP_STORAGE", "External object storage needs an explicit export adapter; refusing an incomplete backup.")
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "An unfinished maintenance operation needs review first.")
     config = json.loads(install.compose("config", "--format", "json", capture=True))
-    external_diagnostics = attest_backup_mounts(install.root, config)
+    external_diagnostics = attest_backup_mounts(install.root, config, readonly_bind_allowlist=readonly_bind_allowlist)
     runtime = install.readiness()
-    recovery = recovery_configuration(install, runtime)
+    recovery = recovery_configuration(install, runtime, live_files=live_files)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     parent = Path(destination or install.settings.get("backupDirectory") or install.root / "backups").resolve()
     parent.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -119,6 +133,7 @@ def export_backup(install, destination=None):
     # contains secrets and must be encrypted before placement in a cloud folder.
     running = [name for name in ("web", "api", "scratch", "minio") if name in records and records[name]["running"]]
     atomic_json(install.state / "maintenance.json", {"phase": "backup", "resumeServices": running, "partial": str(partial)})
+    completed = False
     try:
         if running:
             print("BACKUP stopping writers for a consistent database/object snapshot", flush=True)
@@ -138,7 +153,9 @@ def export_backup(install, destination=None):
         config_dir.mkdir()
         for file, content in recovery["files"].items():
             require(file in install.files, "BACKUP_CONFIGURATION", "Unexpected recovery configuration path.")
-            (config_dir / file).write_text(content, encoding="utf-8")
+            target = config_dir / file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content, encoding="utf-8")
         atomic_json(config_dir / "runtime-configuration.json", recovery)
         if recovery["installedRelease"]:
             atomic_json(config_dir / "installed-release.json", recovery["installedRelease"])
@@ -165,12 +182,15 @@ def export_backup(install, destination=None):
         verify_backup(partial)
         partial.rename(final)
         print(f"BACKUP verified: {final}", flush=True)
+        completed = True
         return final
     finally:
-        # start preserves the exact existing images/configuration; never up/build.
-        if running:
-            install.compose("start", *running)
-        install.wait_ready(runtime["revision"], runtime["schema"])
+        # The explicit review transition retains the writer pause after a verified
+        # backup. Ordinary backup (and every failed backup) resumes old services.
+        if not hold_writers or not completed:
+            if running:
+                install.compose("start", *running)
+            install.wait_ready(runtime["revision"], runtime["schema"])
         (install.state / "maintenance.json").unlink()
 
 

@@ -252,7 +252,8 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge",
+                                           "review-fresh-plan", "review-fresh-apply", "review-fresh-status"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -260,8 +261,31 @@ def main(argv=None):
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
+    parser.add_argument("--release", help="Exact published product SHA for the one-time review transition")
+    parser.add_argument("--old-revision", help="Exact observed old review runtime SHA")
+    parser.add_argument("--overlay-sha256", help="Approved private review overlay digest")
+    parser.add_argument("--new-database", help="Unique empty database in the existing PostgreSQL volume")
+    parser.add_argument("--new-bucket", help="Unique empty bucket in the existing MinIO volume")
+    parser.add_argument("--plan", type=Path, help="Private exact review-fresh plan for apply")
+    parser.add_argument("--review-url", help="Independent exact-SHA GitHub review for review-fresh-apply")
     args = parser.parse_args(argv)
     try:
+        if args.action.startswith("review-fresh-"):
+            from deployment.review_transition import apply_plan, create_plan, operation_status
+            require(args.profile == "dev", "REVIEW_PROFILE", "The one-time local review transition requires --profile dev.")
+            if args.action == "review-fresh-status":
+                operation_status(args.root)
+            elif args.action == "review-fresh-plan":
+                require(all((args.release, args.old_revision, args.overlay_sha256,
+                             args.new_database, args.new_bucket, args.output)), "ARGUMENT",
+                        "Plan requires exact release/old revision/overlay digest, new namespace names and private output.")
+                create_plan(args.root, release_sha=args.release, old_revision=args.old_revision,
+                            overlay_sha256=args.overlay_sha256, database=args.new_database,
+                            bucket=args.new_bucket, output=args.output)
+            else:
+                require(args.plan and args.output and args.review_url, "ARGUMENT", "Apply requires --plan, --review-url and a new private --output directory.")
+                apply_plan(args.root, plan_path=args.plan, output=args.output, review_url=args.review_url)
+            return 0
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
             manifest = verify_backup(args.backup)

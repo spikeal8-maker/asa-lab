@@ -237,6 +237,46 @@ python tools/asa_manager.py restore-check --profile dev --backup F:\ASA-Transfer
 
 ## Короткий маршрут для агента и разработчика
 
+### Однократный переход локального review на чистые данные
+
+`review-fresh-plan` / `review-fresh-apply` — отдельный узкий адаптер для известной
+локальной установки `asa-lab-dev` с тремя Compose-файлами и read-only source
+mounts. Он принимает только утверждённый SHA старого overlay, старую runtime
+revision и опубликованный выпуск `0027b5c1e75d151ebde1c2df734d87eb795b25e3`.
+Обычные `install`, `update`, `backup` и их identity checks этим не ослабляются.
+Запускать команды только из каталога, записанного в метках работающего PostgreSQL;
+указать `--root` этого каталога и `--profile dev`. Plan и output выбираются в
+разных новых **приватных** каталогах вне установки и web root. Например:
+
+```text
+python tools/asa_manager.py review-fresh-plan --root <canonical-root> --profile dev --release 0027b5c1e75d151ebde1c2df734d87eb795b25e3 --old-revision 2d6394a299418b8ada6a77b0a17748b946cf4ace --overlay-sha256 64e872c816738c9c5cba928269e99f9485477bd905b10083fcfab042cc87d0f0 --new-database <new-private-db> --new-bucket <new-private-bucket> --output <private-plan.json>
+python tools/asa_manager.py review-fresh-apply --root <canonical-root> --profile dev --plan <private-plan.json> --review-url <exact-sha-independent-github-review-url> --output <new-private-evidence-directory>
+python tools/asa_manager.py review-fresh-status --root <canonical-root> --profile dev
+```
+
+Plan фиксирует точные container IDs/images/config_files, порты, volumes,
+исходные базы/buckets, старые counts, WIP и хеши source mounts. Apply повторяет
+проверку под lock, загружает immutable images до остановки, сохраняет полный
+backup старой БД и **всех** объектов MinIO с конфигурацией и отдельно архивирует
+старый source/WIP/runtime. После подтверждённого backup старые writers остаются
+остановленными. В старом volume создаётся **новая пустая БД**, в старом MinIO
+volume — **новый bucket**; старые БД/bucket/volumes сохраняются. Меняются только
+namespace selectors в приватной `.env`, без смены ключей, адреса или портов.
+Операционный checkout переключается в detached SHA выбранного выпуска; прежняя
+ветка и WIP сохранены в приватном архиве. Новый Compose должен иметь два
+обычных файла и тот же project/root/volumes. Это не перенос старой схемы или
+пользовательских записей.
+
+Остановленный или неуспешный переход требует изучения
+`.asa/review-fresh-operation.json` и приватных backup/source/runtime receipts.
+После начала switch автоматического восстановления живой БД и повторного запуска
+смешанных версий нет; не удалять маркер и не повторять apply вслепую. Проверка
+доступа владельца выполняется затем через обычную регистрацию и документированный
+`OWNER_ADMIN` путь: прежняя браузерная сессия, пользователи, хеши паролей и
+администраторские строки в новую БД не копируются. Учётные данные вводит владелец;
+авторизация не обходится. Browser save journey остаётся `NOT_RUN`, пока владелец
+не проверит его отдельно.
+
 Изменение → focused checks → общий GitHub CI → готовые образы → публикация
 манифеста → проверка/обновление канонического сервера. Нельзя обходить красный CI,
 удалять volumes, менять порты для обхода ошибки или пересобирать на каждом

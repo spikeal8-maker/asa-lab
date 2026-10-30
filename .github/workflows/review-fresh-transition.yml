@@ -1,0 +1,29 @@
+name: ASA Review Fresh Transition
+
+'on':
+  pull_request:
+    paths:
+      - 'tools/asa_manager.py'
+      - 'tools/deployment/**'
+      - 'docs/deployment/PORTABLE_OPERATIONS.md'
+      - '.github/workflows/review-fresh-transition.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-transition:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Focused transition guards
+        run: python -m unittest discover -s tools/deployment -p test_review_transition.py -v
+      - name: Real disposable old-to-fresh transition
+        run: python tools/deployment/ci_review_fresh.py
