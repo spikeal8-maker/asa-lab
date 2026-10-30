@@ -235,6 +235,9 @@ export function PublicProjectsPage({
                     {publication.authorLabel}
                   </p>
                   <div className="public-project-card-meta">
+                    <span aria-label={`${publication.likeCount ?? 0} нравится`}>
+                      ♡ {publication.likeCount ?? 0}
+                    </span>
                     <span className="publication-module" data-module={publication.moduleKey}>
                       {publicModuleName(publication.moduleKey)}
                     </span>

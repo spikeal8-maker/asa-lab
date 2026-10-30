@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { call } from './admin-api';
 import './admin-publications.css';
 import { PublicationAcquisitionSettings } from './PublicationAcquisitionSettings';
+import { PublicationReactionSettings } from './PublicationReactionSettings';
 
 interface Publication {
   readonly schemaVersion?: number;
@@ -23,6 +24,9 @@ interface Publication {
   readonly editorialEligible: boolean;
   readonly editorialVersion: number;
   readonly lifecycleVersion: number;
+  readonly likeCount?: number;
+  readonly reactionsEnabled?: boolean;
+  readonly reactionsVersion?: number;
 }
 
 interface ModerationResult {
@@ -63,6 +67,7 @@ export function AdminPublicationsPage({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [items, setItems] = useState<readonly Publication[]>([]);
+  const [listEpoch, setListEpoch] = useState(0);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +128,10 @@ export function AdminPublicationsPage({
             ],
       );
       setNextOffset(result.data.nextOffset);
+      // Only a successful full list read replaces each row's authoritative
+      // reaction state, including unchanged counts/versions after a failed write.
+      // Loading, failed reads and appending another page retain existing forms.
+      if (offset === 0) setListEpoch((previous) => previous + 1);
     },
     [fail],
   );
@@ -395,6 +404,21 @@ export function AdminPublicationsPage({
               ) : null}
             </div>
             <div className="admin-publication-actions">
+              {typeof item.reactionsEnabled === 'boolean' &&
+              typeof item.reactionsVersion === 'number' &&
+              typeof item.likeCount === 'number' ? (
+                <PublicationReactionSettings
+                  key={`${item.publicationId}:${item.reactionsVersion}:${item.revisionId}:${listEpoch}`}
+                  publicationId={item.publicationId}
+                  revisionId={item.revisionId}
+                  initial={{
+                    likeCount: item.likeCount,
+                    reactionsEnabled: item.reactionsEnabled,
+                    reactionsVersion: item.reactionsVersion,
+                  }}
+                  onAccessDenied={() => fail(403)}
+                />
+              ) : null}
               {item.editorialEligible && !item.hidden && item.state === 'public' ? (
                 <button
                   type="button"

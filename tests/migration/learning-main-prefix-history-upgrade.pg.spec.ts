@@ -289,6 +289,11 @@ const upgradeArtifacts = [
     '0282_ai_ollama_inference_options.sql',
     'd34604f857922e794dbef41a2accf8354149b4f87c94b57e5c1980bb363dae13',
   ],
+  [
+    '0283',
+    '0283_publication_likes.sql',
+    'a2b61c7e1f187d8fc466590e82ab02f0fb2628cd9d56d666367d58da7d2bb5af',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -405,7 +410,7 @@ async function preservedData(pool: pg.Pool) {
       table === 'projects'
         ? [...copiedProjectOriginFields]
         : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version']
+          ? ['acquisition_allowed', 'acquisition_version', 'reactions_enabled', 'reactions_version']
           : [];
     result[table] = (
       await pool.query(
@@ -753,13 +758,15 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (
           await pool.query(
-            'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
           )
         ).rows,
       ).toEqual(
         before.project_publication_state!.map(() => ({
           acquisition_allowed: false,
           acquisition_version: 0,
+          reactions_enabled: true,
+          reactions_version: 0,
         })),
       );
       expect(await preservedData(pool)).toEqual(before);

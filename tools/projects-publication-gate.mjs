@@ -11,6 +11,7 @@ import pg from 'pg';
 const browser = process.argv.includes('--browser');
 for (const path of browser
   ? [
+      'e2e/publication-likes.spec.ts',
       'e2e/student-project-policy.spec.ts',
       'e2e/public-projects.spec.ts',
       'e2e/public-project-electronics-viewer.spec.ts',
@@ -20,6 +21,10 @@ for (const path of browser
       'e2e/project-hub.spec.ts',
     ]
   : [
+      'tests/portal/publication-likes.pg.spec.ts',
+      'apps/api/src/publication-likes.controller.spec.ts',
+      'apps/web/src/projects-public/PublicationLike.spec.ts',
+      'apps/web/src/admin/testing/publication-reactions.spec.ts',
       'tests/portal/student-project-policy.pg.spec.ts',
       'apps/api/src/project-distribution.controller.spec.ts',
       'apps/web/src/components/ClassroomProjectSettings.spec.ts',
@@ -162,6 +167,7 @@ if (browser) {
     'exec',
     'playwright',
     'test',
+    'e2e/publication-likes.spec.ts',
     'e2e/student-project-policy.spec.ts',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-electronics-viewer.spec.ts',
@@ -196,6 +202,7 @@ if (browser) {
     '--types',
     'node',
     '--allowSyntheticDefaultImports',
+    'e2e/publication-likes.spec.ts',
     'e2e/student-project-policy.spec.ts',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-electronics-viewer.spec.ts',
@@ -211,6 +218,9 @@ if (browser) {
     'tests/portal/projects-api.spec.ts',
     'tests/portal/project-transactions.spec.ts',
     'tests/portal/project-publication-revisions.pg.spec.ts',
+    'tests/portal/publication-likes.pg.spec.ts',
+    'apps/api/src/publication-likes.controller.spec.ts',
+    'apps/web/src/admin/testing/publication-reactions.spec.ts',
     'tests/portal/student-project-policy.pg.spec.ts',
     'apps/api/src/project-distribution.controller.spec.ts',
     'apps/web/src/components/ClassroomProjectSettings.spec.ts',

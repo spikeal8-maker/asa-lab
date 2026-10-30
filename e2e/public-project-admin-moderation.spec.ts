@@ -229,6 +229,19 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(row).toBeVisible();
       const preview = row.getByRole('img', { name: `Превью: ${title}`, exact: true });
       await expect(preview).toBeVisible();
+      // Controls must not squeeze publication information into a one-letter
+      // column, even before the subsequent hide/restore overflow checks.
+      expect(
+        await row.evaluate((element) => {
+          const details = element.querySelector('.admin-publication-details');
+          const preview = element.querySelector('.admin-publication-preview');
+          return (
+            !!details &&
+            !!preview &&
+            details.getBoundingClientRect().width >= preview.getBoundingClientRect().width
+          );
+        }),
+      ).toBe(true);
       await expect
         .poll(() =>
           preview.evaluate((element) => {
