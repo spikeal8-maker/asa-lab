@@ -1,0 +1,29 @@
+{
+  "parent": "3a9b3e1d97c370e650d8a895e488897c2a455d07",
+  "movedGeometryTokensEqual": true,
+  "parameterSubstitutions": [
+    "pendingTerminal",
+    "projectPoint",
+    "projectBounds",
+    "viewBox",
+    "hitDomainPoints",
+    "stageBounds"
+  ],
+  "canonicalStagePrefixAndSuffixUnchanged": true,
+  "bodyPaintOrderUnchanged": true,
+  "unchangedGitBlobs": {
+    "apps/web/src/electronics/ProductionComponentVisual.tsx": "344293bc354c1ad01f0f859acf05e72d265c9688",
+    "e2e/electronics-simulation.spec.ts": "b450bd6d148285008ba226bb688a315f1120eb1a",
+    "docs/product/electronics/generated/component-coverage.json": "48cfb6e64b609b1ab1f5e12f3bc8c0f00e838b91"
+  },
+  "geometryTokenSha256": "239c7a539e6181a9077451a6c1e7bf6222aa47e3fd787eb783d732cead7eeb3c",
+  "sizes": {
+    "oldStageGitBytes": 67514,
+    "stageWorkingBytes": 63752,
+    "stageLfBytes": 63752,
+    "helperBytes": 5298,
+    "reviewedBytes": 54879,
+    "ceilingBytes": 65854.8
+  },
+  "runningFrameProofReuse": "Previous actual Worker proof remains supplemental; control-flow equivalence proves no readiness/subscription change. Fresh91 native Stage proof supplied; no new actual Worker run claimed."
+}
