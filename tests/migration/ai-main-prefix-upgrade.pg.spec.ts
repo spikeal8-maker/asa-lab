@@ -124,9 +124,15 @@ async function legacySnapshot(db: pg.Pool) {
     project_versions: [],
     project_snapshots: [],
     project_publications: [],
-    // 0275 adds only these default-OFF consent columns. Keep every old field
+    project_reactions: ['publication_id'],
+    // 0275 consent and 0283 reaction controls add only explicit default columns. Keep every old field
     // (and any unrecognized future field) in the strict preserved-data comparison.
-    project_publication_state: ['acquisition_allowed', 'acquisition_version'],
+    project_publication_state: [
+      'acquisition_allowed',
+      'acquisition_version',
+      'reactions_enabled',
+      'reactions_version',
+    ],
     project_publication_revisions: [
       'module_key',
       'author_label',
@@ -478,6 +484,17 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         };
       });
 
+      // Nonempty legacy like/wow rows must survive the new reaction namespace exactly.
+      const legacyReactor = (
+        await db.query<{ id: string }>('SELECT id FROM principals WHERE id<>$1 LIMIT 1', [
+          account.principal_id,
+        ])
+      ).rows[0]!.id;
+      await db.query(
+        "INSERT INTO project_reactions(project_id,reactor_principal_id,kind) VALUES($1,$2,'like'),($1,$2,'wow')",
+        [legacy.projectId, legacyReactor],
+      );
+
       // Synthetic ciphertext is never decrypted or sent to any provider.
       const configurationVersion = (
         await app.query<{ version: string }>(
@@ -713,18 +730,28 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         expect(
           (
             await upgrade.query(
-              'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+              'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
             )
           ).rows,
         ).toEqual(
           before.project_publication_state!.map(() => ({
             acquisition_allowed: false,
             acquisition_version: 0,
+            reactions_enabled: true,
+            reactions_version: 0,
           })),
         );
       } finally {
         upgrade.release();
       }
+      expect(
+        (
+          await db.query(
+            'SELECT count(*)::integer n FROM project_reactions WHERE project_id=$1 AND publication_id IS NULL',
+            [legacy.projectId],
+          )
+        ).rows,
+      ).toEqual([{ n: 2 }]);
       const ledgerAfter = await ledger(db);
       expect(ledgerAfter.slice(0, ledgerBefore.length)).toEqual(ledgerBefore);
       expect(ledgerAfter.slice(ledgerBefore.length).map((row) => row.version)).toEqual(

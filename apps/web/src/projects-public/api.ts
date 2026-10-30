@@ -18,6 +18,7 @@ export interface PublicProject {
   readonly authorLabel: string;
   readonly featured: boolean;
   readonly pinned: boolean;
+  readonly likeCount?: number;
   readonly publishedAt: string;
   readonly preview: {
     readonly url: string;
@@ -67,8 +68,31 @@ export interface PublicProjectCopy {
   readonly created: boolean;
 }
 
+export interface PublicationLikeState {
+  readonly publicationId: string;
+  readonly revisionId: string;
+  readonly liked: boolean;
+  readonly canLike: boolean;
+  readonly canUnlike: boolean;
+  readonly reactionsEnabled: boolean;
+  readonly likeCount: number;
+  readonly reason: 'own_work' | 'reactions_disabled' | null;
+}
+
 /** Public reads use only the immutable publication namespace. */
 export const publicProjectsApi = {
+  likeState: (publicationId: string, signal: AbortSignal) =>
+    call<PublicationLikeState>(`/api/public-projects/${encodeURIComponent(publicationId)}/like`, {
+      cache: 'no-store',
+      signal,
+    }),
+  like: (publicationId: string, revisionId: string, on: boolean, signal: AbortSignal) =>
+    call<{ liked: boolean }>(`/api/public-projects/${encodeURIComponent(publicationId)}/like`, {
+      method: 'PUT',
+      cache: 'no-store',
+      body: JSON.stringify({ revisionId, on }),
+      signal,
+    }),
   artifact: async (
     publicationId: string,
     revisionId: string,

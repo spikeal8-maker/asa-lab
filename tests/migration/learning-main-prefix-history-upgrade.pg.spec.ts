@@ -405,7 +405,7 @@ async function preservedData(pool: pg.Pool) {
       table === 'projects'
         ? [...copiedProjectOriginFields]
         : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version']
+          ? ['acquisition_allowed', 'acquisition_version', 'reactions_enabled', 'reactions_version']
           : [];
     result[table] = (
       await pool.query(
@@ -753,13 +753,15 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (
           await pool.query(
-            'SELECT acquisition_allowed, acquisition_version FROM project_publication_state ORDER BY id',
+            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
           )
         ).rows,
       ).toEqual(
         before.project_publication_state!.map(() => ({
           acquisition_allowed: false,
           acquisition_version: 0,
+          reactions_enabled: true,
+          reactions_version: 0,
         })),
       );
       expect(await preservedData(pool)).toEqual(before);

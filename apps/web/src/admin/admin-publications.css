@@ -136,3 +136,26 @@
   max-width: 100%;
   white-space: normal;
 }
+
+.publication-reaction-settings {
+  font-size: 0.85rem;
+  max-width: 24rem;
+}
+.publication-reaction-settings summary {
+  cursor: pointer;
+}
+.publication-reaction-settings[open] {
+  display: grid;
+  gap: 0.5rem;
+}
+.publication-reaction-settings label {
+  display: grid;
+  gap: 0.25rem;
+}
+.publication-reaction-settings input {
+  max-width: 100%;
+  min-width: 0;
+}
+.publication-reaction-settings small {
+  display: block;
+}

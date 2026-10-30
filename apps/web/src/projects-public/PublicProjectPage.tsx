@@ -1,3 +1,4 @@
+import { PublicationLike } from './PublicationLike';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
@@ -143,6 +144,7 @@ export function PublicProjectPage({
           <div className="public-project-commandbar" aria-label="Действия с проектом">
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
+              <PublicationLike key={publication.revisionId} publication={publication} />
               <SharePublicationLink
                 key={publication.publicationId}
                 publicationId={publication.publicationId}

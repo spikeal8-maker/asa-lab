@@ -9,6 +9,7 @@ import {
   Inject,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -71,6 +72,7 @@ interface PublicProjectRow {
   preview_height: number | null;
   featured: boolean;
   pinned: boolean;
+  like_count?: number;
 }
 
 /** An explicit allowlist: never spread a database row into a public response. */
@@ -89,6 +91,7 @@ function publicProject(row: PublicProjectRow, canCopy: boolean) {
     authorLabel: row.author_label,
     featured: row.featured === true,
     pinned: row.pinned === true,
+    likeCount: Number(row.like_count ?? 0),
     publishedAt:
       row.published_at instanceof Date ? row.published_at.toISOString() : row.published_at,
     preview:
@@ -135,6 +138,65 @@ export class PublicProjectsController {
     @Inject(TOKENS.seatContextUseCase) private readonly seats?: SeatContextUseCase,
   ) {
     this.artifactService = new PublicArtifactService(registry);
+  }
+
+  private async reactionActor(request: FastifyRequest) {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      const token = request.cookies[STUDENT_SESSION_COOKIE];
+      const seat = await this.seats?.resolveExisting(token);
+      if (!seat || !token) throw publicationError('unauthorized', 'Войдите в класс заново.', 401);
+      noteAuthoritativeMutationSession(request, 'seat-existing', token);
+      return { principal: seat.principalId, hash: hashSessionToken(token) };
+    }
+    const token = request.cookies[SESSION_COOKIE];
+    const account = await this.activeContext.resolve(token);
+    if (!account || !token) throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
+    return { principal: account.principalId, hash: hashSessionToken(token) };
+  }
+
+  @Get(':publicationId/like')
+  @Header('Cache-Control', 'private, no-store')
+  async likeState(@Req() request: FastifyRequest, @Param('publicationId') publicationId: string) {
+    requireUuid(publicationId);
+    const actor = await this.reactionActor(request);
+    try {
+      const result = await requirePool(this.pool).query<{ result: unknown }>(
+        'SELECT public.publication_like_state($1,$2,$3) AS result',
+        [actor.principal, publicationId, actor.hash],
+      );
+      return result.rows[0].result;
+    } catch (cause) {
+      throwPublicationError(cause);
+    }
+  }
+
+  @Put(':publicationId/like')
+  @Header('Cache-Control', 'private, no-store')
+  async like(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Body() rawBody: unknown,
+  ) {
+    requireUuid(publicationId);
+    const actor = await this.reactionActor(request);
+    const shape = checkBodyShape(rawBody, ['revisionId', 'on']);
+    if (
+      !shape.ok ||
+      typeof shape.body['revisionId'] !== 'string' ||
+      typeof shape.body['on'] !== 'boolean'
+    ) {
+      throw publicationError('validation_error', 'Проверьте действие с лайком.', 400);
+    }
+    requireUuid(shape.body['revisionId']);
+    try {
+      const result = await requirePool(this.pool).query<{ result: unknown }>(
+        'SELECT public.publication_like_write($1,$2,$3,$4,$5) AS result',
+        [actor.principal, publicationId, shape.body['revisionId'], shape.body['on'], actor.hash],
+      );
+      return result.rows[0].result;
+    } catch (cause) {
+      throwPublicationError(cause);
+    }
   }
 
   @Post(':publicationId/copy')
@@ -212,7 +274,7 @@ export class PublicProjectsController {
     const skip = boundedInteger(offset, 0, 0, 1000000);
     const take = boundedInteger(limit, 24, 1, 48);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
+      'SELECT entry.*, public.publication_like_count(entry.publication_id) AS like_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
       [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
     );
     const page = result.rows.slice(0, take);
@@ -228,7 +290,7 @@ export class PublicProjectsController {
   async detail(@Param('publicationId') publicationId: string) {
     requireUuid(publicationId);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
+      'SELECT entry.*, public.publication_like_count(entry.publication_id) AS like_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
       [publicationId, null, null, 1, 0],
     );
     const row = result.rows[0];

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { call } from './admin-api';
 import './admin-publications.css';
 import { PublicationAcquisitionSettings } from './PublicationAcquisitionSettings';
+import { PublicationReactionSettings } from './PublicationReactionSettings';
 
 interface Publication {
   readonly schemaVersion?: number;
@@ -23,6 +24,9 @@ interface Publication {
   readonly editorialEligible: boolean;
   readonly editorialVersion: number;
   readonly lifecycleVersion: number;
+  readonly likeCount?: number;
+  readonly reactionsEnabled?: boolean;
+  readonly reactionsVersion?: number;
 }
 
 interface ModerationResult {
@@ -395,6 +399,21 @@ export function AdminPublicationsPage({
               ) : null}
             </div>
             <div className="admin-publication-actions">
+              {typeof item.reactionsEnabled === 'boolean' &&
+              typeof item.reactionsVersion === 'number' &&
+              typeof item.likeCount === 'number' ? (
+                <PublicationReactionSettings
+                  key={`${item.publicationId}:${item.reactionsVersion}:${item.revisionId}`}
+                  publicationId={item.publicationId}
+                  revisionId={item.revisionId}
+                  initial={{
+                    likeCount: item.likeCount,
+                    reactionsEnabled: item.reactionsEnabled,
+                    reactionsVersion: item.reactionsVersion,
+                  }}
+                  onAccessDenied={() => fail(403)}
+                />
+              ) : null}
               {item.editorialEligible && !item.hidden && item.state === 'public' ? (
                 <button
                   type="button"
