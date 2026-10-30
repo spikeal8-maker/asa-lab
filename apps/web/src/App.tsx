@@ -963,7 +963,7 @@ export function App(): JSX.Element {
                 </main>
               }
             >
-              <PublicProjectsSurface view={view} onNavigate={setView} />
+              <PublicProjectsSurface view={view} onNavigate={setView} authenticated={false} />
             </Suspense>
           </div>
         </SchoolTimeProvider>
@@ -1256,6 +1256,7 @@ export function App(): JSX.Element {
                   <PublicProjectsSurface
                     view={view}
                     onNavigate={setView}
+                    authenticated={true}
                     {...(!isSeatLearner
                       ? { onMyProjects: () => setView({ kind: 'my-projects' }) }
                       : {})}

@@ -50,6 +50,29 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 const button = () => host.querySelector('button')!;
+it('renders the real public count and sign-in link without anonymous private probes or refresh requests', async () => {
+  const read = vi.spyOn(publicProjectsApi, 'likeState');
+  const write = vi.spyOn(publicProjectsApi, 'like');
+  const fetch = vi.fn();
+  vi.stubGlobal('fetch', fetch);
+  // Telemetry is not authentication: even a stale client actor must not cause
+  // the App's resolved anonymous surface to probe a private endpoint.
+  setTelemetryContext(
+    { kind: 'account', accountId: 'old-account', workspaceId: 'old-workspace' },
+    true,
+    'public',
+  );
+  await act(async () =>
+    root.render(createElement(PublicationLike, { publication, authenticated: false })),
+  );
+  expect(host.querySelector('[data-testid="publication-like-count"]')!.textContent).toBe('4');
+  expect(host.querySelector('a')!.getAttribute('href')).toBe('/#/sign-in');
+  expect(host.querySelector('a')!.textContent).toContain('Войти');
+  expect(host.querySelector('button')).toBeNull();
+  expect(read).not.toHaveBeenCalled();
+  expect(write).not.toHaveBeenCalled();
+  expect(fetch).not.toHaveBeenCalled();
+});
 it('blocks double click, waits for authoritative count and sends explicit boolean intent', async () => {
   vi.spyOn(publicProjectsApi, 'likeState')
     .mockResolvedValueOnce({ ok: true, status: 200, data: state })
@@ -64,7 +87,9 @@ it('blocks double click, waits for authoritative count and sends explicit boolea
       finish = resolve;
     }),
   );
-  await act(async () => root.render(createElement(PublicationLike, { publication })));
+  await act(async () =>
+    root.render(createElement(PublicationLike, { publication, authenticated: true })),
+  );
   await act(async () => {
     button().click();
     button().click();
@@ -86,7 +111,9 @@ it('allows removing an existing like when admin disabled reactions; own work is 
   const write = vi
     .spyOn(publicProjectsApi, 'like')
     .mockResolvedValue({ ok: true, status: 200, data: { liked: false } });
-  await act(async () => root.render(createElement(PublicationLike, { publication })));
+  await act(async () =>
+    root.render(createElement(PublicationLike, { publication, authenticated: true })),
+  );
   expect(button().disabled).toBe(false);
   await act(async () => button().click());
   expect(write).toHaveBeenCalledWith('publication', 'revision', false, expect.any(AbortSignal));
@@ -98,7 +125,9 @@ it('retires late private responses after session identity changes', async () => 
       finish = resolve;
     }),
   );
-  await act(async () => root.render(createElement(PublicationLike, { publication })));
+  await act(async () =>
+    root.render(createElement(PublicationLike, { publication, authenticated: true })),
+  );
   await act(async () => setTelemetryContext(null, false, 'public'));
   await act(async () =>
     finish({ ok: true, status: 200, data: { ...state, liked: true, likeCount: 999 } }),

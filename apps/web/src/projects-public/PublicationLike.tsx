@@ -6,8 +6,10 @@ import { publicProjectsApi, type PublicProject, type PublicationLikeState } from
 
 export function PublicationLike({
   publication,
+  authenticated = false,
 }: {
   readonly publication: PublicProject;
+  readonly authenticated?: boolean;
 }): JSX.Element {
   const [state, setState] = useState<PublicationLikeState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,6 +29,15 @@ export function PublicationLike({
     setState(null);
     setRetired(false);
     setError(null);
+    // App has already resolved Account/Seat/anonymous through its existing identity flow.
+    // This prop only avoids anonymous private probes; the API still proves every actor.
+    if (!authenticated) {
+      setReady(true);
+      return () => {
+        active.current = false;
+        generation.current++;
+      };
+    }
     const continuity = telemetryContext().continuity;
     const retire = () => {
       generation.current++;
@@ -69,10 +80,10 @@ export function PublicationLike({
       unsubscribe();
       logout();
     };
-  }, [publication.publicationId, publication.revisionId]);
+  }, [publication.publicationId, publication.revisionId, authenticated]);
 
   async function toggle() {
-    if (inFlight.current || retired || !ready) return;
+    if (!authenticated || inFlight.current || retired || !ready) return;
     inFlight.current = true;
     setBusy(true);
     setError(null);
@@ -129,6 +140,22 @@ export function PublicationLike({
       inFlight.current = false;
       if (active.current && current === generation.current) setBusy(false);
     }
+  }
+  if (!authenticated) {
+    return (
+      <div className="publication-like">
+        <PortalLink
+          href="/#/sign-in"
+          className="publication-like-button"
+          aria-label="Войти, чтобы поставить лайк"
+          title="Войдите в аккаунт или класс, чтобы поставить лайк"
+        >
+          <span aria-hidden="true">♡</span>
+          <span data-testid="publication-like-count">{publication.likeCount ?? 0}</span>
+          <span>Войти</span>
+        </PortalLink>
+      </div>
+    );
   }
   const blocked = !!state && !(state.liked ? state.canUnlike : state.canLike);
   const title =

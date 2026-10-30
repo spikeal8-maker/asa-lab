@@ -40,8 +40,10 @@ export function PublicationUnavailable({
 export function PublicProjectPage({
   publicationId,
   onBack,
+  authenticated = false,
 }: {
   readonly publicationId: string;
+  readonly authenticated?: boolean;
   readonly onBack: () => void;
 }): JSX.Element {
   const [publication, setPublication] = useState<PublicProject | null>(null);
@@ -144,7 +146,11 @@ export function PublicProjectPage({
           <div className="public-project-commandbar" aria-label="Действия с проектом">
             <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
-              <PublicationLike key={publication.revisionId} publication={publication} />
+              <PublicationLike
+                key={publication.revisionId}
+                publication={publication}
+                authenticated={authenticated}
+              />
               <SharePublicationLink
                 key={publication.publicationId}
                 publicationId={publication.publicationId}

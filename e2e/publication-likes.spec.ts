@@ -150,6 +150,12 @@ for (const { width, seat } of [
         await reader.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
       ).toBe(true);
       await moderator.goto('/#/admin/publications');
+      // API registration seeded cookies/capabilities, not the already mounted SPA.
+      // Re-enter through the normal identity bootstrap, as the existing moderation suite does.
+      await moderator.reload();
+      await expect(
+        moderator.getByRole('heading', { name: 'Публикации', exact: true }),
+      ).toBeVisible();
       // Ground this selector in the actual publication list item rather than a global dialog.
       const item = moderator
         .locator('.admin-publications-list > li')
