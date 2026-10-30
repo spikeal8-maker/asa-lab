@@ -68,6 +68,11 @@ class Installation:
         import re
         require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*", self.project), "PROJECT", "Invalid project name.")
         self.files = ["compose.yaml"] + ([] if self.profile == "base" else [f"compose.{self.profile}.yaml"])
+        # An opt-in first-install subnet override lives in the private .asa
+        # directory, not a dirty Git checkout or Docker daemon configuration.
+        # Its presence is part of immutable Compose-file identity.
+        if (self.state / "docker-networks.yaml").is_file():
+            self.files.append(".asa/docker-networks.yaml")
         if (self.root / "compose.frp.yaml").exists():
             self.files.append("compose.frp.yaml")
         self.process_env = dict(os.environ)
@@ -115,8 +120,10 @@ class Installation:
             same_root = bool(root) and os.path.normcase(str(Path(root).resolve())) == os.path.normcase(str(self.root))
             if project != self.project:
                 require(not same_root, "IDENTITY_PROJECT", "This directory already belongs to another Compose project.")
-                if not existing and (project or "").startswith("asa-lab"):
-                    raise Blocked("IDENTITY_EXISTING", "An ASA installation already exists.", "Use the canonical PostgreSQL directory; do not install a second stack.")
+                # A machine may host independent, explicitly named ASA projects.
+                # Fresh installs never adopt another project's containers/data.
+                # Collision checks of the *selected* project and its orphan
+                # volumes are handled before generating the fresh .env.
                 continue
             require(self.env, "IDENTITY_ENV", "Existing installation has no private .env.")
             require(same_root, "IDENTITY_ROOT", "Container belongs to another deployment directory.", "Run from the directory recorded on PostgreSQL.")

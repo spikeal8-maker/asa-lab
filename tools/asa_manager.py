@@ -22,6 +22,7 @@ from deployment.collector import prepare as prepare_collector, reconcile as reco
 from deployment.contracts import proxy_provenance_diagnostic
 from deployment.resources import check_resources
 from deployment.search_secret import InvalidSearchSecret
+from deployment.fresh_install import fresh_options, assert_clean_install_destination, provision_private_network_overlay
 
 
 def clean_checkout(install):
@@ -110,10 +111,11 @@ def save_settings(install, enabled=False):
     })
 
 
-def first_environment(root, profile):
+def first_environment(root, profile, *, project="asa-lab-dev", web_port=4610, blocks_port=4613):
+    spec = fresh_options(project, web_port, blocks_port)
     require(not (root / ".env").exists(), "ENV_EXISTS", "Private configuration already exists.", "Review it explicitly before the first installation; do not regenerate secrets.")
     admin, app = secrets.token_hex(24), secrets.token_hex(24)
-    values = {"COMPOSE_PROJECT_NAME": "asa-lab-dev", "ASA_IMAGE_TAG": "local",
+    values = {"COMPOSE_PROJECT_NAME": spec["project"], "ASA_IMAGE_TAG": "local",
               "POSTGRES_DB": "asalab", "POSTGRES_USER": "asalab_admin", "POSTGRES_PASSWORD": admin,
               "ASA_APP_DB_PASSWORD": app,
               "MIGRATION_DATABASE_URL": f"postgres://asalab_admin:{admin}@postgres:5432/asalab",
@@ -131,9 +133,10 @@ def first_environment(root, profile):
               "ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000", "ASA_OBJECT_STORAGE_REGION": "us-east-1",
               "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks", "ASA_OBJECT_STORAGE_ACCESS_KEY": secrets.token_hex(16),
               "ASA_OBJECT_STORAGE_SECRET_KEY": secrets.token_hex(32), "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE": "true",
-              "ASA_WEB_PORT": "4610", "ASA_API_PORT": "4611", "ASA_BLOCKS_PORT": "4613",
-              "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610", "ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610",
-              "ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4610",
+              "ASA_WEB_PORT": str(spec["web"]), "ASA_API_PORT": str(spec["api"]),
+              "ASA_BLOCKS_PORT": str(spec["blocks"]),
+              "ASA_BLOCKS_PARENT_ORIGIN": spec["origin"], "ASA_BLOCKS_RUNTIME_ORIGIN": spec["origin"],
+              "ASA_UPDATE_ENTRY_ORIGIN": spec["origin"],
               "ASA_SEED_DEV": "true" if profile == "dev" else "false",
               "ASA_SEED_WORKSPACE": "school-1580", "ASA_SEED_TEACHER_EMAIL": "teacher@school-1580.local",
               "ASA_SEED_TEACHER_PASSWORD": secrets.token_hex(24)}
@@ -347,6 +350,10 @@ def main(argv=None):
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
+    parser.add_argument("--install-project", help="Unique Compose project for first installation only")
+    parser.add_argument("--install-web-port", type=int, help="Fresh localhost Web port")
+    parser.add_argument("--install-blocks-port", type=int, help="Fresh localhost Scratch port")
+    parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     args = parser.parse_args(argv)
     try:
         if args.action == "verify-backup":
@@ -375,10 +382,29 @@ def main(argv=None):
                 save_settings(install, args.enable_auto_update)
                 print("CONFIGURED window=Sunday 03:00-05:00 Moscow; install the OS scheduler separately")
             elif args.action == "install":
-                require(not install.identity(existing=False), "ALREADY_INSTALLED", "Use update for the existing installation.")
                 if not install.env:
-                    first_environment(install.root, install.profile)
-                update(Installation(install.root, install.profile), fresh=True)
+                    spec = fresh_options(args.install_project or "asa-lab-dev",
+                                         args.install_web_port if args.install_web_port is not None else 4610,
+                                         args.install_blocks_port if args.install_blocks_port is not None else 4613)
+                    clean_checkout(install)
+                    assert_clean_install_destination(install.root, spec)
+                    if args.install_network_cidrs:
+                        provision_private_network_overlay(install.root, args.install_network_cidrs)
+                    first_environment(install.root, install.profile, project=spec["project"],
+                                      web_port=spec["web"], blocks_port=spec["blocks"])
+                    install = Installation(install.root, install.profile)
+                else:
+                    require(args.install_network_cidrs is None, "FRESH_NETWORK_EXISTS",
+                            "An existing private environment cannot change its Docker network CIDRs.")
+                    require(args.install_project is None or args.install_project == install.project,
+                            "FRESH_PROJECT", "Selected project differs from existing private .env.")
+                    require(args.install_web_port is None or str(args.install_web_port) == install.env.get("ASA_WEB_PORT"),
+                            "FRESH_PORT", "Selected Web port differs from saved private .env.")
+                    require(args.install_blocks_port is None or str(args.install_blocks_port) == install.env.get("ASA_BLOCKS_PORT"),
+                            "FRESH_PORT", "Selected Scratch port differs from saved private .env.")
+                require(not install.identity(existing=False), "ALREADY_INSTALLED",
+                        "An ASA installation already exists. Use update for this canonical directory.")
+                update(install, fresh=True)
             elif args.action in ("check", "update"):
                 update(install, check=args.action == "check", scheduled=args.scheduled,
                        atomic=args.atomic)
