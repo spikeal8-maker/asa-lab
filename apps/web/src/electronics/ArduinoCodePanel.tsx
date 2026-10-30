@@ -1148,7 +1148,7 @@ function ArduinoSourceEditor({
             Блокирующих: {unsupportedCount}
           </span>
           <span className={`arduino-code-check-count limited${limitedCount > 0 ? ' active' : ''}`}>
-            Ограничений: {limitedCount}
+            Примечаний: {limitedCount}
           </span>
           <span className="arduino-code-check-summary" id="arduino-source-editor-status">
             {completion
@@ -1156,7 +1156,7 @@ function ArduinoSourceEditor({
               : unsupportedCount > 0
                 ? 'Моделирование заблокировано'
                 : limitedCount > 0
-                  ? 'Код исполняется упрощённо'
+                  ? 'Можно запускать · есть примечания'
                   : 'Ошибок не найдено'}
           </span>
           <ChevronDown />
@@ -1165,10 +1165,10 @@ function ArduinoSourceEditor({
           <div className="arduino-code-check-body" id="arduino-code-check-body">
             <p>
               {unsupportedCount > 0
-                ? 'Симулятор пока не исполняет эти команды. Это проверка модели ASA Lab, а не компиляция Arduino C++.'
+                ? 'Исправьте указанные ошибки и неподдерживаемые команды перед запуском. Это проверка симулятора, не компиляция C++.'
                 : limitedCount > 0
-                  ? 'Код запускается, но перечисленные возможности моделируются упрощённо. Это не ошибки компиляции.'
-                  : 'Все использованные команды исполняются симулятором. Это проверка модели ASA Lab, а не компиляция Arduino C++.'}
+                  ? 'Примечания ниже не блокируют запуск. Нажмите на строку, чтобы перейти к команде.'
+                  : 'Ошибок для симулятора не найдено. Это не компиляция Arduino C++.'}
             </p>
             <div className="arduino-code-check-messages">
               {supportDiagnostics.map((diagnostic) => (
@@ -1337,17 +1337,17 @@ export function ArduinoCodePanel({
     const unsupported = diagnostics.filter((diagnostic) => diagnostic.status === 'unsupported');
     if (unsupported.length > 0) {
       c.setNotice(
-        `Проверка Arduino: ${unsupported.length} команд пока не работают. Расчёт будет заблокирован.`,
+        `Проверка Arduino: блокирующих ошибок — ${unsupported.length}. Исправьте их перед запуском.`,
       );
       return;
     }
     if (diagnostics.length > 0) {
       c.setNotice(
-        `Проверка Arduino: код исполняется с ${diagnostics.length} ограничениями модели.`,
+        `Проверка Arduino: можно запускать. Примечаний — ${diagnostics.length}; подробности ниже.`,
       );
       return;
     }
-    c.setNotice('Проверка Arduino: все использованные команды поддерживаются.');
+    c.setNotice('Проверка Arduino: ошибок для симулятора не найдено.');
   }
 
   function appendCommandSnippet(snippet: string): void {

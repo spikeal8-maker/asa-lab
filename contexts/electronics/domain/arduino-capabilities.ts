@@ -49,26 +49,24 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_pin: SUPPORTED('Номер цифрового вывода, включая A0–A5 в цифровом режиме.'),
   asa_pwm_pin: SUPPORTED('Номер аппаратного ШИМ-вывода Uno.'),
   asa_analog_pin: SUPPORTED('Номер аналогового входа Uno.'),
-  asa_setup: LIMITED(
-    'setup() выполняется один раз на Reset в пределах поддерживаемого подмножества.',
-  ),
-  asa_loop: LIMITED('loop() моделируется ограниченным циклом, а не полным AVR-рантаймом.'),
+  asa_setup: LIMITED('setup() выполняется один раз после Reset.'),
+  asa_loop: LIMITED('Повторяет команды loop() после setup().'),
   asa_wait: SUPPORTED('Задержка управляет фазой виртуального времени симуляции.'),
-  asa_repeat: LIMITED('Цикл исполняется по условию в пределах лимита операций.'),
-  asa_forever: LIMITED('Бесконечный цикл останавливается защитным лимитом операций.'),
-  asa_if: SUPPORTED('Условие вычисляется электрическим рантаймом.'),
+  asa_repeat: LIMITED('Повторяет команды заданное число раз.'),
+  asa_forever: LIMITED('Повторяет команды; delay() делает паузу перед продолжением.'),
+  asa_if: SUPPORTED('Выполняет команды, если условие истинно.'),
   asa_if_else: SUPPORTED('Одна из ветвей выбирается по вычисленному условию.'),
-  asa_while: LIMITED('Условие повторяется в пределах защитного лимита операций.'),
-  asa_for: LIMITED('Заголовок и тело повторяются в пределах защитного лимита операций.'),
+  asa_while: LIMITED('Повторяет команды, пока условие истинно.'),
+  asa_for: LIMITED('Повторяет тело цикла с проверкой условия и изменением счётчика.'),
   asa_builtin_led: SUPPORTED('Управляет цифровым выводом D13.'),
   asa_digital_write: SUPPORTED('Устанавливает цифровой уровень на D0–D13 и A0–A5.'),
   asa_analog_write: LIMITED('ШИМ представлен средним постоянным напряжением.'),
-  asa_servo_write: LIMITED('Servo.write() управляет canonical 50 Hz waveform на attached GPIO.'),
-  asa_tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
-  asa_play_note: LIMITED('Формирует canonical timed tone waveform без AVR timer accuracy.'),
-  asa_no_tone: LIMITED('Немедленно останавливает canonical tone waveform.'),
+  asa_servo_write: LIMITED('Задаёт угол Servo импульсами 50 Гц на подключённом выводе.'),
+  asa_tone: LIMITED('Создаёт сигнал 0/5 В заданной частоты; такты таймера AVR не воспроизводятся.'),
+  asa_play_note: LIMITED('Создаёт звуковой сигнал выбранной ноты.'),
+  asa_no_tone: LIMITED('Останавливает звуковой сигнал на выводе.'),
   asa_serial_print: LIMITED(
-    'Передаёт детерминированный Serial TX в bounded runtime history без UI Monitor и UART bit timing.',
+    'Выводит число или текст в монитор порта; побитовый сигнал UART не воспроизводится.',
   ),
   asa_rgb_write: LIMITED('Три ШИМ-канала представлены средними постоянными напряжениями.'),
   asa_lcd_setup: UNSUPPORTED('ЖК-экран ещё не связан с Arduino-рантаймом.'),
@@ -83,17 +81,13 @@ export const ARDUINO_BLOCK_SUPPORT = {
   asa_neopixel_set: UNSUPPORTED('Библиотека NeoPixel ещё не исполняется.'),
   asa_digital_read: SUPPORTED('Считывает электрический уровень с D0–D13 и A0–A5.'),
   asa_analog_read: SUPPORTED('Считывает напряжение A0–A5 как значение 0–1023.'),
-  asa_ultrasonic: LIMITED(
-    'Поддержан exact adapter readUltrasonicCm(triggerPin, echoPin) поверх canonical GPIO/delay/pulseIn.',
-  ),
-  asa_pulse_in: LIMITED(
-    'Измеряет HIGH/LOW импульс по canonical instruction-us-v1 времени; без AVR cycle accuracy.',
-  ),
-  asa_millis: LIMITED('Возвращает детерминированное время текущего шага симуляции.'),
+  asa_ultrasonic: LIMITED('Измеряет расстояние через trigger/echo функцией readUltrasonicCm().'),
+  asa_pulse_in: LIMITED('Измеряет длительность импульса HIGH/LOW во времени симуляции.'),
+  asa_millis: LIMITED('Возвращает время симуляции в миллисекундах.'),
   asa_temperature: SUPPORTED('Преобразует поддерживаемое analogRead() по формуле TMP36.'),
-  asa_servo_read: LIMITED('Servo.read() возвращает последний commanded angle Servo object.'),
-  asa_serial_available: LIMITED('Возвращает число pending Serial RX bytes без UI Monitor.'),
-  asa_serial_read: LIMITED('Читает один pending Serial RX byte или -1 без UI Monitor.'),
+  asa_servo_read: LIMITED('Возвращает последний заданный угол Servo.'),
+  asa_serial_available: LIMITED('Возвращает число входящих байтов в очереди монитора порта.'),
+  asa_serial_read: LIMITED('Читает входящий байт из монитора порта или −1, если очередь пуста.'),
   asa_ir_read: UNSUPPORTED('Протокол ИК-приёмника ещё не декодируется.'),
   asa_number: SUPPORTED('Числовой литерал поддерживается.'),
   asa_text: UNSUPPORTED('Строковые значения ещё не исполняются электрическим рантаймом.'),
@@ -132,13 +126,13 @@ export type ArduinoBlockType = keyof typeof ARDUINO_BLOCK_SUPPORT;
 export function arduinoBlockSupport(blockType: string): ArduinoBlockSupport {
   return (
     ARDUINO_BLOCK_SUPPORT[blockType as ArduinoBlockType] ??
-    UNSUPPORTED('Для этого блока нет подтверждённой модели исполнения.')
+    UNSUPPORTED('Симулятор пока не исполняет этот блок.')
   );
 }
 
 export const ARDUINO_TEXT_COMMAND_SUPPORT = {
-  setup: LIMITED('Точка входа поддерживается ограниченным runtime state.'),
-  loop: LIMITED('Цикл моделируется в пределах детерминированного шага.'),
+  setup: LIMITED('Выполняет команды один раз после Reset.'),
+  loop: LIMITED('Повторяет команды после setup().'),
   pinMode: SUPPORTED('Поддерживаются INPUT, INPUT_PULLUP и OUTPUT на D0–D13 и A0–A5.'),
   digitalWrite: SUPPORTED('Устанавливает цифровой уровень на D0–D13 и A0–A5.'),
   digitalRead: SUPPORTED('Считывает электрический уровень с D0–D13 и A0–A5.'),
@@ -146,8 +140,8 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   analogWrite: LIMITED('ШИМ представлен средним постоянным напряжением.'),
   delay: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
   delayMicroseconds: SUPPORTED('Задержка управляет виртуальным временем симуляции.'),
-  tone: LIMITED('Формирует canonical timed 0/5 V waveform без AVR timer accuracy.'),
-  noTone: LIMITED('Немедленно останавливает canonical tone waveform.'),
+  tone: LIMITED('Создаёт сигнал 0/5 В заданной частоты; такты таймера AVR не воспроизводятся.'),
+  noTone: LIMITED('Останавливает звуковой сигнал на выводе.'),
   'Servo.h': LIMITED('Подключает встроенный адаптер Servo.'),
   'Servo.attach': LIMITED('Подключает объект Servo к выводу и запускает импульсы 50 Гц.'),
   'Servo.write': LIMITED('Задаёт угол через длительность импульса.'),
@@ -160,15 +154,15 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   abs: SUPPORTED('Абсолютное значение поддерживается.'),
   min: SUPPORTED('Минимум поддерживается.'),
   max: SUPPORTED('Максимум поддерживается.'),
-  millis: LIMITED('Возвращает время текущего шага симуляции.'),
-  micros: LIMITED('Возвращает виртуальное время в микросекундах.'),
+  millis: LIMITED('Возвращает время симуляции в миллисекундах.'),
+  micros: LIMITED('Возвращает время симуляции в микросекундах.'),
   pulseIn: LIMITED('Измеряет длительность HIGH/LOW импульса.'),
   readUltrasonicCm: LIMITED(
-    'Exact built-in adapter для ASA Lab: trigger/echo последовательность поверх pinMode(), digitalWrite(), delayMicroseconds() и pulseIn().',
+    'Измеряет расстояние через trigger/echo; использует pinMode(), digitalWrite(), delayMicroseconds() и pulseIn().',
   ),
   random: SUPPORTED('AVR 1.8.6: повторяемая последовательность; max исключён.'),
   randomSeed: SUPPORTED('Начальное состояние random; ноль сохраняет последовательность.'),
-  'Serial.begin': LIMITED('Задаёт скорость для виртуального монитора порта.'),
+  'Serial.begin': LIMITED('Задаёт скорость порта; побитовый сигнал UART не воспроизводится.'),
   'Serial.print': LIMITED('Выводит число или текст в монитор порта.'),
   'Serial.println': LIMITED('Выводит значение с переводом строки.'),
   'Serial.available': LIMITED('Возвращает число входящих байтов.'),
@@ -205,20 +199,20 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   'type-bool': SUPPORTED('bool и boolean хранят true/false; числовое преобразование даёт 1/0.'),
   'type-byte': SUPPORTED('byte — 8 бит без знака; присваивание целого выполняется по модулю 256.'),
   'type-text': UNSUPPORTED(
-    'char, String и строковые операции не исполняются; quoted literal разрешён только как аргумент Serial.print/println.',
+    'char, String и строковые операции не исполняются; текст в кавычках разрешён только в Serial.print/println.',
   ),
   constant: SUPPORTED(
     'const требует начального значения и запрещает последующие присваивания и инкремент.',
   ),
   assignment: LIMITED(
-    'Типизированные globals и вложенные locals сохраняются через паузы; локальные имена исчезают при выходе из области. Сложные типы пока не поддерживаются.',
+    'Значения переменных сохраняются через паузы; локальные переменные доступны внутри своего блока. Сложные типы не поддерживаются.',
   ),
   if: SUPPORTED('Условие вычисляется, и исполняется подходящая ветвь.'),
   'if-else': SUPPORTED('Исполняется ровно одна ветвь if/else.'),
-  for: LIMITED('Заголовок и тело for исполняются по условию в пределах защитного лимита операций.'),
-  while: LIMITED('Условие while повторяется в пределах защитного лимита операций.'),
+  for: LIMITED('Повторяет тело for с проверкой условия и изменением счётчика.'),
+  while: LIMITED('Повторяет тело while, пока условие истинно.'),
   switch: LIMITED('Целочисленные switch/case/default; объявления ветвей — в блоках.'),
-  'do-while': LIMITED('Тело выполняется до проверки условия; действует защитный лимит операций.'),
+  'do-while': LIMITED('Выполняет тело do/while, затем проверяет условие повторения.'),
   comparison: SUPPORTED('Поддерживаются <, <=, > и >=.'),
   equality: SUPPORTED('Поддерживаются == и !=.'),
   'logical-and': SUPPORTED('Логическое И &&: правая часть не вычисляется при ложной левой.'),
@@ -234,7 +228,7 @@ export type ArduinoLanguageFeature = keyof typeof ARDUINO_LANGUAGE_FEATURE_SUPPO
 export function arduinoTextCommandSupport(command: string): ArduinoBlockSupport {
   return (
     ARDUINO_TEXT_COMMAND_SUPPORT[command as ArduinoTextCommand] ??
-    UNSUPPORTED('Команда не входит в подтверждённый Arduino-рантайм ASA Lab.')
+    UNSUPPORTED('Симулятор пока не исполняет эту команду.')
   );
 }
 
@@ -392,7 +386,7 @@ export function analyseArduinoSourceSupport(
       'unsupported',
       start,
       Math.max(1, match[0].trim().length),
-      'Разрешён только bounded adapter #include <Servo.h>; остальные директивы fail-closed.',
+      'Разрешён только #include <Servo.h>; остальные директивы блокируют запуск.',
     );
   }
 
@@ -412,7 +406,7 @@ export function analyseArduinoSourceSupport(
         'unsupported',
         start,
         Math.max(1, match[0].length - 1),
-        support?.summary ?? `${command}() пока не исполняется Arduino-рантаймом.`,
+        support?.summary ?? `Симулятор пока не исполняет ${command}().`,
       );
     } else if (support.status === 'limited') {
       add('bounded-timing', 'limited', start, Math.max(1, match[0].length - 1), support.summary);
@@ -439,7 +433,7 @@ export function analyseArduinoSourceSupport(
       'unsupported',
       start,
       name.length,
-      knownMessage ?? `${name}() не входит в подтверждённый Arduino-рантайм ASA Lab.`,
+      knownMessage ?? `Симулятор пока не исполняет ${name}().`,
     );
   }
 
@@ -449,7 +443,7 @@ export function analyseArduinoSourceSupport(
       'unsupported',
       match.index ?? 0,
       match[0].length,
-      `${match[0]} не входит в подтверждённое подмножество Arduino C++.`,
+      `Симулятор пока не исполняет ${match[0]}.`,
     );
   }
 
@@ -459,7 +453,7 @@ export function analyseArduinoSourceSupport(
       'unsupported',
       match.index ?? 0,
       match[0].length,
-      `${match[0]} и строковые операции ещё не исполняются Arduino-рантаймом.`,
+      `Симулятор пока не исполняет ${match[0]} и строковые операции.`,
     );
   }
 
@@ -471,7 +465,7 @@ export function analyseArduinoSourceSupport(
     {
       expression: /\b(?:for|while)\s*\(/gi,
       code: 'bounded-control-flow',
-      message: 'Цикл исполняется по условию в пределах защитного лимита операций.',
+      message: 'Повторяет команды, пока условие истинно.',
     },
     {
       expression: /\banalogWrite\s*\(/gi,
@@ -481,29 +475,29 @@ export function analyseArduinoSourceSupport(
     {
       expression: /\b(?:tone|noTone)\s*\(/gi,
       code: 'bounded-timing',
-      message: 'tone/noTone используют canonical timed waveform без AVR timer accuracy.',
+      message:
+        'tone() задаёт частоту сигнала 0/5 В, noTone() выключает его; такты таймера AVR не воспроизводятся.',
     },
     {
       expression: /\bpulseIn\s*\(/gi,
       code: 'bounded-timing',
-      message: 'pulseIn() ждёт canonical входные фронты и timeout без AVR cycle accuracy.',
+      message:
+        'pulseIn() ждёт импульс HIGH/LOW и возвращает его длительность; по таймауту возвращает 0.',
     },
     {
       expression: /\breadUltrasonicCm\s*\(/gi,
       code: 'bounded-timing',
-      message:
-        'readUltrasonicCm() поддержан только как exact built-in adapter ASA Lab поверх canonical GPIO/delay/pulseIn.',
+      message: 'readUltrasonicCm() измеряет расстояние через выводы trigger/echo.',
     },
     {
       expression: /\b(?:millis|micros)\s*\(/gi,
       code: 'runtime-clock',
-      message: 'millis()/micros() возвращают детерминированное время текущего шага симуляции.',
+      message: 'millis() возвращает миллисекунды, micros() — микросекунды времени симуляции.',
     },
     {
       expression: /(?:\+\+|--)/g,
       code: 'increment',
-      message:
-        'Префиксные и постфиксные ++/-- поддерживаются в выражениях для изменяемых скалярных переменных; const и bool изменять нельзя.',
+      message: '++ увеличивает переменную на 1, -- уменьшает; const и bool изменять нельзя.',
     },
   ];
   for (const pattern of limitedPatterns) {

@@ -1,5 +1,5 @@
 // Real production panel in Chromium; intercepted fixture origin, no listening server.
-/* global window */
+/* global window, process, console */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -153,6 +153,31 @@ try {
       );
       await page.screenshot({ path: resolve(output, `${name}-${width}.png`) });
       const notice = await page.evaluate(() => window.notices.at(-1));
+      if (phase === 'after') {
+        const blockers = diagnostics.filter((item) => item.status === 'unsupported').length;
+        const notes = diagnostics.length - blockers;
+        assert.ok(expanded.includes(`Блокирующих: ${blockers}`));
+        assert.ok(expanded.includes(`Примечаний: ${notes}`));
+        assert.ok(!/упрощённо|ограничениями модели|Ограничений:/.test(expanded + notice));
+        if (blockers) {
+          if (width === 1440) assert.ok(expanded.includes('Моделирование заблокировано'));
+          assert.ok(expanded.includes('перед запуском'));
+          assert.ok(notice.includes(`блокирующих ошибок — ${blockers}`));
+          assert.ok(structures.cases[name].runtime.diagnostics.length > 0);
+        } else {
+          assert.deepEqual(structures.cases[name].runtime.diagnostics, []);
+          assert.ok(
+            notes
+              ? notice.includes('можно запускать')
+              : notice.includes('ошибок для симулятора не найдено'),
+          );
+          if (notes) assert.ok(expanded.includes('не блокируют запуск'));
+        }
+        assert.equal(
+          await page.locator('.arduino-code-check-messages button').count(),
+          diagnostics.length,
+        );
+      }
       let generated = null;
       if (name === 'supported') {
         await page.locator('.arduino-mode-menu summary').click();
@@ -212,7 +237,12 @@ try {
     const beforeNative = JSON.parse(
       await readFile(resolve(output, '../before/native.json'), 'utf8'),
     );
-    const immutableNative = (rows) => rows.map(({ expanded, notice, panel, ...row }) => row);
+    const immutableNative = (rows) =>
+      rows.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).filter(([key]) => !['expanded', 'notice', 'panel'].includes(key)),
+        ),
+      );
     assert.deepEqual(
       immutableNative(receipts),
       immutableNative(beforeNative),

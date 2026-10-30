@@ -223,9 +223,9 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('analyseArduinoSourceSupport(source)');
     expect(panelSource).toContain('<strong>Проверка кода</strong>');
     expect(panelSource).toContain('Блокирующих: {unsupportedCount}');
-    expect(panelSource).toContain('Ограничений: {limitedCount}');
+    expect(panelSource).toContain('Примечаний: {limitedCount}');
     expect(panelSource).toContain('Моделирование заблокировано');
-    expect(panelSource).toContain('Это проверка модели ASA Lab, а не компиляция Arduino C++');
+    expect(panelSource).toContain('Это проверка симулятора, не компиляция C++');
     expect(panelSource).toContain('onDiagnosticsOpenChange');
     expect(panelSource).toContain('previousUnsupportedCountRef');
     expect(panelSource).toContain('unsupportedCount > previousCount');
