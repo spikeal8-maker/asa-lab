@@ -1437,3 +1437,14 @@ tests:
     timeout_seconds: 900
     owner: projects
     artifacts: [playwright-report, public-projects-copy-screenshots]
+
+  - id: TST-DEVEX-CI-METRICS-001
+    title: Read-only CI collection, bounded pagination, attempts, honest timing and billing, static DAG coverage and offline JSON reproduction
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: [TASK-DEVEX-ENGINE-001]
+    command: python tools/test_ci_metrics.py
+    timeout_seconds: 60
+    owner: devex-engine
+    artifacts: [test-report]
