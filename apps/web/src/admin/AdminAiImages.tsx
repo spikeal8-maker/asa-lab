@@ -110,18 +110,7 @@ export function AdminAiImages({
   return (
     <section className="asa-image-settings-panel" aria-label="Настройки изображений">
       <header className="asa-image-panel-heading">
-        <div>
-          <h3>Локальная генерация</h3>
-          <p>Профиль модели и доступные размеры</p>
-        </div>
-        <span
-          className={
-            'asa-image-state ' + (config?.ready && config.enabled ? 'is-ready' : 'is-warning')
-          }
-          role="status"
-        >
-          {config?.ready && config.enabled ? 'Готово' : 'Требуется настройка'}
-        </span>
+        <h3>Настройки генерации</h3>
       </header>
 
       {config ? (
@@ -155,14 +144,16 @@ export function AdminAiImages({
             </label>
           </div>
 
-          <p className="asa-image-profile-status" role="status">
-            {dirty
-              ? 'Профиль или лимиты изменены — сохраните настройки для повторной проверки.'
-              : config.ready
-                ? 'Сохранённый профиль совместим с узлами и файлами ComfyUI.'
-                : 'Генерация не готова: ' +
-                  (config.reason || 'проверьте подключение и файлы модели')}
-          </p>
+          {dirty || !config.ready || !config.enabled ? (
+            <p className="asa-image-profile-status" role="status">
+              {dirty
+                ? 'Сохраните изменения для проверки.'
+                : config.reason === 'disabled' || (!config.enabled && config.ready)
+                  ? 'Генерация выключена.'
+                  : 'Генерация не готова: ' +
+                    (config.reason || 'проверьте подключение и файлы модели')}
+            </p>
+          ) : null}
           {mismatch && recipe === 'flux2-klein-4b-v1' ? (
             <p className="asa-image-suggestion">
               Требуемый FP4-энкодер не найден. Если на GPU установлен qwen_3_4b.safetensors,
@@ -170,13 +161,8 @@ export function AdminAiImages({
             </p>
           ) : null}
 
-          <details className="asa-image-settings-details">
-            <summary>
-              Размеры и лимиты
-              <span>
-                {sizes.length} форматов · {limit} / день
-              </span>
-            </summary>
+          <div className="asa-image-settings-details">
+            <strong className="asa-image-details-heading">Размеры и лимиты</strong>
             <div className="asa-image-detail-fields">
               <label>
                 Изображений в день на пользователя
@@ -196,10 +182,11 @@ export function AdminAiImages({
             <fieldset disabled={busy} className="asa-image-presets">
               <legend>Разрешённые размеры</legend>
               <div className="asa-image-preset-grid">
-                {AI_IMAGE_PRESETS.map(({ id: value, label }) => (
-                  <label key={value}>
+                {AI_IMAGE_PRESETS.map(({ id: value, label, width, height }) => (
+                  <label key={value} title={label}>
                     <input
                       type="checkbox"
+                      aria-label={label}
                       checked={sizes.includes(value)}
                       onChange={(event) =>
                         setSizes((previous) =>
@@ -211,17 +198,14 @@ export function AdminAiImages({
                         )
                       }
                     />
-                    <span>{label}</span>
+                    <span>
+                      {width} × {height}
+                    </span>
                   </label>
                 ))}
               </div>
             </fieldset>
-            <small className="asa-image-muted">
-              Лимит обновляется в 00:00 UTC. GPU-проверка и SHA-256 файлов на этом узле не
-              подтверждены. Совместимость не доказывает успешную генерацию.
-            </small>
-          </details>
-
+          </div>
           <footer className="asa-image-form-actions">
             <button type="submit" disabled={busy || !valid}>
               {busy ? 'Сохраняем…' : 'Сохранить настройки'}

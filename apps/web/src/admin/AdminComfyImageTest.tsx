@@ -128,13 +128,7 @@ export function AdminComfyImageTest({
   return (
     <section className="asa-image-preview-panel" aria-label="Пробная генерация">
       <header className="asa-image-panel-heading">
-        <div>
-          <h3>Пробная генерация</h3>
-          <p>Результат через тот же защищённый путь, что и в чате</p>
-        </div>
-        <span className={'asa-image-state ' + (ready ? 'is-ready' : 'is-warning')}>
-          {ready ? 'Готов к тесту' : 'Проверка недоступна'}
-        </span>
+        <h3>Пробная генерация</h3>
       </header>
       <div className="asa-image-preview-body">
         <label>
@@ -188,8 +182,7 @@ export function AdminComfyImageTest({
         {state.notice ? <p role="status">{state.notice}</p> : null}
         {!ready && !loadError ? (
           <p className="asa-image-muted" role="status">
-            Сначала сохраните совместимый профиль генерации. Кнопка не запускает задание, пока
-            сервер не подтвердит готовность.
+            Сохраните готовые настройки, чтобы запустить пробу.
           </p>
         ) : null}
         {job?.state === 'complete' && job.image ? (
@@ -203,14 +196,6 @@ export function AdminComfyImageTest({
           </p>
         ) : null}
       </div>
-      <details className="asa-image-more">
-        <summary>Как работает проверка</summary>
-        <p>
-          Генерация использует персональный диалог, проверяет доступ и дневные лимиты, сохраняет
-          исходное задание и PNG в защищённом хранилище. Неизвестный результат проверяется по ID без
-          повторной отправки на GPU.
-        </p>
-      </details>
       <AiImageGeneration
         headless
         threadId={threadId}

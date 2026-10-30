@@ -109,16 +109,17 @@ afterEach(async () => {
   sessionStorage.clear();
 });
 
-it('shows a compact GPU summary and hidden diagnostics', async () => {
+it('shows the connection controls, detected GPU, and one optional technical section', async () => {
   await act(async () => root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })));
-  expect(host.textContent).toContain('FLUX.2 · ИЗО FP8');
+  expect(host.textContent).toContain('FLUX.2 Klein 4B · профиль ИЗО FP8');
   expect(host.textContent).toContain('RTX 3060');
   expect(host.querySelector('[aria-label="Состояние локальной генерации"]')).not.toBeNull();
-  const details = host.querySelectorAll('.asa-image-connection-detail');
-  expect(details).toHaveLength(2);
-  for (const item of details) expect(item.hasAttribute('open')).toBe(false);
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')).not.toBeNull();
+  const details = host.querySelectorAll('.asa-image-diagnostics');
+  expect(details).toHaveLength(1);
+  expect(details[0]?.hasAttribute('open')).toBe(false);
   const sizes = host.querySelector('.asa-image-settings-details')!;
-  expect(sizes.hasAttribute('open')).toBe(false);
+  expect(sizes.querySelectorAll('input[type="checkbox"]')).toHaveLength(6);
   expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2);
   expect(vi.mocked(adminCall).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
 });
@@ -215,7 +216,7 @@ it.each([
       ),
     );
     expect(host.textContent).toContain('ComfyUI подключён');
-    expect(host.textContent).toContain('Требует настройки');
+    expect(host.textContent).toContain('Профиль не готов');
     const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
       (element) => element.textContent === 'Сгенерировать',
     )!;
@@ -294,9 +295,7 @@ it.each([false, true])(
         .click(),
     );
     const preview = host.querySelector('[aria-label="Пробная генерация"]')!;
-    expect(preview.textContent).toContain(initialReady ? 'Проверка недоступна' : 'Готов к тесту');
-    expect(
-      host.querySelector('[aria-label="Состояние локальной генерации"]')!.textContent,
-    ).toContain(initialReady ? 'Требует настройки' : 'Готов');
+    expect(preview.textContent?.includes('Сохраните готовые настройки')).toBe(initialReady);
+    expect(host.querySelector('.asa-image-profile-status') !== null).toBe(initialReady);
   },
 );

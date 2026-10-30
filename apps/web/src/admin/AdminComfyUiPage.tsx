@@ -30,7 +30,18 @@ function validStatus(value: unknown): value is ComfyUiStatus {
     typeof p.version === 'string' &&
     [p.diffusionModels, p.textEncoders, p.vaeModels].every(
       (models) => Array.isArray(models) && models.every((name) => typeof name === 'string'),
-    )
+    ) &&
+    (p.devices === undefined ||
+      (Array.isArray(p.devices) &&
+        p.devices.every(
+          (device) =>
+            device &&
+            typeof device.name === 'string' &&
+            (device.vramTotalBytes === null ||
+              (typeof device.vramTotalBytes === 'number' &&
+                Number.isFinite(device.vramTotalBytes) &&
+                device.vramTotalBytes >= 0)),
+        )))
   );
 }
 
@@ -217,29 +228,22 @@ export function AdminComfyUiPage({
     imageConfig.ready === true &&
     details?.recipeReady === true &&
     details.recipe === imageConfig.recipe;
-  const gpu = details?.devices?.[0];
+  const gpuSummary = details?.devices?.length
+    ? details.devices
+        .map(
+          (device) =>
+            device.name.replace(/^cuda:\d+\s*/, '') +
+            (device.vramTotalBytes
+              ? ' · ' + (device.vramTotalBytes / 1024 ** 3).toFixed(1) + ' ГБ VRAM'
+              : ''),
+        )
+        .join('; ')
+    : 'GPU не определён';
 
   return (
     <section className="asa-image-workbench" aria-label="Управление генерацией изображений">
       <header className="asa-image-workbench-heading">
-        <div>
-          <h2>Изображения</h2>
-          <p>Источники генерации, настройки и тестовый результат</p>
-        </div>
-        <button
-          type="button"
-          className="asa-image-refresh"
-          disabled={loading || busy}
-          onClick={() => {
-            generation.current++;
-            statusGeneration.current++;
-            setDetails(null);
-            setConnectionVerified(false);
-            setStatusReload((n) => n + 1);
-          }}
-        >
-          Проверить состояние
-        </button>
+        <h2>Изображения</h2>
       </header>
       <div className="asa-image-subtabs" role="tablist" aria-label="Источник генерации">
         <button
@@ -250,7 +254,7 @@ export function AdminComfyUiPage({
           id="asa-image-tab-local-button"
           onClick={() => setTab('local')}
         >
-          Локальный ComfyUI
+          ComfyUI
         </button>
         <button
           type="button"
@@ -265,66 +269,10 @@ export function AdminComfyUiPage({
       </div>
       {tab === 'local' ? (
         <div id="asa-image-tab-local" role="tabpanel" aria-labelledby="asa-image-tab-local-button">
-          <div className="asa-image-overview" aria-label="Состояние локальной генерации">
-            <div>
-              <span>Сервер</span>
-              <strong>
-                {details && connectionVerified
-                  ? 'ComfyUI подключён'
-                  : !error
-                    ? 'Проверяем…'
-                    : 'Нет связи'}
-              </strong>
-              <small>{details ? 'v' + details.version : 'Сохранённое подключение'}</small>
-            </div>
-            <div>
-              <span>Видеокарта</span>
-              <strong>{gpu?.name?.replace(/^cuda:\d+\s*/, '') || 'Не определена'}</strong>
-              <small>
-                {gpu?.vramTotalBytes
-                  ? (gpu.vramTotalBytes / 1024 ** 3).toFixed(1) + ' ГБ VRAM'
-                  : 'Данные GPU'}
-              </small>
-            </div>
-            <div>
-              <span>Профиль генерации</span>
-              <strong className={savedReady ? 'asa-image-ok' : 'asa-image-attention'}>
-                {savedReady ? 'Готов' : imageConfig ? 'Требует настройки' : 'Проверяем…'}
-              </strong>
-              <small>
-                {imageConfig?.recipe === 'flux2-klein-4b-fp8-izo-v1'
-                  ? 'FLUX.2 · ИЗО FP8'
-                  : 'FLUX.2 · исходный FP4'}
-              </small>
-            </div>
-          </div>
-          {error ? (
-            <p role="alert" className="asa-image-error">
-              {error}
-            </p>
-          ) : null}
-          <div className="asa-image-workbench-grid">
-            <AdminAiImages
-              onAccessDenied={onAccessDenied}
-              onConfigChange={onImageConfigChange}
-              refreshToken={statusReload}
-            />
-            {principalId ? (
-              <AdminComfyImageTest
-                principalId={principalId}
-                config={savedReady ? imageConfig : null}
-                refreshToken={statusReload}
-              />
-            ) : null}
-          </div>
-          <details className="asa-image-connection-detail">
-            <summary>
-              Подключение ComfyUI
-              <span>{config?.baseUrl || 'Адрес не загружен'}</span>
-            </summary>
+          <section className="asa-image-connection" aria-label="Подключение ComfyUI">
             <div className="asa-image-connection-fields">
               <label>
-                Адрес сервера
+                Адрес ComfyUI
                 <input
                   aria-label="Адрес ComfyUI"
                   type="url"
@@ -349,7 +297,7 @@ export function AdminComfyUiPage({
                   disabled={loading || busy || !url || !config}
                   onClick={() => void connect(false)}
                 >
-                  Проверить
+                  Проверить адрес
                 </button>
                 <button
                   type="button"
@@ -358,31 +306,64 @@ export function AdminComfyUiPage({
                 >
                   Сохранить адрес
                 </button>
+                <button
+                  type="button"
+                  className="asa-image-refresh"
+                  aria-label="Проверить состояние"
+                  title="Проверить состояние"
+                  disabled={loading || busy}
+                  onClick={() => {
+                    generation.current++;
+                    statusGeneration.current++;
+                    setDetails(null);
+                    setConnectionVerified(false);
+                    setStatusReload((n) => n + 1);
+                  }}
+                >
+                  ↻
+                </button>
               </div>
-              {notice ? <p role="status">{notice}</p> : null}
-              <small>
-                Проверка не выполняет генерацию. Адрес проверяется из API ASA Lab, не из браузера.
-              </small>
-            </div>
-          </details>
-          <details className="asa-image-connection-detail asa-image-diagnostics">
-            <summary>
-              Диагностика ComfyUI
-              <span>
-                {details?.recipeReady === true
-                  ? 'Workflow совместим'
+              <p className="asa-image-connection-status" aria-label="Состояние локальной генерации">
+                {details && connectionVerified
+                  ? 'ComfyUI подключён · v' +
+                    details.version +
+                    ' · ' +
+                    gpuSummary +
+                    (imageConfig && !savedReady ? ' · Профиль не готов' : '')
                   : details
-                    ? 'Проверить профиль'
-                    : 'Нет данных'}
-              </span>
-            </summary>
+                    ? 'Адрес проверен, ещё не сохранён · ' + gpuSummary
+                    : error
+                      ? 'Нет связи с ComfyUI'
+                      : 'Проверяем ComfyUI…'}
+              </p>
+              {error ? (
+                <p role="alert" className="asa-image-error">
+                  {error}
+                </p>
+              ) : null}
+              {notice ? <p role="status">{notice}</p> : null}
+            </div>
+          </section>
+          <div className="asa-image-workbench-grid">
+            <AdminAiImages
+              onAccessDenied={onAccessDenied}
+              onConfigChange={onImageConfigChange}
+              refreshToken={statusReload}
+            />
+            {principalId ? (
+              <AdminComfyImageTest
+                principalId={principalId}
+                config={savedReady ? imageConfig : null}
+                refreshToken={statusReload}
+              />
+            ) : null}
+          </div>
+          <details className="asa-image-connection-detail asa-image-diagnostics">
+            <summary>Технические сведения</summary>
             <div className="asa-image-diagnostic-body">
-              <p role="status">
-                {details?.recipeReady === true
-                  ? 'Сохранённый профиль и workflow ASA совместимы.'
-                  : details?.recipeReady === false
-                    ? 'Связь есть · workflow ASA пока не совместим. ' + (details.recipeReason || '')
-                    : 'Сначала проверьте подключение.'}
+              <p>
+                {details?.recipeReason ||
+                  (details ? 'Проверка файлов выполнена.' : 'Нет данных проверки.')}
               </p>
               <div className="asa-image-file-grid">
                 <div>
@@ -398,10 +379,10 @@ export function AdminComfyUiPage({
                   <strong>{vae || 'Не найден'}</strong>
                 </div>
               </div>
-              <small>
-                Проверка наличия файлов и узлов не заменяет реальный GPU-тест. SHA-256 и размер
-                весов подтверждаются отдельно.
-              </small>
+              <p>
+                FP4: flux-2-klein-4b-fp8.safetensors, qwen_3_4b_fp4_flux2.safetensors,
+                flux2-vae.safetensors. FP8 ИЗО: тот же FLUX, qwen_3_4b.safetensors и VAE.
+              </p>
               <a
                 href="https://github.com/spikeal8-maker/asa-lab/blob/main/docs/deployment/COMFYUI_LOCAL_IMAGES.md"
                 target="_blank"
@@ -409,19 +390,7 @@ export function AdminComfyUiPage({
               >
                 Инструкция: модели, запуск, видеокарта, сеть и перенос
               </a>
-              <details className="asa-image-more">
-                <summary>Какие файлы нужны для FP4 и FP8</summary>
-                <p>
-                  FP4: flux-2-klein-4b-fp8.safetensors, qwen_3_4b_fp4_flux2.safetensors,
-                  flux2-vae.safetensors. FP8 ИЗО: тот же FLUX, qwen_3_4b.safetensors и
-                  flux2-vae.safetensors. Не переименовывайте файлы для обхода проверки.
-                </p>
-              </details>
-              <small>{details?.baseUrl || ''}</small>
-              <small>
-                Сервер изображений {details ? 'Подключено · v' + details.version : 'Нет связи'}
-              </small>
-              <small>{details?.devices?.map((d) => d.name).join('; ') || 'GPU неизвестен'}</small>
+              <small>SHA-256 весов и реальная GPU-генерация не подтверждены.</small>
             </div>
           </details>
         </div>
@@ -455,7 +424,7 @@ export function AdminComfyUiPage({
           </a>
           <p className="asa-image-muted">
             Ключи не вводятся на этой странице до реализации зашифрованного хранения и контроля
-            расходов. Локальный ComfyUI продолжает работать независимо.
+            расходов. ComfyUI продолжает работать независимо.
           </p>
         </section>
       )}

@@ -315,25 +315,25 @@ test('image workbench: responsive settings and an explicit preview', async ({ pa
   const fixture = await imageFixture(page);
   await page.goto('/#/admin/ai?section=comfyui');
 
-  const local = page.getByRole('tab', { name: 'Локальный ComfyUI' });
+  const local = page.getByRole('tab', { name: 'ComfyUI', exact: true });
   const api = page.getByRole('tab', { name: 'API-провайдеры' });
   await expect(local).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByRole('heading', { name: 'Пробная генерация' })).toBeVisible();
-  await expect(page.locator('.asa-image-overview')).toContainText('RTX 3060');
+  await expect(page.getByLabel('Состояние локальной генерации')).toContainText('RTX 3060');
 
   for (const width of [3840, 1440, 1024, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 850 });
-    await expect(page.getByRole('heading', { name: 'Локальная генерация' })).toBeVisible();
-    const collapsed = page.locator('.asa-image-connection-detail');
-    await expect(collapsed).toHaveCount(2);
-    expect(
-      await collapsed.evaluateAll((elements) => elements.every((el) => !el.hasAttribute('open'))),
-    ).toBe(true);
+    await expect(page.getByRole('heading', { name: 'Настройки генерации' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Адрес ComfyUI' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Разрешённые размеры' })).toBeVisible();
+    const technicalDetails = page.locator('.asa-image-diagnostics');
+    await expect(technicalDetails).toHaveCount(1);
+    await expect(technicalDetails).not.toHaveAttribute('open');
     for (const scheme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await noOverflow(page);
       await page.screenshot({
-        path: test.info().outputPath('image-workbench-' + width + '-' + scheme + '.png'),
+        path: test.info().outputPath('image-workbench-' + width + '-os-' + scheme + '.png'),
         fullPage: true,
       });
     }
