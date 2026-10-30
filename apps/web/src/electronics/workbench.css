@@ -2185,7 +2185,7 @@ svg[data-servo-angle-degrees] {
   height: 48px;
   padding: 0 10px;
   color: var(--ink-muted);
-  font-size: 14px;
+  font-size: clamp(11px, 1.1vw, 14px);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -5139,20 +5139,20 @@ html.arduino-palette-resizing * {
   .workbench-toolbar-spacer {
     display: none;
   }
-  .workbench-toolbar > .workbench-simulation-time {
+  .workbench-toolbar .workbench-simulation-time {
     display: flex;
     flex-shrink: 0;
     height: 44px;
-    padding: 0 3px;
+    padding: 0;
     font-size: 11px;
   }
-  .workbench-toolbar > .workbench-simulation-time .workbench-simulation-time-prefix {
+  .workbench-toolbar .workbench-simulation-time-prefix {
     display: none;
   }
   .workbench-toolbar-group.right {
     flex: 0 0 auto;
-    gap: 2px;
-    padding: 0 2px;
+    gap: 0;
+    padding: 0;
     background: #fff;
   }
   .workbench-toolbar-group.right .workbench-pill.emergency-copy,
@@ -6251,14 +6251,15 @@ html.arduino-palette-resizing * {
   min-height: 40px;
 }
 
-/* Keep a full tool target beside the recovery actions on the narrowest phones. */
-@media (max-width: 390px) {
+/* One mobile clock layout also contains the clock nested in the speed control. */
+@media (max-width: 980px) {
   .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-clock-button {
     flex-direction: column;
     justify-content: center;
     gap: 0;
     min-height: 44px;
-    padding: 0 3px;
+    height: 44px;
+    padding: 0;
   }
   .workbench-toolbar > .workbench-simulation-pace .workbench-simulation-time {
     height: 22px;

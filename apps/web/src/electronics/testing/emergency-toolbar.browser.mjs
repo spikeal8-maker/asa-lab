@@ -11,20 +11,20 @@ const before = process.argv.includes('--before');
 const baseline = 'e1be12d19f8669c1145020c756551dd2188ed10f';
 const historical = (path) =>
   execFileSync('git', ['show', `${baseline}:${path}`], { encoding: 'utf8' });
-const output = resolve('test-results/emergency-toolbar-868-r1', before ? 'before' : 'after');
+const output = resolve('test-results/emergency-toolbar-868-r2', before ? 'before' : 'after');
 await mkdir(output, { recursive: true });
 const bundle = await build({
   stdin: {
     resolveDir: resolve('apps/web/src/electronics'),
     loader: 'tsx',
     contents: `import React from 'react';import {createRoot} from 'react-dom/client';import {WorkbenchHeader} from './WorkbenchHeader';import {SimulationPacing} from './simulation-pacing';
-const counts={};const hit=n=>{counts[n]=(counts[n]||0)+1};
-const c={projectTitle:'Очень длинное название проекта с Arduino и электрической схемой '.repeat(3),project:{title:'Схема'},saveStatus:'saved',saveIssue:null,localCopySaved:true,busy:false,selection:{kind:'component'},hasClipboard:true,canUndo:true,canRedo:true,activeWireColor:'#149447',orthogonalWireMode:false,libraryOpen:true,simulationRunning:false,simulationStatus:'stopped',simulationMessage:null,nativeOpticalPresentation:{subscribeClock:()=>()=>{},readClock:()=>3661000000},saveNow:()=>hit('save'),toggleSimulation:()=>hit('run'),exportEmergencyCopy:()=>hit('copy'),setWireColor:()=>hit('wire')};
+let clockMicros=3661000000;const counts={};const hit=n=>{counts[n]=(counts[n]||0)+1};
+const c={projectTitle:'Очень длинное название проекта с Arduino и электрической схемой '.repeat(3),project:{title:'Схема'},saveStatus:'saved',saveIssue:null,localCopySaved:true,busy:false,selection:{kind:'component'},hasClipboard:true,canUndo:true,canRedo:true,activeWireColor:'#149447',orthogonalWireMode:false,libraryOpen:true,simulationRunning:false,simulationStatus:'stopped',simulationMessage:null,nativeOpticalPresentation:{subscribeClock:()=>()=>{},readClock:()=>clockMicros},saveNow:()=>hit('save'),toggleSimulation:()=>hit('run'),exportEmergencyCopy:()=>hit('copy'),setWireColor:()=>hit('wire')};
 for(const name of ['copySelected','pasteCopied','removeSelection','undo','redo','rotateSelected','mirrorSelected','toggleWireRoute','renameProject','setProjectTitle'])c[name]=()=>hit(name);
 const pace=new SimulationPacing();c.simulationPacing=pace;c.setSimulationRate=rate=>{hit('pace');pace.request(rate)};
 const root=createRoot(document.getElementById('app'));let view='breadboard',code=false;
 function render(){root.render(<div className={'workbench-shell'+(c.libraryOpen?'':' library-collapsed')}><WorkbenchHeader controller={c} user={{id:'fixture',displayName:'Проверка',identityKind:'student-seat'}} view={view} codeOpen={code} notesOpen={false} onBack={()=>{}} onViewChange={()=>{}} onToggleNotes={()=>{}} onToggleCode={()=>hit('code')} onToggleLibrary={()=>hit('library')} onOpenShare={()=>{}} onExportView={()=>{}}/><main className="workbench-main" data-testid="stage"/></div>)}
-window.fixture={counts,readPacing:pace.read,set:(state)=>{Object.assign(c,state);if(state.pacing){pace.request(state.pacing.rate);if(state.pacing.phase==='paused')pace.settlePause()}view=state.view??view;code=state.code??code;render()}};render();`,
+window.fixture={counts,readPacing:pace.read,set:(state)=>{Object.assign(c,state);clockMicros=state.clockMicros??3661000000;if(state.pacing){pace.request(state.pacing.rate);if(state.pacing.phase==='paused')pace.settlePause()}view=state.view??view;code=state.code??code;render()}};render();`,
   },
   bundle: true,
   write: false,
@@ -65,7 +65,7 @@ try {
         body: `<!doctype html><meta charset="utf-8"><style>body{margin:0}${css}</style><div id="app"></div><script>${bundle.outputFiles[0].text}</script>`,
       });
     });
-    for (const width of [320, 390, 1024, 1152, 1440]) {
+    for (const width of [320, 390, 391, 400, 480, 768, 980, 981, 1024, 1152, 1440, 1536]) {
       await page.setViewportSize({ width, height: 864 });
       await page.goto('https://toolbar-fixture.invalid/');
       await page.locator('.workbench-toolbar').waitFor();
@@ -73,20 +73,46 @@ try {
         for (const pacing of [
           { running: false, phase: 'running', rate: 1 },
           { running: true, phase: 'running', rate: 1 },
-          ...(width <= 390
-            ? [
-                { running: true, phase: 'pausing', rate: 0 },
-                { running: true, phase: 'paused', rate: 0 },
-                { running: true, phase: 'running', rate: 0.1 },
-                { running: true, phase: 'running', rate: 10 },
-              ]
-            : []),
+          ...[100, 1000].flatMap((clockHours) => [
+            {
+              running: true,
+              phase: 'running',
+              rate: 1,
+              clockHours,
+              edgeOnly: true,
+              geometryOnly: true,
+            },
+            {
+              running: true,
+              phase: 'pausing',
+              rate: 0,
+              clockHours,
+              edgeOnly: true,
+              geometryOnly: true,
+            },
+            {
+              running: true,
+              phase: 'paused',
+              rate: 0,
+              clockHours,
+              edgeOnly: true,
+              geometryOnly: true,
+            },
+          ]),
+          { running: true, phase: 'pausing', rate: 0, edgeOnly: true },
+          { running: true, phase: 'paused', rate: 0, edgeOnly: true },
+          { running: true, phase: 'running', rate: 0.1, edgeOnly: true },
+          { running: true, phase: 'running', rate: 10, edgeOnly: true },
         ])
-          for (const emergency of [false, true]) {
+          for (const emergency of pacing.clockHours ? [true] : [false, true]) {
+            if (pacing.edgeOnly && (!code || !emergency)) continue;
             const { running } = pacing;
             await page.evaluate((state) => window.fixture.set(state), {
               code,
               pacing,
+              clockMicros: pacing.clockHours
+                ? (pacing.clockHours * 3600 + 61) * 1000000
+                : 3661000000,
               simulationRunning: running,
               simulationStatus: running ? 'running' : 'stopped',
               saveStatus: emergency ? 'error' : 'dirty',
@@ -108,6 +134,8 @@ try {
                   h: r.height,
                   display: style.display,
                   visible: style.visibility,
+                  fontSize: style.fontSize,
+                  contentWidth: element.scrollWidth,
                   label: element.getAttribute('aria-label'),
                   unobstructed: element.contains(hit),
                   text: element.textContent,
@@ -167,64 +195,74 @@ try {
                 }
               assert.equal(Boolean(geometry.copy), emergency);
               assert.equal(Boolean(geometry.clock), running);
-              for (const [selector, key] of [
-                ['.save', 'save'],
-                ['.simulate', 'run'],
-                ['.workbench-pill.code', 'code'],
-                ...(emergency ? [['.emergency-copy', 'copy']] : []),
-                ...(width <= 980 ? [['.workbench-mobile-library-toggle', 'library']] : []),
-              ]) {
-                const button = page.locator(selector);
-                const initial = await page.evaluate((k) => window.fixture.counts[k] || 0, key);
-                await button.focus();
-                await page.keyboard.press('Enter');
-                assert.equal(
-                  await page.evaluate((k) => window.fixture.counts[k], key),
-                  initial + 1,
+              if (running)
+                assert.ok(
+                  geometry.clock.text.endsWith(`${pacing.clockHours ?? '01'}:01:01`),
+                  JSON.stringify(geometry.clock),
                 );
-                await button.tap();
+              if (!pacing.geometryOnly) {
+                for (const [selector, key] of [
+                  ['.save', 'save'],
+                  ['.simulate', 'run'],
+                  ['.workbench-pill.code', 'code'],
+                  ...(emergency ? [['.emergency-copy', 'copy']] : []),
+                  ...(width <= 980 ? [['.workbench-mobile-library-toggle', 'library']] : []),
+                ]) {
+                  const button = page.locator(selector);
+                  const initial = await page.evaluate((k) => window.fixture.counts[k] || 0, key);
+                  await button.focus();
+                  await page.keyboard.press('Enter');
+                  assert.equal(
+                    await page.evaluate((k) => window.fixture.counts[k], key),
+                    initial + 1,
+                  );
+                  await button.tap();
+                  assert.equal(
+                    await page.evaluate((k) => window.fixture.counts[k], key),
+                    initial + 2,
+                  );
+                  callbacks += 2;
+                }
+                const firstTool = page
+                  .locator('.workbench-toolbar-group:not(.right) button:not(:disabled)')
+                  .first();
+                await firstTool.scrollIntoViewIfNeeded();
+                const copied = await page.evaluate(() => window.fixture.counts.copySelected || 0);
+                await firstTool.tap();
                 assert.equal(
-                  await page.evaluate((k) => window.fixture.counts[k], key),
-                  initial + 2,
-                );
-                callbacks += 2;
-              }
-              const firstTool = page
-                .locator('.workbench-toolbar-group:not(.right) button:not(:disabled)')
-                .first();
-              await firstTool.scrollIntoViewIfNeeded();
-              const copied = await page.evaluate(() => window.fixture.counts.copySelected || 0);
-              await firstTool.tap();
-              assert.equal(
-                await page.evaluate(() => window.fixture.counts.copySelected),
-                copied + 1,
-              );
-              callbacks++;
-              if (running) {
-                await page.locator('.workbench-simulation-clock-button').tap();
-                await page
-                  .getByRole('dialog', { name: 'Скорость моделирования', exact: true })
-                  .waitFor();
-                if (pacing.phase === 'pausing')
-                  await page
-                    .getByText(
-                      '\u041f\u0440\u0438\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0430\u2026',
-                      { exact: true },
-                    )
-                    .waitFor();
-                await page.keyboard.press('Escape');
-                assert.equal(
-                  await page
-                    .locator('.workbench-simulation-clock-button')
-                    .getAttribute('aria-expanded'),
-                  'false',
+                  await page.evaluate(() => window.fixture.counts.copySelected),
+                  copied + 1,
                 );
                 callbacks++;
+                if (running) {
+                  await page.locator('.workbench-simulation-clock-button').tap();
+                  await page
+                    .getByRole('dialog', { name: 'Скорость моделирования', exact: true })
+                    .waitFor();
+                  if (pacing.phase === 'pausing')
+                    await page
+                      .getByText(
+                        '\u041f\u0440\u0438\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0430\u2026',
+                        { exact: true },
+                      )
+                      .waitFor();
+                  await page.keyboard.press('Escape');
+                  assert.equal(
+                    await page
+                      .locator('.workbench-simulation-clock-button')
+                      .getAttribute('aria-expanded'),
+                    'false',
+                  );
+                  callbacks++;
+                }
               }
             }
             if (code && running && emergency)
               await page.screenshot({
-                path: resolve(output, `${width}-${dpr}-${pacing.phase}-${pacing.rate}.png`),
+                path: resolve(
+                  output,
+                  `${width}-${dpr}-${pacing.phase}-${pacing.rate}-${pacing.clockHours ?? 1}h.png`,
+                ),
               });
           }
     }
