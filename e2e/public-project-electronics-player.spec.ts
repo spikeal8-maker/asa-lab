@@ -6,12 +6,23 @@ import type {
   ElectronicsDocument,
   SchematicComponent,
 } from '../contexts/electronics/domain/document';
-import { e2eAdminPool } from './seed';
+import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { loginWithOrganization } from './organization-login';
+import { restoreNativeChromiumFocus } from './native-chromium-focus';
 
-// A real background tab must become hidden. Chromium headless keeps these
-// targets visible; CI supplies Xvfb for this file's native lifecycle proof.
+// A real background tab must become hidden. CI supplies headed Chromium/Xvfb;
+// the lifecycle segment also removes Playwright's original-agent focus override.
 // Other publication suites retain their configured headless default.
 test.use({ headless: false });
+let author: SeededTeacher;
+test.beforeAll(async () => {
+  const admin = e2eAdminPool();
+  try {
+    author = await seedTeacher(admin, 'public-electronics-player');
+  } finally {
+    await admin.end();
+  }
+});
 
 const EVIDENCE = 'e2e/artifacts/public-projects/electronics-viewer/player';
 const catalog = JSON.parse(
@@ -199,20 +210,10 @@ function circuit(mode: 'passive' | 'button' | 'blink' | 'blocks'): ElectronicsDo
   };
 }
 async function setup(page: Page, document: ElectronicsDocument) {
-  await page.goto('/#/explore');
-  const suffix = randomUUID().replaceAll('-', '');
-  const registered = await page.request.post('/api/auth/register', {
-    headers: origin(page),
-    data: {
-      email: `${suffix}@isolated.test`,
-      username: `pub_${suffix.slice(0, 24)}`,
-      displayName: 'Автор проигрывателя',
-      password: `Player-${suffix}-Password`,
-      birthDate: '1990-01-01',
-      country: 'RU',
-    },
-  });
-  expect(registered.status()).toBe(201);
+  // One adult Account/Principal with verified creator capability is seeded in
+  // the isolated test DB. Each case still logs in normally and owns a new
+  // personal Project; registration throttling is outside playback acceptance.
+  await loginWithOrganization(page, author);
   const created = await page.request.post('/api/projects', {
     headers: { ...origin(page), 'idempotency-key': randomUUID() },
     data: { scope: 'personal', module: 'electronics', title: 'Публичная живая схема' },
@@ -600,6 +601,11 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
           return sample?.workerId === 2 && sample.horizon > 0;
         })
         .toBe(true);
+      await guest.bringToFront();
+      const focusInfrastructure = await restoreNativeChromiumFocus(guest);
+      await expect.poll(() => guest.evaluate(() => document.visibilityState)).toBe('visible');
+      await expect.poll(() => guest.evaluate(() => document.hasFocus())).toBe(true);
+      await expect(guest.getByTestId('public-electronics-start')).toHaveText('Стоп');
       // Real foreground-tab transition supplies native visibility/focus events;
       // fail visibly if this browser cannot exercise background visibility.
       const backgroundAt = await mark(guest);
@@ -678,6 +684,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
             phases,
             fullscreen: { before: beforeFullscreen, after: afterFullscreen },
             background,
+            focusInfrastructure,
             mutations,
             publicSource: artifact,
             immutableAfterRun: true,
