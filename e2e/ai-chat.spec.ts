@@ -1889,6 +1889,10 @@ test('compact chat menus preserve keyboard escape, draft and right alignment', a
   const tools = page.locator('.chat-tools-menu');
   await tools.locator('summary').click();
   const imageMode = tools.getByRole('button', { name: 'Генерация изображений' });
+  const imageLabel = imageMode.locator('.ai-compact-select-name');
+  await expect(imageLabel).toHaveText('Авто');
+  await expect(imageLabel).toHaveCSS('font-size', '13px');
+  expect(await imageLabel.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await imageMode.click();
   const submenu = page.getByRole('listbox', { name: 'Генерация изображений' });
   await expect(submenu).toBeVisible();
@@ -1909,6 +1913,19 @@ test('compact chat menus preserve keyboard escape, draft and right alignment', a
     .click();
   await expect(imageMode).toContainText('Авто');
   await expect(draft).toHaveValue('Сохранённый черновик');
+});
+
+test('compact tool mode keeps the full Auto label at 320px', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 320, height: 700 });
+  await page.goto('/#/ai');
+  await page.locator('.chat-tools-menu summary').click();
+  const label = page
+    .getByRole('button', { name: 'Генерация изображений' })
+    .locator('.ai-compact-select-name');
+  await expect(label).toHaveText('Авто');
+  await expect(label).toHaveCSS('font-size', '13px');
+  expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
 });
 
 for (const width of [1440, 600, 390, 320]) {

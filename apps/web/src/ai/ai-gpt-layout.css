@@ -1431,8 +1431,18 @@
 .asa-ai-layout .chat-tools-option-row > .ai-compact-select {
   flex: 0 1 auto;
   max-width: min(46%, 150px);
+  min-width: 78px;
   margin-inline-start: auto;
   white-space: nowrap;
+}
+.asa-ai-layout .chat-tools-popup .ai-compact-select > .ai-compact-select-name {
+  width: auto;
+  font-size: inherit;
+  text-align: right;
+}
+.asa-ai-layout .chat-tools-popup .ai-compact-select > .ai-compact-select-chevron {
+  width: auto;
+  font-size: 17px;
 }
 .asa-ai-layout .chat-tools-option-row > .ai-compact-select:focus-visible,
 .asa-ai-layout .asa-ai-model-picker.ai-compact-select:focus-visible {
