@@ -79,12 +79,12 @@ class FreshNamespaceTests(unittest.TestCase):
             if os.name == "nt":
                 with patch("deployment.review_transition.subprocess.run") as process:
                     process.return_value.returncode = 0
-                    self.assertEqual(private_destination(root, target), target)
+                    self.assertEqual(private_destination(root, target), target.resolve())
                     process.return_value.returncode = 3
                     with self.assertRaises(Blocked):
                         private_destination(root, target)
             else:
-                self.assertEqual(private_destination(root, target), target)
+                self.assertEqual(private_destination(root, target), target.resolve())
             target.mkdir()
             with self.assertRaises(Blocked):
                 private_destination(root, target)
@@ -163,6 +163,12 @@ class FreshNamespaceTests(unittest.TestCase):
             config = {"services": {name: {"image": image, "volumes": []}
                                    for name in ("postgres", "migration", "minio", "minio-init",
                                                 "api", "web", "scratch", "search")}}
+            config["services"]["api"]["environment"] = dict(env)
+            api_runtime = dict(env)
+            for service, key in (("scratch", "ASA_BLOCKS_PARENT_ORIGIN"),
+                                 ("web", "ASA_BLOCKS_RUNTIME_ORIGIN"),
+                                 ("search", "ASA_SEARCH_SECRET")):
+                config["services"][service]["environment"] = {key: env[key]}
             config["services"]["postgres"]["image"] = "postgres:17.7-bookworm"
             config["services"]["api"]["entrypoint"] = ["/bin/sh", "/workspace/.asa/local-review/api-watch.sh"]
             config["services"]["web"]["entrypoint"] = ["node", "/workspace/node_modules/vite/bin/vite.js",
@@ -197,18 +203,18 @@ class FreshNamespaceTests(unittest.TestCase):
 
                 def container_environment(self, record):
                     if record["id"] == "api":
-                        return dict(env)
+                        return dict(api_runtime)
                     if record["id"] == "postgres":
                         return {key: env[key] for key in ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")}
                     if record["id"] == "minio":
                         return {"MINIO_ROOT_USER": env["ASA_OBJECT_STORAGE_ACCESS_KEY"],
                                 "MINIO_ROOT_PASSWORD": env["ASA_OBJECT_STORAGE_SECRET_KEY"]}
                     if record["id"] == "scratch":
-                        return {"ASA_BLOCKS_PARENT_ORIGIN": env["ASA_BLOCKS_PARENT_ORIGIN"]}
+                        return dict(config["services"]["scratch"]["environment"])
                     if record["id"] == "web":
-                        return {"ASA_BLOCKS_RUNTIME_ORIGIN": env["ASA_BLOCKS_RUNTIME_ORIGIN"]}
+                        return dict(config["services"]["web"]["environment"])
                     if record["id"] == "search":
-                        return {"ASA_SEARCH_SECRET": env["ASA_SEARCH_SECRET"]}
+                        return dict(config["services"]["search"]["environment"])
                     return {}
 
             fake = FakeInstallation()
@@ -228,6 +234,19 @@ class FreshNamespaceTests(unittest.TestCase):
                 inputs = {"overlay_sha256": file_hash(overlay), "database": "asalab_fresh",
                           "bucket": "asa-blocks-fresh", "expected_old_revision": "a" * 40}
                 review_snapshot(fake, **inputs)
+                missing_defaults = ("CLASSROOM_CODE_SECRET", "ASA_STUDENT_CODE_PROTECTION_MODE",
+                                    "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON",
+                                    "ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID",
+                                    "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON",
+                                    "ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID")
+                saved = {key: env.pop(key) for key in missing_defaults}
+                review_snapshot(fake, **inputs)
+                missing_default = missing_defaults[1]
+                config["services"]["api"]["environment"][missing_default] = "changed-default"
+                with self.assertRaises(Blocked):
+                    review_snapshot(fake, **inputs)
+                config["services"]["api"]["environment"][missing_default] = saved[missing_default]
+                env.update(saved)
                 changes = [
                     (config["services"]["postgres"], "image", "postgres:18"),
                     (config["services"]["api"]["volumes"][0], "read_only", False),

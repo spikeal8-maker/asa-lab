@@ -284,6 +284,7 @@ def review_snapshot(install, *, overlay_sha256, database, bucket, expected_old_r
     records = install.identity()
     require(set(records) == set(OLD_SERVICES) and all(item["running"] for item in records.values()),
             "REVIEW_IDENTITY", "Exactly the six known ASA services must be running.")
+    config = json.loads(install.compose("config", "--format", "json", capture=True))
     for service, destination, name in (("postgres", "/var/lib/postgresql/data", "asa-lab-dev_postgres-data"),
                                        ("minio", "/data", "asa-lab-dev_blocks-object-data"),
                                        ("api", "/var/lib/asa-application-logs", "asa-lab-dev_application-logs")):
@@ -296,22 +297,23 @@ def review_snapshot(install, *, overlay_sha256, database, bucket, expected_old_r
     postgres_env = install.container_environment(records["postgres"])
     minio_env = install.container_environment(records["minio"])
     for key in ("APP_DATABASE_URL", "ASA_OBJECT_STORAGE_BUCKET", *PRESERVED_API_KEYS):
-        require(key in install.env and api_env.get(key) == install.env[key], "REVIEW_ENV",
-                f"Running API {key} differs from the private installation configuration.")
+        resolved = config["services"]["api"]["environment"].get(key)
+        require(resolved is not None and api_env.get(key) == resolved
+                and (key not in install.env or resolved == install.env[key]), "REVIEW_ENV",
+                f"Running API {key} differs from the resolved old configuration.")
     require(postgres_env.get("POSTGRES_DB") == install.env["POSTGRES_DB"]
             and postgres_env.get("POSTGRES_USER") == install.env["POSTGRES_USER"]
             and postgres_env.get("POSTGRES_PASSWORD") == install.env["POSTGRES_PASSWORD"]
             and minio_env.get("MINIO_ROOT_USER") == install.env["ASA_OBJECT_STORAGE_ACCESS_KEY"]
             and minio_env.get("MINIO_ROOT_PASSWORD") == install.env["ASA_OBJECT_STORAGE_SECRET_KEY"],
             "REVIEW_ENV", "Running database or object-store credentials/namespace differ.")
-    require(install.container_environment(records["scratch"]).get("ASA_BLOCKS_PARENT_ORIGIN")
-            == install.env["ASA_BLOCKS_PARENT_ORIGIN"]
-            and install.container_environment(records["web"]).get("ASA_BLOCKS_RUNTIME_ORIGIN")
-            == install.env["ASA_BLOCKS_RUNTIME_ORIGIN"]
-            and install.container_environment(records["search"]).get("ASA_SEARCH_SECRET")
-            == install.env["ASA_SEARCH_SECRET"],
-            "REVIEW_ENV", "Running editor, Web or Search origin/secret differs.")
-    config = json.loads(install.compose("config", "--format", "json", capture=True))
+    for service, key in (("scratch", "ASA_BLOCKS_PARENT_ORIGIN"),
+                         ("web", "ASA_BLOCKS_RUNTIME_ORIGIN"), ("search", "ASA_SEARCH_SECRET")):
+        resolved = config["services"][service]["environment"].get(key)
+        require(resolved is not None
+                and install.container_environment(records[service]).get(key) == resolved
+                and (key not in install.env or resolved == install.env[key]), "REVIEW_ENV",
+                f"Running {service} {key} differs from the resolved old configuration.")
     require(set(config["services"]) == {"postgres", "migration", "minio", "minio-init",
                                          "api", "web", "scratch", "search"},
             "REVIEW_SERVICES", "The old review Compose service set differs.")
@@ -672,6 +674,7 @@ def apply_plan(root, *, plan_path, output, reviewed_tool_sha):
                                   database=expected["newDatabase"], bucket=expected["newBucket"],
                                   expected_old_revision=expected["old"]["revision"])
         require(current == expected, "REVIEW_DRIFT", "Old installation changed after the locked plan.")
+        old_resolved = json.loads(old.compose("config", "--format", "json", capture=True))
         release = selected_release(old, plan["release"]["revision"])
         require(release == plan["release"], "REVIEW_RELEASE", "Published release manifest changed.")
         # Pull immutable application images before interrupting any old writer.
@@ -734,14 +737,19 @@ def apply_plan(root, *, plan_path, output, reviewed_tool_sha):
             apply_release_environment(target, release)
             resolved = validate_resolved_images(target, release)
             for key in PRESERVED_API_KEYS:
-                require(resolved["services"]["api"]["environment"].get(key) == old.env[key],
+                require(resolved["services"]["api"]["environment"].get(key)
+                        == old_resolved["services"]["api"]["environment"].get(key),
                         "REVIEW_ENV", f"Target API {key} differs from the preserved private configuration.")
             require(resolved["services"]["scratch"]["environment"].get("ASA_BLOCKS_PARENT_ORIGIN")
-                    == old.env["ASA_BLOCKS_PARENT_ORIGIN"]
+                    == old_resolved["services"]["scratch"]["environment"].get("ASA_BLOCKS_PARENT_ORIGIN")
+                    and resolved["services"]["web"]["environment"].get("ASA_BLOCKS_RUNTIME_ORIGIN")
+                    == old_resolved["services"]["web"]["environment"].get("ASA_BLOCKS_RUNTIME_ORIGIN")
+                    and resolved["services"]["search"]["environment"].get("ASA_SEARCH_SECRET")
+                    == old_resolved["services"]["search"]["environment"].get("ASA_SEARCH_SECRET")
                     and resolved["services"]["postgres"]["environment"].get("POSTGRES_PASSWORD")
-                    == old.env["POSTGRES_PASSWORD"]
+                    == old_resolved["services"]["postgres"]["environment"].get("POSTGRES_PASSWORD")
                     and resolved["services"]["minio"]["environment"].get("MINIO_ROOT_PASSWORD")
-                    == old.env["ASA_OBJECT_STORAGE_SECRET_KEY"], "REVIEW_ENV",
+                    == old_resolved["services"]["minio"]["environment"].get("MINIO_ROOT_PASSWORD"), "REVIEW_ENV",
                     "Target editor/database/object-store values differ from preserved configuration.")
             # The old PostgreSQL container is still attached to the same volume.
             _database_absent(old, expected["newDatabase"])
