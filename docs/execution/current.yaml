@@ -13349,7 +13349,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point14_and_speed21_source_verified_next_mixed_servo_repair
+      checkpoint: remaining20_speed21_integrated_mixed_servo_observation862_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13360,7 +13360,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-SIMULATION-SPEED-001
+      current_slice: TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15095,6 +15095,48 @@ parallel_lanes:
       legacy_oracles: full144673bytes_b98bfe1f_and_controller36314bytes_a78deca9_BYTEquality_default1
       independent_baseline_defect: Issue862_mixedServo_observation_missing_angle_preserved_not_repaired
       report: docs/product/electronics/evidence/simulation-speed-861/GATES.md
+
+  - id: electronics-mixed-servo-observation
+    parent_lane: electronics
+    worktree_id: electronics-mixed-servo-observation
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001.md
+    task:
+      id: TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001
+      issue: 862
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_five_transient_option_boundaries_preserve_decoded_servo_pose
+      owner_acceptance: pending
+      execution_role: new_bounded_solver_executor_then_new_independent_review
+      owner_authorization: Ownercompleteprogramme_and_urgent_realServo_and_mixedcircuit_requirement. Speed861_source_integrateda43a4da3_after_fad679_General41003731109_all4success_independent382tests4native_and_canonical2550tests71freshNx. Separatebaseline862_proven_old9821_byteidentical_replay; decodecorrect_observationmissingangle. Onlyfiveoptionboundaries_no_equation_scheduler_UI_refactor_or_capraise. No_server_liveDB_Docker_foreignchanges.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MIXED-SERVO-OBSERVATION-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: a43a4da3276f7497f64db7f2b8d6e1695c5dd524
+      convergence_baseline_sha: a43a4da3276f7497f64db7f2b8d6e1695c5dd524
+      head_sha: null
+      observed_at: '2026-10-30T05:05:00Z'
+      observation_note: Fresh fetch main before edits. Exact18sourceblobs_match_approvedfad679; maina43General41006367071_inprogress_notPASSclaim. Kernelunchanged9821_diagnostic. Cause_five_stepOption_constructions_lose_servoRuntimeStateById_while_preservingHC_SR04_Ping; maponlyread_for_angleprojection. Newauthorpublishes_before_fullmixed_and_legacyoracles_then_candidatecapsfirst_Arduino1999981of2000000. Preserveallunique_work_and_ownerassets.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
