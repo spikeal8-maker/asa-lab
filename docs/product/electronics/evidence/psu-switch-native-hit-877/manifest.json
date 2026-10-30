@@ -27,6 +27,23 @@
     "native-390.png": "3a5052876c1d9b3d0232206f8ce4b8a81488f115411e500623e0411afdcf1914",
     "native-result.json": "6606124a49c25fb130debbe98e1b584354eb530c09e78431260ab073d27cd4a1",
     "native.mjs": "e8282d4dc31738e0b1e22acd087b9010c10c0708e39a2d788db259776a720301",
-    "README.md": "6b78c13e2a0ce3832a5ea233dd8702bafc2729ac5be12b3d939ef2508206dafa"
+    "README.md": "7e3dfb4894c2ad9588bda788205eaf1ae8ea581d9ad4d90123a5a55866463b16",
+    "composition-guard-877B.log": "67ce11d3160c976a3a0114dc3a26987c682d37da9327be570b9c3fb9a75b0a1a"
+  },
+  "compositionRepair877B": {
+    "parent": "2f9f3d8b7efea8ae688b1d628ffff95bb9f24250",
+    "failedRun": 41077666273,
+    "failureCategory": "B: stale dependent generated spec hash",
+    "generatedBlob": "48cfb6e64b609b1ab1f5e12f3bc8c0f00e838b91",
+    "onlyGeneratedFieldChanged": "generatedFrom.browserEvidenceSha256",
+    "unchangedGitBlobs": {
+      "apps/web/src/electronics/WorkbenchStage.tsx": "a7310ad54f8eac223b05b0d1af5a14a08828672d",
+      "apps/web/src/electronics/ProductionComponentVisual.tsx": "344293bc354c1ad01f0f859acf05e72d265c9688",
+      "e2e/electronics-simulation.spec.ts": "b450bd6d148285008ba226bb688a315f1120eb1a"
+    },
+    "guard": "pnpm validate:electronics-component-information PASS",
+    "nativeRerun": false,
+    "buildRerun": false,
+    "knownOriginalRangeDiffWarning": "focused-tests.log:13 new blank line at EOF; archived bytes preserved"
   }
 }

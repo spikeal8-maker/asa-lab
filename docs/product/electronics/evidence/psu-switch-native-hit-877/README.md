@@ -56,7 +56,9 @@ node docs/product/electronics/evidence/psu-switch-native-hit-877/native.mjs C:/U
 ```
 
 Final focused verification: four suites /74 tests, direct web tsc, targeted ESLint,
-Prettier, `git diff --check`. Final web build ran all7 graph tasks fresh with
+Prettier, and working-tree-only `git diff --check` before staging evidence. The
+committed archived raw `focused-tests.log` has a known new blank line at EOF13
+reported by commit-range diff-check; its original bytes/hash are preserved. Final web build ran all7 graph tasks fresh with
 `NX_SKIP_NX_CACHE=true`,38.4s, cache skipped. All8 fixed bundle caps passed;
 logs are included. An earlier37.1s build passed before the finite-domain correction
 and is not substituted for the final build.
@@ -70,14 +72,29 @@ The final native recheck corrected a fixture expectation: a display:none second
 Stage has zero mounted bounds and correctly emits no clip; two visible Stages
 produce distinct IDs. No source workaround was added for that fixture correction.
 
-Independent exact-source/native/composition review and the single authorized strict
-workflow are pending. Canonical focused/benchmark/browser, whole-editor #544 field
+The original source/native/composition review preceded strict run41077666273 on
+`2f9f3d8b7efea8ae688b1d628ffff95bb9f24250`. That run failed the focused
+step6 component-information guard before tests: composition had preserved the
+f335 spec but omitted regenerating its dependent coverage metadata. Category B:
+`generatedFrom.browserEvidenceSha256` still referenced the old73efacf7 spec hash.
+Browser and benchmark jobs were SKIPPED, not failed product journeys.
+
+Bounded877B repair runs the canonical coverage generator with `--write` and
+changes exactly that generated JSON field to the frozen d9c0c74d hash. Every
+other generated field is identical; generated blob
+`48cfb6e64b609b1ab1f5e12f3bc8c0f00e838b91` exactly matches f335's artifact.
+`pnpm validate:electronics-component-information` passes (full same-CI guard;
+see `composition-guard-877B.log`). Product source, spec, native receipts, screenshots,
+prior build/cap/test logs and protected assets are unchanged. Source proofs remain
+those of2f9f3d8; no source build or native rerun was performed for metadata-only877B.
+
+Fresh metadata/composition review must precede one newly justified strict run. Canonical focused/benchmark/browser, whole-editor #544 field
 boundary/backend persistence and complete16 journey evidence are NOT_RUN here.
 #544/#547 remain OPEN. No mirror AFTER, owner acceptance or release claim.
 
 TASK: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001; ISSUE:877; STATUS: review candidate.
-CI: not run; DEPLOYMENT: not requested; DATABASE_ACTIONS: none; PORTS: none opened.
+CI:41077666273 failed composition guard; new run pending review. DEPLOYMENT: not requested; DATABASE_ACTIONS: none; PORTS: none opened.
 VISIBLE_RESULT: native switch target over ordinary wire hit strokes within the
-bounded live/unoccluded track. MAP_NODES_CHANGED: none. Six pre-existing untracked
-report directories are preserved. NEXT_ALLOWED_TASK: independent review of this
+bounded live/unoccluded track. MAP_NODES_CHANGED: none. Seven pre-existing untracked
+report directories are preserved at877B entry. NEXT_ALLOWED_TASK: independent review of this
 frozen candidate; no automatic next product slice.
