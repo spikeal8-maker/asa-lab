@@ -744,7 +744,7 @@ for (const width of [1440, 390]) {
     expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
     const comfyConnection = page.locator('.asa-image-connection-detail').filter({
-      has: page.locator('summary').getByText('Подключение ComfyUI', { exact: true }),
+      has: page.locator('summary').filter({ hasText: 'Подключение ComfyUI' }),
     });
     await comfyConnection.locator('summary').click();
     await expect(comfyConnection.getByRole('textbox', { name: 'Адрес ComfyUI' })).toHaveValue(
