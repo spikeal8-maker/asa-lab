@@ -13444,7 +13444,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: instrument873_integrated_mirror525_reviewed_before_qualification_dispatched
+      checkpoint: mirror525_before_running_owner_authorized_resize_refactor876_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13455,7 +13455,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
+      current_slice: TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15557,6 +15557,8 @@ parallel_lanes:
       checkpoint: candidate5b622a1_native_review_pass_canonical2566_71fresh_caps8_pass
       accepted_candidate_sha: 5b622a1763548100f3475b5e606d384df538a380
       integrated_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
+      general_ci_run: 41060131759
+      general_ci_result: SUCCESS_all_four_jobs_exact5b622a1
       source_review_evidence: done
       independent_review: APPROVE_exact5b622a1_actualWorker_1440_390_committed_isolation
       report: docs/product/electronics/evidence/instrument-native-projection-873/GATES.md
@@ -15581,6 +15583,44 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T12:49:48Z'
       observation_note: Fresh fetch main before edits; foreignAI metadata only since0e96139, own pending872General-success receipt disjoint. Exactdb232 General41050784162_all4SUCCESS independent16_native_andcanonical2565tests71fresh; 789307f singlecapFAIL696B_no broaderproof_done. New873 depends on real cached525stale0 notmirrorgeometryassumption; existingport hasall measurements, no protocolchange.
+
+  - id: electronics-arduino-resize-dedup
+    parent_lane: electronics
+    worktree_id: electronics-arduino-resize-dedup
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001
+      issue: 876
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: refactor
+      risk: high
+      semantic_change: 'no'
+      checkpoint: owner_explicit_refactoring_selected_two_desktop_resize_handles_only
+      owner_acceptance: pending
+      execution_role: bounded_executor_then_new_independent_reviewer
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-RESIZE-DEDUP-001.md
+      owner_authorization: Explicit owner2026-10-30 refactoring request supersedes previous cleanup deferral for this selected same-file dedup. No server or foreign edits. Prepared865/789 composition remains separate and requires actual cap measurements.
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: b0508299f640f9d08e2d1edbccf480975a0ebf85
+      head_sha: null
+      convergence_baseline_sha: b0508299f640f9d08e2d1edbccf480975a0ebf85
+      observed_at: '2026-10-30T13:35:49Z'
+      observation_note: Fresh fetch main required before writes. Main was clean at b050;873 exact5b622a1 General41060131759 all4SUCCESS. Mirror BEFORE41061516266 running exact8ebe, focused and benchmark PASS, actual browser pending. Readonly source plan identifies duplicated horizontal resize lifecycle, no edits or inferred byte saving. New remote3927f513 contains disjoint AI34paths without dependency or electronics changes; preserve all foreign bytes on convergence.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics

@@ -16,6 +16,11 @@ Reproduce native: node docs/product/electronics/evidence/instrument-native-proje
 
 No mirror geometry/Save, inspector freshness, full journey, General, deployment, owner acceptance or release claims.
 
+Later controller observation: exact-candidate General41060131759 completed
+SUCCESS in all four jobs (governance, code/build, PostgreSQL/RLS and Access
+browser). This updates the historical pending observation below only; it does
+not establish installed or owner acceptance.
+
 Controller final qualification: independent reviewer APPROVE exact5b622a1763548100f3475b5e606d384df538a380, actual production Worker/Stage at1440/390 and source isolation, targeted Prettier PASS. Receipt SHA25680bb38106feb40aa3217de670fb42f3c3c0675e764e02fe2d6e2b93da1c17637; exact-candidate provenance and original author records both retained.
 
 One unchanged-SHA canonical gate: PASS2566tests (1420core/1146web),71fresh Nx tasks (1SDK/43types/27build),three cache-skipped sections with literal NX_SKIP_NX_CACHE=true. Final all8 bundle caps PASS; Arduino1999925/2000000,Editor187859/222000,initialgraph555957/600000. Archived logs and independent raw/PNGs in controller/. General41060131759 remains pending at integration preparation; no repository/release/owner-acceptance claim. Main convergence d5d6019b8 adds AI state only; product candidate bytes remain identical. Timed scope trace remains absent, separate physical161point trace projection only.
