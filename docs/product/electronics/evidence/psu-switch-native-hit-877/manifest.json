@@ -27,8 +27,12 @@
     "native-390.png": "3a5052876c1d9b3d0232206f8ce4b8a81488f115411e500623e0411afdcf1914",
     "native-result.json": "6606124a49c25fb130debbe98e1b584354eb530c09e78431260ab073d27cd4a1",
     "native.mjs": "e8282d4dc31738e0b1e22acd087b9010c10c0708e39a2d788db259776a720301",
-    "README.md": "7e3dfb4894c2ad9588bda788205eaf1ae8ea581d9ad4d90123a5a55866463b16",
-    "composition-guard-877B.log": "67ce11d3160c976a3a0114dc3a26987c682d37da9327be570b9c3fb9a75b0a1a"
+    "README.md": "e4ad0785afa21ffa078d75d837313b2f5b4df86c7aaec7d4fe149065749e815b",
+    "composition-guard-877B.log": "67ce11d3160c976a3a0114dc3a26987c682d37da9327be570b9c3fb9a75b0a1a",
+    "web-electronics-877C.log": "a12863d3321af355322f2ae1bbb5f85de094a1784c58a66d49111e7301ac44a0",
+    "component-info-877C.log": "ad03ce7ead84c9955f911120f812afcca18447395db175eec62a37613cd9c151",
+    "running-frame-review-bd733.json": "a2eae8318e89ea17c77374e08c8be7728b0442d4441a9ad8e65862b4007408de",
+    "running-frame-provenance-bd733.json": "28260aa01d6d5754eae501ff6d92d405f47811be5c8e23ac71fb512257b77d43"
   },
   "compositionRepair877B": {
     "parent": "2f9f3d8b7efea8ae688b1d628ffff95bb9f24250",
@@ -45,5 +49,28 @@
     "nativeRerun": false,
     "buildRerun": false,
     "knownOriginalRangeDiffWarning": "focused-tests.log:13 new blank line at EOF; archived bytes preserved"
+  },
+  "testHarnessRepair877C": {
+    "parent": "bd733f49115fc7c28bcc12db3842b813c930be46",
+    "failedRun": 41078870221,
+    "failedJob": 124142337312,
+    "failedStep": 6,
+    "cause": "extracted VM omitted actual React useRef/useLayoutEffect",
+    "changedTest": "apps/web/src/electronics/testing/instrument-knob-controls.spec.ts",
+    "actualHooksAdded": [
+      "React.useRef",
+      "React.useLayoutEffect"
+    ],
+    "assertionsChanged": false,
+    "unchangedGitBlobs": {
+      "apps/web/src/electronics/WorkbenchStage.tsx": "a7310ad54f8eac223b05b0d1af5a14a08828672d",
+      "apps/web/src/electronics/ProductionComponentVisual.tsx": "344293bc354c1ad01f0f859acf05e72d265c9688",
+      "e2e/electronics-simulation.spec.ts": "b450bd6d148285008ba226bb688a315f1120eb1a",
+      "docs/product/electronics/generated/component-coverage.json": "48cfb6e64b609b1ab1f5e12f3bc8c0f00e838b91"
+    },
+    "fullRegisteredWebSuite": "68 files / 1146 tests PASS, one run,17.33s",
+    "componentInfoGuard": "PASS",
+    "nativeRerun": false,
+    "buildRerun": false
   }
 }

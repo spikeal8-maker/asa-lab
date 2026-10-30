@@ -88,13 +88,39 @@ see `composition-guard-877B.log`). Product source, spec, native receipts, screen
 prior build/cap/test logs and protected assets are unchanged. Source proofs remain
 those of2f9f3d8; no source build or native rerun was performed for metadata-only877B.
 
-Fresh metadata/composition review must precede one newly justified strict run. Canonical focused/benchmark/browser, whole-editor #544 field
+Strict run41078870221 on metadata candidate
+`bd733f49115fc7c28bcc12db3842b813c930be46` passed the component-information guard
+but failed focused job124142337312 step6 in
+`instrument-knob-controls.spec.ts`: its extracted production-function VM had not
+injected the newly required actual React `useRef` and `useLayoutEffect` hooks.
+67 files/1145 tests passed; one failed with `ReferenceError: useRef is not defined`.
+Browser/benchmark were SKIPPED. This is a coupled test-harness composition defect.
+
+Bounded877C adds exactly `React.useRef` and `React.useLayoutEffect` to the existing
+VM context. Effects execute normally; no stub, assertion, product source, spec or
+generated coverage changes. The full registered WebElectronics command
+`pnpm vitest run apps/web/src/electronics/testing` ran once:68 files/1146 tests PASS,
+17.33s, no Nx cache involved. Full component-information guard, targeted ESLint and
+Prettier also PASS; new text logs trim only trailing blank output lines. No native
+or build rerun was performed for this test-only repair.
+
+Supplemental independent actual RUNNING Worker proof is preserved in
+`running-frame-review-bd733.json` and `running-frame-provenance-bd733.json`.
+It covers production Chromium Worker commits at1440/390: native renders140→196
+and132→188 while Editor10→10, Stage11→11, availability3→3 and clip DOM remain
+stable. Its production source Git blobs equal this candidate. It separately
+covers pause, Stop presentation cleanup and rejection of a stale late Worker
+message; reset was not separately asserted and constant-input numeric strings
+were constant. Raw/harness evidence remains unchanged under the named report
+directory; this supplemental proof does not establish backend Save/#544 closure.
+
+Fresh final composition review must precede one newly justified strict run. Canonical focused/benchmark/browser, whole-editor #544 field
 boundary/backend persistence and complete16 journey evidence are NOT_RUN here.
 #544/#547 remain OPEN. No mirror AFTER, owner acceptance or release claim.
 
 TASK: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001; ISSUE:877; STATUS: review candidate.
-CI:41077666273 failed composition guard; new run pending review. DEPLOYMENT: not requested; DATABASE_ACTIONS: none; PORTS: none opened.
+CI:41077666273 failed metadata guard;41078870221 failed extracted-hook test context; new run pending review. DEPLOYMENT: not requested; DATABASE_ACTIONS: none; PORTS: none opened.
 VISIBLE_RESULT: native switch target over ordinary wire hit strokes within the
-bounded live/unoccluded track. MAP_NODES_CHANGED: none. Seven pre-existing untracked
-report directories are preserved at877B entry. NEXT_ALLOWED_TASK: independent review of this
+bounded live/unoccluded track. MAP_NODES_CHANGED: none. Eight pre-existing untracked
+report directories are preserved at877C entry. NEXT_ALLOWED_TASK: independent review of this
 frozen candidate; no automatic next product slice.

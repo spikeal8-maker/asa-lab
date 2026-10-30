@@ -1,0 +1,105 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-code-contract.spec.ts (12 tests) 576ms
+     ✓ initializes Scratch media with the same local directory as the emitted pinned assets  559ms
+ ✓ |parallel| apps/web/src/electronics/testing/seven-segment-optical.spec.ts (15 tests) 1835ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-trace-replay.spec.ts (7 tests) 2023ms
+     ✓ physical-rc: Worker payload converges across request partitions  1221ms
+ ✓ |parallel| apps/web/src/electronics/testing/asset-recovery.spec.ts (41 tests) 2931ms
+     ✓ rejects successful HTTP with invalid SVG and permits a later recovery event  961ms
+     ✓ replays an error delivered before passive setup once through the finite shared recovery  348ms
+ ✓ |parallel| apps/web/src/electronics/testing/owner-asset-manifest.spec.ts (9 tests) 629ms
+     ✓ keeps every imported review asset byte-identical to its archive hash  304ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-command-reference.spec.ts (66 tests) 634ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts (53 tests) 1318ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-project-state.spec.ts (63 tests) 923ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-native-wheel.spec.ts (8 tests) 913ms
+     ✓ preserves both zoom signs, min/max clamps and noncancelable delivery  578ms
+ ✓ |parallel| apps/web/src/electronics/testing/live-simulation.spec.ts (11 tests) 1642ms
+     ✓ fades a directly parallel red LED through the low-current tail of a 10000 uF capacitor  1093ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts (9 tests) 1360ms
+     ✓ writes the complete latest document locally and saves immediately with no input HTTP  454ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-field-drag.spec.ts (35 tests) 1982ms
+     ✓ translates saved (-5216,-10) by pointer motion at zoom 0.5  479ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-worker.spec.ts (34 tests) 5460ms
+     ✓ publishes complete optical history beside the unchanged actual electrical result  470ms
+   ✓ resumes increment-containing blocking calls through production Worker: value=readUltrasonicCm(n++,4);  3797ms
+ ✓ |parallel| apps/web/src/electronics/testing/runtime-conformance.spec.ts (4 tests) 225ms
+ ✓ |parallel| apps/web/src/electronics/testing/component-hit-testing.spec.ts (6 tests) 260ms
+ ✓ |parallel| apps/web/src/electronics/testing/production-assets.spec.ts (9 tests) 276ms
+ ✓ |parallel| apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts (100 tests) 6462ms
+     ✓ forwards the real complete electrothermal/Arduino/RC/motor continuation on a persisted PSU edit and resets only on Stop/Start  418ms
+     ✓ preserves exact first20ms electrical edges and complete canonical state through the bootstrap partition  321ms
+     ✓ 25ms completed observations expose both 50ms blink phases without changing canonical state  2448ms
+     ✓ 25ms completed observations expose both 100ms blink phases without changing canonical state  1968ms
+     ✓ preserves all MCU/RC/heat/damage/motor state and ordered inputs across ready partitions (physical=false)  322ms
+     ✓ preserves all MCU/RC/heat/damage/motor state and ordered inputs across ready partitions (physical=true)  738ms
+ ✓ |parallel| apps/web/src/electronics/testing/led-temporal-presentation.spec.ts (173 tests) 5583ms
+     ✓ keeps complete joint order and half durations for an analytic 150000 us phase at the common pace  336ms
+     ✓ keeps complete joint order and half durations for an analytic 300000 us phase at the common pace  489ms
+     ✓ keeps a real 1ms neighbour visible before, at and after another LED thermally fails  2791ms
+     ✓ bounds only long-case Node retention at2048 while persisting and acknowledging all4096 originals  312ms
+ ✓ |parallel| apps/web/src/electronics/testing/production-editor-integration.spec.ts (22 tests) 875ms
+     ✓ uses one breadboard-authoritative physical scale for every active owner variant  635ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-document.spec.ts (17 tests) 295ms
+ ✓ |parallel| apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts (8 tests) 3982ms
+     ✓ retains mandatory genuine D13 event history when transport drops it = false  2474ms
+     ✓ persists only U/I/value during Run and retains the whole document across Stop/Run and manual Save  339ms
+     ✓ coalesces a burst into the latest normal quiet-minute autosave with no knob HTTP  486ms
+     ✓ does not let an old in-flight save replace the latest U/I or scoped recovery  304ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-worker-piezo.spec.ts (5 tests) 183ms
+ ✓ |parallel| apps/web/src/electronics/testing/production-breadboard.spec.ts (4 tests) 126ms
+ ✓ |parallel| apps/web/src/electronics/testing/servo-native-projection.spec.ts (2 tests) 287ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-servo-blocks.spec.ts (1 test) 8367ms
+     ✓ runs Servo block source through Arduino waveform, circuit and servo-motor angle  8364ms
+ ✓ |parallel| apps/web/src/electronics/testing/native-led-diagnostic.spec.ts (1 test) 230ms
+ ✓ |parallel| apps/web/src/electronics/testing/instrument-knob-controls.spec.ts (14 tests) 469ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts (2 tests) 66ms
+ ✓ |parallel| apps/web/src/electronics/testing/owner-runtime-assets.spec.ts (1 test) 94ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-loops.spec.ts (6 tests) 273ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-presentation.spec.ts (20 tests) 252ms
+ ✓ |parallel| apps/web/src/electronics/testing/spst-switch.spec.ts (7 tests) 309ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-serial-monitor.spec.ts (10 tests) 213ms
+ ✓ |parallel| apps/web/src/electronics/testing/resistor-visual.spec.ts (3 tests) 63ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-value-inputs.spec.ts (43 tests) 248ms
+ ✓ |parallel| apps/web/src/electronics/testing/electronics-document-repair.spec.ts (10 tests) 50ms
+ ✓ |parallel| apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts (80 tests) 4784ms
+     ✓ restores normal demand from a real motor clock profile while publishing only actual ready frames  381ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-speed-control.spec.ts (1 test) 177ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-drag-preview.spec.ts (5 tests) 42ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-header-time.spec.ts (1 test) 320ms
+     ✓ floors only the displayed seconds across rollovers and long durations  317ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-geometry.spec.ts (40 tests) 32ms
+ ✓ |parallel| apps/web/src/electronics/testing/wire-psu-native-routing.spec.ts (13 tests) 295ms
+ ✓ |parallel| apps/web/src/electronics/testing/clock-commit-attribution.spec.ts (34 tests) 61ms
+ ✓ |parallel| apps/web/src/electronics/testing/production-state-contracts.spec.ts (14 tests) 26ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts (8 tests) 262ms
+ ✓ |parallel| apps/web/src/electronics/testing/ultrasonic-distance-controls.spec.ts (2 tests) 58ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-autosave.spec.ts (10 tests) 25ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-values.spec.ts (6 tests) 20ms
+ ✓ |parallel| apps/web/src/electronics/testing/instrument-native-projection.spec.ts (1 test) 64ms
+ ✓ |parallel| apps/web/src/electronics/testing/native-optical-presentation.spec.ts (5 tests) 10ms
+ ✓ |parallel| apps/web/src/electronics/testing/component-information.spec.ts (20 tests) 25ms
+ ✓ |parallel| apps/web/src/electronics/testing/electronics-document-merge.spec.ts (6 tests) 14ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-shortcuts.spec.ts (6 tests) 8ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-source-language.spec.ts (5 tests) 11ms
+ ✓ |parallel| apps/web/src/electronics/testing/pir-sensor-controls.spec.ts (1 test) 64ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-failure.spec.ts (14 tests) 40ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-annotations.spec.ts (5 tests) 19ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-program-state.spec.ts (6 tests) 8ms
+ ✓ |parallel| apps/web/src/electronics/testing/diagnostic-presentation.spec.ts (2 tests) 7ms
+ ✓ |parallel| apps/web/src/electronics/testing/simulation-pacing.spec.ts (7 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts (2 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/servo-visual.spec.ts (2 tests) 9ms
+ ✓ |parallel| apps/web/src/electronics/testing/electronics-project-recovery.spec.ts (7 tests) 35ms
+ ✓ |parallel| apps/web/src/electronics/testing/gearmotor-information.spec.ts (2 tests) 7ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-selection.spec.ts (3 tests) 8ms
+ ✓ |parallel| apps/web/src/electronics/testing/component-help-content.spec.ts (2 tests) 10ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-block-messages.spec.ts (3 tests) 50ms
+ ✓ |parallel| apps/web/src/electronics/testing/photoresistor-presentation.spec.ts (2 tests) 11ms
+
+ Test Files  68 passed (68)
+      Tests  1146 passed (1146)
+   Start at  18:20:01
+   Duration  17.33s (transform 49.78s, setup 0ms, import 81.23s, tests 57.94s, environment 51.61s)

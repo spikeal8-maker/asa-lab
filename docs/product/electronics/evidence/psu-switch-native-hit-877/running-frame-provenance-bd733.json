@@ -1,0 +1,9 @@
+{
+  "baseline": "8dca228a017620afb60ed5e7125dd7940bf2082a",
+  "head": "bd733f49115fc7c28bcc12db3842b813c930be46",
+  "workerBundleSha256": "342706a6616498c1a0d149bbb01ad859e308cbe2facee2e1d686505e3278c3db",
+  "uiBundleSha256": "3a7b0e8b0d79279d540f2e858242ea127a42217ab1f0490085fb5440d7d571a0",
+  "nativeSourceSha256": "55dc6b56ddb91c39ee923c36fe7970909a474eaac684f557d5616214a6d9924f",
+  "harnessSha256": "e8b45663c30391699df397b767cb47dbd22178b92021c73a2c0afd24f0d5fcfb",
+  "note": "Actual production Worker+Stage; read-only counters; only parent measurement map intentionally empty. Solver-calculation trace projection separately classified from timed Worker (trace suppressed)."
+}
