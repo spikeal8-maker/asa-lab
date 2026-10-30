@@ -616,7 +616,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: image_workbench_856_deployed_test_real_fp8_png_verified
+      checkpoint: polza_stt_853_completion_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization:
@@ -639,6 +639,27 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-POLZA-STT-853
+          issue: 373
+          scope: finish existing PR853 encrypted Polza keys and microphone transcription
+          status: in_progress
+          selected_at: '2026-10-30'
+          source_pr: 853
+          candidate_sha: 57829c509373e02c2087fa9e8eb16bde10f9dd11
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner requests completion and testing of existing PR853 Polza API keys and
+            speech transcription for microphone. Adapt onto current main while preserving
+            accepted ComfyUI workbench and model policies. Resolve migration version collision,
+            prevent transcript loss, and test capture/audio validation with mocked provider.
+            Inventory local transcription honestly; do not install a new engine or download models.
+            Independent review and exact-source gates required. No deployment, live database
+            changes, GPU changes or paid upstream calls without explicit separate authorization.
         - id: ASAI-IMAGE-WORKBENCH-856
           issue: 373
           scope: finish existing PR856 compact image settings and explicit authenticated preview
