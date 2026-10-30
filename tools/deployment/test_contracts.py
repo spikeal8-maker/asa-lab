@@ -499,7 +499,7 @@ class UpdateBoundaryTests(unittest.TestCase):
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "fetch_images"), \
                     patch.object(asa_manager, "selected_source"), patch.object(asa_manager, "Installation", return_value=install), \
                     patch.object(asa_manager, "apply_release_environment"), patch.object(asa_manager, "validate_resolved_images"), \
-                    patch.object(asa_manager, "check_resources"), \
+                    patch.object(asa_manager, "check_resources"), patch.object(asa_manager, "prepare_support_images"), \
                     patch.object(asa_manager, "export_backup", side_effect=Blocked("BACKUP", "disk full", "free space")) as backup, \
                     self.assertRaises(Blocked):
                 asa_manager.update(install)
