@@ -37,6 +37,7 @@ beforeEach(() => {
   vi.mocked(call).mockReset();
   vi.mocked(call).mockResolvedValue({
     ok: false,
+    status: 503,
     error: { code: 'unavailable', message: 'Unavailable' },
   });
   vi.mocked(fetchWithSessionRefresh).mockReset();
