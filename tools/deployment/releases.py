@@ -73,7 +73,7 @@ def fetch_images(release):
             require(revision == release["revision"], "IMAGE_REVISION", f"{service} image revision differs.")
 
 
-_IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}\\Z")
+_IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
 
 
 def prepare_support_images(install, release, config, records, *, fresh=False):
