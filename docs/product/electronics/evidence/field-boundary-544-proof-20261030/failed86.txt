@@ -1,0 +1,89 @@
+1) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › short20: strict real time and acknowledged native evidence
+2) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › short30: strict real time and acknowledged native evidence
+3) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › short50: strict real time and acknowledged native evidence
+4) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › short100: strict real time and acknowledged native evidence
+5) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › long1000: strict real time and acknowledged native evidence
+6) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › long5000: strict real time and acknowledged native evidence › Expect "poll toBeGreaterThanOrEqual"
+7) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › long10000: strict real time and acknowledged native evidence
+8) e2e/electronics-interactions.spec.ts:942:9 › Issue 682 acknowledged native realtime baseline › long20000: strict real time and acknowledged native evidence
+9) e2e/electronics-interactions.spec.ts:5671:7 › interaction: natural precise wire routing › F2 real persistence › F2 SVG layering: native mouse wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals
+10) e2e/electronics-interactions.spec.ts:5671:7 › interaction: natural precise wire routing › F2 real persistence › F2 SVG layering: native touch wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals
+11) e2e/electronics-native-wheel.spec.ts:329:7 › native wheel: local zoom and whole pupil save reopen at 1024px
+12) e2e/electronics-piezo-clock.spec.ts:720:7 › canonical installed original-active native PCM, noTone, Stop and whole Save reopen
+13) e2e/electronics-piezo-clock.spec.ts:720:7 › canonical installed piezo-passive-buzzer native PCM, noTone, Stop and whole Save reopen
+14) e2e/electronics-piezo-clock.spec.ts:720:7 › canonical installed piezo-disc native PCM, noTone, Stop and whole Save reopen
+15) e2e/electronics-ready-cadence.spec.ts:2901:7 › Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions
+16) e2e/electronics-ready-cadence.spec.ts:3420:7 › Owner Arduino execution: no-delay realtime, production frames and painted LEDs
+17) e2e/electronics-ready-cadence.spec.ts:3420:7 › Owner Arduino execution: independent ports, production frames and painted LEDs
+18) e2e/electronics-ready-cadence.spec.ts:4034:5 › Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen
+19) e2e/electronics-ready-cadence.spec.ts:4881:5 › Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness › Expect "poll toBe"
+20) e2e/electronics-ready-cadence.spec.ts:4997:5 › Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases › Expect "poll toBe"
+21) e2e/electronics-ready-cadence.spec.ts:5115:5 › Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history
+22) e2e/electronics-ready-cadence.spec.ts:6864:7 › Classroom D2-D4 next visible slice › Classroom D2-D4: ordered joint LEDs, five delays, Reset and cookies-only saved reopen
+23) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-fit: native outward selection, real DC and whole save reopen at 1440px
+24) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-zoom-group: native outward selection, real DC and whole save reopen at 1440px
+25) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 transform-persistence: native outward selection, real DC and whole save reopen at 1440px
+26) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 running-controls: native outward selection, real DC and whole save reopen at 1440px › Expect "poll toBe"
+27) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-fit: native outward selection, real DC and whole save reopen at 1024px
+28) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-zoom-group: native outward selection, real DC and whole save reopen at 1024px
+29) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 transform-persistence: native outward selection, real DC and whole save reopen at 1024px
+30) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 running-controls: native outward selection, real DC and whole save reopen at 1024px › Expect "poll toBe"
+31) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-fit: native outward selection, real DC and whole save reopen at 390px
+32) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-zoom-group: native outward selection, real DC and whole save reopen at 390px
+33) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 transform-persistence: native outward selection, real DC and whole save reopen at 390px
+34) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 running-controls: native outward selection, real DC and whole save reopen at 390px › Expect "poll toBe"
+35) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-fit: native outward selection, real DC and whole save reopen at 320px
+36) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 stopped-zoom-group: native outward selection, real DC and whole save reopen at 320px
+37) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 transform-persistence: native outward selection, real DC and whole save reopen at 320px
+38) e2e/electronics-selection-outline.spec.ts:1069:9 › E11 running-controls: native outward selection, real DC and whole save reopen at 320px › Expect "poll toBe"
+39) e2e/electronics-simulation.spec.ts:2424:7 › TMP36 temperature-sensor: standalone multimeter and save/reload
+40) e2e/electronics-simulation.spec.ts:2424:7 › TMP36 temperature-sensor: Arduino ADC and save/reload
+41) e2e/electronics-simulation.spec.ts:2496:7 › soil-moisture-sensor: multimeter live moisture and persistence › Expect "poll toBeLessThan"
+42) e2e/electronics-simulation.spec.ts:2496:7 › soil-moisture-sensor: Arduino ADC live moisture and persistence › Expect "poll toBeLessThan"
+43) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1440px seeded none: four instruments through all four rotations › Expect "poll toBeCloseTo"
+44) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1440px seeded x: four instruments through all four rotations › Expect "poll toBeCloseTo"
+45) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1440px seeded y: four instruments through all four rotations › Expect "poll toBeCloseTo"
+46) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1440px seeded xy: four instruments through all four rotations › Expect "poll toBeCloseTo"
+47) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1024px seeded none: four instruments through all four rotations › Expect "poll toBeCloseTo"
+48) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1024px seeded x: four instruments through all four rotations › Expect "poll toBeCloseTo"
+49) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1024px seeded y: four instruments through all four rotations › Expect "poll toBeCloseTo"
+50) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 1024px seeded xy: four instruments through all four rotations › Expect "poll toBeCloseTo"
+51) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 390px seeded none: four instruments through all four rotations › Expect "poll toBeCloseTo"
+52) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 390px seeded x: four instruments through all four rotations › Expect "poll toBeCloseTo"
+53) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 390px seeded y: four instruments through all four rotations
+54) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 390px seeded xy: four instruments through all four rotations › Expect "poll toBeCloseTo"
+55) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 320px seeded none: four instruments through all four rotations
+56) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 320px seeded x: four instruments through all four rotations › Expect "poll toBeCloseTo"
+57) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 320px seeded y: four instruments through all four rotations › Expect "poll toBeCloseTo"
+58) e2e/electronics-simulation.spec.ts:2663:11 › ELECTRONICS-525 complete instrument mirror matrix › 320px seeded xy: four instruments through all four rotations › Expect "poll toBeCloseTo"
+59) e2e/electronics-simulation.spec.ts:4907:7 › compact controls retain full desktop captions and usable Code controls at actual drawer sizes — text — desktop-wide
+60) e2e/electronics-simulation.spec.ts:4907:7 › compact controls retain full desktop captions and usable Code controls at actual drawer sizes — text — desktop-compact
+61) e2e/electronics-simulation.spec.ts:4907:7 › compact controls retain full desktop captions and usable Code controls at actual drawer sizes — blocks-text — all-widths
+62) e2e/electronics-simulation.spec.ts:4907:7 › compact controls retain full desktop captions and usable Code controls at actual drawer sizes — blocks — all-widths
+63) e2e/electronics-simulation.spec.ts:6371:5 › reverse-sign capacitor voltage stays inside I without a stage warning
+64) e2e/electronics-simulation.spec.ts:6556:5 › 6 V incandescent lamp warms into the owner glow and explains its fixed profile › Expect "poll toMatch"
+65) e2e/electronics-simulation.spec.ts:6602:5 › direct DC motor shows calculated signed RPM and calm visual direction › Expect "poll not toBe"
+66) e2e/electronics-simulation.spec.ts:6660:5 › 1:48 gearmotor exposes real settings, output RPM and runtime shaft control › Expect "poll toBeGreaterThan"
+67) e2e/electronics-simulation.spec.ts:6767:5 › gearmotor warning stays on the primary yellow housing instead of a shaft tip
+68) e2e/electronics-simulation.spec.ts:6806:5 › 23 V motor shows local overvoltage, accumulated damage and open failure
+69) e2e/electronics-simulation.spec.ts:7804:5 › ELECTRONICS-E01 AFTER denied local storage never claims a durable local copy
+70) e2e/electronics-simulation.spec.ts:9128:5 › real editor recalculates SPDT, resistor and LED without waiting for persistence
+71) e2e/electronics-simulation.spec.ts:9620:5 › independent and parallel sources keep diagnostics local and expose current direction
+72) e2e/electronics-simulation.spec.ts:9854:5 › MATH-6E seven-segment display uses physical pins and an arbitrary segment mask
+73) e2e/electronics-simulation.spec.ts:9923:5 › MATH-10A1 multimeter measures signed DC voltage with a finite input › Expect "poll toBeCloseTo"
+74) e2e/electronics-simulation.spec.ts:9981:5 › MATH-10A2 multimeter measures series DC current from the owner A button › Expect "poll toBeCloseTo"
+75) e2e/electronics-simulation.spec.ts:10026:5 › MATH-10A3 multimeter measures resistance from the owner R button and blocks powered circuits
+76) e2e/electronics-simulation.spec.ts:10115:5 › MATH-10B regulated supply operates its owner controls and transitions between CC and CV
+77) e2e/electronics-simulation.spec.ts:10202:5 › live supply and oscilloscope controls keep one canonical generation and the saved circuit
+78) e2e/electronics-simulation.spec.ts:10486:7 › ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at 1440px
+79) e2e/electronics-simulation.spec.ts:10486:7 › ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at 1024px
+80) e2e/electronics-simulation.spec.ts:10486:7 › ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at 390px
+81) e2e/electronics-simulation.spec.ts:10486:7 › ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at 320px
+82) e2e/electronics-simulation.spec.ts:10858:5 › live generator waveform and frequency reach the scope calculation without a new generation › Expect "poll toBeLessThan"
+83) e2e/electronics-simulation.spec.ts:10993:5 › multimeter A/V/R changes stay local to one canonical generation
+84) e2e/electronics-simulation.spec.ts:11055:5 › RGB LED visibly mixes the saved 3 V red and blue owner wiring
+85) e2e/electronics-simulation.spec.ts:11086:5 › RGB LED visibly mixes equal 220 ohm green and blue branches at 3 V
+86) e2e/electronics-simulation.spec.ts:11125:5 › RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states
+
+First failure: issue682 short20 timing acceptance expected []; actual edge-lateness/period/phase-duration diagnostic violations (e2e/electronics-interactions.spec.ts:1292:35). No source edits or retry.
+

@@ -1,0 +1,52 @@
+[
+  {
+    "path": "artifact-metadata.json",
+    "bytes": 739,
+    "sha256": "d55726d622f8b6874969386c585dec992ef8b5ce97ba0476207797b02db68571"
+  },
+  {
+    "path": "browser.log.gz",
+    "bytes": 137606,
+    "sha256": "ce4396249bdc9ed712052c976c7a8614fde6fe1cda40039d82294125f83c67ab"
+  },
+  {
+    "path": "extracted-artifact-manifest.json",
+    "bytes": 293864,
+    "sha256": "3172a4b57ad5aef3e83fc2201743069e4a28f315d0a121fc1b578575bfde502b"
+  },
+  {
+    "path": "failed86.txt",
+    "bytes": 13791,
+    "sha256": "737fc167fd517142e762aa19ef838bc282c6087a5433dc996515ad36b9a355d1"
+  },
+  {
+    "path": "field32-index.json",
+    "bytes": 97788,
+    "sha256": "af66e091cf0a53e8cfcd2cf6a89fab776e6104990edfa931e614cd8e1104e69a"
+  },
+  {
+    "path": "field32-raw-and-images.zip",
+    "bytes": 22833424,
+    "sha256": "eb958c13e847465350e221f6b0b0a7aae26563718052d26b3a20b0621172abfd"
+  },
+  {
+    "path": "focused.log.gz",
+    "bytes": 37122,
+    "sha256": "e80a1d462ab35cf2c9846a9d5b15bec43e52a0e552a452e89543ad347f1a02a0"
+  },
+  {
+    "path": "index-proof.py",
+    "bytes": 3998,
+    "sha256": "e81357a3c3f9e59d242f2894c2e14a7708caeb831382f3a717c7211a8a7eafa3"
+  },
+  {
+    "path": "RECEIPT.md",
+    "bytes": 3827,
+    "sha256": "30ba1e5775a9f238cefbef6b76adffae42e6f2b1e51bc08fba9d7b0ea50fc9dc"
+  },
+  {
+    "path": "REVIEW.md",
+    "bytes": 1660,
+    "sha256": "e1934ddd0734d41e6ce5f129d9ff050eadaf2f74fe2363f3720be79815d814da"
+  }
+]
