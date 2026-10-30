@@ -1,0 +1,32 @@
+{
+  "base": "0027b5c1e75d151ebde1c2df734d87eb795b25e3",
+  "nativeReceipts": 91,
+  "sourceSha256": {
+    "WorkbenchStage.tsx": "565e7bc13806ee8e4d1a45a98330dbee4261e6a5812478b8408bdee361164308",
+    "ProductionComponentVisual.tsx": "f771a27974e214807ccf7755db8e32f1f71d486b0c2de66c09925f36dcd8b376"
+  },
+  "frozenSpecBlob": "b450bd6d148285008ba226bb688a315f1120eb1a",
+  "frozenSpecSha256": "d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c",
+  "frozenEvidenceUnchanged": [
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/README.md",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/candidate-full.spec.ts.gz",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/initial-failed-reconstruction.json",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/narrow-browser-result.json",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/narrow-browser.mjs",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/original-before.spec.ts.gz",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/typecheck-result.json",
+    "docs/product/electronics/evidence/instrument-525-observer-slider-repair-20261030/typecheck.mjs"
+  ],
+  "artifacts": {
+    "final-bundle-caps.log": "638ab39a8b20c04927b7c2dfce9ddcf3fdc7717d027fd481546516cbfd269c72",
+    "final-web-build.log": "f4a1d706fc8aab43af91a05560252996af0c98cde14154c2d2e06a4706a3e04a",
+    "focused-tests.log": "2f04e53110aaf15e680277585de3bda87c37909f5e781b3c07be1026ec7e8189",
+    "native-1024.png": "03321d9b4ff43803be64099efafb97f09d4157cf983e69780dbb893261e3c819",
+    "native-1440.png": "b88685e1b9cbc018d7296eb3ea0ec0b7475217d704e811f23d7b61b133e5e509",
+    "native-320.png": "ed36e9e4b7594b4b395e76aa39108cea669ca7bf1357206b6176c6d585fc942b",
+    "native-390.png": "3a5052876c1d9b3d0232206f8ce4b8a81488f115411e500623e0411afdcf1914",
+    "native-result.json": "6606124a49c25fb130debbe98e1b584354eb530c09e78431260ab073d27cd4a1",
+    "native.mjs": "e8282d4dc31738e0b1e22acd087b9010c10c0708e39a2d788db259776a720301",
+    "README.md": "6b78c13e2a0ce3832a5ea233dd8702bafc2729ac5be12b3d939ef2508206dafa"
+  }
+}

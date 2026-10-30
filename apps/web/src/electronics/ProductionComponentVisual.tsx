@@ -100,6 +100,7 @@ interface Props {
   readonly onArduinoReset?: (() => void) | undefined;
   readonly onMultimeterModeChange?:
     ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
+  readonly onSupplySwitchAvailability?: ((id: string, available: boolean) => void) | undefined;
   readonly onRegulatedPowerSupplyChange?:
     | ((patch: {
         readonly voltageSetpointVolt?: number;
@@ -1201,6 +1202,7 @@ function OwnerRegulatedPowerSupplyVisual({
   result,
   simulationRunning,
   onChange,
+  onSwitchAvailability,
 }: {
   readonly asset: string;
   readonly width: number;
@@ -1209,6 +1211,7 @@ function OwnerRegulatedPowerSupplyVisual({
   readonly result?: ComponentResult | undefined;
   readonly simulationRunning: boolean;
   readonly onChange?: Props['onRegulatedPowerSupplyChange'];
+  readonly onSwitchAvailability?: Props['onSupplySwitchAvailability'];
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
@@ -1258,6 +1261,30 @@ function OwnerRegulatedPowerSupplyVisual({
       voltageSetpointVolt,
     ],
   );
+  const runtimeRef = useRef<SVGSVGElement>(null);
+  const hasLiveMarkup = Boolean(markup);
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current;
+    const track = runtime?.querySelector<SVGRectElement>(
+      'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
+    );
+    const available = Boolean(
+      hasLiveMarkup &&
+      runtime?.isConnected &&
+      track &&
+      runtime.getAttribute('viewBox') === '0 0 294 237' &&
+      !track.hasAttribute('transform') &&
+      [
+        ['x', 14],
+        ['y', 202],
+        ['width', 67],
+        ['height', 26],
+        ['rx', 13],
+      ].every(([name, value]) => Number(track.getAttribute(String(name))) === value),
+    );
+    onSwitchAvailability?.(component.id, available);
+    return () => onSwitchAvailability?.(component.id, false);
+  }, [component.id, hasLiveMarkup, ownerSvg, onSwitchAvailability]);
   const updateKnob = (
     event: ReactPointerEvent<SVGSVGElement>,
     knob: 'voltage' | 'current',
@@ -1286,6 +1313,7 @@ function OwnerRegulatedPowerSupplyVisual({
     );
   return (
     <svg
+      ref={runtimeRef}
       className="workbench-regulated-supply-runtime"
       data-testid="regulated-power-supply-runtime"
       data-output-enabled={String(outputEnabled)}
@@ -1783,6 +1811,7 @@ export function ProductionComponentVisual({
   onArduinoReset,
   onMultimeterModeChange,
   onRegulatedPowerSupplyChange,
+  onSupplySwitchAvailability,
   onSignalGeneratorChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
@@ -2271,6 +2300,7 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
               onChange={onRegulatedPowerSupplyChange}
+              onSwitchAvailability={onSupplySwitchAvailability}
             />
           ) : entry.key === 'signal-generator' ? (
             <OwnerSignalGeneratorVisual

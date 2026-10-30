@@ -1,0 +1,13 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/wire-psu-native-routing.spec.ts (13 tests) 178ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-presentation.spec.ts (20 tests) 72ms
+ ✓ |parallel| apps/web/src/electronics/testing/instrument-native-projection.spec.ts (1 test) 60ms
+ ✓ |parallel| apps/web/src/electronics/testing/workbench-geometry.spec.ts (40 tests) 26ms
+
+ Test Files  4 passed (4)
+      Tests  74 passed (74)
+   Start at  18:01:05
+   Duration  6.58s (transform 747ms, setup 0ms, import 1.93s, tests 335ms, environment 2.62s)
+

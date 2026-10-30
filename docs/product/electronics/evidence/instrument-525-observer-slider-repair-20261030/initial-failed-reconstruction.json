@@ -1,0 +1,163 @@
+{
+  "classification": "Preserved initial failure, subsequently scale-verified against production source; not a full runtime test",
+  "initialExpectation": "at least one eligible point",
+  "actual": {
+    "classification": "cached failed pose reconstructed in genuine SVG, not full runtime acceptance",
+    "outcome": "Error: No owned supply-power-slider native point",
+    "width": 390,
+    "mirror": "xy",
+    "rawSha256": "906af70de34a0b1c2f4ec7486a06b10b608a051f5f9c1963ca8b9ac0b4bd0eda",
+    "bodyCTM": [
+      -0.5357142857142857,
+      0,
+      0,
+      -0.5357142857142857,
+      234.37500000000003,
+      425.741087777274
+    ],
+    "worldCTM": [
+      0.5357142857142857,
+      0,
+      0,
+      0.5357142857142857,
+      -165.80357142857142,
+      346.1875163487026
+    ],
+    "wireId": "supply-negative",
+    "wire": "M 667 41.25 L 813.5550000000001 36.35",
+    "stroke": 24,
+    "witnesses": [
+      {
+        "name": "supply-power-slider-owned-candidates",
+        "value": {
+          "candidates": [
+            {
+              "x": 217.36607386171818,
+              "y": 368.1518113911152,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 219.70982352644205,
+              "y": 368.1518113911152,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 215.0223241969943,
+              "y": 368.1518113911152,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 217.36607386171818,
+              "y": 369.89288257062435,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 219.70982352644205,
+              "y": 369.89288257062435,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 215.0223241969943,
+              "y": 369.89288257062435,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 217.36607386171818,
+              "y": 366.410740211606,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 219.70982352644205,
+              "y": 366.410740211606,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            },
+            {
+              "x": 215.0223241969943,
+              "y": 366.410740211606,
+              "eligible": false,
+              "hit": "<path class=\"workbench-wire-segment-hit\" vector-effect=\"non-scaling-stroke\" d=\"M 667 41.25 L 813.5550000000001 36.35\"></path>"
+            }
+          ]
+        }
+      },
+      {
+        "name": "fully-covered-owned-candidates",
+        "value": {
+          "candidates": [
+            {
+              "x": 217.36607386171818,
+              "y": 368.1518113911152,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 219.70982352644205,
+              "y": 368.1518113911152,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 215.0223241969943,
+              "y": 368.1518113911152,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 217.36607386171818,
+              "y": 369.89288257062435,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 219.70982352644205,
+              "y": 369.89288257062435,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 215.0223241969943,
+              "y": 369.89288257062435,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 217.36607386171818,
+              "y": 366.410740211606,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 219.70982352644205,
+              "y": 366.410740211606,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            },
+            {
+              "x": 215.0223241969943,
+              "y": 366.410740211606,
+              "eligible": false,
+              "hit": "<rect x=\"0\" y=\"0\" width=\"2000\" height=\"2000\" fill=\"red\"></rect>"
+            }
+          ]
+        }
+      }
+    ],
+    "clicks": []
+  },
+  "scaleConfirmation": {
+    "runtime": "ProductionComponentVisual.tsx SVG viewBox 0 0 294 237, width147 height118.5 =>0.5",
+    "css": "workbench.css max-width980px stroke24; desktop14; raw vector-effect non-scaling-stroke"
+  },
+  "harnessCorrections": [
+    "Initial HTML route lacked UTF-8 charset: corrected proof fixture encoding; no spec change.",
+    "Initial failed-pose filter only supply-negative found4: raw mobileX actually supply-positive, expanded filter to original slider error and preserved actual wire identities."
+  ]
+}

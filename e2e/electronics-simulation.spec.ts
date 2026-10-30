@@ -3123,14 +3123,18 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                 return ledger.length;
               },
             );
-            await target.addInitScript((projectId) => {
+            const installInstrument525Observer = (projectId: string) => {
               const probe = window as unknown as {
+                instrument525ObserverProjectId?: string;
                 instrument525ObserverError: (error: string) => Promise<number>;
                 instrument525DispatchAck: (observation: unknown) => Promise<number>;
                 instrument525DispatchAcks: Promise<number>[];
                 instrument525NativeAck: (event: unknown) => Promise<number>;
                 instrument525NativeAcks: Promise<number>[];
               };
+              if (probe.instrument525ObserverProjectId === projectId) return;
+              if (probe.instrument525ObserverProjectId !== undefined)
+                throw new Error('Observer already installed for another project');
               probe.instrument525DispatchAcks = [];
               const descriptor = Object.getOwnPropertyDescriptor(window, 'fetch')!;
               if (!descriptor || typeof descriptor.value !== 'function')
@@ -3197,7 +3201,18 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                   },
                   { capture: true, passive: true },
                 );
-            }, projectId);
+              probe.instrument525ObserverProjectId = projectId;
+            };
+            await target.addInitScript(installInstrument525Observer, projectId);
+            await target.evaluate(installInstrument525Observer, projectId);
+            const observerReady = await target.evaluate(
+              (id) =>
+                (window as unknown as { instrument525ObserverProjectId?: string })
+                  .instrument525ObserverProjectId === id,
+              projectId,
+            );
+            acknowledge('public-observer-ready', { page: pageId, projectId, ready: observerReady });
+            expect(observerReady).toBe(true);
             // Passive Chromium protocol provenance plus the transparent public fetch snapshot above.
             // Neither observer accesses product callbacks or changes the native fetch result/dispatch order.
             const protocol = await target.context().newCDPSession(target);
@@ -4046,27 +4061,15 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               const supply = component(page, 'regulated-power-supply').getByTestId(
                 'regulated-power-supply-runtime',
               );
-              await supply.locator('.workbench-regulated-supply-power-slider').click();
-              await expect(supply).toHaveAttribute('data-output-enabled', 'false');
-              await expect(supply).toHaveAttribute('data-regulation-mode', 'off');
-              await expect(supply.locator('.workbench-regulated-supply-reading')).toHaveText([
-                '5.00 V',
-                '1.000 A',
-              ]);
-              await capture('bench-supply', rotation, 'output-disabled');
-              await supply.locator('.workbench-regulated-supply-power-slider').click();
-              await expect(supply).toHaveAttribute('data-output-enabled', 'true');
-              await focusInstrument('generator');
-              const generator = component(page, 'signal-generator').getByTestId(
-                'signal-generator-runtime',
-              );
-              const clickWaveform = async (waveform: 'triangle' | 'sine') => {
-                const control = generator.locator(`.workbench-signal-generator-${waveform}`);
+              const clickOwnedRect = async (
+                control: import('@playwright/test').Locator,
+                label: string,
+              ) => {
                 const ownedPoint = await control.evaluate((node) => {
                   if (!(node instanceof SVGRectElement) || !node.isConnected)
-                    throw new Error('Missing waveform RECT');
+                    throw new Error('Missing control RECT');
                   const matrix = node.getScreenCTM();
-                  if (!matrix) throw new Error('Missing waveform CTM');
+                  if (!matrix) throw new Error('Missing control CTM');
                   const candidates = [];
                   for (const fy of [0.5, 0.25, 0.75]) {
                     for (const fx of [0.5, 0.25, 0.75]) {
@@ -4091,11 +4094,34 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                     candidates,
                   };
                 });
-                checkpoint(`${waveform}-owned-candidates`, ownedPoint);
-                if (!ownedPoint.selected) throw new Error(`No owned ${waveform} native point`);
+                checkpoint(`${label}-owned-candidates`, ownedPoint);
+                if (!ownedPoint.selected) throw new Error(`No owned ${label} native point`);
                 await page.mouse.click(ownedPoint.selected.x, ownedPoint.selected.y);
               };
-              await clickWaveform('triangle');
+              await clickOwnedRect(
+                supply.locator('.workbench-regulated-supply-power-slider'),
+                'supply-power-slider',
+              );
+              await expect(supply).toHaveAttribute('data-output-enabled', 'false');
+              await expect(supply).toHaveAttribute('data-regulation-mode', 'off');
+              await expect(supply.locator('.workbench-regulated-supply-reading')).toHaveText([
+                '5.00 V',
+                '1.000 A',
+              ]);
+              await capture('bench-supply', rotation, 'output-disabled');
+              await clickOwnedRect(
+                supply.locator('.workbench-regulated-supply-power-slider'),
+                'supply-power-slider',
+              );
+              await expect(supply).toHaveAttribute('data-output-enabled', 'true');
+              await focusInstrument('generator');
+              const generator = component(page, 'signal-generator').getByTestId(
+                'signal-generator-runtime',
+              );
+              await clickOwnedRect(
+                generator.locator('.workbench-signal-generator-triangle'),
+                'triangle',
+              );
               await expect(generator).toHaveAttribute('data-waveform', 'triangle');
               await generator.locator('.workbench-signal-generator-power-slider').click();
               await expect(generator).toHaveAttribute('data-output-enabled', 'false');
@@ -4105,7 +4131,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               await capture('generator', rotation, 'output-disabled');
               await generator.locator('.workbench-signal-generator-power-slider').click();
               await expect(generator).toHaveAttribute('data-output-enabled', 'true');
-              await clickWaveform('sine');
+              await clickOwnedRect(generator.locator('.workbench-signal-generator-sine'), 'sine');
               await expect(generator).toHaveAttribute('data-waveform', 'sine');
             }
             await page
