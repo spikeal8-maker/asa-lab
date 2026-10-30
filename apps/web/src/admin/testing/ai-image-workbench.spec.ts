@@ -1,0 +1,301 @@
+// @vitest-environment jsdom
+import type { AiImageGenerationAdminConfig } from '@asa-lab/contracts';
+import { act, createElement, useEffect } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { call as adminCall } from '../admin-api';
+import { call as apiCall } from '../../api-call';
+import { AdminComfyUiPage } from '../AdminComfyUiPage';
+import { AdminComfyImageTest } from '../AdminComfyImageTest';
+
+const submitted = vi.hoisted(() => vi.fn());
+vi.mock('../admin-api', () => ({ call: vi.fn() }));
+vi.mock('../../api-call', () => ({ call: vi.fn() }));
+vi.mock('../../ai/AiImageGeneration', () => ({
+  imageGenerationStatusShape: (value: { enabled?: boolean; ready?: boolean }) =>
+    typeof value?.enabled === 'boolean' && typeof value?.ready === 'boolean',
+  AiImageGeneration: ({
+    controllerRef,
+    onStateChange,
+  }: {
+    controllerRef: { current: unknown };
+    onStateChange: (state: unknown) => void;
+  }) => {
+    useEffect(() => {
+      controllerRef.current = { submit: submitted, cancel: vi.fn(), follow: vi.fn() };
+      onStateChange({
+        busy: false,
+        canCancel: false,
+        canSubmit: true,
+        sizes: [1024],
+        notice: '',
+      });
+    }, [controllerRef, onStateChange]);
+    return null;
+  },
+}));
+
+const cfg: AiImageGenerationAdminConfig = {
+  configurationVersion: 4,
+  enabled: true,
+  dailyLimit: 30,
+  globalConcurrency: 1,
+  sizes: [1024, 1280],
+  ready: true,
+  reason: null,
+  recipe: 'flux2-klein-4b-fp8-izo-v1',
+};
+const legacy: AiImageGenerationAdminConfig = {
+  ...cfg,
+  ready: false,
+  recipe: 'flux2-klein-4b-v1',
+  reason: 'Для профиля FP4 нет qwen_3_4b_fp4_flux2.safetensors',
+};
+const status = {
+  connected: true,
+  baseUrl: 'http://192.168.1.112:8188',
+  version: '0.19.3',
+  diffusionModels: ['flux-2-klein-4b-fp8.safetensors'],
+  textEncoders: ['qwen_3_4b.safetensors'],
+  vaeModels: ['flux2-vae.safetensors'],
+  fluxKlein4bFound: true,
+  checkedAt: '2026-10-29T12:00:00Z',
+  recipe: 'flux2-klein-4b-fp8-izo-v1',
+  recipeReady: true,
+  recipeReason: null,
+  devices: [{ name: 'cuda:0 NVIDIA GeForce RTX 3060', vramTotalBytes: 12 * 1024 ** 3 }],
+};
+
+let root: Root;
+let host: HTMLDivElement;
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  submitted.mockReset();
+  vi.mocked(apiCall)
+    .mockReset()
+    .mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        enabled: true,
+        ready: true,
+        sizes: [1024, 1280],
+        remainingToday: 30,
+        dailyLimit: 30,
+        reason: null,
+      },
+    });
+  vi.mocked(adminCall)
+    .mockReset()
+    .mockImplementation(async (path) => ({
+      ok: true,
+      status: 200,
+      data:
+        path === '/api/admin/v1/ai/images'
+          ? cfg
+          : path.endsWith('/settings')
+            ? { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' }
+            : status,
+    }));
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  sessionStorage.clear();
+});
+afterEach(async () => {
+  await act(async () => root.unmount());
+  host.remove();
+  vi.unstubAllGlobals();
+  sessionStorage.clear();
+});
+
+it('shows the connection controls, detected GPU, and one optional technical section', async () => {
+  await act(async () => root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })));
+  expect(host.textContent).toContain('FLUX.2 Klein 4B · профиль ИЗО FP8');
+  expect(host.textContent).toContain('RTX 3060');
+  expect(host.querySelector('[aria-label="Состояние локальной генерации"]')).not.toBeNull();
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')).not.toBeNull();
+  const details = host.querySelectorAll('.asa-image-diagnostics');
+  expect(details).toHaveLength(1);
+  expect(details[0]?.hasAttribute('open')).toBe(false);
+  const sizes = host.querySelector('.asa-image-settings-details')!;
+  expect(sizes.querySelectorAll('input[type="checkbox"]')).toHaveLength(6);
+  expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2);
+  expect(vi.mocked(adminCall).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+});
+
+it('separates unconnected API providers without requesting secrets', async () => {
+  await act(async () => root.render(createElement(AdminComfyUiPage, { onAccessDenied: vi.fn() })));
+  const apiTab = [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+    (item) => item.textContent === 'API-провайдеры',
+  )!;
+  await act(async () => apiTab.click());
+  expect(apiTab.getAttribute('aria-selected')).toBe('true');
+  expect(host.textContent).toContain('Polza AI');
+  expect(host.textContent).toContain('Не подключён');
+  expect(host.querySelector('input[type=password]')).toBeNull();
+  expect(host.querySelector('button[aria-label="Генерировать через Polza"]')).toBeNull();
+  expect(vi.mocked(adminCall).mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true);
+});
+
+it('requires an explicit user action before submitting the preview job', async () => {
+  await act(async () =>
+    root.render(createElement(AdminComfyImageTest, { principalId: 'owner-1', config: cfg })),
+  );
+  const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (element) => element.textContent === 'Сгенерировать',
+  )!;
+  expect(button.disabled).toBe(true);
+  expect(submitted).not.toHaveBeenCalled();
+  const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      textarea,
+      'Робот на светлом фоне',
+    );
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(button.disabled).toBe(false);
+  await act(async () => button.click());
+  expect(submitted).toHaveBeenCalledOnce();
+  expect(submitted).toHaveBeenCalledWith('Робот на светлом фоне', 1024);
+  expect(vi.mocked(apiCall).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+});
+
+it('does not submit an image when the saved ComfyUI profile is incompatible', async () => {
+  await act(async () =>
+    root.render(createElement(AdminComfyImageTest, { principalId: 'owner-2', config: legacy })),
+  );
+  const textarea = host.querySelector<HTMLTextAreaElement>('textarea')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      textarea,
+      'Робот',
+    );
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (element) => element.textContent === 'Сгенерировать',
+  )!;
+  expect(button.disabled).toBe(true);
+  expect(submitted).not.toHaveBeenCalled();
+});
+
+it.each([
+  {
+    reason: 'ComfyUI reports the saved model is not ready',
+    recipeReady: false,
+    recipe: 'flux2-klein-4b-fp8-izo-v1',
+  },
+  {
+    reason: 'ComfyUI returned a different profile than the saved configuration',
+    recipeReady: true,
+    recipe: 'flux2-klein-4b-v1',
+  },
+] as const)(
+  'keeps connected but incompatible GPU disabled: $reason',
+  async ({ recipeReady, recipe }) => {
+    const original = vi.mocked(adminCall).getMockImplementation()!;
+    vi.mocked(adminCall).mockImplementation(async (path, init) => {
+      if (path === '/api/admin/v1/ai/comfyui/status')
+        return {
+          ok: true,
+          status: 200,
+          data: {
+            ...status,
+            recipe,
+            recipeReady,
+            recipeReason: recipeReady ? null : 'Missing model',
+          },
+        };
+      return original(path, init);
+    });
+    await act(async () =>
+      root.render(
+        createElement(AdminComfyUiPage, { onAccessDenied: vi.fn(), principalId: 'owner-1' }),
+      ),
+    );
+    expect(host.textContent).toContain('ComfyUI подключён');
+    expect(host.textContent).toContain('Профиль не готов');
+    const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      (element) => element.textContent === 'Сгенерировать',
+    )!;
+    expect(button).toBeDefined();
+    expect(button.disabled).toBe(true);
+    await act(async () => button.click());
+    expect(submitted).not.toHaveBeenCalled();
+    expect(vi.mocked(apiCall).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+  },
+);
+
+it('blocks the preview and explains a rejected personal readiness request', async () => {
+  vi.mocked(apiCall).mockRejectedValue(new TypeError('network lost'));
+  await act(async () =>
+    root.render(createElement(AdminComfyImageTest, { principalId: 'owner-network', config: cfg })),
+  );
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    'Не удалось проверить доступность',
+  );
+  const button = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (element) => element.textContent === 'Сгенерировать',
+  )!;
+  expect(button.disabled).toBe(true);
+  expect(submitted).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  'refreshes preview readiness after endpoint save from ready=%s',
+  async (initialReady) => {
+    let saved = false;
+    const nextUrl = 'http://192.168.1.113:8188';
+    vi.mocked(adminCall).mockImplementation(async (path, init) => {
+      if (path.endsWith('/settings')) {
+        if (init?.method === 'PUT') {
+          saved = true;
+          return {
+            ok: true,
+            status: 200,
+            data: {
+              config: { configurationVersion: 3, baseUrl: nextUrl, source: 'saved' },
+              status: { ...status, baseUrl: nextUrl, recipeReady: !initialReady },
+            },
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          data: { configurationVersion: 2, baseUrl: status.baseUrl, source: 'saved' },
+        };
+      }
+      const ready = saved ? !initialReady : initialReady;
+      return {
+        ok: true,
+        status: 200,
+        data: path.endsWith('/images')
+          ? { ...cfg, ready }
+          : { ...status, baseUrl: saved ? nextUrl : status.baseUrl, recipeReady: ready },
+      };
+    });
+    await act(async () =>
+      root.render(
+        createElement(AdminComfyUiPage, { onAccessDenied: vi.fn(), principalId: 'endpoint-owner' }),
+      ),
+    );
+    const field = host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        field,
+        nextUrl,
+      );
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      [...host.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === 'Сохранить адрес')!
+        .click(),
+    );
+    const preview = host.querySelector('[aria-label="Пробная генерация"]')!;
+    expect(preview.textContent?.includes('Сохраните готовые настройки')).toBe(initialReady);
+    expect(host.querySelector('.asa-image-profile-status') !== null).toBe(initialReady);
+  },
+);

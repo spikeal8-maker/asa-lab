@@ -121,15 +121,25 @@ async function imageFixture(page: Page) {
         revision: 1,
         updatedAt: null,
       });
+    if (path === '/api/admin/v1/ai/comfyui/settings')
+      return json({
+        configurationVersion: 2,
+        baseUrl: 'http://192.168.1.112:8188',
+        source: 'saved',
+      });
     if (path === '/api/admin/v1/ai/comfyui/status')
       return json({
         connected: true,
-        baseUrl: 'http://127.0.0.1:8188',
-        version: '0.42.1',
+        baseUrl: 'http://192.168.1.112:8188',
+        version: '0.19.3',
         diffusionModels: ['flux-2-klein-4b-fp8.safetensors'],
         textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
         vaeModels: ['flux2-vae.safetensors'],
         fluxKlein4bFound: true,
+        recipe: 'flux2-klein-4b-v1',
+        recipeReady: true,
+        recipeReason: null,
+        devices: [{ name: 'cuda:0 NVIDIA GeForce RTX 3060', vramTotalBytes: 12 * 1024 ** 3 }],
         checkedAt: '2026-10-26T09:00:00Z',
       });
     if (path === '/api/admin/v1/ai/generation-policy') {
@@ -272,6 +282,90 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+test('image tab never widens the mobile viewport during keyboard navigation', async ({ page }) => {
+  await imageFixture(page);
+  await page.setViewportSize({ width: 390, height: 850 });
+  await page.goto('/#/admin/ai?section=overview');
+  await page.getByRole('tab', { name: 'Обзор', exact: true }).focus();
+  await page.keyboard.press('End');
+  await expect(page.getByRole('tab', { name: 'Изображения', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  const layout = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    offending: Array.from(document.querySelectorAll('body *'))
+      .filter((element) => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.width > 1 && bounds.left < innerWidth && bounds.right > innerWidth + 1;
+      })
+      .slice(0, 12)
+      .map((element) => ({
+        tag: element.tagName,
+        className: typeof element.className === 'string' ? element.className : '',
+        right: Math.round(element.getBoundingClientRect().right),
+        width: Math.round(element.getBoundingClientRect().width),
+      })),
+  }));
+  expect(layout.scrollWidth, JSON.stringify(layout.offending)).toBeLessThanOrEqual(layout.viewport);
+});
+
+test('image workbench: responsive settings and an explicit preview', async ({ page }) => {
+  const fixture = await imageFixture(page);
+  await page.goto('/#/admin/ai?section=comfyui');
+
+  const local = page.getByRole('tab', { name: 'ComfyUI', exact: true });
+  const api = page.getByRole('tab', { name: 'API-провайдеры' });
+  await expect(local).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Пробная генерация' })).toBeVisible();
+  await expect(page.getByLabel('Состояние локальной генерации')).toContainText('RTX 3060');
+
+  for (const width of [3840, 1440, 1024, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 850 });
+    await expect(page.getByRole('heading', { name: 'Настройки генерации' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Адрес ComfyUI' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Разрешённые размеры' })).toBeVisible();
+    const technicalDetails = page.locator('.asa-image-diagnostics');
+    await expect(technicalDetails).toHaveCount(1);
+    await expect(technicalDetails).not.toHaveAttribute('open');
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await noOverflow(page);
+      await page.screenshot({
+        path: test.info().outputPath('image-workbench-' + width + '-os-' + scheme + '.png'),
+        fullPage: true,
+      });
+    }
+  }
+
+  await api.click();
+  await expect(api).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Polza AI' })).toBeVisible();
+  await expect(page.getByText('Не подключён')).toBeVisible();
+  expect(fixture.imagePosts).toHaveLength(0);
+
+  await local.click();
+  await page
+    .getByRole('textbox', { name: 'Описание тестового изображения' })
+    .fill('Школьный робот на светлом фоне');
+  await page.getByRole('button', { name: 'Сгенерировать' }).click();
+  await expect.poll(() => fixture.imagePosts.length).toBe(1);
+  expect(fixture.imagePosts[0]).toMatchObject({
+    prompt: 'Школьный робот на светлом фоне',
+    size: 1024,
+  });
+  fixture.complete();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
+    timeout: 18000,
+  });
+  await noOverflow(page);
+  await page.screenshot({
+    path: test.info().outputPath('image-workbench-result.png'),
+    fullPage: true,
+  });
+});
+
 test('image intent is a removable token in the same input and preserves the draft', async ({
   page,
 }) => {

@@ -293,7 +293,7 @@ function AiAdminWorkspaceSession({
         </div>
       ) : (
         <div id="ai-panel-comfyui" role="tabpanel" aria-labelledby="ai-tab-comfyui">
-          <AdminComfyUiPage onAccessDenied={onAccessDenied} />
+          <AdminComfyUiPage onAccessDenied={onAccessDenied} principalId={principalId} />
         </div>
       )}
     </div>

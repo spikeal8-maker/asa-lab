@@ -1,0 +1,486 @@
+/* ASA Lab image administration: compact, single-accent controls with details on demand.
+   No transform/zoom resizing and no changes to the global portal shell. */
+.asa-image-workbench {
+  --image-border: var(--ai-border, #d6e1e9);
+  --image-fg: var(--ai-text, #17344a);
+  --image-muted: var(--ai-muted, #587184);
+  --image-surface: var(--ai-surface, #fff);
+  --image-accent: var(--ai-accent, #0879b5);
+  --image-copy-size: clamp(14px, 0.76vw, 17px);
+  --image-caption-size: clamp(12px, 0.63vw, 14px);
+  color: var(--image-fg);
+  display: grid;
+  gap: clamp(12px, 1.35vw, 20px);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+.asa-image-workbench *,
+.asa-image-workbench *::before,
+.asa-image-workbench *::after {
+  box-sizing: border-box;
+}
+.asa-image-workbench-heading,
+.asa-image-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.asa-image-workbench-heading h2 {
+  margin: 0;
+  font-size: clamp(19px, 1.65vw, 25px);
+  line-height: 1.25;
+}
+.asa-image-panel-heading h3 {
+  margin: 0;
+  font-size: clamp(15px, 1.2vw, 18px);
+  line-height: 1.3;
+}
+.asa-image-workbench-heading p,
+.asa-image-panel-heading p {
+  margin: 3px 0 0;
+  font-size: var(--image-copy-size);
+  color: var(--image-muted);
+}
+.asa-image-workbench button,
+.asa-image-workbench select,
+.asa-image-workbench input,
+.asa-image-workbench textarea {
+  font: inherit;
+}
+.asa-image-workbench button {
+  cursor: pointer;
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--image-border);
+  background: var(--image-surface);
+  color: var(--image-fg);
+  padding: 6px 12px;
+  font-weight: 500;
+}
+.asa-image-workbench button:disabled {
+  opacity: 0.52;
+  cursor: default;
+}
+.asa-image-workbench button:not(:disabled):focus-visible,
+.asa-image-workbench select:focus-visible,
+.asa-image-workbench input:focus-visible,
+.asa-image-workbench textarea:focus-visible,
+.asa-image-workbench summary:focus-visible {
+  outline: 2px solid var(--image-accent);
+  outline-offset: 2px;
+}
+.asa-image-workbench a {
+  color: var(--image-accent);
+}
+.asa-image-workbench .asa-image-refresh {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  font-size: 23px;
+  line-height: 1;
+}
+.asa-image-subtabs {
+  display: flex;
+  gap: 5px;
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--image-border);
+  border-radius: 10px;
+  background: var(--ai-muted-surface, #f4f8fb);
+}
+.asa-image-subtabs button[role='tab'] {
+  padding: 8px 14px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--image-muted);
+  white-space: nowrap;
+}
+.asa-image-subtabs button[aria-selected='true'] {
+  background: var(--image-surface);
+  color: var(--image-accent);
+  box-shadow: 0 1px 4px rgb(9 52 80 / 9%);
+  font-weight: 650;
+}
+.asa-image-workbench [role='tabpanel'] {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+.asa-image-overview {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.asa-image-overview > div {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 12px 14px;
+  background: var(--image-surface);
+  border: 1px solid var(--image-border);
+  border-radius: 10px;
+  min-width: 0;
+}
+.asa-image-overview > div > span,
+.asa-image-overview small {
+  font-size: var(--image-caption-size);
+  color: var(--image-muted);
+}
+.asa-image-overview strong {
+  font-size: 13px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.asa-image-ok {
+  color: #227450;
+}
+.asa-image-attention {
+  color: #966020;
+}
+.asa-image-workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+.asa-image-settings-panel,
+.asa-image-preview-panel,
+.asa-image-connection,
+.asa-image-api-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--image-border);
+  background: var(--image-surface);
+  padding: clamp(12px, 1.4vw, 18px);
+  border-radius: 11px;
+}
+.asa-image-state {
+  border-radius: 999px;
+  font-size: var(--image-caption-size);
+  line-height: 1.3;
+  font-weight: 600;
+  padding: 5px 9px;
+  background: #f6f0e6;
+  color: #845b21;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.asa-image-state.is-ready {
+  background: #e7f5ed;
+  color: #216b4c;
+}
+.asa-image-settings-form,
+.asa-image-preview-body {
+  display: grid;
+  gap: 13px;
+}
+.asa-image-settings-fields {
+  display: grid;
+  gap: 10px;
+}
+.asa-image-settings-fields > label,
+.asa-image-detail-fields label,
+.asa-image-preview-body > label,
+.asa-image-preview-controls > label,
+.asa-image-connection-fields > label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--image-copy-size);
+  font-weight: 600;
+}
+.asa-image-settings-fields label.asa-image-enabled-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  font-weight: 500;
+}
+.asa-image-workbench input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  accent-color: var(--image-accent);
+}
+.asa-image-workbench select,
+.asa-image-workbench input[type='url'],
+.asa-image-workbench input[type='number'],
+.asa-image-workbench textarea {
+  width: 100%;
+  min-width: 0;
+  color: var(--image-fg);
+  background: var(--image-surface);
+  border: 1px solid var(--image-border);
+  border-radius: 8px;
+  min-height: 39px;
+  padding: 8px 10px;
+}
+.asa-image-workbench textarea {
+  min-height: 96px;
+  resize: vertical;
+  line-height: 1.55;
+}
+.asa-image-profile-status,
+.asa-image-suggestion,
+.asa-image-action-message,
+.asa-image-preview-body p,
+.asa-image-diagnostic-body p,
+.asa-image-api-panel p {
+  margin: 0;
+  font-size: var(--image-copy-size);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.asa-image-profile-status,
+.asa-image-suggestion {
+  padding-left: 10px;
+  border-left: 2px solid var(--image-border);
+}
+.asa-image-suggestion {
+  color: #895b20;
+}
+.asa-image-settings-details,
+.asa-image-connection-detail,
+.asa-image-more {
+  border: 1px solid var(--image-border);
+  border-radius: 9px;
+  min-width: 0;
+  background: var(--image-surface);
+}
+.asa-image-connection-detail > summary,
+.asa-image-more summary {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 13px;
+  font-size: var(--image-copy-size);
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.asa-image-connection-detail summary span {
+  font-size: var(--image-caption-size);
+  color: var(--image-muted);
+  font-weight: 400;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.asa-image-detail-fields,
+.asa-image-diagnostic-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 13px 13px;
+}
+.asa-image-connection-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.asa-image-connection-fields > :not(label):not(.asa-image-connection-actions) {
+  grid-column: 1 / -1;
+}
+.asa-image-connection-status {
+  margin: 0;
+  font-size: var(--image-copy-size);
+  overflow-wrap: anywhere;
+}
+.asa-image-settings-details {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.asa-image-details-heading {
+  font-size: var(--image-copy-size);
+}
+.asa-image-detail-fields {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+.asa-image-presets {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.asa-image-presets legend {
+  font-size: var(--image-copy-size);
+  font-weight: 600;
+  margin-bottom: 9px;
+}
+.asa-image-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+}
+.asa-image-preset-grid label {
+  display: flex;
+  gap: 8px;
+  align-items: start;
+  padding: 3px 0;
+  font-size: var(--image-copy-size);
+  line-height: 1.4;
+}
+.asa-image-muted {
+  color: var(--image-muted);
+  font-size: var(--image-caption-size);
+  line-height: 1.55;
+}
+.asa-image-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.asa-image-form-actions button[type='submit'],
+.asa-image-preview-controls button:first-of-type:not(:disabled) {
+  background: var(--image-accent);
+  color: #fff;
+  border-color: var(--image-accent);
+}
+.asa-image-unsaved {
+  font-size: var(--image-caption-size);
+  color: #895b20;
+}
+.asa-image-preview-controls {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.asa-image-preview-controls > label {
+  flex: 0 1 145px;
+}
+.asa-image-preview-result {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+  min-width: 0;
+}
+.asa-image-preview-result .ai-generated-image {
+  width: 100%;
+  margin: 0;
+  max-width: 100%;
+}
+.asa-image-preview-result img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.asa-image-preview-result > span {
+  color: var(--image-muted);
+  font-size: var(--image-caption-size);
+}
+.asa-image-more p {
+  padding: 0 12px 12px;
+  margin: 0;
+  font-size: var(--image-copy-size);
+}
+.asa-image-connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.asa-image-file-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.asa-image-file-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--image-border);
+  border-radius: 8px;
+}
+.asa-image-file-grid span {
+  color: var(--image-muted);
+  font-size: var(--image-caption-size);
+}
+.asa-image-file-grid strong {
+  font-size: var(--image-copy-size);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.asa-image-error {
+  color: #9e3737;
+  font-size: var(--image-copy-size);
+  margin: 0;
+}
+.asa-image-api-panel {
+  max-width: 900px;
+}
+.asa-image-api-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.asa-image-api-steps span {
+  border: 1px solid var(--image-border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: var(--image-copy-size);
+}
+@media (max-width: 1080px) {
+  .asa-image-workbench-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 650px) {
+  .asa-image-connection-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-image-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-image-overview > div {
+    padding: 9px 11px;
+  }
+  .asa-image-workbench-heading {
+    flex-wrap: wrap;
+  }
+  .asa-image-file-grid,
+  .asa-image-api-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-image-preset-grid {
+    gap: 4px 8px;
+  }
+  .asa-image-detail-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-image-subtabs {
+    width: 100%;
+  }
+  .asa-image-panel-heading {
+    flex-wrap: wrap;
+  }
+  .asa-image-subtabs button[role='tab'] {
+    flex: 1 1 0;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .asa-image-preview-controls > label {
+    flex: 1 1 100%;
+  }
+  .asa-image-preview-controls button {
+    min-height: 44px;
+  }
+}
