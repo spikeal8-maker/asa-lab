@@ -1,5 +1,5 @@
 {
-  "status": "REPAIRED_SOURCE_FOCUSED_NATIVE_PASS_CANONICAL_PENDING",
+  "status": "CANONICAL_PASS_INDEPENDENT_REVIEW_PENDING",
   "baseline_sha": "7d5f6d93fb8555a6064e01c89a3e54538aa68911",
   "product_blobs": {
     "contexts/electronics/domain/arduino-program-runtime.ts": "24a2e0238dc205a0926349a4e57252c9b3ce9ec4",
@@ -13,6 +13,12 @@
       "sha256": "7c3fe3beaceba49369d215296d0d76c09a30f59a06559717fab6f91b9ae4d7d5",
       "raw_bytes": 1971,
       "raw_sha256": "b905779dd04d37c5c85ef2af922e18c9b16d888d8e346493a959a069ba805cd4"
+    },
+    "bundle-final.log.gz": {
+      "bytes": 435,
+      "sha256": "46dbdaf88b8f8113e5642f57361e3c3e41adcc2f0d76d92e1d4af11ec94d4c1d",
+      "raw_bytes": 726,
+      "raw_sha256": "d597ef2684fa3bd8adb1fb779b31ce92baf4e9cc135abcc9da98b879a8deb1ef"
     },
     "candidate-build.log.gz": {
       "bytes": 4991,
@@ -43,6 +49,12 @@
     "feature-before.mjs.txt": {
       "bytes": 1616,
       "sha256": "6ff70a5cce695830504a26fc80632f761077473be020c03fcca05c9c2bcec69f"
+    },
+    "gate-final.log.gz": {
+      "bytes": 10997,
+      "sha256": "78f471404c59ca693cab59d0694697c216944188eb9768e9cceec0faaffa76f6",
+      "raw_bytes": 46889,
+      "raw_sha256": "251c17891b418accdeb81959c6f1a4b2eb91aa65192d2201ae5358c79c18cccf"
     },
     "gate-first.log.gz": {
       "bytes": 11285,
@@ -97,5 +109,6 @@
       "sha256": "7e0a42aa9bb1a309ef2dab7b94518aba8b5b40705318b5dcbbfc70d876dbde69"
     }
   },
-  "artifact_byte_convention": "Canonical committed Git blobs; gzip raw hashes describe decoded bytes. Worktree CRLF normalization is not artifact corruption."
+  "artifact_byte_convention": "Canonical committed Git blobs; gzip raw hashes describe decoded bytes. Worktree CRLF normalization is not artifact corruption.",
+  "source_sha": "f74194ea85c6a70214c0cb7848d2e37a5ed1e331"
 }
