@@ -1795,3 +1795,13 @@
   align-items: center;
   gap: 5px;
 }
+
+.asa-ai-layout .ai-generated-image .ai-generated-image-actions button[data-copied='true'] {
+  color: #16834f;
+}
+.asa-ai-layout[data-chat-theme='dark']
+  .ai-generated-image
+  .ai-generated-image-actions
+  button[data-copied='true'] {
+  color: #4ade80;
+}
