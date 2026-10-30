@@ -8,6 +8,11 @@ import type {
 } from '../contexts/electronics/domain/document';
 import { e2eAdminPool } from './seed';
 
+// A real background tab must become hidden. Chromium headless keeps these
+// targets visible; CI supplies Xvfb for this file's native lifecycle proof.
+// Other publication suites retain their configured headless default.
+test.use({ headless: false });
+
 const EVIDENCE = 'e2e/artifacts/public-projects/electronics-viewer/player';
 const catalog = JSON.parse(
   readFileSync('apps/web/public/assets/electronics/component-database/catalog.json', 'utf8'),
@@ -270,7 +275,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
       if (mode === 'blocks') {
         // Exercise the production Blockly serializer/generator once, rather than
         // claiming a handwritten workspace or stale text is a generated sketch.
-        await page.goto(`/#/home/${fixture.id}`);
+        await page.goto(`/projects/${encodeURIComponent(fixture.id)}/electronics/edit`);
         await expect(page.locator('.workbench-stage')).toBeVisible();
         await page.locator('.workbench-pill.code').click();
         await expect(page.getByTestId('arduino-block-workspace')).toBeVisible();
