@@ -7814,16 +7814,28 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       evidence: docs/product/projects/evidence/electronics-playback-20261030-acceptance.md
+    - task_id: TASK-PROJ-CATALOG-LAYOUT-001
+      issue: 211
+      pr: 880
+      accepted_candidate_sha: 6bd11e64842baaee28ad72a519f5d0b461ca03a8
+      integrated_sha: c729dbf92c97cf01a8753e17d0ee298d9004054b
+      independent_review: approved
+      exact_candidate_focused_run: 41087156379
+      exact_candidate_general_run: 41087156451
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/catalog-layout-20261030-acceptance.md
     task:
       id: TASK-PROJ-CATALOG-LAYOUT-001
       issue: 211
       branch: main
       candidate_branch: codex/projects-catalog-layout-20261030
       base_branch: main
-      pr: null
+      pr: 880
       pr_draft: false
-      status: in_progress
-      checkpoint: catalog_canonical_compact_layout_selected
+      status: done
+      checkpoint: compact_catalog_layout_technical_accepted_main
       kind: implementation
       risk: medium
       semantic_change: 'no'
