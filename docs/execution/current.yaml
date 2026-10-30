@@ -13349,7 +13349,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_speed21_integrated_mixed_servo_observation862_selected
+      checkpoint: remaining20_speed21_and_mixed_servo862_source_verified_next_slice_selection
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13369,7 +13369,7 @@ parallel_lanes:
       active_requirements_plan: docs/product/electronics/OWNER_REMAINING_PLAN_20.md
       active_numbering: remaining20_new1to20_maps_old45_in_plan_table
       numbering_authorization: Ownerexplicitlyrequestsnewrequirementsliststarting1fromremaining20. Documentationonly; historical45IDsand25verifiedresultsretainedforregression/traceability. No productresume.
-      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Speedslider861_source_fad679_General41003731109_all4SUCCESS_independent382tests4native_and_canonical2550tests71freshNx_allcapsPASS; Remainingplan_otheritems_and_mixedServo862_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
+      execution_coordination: Regression858integrated7d5f_General40984218563success_all4jobs. NewSPSTdefaultOFF_no_blueglow_ordinaryLEDburst_samefirstfailedDOMframe. Remaining20_point6_859_sourcef741_newindependentAPPROVE379tests_native1440_390_and_old25byteoracle; canonical2489tests71freshNxall8capsPASS. Initial0b79rejected_reservedkeyword_admission_fixed_in_boundedrepair; no_pruned_oracle_or_weakened_contracts. Helpers824_24nativecasesremainaccepted; NPN833slowerexperiment_archivednotactive_performanceremainsopen. Speedslider861_source_fad679_General41003731109_all4SUCCESS_independent382tests4native_and_canonical2550tests71freshNx_allcapsPASS; MixedServo862_source84f65_General41009745129_all4SUCCESS_independent222tests4native_and_canonical2556tests71freshNx_on_one_unchanged_retry; Remainingplan_otheritems_open; no_arbitraryCplusplus_installed_or_owneracceptance_claim. No_server_orforeignchanges.
       deployment: prohibited_by_owner
       database_actions: none_live
     previous_task:
@@ -15107,11 +15107,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_five_transient_option_boundaries_preserve_decoded_servo_pose
+      checkpoint: independently_verified_five_boundary_pose_forwarding_and_General_success
       owner_acceptance: pending
       execution_role: new_bounded_solver_executor_then_new_independent_review
       owner_authorization: Ownercompleteprogramme_and_urgent_realServo_and_mixedcircuit_requirement. Speed861_source_integrateda43a4da3_after_fad679_General41003731109_all4success_independent382tests4native_and_canonical2550tests71freshNx. Separatebaseline862_proven_old9821_byteidentical_replay; decodecorrect_observationmissingangle. Onlyfiveoptionboundaries_no_equation_scheduler_UI_refactor_or_capraise. No_server_liveDB_Docker_foreignchanges.
@@ -15137,6 +15137,17 @@ parallel_lanes:
       head_sha: null
       observed_at: '2026-10-30T05:05:00Z'
       observation_note: Fresh fetch main before edits. Exact18sourceblobs_match_approvedfad679; maina43General41006367071_inprogress_notPASSclaim. Kernelunchanged9821_diagnostic. Cause_five_stepOption_constructions_lose_servoRuntimeStateById_while_preservingHC_SR04_Ping; maponlyread_for_angleprojection. Newauthorpublishes_before_fullmixed_and_legacyoracles_then_candidatecapsfirst_Arduino1999981of2000000. Preserveallunique_work_and_ownerassets.
+
+    source_review_evidence:
+      source_candidate_sha: 84f65b41bf58bf3506e15e41e3ee4b6459b905b2
+      verdict: APPROVE_new_independent_review_222tests_4fresh_native_and_fulloracle_reproduction
+      canonical_gate: PASS_2556tests_71freshNx_no_cache_all8caps_one_unchanged_retry
+      initial_gate_failure: existing_ownership_budget1_timeout5031ms_D_timing_variance_supported_isolated3281ms_fullretry3202ms_no_source_or_timeout_edits
+      general_ci: SUCCESS_41009745129_exact84f65_all4jobs
+      intentional_delta: only5knownServo_pose_metadata_fields_match_actual_decoder_90_90_135_45_45
+      legacy_oracles: full5legacy_cases_and_actual_physical_DCServo_BYTEquality
+      numerical_invariants: All other state, actions, Serial and measurements are unchanged; maximum KCL residual 6.4e-11 A.
+      report: docs/product/electronics/evidence/mixed-servo-862/GATES.md
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics

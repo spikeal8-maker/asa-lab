@@ -1,0 +1,67 @@
+{
+  "legacy_5_full_bytes_unchanged": true,
+  "actual_direct_DC_Servo_full_bytes_unchanged": true,
+  "mixed_all_other_full_bytes_unchanged": true,
+  "intentional_changes": [
+    {
+      "horizon": 0,
+      "only_added_path": "mixed[0].advance.result.components[12].servoAngleDegrees",
+      "value": 90,
+      "decoder": {
+        "version": 1,
+        "powered": true,
+        "signalHigh": false,
+        "angleDegrees": 90
+      }
+    },
+    {
+      "horizon": 1000,
+      "only_added_path": "mixed[1].advance.result.components[12].servoAngleDegrees",
+      "value": 90,
+      "decoder": {
+        "version": 1,
+        "powered": true,
+        "signalHigh": true,
+        "angleDegrees": 90,
+        "signalHighStartedAtMicroseconds": 1
+      }
+    },
+    {
+      "horizon": 26000,
+      "only_added_path": "mixed[2].advance.result.components[12].servoAngleDegrees",
+      "value": 135,
+      "decoder": {
+        "version": 1,
+        "powered": true,
+        "signalHigh": false,
+        "angleDegrees": 135,
+        "lastValidPulseWidthMicroseconds": 1936
+      }
+    },
+    {
+      "horizon": 51000,
+      "only_added_path": "mixed[3].advance.result.components[12].servoAngleDegrees",
+      "value": 45,
+      "decoder": {
+        "version": 1,
+        "powered": true,
+        "signalHigh": false,
+        "angleDegrees": 45,
+        "lastValidPulseWidthMicroseconds": 1008
+      }
+    },
+    {
+      "horizon": 100000,
+      "only_added_path": "mixed[4].advance.result.components[12].servoAngleDegrees",
+      "value": 45,
+      "decoder": {
+        "version": 1,
+        "powered": true,
+        "signalHigh": false,
+        "angleDegrees": 45,
+        "lastValidPulseWidthMicroseconds": 1008
+      }
+    }
+  ],
+  "max_mixed_kcl_residual_amp": 6.4e-11
+}

@@ -24,6 +24,12 @@ frames. The complete before/after raw data is **144,673 bytes**, byte identical:
 
 `b98bfe1f9115686632fb5c4d4cebc6d3528750a67eb4fe4034f745a816b2d36c`.
 
+Coverage clarification: the case named Servo records a Servo sketch's runtime
+output on an Arduino board without a physical Servo component. Physical Servo
+pose is covered by the separate real native journeys below; the additional full
+physical DC Servo baseline is recorded by the follow-up Issue 862. The original
+oracle and its case names remain unchanged.
+
 The additional controller oracle was published as `3e40a01b`. It compiles the
 actual frozen controller text from baseline `9821f0f8`, without reverting the
 working source. Two deterministic scenarios record 115 complete entries:
