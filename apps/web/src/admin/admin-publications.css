@@ -93,8 +93,10 @@
 
 .admin-publication-actions {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 28rem;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
 }
 .admin-publication-featured {
@@ -138,8 +140,11 @@
 }
 
 .publication-reaction-settings {
+  flex-basis: 100%;
   font-size: 0.85rem;
-  max-width: 24rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .publication-reaction-settings summary {
   cursor: pointer;
@@ -158,4 +163,16 @@
 }
 .publication-reaction-settings small {
   display: block;
+}
+
+@media (min-width: 601px) and (max-width: 1100px) {
+  .admin-publication-row {
+    flex-wrap: wrap;
+  }
+  .admin-publication-details {
+    flex-basis: calc(100% - 128px);
+  }
+  .admin-publication-actions {
+    flex-basis: 100%;
+  }
 }
