@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AiGeneratedImage as ImageReceipt } from '@asa-lab/contracts';
 import { readGeneratedImage } from './read-generated-image';
+import { AiImagePrompt } from './AiImagePrompt';
 import { AiChatIcon } from './AiChatIcon';
 import { createAiScopeCall } from './ai-scope-api';
 import type { AiImageGenerationJob } from '@asa-lab/contracts';
@@ -10,7 +11,11 @@ export function AiGeneratedImage({
   image,
   threadId,
   seatId,
+  onTranslate,
+  translationDisabled,
 }: {
+  onTranslate?: ((prompt: string) => void) | undefined;
+  translationDisabled?: boolean;
   image: ImageReceipt;
   threadId: string;
   seatId?: string | undefined;
@@ -96,12 +101,12 @@ export function AiGeneratedImage({
   return (
     <figure ref={card} className="ai-generated-image">
       {prompt ? (
-        <div className="ai-image-prompt-receipt">
-          <strong>
-            Промпт · {image.width} × {image.height}
-          </strong>
-          <p>{prompt}</p>
-        </div>
+        <AiImagePrompt
+          prompt={prompt}
+          label={`Промпт · ${image.width} × ${image.height}`}
+          onTranslate={onTranslate}
+          translationDisabled={translationDisabled ?? false}
+        />
       ) : null}
       {url ? (
         <>

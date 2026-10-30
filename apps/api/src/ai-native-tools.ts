@@ -42,7 +42,7 @@ export function nativeTools(options: {
               minLength: 1,
               maxLength: 3000,
               description:
-                'Write the complete image generation prompt in English, preserving the user requested scene and details.',
+                'Составь полный промпт генерации изображения на русском языке, сохранив сцену и детали пользователя.',
             },
             size: {
               type: 'integer',

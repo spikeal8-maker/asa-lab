@@ -1749,3 +1749,37 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.asa-ai-layout .ai-image-prompt-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.asa-ai-layout .ai-image-prompt-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.asa-ai-layout .ai-image-prompt-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px;
+  background: transparent;
+  color: var(--ai-text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.asa-ai-layout .ai-image-prompt-actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ai-text) 8%, transparent);
+}
+.asa-ai-layout .ai-image-prompt-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
