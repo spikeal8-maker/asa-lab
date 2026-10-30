@@ -13,6 +13,9 @@ on:
       - 'tests/portal/**'
       - 'e2e/student-project-policy.spec.ts'
       - 'e2e/public-projects.spec.ts'
+      - 'e2e/public-project-electronics-viewer.spec.ts'
+      - 'e2e/public-project-electronics-player.spec.ts'
+      - 'e2e/native-chromium-focus.ts'
       - 'e2e/public-project-copy.spec.ts'
       - 'e2e/public-project-admin-moderation.spec.ts'
       - 'e2e/gallery.spec.ts'
@@ -32,6 +35,9 @@ on:
       - 'tests/portal/**'
       - 'e2e/student-project-policy.spec.ts'
       - 'e2e/public-projects.spec.ts'
+      - 'e2e/public-project-electronics-viewer.spec.ts'
+      - 'e2e/public-project-electronics-player.spec.ts'
+      - 'e2e/native-chromium-focus.ts'
       - 'e2e/public-project-copy.spec.ts'
       - 'e2e/public-project-admin-moderation.spec.ts'
       - 'e2e/gallery.spec.ts'
@@ -111,7 +117,10 @@ jobs:
         env:
           ASA_WEB_PORT: '4612'
           ASA_WEB_ORIGIN: http://127.0.0.1:4612
-        run: pnpm gate:projects-publication:browser
+        # Only the native electronics player opts into headed Chromium. Xvfb
+        # gives it real foreground/background visibility and fullscreen; the
+        # remaining browser suites keep their existing headless setting.
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1600x1200x24" pnpm gate:projects-publication:browser
       - name: Preserve exact-SHA synthetic browser evidence
         if: always()
         uses: actions/upload-artifact@v4

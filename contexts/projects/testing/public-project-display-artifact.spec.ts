@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { validatePublicProjectDisplayArtifact, validatePublicArtifact } from '@asa-lab/contracts';
 function fixture() {
   return {
@@ -101,5 +101,79 @@ describe('strict Electronics public display v2', () => {
     const b = fixture();
     Object.assign(b, { cycle: b });
     expect(validatePublicProjectDisplayArtifact(b).ok).toBe(false);
+  });
+});
+
+describe('public V3 execution projection', () => {
+  function simulation() {
+    return {
+      ...fixture(),
+      schemaVersion: 3,
+      status: 'simulation',
+      solverIterations: 24,
+      components: [
+        {
+          id: 'uno',
+          kind: 'visual',
+          componentTypeId: 'arduino-uno',
+          position: { x: 0, y: 0 },
+          value: 5,
+          stateProperties: {
+            arduinoSource:
+              'void setup(){/* <readonly> */}\nvoid loop(){digitalWrite(13,LOW);delay(10);}',
+            arduinoCodeMode: 'blocks',
+          },
+        },
+      ],
+    };
+  }
+  it('accepts only saved public program as escaped text, detached and frozen', () => {
+    const input = simulation();
+    const result = validatePublicProjectDisplayArtifact(input);
+    expect(result.ok).toBe(true);
+    if (!result.ok || result.artifact.schemaVersion !== 3) throw Error();
+    expect(result.artifact.components[0]!.stateProperties?.arduinoSource).toBe(
+      input.components[0]!.stateProperties.arduinoSource,
+    );
+    expect(Object.isFrozen(result.artifact.components[0]!.stateProperties)).toBe(true);
+  });
+  it.each([undefined, '', ' '.repeat(4), 'x'.repeat(65537)])(
+    'rejects missing/empty/oversized source without default Blink',
+    (source) => {
+      const input = simulation();
+      Object.assign(input.components[0]!, {
+        stateProperties: source === undefined ? {} : { arduinoSource: source },
+      });
+      expect(validatePublicProjectDisplayArtifact(input).ok).toBe(false);
+    },
+  );
+  it.each(['arduinoWorkspace', 'token', 'url', 'runtime', 'password'])(
+    'rejects unclassified public property %s',
+    (key) => {
+      const input = simulation();
+      Object.assign(input.components[0]!.stateProperties, { [key]: 'private' });
+      expect(validatePublicProjectDisplayArtifact(input).ok).toBe(false);
+    },
+  );
+  it('does not invoke accessors and rejects invalid V3 model identity', () => {
+    const input = simulation();
+    const getter = vi.fn();
+    Object.defineProperty(input.components[0]!.stateProperties, 'arduinoSource', {
+      enumerable: true,
+      get: getter,
+    });
+    expect(validatePublicProjectDisplayArtifact(input).ok).toBe(false);
+    expect(getter).not.toHaveBeenCalled();
+    const second = simulation();
+    Object.assign(second.components[0]!, { electricalModelVersion: -1 });
+    expect(validatePublicProjectDisplayArtifact(second).ok).toBe(false);
+  });
+  it('does not publish program-shaped properties of non-Arduino components', () => {
+    const input = simulation();
+    input.components[0]!.componentTypeId = 'resistor-axial';
+    expect(validatePublicProjectDisplayArtifact(input).ok).toBe(false);
+    const invalidMode = simulation();
+    invalidMode.components[0]!.stateProperties.arduinoCodeMode = 'invented-mode';
+    expect(validatePublicProjectDisplayArtifact(invalidMode).ok).toBe(false);
   });
 });

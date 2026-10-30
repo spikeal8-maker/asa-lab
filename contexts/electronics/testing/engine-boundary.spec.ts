@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 const ELECTRONICS_ROOT = resolve(process.cwd(), 'contexts/electronics');
 const DOMAIN_ROOT = join(ELECTRONICS_ROOT, 'domain');
 const ENGINE_ENTRY = join(ELECTRONICS_ROOT, 'engine.ts');
+const TIMED_STATE_ENTRY = join(ELECTRONICS_ROOT, 'timed-state.ts');
 const PACKAGE_JSON = join(ELECTRONICS_ROOT, 'package.json');
 
 const FORBIDDEN_EXTERNAL_IMPORTS = [
@@ -136,16 +137,46 @@ describe('Electronics engine dependency boundary', () => {
       browser: './engine.ts',
       default: './dist/engine.js',
     });
+    expect(manifest.exports?.['./timed-state']).toEqual({
+      types: './dist/timed-state.d.ts',
+      browser: './timed-state.ts',
+      default: './dist/timed-state.js',
+    });
   });
 
-  it('keeps the transitive source closure inside engine/domain production code', () => {
+  it('keeps the transitive source closure inside engine/domain and the exact pure state leaf', () => {
     const closure = collectEngineDependencyClosure();
     const escaped = closure.files.filter(
-      (file) => file !== ENGINE_ENTRY && !isWithin(DOMAIN_ROOT, file),
+      (file) => file !== ENGINE_ENTRY && file !== TIMED_STATE_ENTRY && !isWithin(DOMAIN_ROOT, file),
     );
 
     expect(closure.files.length).toBeGreaterThan(1);
     expect(escaped).toEqual([]);
+  });
+
+  it('keeps the public timed-state leaf free of all runtime module dependencies', () => {
+    // Its only source dependency is the erased engine-owned state type. The
+    // main-thread export must never pull the engine/solver back into a viewer.
+    expect(moduleSpecifiers(TIMED_STATE_ENTRY)).toEqual(['./engine.js']);
+    const emitted = ts.transpileModule(readFileSync(TIMED_STATE_ENTRY, 'utf8'), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+    }).outputText;
+    const source = ts.createSourceFile('timed-state.js', emitted, ts.ScriptTarget.Latest, true);
+    const runtimeDependencies: ts.Node[] = [];
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isImportDeclaration(node) ||
+        (ts.isExportDeclaration(node) && node.moduleSpecifier !== undefined) ||
+        ts.isImportEqualsDeclaration(node) ||
+        (ts.isCallExpression(node) &&
+          (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+            (ts.isIdentifier(node.expression) && node.expression.text === 'require')))
+      )
+        runtimeDependencies.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    expect(runtimeDependencies).toHaveLength(0);
   });
 
   it('rejects host, UI, API and database package dependencies', () => {

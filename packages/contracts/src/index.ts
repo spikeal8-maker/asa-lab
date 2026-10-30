@@ -49,10 +49,14 @@ export function packageInfo(): PackageInfo {
 
 export {
   ELECTRONICS_DISPLAY_LIMITS,
+  PUBLIC_ELECTRONICS_PROPERTIES,
+  PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   validatePublicProjectDisplayArtifact,
 } from './public-project-display-artifact.js';
 export type {
   ElectronicsDisplayArtifact,
+  ElectronicsSimulationArtifact,
+  PublicSimulationComponent,
   PublicProjectDisplayArtifact,
   PublicDisplayComponent,
   PublicDisplayConnection,

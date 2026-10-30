@@ -1,3 +1,4 @@
+import { ordinaryLedVisualState } from './component-result-presentation';
 import {
   useEffect,
   useLayoutEffect,
@@ -160,18 +161,6 @@ function emptyInitialViewport(): Viewport {
     y: (STAGE_HEIGHT - height) / 2,
     zoom: DESKTOP_INITIAL_ZOOM,
   };
-}
-
-function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
-  if (
-    result?.presentationState === 'failed' ||
-    result?.deviceHealth === 'failed_open' ||
-    result?.damageState === 'failed'
-  )
-    return 'burned';
-  if (result?.junctionState === 'reverse_blocking') return 'reverse';
-  if (result?.presentationState === 'destructive') return 'overcurrent';
-  return result?.lit ? 'lit' : 'off';
 }
 
 function isArduinoUno(component: SchematicComponent): boolean {

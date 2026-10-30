@@ -5,6 +5,11 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
+    "./timed-state": {
+      "types": "./dist/timed-state.d.ts",
+      "browser": "./timed-state.ts",
+      "default": "./dist/timed-state.js"
+    },
     "./rendering": {
       "types": "./dist/rendering.d.ts",
       "default": "./dist/rendering.js"

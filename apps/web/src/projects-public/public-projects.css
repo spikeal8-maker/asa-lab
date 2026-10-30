@@ -758,6 +758,29 @@
   border-radius: 14px;
   background: #f6faf8;
 }
+.public-electronics-viewer:fullscreen {
+  background: #f6faf8;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+.public-electronics-viewer:fullscreen .public-electronics-scene {
+  height: calc(100svh - 130px);
+}
+.public-electronics-code {
+  padding: 10px 12px;
+  background: white;
+}
+.public-electronics-code summary {
+  cursor: pointer;
+}
+.public-electronics-code pre {
+  max-height: 300px;
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .public-electronics-tools {
   display: flex;
   align-items: center;
@@ -827,7 +850,7 @@
   }
   .public-electronics-tools {
     position: relative;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-end;
     padding: 8px 10px;
   }
