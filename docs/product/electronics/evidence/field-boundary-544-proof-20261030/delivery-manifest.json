@@ -1,8 +1,13 @@
 [
   {
     "path": "artifact-metadata.json",
-    "bytes": 739,
-    "sha256": "d55726d622f8b6874969386c585dec992ef8b5ce97ba0476207797b02db68571"
+    "bytes": 740,
+    "sha256": "34c88bb378c446fed0d8a646b053666ce84c50f9c2af68ee9f9f4061f12ec0b1"
+  },
+  {
+    "path": "artifact-metadata.json.gz",
+    "bytes": 442,
+    "sha256": "3c8a6e10c80fe8fdddc609881150f7d2b6383d702cdd7aa8fe64e9f8a7dbb05e"
   },
   {
     "path": "browser.log.gz",
@@ -11,18 +16,33 @@
   },
   {
     "path": "extracted-artifact-manifest.json",
-    "bytes": 293864,
-    "sha256": "3172a4b57ad5aef3e83fc2201743069e4a28f315d0a121fc1b578575bfde502b"
+    "bytes": 287711,
+    "sha256": "f3dc2f3094cc7da66851967d42a8b8341fb3ff272539b98ee5e3b5c1d27089bb"
+  },
+  {
+    "path": "extracted-artifact-manifest.json.gz",
+    "bytes": 59347,
+    "sha256": "84e2196e1268e4d4884755d94dd18e910fd626d99bf5cf61cf2eadf9eed4b4e5"
   },
   {
     "path": "failed86.txt",
-    "bytes": 13791,
-    "sha256": "737fc167fd517142e762aa19ef838bc282c6087a5433dc996515ad36b9a355d1"
+    "bytes": 13701,
+    "sha256": "b45f327f9539956904ea7c5d6f044971d54509b8175489ba7cdac27bce8bf5af"
+  },
+  {
+    "path": "failed86.txt.gz",
+    "bytes": 2591,
+    "sha256": "b0b46150e54d004240c712c29c07c59d6213807d44b6a01ad161611cb29d890e"
   },
   {
     "path": "field32-index.json",
-    "bytes": 97788,
-    "sha256": "af66e091cf0a53e8cfcd2cf6a89fab776e6104990edfa931e614cd8e1104e69a"
+    "bytes": 95696,
+    "sha256": "148929b69a565b2ccd9bc70271283190e9e84b41834acfe01d70b8487865d105"
+  },
+  {
+    "path": "field32-index.json.gz",
+    "bytes": 10534,
+    "sha256": "fc0e35c836ddd264c297758688e2f78db9b7de81afe84ee85b446bd27434bebb"
   },
   {
     "path": "field32-raw-and-images.zip",
@@ -36,8 +56,13 @@
   },
   {
     "path": "index-proof.py",
-    "bytes": 3998,
-    "sha256": "e81357a3c3f9e59d242f2894c2e14a7708caeb831382f3a717c7211a8a7eafa3"
+    "bytes": 3996,
+    "sha256": "82125a8b024dfe704492c7dc36af24ac94a2d19a4591bbbe0efbb658f1d1fc32"
+  },
+  {
+    "path": "index-proof.py.gz",
+    "bytes": 1724,
+    "sha256": "41a10d2db01810125eec4c54853bbdb137208f49e86c78dc8dbf97e78e68b6d4"
   },
   {
     "path": "RECEIPT.md",
@@ -45,8 +70,13 @@
     "sha256": "30ba1e5775a9f238cefbef6b76adffae42e6f2b1e51bc08fba9d7b0ea50fc9dc"
   },
   {
+    "path": "RECEIPT.md.gz",
+    "bytes": 2180,
+    "sha256": "664b7001bbd9399253f3e44f6fe6bfe3e3602e38f84bae76dc0fcb19c59fd013"
+  },
+  {
     "path": "REVIEW.md",
-    "bytes": 1660,
-    "sha256": "e1934ddd0734d41e6ce5f129d9ff050eadaf2f74fe2363f3720be79815d814da"
+    "bytes": 1981,
+    "sha256": "a862a11f6e8902f8d075b2a75f9993aa1b772fb827529e004e49df3b483ee79c"
   }
 ]

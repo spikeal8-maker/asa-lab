@@ -25,3 +25,8 @@ this report records the subsequent independent verdict. Original remote artifact
 metadata/digest and the full extracted-artifact manifest are retained; only the
 32 field raw cases and all their images are packaged here. Full extracted data
 and logs remain preserved in the executor worktree. No server was touched.
+
+Verbatim executor text receipts and indices are additionally retained as `.gz`
+files, preserving their original CRLF bytes and recorded original hashes. The
+readable copies use repository formatting. `delivery-manifest.json` records the
+stored repository bytes; the 256 original raw/PNG hashes are unchanged in the ZIP.
