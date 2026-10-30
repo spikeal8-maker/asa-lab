@@ -1,0 +1,37 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-id="G_liJC=?fPSj-AQXm{[N"] .blocklyDropdownText').first()
+    - locator resolved to <text x="0" y="9" text-anchor="start" dominant-baseline="central" class="blocklyText blocklyFieldText blocklyDropdownText">ВЫСОКИЙ</text>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <rect rx="3" ry="3" x="2.5" width="6" y="123.09306109394312" height="289.8138795649441" class="blocklyScrollbarHandle"></rect> from <svg width="11" height="536" class="blocklyScrollbarVertical blocklyMainWorkspaceScrollbar">…</svg> subtree intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <rect rx="3" ry="3" x="2.5" width="6" y="123.09306109394312" height="289.8138795649441" class="blocklyScrollbarHandle"></rect> from <svg width="11" height="536" class="blocklyScrollbarVertical blocklyMainWorkspaceScrollbar">…</svg> subtree intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    57 × waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <rect rx="3" ry="3" x="2.5" width="6" y="123.09306109394312" height="289.8138795649441" class="blocklyScrollbarHandle"></rect> from <svg width="11" height="536" class="blocklyScrollbarVertical blocklyMainWorkspaceScrollbar">…</svg> subtree intercepts pointer events
+     - retrying click action
+       - waiting 500ms
+    - waiting for element to be visible, enabled and stable
+
+    at C:\Users\spike\.codex\worktrees\electronics-reverse-led-simple\ASA-lab\apps\web\src\electronics\testing\arduino-preservation-865.browser.mjs:171:20 {
+  name: 'TimeoutError'
+}
+
+Node.js v22.23.3

@@ -1,0 +1,14 @@
+[]
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for getByRole('menuitem').filter({ hasText: '������' })
+
+    at C:\Users\spike\.codex\worktrees\electronics-reverse-led-simple\ASA-lab\apps\web\src\electronics\testing\arduino-preservation-865.browser.mjs:168:65 {
+  name: 'TimeoutError'
+}
+
+Node.js v22.23.3

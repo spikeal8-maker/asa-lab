@@ -1,0 +1,20 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ '// owner\nvoid setup(){}\nvoid loop(){}\n'
+- '// owner\r\nvoid setup(){}\r\nvoid loop(){}\r\n'
+
+    at file:///C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab/apps/web/src/electronics/testing/arduino-preservation-865.browser.mjs:249:14 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '// owner\nvoid setup(){}\nvoid loop(){}\n',
+  expected: '// owner\r\nvoid setup(){}\r\nvoid loop(){}\r\n',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.23.3

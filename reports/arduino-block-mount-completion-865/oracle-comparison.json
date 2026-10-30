@@ -1,0 +1,26 @@
+{
+  "originalSha": "8fd7f251233c359d77935f556197807991d476c8",
+  "original16Count": 16,
+  "all16SourceBytesExact": true,
+  "all16RepeatedGenerationIdentical": true,
+  "fixtures": [
+    "hats",
+    "free",
+    "detached",
+    "forever",
+    "while",
+    "for",
+    "repeat",
+    "conditional",
+    "seconds",
+    "milliseconds",
+    "microseconds",
+    "zero",
+    "playNote",
+    "tone",
+    "ultrasonic",
+    "empty"
+  ],
+  "fixtureDefinitionsByteExact": true,
+  "fixtureDefinitionSha256": "21ca1b706e8aa5d76c26b45682c7aebee40a92e1344985f90169e356cc694077"
+}

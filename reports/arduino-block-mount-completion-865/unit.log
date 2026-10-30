@@ -1,0 +1,14 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-program-state.spec.ts (13 tests) 14ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-code-contract.spec.ts (12 tests) 227ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts (8 tests) 102ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-loops.spec.ts (6 tests) 221ms
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts (9 tests) 722ms
+
+ Test Files  5 passed (5)
+      Tests  48 passed (48)
+   Start at  18:45:47
+   Duration  6.09s (transform 5.11s, setup 0ms, import 10.80s, tests 1.29s, environment 4.70s)
+

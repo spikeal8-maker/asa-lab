@@ -1,0 +1,12 @@
+
+> @asa-lab/source@0.0.0 bundle:check C:\Users\spike\.codex\worktrees\electronics-reverse-led-simple\ASA-lab
+> node tools/check-web-bundle-budget.mjs
+
+PASS initial application: 382841/570000 bytes (index-DMlTmR5j.js)
+PASS electronics editor: 171934/222000 bytes (SchematicEditor-B62gKW0c.js)
+PASS chess editor: 244236/255000 bytes (ChessModuleExperience-DcrGijhA.js)
+PASS checkers editor: 158901/160000 bytes (CheckersModuleExperience-lX5JGMce.js)
+PASS 3D editor: 2870467/2900000 bytes (ThreeDEditor-BE0SopME.js)
+PASS Three.js vendor: 602992/620000 bytes (three-vendor-CzfQjxfA.js)
+PASS Arduino editor: 1999233/2000000 bytes (ArduinoCodePanel-Cfq0Fd3a.js)
+PASS initial JS/CSS graph: 556367/600000 bytes (3 assets)

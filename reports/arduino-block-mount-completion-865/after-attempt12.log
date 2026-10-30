@@ -1,0 +1,48 @@
+1440 {
+  x: 1253.266845703125,
+  y: 622.834716796875,
+  width: 52.171875,
+  height: 12
+}
+390 {
+  x: 308,
+  y: 680.7686157226562,
+  width: 44.467803955078125,
+  height: 11.99993896484375
+}
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('[data-id="e|ayu@]h;n*TBqLan|sS"] .blocklyDropdownText').first()
+    - locator resolved to <text x="0" y="9" text-anchor="start" dominant-baseline="central" class="blocklyText blocklyFieldText blocklyDropdownText">ВЫСОКИЙ</text>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <image width="36" height="36" href="https://asa-fixture.invalid/assets/zoom-out.svg" xlink:href="https://asa-fixture.invalid/assets/zoom-out.svg"></image> from <g transform="translate(306, 313)">…</g> subtree intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <image width="36" height="36" href="https://asa-fixture.invalid/assets/zoom-out.svg" xlink:href="https://asa-fixture.invalid/assets/zoom-out.svg"></image> from <g transform="translate(306, 313)">…</g> subtree intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    57 × waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <image width="36" height="36" href="https://asa-fixture.invalid/assets/zoom-out.svg" xlink:href="https://asa-fixture.invalid/assets/zoom-out.svg"></image> from <g transform="translate(306, 313)">…</g> subtree intercepts pointer events
+     - retrying click action
+       - waiting 500ms
+
+    at C:\Users\spike\.codex\worktrees\electronics-reverse-led-simple\ASA-lab\apps\web\src\electronics\testing\arduino-preservation-865.browser.mjs:179:20 {
+  name: 'TimeoutError'
+}
+
+Node.js v22.23.3
