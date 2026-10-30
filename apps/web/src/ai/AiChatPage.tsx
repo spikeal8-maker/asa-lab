@@ -2182,7 +2182,7 @@ export function AiChatPage({
                   }}
                   rows={1}
                   placeholder="Спросить ASA Lab"
-                  disabled={archived || schoolPolicyDenied}
+                  disabled={creatingChat || threadActionBusy || archived || schoolPolicyDenied}
                   aria-label="Сообщение ИИ"
                   aria-describedby="ai-composer-note"
                 />

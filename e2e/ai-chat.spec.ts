@@ -2346,3 +2346,26 @@ test('AI composer frame and Send stay fully visible at ordinary viewport heights
     expect(geometry.dockScrollHeight).toBeLessThanOrEqual(geometry.dockClientHeight + 1);
   }
 });
+
+test('AI keeps the next draft editable and preserves it when the current answer completes', async ({
+  page,
+}) => {
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  const input = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await input.fill('Первый вопрос');
+  await input.press('Enter');
+  try {
+    await expect(page.getByRole('button', { name: 'Остановить генерацию' })).toBeVisible();
+    await expect(input).toBeEnabled();
+    await expect(input).toHaveValue('');
+    await input.fill('Следующий вопрос — мой черновик');
+  } finally {
+    fake.release();
+  }
+  await expect(page.getByRole('button', { name: 'Остановить генерацию' })).toHaveCount(0);
+  await expect(input).toHaveValue('Следующий вопрос — мой черновик');
+  await expect(
+    page.getByRole('button', { name: 'Отправить сообщение', exact: true }),
+  ).toBeEnabled();
+});
