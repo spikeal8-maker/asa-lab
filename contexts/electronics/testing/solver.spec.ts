@@ -1959,6 +1959,32 @@ describe('deterministic DC solver', () => {
     );
   });
 
+  it('solves a real Arduino output selected by switch dispatch', () => {
+    const result = solveCircuit(
+      doc(
+        [
+          component('uno', 'visual', 5, {
+            componentTypeId: 'arduino-uno',
+            pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+            stateProperties: {
+              arduinoSource:
+                'void setup(){pinMode(13,OUTPUT);}void loop(){switch(2){case 2:digitalWrite(13,HIGH);break;default:digitalWrite(13,LOW);}delay(1);}',
+            },
+          }),
+        ],
+        [],
+      ),
+      { simulationTimeMs: 10 },
+    );
+    expect(result.solved).toBe(true);
+    expect(
+      result.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages!.d13,
+    ).toBeCloseTo(5, 9);
+    expect(result.diagnostics.map((entry) => entry.code)).not.toContain(
+      'arduino_program_unsupported',
+    );
+  });
+
   it('keeps valid but unsupported Arduino syntax distinct from compile errors', () => {
     const result = solveCircuit(
       doc(
@@ -1969,9 +1995,8 @@ describe('deterministic DC solver', () => {
             stateProperties: {
               arduinoSource: `
                 void loop() {
-                  switch (digitalRead(2)) {
-                    default: digitalWrite(13, LOW); break;
-                  }
+                  goto done;
+                  done: digitalWrite(13, LOW);
                 }
               `,
             },

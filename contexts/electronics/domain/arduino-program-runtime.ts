@@ -2433,7 +2433,7 @@ function declareVariable(
   const scope = state.scopes[state.scopes.length - 1]!;
   if (scope.has(name)) throw new SyntaxError(`Повторное объявление «${name}» в одной области.`);
   if (
-    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|do|break|continue)$/.test(
+    /^(?:true|false|HIGH|LOW|INPUT|OUTPUT|INPUT_PULLUP|LED_BUILTIN|A[0-5]|int|long|float|double|bool|boolean|byte|const|unsigned|void|if|else|for|while|do|break|continue|switch)$/.test(
       name,
     )
   )

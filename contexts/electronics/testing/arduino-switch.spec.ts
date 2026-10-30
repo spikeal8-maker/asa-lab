@@ -205,4 +205,22 @@ describe('Arduino integral switch dispatch', () => {
     const next = advanceClockedArduinoRuntime(source, {}, 1);
     expect(next.state.outputVoltages).toEqual({});
   });
+
+  it('retains case-sensitive legal identifiers Switch and SWITCH', () => {
+    const source = sketch('result=Switch+SWITCH;', 'int Switch=1;int SWITCH=2;');
+    expect(run(source).variables.result).toBe(3);
+    expect(analyseArduinoSourceSupport(source)).toEqual([]);
+  });
+
+  it.each(['int switch=1;', 'const int switch=1;'])(
+    'rejects newly exposed keyword binding %s without dispatch',
+    (declaration) => {
+      const source = `${declaration}void setup(){digitalWrite(13,HIGH);}void loop(){delay(1000);}`;
+      expect(analyseArduinoProgramSyntax(source).length).toBeGreaterThan(0);
+      const next = advanceClockedArduinoRuntime(source, {}, 1);
+      expect(next.executionStatus).toBe('fault');
+      expect(next.events).toEqual([]);
+      expect(next.state.outputVoltages).toEqual({});
+    },
+  );
 });
