@@ -15335,7 +15335,10 @@ parallel_lanes:
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: candidate6614_independent_requestchanges_pausing_label_bounded_repair
+      checkpoint: candidate4851_independent_requestchanges_nested_clock_and100h_R2repair
+      rejected_r1_candidate_sha: 485112b50f45af24febcad11ab318f6549e24018
+      r1_review_result: REQUEST_CHANGES_100h_toolstrip41_844_and768_clock48_outside_toolbar47
+      r1_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
       rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
       review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
       candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
