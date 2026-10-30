@@ -1,0 +1,10 @@
+
+ RUN  v4.1.11 C:/Users/spike/.codex/worktrees/electronics-reverse-led-simple/ASA-lab
+
+ ✓ |parallel| apps/web/src/electronics/testing/arduino-program-state.spec.ts (13 tests) 11ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  11:22:16
+   Duration  323ms (transform 37ms, setup 0ms, import 83ms, tests 11ms, environment 0ms)
+

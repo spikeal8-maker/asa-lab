@@ -33,7 +33,7 @@ export function readArduinoProgramState(
   const workspace = properties?.['arduinoWorkspace'];
   // Imported/legacy sketches may have source without editor metadata. Opening
   // them as blocks would generate Blink and autosave it over the user's sketch.
-  const sourceOnly = typeof source === 'string' && source.trim() !== '' && !workspace;
+  const sourceOnly = typeof source === 'string' && workspace === undefined;
   return {
     mode:
       mode === 'blocks' || mode === 'blocks-text' || mode === 'text'

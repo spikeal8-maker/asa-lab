@@ -457,16 +457,20 @@ function ChevronDown(): JSX.Element {
 
 export function ScratchWorkspace({
   initialWorkspace,
+  initialize = false,
   category,
   flyoutWidth,
   paletteScale,
   onChange,
+  onError,
 }: {
   initialWorkspace: string;
+  initialize?: boolean;
   category: ArduinoBlockCategory;
   flyoutWidth: number;
   paletteScale: number;
   onChange: (workspaceJson: string, source: string) => void;
+  onError?: (message: string) => void;
 }): JSX.Element {
   const hostRef = useRef<HTMLDivElement>(null);
   const workspaceRef = useRef<ScratchBlocks.WorkspaceSvg | null>(null);
@@ -475,7 +479,6 @@ export function ScratchWorkspace({
   const paletteScaleRef = useRef(paletteScale);
   const categoryRef = useRef(category);
   const refreshToolboxRef = useRef<(() => void) | null>(null);
-  const timerRef = useRef<number | null>(null);
   const variablePromptCallbackRef = useRef<ArduinoVariablePromptCallback | null>(null);
   const [blockContextMenu, setBlockContextMenu] = useState<ArduinoBlockContextMenu | null>(null);
   const [variablePrompt, setVariablePrompt] = useState<ArduinoVariablePrompt | null>(null);
@@ -580,22 +583,33 @@ export function ScratchWorkspace({
       });
     });
 
-    let loaded = false;
-    if (initialWorkspace) {
-      try {
+    // Loading and layout are not edits, including Blockly's queued events.
+    ScratchBlocks.Events.disable();
+    try {
+      if (initialize) createDefaultArduinoBlocks(workspace);
+      else if (initialWorkspace !== '') {
+        const state = JSON.parse(initialWorkspace);
+        if (
+          !state ||
+          typeof state !== 'object' ||
+          Array.isArray(state) ||
+          Object.keys(state).some((key) => !['blocks', 'variables'].includes(key))
+        )
+          throw new Error();
         ScratchBlocks.serialization.workspaces.load(
-          migrateLegacyArduinoWorkspaceState(JSON.parse(initialWorkspace)),
+          migrateLegacyArduinoWorkspaceState(state),
           workspace,
         );
-        loaded = workspace.getAllBlocks(false).length > 0;
-      } catch {
-        loaded = false;
       }
+      applyArduinoBlockDefaults(workspace);
+      refreshToolbox();
+      keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
+    } catch {
+      workspace.clear();
+      onError?.('Блоки повреждены. Код сохранён.');
+    } finally {
+      ScratchBlocks.Events.enable();
     }
-    if (!loaded) createDefaultArduinoBlocks(workspace);
-    applyArduinoBlockDefaults(workspace);
-    refreshToolbox();
-    keepWorkspaceClearOfFlyout(workspace, flyoutWidthRef.current);
 
     const handleZoomReset = (event: Event): void => {
       if (!(event.target instanceof Element) || !event.target.closest('.blocklyZoomReset')) return;
@@ -679,7 +693,8 @@ export function ScratchWorkspace({
       const state = ScratchBlocks.serialization.workspaces.save(workspace);
       changeRef.current(JSON.stringify(state), generateArduinoCode(workspace));
     };
-    publish();
+    updateBlockActivity();
+    if (initialize) publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
       if (event.type === ScratchBlocks.Events.BLOCK_DRAG) {
         const drag = event as ScratchBlocks.Events.BlockDrag;
@@ -691,8 +706,7 @@ export function ScratchWorkspace({
         updateBlockActivity();
         return;
       }
-      if ((event as ScratchBlocks.Events.Abstract & { isUiEvent?: boolean }).isUiEvent) return;
-      updateBlockActivity();
+      if (event.isUiEvent || event.type === ScratchBlocks.Events.FINISHED_LOADING) return;
       if (
         event.type === ScratchBlocks.Events.VAR_CREATE ||
         event.type === ScratchBlocks.Events.VAR_DELETE ||
@@ -700,14 +714,12 @@ export function ScratchWorkspace({
       ) {
         window.requestAnimationFrame(refreshToolbox);
       }
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
-      timerRef.current = window.setTimeout(publish, 180);
+      publish();
     };
     workspace.addChangeListener(listener);
     const resizeObserver = new ResizeObserver(() => ScratchBlocks.svgResize(workspace));
     resizeObserver.observe(host);
     return () => {
-      if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       window.cancelAnimationFrame(assetFrame);
       resizeObserver.disconnect();
       host.removeEventListener('pointerdown', handleZoomReset, true);
@@ -1284,7 +1296,7 @@ export function ArduinoCodePanel({
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
     // Input is already visible. Commit it before Save or navigation can read
-    // the document; expensive block generation keeps its separate debounce.
+    // the document, including genuine block edits.
     const properties: Readonly<Record<string, ProductionStateValue>> = {
       arduinoCodeMode: next.mode,
       arduinoWorkspace: next.workspaceJson,
@@ -1518,10 +1530,16 @@ export function ArduinoCodePanel({
             <ScratchWorkspace
               key={selectedBoard.id}
               initialWorkspace={program.workspaceJson}
+              initialize={
+                !['arduinoSource', 'arduinoWorkspace', 'arduinoCodeMode'].some(
+                  (key) => key in (selectedBoard.stateProperties ?? {}),
+                )
+              }
               category={category}
               flyoutWidth={flyoutWidth}
               paletteScale={effectivePaletteScale}
               onChange={(workspaceJson, source) => updateProgram({ workspaceJson, source })}
+              onError={c.setNotice}
             />
             <div className="arduino-block-categories" role="tablist" aria-label="Категории блоков">
               {CATEGORY_ITEMS.map((item) => (
