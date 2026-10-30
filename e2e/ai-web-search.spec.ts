@@ -451,7 +451,7 @@ test('off, unavailable, ambiguous location and Stop stay truthful without automa
   expect(fake.requests).toHaveLength(count);
   fake.wait();
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
-  await expect(page.getByText('Готовлю ответ…', { exact: true })).toBeVisible();
+  await expect(page.getByText('Обдумываю ответ…', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Остановить генерацию' }).click();
   await expect(page.getByRole('button', { name: 'Остановить генерацию' })).toHaveCount(0);
 });

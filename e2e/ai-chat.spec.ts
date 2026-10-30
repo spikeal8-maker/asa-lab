@@ -411,7 +411,7 @@ test('AI downloads code and complete answers as real local files', async ({ page
     page
       .locator('.chat-turn-assistant .chat-message-actions')
       .getByRole('button', { name: 'Копировать', exact: true }),
-  ).toHaveText('Копировать');
+  ).toHaveAttribute('aria-label', 'Копировать');
   await expect(page.getByRole('button', { name: 'Новый вариант ответа', exact: true })).toHaveText(
     'Попробовать снова',
   );
@@ -1684,7 +1684,7 @@ for (const width of [1440, 1024, 600, 390, 320]) {
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
     await expect(
-      page.getByRole('status', { name: '' }).filter({ hasText: 'Модель формирует ответ' }),
+      page.getByRole('status', { name: '' }).filter({ hasText: 'Обдумываю ответ…' }),
     ).toBeVisible();
     fake.release();
     await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
@@ -2057,7 +2057,7 @@ test('AI composer keeps one centered input and shows only real attachment tools'
   await expect(page.getByLabel('Выбранные вложения')).toContainText('lesson.txt');
   await expect(page.getByLabel('Выбранные вложения')).toContainText('16 Б');
   await expect(page.locator('.chat-attachment-chip.is-file')).toHaveAttribute(
-    'title',
+    'data-ai-tooltip',
     'lesson.txt · 16 Б',
   );
   expect(fake.requests).toHaveLength(0);

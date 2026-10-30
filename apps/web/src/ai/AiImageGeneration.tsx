@@ -59,6 +59,7 @@ export function AiImageGeneration({
   modeChoice = 'flux2-klein-4b-v1',
   onModeChange,
   onPromptChange,
+  onNotAdmitted,
   headless = false,
   controllerRef,
   onStateChange,
@@ -77,6 +78,7 @@ export function AiImageGeneration({
   modeChoice?: ImageGenerationMode;
   onModeChange?: (mode: ImageGenerationMode) => void;
   onPromptChange?: (prompt: string) => void;
+  onNotAdmitted?: (prompt: string) => void;
   headless?: boolean;
   controllerRef?: Ref<ImageComposerController>;
   onStateChange?: (state: ImageComposerState) => void;
@@ -276,6 +278,7 @@ export function AiImageGeneration({
         setJob(null);
         setUnresolved(false);
         setNotice(result.error.message);
+        if (receiptCleared) onNotAdmitted?.(submittedPrompt);
         if (initial && result.status === 403 && receiptCleared) onDefiniteThreadDenial?.(id);
         // Also cancel an early GET started when this POST created a thread.
         setCheck((n) => n + 1);

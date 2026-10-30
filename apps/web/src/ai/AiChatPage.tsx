@@ -1151,8 +1151,10 @@ export function AiChatPage({
         );
         if (!result.replayed || completed || result.imageJob) {
           pendingRequest.current = null;
+          setDraft((value) => (value === text ? '' : value));
           clearFiles();
         } else {
+          setDraft((value) => value || text);
           setError('Запрос уже был принят. Повторная платная генерация не выполнялась.');
         }
       } catch (problem) {
@@ -1175,6 +1177,7 @@ export function AiChatPage({
             );
             imageController.current?.follow(receipt.data);
             pendingRequest.current = null;
+            setDraft((value) => (value === text ? '' : value));
             clearFiles();
             setError(null);
             return;
@@ -1200,6 +1203,7 @@ export function AiChatPage({
             // The persisted answer settles the original request. Never carry
             // its already-bound uploads into a new request after an SSE loss.
             pendingRequest.current = null;
+            setDraft((value) => (value === text ? '' : value));
             clearFiles();
             setError(null);
           }
@@ -2529,6 +2533,7 @@ export function AiChatPage({
                 providedStatus={imageStatus}
                 controllerRef={imageController}
                 onStateChange={onImageState}
+                onNotAdmitted={(prompt) => setDraft((value) => value || prompt)}
                 onJobChange={setImageJob}
                 threadId={currentId}
                 seatId={seatId}
