@@ -5,6 +5,7 @@ Only stubs are used: no Docker Engine, registry, database or network actions.
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -136,6 +137,55 @@ class SupportImageCacheTests(unittest.TestCase):
         self.assertFalse(self.install.save_settings.called)
         self.assertFalse(self.install.receipt.called)
         self.assertFalse(self.install.git.called)
+
+    def test_missing_engine_tag_blocks_manager_before_backup_and_switch(self):
+        import asa_manager
+
+        def absent(args, **kwargs):
+            if args[1:4] == ["image", "inspect", "--format"] and args[-1] == POSTGRES_REF:
+                raise Blocked("COMMAND", "cache unavailable", "Investigate tag")
+            return simulated_docker(args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = root / ".asa"
+            state.mkdir()
+            install = Mock(root=root, state=state, profile="production", settings={})
+            install.env = {
+                "ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4610",
+                "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610",
+                "ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610",
+            }
+            install.identity.return_value = self.records
+            install.readiness.return_value = {"revision": "a" * 40, "schema": 280}
+            candidate = {"revision": "b" * 40, "schema": 280, **RELEASE}
+            with (
+                patch.object(asa_manager, "doctor"),
+                patch.object(asa_manager, "clean_checkout"),
+                patch.object(asa_manager, "backup_directory"),
+                patch.object(asa_manager, "attest_editor_env"),
+                patch.object(asa_manager, "discover_release", return_value=candidate),
+                patch.object(asa_manager, "assert_ci"),
+                patch.object(asa_manager, "fetch_images"),
+                patch.object(asa_manager, "selected_source"),
+                patch.object(asa_manager, "Installation", return_value=install),
+                patch.object(asa_manager, "prepare_collector", return_value={"readerGroupChanged": False}),
+                patch.object(asa_manager, "apply_release_environment"),
+                patch.object(asa_manager, "validate_resolved_images", return_value=self.config),
+                patch.object(asa_manager, "check_resources"),
+                patch.object(asa_manager, "export_backup") as backup,
+                patch("deployment.releases.run", side_effect=absent),
+                self.assertRaises(Blocked) as blocked,
+            ):
+                asa_manager.update(install)
+            self.assertEqual(blocked.exception.code, "POSTGRES_IMAGE_MISSING")
+            backup.assert_not_called()
+            self.assertFalse(any(
+                call.args and call.args[0] in ("stop", "up", "pull")
+                for call in install.compose.call_args_list
+            ))
+            self.assertFalse((state / "maintenance.json").exists())
+            self.assertFalse((state / "failed-switch.json").exists())
 
 
 if __name__ == "__main__":
