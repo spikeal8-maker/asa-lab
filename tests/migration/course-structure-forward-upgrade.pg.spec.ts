@@ -155,6 +155,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0283', // Canonical publication likes retain legacy reactions.
         '0284', // Encrypted Polza credential and bounded STT admission.
         '0285', // Existing public author name projection, immutable history preserved.
+        '0286', // Bounded search retrieval settings.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -469,6 +470,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0283', // Canonical publication likes retain legacy reactions.
           '0284', // Encrypted Polza credential and bounded STT admission.
           '0285', // Existing public author name projection, immutable history preserved.
+          '0286', // Bounded search retrieval settings.
         ]);
         expect(
           await applyIsolatedTestPlan(

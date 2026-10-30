@@ -162,7 +162,7 @@ const PROVIDERS = [
 export const AI_PRODUCT_FEATURES = {
   textChat: true,
   streaming: true,
-  imageInput: false,
+  imageInput: true,
   fileAttachments: false,
   imageGeneration: false,
 } as const;
@@ -268,24 +268,65 @@ export function getAiModelCatalog(now = Date.now()) {
 export type AiModelCatalog = ReturnType<typeof getAiModelCatalog>;
 
 /** The same bounded request policy is used by JSON, SSE and the explicitly paid test. */
+export function supportsAiImageInput(provider: unknown, model: unknown): boolean {
+  return modelEntries().some(
+    (entry) => entry.provider === provider && entry.id === model && entry.vision,
+  );
+}
+
 export function buildAiTextRequest(
   provider: AiProvider,
   model: AiModel,
   context: readonly { role: 'user' | 'assistant'; content: string }[],
   instructions: string,
   stream: boolean,
+  images: readonly string[] = [],
 ): { url: string; body: Record<string, unknown> } {
   const descriptor = modelEntries().find((candidate) => candidate.id === model);
   if (!descriptor || descriptor.provider !== provider) {
     throw new Error('AI_MODEL_UNAVAILABLE');
   }
+  if (images.length && !descriptor.vision) throw new Error('AI_VISION_UNSUPPORTED');
+  if (
+    images.length > 4 ||
+    images.some(
+      (image) => !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(image),
+    )
+  )
+    throw new Error('AI_IMAGE_INPUT_INVALID');
+  let lastUser = context.length - 1;
+  while (lastUser >= 0 && context[lastUser]?.role !== 'user') lastUser -= 1;
+  if (images.length && lastUser < 0) throw new Error('AI_IMAGE_INPUT_INVALID');
+  const multimodal = images.length
+    ? context.map((item, index) =>
+        index !== lastUser
+          ? item
+          : {
+              role: item.role,
+              content:
+                provider === 'openai'
+                  ? [
+                      { type: 'input_text', text: item.content },
+                      ...images.map((image) => ({
+                        type: 'input_image',
+                        image_url: image,
+                        detail: 'auto',
+                      })),
+                    ]
+                  : [
+                      { type: 'text', text: item.content },
+                      ...images.map((image) => ({ type: 'image_url', image_url: { url: image } })),
+                    ],
+            },
+      )
+    : context;
   return provider === 'openai'
     ? {
         url: 'https://api.openai.com/v1/responses',
         body: {
           model,
           instructions,
-          input: context,
+          input: multimodal,
           max_output_tokens: AI_MAX_OUTPUT_TOKENS,
           store: false,
           stream,
@@ -303,7 +344,7 @@ export function buildAiTextRequest(
           ...(stream ? { stream_options: { include_usage: true } } : {}),
           model:
             provider === 'ollama-cloud' && 'upstream' in descriptor ? descriptor.upstream : model,
-          messages: [{ role: 'system', content: instructions }, ...context],
+          messages: [{ role: 'system', content: instructions }, ...multimodal],
           max_tokens: AI_MAX_OUTPUT_TOKENS,
           ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
           stream,

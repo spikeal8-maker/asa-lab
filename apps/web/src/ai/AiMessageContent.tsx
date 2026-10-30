@@ -1,3 +1,4 @@
+import { AiCopyButton } from './AiCopyButton';
 import { Component, isValidElement, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -118,15 +119,7 @@ export function AiMessageContent({
                 <div className="asa-ai-code-block">
                   <div className="asa-ai-code-actions">
                     <span>{language || file.name.split('.').at(-1)}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void navigator.clipboard.writeText(code).catch(() => undefined)
-                      }
-                      aria-label="Копировать код"
-                    >
-                      Копировать код
-                    </button>
+                    <AiCopyButton text={code} label="Копировать код" showLabel />
                     <button
                       type="button"
                       disabled={pending}

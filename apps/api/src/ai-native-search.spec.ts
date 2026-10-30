@@ -11,12 +11,13 @@ const REQUEST = '33333333-3333-4333-8333-333333333333';
 
 function fixture(
   mode: 'auto' | 'off',
-  tool: 'web_search' | 'image_search' | 'weather' = 'web_search',
+  tool: 'web_search' | 'image_search' | 'weather' | 'read_page' = 'web_search',
   toolQuery = 'Казань новости',
   disabledTools: readonly ('web_search' | 'image_search' | 'weather')[] = [],
   weatherVariant: 'complete' | 'partial' | 'ambiguous' | 'future' = 'complete',
   toolsCapable = true,
   userPrompt = tool === 'weather' ? 'Какая погода сейчас в Казани?' : 'Найди факты',
+  chooseRead = false,
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -169,7 +170,12 @@ function fixture(
                   {
                     function: {
                       name: tool,
-                      arguments: tool === 'weather' ? { city: 'Казань' } : { query: toolQuery },
+                      arguments:
+                        tool === 'weather'
+                          ? { city: 'Казань' }
+                          : tool === 'read_page'
+                            ? { url: toolQuery }
+                            : { query: toolQuery },
                     },
                   },
                 ],
@@ -179,13 +185,23 @@ function fixture(
               eval_count: 2,
               model: 'fixture:8b',
             }
-          : {
-              message: { content: 'Ответ по источнику' },
-              done: true,
-              prompt_eval_count: 20,
-              eval_count: 5,
-              model: 'fixture:8b',
-            };
+          : round === 2 && chooseRead
+            ? {
+                message: {
+                  tool_calls: [{ function: { name: 'read_page', arguments: { sourceIds: [1] } } }],
+                },
+                done: true,
+                prompt_eval_count: 20,
+                eval_count: 5,
+                model: 'fixture:8b',
+              }
+            : {
+                message: { content: 'Ответ по источнику' },
+                done: true,
+                prompt_eval_count: 20,
+                eval_count: 5,
+                model: 'fixture:8b',
+              };
       return new Response(JSON.stringify(packet) + '\n');
     }
     if (address.includes('/search?'))
@@ -226,12 +242,14 @@ describe('native local internet tools', () => {
       (firstBody.tools as { function: { name: string } }[]).map((item) => item.function.name),
     ).toEqual(['web_search', 'image_search', 'weather']);
     const finalBody = f.requests.filter((item) => item.url.endsWith('/api/chat'))[1]!.body!;
-    expect(finalBody.tools).toBeUndefined();
+    expect(
+      (finalBody.tools as { function: { name: string } }[]).map((item) => item.function.name),
+    ).toEqual(['read_page']);
     expect(JSON.stringify(finalBody.messages)).toContain('example.org/news');
     const finalSystem = (finalBody.messages as { role: string; content: string }[])[0]!.content;
     expect(finalSystem).not.toContain('Доступны native web_search, image_search');
     expect(finalSystem).toContain('callable_by_model');
-    expect(finalSystem).toMatch(/callable_by_model\\?":\[\]/u);
+    expect(finalSystem).toContain('read_page');
     expect(f.calls.filter((item) => item.sql.includes('ai_web_search_finish'))).toHaveLength(1);
     expect(f.calls.filter((item) => item.sql.includes('ai_usage_begin'))).toHaveLength(1);
     const usage = f.calls.find((item) => item.sql.includes('ai_usage_finish'))!;
@@ -240,6 +258,47 @@ describe('native local internet tools', () => {
     const count = f.fetchImpl.mock.calls.length;
     expect((await f.send()).replayed).toBe(true);
     expect(f.fetchImpl).toHaveBeenCalledTimes(count);
+  });
+
+  it('lets the model select a page, persists its content once, then finishes without more tools', async () => {
+    const read = vi
+      .spyOn(AiWebSearchService.prototype, 'readPages')
+      .mockImplementation(async (evidence, ids) => ({
+        ...evidence,
+        sources: evidence.sources.map((source) =>
+          ids.includes(source.id)
+            ? {
+                ...source,
+                pageRead: 'read',
+                pageText: 'Verified article contents beyond the search snippet.',
+              }
+            : source,
+        ),
+      }));
+    try {
+      const f = fixture(
+        'auto',
+        'web_search',
+        'Казань новости',
+        [],
+        'complete',
+        true,
+        'Сравни подробности новости',
+        true,
+      );
+      await f.send();
+      expect(read).toHaveBeenCalledOnce();
+      const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
+      expect(rounds).toHaveLength(3);
+      expect(rounds[2]!.body!.tools).toBeUndefined();
+      expect(JSON.stringify(rounds[2]!.body!.messages)).toContain('Verified article contents');
+      expect(f.calls.filter((item) => item.sql.includes('ai_web_search_finish'))).toHaveLength(1);
+      const count = f.fetchImpl.mock.calls.length;
+      expect((await f.send()).replayed).toBe(true);
+      expect(f.fetchImpl).toHaveBeenCalledTimes(count);
+    } finally {
+      read.mockRestore();
+    }
   });
 
   it('offers no internet tools when the user switches internet off', async () => {
@@ -493,4 +552,79 @@ describe('native local internet tools', () => {
     expect(evidence).toMatchObject({ status: 'needs_location', reason: 'location_required' });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+});
+
+it('streams ordinary text before completion even when native tools are offered', async () => {
+  const f = fixture('auto');
+  const original = f.fetchImpl.getMockImplementation()!;
+  let finish = (): void => undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const encode = (content: string, done: boolean): Uint8Array =>
+        new TextEncoder().encode(JSON.stringify({ message: { content }, done }) + '\n');
+      controller.enqueue(encode('Первая часть. ', false));
+      finish = () => {
+        controller.enqueue(encode('Вторая часть.', true));
+        controller.close();
+      };
+    },
+  });
+  f.fetchImpl.mockImplementation(async (url, options) => {
+    if (String(url).endsWith('/api/chat')) {
+      expect(JSON.parse(String(options?.body)).tools.length).toBeGreaterThan(0);
+      return new Response(stream);
+    }
+    return original(url, options);
+  });
+  let completed = false;
+  const sent = f.send().then((result) => {
+    completed = true;
+    return result;
+  });
+  try {
+    await vi.waitFor(() => expect(f.deltas.join('')).toBe('Первая часть. '));
+    expect(completed).toBe(false);
+  } finally {
+    finish();
+    await sent;
+  }
+  expect(f.deltas).toEqual(['Первая часть. ', 'Вторая часть.']);
+});
+
+it('offers only user-provided URLs, executes a selected direct read and follows up without search', async () => {
+  const url = 'https://example.org/article';
+  const read = vi.spyOn(AiWebSearchService.prototype, 'prepareDirect').mockResolvedValue({
+    schemaVersion: 1,
+    provider: 'searxng',
+    mode: 'web',
+    status: 'ready',
+    query: 'Страница',
+    retrievedAt: new Date().toISOString(),
+    images: [],
+    sources: [
+      {
+        id: 1,
+        url,
+        hostname: 'example.org',
+        title: 'Article',
+        snippet: '',
+        pageRead: 'read',
+        pageText: 'Actual full article text from the provided address.',
+      },
+    ],
+  });
+  try {
+    const f = fixture('auto', 'read_page', url, [], 'complete', true, 'Проанализируй ' + url);
+    await f.send();
+    expect(read).toHaveBeenCalledWith(OWNER, THREAD, REQUEST, url, expect.any(AbortSignal), true);
+    expect(f.requests.some((item) => item.url.includes('/search?'))).toBe(false);
+    const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
+    expect(rounds).toHaveLength(2);
+    expect(JSON.stringify(rounds[0]!.body!.tools)).toContain(url);
+    expect(JSON.stringify(rounds[1]!.body!.messages)).toContain('Actual full article text');
+    expect(rounds[1]!.body!.tools).toBeUndefined();
+    expect(f.calls.filter((item) => item.sql.includes('ai_web_search_finish'))).toHaveLength(1);
+  } finally {
+    read.mockRestore();
+  }
 });

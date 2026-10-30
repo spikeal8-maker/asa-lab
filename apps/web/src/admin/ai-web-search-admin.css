@@ -1,6 +1,30 @@
 .asa-ai-web-admin {
   margin-top: 12px;
 }
+.asa-ai-web-retrieval {
+  margin: 0;
+  padding: 16px;
+  min-width: 0;
+  border: 1px solid #dce5ec;
+  border-radius: 16px;
+  background: #f5faff;
+}
+.asa-ai-web-retrieval legend {
+  padding: 0 7px;
+  font-size: 15px;
+  font-weight: 650;
+  color: #17364c;
+}
+.asa-ai-web-retrieval-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+@media (max-width: 720px) {
+  .asa-ai-web-retrieval-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .asa-ai-web-admin-weather p {
   margin: 0;
   color: #607586;

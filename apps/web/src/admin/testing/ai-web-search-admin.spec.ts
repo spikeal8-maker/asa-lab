@@ -153,3 +153,30 @@ it('does not send arbitrary URLs, ports or wildcard domain masks', async () => {
   }
   expect(vi.mocked(call)).toHaveBeenCalledTimes(1);
 });
+it('saves retrieval counts and text budget together and blocks out-of-range settings', async () => {
+  const current = { ...config, resultsLimit: 6, pagesLimit: 1, pageCharLimit: 2500 };
+  vi.mocked(call).mockResolvedValueOnce({ ok: true, status: 200, data: current });
+  await act(async () => root.render(createElement(AdminAiWebSearch, { onAccessDenied: denied })));
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Результатов поиска"]')!.value).toBe(
+    '6',
+  );
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: { ...current, configurationVersion: 5 },
+  });
+  await submit();
+  expect(JSON.parse(String(vi.mocked(call).mock.calls[1]?.[1]?.body))).toMatchObject({
+    resultsLimit: 6,
+    pagesLimit: 1,
+    pageCharLimit: 2500,
+  });
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Страниц для чтения"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '3');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(host.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled).toBe(true);
+  await submit();
+  expect(vi.mocked(call)).toHaveBeenCalledTimes(2);
+});

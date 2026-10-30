@@ -37,13 +37,13 @@
   scroll-snap-type: x mandatory;
   scrollbar-width: thin;
 }
-.asa-ai-web-images a {
-  flex: 0 0 clamp(145px, 38%, 212px);
-  min-width: 145px;
+.asa-ai-web-images > .asa-ai-web-image-card {
+  flex: 0 0 clamp(240px, 45%, 360px);
+  min-width: 200px;
   overflow: hidden;
   scroll-snap-align: start;
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 12px;
+  border: 0;
+  border-radius: 18px;
   color: inherit;
   text-decoration: none;
 }
@@ -65,17 +65,17 @@
   text-align: center;
   font-size: 11px;
 }
-.asa-ai-web-images :is(span, small) {
+.asa-ai-web-image-caption :is(span, small) {
   display: block;
   margin: 7px 9px;
   overflow-wrap: anywhere;
 }
-.asa-ai-web-images span {
+.asa-ai-web-image-caption span {
   color: var(--ai-text, #20252b);
   font-weight: 600;
   line-height: 1.4;
 }
-.asa-ai-web-images small {
+.asa-ai-web-image-caption small {
   font-size: 10px;
 }
 .asa-ai-web-sources {
@@ -261,7 +261,182 @@
   font-size: 10px;
 }
 @media (max-width: 480px) {
-  .asa-ai-web-images a {
-    flex-basis: min(68vw, 200px);
+  .asa-ai-web-images > .asa-ai-web-image-card {
+    flex-basis: min(80vw, 300px);
+  }
+}
+
+.asa-ai-web-image-preview {
+  position: relative;
+}
+.asa-ai-web-image-preview > a {
+  display: block;
+  width: 100%;
+}
+.asa-ai-web-image-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.asa-ai-web-image-loading {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  left: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #172333db;
+  color: white;
+  font-size: 11px;
+  pointer-events: none;
+}
+.asa-ai-web-image-open img {
+  border-radius: 18px;
+}
+.asa-ai-image-viewer {
+  box-sizing: border-box;
+  width: min(1160px, calc(100vw - 28px));
+  max-width: calc(100vw - 28px);
+  max-height: calc(100dvh - 28px);
+  padding: 18px;
+  border: 1px solid #ffffff20;
+  border-radius: 22px;
+  background: #171a20;
+  color: #f4f6fa;
+  box-shadow: 0 24px 100px #0006;
+}
+.asa-ai-image-viewer::backdrop {
+  background: #090c12c9;
+}
+.asa-ai-image-viewer header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.asa-ai-image-viewer header > div {
+  flex: 1;
+  min-width: 150px;
+  overflow: hidden;
+}
+.asa-ai-image-viewer strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.asa-ai-image-viewer header span {
+  display: block;
+  margin-top: 5px;
+  color: #b6c4d4;
+  font-size: 12px;
+}
+.asa-ai-image-viewer nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.asa-ai-image-viewer :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 7px;
+  border: 0;
+  border-radius: 10px;
+  background: #ffffff12;
+  color: #f4f6fa;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.asa-ai-image-viewer :is(button, a):hover {
+  background: #ffffff24;
+}
+.asa-ai-image-viewer button[data-copied='true'] {
+  color: #5bd79a;
+}
+.asa-ai-image-viewer > img {
+  display: block;
+  width: 100%;
+  height: min(72dvh, 850px);
+  max-height: calc(100dvh - 190px);
+  aspect-ratio: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  background: #101217;
+}
+.asa-ai-image-viewer p {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #e5ccd0;
+}
+.asa-ai-image-viewer :focus-visible {
+  outline: 2px solid #88c9ff;
+  outline-offset: 3px;
+}
+.asa-ai-web-image-caption {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.asa-ai-web-image-actions {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+.asa-ai-web-image-card:is(:hover, :focus-within) .asa-ai-web-image-actions {
+  opacity: 1;
+  transform: none;
+}
+.asa-ai-web-image-actions :is(button, a) {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: #fffffff0;
+  color: #202123;
+  box-shadow: 0 2px 8px #0002;
+  cursor: pointer;
+}
+.asa-ai-web-image-actions :is(button, a):hover {
+  background: #fff;
+}
+.asa-ai-layout .asa-ai-web-image-actions button[data-copied='true'] {
+  color: #16834f;
+}
+.asa-ai-web-image-error {
+  grid-column: 1;
+  padding: 6px;
+  font-size: 12px;
+}
+@media (hover: none) {
+  .asa-ai-web-image-actions {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asa-ai-web-image-actions {
+    transition: none;
   }
 }

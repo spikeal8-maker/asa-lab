@@ -62,7 +62,7 @@ describe('server-owned catalog and provider request policy', () => {
     expect(catalog.productFeatures).toEqual({
       textChat: true,
       streaming: true,
-      imageInput: false,
+      imageInput: true,
       fileAttachments: false,
       imageGeneration: false,
     });

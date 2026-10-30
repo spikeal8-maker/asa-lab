@@ -38,6 +38,7 @@ async function fixture(page: Page) {
   const histories = new Map<string, Record<string, unknown>[]>();
   const requests: Record<string, unknown>[] = [];
   const writes: Record<string, unknown>[] = [];
+  const imageReads: string[] = [];
   let evidence: AiWebSearchEvidence | null = baseEvidence;
   let available = true;
   let weatherAvailable = true;
@@ -51,6 +52,9 @@ async function fixture(page: Page) {
     weatherConfigured: true,
     weatherEnabled: true,
     operationsPerHour: 100,
+    resultsLimit: 8,
+    pagesLimit: 2,
+    pageCharLimit: 4500,
     configurationVersion: 4,
   };
   const errors: string[] = [];
@@ -127,6 +131,9 @@ async function fixture(page: Page) {
           enabled: Boolean(data.enabled),
           operationsPerHour: Number(data.operationsPerHour),
           weatherEnabled: Boolean(data.weatherEnabled),
+          resultsLimit: Number(data.resultsLimit),
+          pagesLimit: Number(data.pagesLimit),
+          pageCharLimit: Number(data.pageCharLimit),
           configurationVersion: config.configurationVersion + 1,
         };
       }
@@ -148,11 +155,13 @@ async function fixture(page: Page) {
       histories.set(id, []);
       return json({ id }, 201);
     }
-    if (/\/web-search\/[^/]+\/images\/\d+$/.test(path))
+    if (/\/web-search\/[^/]+\/images\/\d+$/.test(path)) {
+      imageReads.push(req.url());
       return route.fulfill({
         contentType: 'image/png',
         body: readFileSync('apps/web/public/landing/electronics-simulation.png'),
       });
+    }
     if (/\/attachments$/.test(path)) return json({ items: [] });
     if (path.endsWith('/stop')) {
       release?.();
@@ -227,6 +236,7 @@ async function fixture(page: Page) {
   });
   return {
     requests,
+    imageReads,
     writes,
     errors,
     setEvidence: (value: AiWebSearchEvidence | null) => {
@@ -264,7 +274,20 @@ async function send(page: Page, mode: string, message: string) {
   const menu = page.locator('details.chat-tools-menu');
   if ((await menu.getAttribute('open')) === null)
     await page.locator('summary.chat-attach-button').click();
-  await page.getByRole('combobox', { name: 'Режим интернет-поиска' }).selectOption(mode);
+  await page.getByRole('button', { name: 'Режим интернет-поиска' }).click();
+  const label = (
+    {
+      auto: 'Авто',
+      off: 'Выключен',
+      web: 'Веб-поиск',
+      images: 'Картинки',
+      weather: 'Погода',
+    } as Record<string, string>
+  )[mode];
+  await page
+    .getByRole('listbox', { name: 'Режим интернет-поиска' })
+    .getByRole('option', { name: label })
+    .click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill(message);
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
@@ -320,10 +343,18 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(
         page.getByRole('region', { name: 'Найденные изображения, прокрутка по горизонтали' }),
       ).toBeVisible();
-      await expect(page.locator('.asa-ai-web-images a').first()).toHaveAttribute(
-        'href',
-        'https://example.org/project',
-      );
+      await page
+        .getByRole('button', {
+          name: 'Открыть изображение: Электронная схема для учебного проекта',
+          exact: true,
+        })
+        .click();
+      await expect(page.getByRole('dialog', { name: 'Просмотр изображения' })).toBeVisible();
+      await expect(
+        page.getByRole('dialog').getByRole('link', { name: 'Источник' }),
+      ).toHaveAttribute('href', 'https://example.org/project');
+      await noOverflow(page);
+      await page.getByRole('button', { name: 'Закрыть просмотр', exact: true }).click();
       if (width <= 390) {
         expect(
           await page
@@ -431,7 +462,7 @@ test('missing provider configuration does not disable ordinary chat', async ({ p
   fake.setEvidence(null);
   await page.goto('/#/ai');
   await page.locator('summary.chat-attach-button').click();
-  await expect(page.getByRole('combobox', { name: 'Режим интернет-поиска' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Режим интернет-поиска' })).toBeDisabled();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).click();
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Объясни закон Ома');
   await page.getByRole('button', { name: 'Отправить сообщение', exact: true }).click();
@@ -453,10 +484,16 @@ test('native forecast mode can be chosen without an installed search component',
   });
   await page.goto('/#/ai');
   await page.locator('summary.chat-attach-button').click();
-  const mode = page.getByRole('combobox', { name: 'Режим интернет-поиска' });
+  const mode = page.getByRole('button', { name: 'Режим интернет-поиска' });
   await expect(mode).toBeEnabled();
-  await expect(mode).toHaveValue('off');
-  await expect(mode.locator('option[value=web]')).toHaveJSProperty('disabled', true);
+  await expect(mode).toContainText('Выключен');
+  await mode.click();
+  await expect(
+    page
+      .getByRole('listbox', { name: 'Режим интернет-поиска' })
+      .getByRole('option', { name: 'Веб-поиск' }),
+  ).toBeDisabled();
+  await mode.press('Escape');
   await send(page, 'weather', 'Узнать прогноз погоды');
   expect(fake.requests[0]?.webSearchMode).toBe('weather');
   await expect(page.getByText('Для прогноза укажите город.')).toBeVisible();
@@ -476,6 +513,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.getByText('Прогноз погоды', { exact: true }).click();
     await expect(page.getByRole('checkbox', { name: 'Включить прогноз погоды' })).toBeChecked();
     await page.getByRole('spinbutton', { name: 'Лимит поисковых операций за час' }).fill('50');
+    await page.getByRole('spinbutton', { name: 'Результатов поиска', exact: true }).fill('6');
+    await page.getByRole('spinbutton', { name: 'Страниц для чтения', exact: true }).fill('1');
+    await page.getByRole('spinbutton', { name: 'Символов со страницы', exact: true }).fill('2500');
     await page.getByRole('button', { name: 'Сохранить поиск', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Поисковый запрос не выполнялся.'),
@@ -484,6 +524,9 @@ for (const width of [1440, 1024, 390, 320]) {
       enabled: true,
       weatherEnabled: true,
       operationsPerHour: 50,
+      resultsLimit: 6,
+      pagesLimit: 1,
+      pageCharLimit: 2500,
       configurationVersion: 4,
     });
     expect(fake.requests).toHaveLength(0);
@@ -492,3 +535,81 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(fake.errors).toEqual([]);
   });
 }
+
+test('found images copy repeatedly and download the displayed file without navigating', async ({
+  page,
+}) => {
+  const fake = await fixture(page);
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        write: async (items: ClipboardItem[]) => {
+          const image = await items[0]!.getType('image/png');
+          if (!image.size) throw new Error('Empty image');
+        },
+      },
+    });
+  });
+  fake.setEvidence({
+    ...baseEvidence,
+    mode: 'images',
+    images: [
+      {
+        id: 1,
+        title: 'Тестовая картинка',
+        thumbnailUrl: '',
+        sourceUrl: 'https://example.org/image',
+        originalUrl: 'https://images.example.org/original.png',
+      },
+    ],
+  });
+  await page.goto('/#/ai');
+  await send(page, 'images', 'Найди картинки');
+  const card = page.locator('.asa-ai-web-image-card');
+  await card.hover();
+  const copy = card.getByRole('button', { name: 'Копировать изображение', exact: true });
+  await copy.click();
+  await expect(
+    card.getByRole('button', { name: 'Изображение скопировано', exact: true }),
+  ).toBeEnabled();
+  // The same button remains usable; changing tabs or the feedback timeout resets its icon.
+  await card.getByRole('button', { name: 'Изображение скопировано', exact: true }).click();
+  await expect(copy).toBeVisible({ timeout: 5000 });
+  const downloadEvent = page.waitForEvent('download');
+  await card.getByRole('button', { name: 'Скачать изображение', exact: true }).click();
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toBe('Тестовая картинка.png');
+  expect(fake.imageReads.filter((url) => url.includes('original=1'))).toHaveLength(1);
+  const path = await download.path();
+  expect(readFileSync(path!).subarray(0, 8)).toEqual(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
+  await expect(page).toHaveURL(/#\/ai$/);
+  await card.getByRole('button', { name: 'Использовать в чате', exact: true }).click();
+  await expect(page.locator('.chat-attachment-drafts img')).toHaveAttribute(
+    'alt',
+    'Тестовая картинка.png',
+  );
+  await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toBeFocused();
+  await page.getByRole('button', { name: 'Удалить Тестовая картинка.png', exact: true }).click();
+  const input = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await input.fill('Объясни: ');
+  await input.evaluate((element, png) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['print(42)'], 'example.py', { type: 'text/plain' }));
+    transfer.items.add(
+      new File([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], 'clipboard.png', {
+        type: 'image/png',
+      }),
+    );
+    transfer.setData('text/plain', 'этот пример');
+    element.dispatchEvent(
+      new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }),
+    );
+  }, readFileSync('apps/web/public/landing/electronics-simulation.png').toString('base64'));
+  await expect(input).toHaveValue('Объясни: этот пример');
+  await expect(page.locator('.chat-attachment-chip')).toHaveCount(2);
+  await expect(page.locator('.chat-attachment-drafts img')).toHaveAttribute('alt', 'clipboard.png');
+  await expect(page.getByRole('button', { name: 'Удалить example.py', exact: true })).toBeVisible();
+});
