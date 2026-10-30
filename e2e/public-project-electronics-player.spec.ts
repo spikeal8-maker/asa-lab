@@ -1,28 +1,59 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test as base, type BrowserContext, type Page } from '@playwright/test';
 import type {
   ElectronicsDocument,
   SchematicComponent,
 } from '../contexts/electronics/domain/document';
-import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { e2eAdminPool, seedTeacher } from './seed';
 import { loginWithOrganization } from './organization-login';
 import { restoreNativeChromiumFocus } from './native-chromium-focus';
+
+type AuthorStorageState = Awaited<ReturnType<BrowserContext['storageState']>>;
+const test = base.extend<object, { authorStorageState: AuthorStorageState }>({
+  authorStorageState: [
+    async ({ browser }, use, workerInfo) => {
+      const baseURL = workerInfo.project.use.baseURL;
+      if (!baseURL)
+        throw Error('Native player author fixture requires the configured isolated baseURL');
+      const admin = e2eAdminPool();
+      const author = await seedTeacher(admin, 'public-electronics-player').finally(() =>
+        admin.end(),
+      );
+      const context = await browser.newContext({
+        baseURL,
+        storageState: { cookies: [], origins: [] },
+      });
+      let state: AuthorStorageState;
+      try {
+        const login = await context.newPage();
+        login.on('response', (response) => {
+          if (new URL(response.url()).pathname === '/api/auth/login' && response.status() === 429)
+            console.warn(
+              `Native player author login: HTTP 429; retry-after=${response.headers()['retry-after'] ?? 'missing'}`,
+            );
+        });
+        await loginWithOrganization(login, author);
+        state = await context.storageState();
+      } finally {
+        await context.close();
+      }
+      // Real server-issued state stays in this worker's memory. Each test gets
+      // an isolated context/project; no per-mode login or hand-made session.
+      await use(state);
+    },
+    { scope: 'worker' },
+  ],
+  storageState: async ({ authorStorageState }, use) => {
+    await use(authorStorageState);
+  },
+});
 
 // A real background tab must become hidden. CI supplies headed Chromium/Xvfb;
 // the lifecycle segment also removes Playwright's original-agent focus override.
 // Other publication suites retain their configured headless default.
 test.use({ headless: false });
-let author: SeededTeacher;
-test.beforeAll(async () => {
-  const admin = e2eAdminPool();
-  try {
-    author = await seedTeacher(admin, 'public-electronics-player');
-  } finally {
-    await admin.end();
-  }
-});
 
 const EVIDENCE = 'e2e/artifacts/public-projects/electronics-viewer/player';
 const catalog = JSON.parse(
@@ -210,10 +241,8 @@ function circuit(mode: 'passive' | 'button' | 'blink' | 'blocks'): ElectronicsDo
   };
 }
 async function setup(page: Page, document: ElectronicsDocument) {
-  // One adult Account/Principal with verified creator capability is seeded in
-  // the isolated test DB. Each case still logs in normally and owns a new
-  // personal Project; registration throttling is outside playback acceptance.
-  await loginWithOrganization(page, author);
+  // The worker fixture supplied the one normally authenticated author session.
+  await page.goto('/#/projects');
   const created = await page.request.post('/api/projects', {
     headers: { ...origin(page), 'idempotency-key': randomUUID() },
     data: { scope: 'personal', module: 'electronics', title: 'Публичная живая схема' },
@@ -269,6 +298,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
     const guestContext = await browser.newContext({
       viewport: { width: 1440, height: 1000 },
       hasTouch: true,
+      storageState: { cookies: [], origins: [] },
     });
     try {
       const fixture = await setup(page, circuit(mode));
