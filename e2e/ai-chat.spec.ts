@@ -1873,6 +1873,18 @@ test('compact chat menus preserve keyboard escape, draft and right alignment', a
   await expect(modelMenu).toHaveCount(0);
   await expect(model).toBeFocused();
   await expect(draft).toHaveValue('Сохранённый черновик');
+  await model.click();
+  await model.press('Tab');
+  await expect(modelMenu).toHaveCount(0);
+  await model.focus();
+  await model.press('Enter');
+  await expect(modelMenu.getByRole('option', { name: 'gpt-5-mini' })).toBeFocused();
+  await modelMenu.getByRole('option', { name: 'gpt-5-mini' }).press('Tab');
+  await expect(modelMenu).toHaveCount(0);
+  await model.focus();
+  await model.click();
+  await model.press('Shift+Tab');
+  await expect(modelMenu).toHaveCount(0);
 
   const tools = page.locator('.chat-tools-menu');
   await tools.locator('summary').click();
@@ -1886,6 +1898,10 @@ test('compact chat menus preserve keyboard escape, draft and right alignment', a
   await submenu.press('Escape');
   await expect(submenu).toHaveCount(0);
   await expect(tools).toHaveAttribute('open', '');
+  await imageMode.click();
+  await submenu.getByRole('option', { name: 'Авто' }).focus();
+  await submenu.getByRole('option', { name: 'Авто' }).press('Shift+Tab');
+  await expect(submenu).toHaveCount(0);
   await imageMode.click();
   await page
     .getByRole('listbox', { name: 'Генерация изображений' })

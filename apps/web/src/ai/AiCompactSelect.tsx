@@ -1,4 +1,12 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 export interface AiCompactOption {
@@ -141,6 +149,11 @@ export function AiCompactSelect({
       }
     }
   };
+  const onBlur = (event: FocusEvent<HTMLElement>): void => {
+    const next = event.relatedTarget;
+    if (!next || (!trigger.current?.contains(next) && !popup.current?.contains(next)))
+      setOpen(false);
+  };
 
   return (
     <>
@@ -155,6 +168,7 @@ export function AiCompactSelect({
         disabled={disabled}
         onClick={(event) => (open ? setOpen(false) : openMenu(event.detail === 0))}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
       >
         <span className="ai-compact-select-name" title={displayLabel ?? selected?.label ?? value}>
           {displayLabel ?? selected?.label ?? value}
@@ -176,6 +190,7 @@ export function AiCompactSelect({
             }
             style={{ top: position.top, right: position.right, maxHeight: position.maxHeight }}
             onKeyDown={onKeyDown}
+            onBlur={onBlur}
           >
             {options.map((option, index) => (
               <button
