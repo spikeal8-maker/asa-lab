@@ -1424,9 +1424,12 @@
 }
 .asa-ai-layout .ai-compact-select-chevron {
   flex: none;
-  font-size: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   line-height: 1;
-  transform: translateY(-2px);
 }
 .asa-ai-layout .chat-tools-option-row > .ai-compact-select {
   flex: 0 1 auto;
@@ -1625,4 +1628,35 @@
   --ai-accent: #f5f5f5;
   --ai-on-accent: #1d1d1f;
   color-scheme: dark;
+}
+
+.asa-ai-layout .ai-compact-select-chevron svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+.asa-ai-layout .ai-compact-select[aria-expanded='true'] .ai-compact-select-chevron {
+  transform: rotate(180deg);
+}
+.ai-chat-tooltip {
+  position: fixed;
+  z-index: 2000;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: #202123;
+  color: #fff;
+  box-shadow: 0 4px 16px #0002;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 400;
+  white-space: normal;
+  text-align: center;
+  pointer-events: none;
+}
+.ai-chat-tooltip[data-theme='dark'] {
+  background: #f5f5f5;
+  color: #202123;
 }

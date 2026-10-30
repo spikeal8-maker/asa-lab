@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { AiChatIcon } from './AiChatIcon';
 
 export interface AiCompactOption {
   value: string;
@@ -162,6 +163,7 @@ export function AiCompactSelect({
         type="button"
         className={`ai-compact-select ${className}`}
         aria-label={label}
+        data-ai-tooltip={displayLabel ?? selected?.label ?? value}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
@@ -170,11 +172,9 @@ export function AiCompactSelect({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       >
-        <span className="ai-compact-select-name" title={displayLabel ?? selected?.label ?? value}>
-          {displayLabel ?? selected?.label ?? value}
-        </span>
+        <span className="ai-compact-select-name">{displayLabel ?? selected?.label ?? value}</span>
         <span className="ai-compact-select-chevron" aria-hidden="true">
-          ⌄
+          <AiChatIcon name="chevron-down" />
         </span>
       </button>
       {open &&

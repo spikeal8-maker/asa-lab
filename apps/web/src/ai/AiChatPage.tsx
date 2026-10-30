@@ -15,6 +15,7 @@ import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './st
 import { AiMessageContent } from './AiMessageContent';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
+import { AiChatTooltips } from './AiChatTooltips';
 import { AiCompactSelect } from './AiCompactSelect';
 import { AiVoiceInput } from './AiVoiceInput';
 import { mergeVoiceTranscript } from './voice-transcript-draft';
@@ -1392,6 +1393,7 @@ export function AiChatPage({
       tabIndex={-1}
       ref={layout}
     >
+      <AiChatTooltips />
       <section
         className={
           'chat-page asa-ai-chat' + (sideOpen ? ' sidebar-open' : '') + (empty ? ' is-empty' : '')
@@ -1480,7 +1482,7 @@ export function AiChatPage({
                 type="button"
                 onClick={closeHistory}
                 aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
-                title={desktop ? 'Свернуть историю' : 'Закрыть историю'}
+                data-ai-tooltip={desktop ? 'Свернуть историю' : 'Закрыть историю'}
               >
                 <span aria-hidden="true">{desktop ? '‹' : '×'}</span>
               </button>
@@ -1489,7 +1491,7 @@ export function AiChatPage({
                 className="chat-icon-button chat-search-trigger"
                 ref={searchTrigger}
                 aria-label="Поиск по чатам"
-                title="Поиск по чатам и сообщениям"
+                data-ai-tooltip="Поиск по чатам и сообщениям"
                 aria-expanded={searchOpen}
                 aria-controls="ai-chat-history-search"
                 onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
@@ -1497,7 +1499,7 @@ export function AiChatPage({
                 <AiChatIcon name="search" size={20} />
               </button>
               <details className="chat-history-overflow">
-                <summary aria-label="Дополнительно" title="Дополнительно">
+                <summary aria-label="Дополнительно" data-ai-tooltip="Дополнительно">
                   <span aria-hidden="true">⋯</span>
                 </summary>
                 <div className="chat-history-overflow-popup">
@@ -1543,7 +1545,7 @@ export function AiChatPage({
               <button
                 type="button"
                 aria-label="Закрыть поиск"
-                title="Закрыть поиск"
+                data-ai-tooltip="Закрыть поиск"
                 onClick={() => closeSearch()}
               >
                 ×
@@ -1656,7 +1658,7 @@ export function AiChatPage({
                         type="button"
                         disabled={interactionBusy || threadActionBusy}
                         aria-label={'Переименовать: ' + thread.title}
-                        title="Переименовать"
+                        data-ai-tooltip="Переименовать"
                         onClick={() => {
                           setEditingId(thread.id);
                           setEditingTitle(thread.title);
@@ -1672,7 +1674,7 @@ export function AiChatPage({
                         aria-label={
                           (thread.archivedAt ? 'Восстановить: ' : 'В архив: ') + thread.title
                         }
-                        title={thread.archivedAt ? 'Восстановить диалог' : 'В архив'}
+                        data-ai-tooltip={thread.archivedAt ? 'Восстановить диалог' : 'В архив'}
                         onClick={() => void archiveThread(thread.id, !thread.archivedAt)}
                       >
                         <AiChatIcon name="archive" size={16} />
@@ -1682,7 +1684,7 @@ export function AiChatPage({
                         type="button"
                         disabled={interactionBusy || threadActionBusy}
                         aria-label={'Удалить: ' + thread.title}
-                        title="Удалить"
+                        data-ai-tooltip="Удалить"
                         onClick={() => {
                           setConfirmDeleteId(thread.id);
                           setEditingId(null);
@@ -1728,7 +1730,7 @@ export function AiChatPage({
                 aria-label="Открыть историю диалогов"
                 aria-controls="ai-chat-history"
                 aria-expanded={sideOpen}
-                title="История диалогов"
+                data-ai-tooltip="История диалогов"
               >
                 <AiChatIcon name="sidebar" size={20} />
               </button>
@@ -1739,7 +1741,9 @@ export function AiChatPage({
               type="button"
               onClick={() => setChatTheme((current) => (current === 'light' ? 'dark' : 'light'))}
               aria-label={chatTheme === 'light' ? 'Тёмная тема чата' : 'Светлая тема чата'}
-              title={chatTheme === 'light' ? 'Включить тёмную тему' : 'Включить светлую тему'}
+              data-ai-tooltip={
+                chatTheme === 'light' ? 'Включить тёмную тему' : 'Включить светлую тему'
+              }
               aria-pressed={chatTheme === 'dark'}
             >
               <AiChatIcon name={chatTheme === 'light' ? 'moon' : 'sun'} size={20} />
@@ -1750,7 +1754,7 @@ export function AiChatPage({
               disabled={interactionBusy || loading}
               onClick={() => void newChat()}
               aria-label="Создать новый диалог"
-              title="Новый диалог"
+              data-ai-tooltip="Новый диалог"
             >
               <AiChatIcon name="new-chat" size={20} />
             </button>
@@ -1809,7 +1813,7 @@ export function AiChatPage({
                           >
                             <time
                               dateTime={message.createdAt}
-                              title={new Date(message.createdAt).toLocaleString('ru-RU')}
+                              data-ai-tooltip={new Date(message.createdAt).toLocaleString('ru-RU')}
                             >
                               {new Date(message.createdAt).toLocaleTimeString('ru-RU', {
                                 hour: '2-digit',
@@ -1824,7 +1828,7 @@ export function AiChatPage({
                                   .catch(() => setError('Не удалось скопировать сообщение.'))
                               }
                               aria-label="Копировать"
-                              title="Копировать"
+                              data-ai-tooltip="Копировать"
                             >
                               <AiChatIcon name="copy" size={17} />
                             </button>
@@ -1838,7 +1842,7 @@ export function AiChatPage({
                                 composer.current?.focus();
                               }}
                               aria-label="Изменить"
-                              title="Изменить"
+                              data-ai-tooltip="Изменить"
                             >
                               <AiChatIcon name="edit" size={17} />
                             </button>
@@ -1858,7 +1862,7 @@ export function AiChatPage({
                                   interactionBusy || archived || !status?.enabled || !historyReady
                                 }
                                 onClick={() => void regenerate(message)}
-                                title="Новый запрос к модели расходует лимит. Исходный вопрос останется в истории."
+                                data-ai-tooltip="Новый запрос к модели расходует лимит. Исходный вопрос останется в истории."
                               >
                                 Получить новый ответ
                               </button>
@@ -1914,7 +1918,7 @@ export function AiChatPage({
                                     .catch(() => setError('Не удалось скопировать ответ.'))
                                 }
                                 aria-label="Копировать"
-                                title="Копировать"
+                                data-ai-tooltip="Копировать"
                               >
                                 <AiChatIcon name="copy" size={17} />
                                 <span>Копировать</span>
@@ -1928,7 +1932,7 @@ export function AiChatPage({
                                     interactionBusy || archived || !status?.enabled || !historyReady
                                   }
                                   onClick={() => void regenerate(message)}
-                                  title="Новый запрос к модели расходует лимит. Вопрос и все прежние ответы останутся в истории."
+                                  data-ai-tooltip="Новый запрос к модели расходует лимит. Вопрос и все прежние ответы останутся в истории."
                                   aria-label="Новый вариант ответа"
                                 >
                                   <AiChatIcon name="refresh" size={18} />
@@ -2065,7 +2069,7 @@ export function AiChatPage({
                         className={
                           'chat-attachment-chip ' + (item.preview ? 'is-image' : 'is-file')
                         }
-                        title={`${item.file.name} · ${attachmentSize(item.file.size)}`}
+                        data-ai-tooltip={`${item.file.name} · ${attachmentSize(item.file.size)}`}
                       >
                         {item.preview ? (
                           <img src={item.preview} alt={item.file.name} />
@@ -2075,7 +2079,7 @@ export function AiChatPage({
                             <small>{item.file.name.split('.').at(-1)?.toUpperCase()}</small>
                           </span>
                         )}
-                        <span title={item.file.name}>
+                        <span data-ai-tooltip={item.file.name}>
                           {item.file.name}
                           <small>
                             {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
@@ -2087,7 +2091,7 @@ export function AiChatPage({
                           type="button"
                           disabled={interactionBusy}
                           aria-label={'Удалить ' + item.file.name}
-                          title={'Удалить ' + item.file.name}
+                          data-ai-tooltip={'Удалить ' + item.file.name}
                           onClick={() => removeFile(item.uploadId)}
                         >
                           ×
@@ -2177,7 +2181,9 @@ export function AiChatPage({
                     type="button"
                     className="chat-composer-expand"
                     aria-label={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
-                    title={composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'}
+                    data-ai-tooltip={
+                      composerMaximized ? 'Свернуть поле ввода' : 'Развернуть поле ввода'
+                    }
                     aria-pressed={composerMaximized}
                     onClick={() => {
                       setComposerMaximized((value) => !value);
@@ -2204,7 +2210,7 @@ export function AiChatPage({
                       }}
                       className="chat-attach-button"
                       aria-label="Инструменты чата"
-                      title="Инструменты"
+                      data-ai-tooltip="Инструменты"
                     >
                       <span aria-hidden="true">+</span>
                     </summary>
@@ -2244,7 +2250,7 @@ export function AiChatPage({
                             !webSearchStatus?.enabled ||
                             !webSearchStatus.configured
                           }
-                          title={
+                          data-ai-tooltip={
                             webSearchStatus?.enabled && webSearchStatus.configured
                               ? 'Включить поиск с источниками'
                               : 'Интернет-поиск не подключён администратором'
@@ -2307,7 +2313,7 @@ export function AiChatPage({
                             !imageStatus?.enabled ||
                             !imageStatus.ready
                           }
-                          title={
+                          data-ai-tooltip={
                             imageStatus?.enabled && imageStatus.ready
                               ? 'Создать моделью FLUX.2 Klein 4B'
                               : 'Локальная генерация недоступна или выключена администратором'
@@ -2338,7 +2344,7 @@ export function AiChatPage({
                         />
                       </div>
                       <div className="chat-tools-option-row chat-tools-video-row">
-                        <button type="button" disabled title="Видео — скоро">
+                        <button type="button" disabled data-ai-tooltip="Видео — скоро">
                           <AiChatIcon name="video" size={20} /> Видео
                         </button>
                         <span className="chat-tools-model-caption">Скоро</span>
@@ -2436,7 +2442,7 @@ export function AiChatPage({
                     <button
                       type={composerBusy ? 'button' : 'submit'}
                       className="chat-send-button"
-                      title={
+                      data-ai-tooltip={
                         !composerBusy && !imageMode && selectedBudget?.available === false
                           ? selectedBudget.reason === 'ai_budget_pending'
                             ? 'Расход ожидает подтверждения'
