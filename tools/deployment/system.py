@@ -115,8 +115,10 @@ class Installation:
             same_root = bool(root) and os.path.normcase(str(Path(root).resolve())) == os.path.normcase(str(self.root))
             if project != self.project:
                 require(not same_root, "IDENTITY_PROJECT", "This directory already belongs to another Compose project.")
-                if not existing and (project or "").startswith("asa-lab"):
-                    raise Blocked("IDENTITY_EXISTING", "An ASA installation already exists.", "Use the canonical PostgreSQL directory; do not install a second stack.")
+                # A machine may host independent, explicitly named ASA projects.
+                # Fresh installs never adopt another project's containers/data.
+                # Collision checks of the *selected* project and its orphan
+                # volumes are handled before generating the fresh .env.
                 continue
             require(self.env, "IDENTITY_ENV", "Existing installation has no private .env.")
             require(same_root, "IDENTITY_ROOT", "Container belongs to another deployment directory.", "Run from the directory recorded on PostgreSQL.")
