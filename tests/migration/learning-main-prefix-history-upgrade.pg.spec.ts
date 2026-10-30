@@ -299,6 +299,11 @@ const upgradeArtifacts = [
     '0284_ai_polza_stt.sql',
     '5a6ed72f2b760b0ed3c14233dda23f6f3cdc07b9eb5f51b8fd495e717968d733',
   ],
+  [
+    '0285',
+    '0285_public_project_author_name.sql',
+    'bb0001e1438468dda12ea82706dbfa18dd19fb09e3ae3fafebb339de7493299c',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

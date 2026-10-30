@@ -671,6 +671,12 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await expect(
         guest.getByTestId('public-project-card').filter({ hasText: prefix }),
       ).toHaveCount(8);
+      await expect(
+        guest
+          .getByTestId('public-project-card')
+          .filter({ hasText: prefix })
+          .locator('.public-project-author'),
+      ).toHaveText(Array(8).fill('Автор длинного русского названия'));
       await expectNoOverflow(guest);
       const rowCount = await guest.getByTestId('public-project-card').evaluateAll((cards) => {
         const top = cards[0].getBoundingClientRect().top;
@@ -726,6 +732,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await guest.keyboard.press('Enter');
       await expect(guest).toHaveURL(new RegExp(`#/public-projects/${firstId}$`));
       await expect(guest.getByTestId('public-project-title')).toHaveText(longTitle);
+      await expect(guest.locator('.public-project-detail-author')).toHaveText(
+        'Автор длинного русского названия',
+      );
       await expectPublicImage(guest);
       await expectNoOverflow(guest);
       if (width === 320) {
