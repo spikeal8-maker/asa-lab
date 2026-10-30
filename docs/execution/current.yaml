@@ -15335,7 +15335,11 @@ parallel_lanes:
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: selected_proven320_save_clipping_with_emergency_copy
+      checkpoint: candidate6614_independent_requestchanges_pausing_label_bounded_repair
+      rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
+      review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
+      candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
+      repair_scope: CSS_and_toolbar_only_short_pausing_display_label_SimulationSpeedControl_no_timing_logic
       owner_acceptance: pending
       execution_role: bounded_css_executor_then_fresh_independent_review
       context_hints:
