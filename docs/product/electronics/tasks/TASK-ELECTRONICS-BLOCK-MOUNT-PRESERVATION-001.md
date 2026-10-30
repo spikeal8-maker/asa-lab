@@ -15,6 +15,31 @@ Issue [865](https://github.com/spikeal8-maker/asa-lab/issues/865), bounded
 compatibility prerequisite for automatic waits #864. Execution state lives only
 in `docs/execution/current.yaml`.
 
+## Resumption after approved resize refactoring — 30 October 2026
+
+Owner's request to finish prepared work remains active; the new explicit
+refactoring request produced accepted876 in main3b8e6e6ac, independently reviewed,
+with all4 General jobs successful at exact84e4acc1. Arduino was actually measured
+at1998988/2000000, preserving the fixed cap. This supersedes only the earlier
+budget deferral: it does not accept old46d388c or infer additive fit.
+
+Recompose only the useful saved-state reader/loading-event changes of preserved
+46d388c against current main, retaining876 and every foreign change. Product
+scope remains ArduinoCodePanel.tsx, arduino-program-state.ts and focused tests;
+no wait policy or runtime changes. Preserve old candidate/BEFORE branches.
+First run one actual current build/all8caps; stop on failure without adjacent
+cleanup. Then qualify the original six no-edit mounts plus genuine edit/export/
+reopen and empty/corrupt/new-program behavior using actual Blockly/UI events.
+Record exact current baseline; reuse original16 fixture oracles unchanged and
+confirm the defect still exists before applying a fix. No new heavy baseline
+build is needed solely to repeat a historical measurement.
+
+Mirror877 strict qualification continues remotely on its frozen source. This
+865 author may prepare and publish a candidate, but no new product integration
+ahead of the mirror dependency review: controller owns integration order.
+Fresh independent source/native review precedes one unchanged-SHA uncached
+canonical gate and final review. No server/foreign/protected asset change.
+
 Published BEFORE `8fd7f251233c359d77935f556197807991d476c8` contains 16 fixtures
 and six actual desktop/mobile mounts. All six replace saved source and XML
 without an edit; valid empty and corrupt XML can become Blink. Inspect

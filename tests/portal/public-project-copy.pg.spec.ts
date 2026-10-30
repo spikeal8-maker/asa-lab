@@ -213,6 +213,14 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
       method: 'GET',
       url: `/api/public-projects/${source.publication.publicationId}`,
     });
+    const author = await admin.query(
+      `SELECT profile.display_name,profile.visibility FROM projects project
+       JOIN principals actor ON actor.id=project.owner_principal_id
+       JOIN profiles profile ON profile.account_id=actor.account_id WHERE project.id=$1`,
+      [source.id],
+    );
+    expect(author.rows[0].visibility).toBe('private');
+    expect(detail.json().publication.authorLabel).toBe(author.rows[0].display_name);
     expect(detail.json().publication.capabilities).toMatchObject({
       canCopy: true,
       downloadFormats: [],

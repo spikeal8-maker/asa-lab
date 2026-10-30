@@ -81,6 +81,74 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: devex-engine
+    worktree_id: devex-engine-20261030
+    owned_paths:
+      - tools/ci_metrics.py
+      - tools/test_ci_metrics.py
+      - tools/gate-governance.sh
+      - tools/devex_plan.py
+      - tools/devex-dependencies.mjs
+      - tools/test_devex_plan.py
+      - tools/test-devex-dependencies.mjs
+      - tools/test_devex_plan_integration.py
+    task:
+      id: TASK-DEVEX-ENGINE-001
+      issue: 881
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: package_b_shadow_planner_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
+        of ASA-DEVEX-ENGINE-001 packages A-G on 2026-10-30. No production, live database, local Docker runtime or
+        host network operations. Docker/browser/data execution uses isolated CI only.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 5905889681b40b58d757680fda16e247b49c7869
+      head_sha: null
+      observed_at: '2026-10-30T19:35:56Z'
+      main:
+        branch: main
+        sha: 5905889681b40b58d757680fda16e247b49c7869
+      observation_note: >-
+        Dated package A integration after independently reviewed source 2c5407f3711903203dabd3d71b28a78981e5dd77
+        and exact General 41111731364 succeeded; fetch main before writes. Select package B in SHADOW only;
+        existing gates remain enabled. Programme completion, speed gains and owner acceptance are not claimed.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    programme:
+      id: ASA-DEVEX-ENGINE-001
+      selected_slice: B
+      remaining_slices: [B, C, D, E, F, G]
+      deployment_authorized: false
+      working_database_actions_authorized: false
+      completed_slices:
+        - id: PREFLIGHT
+          source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
+          integrated_sha: f25653a37e19079bd45fbd7208a0c8b5cc64459c
+          pr: 882
+          exact_source_general_run: 41093374361
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6528951157
+        - id: A
+          source_sha: 2c5407f3711903203dabd3d71b28a78981e5dd77
+          integrated_sha: 5905889681b40b58d757680fda16e247b49c7869
+          pr: 887
+          exact_source_general_run: 41111731364
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6531875035
+          baseline_report: docs/testing/evidence/devex-baseline-20261030.json
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
@@ -639,6 +707,30 @@ parallel_lanes:
         - docs/product/ai/FIRST_TASK_ASAI-01.md
         - docs/agent/contracts/identity.yaml
       selected_slices:
+        - id: ASAI-LOCAL-CLEAN-TRANSITION-001
+          issue: 373
+          scope: guarded clean database and bucket transition of existing local review installation
+          status: in_progress
+          selected_at: '2026-10-30'
+          task_contract: docs/product/ai/TASK_CONTRACT.md
+          requirements: [R19, R28, R31]
+          acceptance_checks: [C17, C20, C25, C28]
+          implementation_started: false
+          owner_acceptance: pending
+          demo_status: NOT_RUN
+          selection: >-
+            Owner explicitly orders a complete current-version local installation at
+            the existing loopback portal and selects a clean new database while retaining
+            the entire old database and files. Implement one guarded explicit legacy-review
+            transition, not a relaxation of normal identity/update/backup guards. Preserve
+            canonical root, single Compose project, ports, PostgreSQL/MinIO volumes, old
+            database/bucket, secrets, unpublished branches, WIP and owner backups. Verify
+            complete old DB/object/config/source export first; use a pinned eligible published
+            main release. Create separate fresh DB and object bucket within existing services,
+            then attest target identity and exact service/schema revisions. No old migration
+            ledger rewrites, no tenant/RLS policy change, no volume deletion, no second stack,
+            no host network/security changes. Require negative tests, isolated success evidence
+            and independent exact-source review before the owner-authorized live transition.
         - id: ASAI-CHAT-VISUAL-CONTROLS-001
           issue: 373
           scope: compact accessible model and tool menus plus subtle history scrollbar
@@ -7790,29 +7882,51 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       evidence: docs/product/projects/evidence/electronics-playback-20261030-acceptance.md
+    - task_id: TASK-PROJ-CATALOG-LAYOUT-001
+      issue: 211
+      pr: 880
+      accepted_candidate_sha: 6bd11e64842baaee28ad72a519f5d0b461ca03a8
+      integrated_sha: c729dbf92c97cf01a8753e17d0ee298d9004054b
+      independent_review: approved
+      exact_candidate_focused_run: 41087156379
+      exact_candidate_general_run: 41087156451
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/catalog-layout-20261030-acceptance.md
+    - task_id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
+      issue: 211
+      pr: 884
+      accepted_candidate_sha: 343235de2bb208926e5920b81a36c82266e44e18
+      integrated_sha: edfbd0057f1a37a473ced5799c6598e8c49aede1
+      independent_review: approved
+      exact_candidate_focused_run: 41095438714
+      exact_candidate_general_run: 41095438423
+      status: technical_accepted
+      owner_acceptance: pending
+      deployment: not_run
+      evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
-      id: TASK-PROJ-ELECTRONICS-PUBLIC-PLAYBACK-001
+      id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
       issue: 211
       branch: main
-      candidate_branch: codex/electronics-public-playback-20261030
+      candidate_branch: codex/public-author-name-20261030
       base_branch: main
-      pr: 875
+      pr: 884
       pr_draft: false
       status: done
-      checkpoint: public_electronics_playback_technical_accepted_main
+      checkpoint: existing_public_author_name_technical_accepted_main
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
-      owner_authorization: Owner requested actual public Electronics simulation with interactive controls and integration
-        of the publication page layout on 2026-10-30. Owner explicitly selected published Arduino program as public
-        with readonly code viewing, superseding separate code-consent requirements for this slice (DEC123). Reuse canonical
-        bounded Worker/controller/presentation primitives, not a fork or full Workbench. One bounded native passive/button
-        and Arduino playback plus immutable V3 public artifact, compact controls/page, no Project writes or deployment.
-        Independent exact Code/Security, real Worker/native browser/PG, public bundle admission and General before Main.
+      owner_authorization: Owner explicitly clarified on 2026-10-30 that the existing registration display name is public,
+        always visible as author, and no user name-visibility switch exists. Remove incorrect dependency on whole-profile
+        visibility for this one field. No new duplicate author-name field or whole-profile exposure. Existing publications
+        must display the canonical public name without manual republishing while immutable source/history remain intact.
+        Exact Code and Security review plus real PG/API/browser and General before Main. No live DB or deployment.
       context_hints:
-      - docs/product/projects/tasks/PROJ-ELECTRONICS-PUBLIC-PLAYBACK.md
-      - docs/product/projects/tasks/PROJ-R7-04B-ELECTRONICS.md
+      - docs/product/projects/tasks/PROJ-PUBLIC-AUTHOR-NAME.md
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
@@ -11337,7 +11451,23 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_test_only_current_document_observer_and_slider_owned_point_repair
+      checkpoint: selected_test_only_correct_fixture_paint_order_and_forensic_failure_counts
+      paint_order_oracle_repair:
+        candidate_sha: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        source_composition_review: APPROVE_new_independent_exact_five_hunks_and_frozen_dependencies
+        frozen_spec_blob: a3d5830c0b637e165cc60c8a43126e8f2ae8718f
+        frozen_spec_sha256: 09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1
+        strict_run: 41094573695
+        strict_result: in_progress_not_PASS
+        source_before_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+        source_before_run: 41080294495
+        actual_result: CANCELLED_global50min_focused_benchmark_PASS_0of16complete_due_false_DOMorder_after_saved_reopen
+        actual_evidence: All16_saved_reopened_full_docs_equal_32PUT200_CASplus1_no_ledger_errors_784readings588glyph_axis_errors_0window_center_endpoint_errors
+        independent_actual_review: NOT_READY_browser_collectors_final_screenshots_missing_preserve_original_failure_flags
+        selected_oracle: Explicit_fixture_paint_order_bench_supply_source_meter_load_generator_scope_preserve_strict_logical_document_order_elsewhere
+        selected_forensics: Snapshot_existing_both_browser_failure_counts_in_finally_preserve_success_assertions_and_screenshots
+        baseline_composition: reviewed877D_f2f94ad_pure_geometry_move_no_semantic_change
+        boundary: New_actual_complete16_BEFORE_required_before_product_AFTER_no_retrospective_PASS
       native_observer_slider_repair:
         source_before_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
         source_before_run: 41061516266
@@ -13492,7 +13622,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: resize876_integrated_test525_frozen_native_psu_switch877_dependency_selected
+      checkpoint: mirror525_corrected_before_running_prepared_joint_budget_probe789_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13503,7 +13633,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-PSU-SWITCH-NATIVE-HIT-001
+      current_slice: TASK-ELECTRONICS-BLOCK-MODULO-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15404,7 +15534,20 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: candidate46d388c_preserved_notready_Arduino170bytes_overcap
+      checkpoint: completion_e4d_verified_2576tests71fresh_caps8_native_ready_held_for877
+      completion_candidate_sha: e4d3712d1db47aeb762bc9401781257bd4b66ad0
+      completion_review: APPROVE_new_independent_exact_source_native_and_canonical
+      completion_canonical: PASS_2576tests_71freshNx_cacheSkipped_all8caps_Arduino1999233
+      completion_native: Original16fixtures_and_source_bytes_exact_six_noedit_mounts_and_genuine_edit_export_reopen_adapter_both_widths_PASS
+      completion_publication: source_candidate_pushed_not_integrated_pending_primary877
+      completion_resume:
+        checkpoint: selected_recompose_preserved_candidate_after_approved_resize876
+        measured_reference_arduino_bytes: 1998988
+        fixed_arduino_cap_bytes: 2000000
+        reference_source: accepted876_exact84e4acc1_and_877_finalbuild_sameArduino
+        owner_authorization: Prior_finish_all_prepared_request_and_new_explicit_refactoring_876_supersede_budget_deferral_only
+        scope: Existing_saved_workspace_reader_and_loading_event_fix_only_no_waits_no_runtime
+        integration_order: Candidate_only_while877_strict_pending_controller_integrates_after_primary_dependency_qualification
       candidate_sha: 46d388c04c876546dccf1427b7758e34792d901e
       candidate_publication: published
       candidate_acceptance: blocked
@@ -15695,7 +15838,40 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: selected_native_live_switch_capsule_priority_over_ordinary_wire_hits_only
+      checkpoint: reviewed_f2f94ad_geometry_helper_new525_DOMorder_oracle_dependency_pending
+      refactor_candidate_sha: f2f94ad22728ed744539ec490f53a74e1c8e1f47
+      refactor_review: APPROVE_new_independent_source_equivalence_native91_hygiene_and_composition
+      refactored_Stage_bytes: 63752
+      refactored_helper_bytes: 5298
+      general_run: 41087390394
+      general_result: FAIL_Access_Classroom_observation_loginHandle_fixture_Code_Data_Governance_PASS
+      general_classification: C_unchanged_classroom_fixture_before_Electronics_module_load_API_and_Access_paths_unchanged_do_not_repair_foreign
+      hygiene_repair:
+        failed_general_run: 41080002633
+        source_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+        classification: B_current_Stage_growth_exceeds_existing_review_threshold
+        current_Stage_git_bytes: 67514
+        reviewed_Stage_bytes: 54879
+        max_Stage_bytes: 65854
+        excess_bytes: 1660
+        selected_repair: Move_only_new_4428byte_pure_PSU_switch_clip_geometry_into_one_real_helper_Stage_keeps_projection_authority_state_DOM_handlers_and_clip_JSX
+        preservation: No_hygiene_baseline_or_cap_increase_no_semantic_layer_or_geometry_change_f335_spec_frozen
+      candidate_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
+      preliminary_review: APPROVE_independent_source_native91_running_frame_and_final_test_metadata_composition
+      frozen_browser_blob: b450bd6d148285008ba226bb688a315f1120eb1a
+      frozen_browser_sha256: d9c0c74dd49997636aca4decd6c61d0381b4aa649a030b8e094305ece7b0f93c
+      strict_run: 41080294495
+      strict_result: in_progress_not_PASS
+      prior_strict_failures:
+        - run: 41077666273
+          sha: 2f9f3d8b7efea8ae688b1d628ffff95bb9f24250
+          classification: B_missing_generated_browser_hash_composition
+          browser: SKIPPED
+        - run: 41078870221
+          sha: bd733f49115fc7c28bcc12db3842b813c930be46
+          classification: B_VM_test_context_missing_new_actual_React_hooks
+          browser: SKIPPED
+      repair_validation: Full_Web_68files1146tests_PASS_component_information_guard_PASS_product_spec_and_native_artifacts_unchanged
       owner_acceptance: pending
       execution_role: bounded_executor_then_new_independent_source_native_review
       context_hints:
@@ -15738,7 +15914,13 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: prepared_completion307f18_capfailed_preserved_no_cleanup
+      checkpoint: selected_frozen_b4c_e4d_307f_joint_budget_probe_after_resize876
+      joint_budget_probe:
+        mode: verification_only_no_new_implementation
+        reviewed_mirror_baseline: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        reviewed_saved_blocks: e4d3712d1db47aeb762bc9401781257bd4b66ad0
+        not_ready_modulo: 307f18d98d309add057e150bd90e66365352801f
+        boundary: Exact_source_composition_one_fresh_web_build_caps_then_STOP_no_rewrite_or_acceptance_or_main
       completion_candidate_sha: 307f18d98d309add057e150bd90e66365352801f
       completion_result: NOT_READY_Arduino2000696of2000000_other7capsPASS_numeric22PASS_AVRnative_remainingproof_NOT_RUN
       completion_report: docs/product/electronics/evidence/modulo-789-completion-20261030/candidate-report.json.gz

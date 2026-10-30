@@ -301,7 +301,12 @@ const upgradeArtifacts = [
   ],
   [
     '0285',
-    '0285_ai_search_retrieval_settings.sql',
+    '0285_public_project_author_name.sql',
+    'bb0001e1438468dda12ea82706dbfa18dd19fb09e3ae3fafebb339de7493299c',
+  ],
+  [
+    '0286',
+    '0286_ai_search_retrieval_settings.sql',
     '4f66457fc0e91c134dd93d280ba22f58af0c97eaa54ac00e0d38ddec39482c6f',
   ],
 ] as const;

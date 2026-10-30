@@ -12,6 +12,52 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected test-only paint-order oracle repair — 30 October 2026
+
+Strict41080294495 exact3a9b3e1d97c370e650d8a895e488897c2a455d07 reached Save and
+server reopen in all16 cases:32 PUT200, CAS+1, full recorded expected/local/saved/
+reopened documents equal, no ledger errors, both contexts closed. Independent
+actual review also reevaluated the three remaining pure native-action checks.
+Nevertheless every case failed the DOM-ID-order assertion at4409 and retains
+journeyComplete:false. Browser collectors and final screenshots were never
+checked/captured on the success path. This is NOT a completed BEFORE; preserve
+the failed flags, cancellation and missing evidence, do not relabel them PASS.
+
+The old oracle incorrectly expects logical document-array order in the DOM.
+The existing presentation contract intentionally paints the regulated supply
+body below wires, ahead of ordinary components, without duplicate bodies. For
+the independently declared fixture the correct exact paint order is:
+bench-supply,source,meter,load,generator,scope. All16 raw DOM captures match it.
+Full logical document ordering remains strictly checked in local/server/request/
+response comparisons. Do not sort observed IDs or derive expected order from
+observed runtime data: retain exact identities, cardinality, duplicates and the
+specified paint ordering by asserting that explicit fixture-derived array.
+
+Authorize ONE new bounded test-only author for that oracle and forensic failure
+counts. Product write paths remain only e2e/electronics-simulation.spec.ts and
+the canonical generated component-coverage.json browserEvidenceSha256. Evidence
+files may be added. Preserve all other matrix checks/actions/order/deadlines,
+full-document/CAS/native/ledger/closure assertions and successful final screenshots.
+No production, fixture geometry, workflow, timeout, cap or unrelated test changes.
+
+Also checkpoint snapshots of BOTH existing browser-failure collectors in the
+existing finally path before/after context cleanup, so a later assertion cannot
+discard their counts. A small read-only holder for the reopened collector is
+allowed; preserve its original lifecycle and assertEmpty calls, with no new
+observer, cleared errors, requests, retries, UI actions or acceptance shortcut.
+Never replace the original success-path browser checks with these diagnostics.
+
+Recompose on independently reviewed877D f2f94ad22728ed744539ec490f53a74e1c8e1f47
+with the pure clipping helper; no source change. Preserve all old freezes and
+record a NEW full-spec freeze for corrected BEFORE/future AFTER. Prove corrected
+paint expectations against all16 raw captures and rejected wrong/missing/duplicate
+identity cases, plus source audit of unchanged success assertions/actions. Run
+canonical metadata, routing, format/lint/discovery checks; self-review/freeze/push
+STOP. NEW independent exact-SHA source/final-composition review precedes ONE new
+existing strict BEFORE run. All16 must complete with actual browser checks,
+screenshots, final healthy ledger and mirror-only expected glyph soft failures
+before separate mirror product AFTER. No closure, release or deployment.
+
 ## Selected test-only observer and slider ownership repair — 30 October 2026
 
 Exact8ebe3f2b2 / strict41061516266 completes0/16 journeys. Focused gate and

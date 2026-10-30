@@ -11,6 +11,27 @@ review: independent
 
 # Portable numeric modulo for Blockly variables: bounded candidate first
 
+## Selected frozen-composition budget probe — 30 October 2026
+
+Owner's complete-prepared-work request and explicit refactoring permit one
+budget-only verification after accepted876. Compose reviewed mirror/test baseline
+b4c723b30abc5fa8e77b162fc27ccca59c2793f8, reviewed held saved-block candidate
+e4d3712d1db47aeb762bc9401781257bd4b66ad0 and preserved NOT_READY modulo candidate
+307f18d98d309add057e150bd90e66365352801f on current canonical main. Copy only
+their exact necessary product/test/generated source blobs after checking original
+base against current main. Preserve every foreign change and all candidate refs;
+no wholesale old-file overwrite if a real source overlap exists.
+
+This is NOT new implementation or acceptance. No source rewriting, minification,
+guard removal, cap change, new dependency/workflow/public inventory edit or
+additional refactoring. Existing evidence stays at its frozen refs; record the
+composition map rather than duplicating whole old report trees. One fresh web
+build with literal NX_SKIP_NX_CACHE=true and all8 fixed caps. Record actual joint
+sizes instead of adding historical deltas. Stop and preserve the composition
+whether PASS or FAIL; full modulo C++/AVR/native/collision/pending/RNG review and
+source publication remain separate selected work. No canonical/strict rerun or
+main integration, server/Docker/database/ports/protected assets.
+
 Consolidated4/16 and prerequisite13counter, issue789, parent703/452. Real Workspace
 variable math fails because generated variables are float but modulo emits percent.
 BEFORE must reproduce original generated source and runtime rejection. Do not

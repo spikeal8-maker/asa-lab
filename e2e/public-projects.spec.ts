@@ -671,6 +671,12 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await expect(
         guest.getByTestId('public-project-card').filter({ hasText: prefix }),
       ).toHaveCount(8);
+      await expect(
+        guest
+          .getByTestId('public-project-card')
+          .filter({ hasText: prefix })
+          .locator('.public-project-author'),
+      ).toHaveText(Array(8).fill('Автор длинного русского названия'));
       await expectNoOverflow(guest);
       const rowCount = await guest.getByTestId('public-project-card').evaluateAll((cards) => {
         const top = cards[0].getBoundingClientRect().top;
@@ -678,10 +684,42 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       });
       expect(rowCount).toBeLessThanOrEqual(4);
       if (width === 320) expect(rowCount).toBe(1);
-      if (width >= 360 && width <= 430) expect(rowCount).toBe(2);
+      if (width >= 360 && width <= 768) expect(rowCount).toBe(2);
+      if (width === 1024) expect(rowCount).toBe(3);
+      if (width === 1440) expect(rowCount).toBe(4);
+      const searchBounds = await guest.getByRole('search').boundingBox();
+      expect(searchBounds!.width).toBeLessThanOrEqual(width >= 768 ? 400 : width);
+      expect(
+        (await guest.getByTestId('public-project-card').first().boundingBox())!.y,
+      ).toBeLessThan(400);
+      const categories = guest.getByRole('group', { name: 'Среда проекта', exact: true });
+      await expect(categories.getByRole('button', { name: 'Все', exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      if (width === 390) {
+        const threeD = categories.getByRole('button', { name: '3D-моделирование', exact: true });
+        await threeD.click();
+        await expect(threeD).toHaveAttribute('aria-pressed', 'true');
+        await expect(guest).toHaveURL(/module=three-d/);
+        await expect(
+          guest.getByTestId('public-project-card').filter({ hasText: prefix }),
+        ).toHaveCount(8);
+        await categories.getByRole('button', { name: 'Все', exact: true }).click();
+        await expect(guest).toHaveURL(/#\/explore$/);
+        await expect(
+          guest.getByTestId('public-project-card').filter({ hasText: prefix }),
+        ).toHaveCount(8);
+      }
       await guest.screenshot({ path: `${EVIDENCE}/catalogue-${width}.png`, fullPage: true });
       const link = guest.getByRole('link', { name: `Открыть проект «${longTitle}»` });
+      // A programmatic focus after clicking a category retains pointer modality.
+      // Leave and return through real keyboard navigation before asserting the
+      // browser's :focus-visible presentation; do not force a class or style.
       await link.focus();
+      await guest.keyboard.press('Shift+Tab');
+      await expect(link).not.toBeFocused();
+      await guest.keyboard.press('Tab');
       await expect(link).toBeFocused();
       const visibleFocus = await link.evaluate((element) => {
         const style = getComputedStyle(element);
@@ -694,6 +732,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await guest.keyboard.press('Enter');
       await expect(guest).toHaveURL(new RegExp(`#/public-projects/${firstId}$`));
       await expect(guest.getByTestId('public-project-title')).toHaveText(longTitle);
+      await expect(guest.locator('.public-project-detail-author')).toHaveText(
+        'Автор длинного русского названия',
+      );
       await expectPublicImage(guest);
       await expectNoOverflow(guest);
       if (width === 320) {

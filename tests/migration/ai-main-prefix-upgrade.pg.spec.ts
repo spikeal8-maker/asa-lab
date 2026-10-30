@@ -63,7 +63,8 @@ const expectedPending = [
   '0282', // Local inference overrides preserve legacy defaults.
   '0283', // Canonical publication likes retain legacy reactions.
   '0284', // Isolated Polza STT credentials and bounded speech admission.
-  '0285', // Bounded search retrieval settings.
+  '0285', // Existing public author name projection, immutable history preserved.
+  '0286', // Bounded search retrieval settings.
 ];
 
 interface Identity {
