@@ -13349,7 +13349,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: remaining20_point14_annotations_source_verified_next_slice_selection
+      checkpoint: remaining20_point14_source_verified_speed21_host_adapter_selected
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13360,7 +13360,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-CANVAS-ANNOTATIONS-001
+      current_slice: TASK-ELECTRONICS-SIMULATION-SPEED-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15041,6 +15041,48 @@ parallel_lanes:
       persistence: restricted_PG_5tests_PASS_prepared_unprepared_replay_downgrade_futurebase_and_CASrace
       legacy_oracle: full13cases19716bytes_SHA256_50feaa528eaf2c655732396f69226ef157bb2bf01e41f1db0b503cc7505bc743_unchanged
       report: docs/product/electronics/evidence/canvas-annotations-860/GATES.md
+
+  - id: electronics-simulation-speed
+    parent_lane: electronics
+    worktree_id: electronics-simulation-speed
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SIMULATION-SPEED-001.md
+    task:
+      id: TASK-ELECTRONICS-SIMULATION-SPEED-001
+      issue: 861
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: implementation
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: selected_host_pacing_pause_adapter_preserve_default1_and_pending_ACK
+      owner_acceptance: pending
+      execution_role: new_bounded_speed_executor_then_new_independent_review
+      owner_authorization: Owner_requested_time_display_slider_0pause_fractional_slowdown_and_1to10_speed_and_explicit_complete_programme_continue. Point14_source_integrated5d086a3a_after_exactf6b3_General40996527370_all4success_independentAPPROVE_and_canonical2517tests71freshNx. No_server_Docker_liveDB_foreignchanges_refactor_or_capraise.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SIMULATION-SPEED-001.md
+      deployment: prohibited_by_owner
+      database_actions: none_live
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      main:
+        branch: main
+        sha: 5d086a3a870f834c0421e883a6ca70652a672e82
+      convergence_baseline_sha: 5d086a3a870f834c0421e883a6ca70652a672e82
+      head_sha: null
+      observed_at: '2026-10-30T03:50:00Z'
+      observation_note: Fresh fetch main before edits. Source31blobs_exact_approvedf6b3_Main5d086_General_inprogress_not_inferredPASS. Readonly_design_refinement_completed. Preserve_current1path_bytes_and_all_clock_profiles. Author_records_preedit_oracle_before_source_mutation_and_candidate_caps_before_broadgate. Server_unchanged.
 
   - id: electronics-owner45-block-modulo
     parent_lane: electronics
