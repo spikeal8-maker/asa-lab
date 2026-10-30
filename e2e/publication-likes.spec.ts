@@ -110,7 +110,14 @@ for (const { width, seat } of [
       const publication = (await published.json()).publication;
       const path = `/#/public-projects/${publication.publicationId}`;
       await author.goto(path);
+      // API registration/join changes cookies, not the mounted SPA identity.
+      await author.reload();
+      await expect(author.getByTestId('publication-like-button')).toBeVisible();
       await expect(author.getByTestId('publication-like-button')).toBeDisabled();
+      await expect(author.getByTestId('publication-like-button')).toHaveAttribute(
+        'title',
+        'Это ваша работа',
+      );
       expect(
         (
           await db.query(
@@ -120,7 +127,9 @@ for (const { width, seat } of [
         ).rows[0].account_id,
       ).toBe(authorId);
       await reader.goto(path);
+      await reader.reload();
       const button = reader.getByTestId('publication-like-button');
+      await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
       await expect(reader.getByTestId('publication-like-count')).toHaveText('0');
       const saved = reader.waitForResponse(
