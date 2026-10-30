@@ -11305,6 +11305,16 @@ parallel_lanes:
       pr_draft: false
       status: in_progress
       checkpoint: selected_test_only_finalization_phase_repair
+      resumed_before_qualification:
+        source_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
+        source_review: APPROVE_new_independent_exact_source_and_final_composition
+        full_browser_blob: 06174a9675a5e670e3798a4adb7e40239a729a3a
+        full_browser_sha256: 73efacf7f218c9b5d06805c4b23fc088563ae184364f9a42a19b92b247202018
+        dependency: committed_instrument_projection873_integrated_not_mirror_product
+        workflow_run: 41061516266
+        qualification_profile: strict-real-time
+        observed_result: queued_not_PASS
+        boundary: Existing_full16_BEFORE_only_no_product_AFTER_until_complete_and_new_actual_review
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -13434,7 +13444,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: plan/governance
-      checkpoint: instrument873_source_native_canonical_verified_ready_for_main
+      checkpoint: instrument873_integrated_mirror525_reviewed_before_qualification_dispatched
       owner_pause: Previouswrapuppauserevokedbyexplicitownerrequest2026-10-28 tostartimplementation. No server or foreignchanges authorized.
       owner_acceptance: pending
       execution_role: programme_controller_only
@@ -13445,7 +13455,7 @@ parallel_lanes:
         - docs/product/electronics/evidence/owner23-reconciliation-20261025.md
       owner_authorization: Owner explicitly directs the complete first-file Electronics programme easiest-to-harder, sequential task closure and verified stale branch/source hygiene. Controller must continue after accepted slices, delegate product implementation and independent review, preserve foreign work and all unique candidates.
       programme_goal: Completeownerremaining20requirementsundernew1to20numbering, retainingprior25sourceverifiedresultsandhistorical45mapping. Boundedexecutorsandindependentreview, preserveforeignwork, no unrelatedrefactor/serveroperations. Ownerexplicitlyresumedimplementation2026-10-28.
-      current_slice: TASK-ELECTRONICS-INSTRUMENT-NATIVE-PROJECTION-001
+      current_slice: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
       consolidated_source_verified: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 17, 18, 19, 20, 21, 23, 24, 25, 28, 29, 31, 33, 35, 37, 38, 39]
       consolidated_partial: [13, 14, 15, 16, 22, 26, 27, 30, 32, 34, 36, 40, 41, 42, 43, 44, 45]
       consolidated_pending: []
@@ -15546,6 +15556,7 @@ parallel_lanes:
       semantic_change: 'no'
       checkpoint: candidate5b622a1_native_review_pass_canonical2566_71fresh_caps8_pass
       accepted_candidate_sha: 5b622a1763548100f3475b5e606d384df538a380
+      integrated_sha: 8ebe3f2b2b6140a2750997d2392ae80aae586009
       source_review_evidence: done
       independent_review: APPROVE_exact5b622a1_actualWorker_1440_390_committed_isolation
       report: docs/product/electronics/evidence/instrument-native-projection-873/GATES.md
