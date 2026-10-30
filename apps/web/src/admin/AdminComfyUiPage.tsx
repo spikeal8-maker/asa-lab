@@ -229,6 +229,7 @@ export function AdminComfyUiPage({
         <button
           type="button"
           className="asa-image-refresh"
+          disabled={loading || busy}
           onClick={() => {
             generation.current++;
             statusGeneration.current++;

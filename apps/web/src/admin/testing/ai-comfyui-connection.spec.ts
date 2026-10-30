@@ -200,29 +200,47 @@ it('ignores a delayed background success after a newer manual probe fails', asyn
   expect(host.textContent).not.toContain('ComfyUI подключён');
 });
 
-it('ignores a delayed manual probe success after a newer status refresh fails', async () => {
+it('keeps an in-flight settings save authoritative when refresh is attempted', async () => {
   await render();
-  let resolveProbe!: (value: unknown) => void;
-  const pendingProbe = new Promise((resolve) => {
-    resolveProbe = resolve;
+  const newUrl = 'http://192.168.5.20:8188';
+  await input(newUrl);
+  const imageReadsBefore = vi
+    .mocked(call)
+    .mock.calls.filter(([path]) => path.endsWith('/images')).length;
+  let resolvePut!: (value: unknown) => void;
+  const pendingPut = new Promise((resolve) => {
+    resolvePut = resolve;
   });
   const original = vi.mocked(call).getMockImplementation()!;
   vi.mocked(call).mockImplementation(async (path, init) => {
-    if (path.endsWith('/probe')) return pendingProbe as never;
+    if (path.endsWith('/settings') && init?.method === 'PUT') return pendingPut as never;
     if (path.endsWith('/status'))
-      return {
-        ok: false,
-        status: 503,
-        error: { code: 'ai_comfy_unreachable', message: 'Нет связи с ComfyUI' },
-      };
+      return { ok: true, status: 200, data: { ...details, baseUrl: newUrl } };
     return original(path, init);
   });
-  await click('Проверить');
+  await click('Сохранить адрес');
+  const refresh = [...host.querySelectorAll('button')].find(
+    (button) => button.textContent === 'Проверить состояние',
+  )!;
+  expect(refresh.disabled).toBe(true);
   await click('Проверить состояние');
-  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
-  await act(async () => resolveProbe({ ok: true, status: 200, data: details }));
-  expect(host.querySelector('[role="alert"]')?.textContent).toContain('Нет связи с ComfyUI');
-  expect(host.textContent).not.toContain('ComfyUI подключён');
+  await act(async () =>
+    resolvePut({
+      ok: true,
+      status: 200,
+      data: {
+        config: { ...config, baseUrl: newUrl, configurationVersion: 2 },
+        status: { ...details, baseUrl: newUrl },
+      },
+    }),
+  );
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Адрес ComfyUI"]')!.value).toBe(newUrl);
+  expect(host.textContent).toContain('Адрес сохранён');
+  expect(host.textContent).toContain('ComfyUI подключён');
+  expect(vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/images'))).toHaveLength(
+    imageReadsBefore + 1,
+  );
+  expect(refresh.disabled).toBe(false);
 });
 
 it('reloads saved image readiness after explicitly changing the ComfyUI endpoint', async () => {
