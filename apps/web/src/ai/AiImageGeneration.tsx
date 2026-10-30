@@ -63,6 +63,7 @@ export function AiImageGeneration({
   controllerRef,
   onStateChange,
   onJobChange,
+  onDefiniteThreadDenial,
   providedStatus,
 }: {
   threadId: string | null;
@@ -81,6 +82,8 @@ export function AiImageGeneration({
   onStateChange?: (state: ImageComposerState) => void;
   /** Optional observer for the admin preview; never submits or retries a job. */
   onJobChange?: (job: AiImageGenerationJob | null) => void;
+  /** Called only after a 403 preadmission receipt clears the fresh request ID. */
+  onDefiniteThreadDenial?: (threadId: string) => void;
   providedStatus?: AiImageGenerationStatus | null;
 }) {
   const call = useRef(createAiScopeCall(seatId)).current;
@@ -260,8 +263,10 @@ export function AiImageGeneration({
         result.error.code === 'ai_image_not_admitted' &&
         [400, 403, 429, 503].includes(result.status)
       ) {
+        let receiptCleared = false;
         try {
           if (sessionStorage.getItem(key(id)) === requestId) sessionStorage.removeItem(key(id));
+          receiptCleared = sessionStorage.getItem(key(id)) === null;
         } catch {
           // Keep the saved UUID when storage cannot confirm its removal.
         }
@@ -271,6 +276,7 @@ export function AiImageGeneration({
         setJob(null);
         setUnresolved(false);
         setNotice(result.error.message);
+        if (initial && result.status === 403 && receiptCleared) onDefiniteThreadDenial?.(id);
         // Also cancel an early GET started when this POST created a thread.
         setCheck((n) => n + 1);
         const latest = await call<AiImageGenerationStatus>('/api/ai/image-generation/status');

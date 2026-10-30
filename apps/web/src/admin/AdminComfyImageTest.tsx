@@ -47,6 +47,7 @@ export function AdminComfyImageTest({
   const [size, setSize] = useState<AiImageSize>(1024);
   const [state, setState] = useState<ImageComposerState>(initialState);
   const [job, setJob] = useState<AiImageGenerationJob | null>(null);
+  const [deniedThreadId, setDeniedThreadId] = useState<string | null>(null);
   const controller = useRef<ImageComposerController>(null);
   const creating = useRef(false);
   const mounted = useRef(true);
@@ -100,6 +101,8 @@ export function AdminComfyImageTest({
       }
       if (!mounted.current) return null;
       setThreadId(reply.data.id);
+      setDeniedThreadId(null);
+      setLoadError('');
       try {
         sessionStorage.setItem(storageKey, reply.data.id);
       } catch {
@@ -116,6 +119,7 @@ export function AdminComfyImageTest({
   }, [storageKey]);
   const onStateChange = useCallback((next: ImageComposerState) => setState(next), []);
   const onJobChange = useCallback((next: AiImageGenerationJob | null) => setJob(next), []);
+  const onDefiniteThreadDenial = useCallback((id: string) => setDeniedThreadId(id), []);
 
   const ready = !!config?.enabled && !!config?.ready && !!status?.enabled && !!status?.ready;
   const configuredSizes = (status?.sizes || config?.sizes || [1024]).filter((value) =>
@@ -124,6 +128,11 @@ export function AdminComfyImageTest({
   const currentSize = configuredSizes.includes(size) ? size : configuredSizes[0] || 1024;
   const canCreate =
     ready && state.canSubmit && !!prompt.trim() && prompt.length <= 3000 && !state.busy;
+  const canReplaceThread =
+    !!threadId &&
+    deniedThreadId === threadId &&
+    !state.busy &&
+    (!job || ['complete', 'failed', 'cancelled'].includes(job.state));
 
   return (
     <section className="asa-image-preview-panel" aria-label="Пробная генерация">
@@ -180,6 +189,11 @@ export function AdminComfyImageTest({
         </div>
         {loadError ? <p role="alert">{loadError}</p> : null}
         {state.notice ? <p role="status">{state.notice}</p> : null}
+        {canReplaceThread ? (
+          <button type="button" onClick={() => void createThread()}>
+            Новый диалог для пробы
+          </button>
+        ) : null}
         {!ready && !loadError ? (
           <p className="asa-image-muted" role="status">
             Сохраните готовые настройки, чтобы запустить пробу.
@@ -205,6 +219,7 @@ export function AdminComfyImageTest({
         onClose={() => undefined}
         onStateChange={onStateChange}
         onJobChange={onJobChange}
+        onDefiniteThreadDenial={onDefiniteThreadDenial}
         providedStatus={status}
         controllerRef={controller}
       />
