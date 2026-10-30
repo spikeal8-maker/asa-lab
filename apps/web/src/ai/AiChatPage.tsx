@@ -233,6 +233,7 @@ export function AiChatPage({
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
   const [overflowTranscript, setOverflowTranscript] = useState<string | null>(null);
+  useEffect(() => setOverflowTranscript(null), [currentId, seatId]);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerMaximized, setComposerMaximized] = useState(false);
   const [attachments, setAttachments] = useState<readonly AiChatFileDraft[]>([]);
@@ -2411,6 +2412,7 @@ export function AiChatPage({
                         setDraft(result.draft);
                         setOverflowTranscript(result.overflow);
                         composer.current?.focus();
+                        return result.overflow === null ? 'inserted' : 'overflow';
                       }}
                     />
                     <button
