@@ -69,6 +69,12 @@
       "sha256": "d7b9489238ccf7c32372f35ed7e5228160466f6bb64a791e018876e1021d8d5f"
     },
     {
+      "path": "apps/web/src/electronics/testing/workbench-presentation.spec.ts",
+      "gitBlob": "1f6398e8683e11c5fc0b086f0d240567512ab434",
+      "bytes": 58903,
+      "sha256": "f4e1dcef938c847f5a38102af7c7437b157357f0640cbe01b0a516518472e164"
+    },
+    {
       "path": "apps/web/src/electronics/use-electronics-workbench.ts",
       "gitBlob": "3f4756e5b9efd07d3aa0a1cc523083be1ebca869",
       "bytes": 140842,
@@ -105,5 +111,5 @@
       "sha256": "cd9756318135940d7b1657e3bcdffffe93f54766e3d0ec18e38040a6d42679cd"
     }
   ],
-  "sourceDigest": "73a4a31750f9740ae8cf0eecec928c9a6d4e286536f3ef1cf68a8753fabf6ca0"
+  "sourceDigest": "3d15bca93186662eebde0576e72ad1ee8e1f6038575167b7fec10a06e46f7870"
 }

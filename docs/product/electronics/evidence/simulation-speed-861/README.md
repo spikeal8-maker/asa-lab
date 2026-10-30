@@ -69,6 +69,9 @@ bundle caps: editor **187,873/222,000**, Arduino **1,999,981/2,000,000**,
 initial graph **555,421/600,000**. The canonical all-module gate and independent
 exact-source review are separate steps and are not claimed by this candidate.
 
+The first canonical run and its bounded test-only repair are recorded in
+[`GATES.md`](GATES.md), including the preserved FAIL and full log hashes.
+
 ## Independent mixed-circuit baseline failure — Issue 862
 
 The first electrically valid combined LED/display/Servo fixture exposed a
