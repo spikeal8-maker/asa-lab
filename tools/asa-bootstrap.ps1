@@ -22,8 +22,11 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Python may otherwise write unlisted __pycache__/*.pyc into immutable installer packages.
+$env:PYTHONDONTWRITEBYTECODE = '1'
 $BootstrapVersion = '1.0.0'
 $Canonical = 'https://github.com/spikeal8-maker/asa-lab.git'
+$OfficialBranchApi = 'https://api.github.com/repos/spikeal8-maker/asa-lab/branches/main'
 $script:CallerParameters = @{}
 foreach ($item in $PSBoundParameters.GetEnumerator()) { $script:CallerParameters[$item.Key] = $item.Value }
 
@@ -45,6 +48,29 @@ function Assert-NotReparse([string]$Path) {
     $item = $parent
   }
 }
+function Assert-OfficialMain([string]$Commit) {
+  # Independent HTTPS GitHub API lookup: a SHA read from the same local checkout
+  # does not establish publisher identity. No caller-supplied URL or test bypass.
+  try {
+    $response = Invoke-RestMethod -Method Get -Uri $OfficialBranchApi -TimeoutSec 30 -Headers @{
+      'Accept'='application/vnd.github+json'
+      'User-Agent'='asa-windows-bootstrap'
+      'X-GitHub-Api-Version'='2022-11-28'
+    }
+  } catch {
+    Block 'OFFICIAL_SOURCE_UNAVAILABLE' 'Cannot verify the source against the official GitHub main branch. Installation is blocked.'
+  }
+  if ($null -eq $response -or $response.name -cne 'main' -or
+      $null -eq $response.commit -or
+      ([string]$response.commit.sha) -notmatch '^[0-9a-f]{40}$') {
+    Block 'OFFICIAL_SOURCE_INVALID' 'Official GitHub branch response is missing the exact main commit identity.'
+  }
+  if ([string]$response.commit.sha -cne $Commit) {
+    Block 'SOURCE_NOT_OFFICIAL_MAIN' 'Local source SHA is not the current official GitHub main SHA. Use an independently verified published source.'
+  }
+  Write-Host ('[PASS] Official GitHub main SHA verified over HTTPS: ' + $Commit) -ForegroundColor Green
+}
+
 function Sha256([string]$Path) {
   return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
@@ -94,6 +120,27 @@ function Verify-Package([string]$PackageDir, [string]$ManifestSha, [string]$Comm
   $names = @($entries | ForEach-Object { $_.Name })
   foreach ($required in @('asa-setup.ps1','asa_manager.py','deployment/__init__.py')) {
     if ($required -cnotin $names) { Block 'MANIFEST_INCOMPLETE' ('Missing ' + $required) }
+  }
+  # Require the actual package tree to be exactly the declared file set,
+  # including hidden files, unexpected scripts, bytecode, empty directories,
+  # junctions, and symlinks. Hashing only declared paths is insufficient.
+  $allowedFiles = @($names + @('manifest.json'))
+  $allowedDirs = @()
+  foreach ($name in $names) {
+    $parts = $name.Split('/')
+    for ($i = 1; $i -lt $parts.Count; $i++) {
+      $allowedDirs += (($parts[0..($i - 1)]) -join '/')
+    }
+  }
+  $allowedDirs = @($allowedDirs | Sort-Object -Unique)
+  foreach ($item in @(Get-ChildItem -LiteralPath $PackageDir -Force -Recurse -ErrorAction Stop)) {
+    Assert-NotReparse $item.FullName
+    $relative = $item.FullName.Substring($PackageDir.TrimEnd('\').Length + 1).Replace('\','/')
+    if ($item.PSIsContainer) {
+      if ($relative -cnotin $allowedDirs) { Block 'PACKAGE_EXTRA_PATH' ('Unexpected installer directory: ' + $relative) }
+    } elseif ($relative -cnotin $allowedFiles) {
+      Block 'PACKAGE_EXTRA_PATH' ('Unexpected installer file: ' + $relative)
+    }
   }
   foreach ($entry in $entries) {
     $name = [string]$entry.Name
@@ -162,6 +209,7 @@ function Stage-Bootstrap([string]$StagingHome) {
   if ($LASTEXITCODE -ne 0 -or $changes) {
     Block 'SOURCE_DIRTY' 'Installer source is modified or has untracked files; staging is refused.'
   }
+  Assert-OfficialMain $revision
   $names = @(Package-Paths $sourceTools)
   if ($names.Count -lt 3) { Block 'SOURCE_INCOMPLETE' 'No deployment modules were found.' }
   $packages = Join-Path $StagingHome 'packages'

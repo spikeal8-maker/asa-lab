@@ -56,13 +56,31 @@ class BootstrapTests(unittest.TestCase):
             self.fail("Git fixture failed: " + result.stdout)
         return result
 
-    def ps(self, script, *args):
+    def ps(self, script, *args, official_sha=None, official_unavailable=False):
+        command = [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass"]
+        if "-InstallBootstrap" in args:
+            # Mock only the external HTTPS GitHub API at the PowerShell command
+            # boundary. Production Bootstrap has no caller-settable URL or bypass.
+            sha = official_sha if official_sha is not None else self.commit
+            if official_unavailable:
+                stub = "function Invoke-RestMethod { throw 'QA network unavailable' }; "
+            else:
+                stub = ("function Invoke-RestMethod { param($Method,$Uri,$TimeoutSec,$Headers) "
+                        "if ($Uri -cne 'https://api.github.com/repos/spikeal8-maker/asa-lab/branches/main') "
+                        "{ throw 'Wrong official endpoint' }; "
+                        "return [pscustomobject]@{name='main';commit=[pscustomobject]@{sha='" + sha + "'}} }; ")
+            def quoted(value):
+                return "'" + str(value).replace("'", "''") + "'"
+            arguments = " ".join(
+                value if isinstance(value, str) and value.startswith("-") else quoted(value)
+                for value in args
+            )
+            command += ["-Command", stub + "& " + quoted(script) + " " + arguments]
+        else:
+            command += ["-File", str(script), *map(str, args)]
         return subprocess.run(
-            [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
-             "Bypass", "-File", str(script), *map(str, args)],
-            text=True, encoding="utf-8", errors="replace",
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=45,
-            check=False)
+            command, text=True, encoding="utf-8", errors="replace",
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=45, check=False)
 
     def stage(self, sha=None):
         return self.ps(
@@ -128,6 +146,54 @@ class BootstrapTests(unittest.TestCase):
                            self.installer, "-Root", self.app)
         self.assertNotEqual(launched.returncode, 0)
         self.assertIn("PACKAGE_HASH", launched.stdout)
+
+    def test_local_sha_not_official_main_fails_closed(self):
+        # Caller supplies the exact Git HEAD, but trusted GitHub main differs.
+        result = self.ps(
+            self.tools / "asa-bootstrap.ps1", "-InstallBootstrap", "-InstallerHome",
+            self.installer, "-ExpectedCommit", self.commit,
+            official_sha="f" * 40)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("SOURCE_NOT_OFFICIAL_MAIN", result.stdout)
+        self.assertFalse((self.installer / "active.json").exists())
+
+    def test_official_github_unavailable_fails_closed(self):
+        result = self.ps(
+            self.tools / "asa-bootstrap.ps1", "-InstallBootstrap", "-InstallerHome",
+            self.installer, "-ExpectedCommit", self.commit,
+            official_unavailable=True)
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OFFICIAL_SOURCE_UNAVAILABLE", result.stdout)
+        self.assertFalse((self.installer / "active.json").exists())
+
+    def test_unexpected_package_executable_or_bytecode_fails_closed(self):
+        staged = self.stage()
+        self.assertEqual(staged.returncode, 0, staged.stdout)
+        package = self.installer / "packages" / self.commit
+        launcher = self.installer / "asa-bootstrap.ps1"
+        for relative in ("injected.ps1", "injected.exe", "deployment/extra.py",
+                         "deployment/__pycache__/extra.pyc", "hidden.cmd"):
+            with self.subTest(relative=relative):
+                unwanted = package / relative
+                unwanted.parent.mkdir(parents=True, exist_ok=True)
+                unwanted.write_bytes(b"nonempty synthetic file")
+                run = self.ps(launcher, "-InstallerHome", self.installer,
+                              "-Root", self.app)
+                self.assertNotEqual(run.returncode, 0, run.stdout)
+                self.assertIn("PACKAGE_EXTRA_PATH", run.stdout)
+                unwanted.unlink()
+                if unwanted.parent.name == "__pycache__":
+                    unwanted.parent.rmdir()
+
+    def test_unexpected_empty_directory_fails_closed(self):
+        staged = self.stage()
+        self.assertEqual(staged.returncode, 0, staged.stdout)
+        package = self.installer / "packages" / self.commit
+        (package / "unlisted").mkdir()
+        run = self.ps(self.installer / "asa-bootstrap.ps1", "-InstallerHome",
+                      self.installer, "-ShowVersion")
+        self.assertNotEqual(run.returncode, 0, run.stdout)
+        self.assertIn("PACKAGE_EXTRA_PATH", run.stdout)
 
     def test_wrong_pin_and_dirty_source_do_not_activate(self):
         wrong = self.stage("0" * 40)
