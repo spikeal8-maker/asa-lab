@@ -24,6 +24,7 @@ from deployment.resources import check_resources
 from deployment.search_secret import InvalidSearchSecret
 from deployment.fresh_install import fresh_options, assert_clean_install_destination, provision_private_network_overlay
 from deployment.repair_plan import diagnose as diagnose_recovery
+from deployment.repair_resume import finish_selected_switch
 
 
 def clean_checkout(install):
@@ -256,7 +257,7 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "resume", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -268,6 +269,7 @@ def main(argv=None):
     parser.add_argument("--install-web-port", type=int, help="Fresh localhost Web port")
     parser.add_argument("--install-blocks-port", type=int, help="Fresh localhost Scratch port")
     parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
+    parser.add_argument("--confirm-resume", action="store_true", help="Explicitly authorize receipt-only finalize of already verified selected runtime")
     args = parser.parse_args(argv)
     try:
         if args.action == "verify-backup":
@@ -283,6 +285,10 @@ def main(argv=None):
                 # Strictly observational: no write lock, backup/restore, daemon
                 # command or acknowledgement of the unfinished transaction.
                 return diagnose_recovery(install)
+            elif args.action == "resume":
+                # Explicit and exclusive. Never starts/stops Docker, migrates or
+                # restores a database; only closes a fully verified pending switch.
+                return finish_selected_switch(install, confirmed=args.confirm_resume)
             elif args.action == "configure":
                 doctor(install)
                 save_settings(install, args.enable_auto_update)
