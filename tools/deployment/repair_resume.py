@@ -13,7 +13,7 @@ from .contracts import (
     verify_embedded_entry_http,
 )
 from .repair_plan import _marker, _revision
-from .releases import validate_resolved_images
+from .releases import assert_ci, validate_resolved_images
 
 
 def _verified_backup(install, operation, previous):
@@ -68,6 +68,10 @@ def finish_selected_switch(install, *, confirmed=False):
     require(operation["phase"] in ("switch", "verify_entry"), "RESUME_PHASE",
             "Only a selected switch or entry-verification phase can be finalized.")
     selected = validate_release(operation.get("selected"))
+    # A syntactically valid release manifest is not sufficient publisher
+    # provenance. Re-attest the exact published source against the official
+    # completed release and main-branch Governance CI before sealing receipts.
+    assert_ci(selected)
     previous = operation.get("previous")
     if previous is not None:
         require(isinstance(previous, dict) and isinstance(previous.get("schema"), int)

@@ -63,7 +63,7 @@ class ResumeTests(unittest.TestCase):
             for name, ref in self.selected["images"].items()
         }
 
-    def invoke(self, confirm=True, *, backup_record=None, entry_error=None, backup_callback=None):
+    def invoke(self, confirm=True, *, backup_record=None, entry_error=None, backup_callback=None, ci_error=None):
         if backup_record is None:
             backup_record = {"runtime": {
                 "revision": PREVIOUS, "schema": 285,
@@ -72,6 +72,7 @@ class ResumeTests(unittest.TestCase):
         with (patch.object(asa_manager, "Installation", return_value=self.install),
               patch("deployment.repair_resume.verify_backup", return_value=backup_record,
                     side_effect=backup_callback) as backup,
+              patch("deployment.repair_resume.assert_ci", side_effect=ci_error) as ci_verification,
               patch("deployment.repair_resume.validate_resolved_images") as compose,
               patch("deployment.repair_resume.verify_embedded_entry_http",
                     side_effect=entry_error) as entry,
@@ -80,6 +81,7 @@ class ResumeTests(unittest.TestCase):
             if confirm:
                 argv.append("--confirm-resume")
             code = asa_manager.main(argv)
+        self.ci_verification = ci_verification
         self.install.compose.assert_not_called()
         self.install.git.assert_not_called()
         self.install.wait_ready.assert_not_called()
@@ -98,9 +100,24 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(len(list(self.state.glob("reviewed-*.json"))), 1)
         self.assertEqual(len(list(self.state.glob("acknowledged-*.json"))), 1)
         backup.assert_called_once()
+        self.ci_verification.assert_called_once_with(self.selected)
         compose.assert_called_once()
         entry.assert_called_once_with("http://127.0.0.1:28730", SELECTED)
         self.install.receipt.assert_called_once()
+
+    def test_unverified_official_release_prevents_receipt_finalization(self):
+        failure = Blocked("CI_BLOCKED", "Release publication not verified", "Review GitHub release and CI")
+        previous_receipt = self.installed.read_bytes()
+        code, _, stderr, backup, compose, entry = self.invoke(ci_error=failure)
+        self.assertEqual(code, 2)
+        self.assertIn("CI_BLOCKED", stderr)
+        self.assertTrue(self.maintenance.exists())
+        self.assertTrue(self.failure.exists())
+        self.assertEqual(self.installed.read_bytes(), previous_receipt)
+        self.ci_verification.assert_called_once_with(self.selected)
+        backup.assert_not_called()
+        compose.assert_not_called()
+        entry.assert_not_called()
 
     def test_missing_explicit_consent_is_fail_closed(self):
         before = self.installed.read_bytes()

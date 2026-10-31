@@ -26,9 +26,12 @@ python C:\ASA-Lab\tools\asa_manager.py resume --root C:\ASA-Lab --profile produc
 - Для `.asa/maintenance.json` и `.asa/failed-switch.json` проверяются
   известные фазы, совпадающие selected/previous/backup, предел размера 64 КиБ,
   отсутствие symlink/junction; копии при противоречиях не удаляются.
-- `selected` должен быть полноценным опубликованным ASA-манифестом с точными
-  SHA-256 всех образов; текущая схема и SHA из реального readiness должны
-  совпасть.
+- `selected` должен быть полноценным ASA-манифестом с точными SHA-256
+  всех образов. Менеджер заново выполняет `assert_ci(selected)` по официальному
+  GitHub: проверяет опубликованный завершённый release и успешный Governance
+  именно для выбранной ревизии в `main`. Если сеть или CI недоступны, запись
+  запрещена; одного корректного JSON из локального `maintenance.json`
+  недостаточно. Текущая схема и SHA из реального readiness должны совпасть.
 - Действующий Docker Compose project/volumes проверяется через собственную
   модель identity; у каждого сервиса точный закреплённый image и состояние
   running, без подмены проектом с другого корня.
