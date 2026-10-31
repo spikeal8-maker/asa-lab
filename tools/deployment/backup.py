@@ -99,6 +99,24 @@ def attest_backup_mounts(root, config):
     return external_diagnostics
 
 
+def write_recovery_compose_files(config_dir, recovery, allowed):
+    """Include the private nested Compose overlay in the full backup.
+
+    Paths are from Installation.files, never from a user-supplied backup
+    manifest. Explicitly reject path traversal before creating directories.
+    """
+    for file, content in recovery["files"].items():
+        require(file in allowed, "BACKUP_CONFIGURATION",
+                "Unexpected recovery configuration path.")
+        relative = Path(file)
+        require(not relative.is_absolute() and ".." not in relative.parts
+                and bool(relative.parts), "BACKUP_CONFIGURATION",
+                "Recovery Compose configuration must stay inside the private backup.")
+        target = config_dir / relative
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+
+
 def export_backup(install, destination=None):
     records = install.identity()
     require("minio" in records and records["postgres"]["running"], "BACKUP_SERVICES", "PostgreSQL and local MinIO are required for a complete export.")
@@ -136,9 +154,7 @@ def export_backup(install, destination=None):
         os.chmod(partial / "private.env", 0o600)
         config_dir = partial / "configuration"
         config_dir.mkdir()
-        for file, content in recovery["files"].items():
-            require(file in install.files, "BACKUP_CONFIGURATION", "Unexpected recovery configuration path.")
-            (config_dir / file).write_text(content, encoding="utf-8")
+        write_recovery_compose_files(config_dir, recovery, install.files)
         atomic_json(config_dir / "runtime-configuration.json", recovery)
         if recovery["installedRelease"]:
             atomic_json(config_dir / "installed-release.json", recovery["installedRelease"])
