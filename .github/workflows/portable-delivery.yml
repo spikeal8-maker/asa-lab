@@ -9,6 +9,7 @@ name: ASA Portable Delivery Checks
         'tools/*maintenance*',
         'tools/asa-bootstrap.ps1',
         'tools/asa-setup.ps1',
+        'tools/asa-prerequisites.ps1',
         'Dockerfile.*',
         'compose*.yaml',
         'infra/**',
@@ -27,6 +28,7 @@ name: ASA Portable Delivery Checks
         'tools/*maintenance*',
         'tools/asa-bootstrap.ps1',
         'tools/asa-setup.ps1',
+        'tools/asa-prerequisites.ps1',
         'Dockerfile.*',
         'compose*.yaml',
         'infra/**',
@@ -67,7 +69,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach ($file in @('tools/asa-manager.ps1', 'tools/asa-bootstrap.ps1', 'tools/asa-setup.ps1', 'tools/install-maintenance.ps1', 'tools/asa-lab.ps1', 'tools/docker-update.ps1', 'tools/install-log-collector.ps1', 'tools/collector-scheduler.ps1')) {
+          foreach ($file in @('tools/asa-manager.ps1', 'tools/asa-bootstrap.ps1', 'tools/asa-setup.ps1', 'tools/asa-prerequisites.ps1', 'tools/install-maintenance.ps1', 'tools/asa-lab.ps1', 'tools/docker-update.ps1', 'tools/install-log-collector.ps1', 'tools/collector-scheduler.ps1')) {
             $tokens = $null; $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors) { throw ($errors | Out-String) }
