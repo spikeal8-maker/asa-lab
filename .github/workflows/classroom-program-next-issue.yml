@@ -1,0 +1,53 @@
+name: Classroom Program — Next GitHub Issue
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Inspect the next allowed task or create its GitHub Issue
+        required: true
+        default: inspect
+        type: choice
+        options:
+          - inspect
+          - create
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: asa-classroom-program-issue-queue
+  cancel-in-progress: false
+
+jobs:
+  next:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate complete classroom registry
+        run: python tools/classroom-program/classroomctl.py validate
+      - name: Determine one next GitHub Issue (never runs product code)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          QUEUE_ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+          python tools/classroom-program/github_queue.py "$QUEUE_ACTION" | tee /tmp/classroom-queue.txt
+          {
+            echo '## ASA Classroom Program — GitHub Issue queue'
+            echo
+            echo "Main checkout: $GITHUB_SHA"
+            echo
+            cat /tmp/classroom-queue.txt
+            echo
+            echo '[Programme #715](https://github.com/spikeal8-maker/asa-lab/issues/715)'
+          } >> "$GITHUB_STEP_SUMMARY"
