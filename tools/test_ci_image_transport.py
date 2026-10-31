@@ -682,7 +682,14 @@ def check_built_images(receipt):
 def check_pulled_postgres(receipt):
     expected = receipt["images"]["postgres"]
     image = inspect_image(expected["reference"])
-    require(image["Id"] == expected["config"]["digest"], "Pulled PostgreSQL config differs")
+    # Docker's classic image store reports OCI config digest as image.Id.
+    # Docker 29/containerd image stores can report the pinned manifest digest
+    # instead. Both are content addressed, but accepting either is safe ONLY
+    # alongside the exact immutable repository digest and complete RootFS proof.
+    require(expected["reference"] in image.get("RepoDigests", []),
+            "Pulled PostgreSQL immutable repository digest differs")
+    require(image["Id"] in (expected["config"]["digest"], expected["manifest_digest"]),
+            "Pulled PostgreSQL config/manifest identity differs")
     require(image["RootFS"]["Layers"] == expected["rootfs_diff_ids"],
             "Pulled PostgreSQL rootfs differs")
     print(json.dumps({"pulled_image": expected["reference"], "config_digest": image["Id"],
@@ -959,13 +966,17 @@ def check_challenges(receipt):
             docker=[deepcopy(original), transported])
     postgres_image = {"Architecture": "amd64", "Os": "linux",
         "Id": effective["images"]["postgres"]["config"]["digest"],
+        "RepoDigests": [effective["images"]["postgres"]["reference"]],
         "RootFS": {"Layers": effective["images"]["postgres"]["rootfs_diff_ids"]}}
-    for name, field, value in [
-        ("exact pulled PostgreSQL config/rootfs", None, None),
-        ("pulled PostgreSQL wrong config", ["Id"], "sha256:" + "0" * 64),
-        ("pulled PostgreSQL wrong layer order", ["RootFS", "Layers"], list(reversed(postgres_image["RootFS"]["Layers"]))),
-        ("pulled PostgreSQL wrong architecture", ["Architecture"], "arm64"),
-        ("pulled PostgreSQL wrong OS", ["Os"], "windows"),
+    for name, field, value, accepted in [
+        ("classic pulled PostgreSQL config/rootfs", None, None, True),
+        ("containerd pinned PostgreSQL manifest/rootfs", ["Id"], effective["images"]["postgres"]["manifest_digest"], True),
+        ("pulled PostgreSQL wrong config", ["Id"], "sha256:" + "0" * 64, False),
+        ("pulled PostgreSQL missing pinned repository digest", ["RepoDigests"], [], False),
+        ("pulled PostgreSQL wrong pinned repository digest", ["RepoDigests"], ["mirror.gcr.io/library/postgres@sha256:" + "0" * 64], False),
+        ("pulled PostgreSQL wrong layer order", ["RootFS", "Layers"], list(reversed(postgres_image["RootFS"]["Layers"])), False),
+        ("pulled PostgreSQL wrong architecture", ["Architecture"], "arm64", False),
+        ("pulled PostgreSQL wrong OS", ["Os"], "windows", False),
     ]:
         inspected = deepcopy(postgres_image)
         if field:
@@ -974,7 +985,7 @@ def check_challenges(receipt):
                 parent = parent[key]
             parent[field[-1]] = value
         runtime_challenge(name, lambda: (check_general_overlay(effective), check_pulled_postgres(effective)),
-                          field is None, docker=[[inspected]])
+                          accepted, docker=[[inspected]])
     print(json.dumps({"semantic_challenges": outcomes}, indent=2))
 
 
