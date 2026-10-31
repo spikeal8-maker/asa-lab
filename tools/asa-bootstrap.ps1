@@ -244,6 +244,14 @@ function Stage-Bootstrap([string]$StagingHome) {
         $parent = Split-Path -Parent $to
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
         Copy-Item -LiteralPath $from -Destination $to -ErrorAction Stop
+        # Match the bytes of the actual authenticated Git commit, not merely
+        # the clean working tree at an earlier point in time.
+        $expectedBlob = (& git -C $repoRoot rev-parse "${revision}:tools/$relative" 2>$null | Out-String).Trim()
+        $stagedBlob = (& git -C $repoRoot hash-object $to 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0 -or $expectedBlob -notmatch '^[0-9a-f]{40}$' -or
+            $expectedBlob -cne $stagedBlob) {
+          Block 'SOURCE_CONTENT_MISMATCH' ('Staged file differs from the official commit: ' + $relative)
+        }
         $hashes[$relative] = Sha256 $to
       }
       Write-JsonFile (Join-Path $pending 'manifest.json') ([ordered]@{
@@ -258,6 +266,9 @@ function Stage-Bootstrap([string]$StagingHome) {
         Block 'PACKAGE_COLLISION' 'The target package was created concurrently; existing data is retained.'
       }
       Move-Item -LiteralPath $pending -Destination $final -ErrorAction Stop
+      # Fail closed if a concurrent local actor replaced the target just before
+      # the rename. Never activate an unverified final directory.
+      $null = Verify-Package $final $manifestHash $revision
     } finally {
       if (Test-Path -LiteralPath $pending) {
         Remove-Item -LiteralPath $pending -Recurse -Force
@@ -309,7 +320,20 @@ if ($InstallBootstrap) {
     Block 'BOOTSTRAP_LOCATION' 'The persistent installer may not be staged inside its source checkout.'
   }
   New-Item -ItemType Directory -Path $homePath -Force | Out-Null
-  $launcher = Stage-Bootstrap $homePath
+  Assert-NotReparse $homePath
+  $stageLockPath = Join-Path $homePath '.bootstrap-stage.lock'
+  Assert-NotReparse $stageLockPath
+  try {
+    $stageLock = [IO.File]::Open($stageLockPath,
+      [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
+  } catch {
+    Block 'BOOTSTRAP_LOCKED' 'Another installation activation is in progress. Existing packages were preserved.'
+  }
+  try {
+    $launcher = Stage-Bootstrap $homePath
+  } finally {
+    $stageLock.Dispose()
+  }
   if ($Root) {
     Forward-Setup $launcher -PassInstallerHome
   }

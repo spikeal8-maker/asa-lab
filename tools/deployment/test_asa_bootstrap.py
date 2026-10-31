@@ -195,6 +195,43 @@ class BootstrapTests(unittest.TestCase):
         self.assertNotEqual(run.returncode, 0, run.stdout)
         self.assertIn("PACKAGE_EXTRA_PATH", run.stdout)
 
+    def test_concurrent_activation_is_serialized(self):
+        self.installer.mkdir(parents=True)
+        lock = self.installer / ".bootstrap-stage.lock"
+        quoted = str(lock).replace("'", "''")
+        holder = subprocess.Popen(
+            [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+             "Bypass", "-Command",
+             "$lock=[IO.File]::Open('" + quoted +
+             "',[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::ReadWrite,"
+             "[IO.FileShare]::None); Write-Output 'LOCK_HELD'; "
+             "Start-Sleep -Seconds 4; $lock.Dispose()"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace")
+        try:
+            self.assertEqual(holder.stdout.readline().strip(), "LOCK_HELD")
+            attempt = self.stage()
+            self.assertNotEqual(attempt.returncode, 0, attempt.stdout)
+            self.assertIn("BOOTSTRAP_LOCKED", attempt.stdout)
+            self.assertFalse((self.installer / "active.json").exists())
+        finally:
+            holder.communicate(timeout=10)
+
+    def test_unexpected_package_symlink_is_rejected(self):
+        staged = self.stage()
+        self.assertEqual(staged.returncode, 0, staged.stdout)
+        target = self.root / "outside.py"
+        target.write_text("print('not executable')", encoding="utf-8")
+        linked = self.installer / "packages" / self.commit / "deployment" / "linked.py"
+        try:
+            linked.symlink_to(target)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation requires Windows permission; host unchanged")
+        run = self.ps(self.installer / "asa-bootstrap.ps1", "-InstallerHome",
+                      self.installer, "-ShowVersion")
+        self.assertNotEqual(run.returncode, 0, run.stdout)
+        self.assertTrue("REPARSE_PATH" in run.stdout or "PACKAGE_EXTRA_PATH" in run.stdout)
+
     def test_wrong_pin_and_dirty_source_do_not_activate(self):
         wrong = self.stage("0" * 40)
         self.assertNotEqual(wrong.returncode, 0)

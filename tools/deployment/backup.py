@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import uuid
 
 from .contracts import atomic_json, inventory_files, require, verify_backup
@@ -105,16 +106,34 @@ def write_recovery_compose_files(config_dir, recovery, allowed):
     Paths are from Installation.files, never from a user-supplied backup
     manifest. Explicitly reject path traversal before creating directories.
     """
+    config_dir = Path(config_dir)
+    require(config_dir.is_dir() and not config_dir.is_symlink()
+            and not (getattr(config_dir.lstat(), "st_file_attributes", 0)
+                     & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)),
+            "BACKUP_CONFIGURATION", "Recovery configuration root must be a real directory.")
     for file, content in recovery["files"].items():
-        require(file in allowed, "BACKUP_CONFIGURATION",
-                "Unexpected recovery configuration path.")
+        require(file in allowed and isinstance(content, str), "BACKUP_CONFIGURATION",
+                "Unexpected recovery configuration path or content.")
         relative = Path(file)
         require(not relative.is_absolute() and ".." not in relative.parts
                 and bool(relative.parts), "BACKUP_CONFIGURATION",
                 "Recovery Compose configuration must stay inside the private backup.")
-        target = config_dir / relative
-        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        parent = config_dir
+        for part in relative.parts[:-1]:
+            parent = parent / part
+            if not parent.exists() and not parent.is_symlink():
+                parent.mkdir(mode=0o700)
+            require(parent.is_dir() and not parent.is_symlink()
+                    and not (getattr(parent.lstat(), "st_file_attributes", 0)
+                             & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)),
+                    "BACKUP_CONFIGURATION", "Recovery path must not traverse a symlink or junction.")
+        target = parent / relative.name
+        require(not target.exists() and not target.is_symlink(),
+                "BACKUP_CONFIGURATION", "Recovery file already exists; never overwrite a file or symlink.")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(target, flags, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(content)
 
 
 def export_backup(install, destination=None):

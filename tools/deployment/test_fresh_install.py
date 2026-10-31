@@ -264,6 +264,45 @@ class FreshOptionTests(unittest.TestCase):
             self.assertEqual(fail.exception.code, "BACKUP_CONFIGURATION")
             self.assertFalse((Path(temp) / "escape").exists())
 
+    def test_recovery_export_refuses_existing_file_and_preserves_contents(self):
+        with tempfile.TemporaryDirectory() as td:
+            config = Path(td) / "configuration"
+            config.mkdir()
+            target = config / "compose.yaml"
+            target.write_bytes(b"KEEP EXISTING PRIVATE CONTENT")
+            with self.assertRaises(Blocked) as issue:
+                write_recovery_compose_files(config, {"files": {"compose.yaml": "new"}},
+                                             ["compose.yaml"])
+            self.assertEqual(issue.exception.code, "BACKUP_CONFIGURATION")
+            self.assertEqual(target.read_bytes(), b"KEEP EXISTING PRIVATE CONTENT")
+
+    def test_recovery_export_refuses_symlink_target_and_parent(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            config = root / "configuration"
+            config.mkdir()
+            outside_file = root / "sensitive.txt"
+            outside_file.write_bytes(b"UNCHANGED")
+            try:
+                (config / "compose.yaml").symlink_to(outside_file)
+            except (OSError, NotImplementedError):
+                self.skipTest("Windows symlink creation unavailable without host setting changes")
+            with self.assertRaises(Blocked) as issue:
+                write_recovery_compose_files(config, {"files": {"compose.yaml": "bad"}},
+                                             ["compose.yaml"])
+            self.assertEqual(issue.exception.code, "BACKUP_CONFIGURATION")
+            self.assertEqual(outside_file.read_bytes(), b"UNCHANGED")
+            (config / "compose.yaml").unlink()
+            outside_dir = root / "external"
+            outside_dir.mkdir()
+            (config / ".asa").symlink_to(outside_dir, target_is_directory=True)
+            with self.assertRaises(Blocked) as issue:
+                write_recovery_compose_files(config,
+                                             {"files": {".asa/docker-networks.yaml": "bad"}},
+                                             [".asa/docker-networks.yaml"])
+            self.assertEqual(issue.exception.code, "BACKUP_CONFIGURATION")
+            self.assertEqual(list(outside_dir.iterdir()), [])
+
     def test_windows_setup_powershell_parses_without_running_docker(self):
         script=Path(__file__).resolve().parents[1]/"asa-setup.ps1"
         self.assertTrue(script.is_file())
