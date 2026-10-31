@@ -25,6 +25,7 @@ from deployment.search_secret import InvalidSearchSecret
 from deployment.fresh_install import fresh_options, assert_clean_install_destination, provision_private_network_overlay
 from deployment.repair_plan import diagnose as diagnose_recovery
 from deployment.import_preflight import validate_import_archive
+from deployment.import_target_plan import plan_transfer
 
 
 def clean_checkout(install):
@@ -257,7 +258,7 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "import-target-plan", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -279,6 +280,21 @@ def main(argv=None):
         if args.action == "import-preflight":
             require(args.backup, "ARGUMENT", "--backup is required for read-only full archive verification.")
             print("IMPORT_PREFLIGHT " + json.dumps(validate_import_archive(args.backup), sort_keys=True))
+            return 0
+        if args.action == "import-target-plan":
+            original_arguments = argv if argv is not None else sys.argv[1:]
+            require(any(value == "--root" or str(value).startswith("--root=")
+                        for value in original_arguments), "IMPORT_TARGET_ROOT_REQUIRED",
+                    "Specify the new destination directory explicitly with --root; defaults are forbidden.")
+            require(args.backup and args.profile and args.install_project
+                    and args.install_web_port is not None and args.install_blocks_port is not None,
+                    "ARGUMENT",
+                    "Read-only target plan requires --backup, --profile, --install-project, --install-web-port and --install-blocks-port.")
+            report = plan_transfer(args.backup, args.root, profile=args.profile,
+                                   project=args.install_project,
+                                   web_port=args.install_web_port,
+                                   blocks_port=args.install_blocks_port)
+            print("IMPORT_TARGET_PLAN " + json.dumps(report, sort_keys=True))
             return 0
         install = Installation(args.root, args.profile)
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan') else operation_lock(install.root):
