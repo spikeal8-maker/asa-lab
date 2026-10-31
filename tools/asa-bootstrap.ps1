@@ -72,7 +72,17 @@ function Assert-OfficialMain([string]$Commit) {
 }
 
 function Sha256([string]$Path) {
-  return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+  # No dependency on Microsoft.PowerShell.Utility/Get-FileHash module:
+  # Windows PowerShell 5.1 and constrained CI shells have .NET SHA256.
+  $stream = [IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
+  $algorithm = [Security.Cryptography.SHA256]::Create()
+  try {
+    $digest = $algorithm.ComputeHash($stream)
+    return [BitConverter]::ToString($digest).Replace('-', '').ToLowerInvariant()
+  } finally {
+    $stream.Dispose()
+    $algorithm.Dispose()
+  }
 }
 function Write-JsonFile([string]$Path, [object]$Value) {
   $json = ConvertTo-Json -InputObject $Value -Depth 8 -Compress

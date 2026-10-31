@@ -105,6 +105,29 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(version.returncode, 0, version.stdout)
         self.assertIn(self.commit, version.stdout)
 
+    def test_bootstrap_hash_works_without_get_filehash_cmdlet(self):
+        # Regression for Windows CI shells without Microsoft.PowerShell.Utility.
+        # A function deliberately disables the cmdlet in this synthetic process.
+        quoted = str(self.tools / "asa-bootstrap.ps1").replace("'", "''")
+        home = str(self.installer).replace("'", "''")
+        cmd = (
+            "function Get-FileHash { throw 'GET_FILEHASH_FORBIDDEN' }; "
+            "function Invoke-RestMethod { param($Method,$Uri,$TimeoutSec,$Headers) "
+            "return [pscustomobject]@{name='main';commit="
+            "[pscustomobject]@{sha='" + self.commit + "'}} }; "
+            "& '" + quoted + "' -InstallBootstrap -InstallerHome '" + home +
+            "' -ExpectedCommit '" + self.commit + "'"
+        )
+        result = subprocess.run(
+            [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
+             "Bypass", "-Command", cmd],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=50, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertNotIn("GET_FILEHASH_FORBIDDEN", result.stdout)
+        self.assertTrue((self.installer / "active.json").is_file())
+
     def test_real_manager_imports_from_independent_package(self):
         original = Path(__file__).resolve().parents[1]
         shutil.copyfile(original / "asa_manager.py", self.tools / "asa_manager.py")
