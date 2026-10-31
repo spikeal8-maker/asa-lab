@@ -721,7 +721,10 @@ class CollectorTests(unittest.TestCase):
 
     def test_transcript_time_is_labelled_and_health_retains_last_success(self):
         with tempfile.TemporaryDirectory() as temp:
-            root=Path(temp); file=root/'backup.log'; file.write_text('Start time: 20261001083000\nbackup complete\nStart time: 99999999999999\n',encoding='utf8')
+            # Use a recent local transcript timestamp: a fixed historical date
+            # eventually falls outside Collector's 30-day retention window.
+            recent=(datetime.now().astimezone()-timedelta(minutes=2)).strftime('%Y%m%d%H%M%S')
+            root=Path(temp); file=root/'backup.log'; file.write_text(f'Start time: {recent}\nbackup complete\nStart time: 99999999999999\n',encoding='utf8')
             c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'backup','path':str(file)}]});c.files()
             events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
             self.assertEqual(len(events),3);self.assertTrue(all(e['timeBasis']=='transcript' for e in events));c.db.close()
