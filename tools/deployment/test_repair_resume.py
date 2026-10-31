@@ -99,7 +99,7 @@ class ResumeTests(unittest.TestCase):
         self.assertEqual(json.loads(self.installed.read_text())["revision"], SELECTED)
         self.assertEqual(len(list(self.state.glob("reviewed-*.json"))), 1)
         self.assertEqual(len(list(self.state.glob("acknowledged-*.json"))), 1)
-        backup.assert_called_once()
+        self.assertEqual(backup.call_count, 2)
         self.ci_verification.assert_called_once_with(self.selected)
         compose.assert_called_once()
         entry.assert_called_once_with("http://127.0.0.1:28730", SELECTED)
@@ -196,6 +196,38 @@ class ResumeTests(unittest.TestCase):
         self.assertIn("RESUME_BACKUP_RACE", stderr)
         self.assertTrue(self.maintenance.exists())
         self.assertEqual(json.loads(self.installed.read_text())["revision"], PREVIOUS)
+
+    def test_backup_tampered_after_initial_hash_blocks_before_receipt(self):
+        calls = 0
+        def concurrent_tampering(_path):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return {"runtime": {"revision": PREVIOUS, "schema": 285}}
+            raise Blocked("BACKUP_HASH", "Backup changed during validation", "Preserve source")
+
+        original = self.installed.read_bytes()
+        code, _, stderr, backup, _, _ = self.invoke(backup_callback=concurrent_tampering)
+        self.assertEqual(code, 2)
+        self.assertIn("BACKUP_HASH", stderr)
+        self.assertEqual(backup.call_count, 2)
+        self.assertTrue(self.maintenance.exists())
+        self.assertTrue(self.failure.exists())
+        self.assertEqual(self.installed.read_bytes(), original)
+        self.install.receipt.assert_not_called()
+
+    def test_marker_changed_during_external_http_blocks(self):
+        def mutate_state(_entry, _sha):
+            altered = dict(self.record)
+            altered["phase"] = "backup"
+            self.maintenance.write_text(json.dumps(altered), encoding="utf8")
+
+        code, _, stderr, *_ = self.invoke(entry_error=mutate_state)
+        self.assertEqual(code, 2)
+        self.assertIn("RESUME_MARKER_CHANGED", stderr)
+        self.assertTrue(self.failure.exists())
+        self.assertEqual(json.loads(self.installed.read_text())["revision"], PREVIOUS)
+        self.install.receipt.assert_not_called()
 
     def test_wrong_backup_runtime_blocks(self):
         code, _, stderr, *_ = self.invoke(backup_record={

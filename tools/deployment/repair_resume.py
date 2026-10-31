@@ -116,6 +116,16 @@ def finish_selected_switch(install, *, confirmed=False):
             "No canonical owner portal origin.")
     verify_embedded_entry_http(entry, selected["revision"])
 
+    # Recheck the private backup *after* potentially slow official CI, runtime
+    # and HTTP evidence checks, and verify transaction markers were not
+    # concurrently replaced. This narrows (but cannot abolish) a same-user
+    # filesystem race; trustworthy backups still require protected storage.
+    _verified_backup(install, operation, previous)
+    require(_marker(state, "maintenance.json") == maintenance
+            and _marker(state, "failed-switch.json") == failed,
+            "RESUME_MARKER_CHANGED",
+            "Maintenance evidence changed during verification; preserve it for review.")
+
     # All gates passed. Save a verifiable receipt and archive original markers
     # instead of deleting them. If a crash happens mid-archive, another call
     # finds the remaining marker and safely verifies again.
