@@ -137,6 +137,13 @@ def general_node_contract(contract, original, effective):
         if "--pulled-postgres" in step.get("run", ""):
             step["run"] = step["run"].replace("--pulled-postgres", "--general-pulled-postgres")
     require(changed == 1, "General transport must change exactly one required build")
+    # Ubuntu-latest began resolving to Ubuntu 26.04, which Playwright 1.55.1
+    # refuses before tests start. Change only this runner value; keep the
+    # immutable receipt, all required browser steps and security gates intact.
+    access_controls = contract["jobs"]["access-a-browser"]["controls"]
+    require(access_controls.get("runs-on") == "ubuntu-latest",
+            "Original Access A runner contract unexpectedly changed")
+    access_controls["runs-on"] = "ubuntu-24.04"
     uploads = [step for step in contract["jobs"]["access-a-browser"]["required_steps"]
                if step.get("uses") == "actions/upload-artifact@v4"]
     require(len(uploads) == 1 and uploads[0]["with"]["path"] == (
