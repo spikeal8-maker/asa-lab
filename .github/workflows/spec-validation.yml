@@ -227,7 +227,9 @@ jobs:
   access-a-browser:
     name: Access A real browser journeys
     needs: code
-    runs-on: ubuntu-latest
+    # Playwright 1.55.1 chromium installer rejects ubuntu26.04 in ubuntu-latest.
+    # Pin a supported runner; do not bypass browser tests or apt signatures.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:
