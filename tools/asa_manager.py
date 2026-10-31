@@ -24,6 +24,7 @@ from deployment.resources import check_resources
 from deployment.search_secret import InvalidSearchSecret
 from deployment.fresh_install import fresh_options, assert_clean_install_destination, provision_private_network_overlay
 from deployment.repair_plan import diagnose as diagnose_recovery
+from deployment.import_preflight import validate_import_archive
 
 
 def clean_checkout(install):
@@ -256,7 +257,7 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -274,6 +275,10 @@ def main(argv=None):
             require(args.backup, "ARGUMENT", "--backup is required.")
             manifest = verify_backup(args.backup)
             print(f"BACKUP_VERIFIED revision={manifest['runtime']['revision']} files={len(manifest['files'])}")
+            return 0
+        if args.action == "import-preflight":
+            require(args.backup, "ARGUMENT", "--backup is required for read-only full archive verification.")
+            print("IMPORT_PREFLIGHT " + json.dumps(validate_import_archive(args.backup), sort_keys=True))
             return 0
         install = Installation(args.root, args.profile)
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan') else operation_lock(install.root):
