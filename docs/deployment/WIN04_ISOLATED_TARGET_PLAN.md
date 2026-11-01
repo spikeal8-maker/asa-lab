@@ -30,9 +30,10 @@ ps/volumes/networks и проверка доступности localhost-пор�
 `https://github.com/spikeal8-maker/asa-lab.git` без URL-rewrite,
 независимо получает текущий SHA `main` из
 `https://api.github.com/repos/spikeal8-maker/asa-lab/branches/main`,
-проверяет пустой Git status и хеши десяти критических установочных
-файлов непосредственно по рабочим байтам и Git-объектам SHA. Подменённые
-`assume-unchanged` файлы также блокируются. При этом не создаются и не
+проверяет пустой Git status и SHA Git-объектов десяти критических
+исходных файлов непосредственно по байтам на диске (без запуска локальных
+Git clean-фильтров). Подменённые `assume-unchanged`/`skip-worktree` файлы
+и reparse-пути также блокируются. При этом не создаются и не
 запускаются контейнеры, не записываются ключи, не изменяются тома,
 базы данных, Docker Engine, Windows, WSL, VPN или брандмауэр.
 

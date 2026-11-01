@@ -4,10 +4,12 @@ Policy: only a clean checkout of the *current* official GitHub main commit may
 be used as a transfer destination. A SHA read from the checkout alone is NOT
 trusted. HTTPS source is fixed by this module, not by a repository config.
 """
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -30,8 +32,8 @@ CRITICAL_FILES = (
     "tools/deployment/system.py",
     "tools/deployment/fresh_install.py",
     "tools/deployment/import_preflight.py",
-    # import_target_plan.py is introduced by this PR and cannot be required
-    # in an official source commit preceding this PR's merge.
+    # This PR introduces import_target_plan.py and target_git.py. They cannot
+    # be required in an official main checkout until this PR is merged.
     "compose.yaml",
     "compose.production.yaml",
     ".github/workflows/spec-validation.yml",
@@ -101,6 +103,37 @@ def _official_main_sha():
     return sha
 
 
+def _file_blob_ids(item):
+    """Hash bytes in Python; never invoke a repository-configured Git clean filter."""
+    try:
+        raw = item.read_bytes()
+    except OSError as exc:
+        raise Blocked("IMPORT_TARGET_SOURCE_FILE",
+                      "Unable to read an official source file.",
+                      "Inspect the fresh checkout without replacing any existing data.") from exc
+    candidates = (raw, raw.replace(b"\r\n", b"\n")) if os.name == "nt" else (raw,)
+    return {hashlib.sha1(b"blob " + str(len(data)).encode("ascii")
+                         + b"\0" + data).hexdigest() for data in candidates}
+
+
+def _plain_source_path(root, item):
+    """Reject file/ancestor symlinks, junctions and other Windows reparse paths."""
+    current = item
+    while True:
+        try:
+            attrs = current.lstat()
+        except OSError:
+            return False
+        if (current.is_symlink()
+                or getattr(current, "is_junction", lambda: False)()
+                or (getattr(attrs, "st_file_attributes", 0)
+                    & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))):
+            return False
+        if current == root:
+            return True
+        current = current.parent
+
+
 def attest_target_checkout(root):
     """Verify source provenance, immutability and inventory; return no secrets."""
     root = Path(root).resolve()
@@ -131,11 +164,11 @@ def attest_target_checkout(root):
     # Read actual bytes from critical files and compare to official SHA's blobs.
     for relative in CRITICAL_FILES:
         item = root / relative
-        require(item.is_file() and not item.is_symlink(), "IMPORT_TARGET_SOURCE_FILE",
-                "Critical official source file is absent, replaced or a symlink.")
+        require(item.is_file() and _plain_source_path(root, item),
+                "IMPORT_TARGET_SOURCE_FILE",
+                "Critical official source file is absent or traverses a reparse point.")
         recorded = _git(root, "rev-parse", f"HEAD:{relative}")
-        current = _git(root, "hash-object", "--path=" + relative, str(item))
-        require(bool(_SHA.fullmatch(recorded)) and current == recorded,
+        require(bool(_SHA.fullmatch(recorded)) and recorded in _file_blob_ids(item),
                 "IMPORT_TARGET_SOURCE_CONTENT",
                 "Critical source content does not match the verified Git commit: " + relative)
     return {

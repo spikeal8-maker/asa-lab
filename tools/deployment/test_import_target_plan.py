@@ -347,6 +347,29 @@ class OfficialCheckoutTests(unittest.TestCase):
             self.invoke()
         self.assertEqual(error.exception.code, "IMPORT_TARGET_SOURCE_CONTENT")
 
+    def test_skip_worktree_cannot_hide_modified_script(self):
+        file = self.root / "tools" / "deployment" / "contracts.py"
+        subprocess.run(["git", "-C", str(self.root), "update-index",
+                        "--skip-worktree", "tools/deployment/contracts.py"],
+                       check=True)
+        file.write_text("# modified even when skip-worktree is enabled\n",
+                        encoding="utf8")
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_SOURCE_CONTENT")
+
+    def test_source_hashes_do_not_invoke_git_clean_filters(self):
+        from deployment import target_git
+        original_git = target_git._git
+
+        def checked_git(*args):
+            self.assertNotIn("hash-object", args)
+            return original_git(*args)
+
+        with patch("deployment.target_git._git", side_effect=checked_git):
+            report = self.invoke()
+        self.assertEqual(report["criticalFilesVerified"], len(CRITICAL_FILES))
+
     def test_local_git_url_rewrite_cannot_redirect_official_origin(self):
         subprocess.run(
             ["git", "-C", str(self.root), "config", "--local",
