@@ -1,5 +1,13 @@
 import { AiCopyButton } from './AiCopyButton';
-import { Component, isValidElement, useMemo, useState, type ReactNode } from 'react';
+import {
+  Component,
+  createContext,
+  isValidElement,
+  useContext,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { codePreviewDocument } from './ai-code-preview';
 import { AiChatIcon } from './AiChatIcon';
 import ReactMarkdown from 'react-markdown';
@@ -33,6 +41,14 @@ interface ContentProps {
   readonly content: string;
   readonly pending?: boolean;
   readonly webSearch?: unknown;
+}
+
+const CodePendingContext = createContext(false);
+// Stable renderer identity keeps a running app alive when the surrounding chat
+// rerenders (typing, focus, provider status). Inline component functions remount it.
+function CodePre({ children }: { children?: ReactNode }): JSX.Element {
+  const pending = useContext(CodePendingContext);
+  return <CodeCard pending={pending}>{children}</CodeCard>;
 }
 
 function CodeCard({ children, pending }: { children: ReactNode; pending: boolean }): JSX.Element {
@@ -256,59 +272,61 @@ export function AiMessageContent({
   return (
     <div className="asa-ai-rich-text">
       <ContentBoundary content={content}>
-        <ReactMarkdown
-          skipHtml
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[
-            [
-              rehypeKatex,
-              {
-                trust: false,
-                maxExpand: 1000,
-                maxSize: 8,
-                strict: 'ignore',
-                output: 'htmlAndMathml',
+        <CodePendingContext.Provider value={pending}>
+          <ReactMarkdown
+            skipHtml
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[
+              [
+                rehypeKatex,
+                {
+                  trust: false,
+                  maxExpand: 1000,
+                  maxSize: 8,
+                  strict: 'ignore',
+                  output: 'htmlAndMathml',
+                },
+              ],
+            ]}
+            components={{
+              a: ({ href, children }) => {
+                const safe = safeLink(href);
+                const number = flattenText(children).replace(/^\[|\]$/g, '');
+                const cited = evidence?.sources.find(
+                  (source) => String(source.id) === number && safe?.href === source.url,
+                );
+                return safe ? (
+                  <a
+                    href={safe.href}
+                    target={safe.external ? '_blank' : undefined}
+                    rel={safe.external ? 'noreferrer noopener' : undefined}
+                    className={cited ? 'asa-ai-citation' : undefined}
+                    aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
+                    title={cited?.hostname}
+                  >
+                    {children}
+                  </a>
+                ) : (
+                  <span>{children}</span>
+                );
               },
-            ],
-          ]}
-          components={{
-            a: ({ href, children }) => {
-              const safe = safeLink(href);
-              const number = flattenText(children).replace(/^\[|\]$/g, '');
-              const cited = evidence?.sources.find(
-                (source) => String(source.id) === number && safe?.href === source.url,
-              );
-              return safe ? (
-                <a
-                  href={safe.href}
-                  target={safe.external ? '_blank' : undefined}
-                  rel={safe.external ? 'noreferrer noopener' : undefined}
-                  className={cited ? 'asa-ai-citation' : undefined}
-                  aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
-                  title={cited?.hostname}
+              pre: CodePre,
+              table: ({ children }) => (
+                <div
+                  className="asa-ai-table-scroll"
+                  role="region"
+                  aria-label="Таблица ответа"
+                  tabIndex={0}
                 >
-                  {children}
-                </a>
-              ) : (
-                <span>{children}</span>
-              );
-            },
-            pre: ({ children }) => <CodeCard pending={pending}>{children}</CodeCard>,
-            table: ({ children }) => (
-              <div
-                className="asa-ai-table-scroll"
-                role="region"
-                aria-label="Таблица ответа"
-                tabIndex={0}
-              >
-                <table>{children}</table>
-              </div>
-            ),
-            img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
-          }}
-        >
-          {content}
-        </ReactMarkdown>
+                  <table>{children}</table>
+                </div>
+              ),
+              img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
+            }}
+          >
+            {content}
+          </ReactMarkdown>
+        </CodePendingContext.Provider>
       </ContentBoundary>
     </div>
   );

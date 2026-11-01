@@ -144,6 +144,9 @@
   gap: 2px;
 }
 .asa-ai-layout .asa-ai-code-actions select {
+  width: 68px;
+  max-width: 68px;
+  flex: 0 0 68px;
   border: 0;
   border-radius: 8px;
   background: transparent;
