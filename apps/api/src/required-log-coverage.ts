@@ -77,7 +77,12 @@ function sourceId(value: unknown): value is string {
   return (
     typeof value === 'string' &&
     (/^[a-z][a-zA-Z0-9_.:-]{0,127}$/.test(value) ||
-      (value.startsWith('windows:') && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value)))
+      (value.startsWith('windows:') &&
+        value.length <= 256 &&
+        Array.from(value).every((character) => {
+          const codePoint = character.codePointAt(0) ?? 0;
+          return codePoint >= 32 && codePoint !== 127;
+        })))
   );
 }
 function otherPlatformSource(source: string, platform: string): boolean {
