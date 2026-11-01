@@ -16069,7 +16069,7 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
     task:
       id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
-      issue: 452
+      issue: 539
       branch: main
       base_branch: main
       pr: null
@@ -16085,6 +16085,25 @@ parallel_lanes:
       owner_authorization: Owner requests fixing25 remaining Electronics failures easiest first plus completing8 unfinished; prepare measured timing cause while independently reviewed caption waits for isolated CI.
       preservation: Keep selected682 private harness and all foreign work unchanged; no server, Docker, live DB, new dependencies, full-suite rerun or thresholds change.
       next_action: One new bounded executor verifies selected task then replays saved actual requests for at most2minutes; report hot functions, owned-path activation, full-response fingerprints and minimal separate repair scope; STOP.
+
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
+      head_sha: null
+      main:
+        branch: main
+        sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
+      observed_at: '2026-11-01T22:29:00Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Read-only cause measurement selected separately; caption candidate waits for original browser and General evidence; no runtime source authorization.
 
   - id: electronics-emergency-toolbar
     parent_lane: electronics
