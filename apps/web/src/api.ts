@@ -933,6 +933,30 @@ export interface GradebookEntry {
   compatibilityDiagnostic: string | null;
 }
 
+export interface TeacherReviewQueueItem {
+  seatId: string;
+  displayLabel: string;
+  assignmentId: string;
+  assignmentTitle: string;
+  activityRunId: string;
+  state: string;
+  canonicalState: CanonicalLearningSurfaceState | null;
+  workflowAttemptId: string | null;
+}
+export interface TeacherReviewQueue {
+  practices: Array<{
+    id: string;
+    title: string;
+    originLabel: string;
+    originAvailable: boolean;
+    createdAt: string;
+  }>;
+  items: TeacherReviewQueueItem[];
+  total: number;
+  nextCursor: string | null;
+  previousCursor: string | null;
+}
+
 export interface LearningReviewContext {
   gradingScheme?: {
     id: string;
@@ -2267,6 +2291,25 @@ export const api = {
       awaitingReview: number;
       behindCount: number;
     }>(`/api/classrooms/${encodeURIComponent(classroomId)}/progress`),
+  teacherReviewQueue: (
+    classroomId: string,
+    assignmentId: string,
+    input: {
+      activityRunId?: string;
+      state?: string;
+      after?: string;
+      before?: string;
+      focus?: string;
+      pageSize?: number;
+    } = {},
+  ) => {
+    const query = new URLSearchParams({ assignmentId });
+    for (const [key, value] of Object.entries(input))
+      if (value !== undefined) query.set(key, String(value));
+    return call<TeacherReviewQueue>(
+      `/api/classrooms/${encodeURIComponent(classroomId)}/review-queue?${query}`,
+    );
+  },
   classroomGradebook: (classroomId: string) =>
     call<{
       scheme: {

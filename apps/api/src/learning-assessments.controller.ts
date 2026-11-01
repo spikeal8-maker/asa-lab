@@ -19,6 +19,7 @@ import { checkBodyShape } from './validation.js';
 import {
   LearningCanonicalProjectionService,
   canonicalProjectionKey,
+  canonicalCourseParticipationKey,
 } from './learning-canonical-projection.service.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -403,6 +404,136 @@ export class LearningAssessmentsController {
       );
     }
     return { assignmentId: row.classroom_assignment_id, reused: row.reused };
+  }
+
+  @Get(':classroomId/review-queue')
+  async reviewQueue(
+    @Req() request: FastifyRequest,
+    @Param('classroomId') classroomId: string,
+    @Query('assignmentId') assignmentId: unknown,
+    @Query('activityRunId') activityRunId?: unknown,
+    @Query('state') state: unknown = 'all',
+    @Query('after') after?: unknown,
+    @Query('pageSize') pageSize: unknown = '20',
+    @Query('before') before?: unknown,
+    @Query('focus') focus?: unknown,
+  ) {
+    const actor = await this.requireEducator(request);
+    this.requireUuid(classroomId, 'classroom');
+    for (const [label, value] of [
+      ['assignment', assignmentId],
+      ['activityRun', activityRunId],
+      ['after', after],
+      ['before', before],
+      ['focus', focus],
+    ] as const) {
+      if (value === undefined && label !== 'assignment') continue;
+      if (typeof value !== 'string')
+        throw new HttpException(error('validation_error', 'Проверьте очередь.'), 400);
+      this.requireUuid(value, label);
+    }
+    const states = [
+      'all',
+      'waiting_review',
+      'changes_requested',
+      'completed',
+      'in_progress',
+      'not_started',
+      'unavailable',
+    ];
+    if (
+      (after !== undefined && before !== undefined) ||
+      typeof state !== 'string' ||
+      !states.includes(state) ||
+      typeof pageSize !== 'string' ||
+      !/^(?:[1-9]|[1-4][0-9]|50)$/.test(pageSize)
+    )
+      throw new HttpException(
+        error('validation_error', 'Проверьте фильтр и размер страницы.'),
+        400,
+      );
+    const snapshot = await this.canonical().forTeacherReviewQueue(
+      actor.accountId,
+      classroomId,
+      String(assignmentId).toLowerCase(),
+    );
+    const practices = [
+      ...new Map(
+        snapshot.rows.map((row) => [
+          row.activityRunId,
+          {
+            id: row.activityRunId,
+            title: row.title,
+            originLabel: row.originLabel,
+            originAvailable: row.originAvailable,
+            createdAt: row.createdAt,
+          },
+        ]),
+      ).values(),
+    ];
+    const runId = typeof activityRunId === 'string' ? activityRunId.toLowerCase() : null;
+    if (runId && !practices.some((run) => run.id === runId && run.originAvailable))
+      throw new HttpException(error('review_not_found', 'Практика недоступна.'), 404);
+    const seen = new Set<string>();
+    const allItems = snapshot.rows
+      .filter((row) => row.activityRunId === runId)
+      .flatMap((row) => {
+        if (seen.has(row.seatId)) return [];
+        seen.add(row.seatId);
+        const projection = snapshot.projections.get(
+          canonicalCourseParticipationKey(row.seatId, row.activityRunId),
+        );
+        const canonical = projection?.surface ?? null;
+        const workflowState = canonical?.workflowState ?? 'unavailable';
+        return [
+          {
+            seatId: row.seatId,
+            displayLabel: row.displayLabel,
+            assignmentId: row.assignmentId,
+            assignmentTitle: row.title,
+            activityRunId: row.activityRunId,
+            state: workflowState,
+            canonicalState: canonical,
+            workflowAttemptId: projection?.state.provenance.workflowAttemptId ?? null,
+          },
+        ];
+      })
+      .sort((a, b) => (a.seatId < b.seatId ? -1 : a.seatId > b.seatId ? 1 : 0));
+    // Filter the complete authorized run, then paginate; a page boundary cannot hide a matching learner.
+    const filtered = allItems.filter(
+      (item) =>
+        state === 'all' ||
+        (state === 'waiting_review'
+          ? ['submitted', 'evaluating', 'waiting_review'].includes(item.state)
+          : item.state === state),
+    );
+    const cursor = typeof after === 'string' ? after.toLowerCase() : null;
+    const previous = typeof before === 'string' ? before.toLowerCase() : null;
+    const end = previous ? filtered.findIndex((item) => item.seatId >= previous) : filtered.length;
+    const boundary = end < 0 ? filtered.length : end;
+    const start = cursor
+      ? filtered.findIndex((item) => item.seatId > cursor)
+      : previous
+        ? Math.max(0, boundary - Number(pageSize))
+        : 0;
+    const focusId = typeof focus === 'string' ? focus.toLowerCase() : null;
+    const focusIndex = focusId ? filtered.findIndex((item) => item.seatId === focusId) : -1;
+    if (focusId && runId && focusIndex < 0)
+      throw new HttpException(error('review_not_found', 'Ученик недоступен в этой очереди.'), 404);
+    const offset =
+      focusIndex >= 0 && !cursor && !previous
+        ? Math.floor(focusIndex / Number(pageSize)) * Number(pageSize)
+        : start < 0
+          ? filtered.length
+          : start;
+    const items = filtered.slice(offset, previous ? boundary : offset + Number(pageSize));
+    return {
+      practices,
+      items,
+      total: filtered.length,
+      previousCursor: offset > 0 ? (items[0]?.seatId ?? null) : null,
+      nextCursor: offset + items.length < filtered.length ? (items.at(-1)?.seatId ?? null) : null,
+    };
   }
 
   /** One canonical matrix for work state, result and published grade. */

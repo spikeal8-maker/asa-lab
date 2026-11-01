@@ -922,10 +922,591 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
     document: document.documentElement.scrollWidth,
   }));
   expect(width.document).toBeLessThanOrEqual(width.viewport);
+  await exerciseExactReviewStream(
+    page,
+    browser,
+    classId,
+    code,
+    title,
+    first.assignmentId,
+    first.attemptId!,
+    learner.page,
+    homeTeacher,
+  );
   failures.assertEmpty();
   await learner.context.close();
   await applicant.close();
 });
+
+async function exerciseExactReviewStream(
+  owner: Page,
+  browser: Browser,
+  classId: string,
+  joinCode: string,
+  title: string,
+  assignmentId: string,
+  oldAttemptId: string,
+  lena: Page,
+  identity: SeededTeacher,
+) {
+  await owner.setViewportSize({ width: 1440, height: 900 });
+  await owner.goto('/#/classrooms/' + classId);
+  await owner
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Ученики', exact: true })
+    .click();
+  await owner.getByRole('button', { name: 'Добавить ученика', exact: true }).click();
+  const add = owner.getByRole('dialog');
+  const betaLabel = 'Борис проверяющий с длинным именем ученика';
+  await add.getByLabel('Имя в списке класса').fill(betaLabel);
+  await add.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await expect(add).toBeHidden();
+  const betaRow = owner.getByRole('row').filter({ hasText: betaLabel });
+  await betaRow.locator('.classroom-login-handle').click();
+  keys.set('queue-beta', (await betaRow.locator('.classroom-login-handle').innerText()).trim());
+  const beta = await learnerAssignments(browser, joinCode, 'queue-beta');
+  const betaWork = beta.page.getByTestId('seat-assignment-row').filter({ hasText: title });
+  await betaWork.getByRole('button', { name: 'Открыть', exact: true }).click();
+  await editRealProject(beta.page, 'three-d');
+  await beta.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+  await expect(
+    beta.page
+      .getByTestId('assignment-brief')
+      .locator('.assignment-brief-footer')
+      .getByText('На проверке', { exact: true }),
+  ).toBeVisible();
+
+  const review = await owner.context().newPage();
+  await review.setViewportSize({ width: 1440, height: 900 });
+  let faultPath = '',
+    failedReceipt = 0,
+    failedConsole = 0,
+    staleConsole = 0;
+  const unexpected: string[] = [];
+  review.on('pageerror', (error) => unexpected.push(error.message));
+  review.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const exact =
+      !!faultPath &&
+      message.location().url &&
+      new URL(message.location().url).pathname === faultPath;
+    if (
+      exact &&
+      message.text() === 'Failed to load resource: net::ERR_FAILED' &&
+      failedConsole === 0
+    ) {
+      failedConsole++;
+      return;
+    }
+    if (
+      exact &&
+      message.text() ===
+        'Failed to load resource: the server responded with a status of 409 (Conflict)' &&
+      staleConsole === 0
+    ) {
+      staleConsole++;
+      return;
+    }
+    unexpected.push(message.text() + ' ' + message.location().url);
+  });
+  review.on('requestfailed', (request) => {
+    if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === faultPath &&
+      request.failure()?.errorText === 'net::ERR_FAILED' &&
+      failedReceipt === 0
+    ) {
+      failedReceipt++;
+      return;
+    }
+    unexpected.push('requestfailed ' + request.url());
+  });
+  review.on('response', (response) => {
+    if (response.status() >= 500)
+      unexpected.push('HTTP ' + response.status() + ' ' + response.url());
+  });
+  const enter = async (handout: string) => {
+    await review.goto('/#/classrooms/' + classId + '?assignment=' + handout);
+    await review
+      .locator('th[data-assignment-id="' + handout + '"]')
+      .getByRole('button', { name: /Проверить по очереди/ })
+      .click();
+    await expect(review.getByRole('region', { name: 'Очередь проверки практики' })).toBeVisible();
+  };
+  await enter(assignmentId);
+  const stream = review.getByRole('region', { name: 'Очередь проверки практики' });
+  const queue = stream.getByRole('complementary', { name: 'Ученики в очереди' });
+  const form = stream.getByRole('region', { name: 'Проверка сдачи' });
+  await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
+  await expect(form.getByText('Сданная версия', { exact: true })).toBeVisible();
+  const old = (
+    await admin.query(
+      `SELECT s.project_version_id,v.document_json IS DISTINCT FROM d.document_json AS newer_draft
+    FROM learning_submissions s JOIN project_versions v ON v.id=s.project_version_id
+    JOIN project_drafts d ON d.project_id=s.project_id WHERE s.attempt_id=$1`,
+      [oldAttemptId],
+    )
+  ).rows[0];
+  expect(old.newer_draft).toBe(true);
+  await form.getByLabel('Попытка', { exact: true }).selectOption(oldAttemptId);
+  await expect(form.getByTestId('submission-version-id')).toHaveText(old.project_version_id);
+  // Explicit re-selection returns to the server's current workflow attempt.
+  await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
+  await form
+    .getByLabel('Причина возврата или исправления')
+    .fill('Повторная доработка через очередь.');
+  await form.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+  await expect(form.getByText('Ревизия 2 · На доработке')).toBeVisible();
+  await lena.goto('/#/learning');
+  await lena
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
+  await lena
+    .getByTestId('seat-assignment-row')
+    .filter({ hasText: title })
+    .getByRole('button', { name: 'Открыть работу', exact: true })
+    .click();
+  await editRealProject(lena, 'three-d');
+  await lena.getByRole('button', { name: 'Отправить повторно', exact: true }).click();
+  await expect(
+    lena
+      .getByTestId('assignment-brief')
+      .locator('.assignment-brief-footer')
+      .getByText('На проверке', { exact: true }),
+  ).toBeVisible();
+  const current = (
+    await admin.query(
+      `SELECT a.id,s.project_version_id FROM learning_attempts a
+    JOIN learning_submissions s ON s.attempt_id=a.id JOIN classroom_student_seats seat ON seat.id=a.seat_id
+    WHERE a.classroom_assignment_id=$1 AND seat.display_label='Лена Главная'
+    ORDER BY a.attempt_number DESC LIMIT 1`,
+      [assignmentId],
+    )
+  ).rows[0];
+  await stream.getByRole('button', { name: 'Обновить очередь', exact: true }).click();
+  await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
+  await expect(form.getByTestId('submission-version-id')).toHaveText(current.project_version_id);
+  faultPath = '/api/classrooms/' + classId + '/attempts/' + current.id + '/review';
+  const requestIds: string[] = [];
+  await review.route('**' + faultPath, async (route) => {
+    requestIds.push((route.request().postDataJSON() as { requestId: string }).requestId);
+    if (requestIds.length === 1) {
+      const actual = await route.fetch();
+      expect(actual.ok()).toBe(true);
+      await route.abort('failed');
+    } else await route.continue();
+  });
+  await form.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(form.getByText(/Ответ проверки не подтверждён/)).toBeVisible();
+  await expect(
+    stream.getByRole('button', { name: 'Следующий ученик', exact: true }),
+  ).toBeDisabled();
+  await form.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(form.getByText('Ревизия 1 · Принято')).toBeVisible();
+  expect(requestIds).toHaveLength(2);
+  expect(requestIds[0]).toBe(requestIds[1]);
+  expect(
+    (
+      await admin.query('SELECT count(*)::int n FROM assessment_results WHERE attempt_id=$1', [
+        current.id,
+      ])
+    ).rows[0].n,
+  ).toBe(1);
+  const serverLatest = (
+    await admin.query('SELECT id FROM assessment_results WHERE attempt_id=$1', [current.id])
+  ).rows[0].id;
+  const concurrent = await review.request.post(faultPath, {
+    headers: { origin: new URL(review.url()).origin },
+    data: {
+      decision: 'accepted',
+      points: null,
+      feedback: 'Подтверждённое параллельное исправление',
+      reason: 'Проверка конфликта версий',
+      expectedResultId: serverLatest,
+      requestId: crypto.randomUUID(),
+    },
+  });
+  expect(concurrent.ok(), await concurrent.text()).toBe(true);
+  await form
+    .getByLabel('Причина возврата или исправления')
+    .fill('Старое основание не перезаписывает новое.');
+  await form.getByRole('button', { name: 'Исправить результат', exact: true }).click();
+  await expect(form.getByRole('alert')).toBeVisible();
+  expect(
+    (
+      await admin.query('SELECT count(*)::int n FROM assessment_results WHERE attempt_id=$1', [
+        current.id,
+      ])
+    ).rows[0].n,
+  ).toBe(2);
+  await expect(form.getByRole('button', { name: 'Закрыть проверку', exact: true })).toBeDisabled();
+  // Normal classroom and portal exits use the existing leave-guard framework.
+  await review
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Ученики', exact: true })
+    .click();
+  await expect(stream).toBeVisible();
+  await openPortalSection(review, 'Проекты');
+  await expect(stream).toBeVisible();
+  const widths = [1440, 1024, 390, 320];
+  const capture = async (label: string) => {
+    for (const width of widths) {
+      await review.setViewportSize({ width, height: 900 });
+      expect(
+        await review.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+        'stream overflow ' + label + ' ' + width,
+      ).toBeLessThanOrEqual(0);
+      await review.screenshot({
+        path: evidenceDir + '/review-stream-' + label + '-' + width + '.png',
+        fullPage: true,
+      });
+    }
+    await review.setViewportSize({ width: 1440, height: 900 });
+  };
+  await capture('stale-error');
+  // Mobile local section picker also refuses an unresolved decision.
+  await review.setViewportSize({ width: 390, height: 900 });
+  await review.getByLabel('Раздел класса', { exact: true }).selectOption('students');
+  await expect(review.getByLabel('Раздел класса', { exact: true })).toHaveValue('gradebook');
+  await review.setViewportSize({ width: 1440, height: 900 });
+  review.once('dialog', (dialog) => dialog.accept());
+  await form.getByRole('button', { name: 'Обновить историю проверки', exact: true }).click();
+  await expect(form.getByText('Ревизия 2 · Принято')).toBeVisible();
+  await expect(form.getByText('Подтверждённое параллельное исправление').first()).toBeVisible();
+  await review.unroute('**' + faultPath);
+  expect(failedReceipt).toBe(1);
+  expect(failedConsole).toBe(1);
+  expect(staleConsole).toBe(1);
+
+  // A new course starts normally; only AFTER real saves/submissions do we model
+  // the historical shared-handout shape supported by published0155.
+  const actor = (
+    await admin.query(
+      'SELECT principal_id,account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [identity.tenantId, identity.teacherId],
+    )
+  ).rows[0];
+  const version = (
+    await admin.query(
+      'SELECT learning_activity_version_id FROM activity_runs WHERE source_classroom_assignment_id=$1',
+      [assignmentId],
+    )
+  ).rows[0].learning_activity_version_id;
+  const courseId = (
+    await admin.query("SELECT course_save($1,NULL,$2,NULL,NULL,'private') AS id", [
+      actor.principal_id,
+      'Курс точной проверки с одинаковыми названиями практик',
+    ])
+  ).rows[0].id;
+  expect(courseId).toBeTruthy();
+  const section = (
+    await admin.query('SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1', [
+      courseId,
+      actor.principal_id,
+      actor.account_id,
+      identity.tenantId,
+    ])
+  ).rows[0].section_id;
+  await admin.query(
+    "SELECT course_lesson_save_v3($1,$2,$3,NULL,$4,NULL,$5::jsonb,'material',NULL,15,NULL)",
+    [
+      actor.principal_id,
+      courseId,
+      section,
+      'Один урок с повторяющимися названиями и точными позициями',
+      JSON.stringify([
+        { id: 'review-first', type: 'activity', learningActivityVersionId: version },
+      ]),
+    ],
+  );
+  const revision = (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId]))
+    .rows[0].draft_revision;
+  expect(
+    (
+      await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        actor.principal_id,
+        courseId,
+        revision,
+        'review:publish:' + crypto.randomUUID(),
+      ])
+    ).rows[0].result_code,
+  ).toBe('ok');
+  const assigned = (
+    await admin.query(
+      "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'whole_class',NULL,$4)",
+      [actor.principal_id, classId, courseId, 'review:assign:' + crypto.randomUUID()],
+    )
+  ).rows[0];
+  expect(assigned.result_code).toBe('ok');
+  const runtime = (
+    await admin.query(
+      "SELECT id,source_classroom_assignment_id,source_course_lesson_id FROM activity_runs WHERE source_course_run_id=$1 AND source_course_block_id='review-first'",
+      [assigned.run_id],
+    )
+  ).rows[0];
+  const frozenByLabel = new Map<string, string>();
+  for (const [student, label] of [
+    [lena, 'Лена Главная'],
+    [beta.page, betaLabel],
+  ] as const) {
+    const started = await student.request.post('/api/learning/work/runs/' + runtime.id + '/start', {
+      headers: { origin: new URL(student.url()).origin },
+      data: { requestId: crypto.randomUUID() },
+    });
+    expect(started.ok(), await started.text()).toBe(true);
+    const receipt = (await started.json()) as { projectId: string };
+    await student.goto('/#/3d/' + receipt.projectId);
+    await editRealProject(student, 'three-d');
+    await student.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(
+      student
+        .getByTestId('assignment-brief')
+        .locator('.assignment-brief-footer')
+        .getByText('На проверке', { exact: true }),
+    ).toBeVisible();
+    frozenByLabel.set(
+      label,
+      (
+        await admin.query(
+          'SELECT s.project_version_id FROM learning_submissions s WHERE s.project_id=$1 ORDER BY s.submitted_at DESC LIMIT 1',
+          [receipt.projectId],
+        )
+      ).rows[0].project_version_id,
+    );
+  }
+  const sibling = (
+    await admin.query(
+      `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,'review-second')`,
+      [
+        actor.principal_id,
+        runtime.source_classroom_assignment_id,
+        version,
+        assigned.run_id,
+        runtime.source_course_lesson_id,
+        'review:sibling:' + crypto.randomUUID(),
+      ],
+    )
+  ).rows[0];
+  expect(sibling.result_code).toBe('ok');
+  await admin.query(
+    "UPDATE classroom_course_run_lessons SET blocks=blocks||jsonb_build_array(jsonb_build_object('id','review-second','type','activity','learningActivityVersionId',$2::text)) WHERE id=$1",
+    [runtime.source_course_lesson_id, version],
+  );
+  const participants = (
+    await admin.query(
+      'SELECT learner_identity_id,source_course_enrollment_id FROM activity_participations WHERE activity_run_id=$1',
+      [runtime.id],
+    )
+  ).rows;
+  for (const participant of participants)
+    expect(
+      (
+        await admin.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+          actor.principal_id,
+          sibling.activity_run_id,
+          participant.learner_identity_id,
+          participant.source_course_enrollment_id,
+        ])
+      ).rows[0].result_code,
+    ).toBe('ok');
+  await stream.getByRole('button', { name: 'Вернуться к журналу', exact: true }).click();
+  await enter(runtime.source_classroom_assignment_id);
+  await expect(stream.getByLabel('Практика в очереди')).toHaveValue('');
+  await expect(
+    stream
+      .getByLabel('Практика в очереди')
+      .locator('option')
+      .filter({ hasText: /Блок 1/ }),
+  ).toHaveCount(1);
+  await expect(
+    stream
+      .getByLabel('Практика в очереди')
+      .locator('option')
+      .filter({ hasText: /Блок 2/ }),
+  ).toHaveCount(1);
+  const exact = review.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname.endsWith('/review-context') &&
+      new URL(response.url()).searchParams.get('activityRunId') === runtime.id,
+  );
+  await stream.getByLabel('Практика в очереди').selectOption(runtime.id);
+  await exact;
+  for (const label of ['Лена Главная', betaLabel]) {
+    await queue.getByRole('button', { name: label, exact: true }).click();
+    await expect(form.getByTestId('submission-version-id')).toHaveText(frozenByLabel.get(label)!);
+  }
+  const keyboardLearner = queue.getByRole('button', { name: 'Лена Главная', exact: true });
+  await keyboardLearner.focus();
+  await expect(keyboardLearner).toBeFocused();
+  await keyboardLearner.press('Enter');
+  await expect(keyboardLearner).toHaveAttribute('aria-current', 'true');
+  await expect(form.getByTestId('submission-version-id')).toHaveText(
+    frozenByLabel.get('Лена Главная')!,
+  );
+  const keyboardNext = stream.getByRole('button', { name: 'Следующий ученик', exact: true });
+  const keyboardPrevious = stream.getByRole('button', { name: 'Предыдущий ученик', exact: true });
+  const keyboardLabels = (await queue.getByRole('listitem').allTextContents()).map((label) =>
+    label.trim(),
+  );
+  const keyboardIndex = keyboardLabels.indexOf('Лена Главная');
+  const moveForward = await keyboardNext.isEnabled();
+  const keyboardTarget = keyboardLabels[keyboardIndex + (moveForward ? 1 : -1)]!;
+  const keyboardMove = moveForward ? keyboardNext : keyboardPrevious;
+  await keyboardMove.focus();
+  await expect(keyboardMove).toBeFocused();
+  await keyboardMove.press('Enter');
+  await expect(form.getByRole('heading')).toContainText(keyboardTarget);
+  if (frozenByLabel.has(keyboardTarget)) {
+    await expect(form.getByTestId('submission-version-id')).toHaveText(
+      frozenByLabel.get(keyboardTarget)!,
+    );
+  }
+  // A late real context response must never replace the next learner's evidence.
+  let releaseContext!: () => void;
+  const contextGate = new Promise<void>((resolve) => {
+    releaseContext = resolve;
+  });
+  let delayedContext = false;
+  const contextPath = '**/api/classrooms/' + classId + '/review-context?*';
+  await review.route(contextPath, async (route) => {
+    const response = await route.fetch();
+    if (!delayedContext) {
+      delayedContext = true;
+      await contextGate;
+    }
+    await route.fulfill({ response });
+  });
+  await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
+  await expect.poll(() => delayedContext).toBe(true);
+  await queue.getByRole('button', { name: betaLabel, exact: true }).click();
+  await expect(form.getByTestId('submission-version-id')).toHaveText(frozenByLabel.get(betaLabel)!);
+  releaseContext();
+  await review.unroute(contextPath);
+  await expect(form.getByTestId('submission-version-id')).toHaveText(frozenByLabel.get(betaLabel)!);
+
+  // Confirming A removes it from this filter, but Next must still select B.
+  await stream.getByLabel('Состояние в очереди').selectOption('waiting_review');
+  await expect(queue.getByRole('listitem')).toHaveCount(2);
+  const waitingLabels = await queue.getByRole('listitem').allTextContents();
+  await queue.getByRole('button', { name: waitingLabels[0]!.trim(), exact: true }).click();
+  await expect(form.getByTestId('submission-version-id')).toBeVisible();
+  const points = form.getByRole('spinbutton');
+  if (await points.count()) await points.fill('7');
+  await form.getByRole('button', { name: /^(Принять и оценить|Принять выполнение)$/ }).click();
+  await expect(form.getByText('Ревизия 1 · Принято')).toBeVisible();
+  await expect(queue.getByRole('listitem')).toHaveCount(1);
+  await expect(form.getByRole('heading')).toContainText(waitingLabels[0]!.trim());
+  await stream.getByRole('button', { name: 'Следующий ученик', exact: true }).click();
+  await expect(form.getByRole('heading')).toContainText(waitingLabels[1]!.trim());
+  await expect(form.getByTestId('submission-version-id')).toHaveText(
+    frozenByLabel.get(waitingLabels[1]!.trim())!,
+  );
+  await stream.getByLabel('Состояние в очереди').selectOption('all');
+  const counts = async () =>
+    (
+      await admin.query(
+        `SELECT jsonb_build_object(
+    'attempts',(SELECT count(*) FROM learning_attempts WHERE classroom_id=$1),
+    'results',(SELECT count(*) FROM assessment_results r JOIN learning_attempts a ON a.id=r.attempt_id WHERE a.classroom_id=$1),
+    'parts',(SELECT count(*) FROM activity_participations p JOIN activity_runs r ON r.id=p.activity_run_id WHERE r.classroom_id=$1),
+    'submissions',(SELECT count(*) FROM learning_submissions s JOIN learning_attempts a ON a.id=s.attempt_id WHERE a.classroom_id=$1)) AS value`,
+        [classId],
+      )
+    ).rows[0].value;
+  const beforeBrowse = await counts();
+  await capture('populated');
+  await stream.getByLabel('Практика в очереди').selectOption(sibling.activity_run_id);
+  await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
+  await expect(form.getByText('Ученик ещё не начал работу.')).toBeVisible();
+  await expect(form.getByTestId('submission-version-id')).toHaveCount(0);
+  await expect(form.getByRole('button', { name: /Принять|Исправить/ })).toHaveCount(0);
+  await stream.getByLabel('Состояние в очереди').selectOption('waiting_review');
+  await expect(queue.getByText('Нет учеников в этом состоянии.')).toBeVisible();
+  await capture('empty');
+  await stream.getByLabel('Состояние в очереди').selectOption('all');
+  await stream.getByLabel('Практика в очереди').selectOption(runtime.id);
+  await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
+  await expect(form.getByTestId('submission-version-id')).toHaveText(
+    frozenByLabel.get('Лена Главная')!,
+  );
+  await review.reload();
+  await expect(stream).toBeVisible();
+  await expect(form.getByTestId('submission-version-id')).toHaveText(
+    frozenByLabel.get('Лена Главная')!,
+  );
+  expect(await counts()).toEqual(beforeBrowse);
+  let releaseLoading!: () => void;
+  const loadingGate = new Promise<void>((resolve) => {
+    releaseLoading = resolve;
+  });
+  const queuePath = '**/api/classrooms/' + classId + '/review-queue?*';
+  await review.route(queuePath, async (route) => {
+    const response = await route.fetch();
+    await loadingGate;
+    await route.fulfill({ response });
+  });
+  await stream.getByRole('button', { name: 'Обновить очередь', exact: true }).click();
+  await expect(stream.getByText('Загружаем очередь…', { exact: true })).toBeVisible();
+  await capture('loading');
+  releaseLoading();
+  await review.unroute(queuePath);
+  await expect(stream.getByRole('button', { name: 'Обновить очередь', exact: true })).toBeEnabled();
+
+  // A real server-side page boundary beyond30, not a mocked roster or a ceiling.
+  const extra = (
+    await admin.query(
+      `INSERT INTO classroom_student_seats
+    (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
+    SELECT $1,$2,'Очередь ученик '||n,$3||n,$3||n,true,'active',$4 FROM generate_series(1,31) n RETURNING id`,
+      [identity.tenantId, classId, 'review-many-' + crypto.randomUUID() + '-', identity.teacherId],
+    )
+  ).rows;
+  for (const row of extra) {
+    const learner = (
+      await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS id', [row.id])
+    ).rows[0].id;
+    const enrolled = (
+      await admin.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+        actor.principal_id,
+        assigned.run_id,
+        learner,
+      ])
+    ).rows[0];
+    expect(enrolled.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+          actor.principal_id,
+          runtime.id,
+          learner,
+          enrolled.enrollment_id,
+        ])
+      ).rows[0].result_code,
+    ).toBe('ok');
+  }
+  await stream.getByLabel('Состояние в очереди').selectOption('not_started');
+  await expect(queue.getByRole('listitem')).toHaveCount(20);
+  await stream.getByLabel('Состояние в очереди').selectOption('all');
+  await expect(queue.getByRole('listitem')).toHaveCount(20);
+  const firstLabels = await queue.getByRole('listitem').allTextContents();
+  await queue.getByRole('button', { name: 'Следующая страница', exact: true }).click();
+  await expect.poll(async () => queue.getByRole('listitem').count()).toBeGreaterThan(10);
+  expect(await queue.getByRole('listitem').count()).toBeLessThan(20);
+  const secondLabels = await queue.getByRole('listitem').allTextContents();
+  expect(new Set([...firstLabels, ...secondLabels]).size).toBe(
+    firstLabels.length + secondLabels.length,
+  );
+  await queue.getByRole('button', { name: 'Предыдущая страница', exact: true }).click();
+  await expect(queue.getByRole('listitem')).toHaveCount(20);
+  expect(await queue.getByRole('listitem').allTextContents()).toEqual(firstLabels);
+  expect(unexpected).toEqual([]);
+  await review.close();
+  await beta.context.close();
+}
 
 test('ungraded real submission has an official acceptance but no manufactured points or grade', async ({
   page,

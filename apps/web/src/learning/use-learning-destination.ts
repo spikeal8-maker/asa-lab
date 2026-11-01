@@ -11,6 +11,8 @@ export function useLearningDestination() {
   const params = new URLSearchParams(query);
   return {
     assignment: params.get('assignment'),
+    reviewRun: params.get('activityRun'),
+    reviewStream: params.get('review') === 'stream',
     seat: params.get('learner'),
     attempt: params.get('attempt'),
     courseRun: params.get('courseRun'),

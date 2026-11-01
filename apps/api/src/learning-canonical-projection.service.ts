@@ -43,6 +43,18 @@ export interface EvidenceRow {
   projectId?: string | null;
 }
 
+export interface TeacherReviewQueueMetadata {
+  seatId: string;
+  displayLabel: string;
+  assignmentId: string;
+  activityRunId: string;
+  activityVersionId: string;
+  title: string;
+  createdAt: string;
+  originAvailable: boolean;
+  originLabel: string;
+}
+
 export interface CanonicalLearningSurfaceState {
   activityRunId?: string | null;
   effectiveDueAt?: string | null;
@@ -219,6 +231,38 @@ export class LearningCanonicalProjectionService {
       'teacher',
       asOf,
     );
+  }
+
+  /** One authorized batched reader; every workflow and selected result stays run-scoped. */
+  async forTeacherReviewQueue(accountId: string, classroomId: string, assignmentId: string) {
+    const rows = await this.pool.query<{
+      detail: TeacherReviewQueueMetadata;
+      evidence: EvidenceRow;
+    }>('SELECT detail,evidence FROM learning_teacher_review_queue($1,$2,$3)', [
+      accountId,
+      classroomId,
+      assignmentId,
+    ]);
+    const projections = new Map<string, CanonicalLearningProjection | null>();
+    const asOf = new Date().toISOString();
+    if (this.enabled())
+      for (const row of rows.rows) {
+        const key = canonicalCourseParticipationKey(row.detail.seatId, row.detail.activityRunId);
+        const evidence = row.evidence;
+        const matches =
+          evidence.activityRunId === row.detail.activityRunId &&
+          evidence.seatId === row.detail.seatId &&
+          evidence.classroomId === classroomId &&
+          evidence.classroomAssignmentId === assignmentId &&
+          !!evidence.participation;
+        projections.set(
+          key,
+          projections.has(key) || !matches
+            ? null
+            : canonicalProjectionFromEvidence(evidence, key, asOf, 'teacher'),
+        );
+      }
+    return { rows: rows.rows.map((row) => row.detail), projections };
   }
 
   async forTeacherAccount(

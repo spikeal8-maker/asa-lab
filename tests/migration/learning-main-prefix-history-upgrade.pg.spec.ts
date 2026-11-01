@@ -319,6 +319,11 @@ const upgradeArtifacts = [
     '0288_learning_course_academic_result_access.sql',
     '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
   ],
+  [
+    '0289',
+    '0289_learning_teacher_review_queue.sql',
+    '66d074ffd1885d882cfdf3ffad537ed2d858165b6e2a21f1407249425951615f',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
