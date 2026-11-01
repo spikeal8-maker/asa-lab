@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { ThreeDDocument } from '@asa-lab/three-d';
+import { parseThreeDDocument, type ThreeDDocument } from '@asa-lab/three-d';
 import type { ThreeDPresentationHandle } from './ThreeDPresentation';
 import { acquireHoverPreview } from './hover-preview-lease';
 import './three-d-presentation.css';
@@ -90,7 +90,6 @@ export function ThreeDHoverPreview({
             const { api } = await import('../api');
             const result = await api.openProject(id, abort.signal);
             if (!result.ok || result.data.project.moduleKey !== 'three-d') return;
-            const { parseThreeDDocument } = await import('@asa-lab/three-d');
             const parsed = parseThreeDDocument(result.data.draft.document);
             if (!parsed.ok || !parsed.value.nodes.length || parsed.value.nodes.length > 256) return;
             document = {
