@@ -258,3 +258,28 @@ it('does not transmit audio when the component is removed during recording', asy
   expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
   expect(transcript).not.toHaveBeenCalled();
 });
+
+it('ignores a late audio-read failure after cancel and a new recording', async () => {
+  let failRead!: () => void;
+  class DeferredReader {
+    onerror: (() => void) | null = null;
+    onload: (() => void) | null = null;
+    result = null;
+    readAsDataURL() {
+      failRead = () => this.onerror?.();
+    }
+  }
+  vi.stubGlobal('FileReader', DeferredReader);
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => button('Остановить запись и распознать').click());
+  expect(button('Распознаём речь')).toBeDefined();
+  await act(async () => button('Отменить голосовой ввод').click());
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => failRead());
+  expect(button('Остановить запись и распознать').getAttribute('aria-pressed')).toBe('true');
+  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(5);
+  expect(host.textContent).not.toContain('Не удалось прочитать');
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
+  expect(transcript).not.toHaveBeenCalled();
+});

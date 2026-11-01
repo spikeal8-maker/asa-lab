@@ -149,7 +149,7 @@ export function AiVoiceInput({
         reader.readAsDataURL(blob);
       });
     } catch {
-      if (mounted.current) {
+      if (mounted.current && !cancelled.current && serial === acquisitionSerial.current) {
         setMessage('Не удалось прочитать запись.');
         setMode('idle');
       }
