@@ -4680,12 +4680,30 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
       [foreignAuthor.tenantId, foreignAuthor.teacherId],
     )
   ).rows[0];
+  // Legacy course_save resolves an organization author's tenant through an
+  // owned assignment; seedTeacher alone has no personal-workspace fallback.
+  await admin.query(
+    "INSERT INTO teacher_assignments(tenant_id,owner_principal_id,title,brief,module_key,visibility) VALUES($1,$2,'Foreign course anchor','anchor','electronics','private')",
+    [foreignAuthor.tenantId, foreignIdentity.principal_id],
+  );
   const foreignCourseId = (
     await admin.query(
       "SELECT course_save($1,NULL,'Foreign private course',NULL,NULL,'private') AS id",
       [foreignIdentity.principal_id],
     )
   ).rows[0].id;
+  expect(foreignCourseId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  );
+  expect(
+    (
+      await admin.query('SELECT tenant_id,owner_principal_id FROM courses WHERE id=$1', [
+        foreignCourseId,
+      ])
+    ).rows,
+  ).toEqual([
+    { tenant_id: foreignAuthor.tenantId, owner_principal_id: foreignIdentity.principal_id },
+  ]);
   const foreignUsage = await page.request.get(`/api/courses/${foreignCourseId}/usage`);
   expect(foreignUsage.status()).toBe(404);
   expect(await foreignUsage.json()).toEqual({
