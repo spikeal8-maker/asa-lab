@@ -18,7 +18,7 @@ from deployment.backup import export_backup, recovery_configuration, restore_che
 from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
-from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
+from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status, select_root_mode
 from deployment.contracts import proxy_provenance_diagnostic
 from deployment.resources import check_resources
 from deployment.search_secret import InvalidSearchSecret
@@ -188,6 +188,12 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         print("NO_CHANGE the verified release is already running; no backup or restart")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
         reconcile_collector(install)
+        # A real verified no-change update has an outcome too. Do not replace
+        # its original switch/backup receipt or manufacture a backup.
+        from deployment.operational import append_safely, from_manager_receipt, stamp
+        append_safely(install.root, from_manager_receipt({'status':'success', 'at':stamp(),
+            'trigger':'automatic' if scheduled else 'manual', 'phase':'verify_entry',
+            'selected':release, 'previous':before}))
         return
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
@@ -214,7 +220,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     backup = None
     if not fresh:
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "node", "migration", "tools/migrate.mjs", "--plan")
-        backup = export_backup(backup_install)
+        backup = export_backup(backup_install, trigger='automatic' if scheduled else 'manual')
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
     if "search" in release["images"]:
@@ -240,14 +246,14 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         install.identity()
         atomic_json(install.state / "installed-release.json", release)
         save_settings(install, install.settings.get("automaticUpdates", False))
-        install.receipt({"status": "success", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
+        install.receipt({"status": "success", "trigger": "automatic" if scheduled else "manual", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
                          "entryHttp": "pass", "userFlow": "not_run", **operation})
         (install.state / "maintenance.json").unlink()
         print(f"UPDATED {release['revision']} schema={release['schema']}")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
     except BaseException:
         atomic_json(install.state / "failed-switch.json", operation)
-        install.receipt({"status": "failed_switch", **operation, "automaticDatabaseRestore": False})
+        install.receipt({"status": "failed_switch", "trigger": "automatic" if scheduled else "manual", **operation, "automaticDatabaseRestore": False})
         raise
     # Application acceptance and diagnostic runner maintenance are independent.
     reconcile_collector(install)
@@ -263,6 +269,8 @@ def main(argv=None):
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
     parser.add_argument("--enable-auto-update", action="store_true")
+    parser.add_argument("--collector-mode", choices=('system-root',), help="Explicit root-operated Linux diagnostic runner; never grants another user Docker access")
+    parser.add_argument("--collector-reader-gid", type=int, help="Nonzero API read-only diagnostic group for explicit system-root mode")
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
@@ -272,6 +280,10 @@ def main(argv=None):
     parser.add_argument("--install-network-cidrs", help="Opt-in private Docker-only database, application, scratch network CIDRs")
     args = parser.parse_args(argv)
     try:
+        require((args.collector_mode is None) == (args.collector_reader_gid is None), 'COLLECTOR_ARGUMENT',
+                '--collector-mode and --collector-reader-gid must be selected together.')
+        require(args.collector_mode is None or args.action in ('install', 'update'), 'COLLECTOR_ARGUMENT',
+                'Collector mode selection belongs only to an authorized install/update action.')
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
             manifest = verify_backup(args.backup)
@@ -331,8 +343,14 @@ def main(argv=None):
                             "FRESH_PORT", "Selected Scratch port differs from saved private .env.")
                 require(not install.identity(existing=False), "ALREADY_INSTALLED",
                         "An ASA installation already exists. Use update for this canonical directory.")
+                if args.collector_mode:
+                    select_root_mode(install, args.collector_reader_gid)
+                    install = Installation(install.root, install.profile)
                 update(install, fresh=True)
             elif args.action in ("check", "update"):
+                if args.collector_mode:
+                    select_root_mode(install, args.collector_reader_gid)
+                    install = Installation(install.root, install.profile)
                 update(install, check=args.action == "check", scheduled=args.scheduled)
             elif args.action == "backup":
                 export_backup(install, args.output)

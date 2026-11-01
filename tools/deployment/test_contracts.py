@@ -481,6 +481,11 @@ class UpdateBoundaryTests(unittest.TestCase):
             switch.assert_not_called()
             install.compose.assert_not_called()
             collector.assert_called_once_with(install)
+            event = json.loads((install.root/'.asa/operations/events.jsonl').read_text())
+            self.assertEqual(event['status'], 'succeeded')
+            self.assertEqual(event['phase'], 'verify_entry')
+            self.assertEqual(event['revision'], candidate['revision'])
+            self.assertNotIn('archiveSha256', event)
 
     def test_backup_failure_never_switches_running_services(self):
         from unittest.mock import MagicMock
@@ -505,7 +510,7 @@ class UpdateBoundaryTests(unittest.TestCase):
                 asa_manager.update(install)
             self.assertFalse(any(call.args[0] in ("up", "stop") for call in install.compose.call_args_list))
             self.assertFalse((install.state / "installed-release.json").exists())
-            backup.assert_called_once_with(install)
+            backup.assert_called_once_with(install, trigger='manual')
 
     def test_outside_window_does_not_touch_docker_or_network(self):
         from unittest.mock import MagicMock

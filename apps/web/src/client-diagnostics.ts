@@ -321,14 +321,12 @@ export function installClientDiagnostics(): void {
     try {
       const response = await original(input, { ...init, headers });
       const durationMs = performance.now() - started;
+      const failed = response.status === 429 || response.status >= 500;
       // Late responses from a closed editor cannot belong to its successor.
-      if (
-        active.instanceId === context.instanceId &&
-        (response.status >= 500 || durationMs >= 10_000)
-      )
-        reportClientDiagnostic(response.status >= 500 ? 'request_failed' : 'request_slow', module, {
+      if (active.instanceId === context.instanceId && (failed || durationMs >= 10_000))
+        reportClientDiagnostic(failed ? 'request_failed' : 'request_slow', module, {
           ...requestDetail,
-          ...(response.status >= 500 ? { failureKind: 'http' } : {}),
+          ...(failed ? { failureKind: 'http' } : {}),
           phase: 'request',
           httpStatus: response.status,
           durationMs,

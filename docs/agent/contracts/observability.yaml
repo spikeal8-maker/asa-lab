@@ -1,0 +1,36 @@
+schema_version: 1.0.0
+contract_id: OBSERVABILITY-DOMAIN
+domain: observability
+registry_document_id: OBSERVABILITY-DOMAIN-CONTRACT
+master_documents:
+  - ADMIN-LOGS-OPERATIONS
+  - PORTABLE-DEPLOYMENT-STANDARD
+invariants:
+  - id: OBS-COVERAGE-001
+    statement: Finite required connected-source coverage is versioned and explicitly enumerated. Missing, stale, partial, unavailable, erroneous or unknown source/native/integrity evidence never becomes healthy coverage. Global retained-history completeness remains unproved; other-platform exclusions require explicit policy.
+    master_refs:
+      - document: ADMIN-LOGS-OPERATIONS
+        section: Обязательные подключённые источники
+    applies_to: [collector_status, required_source_policy, native_writer_integrity, release_gate]
+  - id: OBS-COLLECTOR-001
+    statement: Supported installations start continuous collection automatically, preserve diagnostic history, and expose unavailable sources truthfully.
+    master_refs:
+      - document: ADMIN-LOGS-OPERATIONS
+        section: Установка сборщика
+    applies_to: [collector_install, collector_reconcile, collector_status]
+  - id: OBS-PORTABILITY-001
+    statement: External operator choices are selected explicitly once and persisted; routine update reconciles the same installation without manual source edits.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-AUTO-001
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-UPD-001
+    applies_to: [collector_install, collector_update, host_migration]
+  - id: OBS-PRIVACY-001
+    statement: Diagnostic changes preserve working data and secrets, access boundaries, and truthful partial-collection status.
+    master_refs:
+      - document: ADMIN-LOGS-OPERATIONS
+        section: Установка сборщика
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-SEC-003
+    applies_to: [collector_permissions, collector_history, collector_errors]

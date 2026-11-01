@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -102,6 +103,49 @@ class ResourceTests(unittest.TestCase):
         compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text()
         for key, default in resources.POOL_DEFAULTS.items():
             self.assertIn(f'{key}: ${{{key}:-{default}}}', compose)
+
+    def test_owned_container_log_defaults_are_explicit_and_scoped(self):
+        compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text()
+        self.assertIn("x-asa-container-logging: &asa-container-logging\n  driver: json-file\n  options:\n    max-size: '10m'\n    max-file: '5'\n", compose)
+        consumers = re.findall(r'^  ([a-z][a-z-]*):\n    logging: \*asa-container-logging$', compose, re.M)
+        self.assertCountEqual(consumers, ('postgres', 'migration', 'minio', 'minio-init',
+                                         'api', 'search', 'web', 'scratch'))
+        self.assertEqual(compose.count('    logging:'), 8)
+
+    @unittest.skipUnless(os.environ.get('ASA_TEST_DOCKER_COMPOSE') == '1', 'Resolved Compose contract runs in Linux CI')
+    def test_resolved_profiles_keep_all_eight_owned_log_budgets(self):
+        # Resolve real anchors, interpolation, profiles and overlay merges.
+        # This read-only command creates no containers, images or volumes.
+        root = Path(__file__).resolve().parents[2]
+        owned = ('postgres', 'migration', 'minio', 'minio-init', 'api', 'search', 'web', 'scratch')
+        synthetic = {
+            'COMPOSE_PROJECT_NAME': 'asa-log-contract-test',
+            'POSTGRES_PASSWORD': 'synthetic-ci-only',
+            'MIGRATION_DATABASE_URL': 'postgres://admin:synthetic-ci-only@postgres:5432/asa_log_test',
+            'MIGRATION_EXPECT_DATABASE': 'asa_log_test',
+            'MIGRATION_CONFIRM': 'APPLY:asa_log_test',
+            'ASA_APP_DB_PASSWORD': 'synthetic-ci-only',
+            'APP_DATABASE_URL': 'postgres://asalab_app:synthetic-ci-only@postgres:5432/asa_log_test',
+            'ASA_SETTINGS_ENCRYPTION_KEY': '01' * 32,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / 'empty.env'
+            env_file.write_text('')  # Never consume an operator-owned .env.
+            for profile in (None, 'dev', 'test', 'staging', 'production'):
+                with self.subTest(profile=profile or 'base'):
+                    command = ['docker', 'compose', '--env-file', str(env_file),
+                               '-f', str(root / 'compose.yaml')]
+                    if profile:
+                        command += ['-f', str(root / f'compose.{profile}.yaml')]
+                    command += ['--profile', '*', 'config', '--format', 'json']
+                    result = subprocess.run(command, cwd=root, env={**os.environ, **synthetic},
+                                            capture_output=True, text=True, timeout=20)
+                    self.assertEqual(result.returncode, 0, 'Compose configuration failed; private output withheld')
+                    services = json.loads(result.stdout)['services']
+                    for service in owned:
+                        self.assertEqual(services[service]['logging'], {
+                            'driver': 'json-file', 'options': {'max-size': '10m', 'max-file': '5'}
+                        }, service)
 
     @unittest.skipUnless(os.environ.get('ASA_TEST_DOCKER_COMPOSE') == '1', 'Resolved Compose contract runs in Linux CI')
     def test_resolved_compose_preserves_custom_pool_and_timeout_values(self):

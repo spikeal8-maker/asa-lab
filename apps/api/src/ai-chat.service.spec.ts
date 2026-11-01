@@ -79,7 +79,14 @@ describe('ASA native AI Chat', () => {
         { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
       );
       const write = vi.fn();
-      const raw = { writeHead: vi.fn(), once: vi.fn(), write, end: vi.fn() };
+      const raw = {
+        writeHead: vi.fn(),
+        flushHeaders: vi.fn(),
+        once: vi.fn(),
+        off: vi.fn(),
+        write,
+        end: vi.fn(),
+      };
       await controller.sendStream(
         {
           cookies: {},
@@ -96,7 +103,8 @@ describe('ASA native AI Chat', () => {
           requestId: outcome === 'uppercase' ? requestId.toUpperCase() : requestId,
         },
       );
-      expect(write).toHaveBeenCalledTimes(1);
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(write).toHaveBeenNthCalledWith(1, ': connected\n\n');
       expect(write).toHaveBeenCalledWith(
         'event: done\ndata: ' + JSON.stringify({ ...result, messages: current }) + '\n\n',
       );

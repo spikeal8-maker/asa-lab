@@ -197,3 +197,5 @@ class Installation:
     def receipt(self, value):
         value = {"at": dt.datetime.now(dt.timezone.utc).isoformat(), **value}
         atomic_json(self.state / "last-operation.json", value)
+        from .operational import append_safely, from_manager_receipt
+        append_safely(self.root, from_manager_receipt(value))
