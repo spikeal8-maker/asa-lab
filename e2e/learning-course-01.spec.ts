@@ -4723,24 +4723,6 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
     'Урок сохранён.',
   );
-  await usage.getByRole('link', { name: 'Открыть обучение класса' }).click();
-  await expect(page).toHaveURL(
-    new URL(`/#/classrooms/${classroomId}?courseRun=${originalReceipt.runId}`, page.url()).href,
-  );
-  await expect(
-    page
-      .getByTestId('classroom-course-run')
-      .getByRole('heading', { name: courseTitle, exact: true }),
-  ).toBeVisible();
-  await page.goto('/#/challenges');
-  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
-  await page
-    .getByTestId('courses-list')
-    .getByRole('button')
-    .filter({ hasText: courseTitle })
-    .click();
-  await expect(editor).toBeVisible();
-
   const learner = await learnerAssignments(browser, joinCode, 'fix08-learner-' + suffix);
   expect((await learner.page.request.get(usagePath)).status()).toBe(401);
   const learnerFailures = collectBrowserFailures(learner.page, {
@@ -4887,6 +4869,21 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   expect(((await deliveries.json()) as { items: unknown[] }).items).toHaveLength(2);
   expect(await protectedDelivery()).toEqual(originalDelivery);
   await readOldLearning();
+  // Navigate only after the original stateful archive/retry continuation.
+  // Leaving the editor earlier discards its completed in-memory assignment
+  // receipt and would invalidate the existing “Новое назначение” assertion.
+  await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  await usage
+    .locator(`a[href="#/classrooms/${classroomId}?courseRun=${originalReceipt.runId}"]`)
+    .click();
+  await expect(page).toHaveURL(
+    new URL(`/#/classrooms/${classroomId}?courseRun=${originalReceipt.runId}`, page.url()).href,
+  );
+  await expect(
+    page
+      .getByTestId('classroom-course-run')
+      .getByRole('heading', { name: courseTitle, exact: true }),
+  ).toBeVisible();
   expect(pageErrors).toEqual([]);
   expect(serverErrors).toEqual([]);
   learnerFailures.assertEmpty();
