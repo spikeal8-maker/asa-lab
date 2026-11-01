@@ -7626,6 +7626,105 @@ parallel_lanes:
       convergence_baseline_sha: 1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66
       head_sha: fc9407e68da4557200b2217585797360d3550c8e
 
+  - id: electronics-selection-halo-902
+    parent_lane: electronics
+    worktree_id: electronics-selection-halo-902
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-HALO-902.md
+    execution_coordination: >-
+      ProductionComponentVisual is shared. Writer waits for525 source delivery
+      and STOP, then inherits that candidate; preserve text styles and all main
+      changes. No concurrent Visual edits or foreign WIP changes.
+    task:
+      id: TASK-ELECTRONICS-SELECTION-HALO-902
+      issue: 902
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: proven_geometry_repair_selected_waiting_525_writer_stop
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner commissioned complete836 qualification and error repair while
+        preserving newer changes. This separate dependency fixes proven existing
+        native selection geometry, without waiving pixel or timing assertions.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-HALO-902.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ee425c3257a397dc4c02bc300ec0c13ee7090ecb
+      head_sha: null
+      main:
+        branch: main
+        sha: ee425c3257a397dc4c02bc300ec0c13ee7090ecb
+      observed_at: '2026-11-01T17:21:36Z'
+      observation_note: Selection only; fresh fetch main and exact CI required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: electronics-native-oracle-compat-901
+    parent_lane: electronics
+    worktree_id: electronics-native-oracle-compat-901
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901.md
+    execution_coordination: >-
+      Test paths remain shared with existing wire and selection lanes. Scope
+      is the bounded card, not exclusive ownership. Both source paths were
+      checked clean in every local worktree before selection. Preserve WIP.
+    task:
+      id: TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901
+      issue: 901
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: low
+      semantic_change: 'no'
+      checkpoint: proven_native_dom_oracle_compatibility_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly commissioned full browser qualification and repair of836,
+        preserving newer fixes and foreign work. This separate bounded test-only
+        dependency addresses proven existing native oracle mismatches; no waiver
+        of remaining pixel, wire, timing or full browser requirements.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 78e87e73f4d49d845e4cccd1304b6eda376a967d
+      head_sha: null
+      main:
+        branch: main
+        sha: 78e87e73f4d49d845e4cccd1304b6eda376a967d
+      observed_at: '2026-11-01T16:50:00Z'
+      observation_note: Selection baseline only; fresh fetch main and exact CI are required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-committed-result-consumers
     parent_lane: electronics
     worktree_id: electronics-committed-result-consumers
@@ -7911,8 +8010,8 @@ parallel_lanes:
       issue: 211
       branch: main
       base_branch: main
-      status: in_progress
-      checkpoint: real_copy_count_selected
+      status: done
+      checkpoint: publication_card_copy_count_source_accepted_main
       kind: implementation
       risk: high
       semantic_change: 'yes'
@@ -7932,6 +8031,7 @@ parallel_lanes:
         focused negative/transactional evidence, independent security challenge.
         No deployment, permissions, private profile projection or player changes.
       context_hints:
+      - docs/product/projects/evidence/publication-copy-count-20261101.md
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
     integration_dependencies:
@@ -8871,6 +8971,14 @@ parallel_lanes:
       checkpoint: author_workspace_course_usage_selected
       selected_slice:
         id: LRN-E1-AUTHOR-USAGE-001
+        ci_prerequisite:
+          id: LRN-E1-CI-RUNNER-001
+          owner_authorization: Owner approved current.yaml reconciliation, CI repair, PR900 verification and green-gated main integration, then continued Courses completion on 2026-11-01.
+          classification: D_infrastructure
+          scope: Pin the existing Learning E1 workflow jobs to supported Ubuntu 24.04 without changing tests or gates.
+          path: .github/workflows/learning-e1-focused.yml
+          evidence: Learning run 41325031781 job 124903073394 fails before tests because Playwright does not support ubuntu26.04-x64.
+          constraints: Separate workflow-only executor and independent review; preserve commands, case partitions, retries, timeouts and mandatory aggregate.
         owner_authorization: Owner requested checking the Courses specification and starting completion of the author workspace on 2026-11-01.
         normative_ref: PRODUCT-INTEGRATED-V15 section 4.2.1 Usage
         scope: >-
@@ -11473,14 +11581,29 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: selected_test_only_correct_fixture_paint_order_and_forensic_failure_counts
+      checkpoint: product_after_individual_readout_counterreflection_selected
+      verified_complete_before:
+        candidate_sha: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
+        strict_run: 41094573695
+        overall_workflow: CANCELLED_not_full_acceptance
+        independent_actual_review: BEFORE_READY_all16_complete
+        complete_journeys: 16
+        readings: 784
+        expected_glyph_axis_failures: 588
+        endpoint_checks: 1536
+        endpoint_failures: 0
+        successful_puts_with_exact_cas_and_documents: 32
+        trusted_native_deliveries: 496
+        healthy_browser_collectors_cases: 16
+        final_and_reopened_pngs: 32
+        boundary: Same_full_browser_blob_frozen_for_AFTER_no_threshold_or_journey_changes
       paint_order_oracle_repair:
         candidate_sha: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
         source_composition_review: APPROVE_new_independent_exact_five_hunks_and_frozen_dependencies
         frozen_spec_blob: a3d5830c0b637e165cc60c8a43126e8f2ae8718f
         frozen_spec_sha256: 09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1
         strict_run: 41094573695
-        strict_result: in_progress_not_PASS
+        strict_result: CANCELLED_global50min_all16_complete_expected_BEFORE_glyph_failures
         source_before_sha: 3a9b3e1d97c370e650d8a895e488897c2a455d07
         source_before_run: 41080294495
         actual_result: CANCELLED_global50min_focused_benchmark_PASS_0of16complete_due_false_DOMorder_after_saved_reopen
@@ -11522,15 +11645,20 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-MIRROR-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        One TEST-ONLY new BEFORE browser matrix for existing525 mirror readability. Source feasibility
-        5f9d07ae independently APPROVED but UNPUBLISHED,not product/runtime acceptance. Do not compose it
-        into BEFORE;leave accepted main product unchanged and preserve every foreign test/helper.
+        Product AFTER for independently qualified complete BEFORE. Counterreflect
+        each readout around its own center, preserving ordinary rotation, windows,
+        controls, values and owner SVGs. Compose reviewed877 native-hit support,
+        prepared836 consumers and901 test compatibility without losing main fixes.
       source_budget:
         expected_write_paths:
-        - e2e/electronics-simulation.spec.ts
-        - docs/product/electronics/generated/component-coverage.json
-        metadata: Canonical generator ONLY generatedFrom.browserEvidenceSha256;every other field/byte unchanged. Nonexistent apps/web/src/electronics/generated path must not be created.
-        forbidden: No production/Visual/presentation-unit/workflow/script/package/dependency/cap/core/hook/LED/assets/foreign edit or timeout workaround.
+          - apps/web/src/electronics/ProductionComponentVisual.tsx
+          - apps/web/src/electronics/production-asset-contracts.ts
+          - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+        dependency_composition:
+          - Reviewed877D native-switch geometry and tests; adapt only necessary Stage integration to current836 leaves.
+          - Frozen b4 full simulation spec and canonical generated browser hash, unchanged BEFORE to AFTER.
+          - Prepared836 source51e4 and independently reviewed901 source2d03, preserving accepted main changes.
+        forbidden: No owner assets, core, clock, solver, API, waveform, package, lockfile, workflow, caps, retries or timeout changes.
       semantic_contract: Preserve ordinary rotation,per-readout own center and window placement,signed actual values/modes,body/terminal/hit/wire
         geometry,interactive controls and complete document. No always-horizontal digits or all-scene transform workaround.
         Existing owner rotation decision remains separate.
@@ -11631,7 +11759,10 @@ parallel_lanes:
         reopen: Cookies-only fresh context/origins and pre-app local-session empty;postload localdraft empty plus exact fixture saved hint,journal before assertions. Full fresh GET/server/rendered equality and no extra write through both closures;complete only after final durable ledger and both contexts closed.
         delivery: Freeze NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW exactSHA independent source/finalcomposition review before ONE justified existing strict run. All16complete plus NEWactualreview with causal mirror-only softfail before separate product AFTER. No acceptance/closure/release/deploy.
         evidence: docs/product/electronics/evidence/instrument-525-finalization-repair-selection-20261021.md
-      next_action: Assign ONE bounded TEST-ONLY observer_installation_and_slider_ownership repair author under new30October_contract;freeze for NEW independent exactSHA source/finalcomposition review before one justified strict run. Preserve finalization_phase_contract and all unrelated paths.
+      next_action: >-
+        Assign one bounded product AFTER author; compose reviewed dependencies,
+        preserve frozen b4 full-spec bytes, obtain source/cap evidence and fresh
+        independent review before one combined strict run.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned

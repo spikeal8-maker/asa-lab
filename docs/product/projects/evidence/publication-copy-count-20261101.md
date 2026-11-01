@@ -36,3 +36,41 @@ copy journeys now verify actual0→1 API and visible catalog count with screensh
 
 Independent security/code challenge and exact GitHub PG/browser acceptance pending.
 No site/working database change performed. This is not a deployment receipt.
+
+## Accepted bounded source evidence
+
+Final candidate03c1d971c3fdf1d6b5e8699a777db0aa3d636231; independent exact
+Code/Security challenge PASS. Compared with68cae0de: product, migration, contracts
+and gate code byte-for-byte unchanged; only a migration-test expected digest was
+corrected to canonical LF SHA256
+ed604dbc0034caac069c261457bfb699f5e1c8cd06b1b20d7c7910af4b96718b.
+All57 pinned migration inputs independently checked locally with LF normalization.
+
+- Public Projects41328242753 SUCCESS on unchanged product68cae0de: actual restricted
+  PostgreSQL/HTTP, populated286→287 upgrade, creator/upgrade gates and complete real
+  publication browser suite. Account/Seat3D and Electronics journeys assert0→1 API
+  and visible catalog count; idempotent concurrent replay stays1. Raw receipts
+  inaccessible; rollback/private visibility and trash/purge retention qualified.
+- General41330048265 on exact03c1d971: Governance contracts, Format/lint/types/
+  contracts/build, and PostgreSQL tests/RLS jobs SUCCESS. These cover repository
+  governance/code/data gates including the corrected four shared-prefix tests.
+  Access A main journey steps SUCCESS; additional account-settings synthetic UI
+  stage was still running at source integration. It is NOT recorded as PASS and
+  the overall workflow is NOT called successful or a release-ready candidate here.
+- General's previous Data run8905PASS4FAIL was solely the new test pin using raw
+  Windows CRLF digest; final Data SUCCESS supersedes it. Publication's initial
+  test-only filename variable and synthetic purge ordering failures likewise have
+  exact final successful focused evidence; no assertion/timeout weakened.
+- Actual complete-app screenshots inspected: ci-artifact/e2e/artifacts/
+  public-projects-copy/390-counted-catalog.png and electronics-counted-catalog.png
+  under F:/Asa-Lab/operations/reports/publication-copy-count-20261101/.
+  Both display1 after actual successful canonical copy. Explicit synthetic3copy/
+  7like isolated card fixture is separately labelled, with four-width geometry
+  PASS. It is never claimed to be production usage.
+- Remote Main moves during verification affected documentation only. Integration
+  preserves those edits and verifies no product/migration delta against the
+  accepted focused source. No repeated unaffected browser run for a test digest.
+
+Selected bounded counter implementation accepted as source. Owner visual acceptance
+remains pending. No deployment, live migration, live backup/upload or full-system
+capacity claim. Additional overall CI completion/release remains separate.
