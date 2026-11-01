@@ -7525,21 +7525,42 @@ parallel_lanes:
       - docs/product/games-platform/**
       - docs/product/ASA_CHECKERS_ONLINE_PLAY.md
     task:
-      id: TASK-GAMES-R1-BRIEF-001
-      issue: 250
+      id: TASK-CHESS-NETWORK-001
+      issue: 67
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: r1_delivery_brief_review_ready
+      status: in_progress
+      checkpoint: owner_selected_casual_network_teacher_scope_vertical
       owner_acceptance: pending
-      normative_refs:
-        - document: GAMES-R1-DELIVERY-BRIEF
-          revision: '1.0'
+      context_hints:
+        - docs/product/games-platform/CHESS_NETWORK_DELIVERY.md
+      repair_scope: >-
+        One casual Chess network vertical: platform-owned game identities and matches,
+        teacher game access plus separate network off/classroom/school/platform policy,
+        bilateral current authorization, private invitations, authoritative play,
+        reconnect and durable finish/history, real two-user PostgreSQL/Chromium CI.
+      next_action: >-
+        Author one bounded candidate under CHESS_NETWORK_DELIVERY; focused/data/browser
+        gates and NEW independent L3 review before integration. Preserve offline
+        admission, old Chess Live compatibility, calibration candidate and foreign lanes.
+      exclusions:
+        - Rated matchmaking, social directory, Checkers migration, unrelated cleanup.
+        - Existing tenant/RLS/Auth weakening or synthetic Games tenant.
+        - Local Docker or live database, deployment, backup or host network operations.
     revisions:
-      convergence_baseline_sha: 47c3fcaa180a673fb938f0509da25ff0f090eadf
-      head_sha: f1a6276a9dd29fc25073209247dc87d9ace0f466
+      kind: observed_snapshot
+      convergence_baseline_sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
+      head_sha: null
+      observed_at: '2026-11-01T21:05:10Z'
+      main:
+        branch: main
+        sha: 32ae3ad3948b1dd098ac517cb7bb692cec7d98f7
+      observation_note: >-
+        Owner explicitly requested full Chess network and teacher scopes after the local
+        calibration candidate. Main General CI still in progress at selection; no PASS
+        or acceptance inferred. fetch main and exact CI before writes and integration.
     execution_lease:
       executor_id: codex-games-r1
       holder: unassigned
@@ -7548,13 +7569,34 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Chess R1 Focused
         commands:
-          - pnpm gate:governance
+          - pnpm gate:chess-r1
+      browser:
+        workflow: Chess R1 Focused
+        commands:
+          - pnpm gate:chess-r1:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+
+    suspended_tasks:
+      - task_id: TASK-GAMES-R1-BRIEF-001
+        reason: Preserve previous Checkers brief selection; owner prioritized the bounded Chess network vertical.
+        task:
+          id: TASK-GAMES-R1-BRIEF-001
+          issue: 250
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_review
+          checkpoint: r1_delivery_brief_review_ready
+          owner_acceptance: pending
+          normative_refs:
+            - document: GAMES-R1-DELIVERY-BRIEF
+              revision: '1.0'
 
   - id: three-d
     worktree_id: three-d-opt-1-main
@@ -9092,6 +9134,27 @@ parallel_lanes:
       acceptance_limit: Inline media preview and truthful error/retry; no successful video/audio playback or separate inline-success/loading raster claim.
       owner_acceptance: pending
       deployment: not_run
+    - id: LRN-E1-EXACT-REVIEW-CONTEXT
+      source_pr: 908
+      source_sha: 4f88758e68aee3a37cc04a655fa5618093ff97aa
+      integrated_sha: e30a8d074d7e7128897fd6356c5f5de4e74f074e
+      status: technical_accepted
+      source_general_run: 41345676133
+      source_general_attempt: 1
+      source_learning_run: 41345676017
+      source_account_run: 41345676016
+      source_public_run: 41345676020
+      independent_source_review: approved
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      controller_unit_cases_passed: 17
+      course_pg_cases_passed: 15
+      qa_manifest_sha256: e20df95577b938576a3f6299c23e1c0be0cde9ded6c5ed8ccb4364715a7bd4d2
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/908#issuecomment-6563588000
+      acceptance_limit: Exact authorized read prerequisite; client mock transport and restricted-PG controller, no new exact-query HTTP or raster claim. Unrelated-learner denials preserve existing stable learner alias semantics.
+      owner_acceptance: pending
+      deployment: not_run
     owned_paths:
     - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
@@ -9158,38 +9221,61 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: exact_review_context_selected
+      checkpoint: teacher_exact_review_stream_selected
       selected_slice:
-        id: LRN-E1-EXACT-REVIEW-CONTEXT
+        id: LRN-E1-TEACHER-EXACT-REVIEW-STREAM
         owner_authorization: Owner explicitly commissioned continued Courses completion after green-gated PR900 integration on 2026-11-01.
-        normative_ref: Learning UX sections 25-26 and Teacher Learner Oversight sections 1.2-3; exact immutable practice review
+        normative_ref: Learning UX sections 25-26 and Teacher Learner Oversight sections 1.2-3; E1-FIX-13 exact practice review
         scope: >-
-          Make the existing authorized teacher review-context read unambiguous for
-          exact ActivityRun occurrences before adding stream queue navigation.
-          Preserve canonical review/result commands and immutable exact submissions.
-        source_finding: >-
-          Published 0155 permits shared-handout sibling runs and an existing real
-          PostgreSQL regression creates them through activity_run_create. Existing
-          review SQL0115 returns their authorized contexts but controller takes
-          unordered rows[0]. This is a source finding, not a fresh incident reproduction.
-        integration_strategy: Fresh main-based bounded API/read selection repair, reusing authorized SQL rows; no migration or new academic engine.
+          Deliver an exact-practice review stream inside the assignment journal:
+          choose a real runtime occurrence, filter canonical learner states, review
+          the immutable submission and move previous/next without reopening the list.
+          Reuse the existing review commands and ReviewDetail rather than WorkPreview
+          or a second grading engine. This is not all course embedded-entry or profile-return acceptance.
+        read_model_dependency: >-
+          Existing teacher gradebook rows omit exact run identity and collapse
+          shared-handout siblings. Existing review-context lacks descriptive origin
+          metadata. Add one authorized batched read of exact runtime origins with
+          frozen course/lesson/block labels and expose exact teacher projections.
+          Never pair collapsed rows by position or guess a matching latest draft.
+        migration:
+          candidate_path: migrations/0289_learning_teacher_review_queue.sql
+          allocation_rule: Recheck remote frontier and unfinished paths before writing and publication; 0289 is not an exclusive reservation. Report occupied number before changing selection.
+          preservation: Additive read accessor only, existing staff scope and fixed search_path; preserve every published migration and existing grants. No data rewrite or new writer.
         expected_write_paths:
+        - apps/api/src/learning-canonical-projection.service.ts
+        - apps/api/src/learning-canonical-projection.service.spec.ts
         - apps/api/src/learning-assessments.controller.ts
         - apps/api/src/learning-assessments.controller.spec.ts
         - apps/web/src/api.ts
+        - apps/web/src/components/ClassroomGradebook.tsx
+        - apps/web/src/components/ClassroomReviewStream.tsx
+        - apps/web/src/components/ClassroomLearningReview.tsx
+        - apps/web/src/components/classroom-gradebook.css
+        - apps/web/src/learning/use-learning-destination.ts
+        - e2e/learning-course-01.spec.ts
         - tests/courses/course-activity-blocks.pg.spec.ts
+        - migrations/0289_learning_teacher_review_queue.sql
+        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
         acceptance:
-        - Optional validated exact activityRunId selects only that run from already authorized classroom/seat/assignment rows.
-        - Without an exact run return a context only when uniquely resolved; ambiguous or duplicate matches fail closed instead of choosing the first row.
-        - Wrong run, class, seat and foreign educator remain denied; returned participation and attempts belong only to the exact requested run.
-        - Existing unique-handout callers and response shape remain compatible, including the client three-argument call; invalid supplied discriminator cannot silently fall back.
-        - Real isolated PostgreSQL shared-handout sibling witnesses plus controller/client boundary tests; immutable submission, review correction, idempotency and result-selection behavior unchanged.
-        - Full registered Learning and repository gates, applicable Classroom/Account/Public checks and new independent academic/security source review before integration.
+        - Authorized batched metadata and canonical exact-run state only; no per-row HTTP loading, invented grade/state or completed-to-accepted equivalence.
+        - Identical activity titles remain distinguishable through real course/lesson/block origin or safe distribution metadata, not UUIDs as primary labels; foreign or incoherent origin labels never leak.
+        - Bounded queue pages and continuation beyond30 learners; no artificial class ceiling. State filters and selection use exact seat/run identity.
+        - Previous/next and refresh preserve the exact learner/run, frozen workflow attempt and submitted evidence; no latest-draft substitution or late-response overwrite.
+        - Dirty, busy and uncertain-response navigation is guarded; confirmed review refreshes the queue without automatic unconfirmed advance. Preserve requestId replay, expectedResultId conflict and append-only correction history.
+        - Existing journal cells and uniquely scoped conditions remain available; new exact stream hides handout-scoped LearningConditions rather than retargeting those mutations.
+        - Real browser shared-handout siblings and two learners exercise the fourth review-context parameter through HTTP, exact submission versus newer draft, return/resubmit, stale correction and lost-response retry.
+        - Actual1440/1024/390/320 layout and keyboard evidence, including long labels and applicable empty/loading/error states; no page overflow or lost controls.
+        - Full registered Learning, repository and applicable Classroom/Account/Public gates, migration prefix/checksum and second-apply-zero proof, new independent security/source and visual QA before integration.
         constraints:
-        - Only four listed source/test paths; no SQL, metadata, workflow, timeout/retry changes, UI queue rewrite, new writer or Auth/tenant/RLS model changes.
-        - Preserve PR900 Usage and all PR904 exact-completion and PR906 media source/assertions, including all46 registered browser identities.
-        - No local services, Docker, live database, deployment or owner acceptance. If existing SQL cannot support this bounded read repair, report scope gap before expanding.
-        - New bounded executor and independent reviewer; executor reports and stops after this prerequisite, controller continues programme.
+        - Only listed paths; new components are optional extraction to reuse canonical review. No profile workflow, whole-course UI rewrite, notifications, permission model, workflow or timeout/retry changes.
+        - Read browsing/filter/navigation creates no academic records; only explicit existing canonical review commands may mutate results. No Project bytes in queue metadata.
+        - Preserve PR900 Usage, PR904 completion, PR906 media, PR908 exact selector and all46 existing browser identities/assertions; extend the existing teacher case rather than dropping coverage.
+        - Historical staged E1 helper in an old owner worktree already exists in accepted main; preserve that worktree. Other selected source and migration-fixture paths were clean in79 registered root worktrees.
+        - No local services, Docker, live database, deployment or owner acceptance; isolated CI only. Report a scope gap before expanding source paths or authority.
+        - New bounded executor and independent reviewers; executor reports and stops after this visible stream, controller continues remaining Courses outcomes.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -9249,17 +9335,17 @@ parallel_lanes:
         revision: '1.0'
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2ac9473a5b2d9aae3774af4aa7bbe951d7bd2de0
+      convergence_baseline_sha: e30a8d074d7e7128897fd6356c5f5de4e74f074e
       head_sha: null
-      observed_at: '2026-11-01T20:03:32Z'
+      observed_at: '2026-11-01T20:54:38Z'
       main:
         branch: main
-        sha: 2ac9473a5b2d9aae3774af4aa7bbe951d7bd2de0
+        sha: e30a8d074d7e7128897fd6356c5f5de4e74f074e
       observation_note: >-
-        Dated post-PR906 integration observation. Exact source958 passed General
-        attempt2, Learning, Account and Public, fresh visual QA and independent
-        integration review; the sole failed CRM timing attempt remains disclosed.
-        Main push checks are a separate observation, not relabelled PASS.
+        Dated post-PR908 integration observation. Exact4f passed all required
+        workflows attempt1, semantic QA and independent integration review.
+        Main push checks are separate and were running when observed; not PASS.
+        Fresh migration frontier ends0288; candidate0289 requires recheck.
         Fetch main and exact source checks before new writes.
     execution_lease:
       executor_id: codex-learning-course-01

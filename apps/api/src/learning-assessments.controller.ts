@@ -775,16 +775,33 @@ export class LearningAssessmentsController {
     @Param('classroomId') classroomId: string,
     @Param('assignmentId') assignmentId: string,
     @Param('seatId') seatId: string,
+    @Query('activityRunId') activityRunId?: string,
   ) {
     const context = await this.requireEducator(request);
     for (const id of [classroomId, assignmentId, seatId]) this.requireUuid(id, 'id');
+    if (activityRunId !== undefined) {
+      if (typeof activityRunId !== 'string')
+        throw new HttpException(error('validation_error', 'activityRunId is invalid'), 400);
+      this.requireUuid(activityRunId, 'activityRunId');
+    }
     const result = await this.requirePool().query(
       'SELECT detail FROM learning_teacher_review_context($1,$2,$3,$4)',
       [context.accountId, classroomId, seatId, assignmentId],
     );
-    if (!result.rows[0])
+    // The authorized SQL read may contain sibling runs sharing one handout.
+    // A discriminator narrows that set; it never grants access to another run.
+    const matches =
+      activityRunId === undefined
+        ? result.rows
+        : result.rows.filter((row) => row['detail']?.activityRunId === activityRunId.toLowerCase());
+    if (matches.length === 0)
       throw new HttpException(error('review_not_found', 'Каноническая работа не найдена.'), 404);
-    return result.rows[0]['detail'];
+    if (matches.length !== 1)
+      throw new HttpException(
+        error('review_context_ambiguous', 'Укажите точную практику для проверки.'),
+        409,
+      );
+    return matches[0]['detail'];
   }
 
   @Get(':classroomId/attempts/:attemptId/submission')

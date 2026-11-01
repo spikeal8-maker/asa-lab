@@ -1,10 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
-import type { ActiveContextUseCase } from '@asa-lab/identity';
+import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { SeatCourseRunLesson } from '../../apps/web/src/api';
+import { api } from '../../apps/web/src/api';
+import { call } from '../../apps/web/src/api-call';
 import { ClassroomJoinController } from '../../apps/api/src/classroom-join.controller';
+import { LearningAssessmentsController } from '../../apps/api/src/learning-assessments.controller';
 import {
   courseCompletion,
   lessonPracticeProgress,
@@ -16,6 +20,22 @@ import {
 import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
 import { COURSE_USAGE_SQL } from '../../apps/api/src/course-usage-query';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+
+vi.mock('../../apps/web/src/api-call', () => ({ call: vi.fn() }));
+
+it('review client preserves omitted and invalid supplied discriminators without query injection', () => {
+  const path = '/api/classrooms/class/assignments/assignment/students/seat/review-context';
+  const request = vi.mocked(call);
+  request.mockClear();
+  api.learningReviewContext('class', 'assignment', 'seat');
+  expect(request.mock.calls.at(-1)?.[0]).toBe(path);
+  for (const runId of ['', 'run&seatId=foreign?extra=true']) {
+    api.learningReviewContext('class', 'assignment', 'seat', runId);
+    const url = new URL(request.mock.calls.at(-1)![0], 'https://asa.invalid');
+    expect(url.pathname).toBe(path);
+    expect([...url.searchParams]).toEqual([['activityRunId', runId]]);
+  }
+});
 
 // Uses the same runtime-role query as GET /courses/:courseId/usage. Fixture
 // creation is not the action under acceptance: this read must stay scoped.
@@ -1786,6 +1806,38 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       )
     ).rows[0];
     expect(first.source_course_enrollment_id).toBeTruthy();
+    const readReview = async (
+      runId?: string,
+      classId = classroom,
+      learnerSeat = seat,
+      educator = author,
+    ) => {
+      const identity = await identityFor(educator);
+      return inTenant(educator, (client) => {
+        const controller = new LearningAssessmentsController(
+          {
+            resolve: async () => ({
+              accountId: identity.account_id,
+              principalId: identity.principal_id,
+            }),
+          } as unknown as ActiveContextUseCase,
+          {
+            capabilities: async () => [{ capability: 'educator', state: 'verified' }],
+          } as unknown as AccountDirectoryPort,
+          client as unknown as pg.Pool,
+          {} as ModuleRegistry,
+        );
+        return controller.reviewContext(
+          { cookies: { asa_session: 'isolated-exact-review' } } as unknown as FastifyRequest,
+          classId,
+          first.source_classroom_assignment_id,
+          learnerSeat,
+          runId,
+        );
+      });
+    };
+    // Before the valid sibling exists, the same legacy URL resolves uniquely.
+    expect(await readReview()).toMatchObject({ activityRunId: first.id, attempts: [] });
     const sibling = (
       await inTenant(author, (client) =>
         client.query(
@@ -2121,6 +2173,41 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     for (const payload of [foreignPayloads.seat, foreignPayloads.account]) {
       expect(payload.items.some((run) => run.id === assigned.run_id)).toBe(false);
     }
+
+    // Exercise the actual controller against restricted PostgreSQL rows, not a
+    // parallel selector. This remains teacher-readable immutable history even
+    // after the sibling participation was withdrawn above.
+    const expectedAttempts = (
+      await admin.query(
+        `SELECT part.id AS participation_id,part.activity_run_id,attempt.id AS attempt_id
+           FROM activity_participations part
+           JOIN learning_attempts attempt ON attempt.activity_participation_id=part.id
+          WHERE part.activity_run_id=ANY($1::uuid[]) AND part.learner_identity_id=$2`,
+        [runIds, first.learner_identity_id],
+      )
+    ).rows;
+    expect(expectedAttempts).toHaveLength(2);
+    for (const runId of runIds) {
+      const expected = expectedAttempts.filter((row) => row.activity_run_id === runId);
+      expect(expected).toHaveLength(1);
+      const detail = await readReview(runId.toUpperCase());
+      expect(detail).toMatchObject({
+        activityRunId: runId,
+        participationId: expected[0].participation_id,
+      });
+      expect(detail.attempts.map((attempt: { id: string }) => attempt.id)).toEqual([
+        expected[0].attempt_id,
+      ]);
+    }
+    await expect(readReview()).rejects.toMatchObject({ status: 409 });
+    await expect(readReview(randomUUID())).rejects.toMatchObject({ status: 404 });
+    await expect(readReview(first.id, foreign.classroom)).rejects.toMatchObject({ status: 404 });
+    await expect(readReview(first.id, classroom, foreign.seat)).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(readReview(first.id, classroom, seat, outsider)).rejects.toMatchObject({
+      status: 404,
+    });
   }, 45_000);
 
   // This real PostgreSQL integration scenario performs multiple independent
