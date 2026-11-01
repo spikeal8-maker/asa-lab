@@ -4,6 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PublicProjectPage } from './PublicProjectPage';
 import { publicProjectsApi, type PublicProject } from './api';
+vi.mock('./PublicationComments', () => ({
+  PublicationComments: () => createElement('section', { 'data-testid': 'publication-comments' }),
+}));
 
 const publication: PublicProject = {
   publicationId: 'public-id',
@@ -70,11 +73,10 @@ it('reads title, honest cover, real actions, then description and publication fa
   const article = container.querySelector('article')!;
   expect([...article.children].map((element) => element.tagName)).toEqual([
     'HEADER',
-    'SECTION',
     'DIV',
     'SECTION',
   ]);
-  expect(article.querySelector('header')?.textContent).toContain('Автор');
+  expect(article.querySelector('aside')?.textContent).toContain('Автор');
   expect(container.querySelector('.public-project-title-toggle')).toBeNull();
   expect(article.querySelector('.public-project-info')).toBeNull();
   expect(article.querySelector('.public-project-viewer button')).toBeNull();
@@ -232,4 +234,96 @@ it('reveals and collapses a long full heading through an accessible control', as
   await act(async () => toggle.click());
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(toggle.textContent).toBe('Название целиком');
+});
+
+it('groups the single back link and title, public author/date, and actual copy metric', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, copyCount: 4 } },
+  });
+  await render();
+  expect(container.querySelectorAll('.public-project-back')).toHaveLength(1);
+  const topline = container.querySelector('.public-project-detail-topline')!;
+  expect(topline.querySelector('a')?.getAttribute('href')).toBe('/#/explore');
+  expect(topline.querySelector('h1')?.textContent).toBe(publication.title);
+  expect(container.querySelector('.public-project-authorline time')?.getAttribute('datetime')).toBe(
+    publication.publishedAt,
+  );
+  expect(
+    container.querySelector('.public-project-detail-avatar')?.getAttribute('aria-hidden'),
+  ).toBe('true');
+  expect(container.querySelector('[aria-label="Добавили к себе: 4"]')).not.toBeNull();
+  expect(container.querySelector('.public-project-about time')).toBeNull();
+  expect(container.textContent).not.toMatch(/Включить комментарии|Все комментарии/);
+});
+it('expands long descriptions with a linked accessible control', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, description: 'Длинное описание проекта. '.repeat(60) } },
+  });
+  await render();
+  const paragraph = container.querySelector('.public-project-description')!;
+  const button = container.querySelector<HTMLButtonElement>('.public-project-description-toggle')!;
+  expect(paragraph.classList.contains('is-collapsed')).toBe(true);
+  expect(button.getAttribute('aria-controls')).toBe(paragraph.id);
+  expect(button.getAttribute('aria-expanded')).toBe('false');
+  await act(async () => button.click());
+  expect(paragraph.classList.contains('is-collapsed')).toBe(false);
+  expect(button.getAttribute('aria-expanded')).toBe('true');
+  await act(async () => button.click());
+  expect(paragraph.classList.contains('is-collapsed')).toBe(true);
+});
+it('refreshes the real copy counter after a confirmed copy without remounting the viewer', async () => {
+  const source = {
+    ...publication,
+    copyCount: 4,
+    capabilities: { ...publication.capabilities, canCopy: true },
+  };
+  vi.spyOn(publicProjectsApi, 'get')
+    .mockResolvedValueOnce({ ok: true, status: 200, data: { publication: source } })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { publication: { ...source, copyCount: 5 } },
+    });
+  vi.spyOn(publicProjectsApi, 'copy').mockResolvedValueOnce({
+    ok: true,
+    status: 201,
+    data: { projectId: 'new-private-id', moduleKey: 'electronics', created: true },
+  });
+  await render();
+  const viewer = container.querySelector('.public-project-viewer');
+  await act(async () =>
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent?.includes('Добавить в мои проекты'))!
+      .click(),
+  );
+  expect(container.querySelector('[aria-label="Добавили к себе: 5"]')).not.toBeNull();
+  expect(container.querySelector('.public-project-viewer')).toBe(viewer);
+  expect(container.querySelector('.publication-copy-success a')?.getAttribute('href')).toContain(
+    'new-private-id',
+  );
+});
+
+it('shows the same selected author avatar and public name on the project page', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      publication: {
+        ...publication,
+        authorLabel: 'Анна Петрова',
+        authorAvatarUrl: '/api/public-projects/public-id/author-avatar',
+      },
+    },
+  });
+  await render();
+  expect(container.querySelector('.public-project-detail-avatar img')?.getAttribute('src')).toBe(
+    '/api/public-projects/public-id/author-avatar',
+  );
+  expect(container.querySelector('.public-project-detail-author')?.textContent).toBe(
+    'Анна Петрова',
+  );
 });

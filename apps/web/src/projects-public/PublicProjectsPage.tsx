@@ -4,6 +4,7 @@ import { useSchoolTime } from '../components/school-time';
 import type { PublicProjectListView } from '../creator-portal/navigation';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
+import { PublicAuthorAvatar } from './PublicAuthorAvatar';
 import { PUBLIC_PROJECT_MODULES, publicationHref, publicModuleName } from './presentation';
 import './public-projects.css';
 
@@ -18,6 +19,7 @@ export function PublicProjectsPage({
   readonly onOpen: (publicationId: string) => void;
   readonly onMyProjects?: () => void;
 }): JSX.Element {
+  const moduleFilter = ['chess', 'checkers'].includes(view.module ?? '') ? undefined : view.module;
   const [query, setQuery] = useState(view.search ?? '');
   const [items, setItems] = useState<readonly PublicProject[] | null>(null);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
@@ -38,7 +40,8 @@ export function PublicProjectsPage({
     moreRequest.current = false;
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
-      ...(view.module ? { module: view.module } : {}),
+      ...(moduleFilter ? { module: moduleFilter } : {}),
+      ...(view.sort ? { sort: view.sort } : {}),
     });
     if (current !== request.current) return;
     if (!result.ok || !Array.isArray(result.data?.items)) {
@@ -47,7 +50,7 @@ export function PublicProjectsPage({
     }
     setItems(result.data.items);
     setNextOffset(result.data.nextOffset);
-  }, [view.search, view.module]);
+  }, [view.search, moduleFilter, view.sort]);
 
   useEffect(() => {
     void reload();
@@ -65,7 +68,8 @@ export function PublicProjectsPage({
     setMoreError(null);
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
-      ...(view.module ? { module: view.module } : {}),
+      ...(moduleFilter ? { module: moduleFilter } : {}),
+      ...(view.sort ? { sort: view.sort } : {}),
       offset: nextOffset,
     });
     if (current !== request.current) return;
@@ -91,11 +95,12 @@ export function PublicProjectsPage({
       onView({
         kind: 'public-projects',
         ...(value ? { search: value } : {}),
-        ...(view.module ? { module: view.module } : {}),
+        ...(moduleFilter ? { module: moduleFilter } : {}),
+        ...(view.sort ? { sort: view.sort } : {}),
       });
   }
 
-  const filtered = Boolean(view.search || view.module);
+  const filtered = Boolean(view.search || moduleFilter);
   return (
     <main
       id="main-content"
@@ -106,7 +111,7 @@ export function PublicProjectsPage({
       <header className="public-projects-heading">
         <div className="public-projects-intro">
           <div className="public-projects-title-row">
-            <h1>Проекты</h1>
+            <h1>Идеи, схемы и программы сообщества ASA Lab</h1>
             {onMyProjects ? (
               <PortalLink
                 className="public-projects-personal"
@@ -117,7 +122,6 @@ export function PublicProjectsPage({
               </PortalLink>
             ) : null}
           </div>
-          <p>Идеи, схемы и программы сообщества ASA Lab.</p>
         </div>
         <form className="public-projects-search" role="search" onSubmit={search}>
           <label htmlFor="public-project-search" className="sr-only">
@@ -153,9 +157,9 @@ export function PublicProjectsPage({
           {[
             { value: '', label: 'Все' },
             ...PUBLIC_PROJECT_MODULES,
-            ...(view.module &&
-            !PUBLIC_PROJECT_MODULES.some((module) => module.value === view.module)
-              ? [{ value: view.module, label: publicModuleName(view.module) }]
+            ...(moduleFilter &&
+            !PUBLIC_PROJECT_MODULES.some((module) => module.value === moduleFilter)
+              ? [{ value: moduleFilter, label: publicModuleName(moduleFilter) }]
               : []),
           ].map((module) => (
             <button
@@ -163,12 +167,13 @@ export function PublicProjectsPage({
               type="button"
               className="public-projects-category"
               data-module={module.value}
-              aria-pressed={(view.module ?? '') === module.value}
+              aria-pressed={(moduleFilter ?? '') === module.value}
               onClick={() =>
                 onView({
                   kind: 'public-projects',
                   ...(view.search ? { search: view.search } : {}),
                   ...(module.value ? { module: module.value } : {}),
+                  ...(view.sort ? { sort: view.sort } : {}),
                 })
               }
             >
@@ -176,13 +181,27 @@ export function PublicProjectsPage({
             </button>
           ))}
         </div>
-        <div className="public-projects-results">
-          <div>
-            <h2>{view.search ? 'Результаты поиска' : 'Работы сообщества'}</h2>
-            {items && items.length > 0 ? <span>Показано {items.length}</span> : null}
-          </div>
-          <span className="public-projects-order">Новые публикации</span>
-        </div>
+        <label className="public-projects-order">
+          <span className="sr-only">Сортировка проектов</span>
+          <select
+            value={view.sort ?? 'newest'}
+            onChange={(event) =>
+              onView({
+                kind: 'public-projects',
+                ...(view.search ? { search: view.search } : {}),
+                ...(moduleFilter ? { module: moduleFilter } : {}),
+                ...(event.target.value !== 'newest'
+                  ? { sort: event.target.value as NonNullable<PublicProjectListView['sort']> }
+                  : {}),
+              })
+            }
+          >
+            <option value="newest">Сначала новые</option>
+            <option value="oldest">Сначала ранние</option>
+            <option value="likes">По лайкам</option>
+            <option value="copies">По добавлениям</option>
+          </select>
+        </label>
       </section>
 
       {items === null && !error ? (
@@ -243,16 +262,16 @@ export function PublicProjectsPage({
                   <PublicationPreview publication={publication} />
                   <div className="public-project-card-topline">
                     <div className="public-project-card-identity" title={publication.authorLabel}>
-                      <span className="public-project-avatar" aria-hidden="true">
-                        {publication.authorLabel
-                          .trim()
-                          .split(/\s+/u)
-                          .slice(0, 2)
-                          .map((part) => Array.from(part)[0])
-                          .join('')
-                          .toLocaleUpperCase('ru') || '?'}
+                      <PublicAuthorAvatar publication={publication} />
+                      <span className="public-project-author-caption">
+                        <span className="public-project-author">{publication.authorLabel}</span>
+                        <time
+                          className="public-project-card-date"
+                          dateTime={publication.publishedAt}
+                        >
+                          {time.date(publication.publishedAt)}
+                        </time>
                       </span>
-                      <span className="public-project-author">{publication.authorLabel}</span>
                     </div>
                     <span
                       className="publication-module"
@@ -261,7 +280,7 @@ export function PublicProjectsPage({
                     >
                       <span className="public-project-module-full">
                         {publication.moduleKey === 'blocks'
-                          ? 'Scratch'
+                          ? 'Программа'
                           : publication.moduleKey === 'three-d'
                             ? '3D'
                             : publicModuleName(publication.moduleKey)}
@@ -273,9 +292,6 @@ export function PublicProjectsPage({
                       ) : null}
                     </span>
                   </div>
-                  <time className="public-project-card-date" dateTime={publication.publishedAt}>
-                    Опубликовано {time.date(publication.publishedAt)}
-                  </time>
                   <div className="public-project-card-marks">
                     {publication.pinned ? (
                       <span className="public-project-pinned" data-testid="public-project-pinned">
@@ -291,44 +307,44 @@ export function PublicProjectsPage({
                       </span>
                     ) : null}
                   </div>
-                  <div className="public-project-card-meta">
-                    {typeof publication.copyCount === 'number' ? (
-                      <span
-                        aria-label={`${publication.copyCount} добавлений в свои проекты`}
-                        title="Добавили к себе"
-                      >
+                  <div className="public-project-card-body">
+                    <h2 data-testid="public-project-card-title" title={publication.title}>
+                      {publication.title}
+                    </h2>
+                    <div className="public-project-card-meta">
+                      {typeof publication.copyCount === 'number' ? (
+                        <span
+                          aria-label={`${publication.copyCount} добавлений в свои проекты`}
+                          title="Добавили к себе"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                          </svg>
+                          {publication.copyCount}
+                        </span>
+                      ) : null}
+                      <span aria-label={`${publication.likeCount ?? 0} нравится`}>
                         <svg
                           aria-hidden="true"
                           viewBox="0 0 24 24"
                           width="16"
                           height="16"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
+                          fill="currentColor"
                         >
-                          <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                          <path d="M12 21 3.7 13A5.5 5.5 0 0 1 12 5.8 5.5 5.5 0 0 1 20.3 13Z" />
                         </svg>
-                        {publication.copyCount}
+                        {publication.likeCount ?? 0}
                       </span>
-                    ) : null}
-                    <span aria-label={`${publication.likeCount ?? 0} нравится`}>
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="currentColor"
-                      >
-                        <path d="M12 21 3.7 13A5.5 5.5 0 0 1 12 5.8 5.5 5.5 0 0 1 20.3 13Z" />
-                      </svg>
-                      {publication.likeCount ?? 0}
-                    </span>
+                    </div>
                   </div>
-                </div>
-                <div className="public-project-card-body">
-                  <h2 data-testid="public-project-card-title" title={publication.title}>
-                    {publication.title}
-                  </h2>
                 </div>
               </PortalLink>
             </li>

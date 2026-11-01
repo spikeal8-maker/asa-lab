@@ -287,6 +287,11 @@ export default defineConfig(({ command }) => {
               : 'assets/[name]-[hash][extname]';
           },
           manualChunks(id) {
+            // Static block metadata is shared with read-only publication code.
+            // Keep Rollup from absorbing it into the solver's dependency chunk.
+            if (id.includes('/contexts/electronics/domain/arduino-block-support.')) {
+              return 'electronics-block-support';
+            }
             // Pure rendering topology must not be absorbed into the solver chunk.
             if (id.includes('/contexts/electronics/domain/switch-topology.')) {
               return 'electronics-rendering-topology';

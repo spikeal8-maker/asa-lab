@@ -2,6 +2,7 @@ import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import {
   validatePublicProjectDisplayArtifact,
+  publicArduinoBlocks,
   PUBLIC_ELECTRONICS_PROPERTIES,
   PUBLIC_ELECTRONICS_EDITOR_PROPERTIES,
   type PublicProjectDisplayArtifact,
@@ -134,10 +135,14 @@ export function createPublicArtifactAdapters(
               )
             )
               return null;
-            return {
-              ...component,
-              stateProperties: pick(properties, PUBLIC_ELECTRONICS_PROPERTIES),
-            };
+            const projected = pick(properties, PUBLIC_ELECTRONICS_PROPERTIES);
+            // Only the frozen published sketch may supply the public block graph.
+            delete projected.arduinoBlocks;
+            if (['blocks', 'blocks-text'].includes(String(properties.arduinoCodeMode))) {
+              const blocks = publicArduinoBlocks(properties.arduinoWorkspace);
+              if (blocks) projected.arduinoBlocks = blocks;
+            }
+            return { ...component, stateProperties: projected };
           }
           return component;
         });

@@ -8192,27 +8192,27 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
-      id: TASK-PROJ-R8-04-COMMENTS-001
+      id: TASK-PROJ-R7-04A-3D-001
       issue: 211
       branch: main
       base_branch: main
       status: in_progress
-      checkpoint: owner_requested_complete_comments
+      checkpoint: owner_requested_3d_public_view_and_on_demand_previews
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Owner explicitly requests real publication comments storage, class and individual
-        learner permissions, owner discussion close and admin moderation, with isolated
-        tests and native UI examples. Guest read only; personal Accounts may write;
-        StudentSeat requires independent class/seat permission default off. Publication
-        permission never implies comment permission. Rating-based access deferred until
-        approved real scoring policy. Bounded replies, own delete, owner hide and admin
-        moderation/report audit use existing identity and moderation foundations.
-        No production deployment, production DB writes or fake discussion UI.
+        Owner explicitly requests 3D publication, confirms interactive rotation and zoom,
+        and requests genuine pointer-driven 3D previews in public catalog, Creator Home
+        and My Projects. Reuse canonical geometry without editor mutation services.
+        Public viewers read only the exact immutable published revision; private cards
+        use existing authenticated project reads. On-demand previews retain static
+        fallback and at most one active hover WebGL runtime. Add genuine isolated
+        examples and verify desktop/mobile, resource cleanup and no mutation requests.
+        No production deployment or production database writes.
       context_hints:
-      - docs/product/projects/tasks/PROJ-R8-04.md
+      - docs/product/projects/tasks/PROJ-R7-04A-3D.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
     integration_dependencies:
