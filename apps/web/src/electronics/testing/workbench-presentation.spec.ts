@@ -3,6 +3,13 @@ import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import {
+  instrumentReadoutStyle,
+  multimeterRuntimeMarkup,
+  regulatedPowerSupplyRuntimeMarkup,
+  signalGeneratorRuntimeMarkup,
+  oscilloscopeRuntimeMarkup,
+} from '../production-asset-contracts';
+import {
   KEYBOARD_NUDGE_STEP,
   KEYBOARD_NUDGE_LARGE_STEP,
   resolveWorkbenchShortcut,
@@ -49,6 +56,90 @@ const dragPreviewSource = readFileSync(
 );
 
 describe('owner-reference Electronics presentation contract', () => {
+  it('counterreflects each individual instrument text while retaining rotation and owner windows', () => {
+    const owner = (path: string) =>
+      readFileSync(
+        resolve(
+          process.cwd(),
+          `apps/web/public/assets/electronics/component-database/components/${path}/component.svg`,
+        ),
+        'utf8',
+      );
+    const generated = [
+      multimeterRuntimeMarkup(owner('instruments/multimeter'), 'voltage', '-3.000 V'),
+      regulatedPowerSupplyRuntimeMarkup(owner('power/regulated-power-supply'), {
+        voltageSetpointVolt: 5,
+        currentLimitAmp: 1,
+        outputEnabled: true,
+        mode: 'cv',
+        voltageDisplay: '-3.000 V',
+        currentDisplay: '0.500 A',
+      }),
+      signalGeneratorRuntimeMarkup(owner('instruments/signal-generator'), {
+        frequencyHz: 1000,
+        amplitudeVpp: 5,
+        dcOffsetVolt: -1,
+        outputEnabled: true,
+        waveform: 'sine',
+      }),
+      oscilloscopeRuntimeMarkup(owner('instruments/oscilloscope'), {
+        displayEnabled: true,
+        voltsPerDivision: 1,
+        timePerDivisionMs: 2,
+        inputVoltageVolt: -3,
+        trace: [
+          { timeMs: 0, voltageVolt: -3 },
+          { timeMs: 1, voltageVolt: 2 },
+        ],
+      }),
+    ];
+    const texts = generated.flatMap((markup) =>
+      [...markup.matchAll(/<text\b[^>]*style="[^"]*transform-box:[^"]*"[^>]*>/g)].map(
+        ([text]) => text,
+      ),
+    );
+    expect(texts).toHaveLength(8);
+    for (const text of texts) {
+      expect(text).toContain(`transform-box:${instrumentReadoutStyle.transformBox}`);
+      expect(text).toContain(`transform-origin:${instrumentReadoutStyle.transformOrigin}`);
+      expect(text).toContain(`transform:${instrumentReadoutStyle.transform}`);
+    }
+    expect(instrumentReadoutStyle.transformBox).toBe('fill-box');
+    expect(instrumentReadoutStyle.transformOrigin).toBe('center');
+    expect(instrumentReadoutStyle.transform).toContain('--workbench-readout-mirror-x, 1');
+    expect(instrumentReadoutStyle.transform).toContain('--workbench-readout-mirror-y, 1');
+    expect(generated.join('')).not.toMatch(/<(?:g|path|rect)\b[^>]*style="[^"]*transform-box/);
+    expect(generated[0]).toContain('>-3.000 V</text>');
+    expect(generated[2]).toContain('>-1.00 V</text>');
+    expect(generated[3]).toContain('workbench-oscilloscope-trace');
+    expect(productionVisualSource).toMatch(
+      /className="workbench-multimeter-reading"\s+style=\{instrumentReadoutStyle\}/,
+    );
+    const styleSource = productionVisualSource.match(
+      /style=\{\s*(\{\s*\.\.\.\(rgbIsLit[\s\S]*?\}) as CSSProperties\s*\}/,
+    )?.[1];
+    expect(styleSource).toBeDefined();
+    for (const [mirrorX, mirrorY, x, y] of [
+      [false, false, 1, 1],
+      [true, false, -1, 1],
+      [false, true, 1, -1],
+      [true, true, -1, -1],
+      ['true', 'true', 1, 1],
+      [1, -1, 1, 1],
+      [null, undefined, 1, 1],
+    ] as const) {
+      // Execute the actual outer SVG style expression, including malformed
+      // legacy truthy values. Real text CTMs are checked by the native proof.
+      const style = runInNewContext(`(${styleSource})`, {
+        properties: { mirrorX, mirrorY },
+        rgbIsLit: true,
+        rgbDisplayColour: '#12ab34',
+      });
+      expect(style['--workbench-readout-mirror-x']).toBe(x);
+      expect(style['--workbench-readout-mirror-y']).toBe(y);
+      expect(style['--workbench-rgb-led-glow']).toBe('#12ab34');
+    }
+  });
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
     expect(stageSource).toContain('TERMINAL_MARKER_SIZE');

@@ -570,6 +570,132 @@ describe('ordinary image mount lifecycle', () => {
     expect(fixture.probes).toHaveLength(3);
     expect(fixture.host.childNodes).toHaveLength(0);
   });
+  it('delivers the existing finite failure to a late consumer without its own error or requests', async () => {
+    const asset = '/assets/electronics/pending-late-observer.svg';
+    const stage = mount();
+    await stage.render(asset, ['error']);
+    const catalog = mount();
+    await catalog.render(asset, []);
+    const image = catalog.host.querySelector('image');
+    expect(stage.probes).toHaveLength(1);
+    expect(catalog.probes).toHaveLength(0);
+    await act(async () => stage.probes[0]!.error());
+    await catalog.advance(200);
+    await act(async () => catalog.probes[0]!.error());
+    await catalog.advance(400);
+    await act(async () => catalog.probes[1]!.error());
+    for (const consumer of [stage, catalog]) {
+      expect(consumer.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(consumer.host.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(
+        'Изображение детали не загрузилось',
+      );
+    }
+    expect(catalog.host.querySelector('image')).toBe(image);
+    expect(image!.getAttribute('href')).toBe(asset);
+    expect(stage.probes).toHaveLength(1);
+    expect(catalog.probes).toHaveLength(2);
+    stage.unmount();
+    catalog.unmount();
+    await catalog.advance(40_000);
+    expect(catalog.probes).toHaveLength(2);
+  });
+  it('delivers a completed failure on mount without starting another finite cycle', async () => {
+    const asset = '/assets/electronics/failed-before-late-observer.svg';
+    const stage = mount();
+    await stage.render(asset, ['error']);
+    await stage.advance(1_500);
+    const catalog = mount();
+    await catalog.render(asset, []);
+    expect(catalog.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+    expect(catalog.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+    expect(stage.probes).toHaveLength(3);
+    expect(catalog.probes).toHaveLength(0);
+  });
+  it('keeps a pre-passive native load ahead of an already completed failed cache', async () => {
+    const asset = '/assets/electronics/failed-cache-early-load.svg';
+    const stage = mount();
+    await stage.render(asset, ['error']);
+    await stage.advance(1_500);
+    const catalog = mount();
+    await catalog.render(asset, ['load']);
+    expect(catalog.host.querySelector('[role="status"]')).toBeNull();
+    expect(catalog.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+    expect(stage.probes).toHaveLength(3);
+    expect(catalog.probes).toHaveLength(0);
+  });
+  it('clears only the delivered failure when a late consumer subsequently loads natively', async () => {
+    const asset = '/assets/electronics/failed-cache-later-load.svg';
+    const stage = mount();
+    await stage.render(asset, ['error']);
+    await stage.advance(1_500);
+    const catalog = mount();
+    await catalog.render(asset, []);
+    const image = catalog.host.querySelector('image')!;
+    expect(catalog.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+    await act(async () => image.dispatchEvent(new Event('load')));
+    expect(catalog.host.querySelector('[role="status"]') === null).toBe(true);
+    expect(stage.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+    expect(catalog.host.querySelector('image')).toBe(image);
+    expect(image.getAttribute('href')).toBe(asset);
+    expect(stage.probes).toHaveLength(3);
+    expect(catalog.probes).toHaveLength(0);
+  });
+  it('preserves the own native error recovery after delivering a cached failure', async () => {
+    const asset = '/assets/electronics/failed-cache-later-error.svg';
+    const stage = mount();
+    await stage.render(asset, ['error']);
+    await stage.advance(1_500);
+    const catalog = mount();
+    await catalog.render(asset, []);
+    const image = catalog.host.querySelector('image')!;
+    expect(catalog.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+    await act(async () => image.dispatchEvent(new Event('error')));
+    expect(catalog.probes).toHaveLength(1);
+    await catalog.advance(1_500);
+    expect(catalog.probes).toHaveLength(3);
+    expect(stage.probes).toHaveLength(3);
+    expect(catalog.host.querySelector('image')).toBe(image);
+    expect(image.getAttribute('href')).toBe(asset);
+    expect(catalog.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+  });
+  it.each(['before passive setup', 'after passive setup', 'unmount', 'asset change', 'success'])(
+    'ignores an existing failure after the late consumer %s',
+    async (outcome) => {
+      const asset = `/assets/electronics/pending-late-${outcome.replaceAll(' ', '-')}.svg`;
+      const stage = mount();
+      await stage.render(asset, ['error']);
+      const catalog = mount();
+      await catalog.render(asset, outcome === 'before passive setup' ? ['load'] : []);
+      const image = catalog.host.querySelector('image')!;
+      if (outcome === 'after passive setup')
+        await act(async () => image.dispatchEvent(new Event('load')));
+      if (outcome === 'unmount') catalog.unmount();
+      if (outcome === 'asset change')
+        await catalog.render('/assets/electronics/late-new-resource.svg', []);
+      await act(async () =>
+        outcome === 'success' ? stage.probes[0]!.load() : stage.probes[0]!.error(),
+      );
+      if (outcome !== 'success') {
+        await catalog.advance(200);
+        await act(async () => catalog.probes[0]!.error());
+        await catalog.advance(400);
+        await act(async () => catalog.probes[1]!.error());
+      }
+      expect(catalog.host.querySelector('[role="status"]')).toBeNull();
+      if (outcome !== 'unmount') {
+        expect(catalog.host.querySelector('image')).toBe(image);
+        expect(image.getAttribute('href')).toBe(
+          outcome === 'asset change' ? '/assets/electronics/late-new-resource.svg' : asset,
+        );
+      }
+      expect(stage.probes).toHaveLength(1);
+      expect(catalog.probes).toHaveLength(outcome === 'success' ? 0 : 2);
+      stage.unmount();
+      catalog.unmount();
+      await catalog.advance(40_000);
+      expect(catalog.probes).toHaveLength(outcome === 'success' ? 0 : 2);
+    },
+  );
   it('publishes both consumers after B errors between finite cycle one and the quiet retry', async () => {
     const asset = '/assets/electronics/two-consumer-before-quiet.svg';
     const first = mount();
@@ -690,7 +816,7 @@ describe('ordinary image mount lifecycle', () => {
       const late = mount();
       await late.render(asset, delivery === 'before passive setup' ? ['error'] : []);
       if (delivery === 'after passive setup') {
-        expect(late.host.querySelector('[role="status"]')).toBeNull();
+        expect(late.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
         await act(async () => late.host.querySelector('image')!.dispatchEvent(new Event('error')));
       }
       expect(late.host.querySelector('image')!.getAttribute('href')).toBe(asset);

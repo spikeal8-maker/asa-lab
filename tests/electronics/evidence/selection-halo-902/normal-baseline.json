@@ -1,0 +1,17 @@
+{
+  "source": "7e36923e03898518d9fff81c7027a77d09a25c39",
+  "normals": {
+    "resistor-axial:false,false": "a99972b885db043c7e9452016fad0e797f268107dd17c11da1919644d7de4ddc",
+    "resistor-axial:true,false": "63076d31f1bc8ae65994e49d7983d2109f78847cc7e3c5f6490b52e7a877120d",
+    "resistor-axial:false,true": "a4b2046a4790905fa76dd4005b806ad9d40222e41bba8c407222f506f39074c7",
+    "resistor-axial:true,true": "a28baad4187d0adeca53fbfe52e419976e47021956afc90c7e1ecf55e8da782f",
+    "button-tactile-6mm:false,false": "5f8ec3b6ee5b568d66d9d66d6fb1e27fe9f69659972269ee190db407e4777cf8",
+    "button-tactile-6mm:true,false": "b5e5331d15df4f3aa4196e66075e08b5d10a2675b25036b0434c9e218df5d7ee",
+    "button-tactile-6mm:false,true": "24f632a7dea4e0c291b046986aa48ba9a8235677cdbb1d8deb92ddee14697ec1",
+    "button-tactile-6mm:true,true": "6a68e807a1fb34e0c202270f378a1ad9ce51ec626ed28ec752ab2994ec7c9739",
+    "switch-spdt:false,false": "2df789bfc6f25ca4b49198c21a7948c2f19e7f5342bb8b770177dd7635c17936",
+    "switch-spdt:true,false": "c3f2bd065aa08763750ae49d58e64edc38a2da8fcd4d89331876447016714bd1",
+    "switch-spdt:false,true": "c86bf2b2388e0647099a9f168f37857d76719c3e10f8dfbcdd529fab139da5b2",
+    "switch-spdt:true,true": "2f12718c559ffb70093b0c031ba9e25f8f6ff6a7ce6067e3095064cd29dd5741"
+  }
+}
