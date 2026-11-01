@@ -188,7 +188,7 @@ it('stops and transcribes into a draft only, without sending a chat message', as
   expect(acquire).toHaveBeenCalledOnce();
   expect(button('Остановить запись и распознать')).toBeDefined();
   await act(async () => button('Остановить запись и распознать').click());
-  await vi.waitFor(() => expect(transcript).toHaveBeenCalledWith(speechResponse));
+  await vi.waitFor(() => expect(transcript).toHaveBeenCalledWith(speechResponse, false));
   const dispatch = requests.find((r) => r.path === '/api/ai/stt/transcribe');
   expect(dispatch).toBeDefined();
   const body = JSON.parse(String(dispatch!.init?.body)) as {
@@ -326,13 +326,13 @@ it('uses real microphone samples for bar heights and releases the meter on cance
         disabled: false,
         onTranscript: transcript,
         target: slot,
-        onActiveChange: active,
+        onModeChange: active,
       }),
     ),
   );
   await act(async () => button('Продиктовать сообщение').click());
   expect(slot.querySelector('.ai-voice-panel')).not.toBeNull();
-  expect(active).toHaveBeenLastCalledWith(true);
+  expect(active).toHaveBeenLastCalledWith('recording');
   await act(async () => nextFrame(100));
   expect(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height).toBe('3px');
   amplitude = 24;
@@ -347,10 +347,27 @@ it('uses real microphone samples for bar heights and releases the meter on cance
   await act(async () =>
     slot.querySelector<HTMLButtonElement>('[aria-label="Отменить голосовой ввод"]')!.click(),
   );
-  expect(active).toHaveBeenLastCalledWith(false);
+  expect(active).toHaveBeenLastCalledWith('idle');
   expect(close).toHaveBeenCalledOnce();
   expect(cancelFrame).toHaveBeenCalled();
   expect(disconnect).toHaveBeenCalledTimes(2);
   expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
   slot.remove();
+});
+
+it('distinguishes explicit send from stop and ignores repeated send clicks', async () => {
+  const controller = { current: null as import('./AiVoiceInput').AiVoiceController | null };
+  await act(async () =>
+    root.render(
+      createElement(AiVoiceInput, { call, disabled: false, onTranscript: transcript, controller }),
+    ),
+  );
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => {
+    controller.current!.send();
+    controller.current!.send();
+  });
+  await vi.waitFor(() => expect(transcript).toHaveBeenCalledWith(speechResponse, true));
+  expect(transcript).toHaveBeenCalledOnce();
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(1);
 });

@@ -29,7 +29,7 @@ import { AiImagePrompt } from './AiImagePrompt';
 import { AiChatTooltips } from './AiChatTooltips';
 import { AiActivity } from './AiActivity';
 import { AiCompactSelect } from './AiCompactSelect';
-import { AiVoiceInput } from './AiVoiceInput';
+import { AiVoiceInput, type AiVoiceController, type AiVoiceMode } from './AiVoiceInput';
 import { mergeVoiceTranscript } from './voice-transcript-draft';
 import {
   AiImageGeneration,
@@ -251,7 +251,10 @@ export function AiChatPage({
   const [editingTitle, setEditingTitle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [voiceTarget, setVoiceTarget] = useState<HTMLDivElement | null>(null);
-  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<AiVoiceMode>('idle');
+  const voiceBusy = voiceMode !== 'idle';
+  const voiceController = useRef<AiVoiceController | null>(null);
+  const queuedVoiceSubmission = useRef<{ text: string; version: number } | null>(null);
   const wasVoiceBusy = useRef(false);
   useEffect(() => {
     if (wasVoiceBusy.current && !voiceBusy) composer.current?.focus();
@@ -370,6 +373,14 @@ export function AiChatPage({
   const historyPanel = useRef<HTMLDialogElement>(null);
   const historyToggle = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const queued = queuedVoiceSubmission.current;
+    if (voiceBusy || !queued) return;
+    queuedVoiceSubmission.current = null;
+    // Consume once, after React commits the recognized draft; never send into another conversation.
+    if (queued.version === selectedVersion.current && queued.text === draft)
+      composer.current?.form?.requestSubmit();
+  }, [draft, voiceBusy]);
   const restoreComposerFocus = useRef(false);
   useEffect(() => {
     if (!interactionBusy || !restoreComposerFocus.current) return;
@@ -2558,11 +2569,43 @@ export function AiChatPage({
                         </span>
                       )}
                     </div>
+                    {draft && !voiceBusy ? (
+                      <button
+                        type="button"
+                        className="chat-clear-draft"
+                        aria-label="Очистить текст"
+                        data-ai-tooltip="Очистить текст"
+                        disabled={
+                          creatingChat || threadActionBusy || archived || schoolPolicyDenied
+                        }
+                        onClick={() => {
+                          queuedVoiceSubmission.current = null;
+                          setDraft('');
+                          setOverflowTranscript(null);
+                          dismissModelNotice();
+                          composer.current?.focus();
+                        }}
+                      >
+                        <svg
+                          width="17"
+                          height="17"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          aria-hidden="true"
+                        >
+                          <path d="m6 6 12 12M18 6 6 18" />
+                        </svg>
+                      </button>
+                    ) : null}
                     <AiVoiceInput
                       key={(seatId ?? 'personal') + ':' + (currentId ?? 'new')}
                       call={call}
                       target={voiceTarget}
-                      onActiveChange={setVoiceBusy}
+                      onModeChange={setVoiceMode}
+                      controller={voiceController}
                       disabled={
                         interactionBusy ||
                         archived ||
@@ -2570,16 +2613,21 @@ export function AiChatPage({
                         imageMode ||
                         !historyReady
                       }
-                      onTranscript={(text) => {
+                      onTranscript={(text, submit) => {
                         const result = mergeVoiceTranscript(draft, text);
                         setDraft(result.draft);
                         setOverflowTranscript(result.overflow);
+                        if (submit && result.overflow === null)
+                          queuedVoiceSubmission.current = {
+                            text: result.draft,
+                            version: selectedVersion.current,
+                          };
                         composer.current?.focus();
                         return result.overflow === null ? 'inserted' : 'overflow';
                       }}
                     />
                     <button
-                      type={composerBusy ? 'button' : 'submit'}
+                      type={composerBusy || voiceBusy ? 'button' : 'submit'}
                       className="chat-send-button"
                       data-ai-tooltip={
                         !composerBusy && !imageMode && selectedBudget?.available === false
@@ -2589,7 +2637,7 @@ export function AiChatPage({
                           : undefined
                       }
                       disabled={
-                        voiceBusy ||
+                        (voiceBusy && voiceMode !== 'recording') ||
                         (imageUi.busy && !imageUi.canCancel) ||
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
                         (!composerBusy && !imageMode && selectedBudget?.available === false) ||
@@ -2597,21 +2645,26 @@ export function AiChatPage({
                         preparingImages ||
                         creatingChat ||
                         threadActionBusy ||
-                        (!composerBusy && (!historyReady || !draft.trim()))
+                        (!composerBusy &&
+                          (!historyReady || (!draft.trim() && voiceMode !== 'recording')))
                       }
                       onClick={
-                        composerBusy
-                          ? () => void (busy ? stop() : imageController.current?.cancel())
-                          : undefined
+                        voiceMode === 'recording'
+                          ? () => voiceController.current?.send()
+                          : composerBusy
+                            ? () => void (busy ? stop() : imageController.current?.cancel())
+                            : undefined
                       }
                       aria-label={
-                        composerBusy
-                          ? busy
-                            ? 'Остановить генерацию'
-                            : 'Отменить задание'
-                          : imageMode
-                            ? 'Создать изображение'
-                            : 'Отправить сообщение'
+                        voiceMode === 'recording'
+                          ? 'Распознать и отправить'
+                          : composerBusy
+                            ? busy
+                              ? 'Остановить генерацию'
+                              : 'Отменить задание'
+                            : imageMode
+                              ? 'Создать изображение'
+                              : 'Отправить сообщение'
                       }
                     >
                       {composerBusy ? (

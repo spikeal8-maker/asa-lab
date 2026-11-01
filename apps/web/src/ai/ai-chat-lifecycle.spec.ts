@@ -440,8 +440,8 @@ it('keeps voice activity inside the composer and preserves the draft without sen
   ).not.toBeNull();
   expect(host.querySelector('.ai-voice-control .ai-voice-panel')).toBeNull();
   expect(
-    host.querySelector<HTMLButtonElement>('[aria-label="Отправить сообщение"]')!.disabled,
-  ).toBe(true);
+    host.querySelector<HTMLButtonElement>('[aria-label="Распознать и отправить"]')!.disabled,
+  ).toBe(false);
   await act(async () =>
     host
       .querySelector('form.chat-composer')!
@@ -460,3 +460,95 @@ it('keeps voice activity inside the composer and preserves the draft without sen
   ).toBe(false);
   expect(stopTrack).toHaveBeenCalled();
 });
+
+it('clears only the draft using the button beside the model picker', async () => {
+  pendingCreation();
+  await mount();
+  await enter('Набранный текст');
+  const titles = historyTitles();
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Очистить текст"]')!.click(),
+  );
+  expect(composer().value).toBe('');
+  expect(document.activeElement).toBe(composer());
+  expect(host.querySelector('[aria-label="Очистить текст"]')).toBeNull();
+  expect(historyTitles()).toEqual(titles);
+  expect(creationCalls()).toHaveLength(0);
+  expect(streamAiRequest).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  'voice arrow submits once only when the full transcript fits: overflow=%s',
+  async (overflow) => {
+    const complete = pendingCreation();
+    const original = vi.mocked(call).getMockImplementation()!;
+    const speech = overflow ? 'Р'.repeat(6000) : 'Голосовой вопрос';
+    vi.mocked(call).mockImplementation((path, init) =>
+      path === '/api/ai/stt/status'
+        ? Promise.resolve(ok({ enabled: true, model: 'fixture-stt', maxAudioSeconds: 20 }))
+        : path === '/api/ai/stt/transcribe'
+          ? Promise.resolve(ok({ text: speech, model: 'fixture-stt' }))
+          : original(path, init),
+    );
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] })),
+      },
+    });
+    class Recording {
+      static isTypeSupported() {
+        return true;
+      }
+      state: RecordingState = 'inactive';
+      onstop: (() => void) | null = null;
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      start() {
+        this.state = 'recording';
+      }
+      stop() {
+        if (this.state !== 'recording') return;
+        this.state = 'inactive';
+        this.ondataavailable?.({
+          data: new Blob([new Uint8Array([1, 2])], { type: 'audio/webm' }),
+        });
+        this.onstop?.();
+      }
+    }
+    class Reader {
+      result = 'data:audio/webm;base64,AQI=';
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsDataURL() {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal('MediaRecorder', Recording);
+    vi.stubGlobal('FileReader', Reader);
+    await mount();
+    await enter('До');
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Продиктовать сообщение"]')!.click(),
+    );
+    const arrow = host.querySelector<HTMLButtonElement>('[aria-label="Распознать и отправить"]')!;
+    expect(arrow.disabled).toBe(false);
+    await act(async () => {
+      arrow.click();
+      arrow.click();
+    });
+    expect(
+      vi.mocked(call).mock.calls.filter(([path]) => path === '/api/ai/stt/transcribe'),
+    ).toHaveLength(1);
+    if (overflow) {
+      expect(creationCalls()).toHaveLength(0);
+      expect(streamAiRequest).not.toHaveBeenCalled();
+      expect(composer().value).toBe('До');
+      expect(host.textContent).toContain('Расшифровка не поместилась');
+    } else {
+      expect(creationCalls()).toHaveLength(1);
+      await act(async () => complete());
+      expect(streamAiRequest).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(streamAiRequest).mock.calls[0]![1]).toBe('До Голосовой вопрос');
+    }
+  },
+);

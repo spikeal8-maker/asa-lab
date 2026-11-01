@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import type { ApiResult } from '../api-call';
 import { newClientId } from '../client-id';
@@ -14,7 +14,10 @@ interface Transcript {
   readonly model: string;
 }
 type ScopedCall = <T>(path: string, init?: RequestInit) => Promise<ApiResult<T>>;
-type RecordingMode = 'idle' | 'acquiring' | 'recording' | 'transcribing';
+export type AiVoiceMode = 'idle' | 'acquiring' | 'recording' | 'transcribing';
+export interface AiVoiceController {
+  send(): void;
+}
 
 function selectMime(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -29,16 +32,18 @@ export function AiVoiceInput({
   disabled,
   onTranscript,
   target,
-  onActiveChange,
+  onModeChange,
+  controller,
 }: {
   readonly call: ScopedCall;
   readonly disabled: boolean;
-  readonly onTranscript: (text: string) => 'inserted' | 'overflow';
+  readonly onTranscript: (text: string, submit?: boolean) => 'inserted' | 'overflow';
   readonly target?: HTMLElement | null;
-  readonly onActiveChange?: (active: boolean) => void;
+  readonly onModeChange?: (mode: AiVoiceMode) => void;
+  readonly controller?: Ref<AiVoiceController>;
 }) {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
-  const [mode, setMode] = useState<RecordingMode>('idle');
+  const [mode, setMode] = useState<AiVoiceMode>('idle');
   const [seconds, setSeconds] = useState(0);
   const [levels, setLevels] = useState<number[]>(() => Array(40).fill(0));
   const [message, setMessage] = useState('');
@@ -47,6 +52,7 @@ export function AiVoiceInput({
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
+  const submitTranscript = useRef(false);
   const acquisitionSerial = useRef(0);
   const acquiring = useRef(false);
   const mounted = useRef(true);
@@ -110,9 +116,10 @@ export function AiVoiceInput({
   }, [mode]);
 
   useEffect(() => {
-    onActiveChange?.(mode !== 'idle');
-  }, [mode, onActiveChange]);
-  useEffect(() => () => onActiveChange?.(false), [onActiveChange]);
+    onModeChange?.(mode);
+  }, [mode, onModeChange]);
+  useEffect(() => () => onModeChange?.('idle'), [onModeChange]);
+  useImperativeHandle(controller, () => ({ send: () => stop(true) }));
 
   useEffect(() => {
     if (mode !== 'recording' || !stream.current) return;
@@ -193,7 +200,13 @@ export function AiVoiceInput({
     microphoneButton.current?.focus();
   }
 
-  async function transcribe(blob: Blob, durationSeconds: number, mimeType: string, serial: number) {
+  async function transcribe(
+    blob: Blob,
+    durationSeconds: number,
+    mimeType: string,
+    serial: number,
+    submit: boolean,
+  ) {
     setMode('transcribing');
     if (!blob.size || blob.size > 512_000) {
       setMessage('Слишком большой аудиофайл. Запишите более короткий вопрос.');
@@ -231,7 +244,7 @@ export function AiVoiceInput({
       });
       if (!mounted.current || cancelled.current || serial !== acquisitionSerial.current) return;
       if (result.ok && result.data.text) {
-        const placement = callback.current(result.data.text);
+        const placement = callback.current(result.data.text, submit);
         setMessage(
           placement === 'overflow'
             ? 'Расшифровка не поместилась в сообщение. Полный текст доступен ниже.'
@@ -270,6 +283,7 @@ export function AiVoiceInput({
     acquiring.current = true;
     const serial = ++acquisitionSerial.current;
     cancelled.current = false;
+    submitTranscript.current = false;
     setMode('acquiring');
     setMessage('');
     let opened: MediaStream;
@@ -326,7 +340,8 @@ export function AiVoiceInput({
       const blob = new Blob(chunks, { type: mime });
       // Stop ONLY this recorder's own stream, never a newer recording's stream.
       releaseOwned(media, opened, serial);
-      if (valid) void transcribe(blob, elapsed, mime.split(';')[0]!, serial);
+      if (valid)
+        void transcribe(blob, elapsed, mime.split(';')[0]!, serial, submitTranscript.current);
     };
     media.onerror = () => {
       const current = serial === acquisitionSerial.current && mounted.current;
@@ -364,7 +379,9 @@ export function AiVoiceInput({
     }, status.maxAudioSeconds * 1000);
   }
 
-  function stop() {
+  function stop(submit = false) {
+    if (recorder.current?.state !== 'recording') return;
+    submitTranscript.current = submit;
     if (timeout.current) clearTimeout(timeout.current);
     timeout.current = null;
     if (recorder.current?.state === 'recording') recorder.current.stop();
