@@ -72,11 +72,18 @@ test('all twelve chess symbols center their visible ink without clipping', async
         let left = png.width,
           right = -1,
           top = png.height,
-          bottom = -1;
+          bottom = -1,
+          darkPixels = 0;
         // Fractional CSS cell edges can capture a pixel of the adjacent square.
         for (let y = 2; y < png.height - 2; y++) {
           for (let x = 2; x < png.width - 2; x++) {
             const offset = (y * png.width + x) * 4;
+            if (
+              png.data[offset]! < 100 &&
+              png.data[offset + 1]! < 120 &&
+              png.data[offset + 2]! < 140
+            )
+              darkPixels++;
             if (background.some((channel, i) => Math.abs(png.data[offset + i]! - channel) > 45)) {
               left = Math.min(left, x);
               right = Math.max(right, x);
@@ -94,12 +101,19 @@ test('all twelve chess symbols center their visible ink without clipping', async
           right,
           top,
           bottom,
+          darkPixels,
         });
         const horizontalError = Math.abs((left + right + 1 - png.width) / 2);
         const verticalError = Math.abs((top + bottom + 1 - png.height) / 2);
         const margin = Math.min(left, top, png.width - right - 1, png.height - bottom - 1);
         if (right <= left || horizontalError > 1.5 || verticalError > 1.5 || margin < 3) {
           violations.push(`${context}: x=${horizontalError}, y=${verticalError}, margin=${margin}`);
+        }
+        // An outline that consumes the thin white glyph makes it resemble a
+        // solid black piece. Measure that failure directly in the raster.
+        const darkCoverage = darkPixels / ((right - left + 1) * (bottom - top + 1));
+        if (piece.startsWith('white-') && darkCoverage > 0.4) {
+          violations.push(`${context}: white contour became a dark silhouette (${darkCoverage})`);
         }
       }
       expect(seen.size).toBe(12);
