@@ -515,6 +515,29 @@ finally:
     rule.source = 'provider:ollama';
     expect(readRequiredSources(catalog.requiredSources)).toBeUndefined();
   });
+  it('rejects empty or padded canonical IDs and every ASCII control character including DEL', () => {
+    const invalidIds = [
+      '',
+      ' api:recent',
+      'api:recent ',
+      ...Array.from(
+        { length: 32 },
+        (_, codePoint) => `windows:channel${String.fromCodePoint(codePoint)}`,
+      ),
+      `windows:channel${String.fromCodePoint(127)}`,
+    ];
+    for (const source of invalidIds) {
+      const catalog = fixture();
+      catalog.requiredSources.sources.push({
+        source,
+        applicable: false,
+        maxAgeSeconds: 300,
+        requireThrough: true,
+        reason: 'other-platform',
+      });
+      expect(readRequiredSources(catalog.requiredSources), JSON.stringify(source)).toBeUndefined();
+    }
+  });
   it.each(['overdue', 'error', 'gap', 'partial', 'stale', 'missing'])(
     'requires actual retained integrity evidence: %s',
     (failure) => {
