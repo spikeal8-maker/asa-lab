@@ -2,6 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { codePreviewDocument } from './ai-code-preview';
 
 describe('isolated static code preview', () => {
+  it.each([
+    ['viewBox="0 0 800 200"', '0 0 800 200'],
+    ['width="1200" height="600"', '0 0 1200 600'],
+    ['width="640px" height="480px"', '0 0 640 480'],
+    ['width="100%" height="100%"', '0 0 300 150'],
+    ['viewBox="0 0 -10 0" width="400" height="200"', '0 0 400 200'],
+  ])('fits standalone SVG with %s without enabling scripts', (attrs, expected) => {
+    const doc = codePreviewDocument(
+      `<svg ${attrs} style="fill:red;width:9999px!important" onload="alert(1)"><rect width="100" height="100"/><script>alert(1)</script></svg>`,
+      true,
+      true,
+    )!;
+    expect(doc).toContain(`viewBox="${expected}"`);
+    expect(doc).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(doc).toContain('width:100%!important;height:100%!important');
+    expect(doc).toContain('fill:red');
+    expect(doc).toContain("script-src 'none'");
+    expect(doc).not.toMatch(/<script|onload|<iframe/);
+  });
+  it('rejects a non-SVG document in SVG mode', () => {
+    expect(codePreviewDocument('<main>not SVG</main>', false, true)).toBeNull();
+  });
   it('permits inline games only in an explicitly interactive document with network CSP intact', () => {
     const code =
       '<canvas id="board" width="300" height="300"></canvas><button onclick="score++">Play</button><script src="https://external.test/code.js">let score=0;document.querySelector("#board").getContext("2d").fillRect(1,2,3,4);</script>';

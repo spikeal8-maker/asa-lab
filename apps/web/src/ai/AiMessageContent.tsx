@@ -100,7 +100,11 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const preview = useMemo(
     () =>
       previewable && !pending
-        ? codePreviewDocument(code, running && file.name.endsWith('.html'))
+        ? codePreviewDocument(
+            code,
+            running && file.name.endsWith('.html'),
+            file.name.endsWith('.svg'),
+          )
         : null,
     [code, pending, previewable, running, file.name],
   );

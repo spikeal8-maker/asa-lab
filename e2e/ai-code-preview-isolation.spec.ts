@@ -4,6 +4,38 @@ import { codePreviewDocument } from '../apps/web/src/ai/ai-code-preview';
 const escapeAttribute = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
+test('standalone SVG fits wide, tall and pixel-sized drawings inside the preview', async ({
+  page,
+}) => {
+  for (const [width, height, viewBox] of [
+    [800, 200, true],
+    [200, 800, true],
+    [2400, 1200, false],
+    [120, 80, false],
+  ] as const) {
+    const attrs = viewBox
+      ? `viewBox="0 0 ${width} ${height}"`
+      : `width="${width}" height="${height}"`;
+    const doc = codePreviewDocument(
+      `<svg ${attrs}><rect width="${width}" height="${height}" fill="blue"/></svg>`,
+      false,
+      true,
+    )!;
+    await page.setContent(
+      `<iframe title="SVG" style="width:320px;height:220px;border:0" sandbox="" srcdoc="${escapeAttribute(doc)}"></iframe>`,
+    );
+    const frame = page.frameLocator('iframe');
+    await expect(frame.locator('svg')).toBeVisible();
+    const box = await frame.locator('rect').boundingBox();
+    expect(box!.width).toBeLessThanOrEqual(320.1);
+    expect(box!.height).toBeLessThanOrEqual(220.1);
+    expect(Math.min(Math.abs(box!.width - 320), Math.abs(box!.height - 220))).toBeLessThan(0.2);
+    expect(await frame.locator('html').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(
+      false,
+    );
+  }
+});
+
 test('interactive preview runs buttons, isolates ASA data and blocks navigation before requests', async ({
   page,
   context,

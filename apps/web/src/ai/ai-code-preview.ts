@@ -36,9 +36,14 @@ function escape(value: string): string {
 // supply bounded, per-run memory instead of granting access to ASA's storage.
 const RUN_STORAGE = `<script>(()=>{const make=()=>{const values=new Map();return Object.freeze({get length(){return values.size},key:i=>Array.from(values.keys())[i]??null,getItem:k=>values.get(String(k))??null,setItem:(k,v)=>{k=String(k);v=String(v);if(k.length<=128&&v.length<=8192&&(values.has(k)||values.size<64))values.set(k,v)},removeItem:k=>values.delete(String(k)),clear:()=>values.clear()})};for(const name of ['localStorage','sessionStorage'])Object.defineProperty(window,name,{value:make(),configurable:false})})();</script>`;
 
-export function codePreviewDocument(code: string, interactive = false): string | null {
+export function codePreviewDocument(
+  code: string,
+  interactive = false,
+  fitSvg = false,
+): string | null {
   if (code.length > 200_000) return null;
   let nodes = 0;
+  let svgRoot: DefaultTreeAdapterMap['element'] | undefined;
   function render(node: DefaultTreeAdapterMap['node'], depth: number): string {
     if (++nodes > 10_000 || depth > 64) throw new Error('preview_limit');
     if (node.nodeName === '#text') return escape((node as DefaultTreeAdapterMap['textNode']).value);
@@ -53,6 +58,12 @@ export function codePreviewDocument(code: string, interactive = false): string |
     const attrs = node.attrs
       .filter(
         (a) =>
+          !(
+            node === svgRoot &&
+            ['width', 'height', 'viewbox', 'preserveaspectratio', 'style'].includes(
+              a.name.toLowerCase(),
+            )
+          ) &&
           !a.namespace &&
           (ATTRS.has(a.name.toLowerCase()) ||
             /^aria-[a-z-]+$/.test(a.name) ||
@@ -67,6 +78,26 @@ export function codePreviewDocument(code: string, interactive = false): string |
       tag === 'use'
         ? node.attrs.find((a) => a.name === 'href' && /^#[a-zA-Z_][\w.-]*$/.test(a.value))
         : undefined;
+    let fitted = '';
+    if (node === svgRoot) {
+      const get = (key: string) => node.attrs.find((a) => a.name.toLowerCase() === key)?.value;
+      const box = (get('viewbox') ?? '')
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+      const dimension = (key: string, fallback: number) => {
+        const raw = get(key) ?? '';
+        const value = /^(?:\d+(?:\.\d+)?)(?:px)?$/.test(raw)
+          ? Number(raw.replace(/px$/, ''))
+          : fallback;
+        return Number.isFinite(value) && value > 0 ? value : fallback;
+      };
+      const viewBox =
+        box.length === 4 && box.every(Number.isFinite) && box[2]! > 0 && box[3]! > 0
+          ? box.join(' ')
+          : `0 0 ${dimension('width', 300)} ${dimension('height', 150)}`;
+      fitted = ` viewBox="${escape(viewBox)}" preserveAspectRatio="xMidYMid meet" width="100%" height="100%" style="${escape((get('style') ?? '') + ';display:block!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important')}"`;
+    }
     const name = CASED[tag] || tag;
     const contents =
       tag === 'script'
@@ -80,12 +111,25 @@ export function codePreviewDocument(code: string, interactive = false): string |
               .map((n) => (n as DefaultTreeAdapterMap['textNode']).value.replace(/</g, '\\3c '))
               .join('')
           : node.childNodes.map((n) => render(n, depth + 1)).join('');
-    return `<${name}${attrs}${href ? ` href="${escape(href.value)}"` : ''}>${VOID.has(tag) ? '' : contents + `</${name}>`}`;
+    return `<${name}${attrs}${fitted}${href ? ` href="${escape(href.value)}"` : ''}>${VOID.has(tag) ? '' : contents + `</${name}>`}`;
   }
   try {
-    const body = render(parse(code), 0);
+    const parsed = parse(code);
+    if (fitSvg) {
+      const find = (children: DefaultTreeAdapterMap['node'][], tag: string) =>
+        children.find(
+          (n): n is DefaultTreeAdapterMap['element'] =>
+            'tagName' in n && n.tagName.toLowerCase() === tag,
+        );
+      const html = find(parsed.childNodes, 'html');
+      const body = html && find(html.childNodes, 'body');
+      svgRoot = body && find(body.childNodes, 'svg');
+      if (!svgRoot) return null;
+      interactive = false;
+    }
+    const body = render(svgRoot ?? parsed, 0);
     const policy = `default-src 'none'; script-src ${interactive ? "'unsafe-inline'" : "'none'"}; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'`;
-    const doc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html{background:white;color:#172b3a;font-family:Arial,sans-serif;scrollbar-width:thin;scrollbar-color:#9ab5c866 transparent}body{margin:0}svg{max-width:100%;height:auto}</style>${interactive ? RUN_STORAGE : ''}</head><body>${body}</body></html>`;
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html{background:white;color:#172b3a;font-family:Arial,sans-serif;scrollbar-width:thin;scrollbar-color:#9ab5c866 transparent}body{margin:0}${fitSvg ? 'html,body{height:100%;overflow:hidden}' : ''}svg{max-width:100%;height:auto}</style>${interactive ? RUN_STORAGE : ''}</head><body>${body}</body></html>`;
     if (!interactive) return doc;
     // The trusted containing document owns frame-src 'none': srcdoc is allowed,
     // but URL navigation of the child is blocked BEFORE making a request. The

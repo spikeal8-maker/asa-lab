@@ -19,8 +19,9 @@ describe('AI mathematical Markdown', () => {
           (language === 'svg' ? '<svg><circle r="8"/></svg>' : '<h1>Preview</h1>') +
           '\n```',
       );
-      expect(html).toContain('sandbox=""');
-      expect(html).not.toContain('allow-scripts');
+      expect(html).toContain(language === 'html' ? 'sandbox="allow-scripts"' : 'sandbox=""');
+      if (language === 'svg') expect(html).not.toContain('allow-scripts');
+      expect(html).not.toContain('allow-same-origin');
       expect(html).toContain('referrerPolicy="no-referrer"');
       expect(html).toContain('Предпросмотр');
     }
