@@ -311,3 +311,46 @@ it('shows a tool while it executes, keeps the composer editable, then clears its
   await act(async () => finish({ messages: [], replayed: false, stopped: false }));
   expect(host.querySelector('.ai-activity')).toBeNull();
 });
+
+it('dismisses a model failure when the user edits without refreshing or automatically resending', async () => {
+  const complete = pendingCreation();
+  vi.mocked(streamAiRequest).mockRejectedValueOnce(new Error('private failure'));
+  await mount();
+  await submit('Вопрос');
+  await act(async () => complete());
+  expect(host.textContent).toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(host.textContent).not.toContain('Обновить переписку');
+  await enter('Исправленный вопрос');
+  expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(streamAiRequest).toHaveBeenCalledTimes(1);
+});
+it('dismisses a model failure immediately after choosing a different model without a new request', async () => {
+  const complete = pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation((path, init) =>
+    path === '/api/ai/status'
+      ? Promise.resolve(
+          ok({
+            enabled: true,
+            provider: 'openai',
+            model: 'gpt-6-luna',
+            availableModels: ['gpt-6-luna', 'deepseek-flash'],
+          }),
+        )
+      : original(path, init),
+  );
+  vi.mocked(streamAiRequest).mockRejectedValueOnce(new Error('private failure'));
+  await mount();
+  await submit('Вопрос');
+  await act(async () => complete());
+  expect(host.textContent).toContain('Извините, текстовая модель сейчас недоступна.');
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Модель ИИ"]')!.click());
+  const option = [...document.querySelectorAll<HTMLElement>('[role=option]')].find(
+    (n) => n.textContent?.trim() === 'deepseek-flash',
+  );
+  expect(option).toBeTruthy();
+  await act(async () => option!.click());
+  expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(host.querySelector('[aria-label="Модель ИИ"]')?.textContent).toContain('deepseek-flash');
+  expect(streamAiRequest).toHaveBeenCalledTimes(1);
+});

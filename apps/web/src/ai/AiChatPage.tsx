@@ -1,4 +1,9 @@
-import { AI_TEXT_UNAVAILABLE, type AiToolActivity } from '@asa-lab/contracts';
+import {
+  AI_TEXT_UNAVAILABLE,
+  AI_IMAGE_UNAVAILABLE,
+  AI_SEARCH_UNAVAILABLE,
+  type AiToolActivity,
+} from '@asa-lab/contracts';
 import { prepareChatImage } from './prepare-image';
 import { aiImageDimensions, aiImageSizeLabel } from '@asa-lab/contracts';
 import {
@@ -318,6 +323,14 @@ export function AiChatPage({
   const [loading, setLoading] = useState(true);
   const [toolActivity, setToolActivity] = useState<AiToolActivity | null>(null);
   const [error, setError] = useState<string | null>(null);
+  function dismissModelNotice() {
+    setError((value) =>
+      value && [AI_TEXT_UNAVAILABLE, AI_IMAGE_UNAVAILABLE, AI_SEARCH_UNAVAILABLE].includes(value)
+        ? null
+        : value,
+    );
+  }
+
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
@@ -2127,15 +2140,6 @@ export function AiChatPage({
                   {checkingResult ? 'Проверяем…' : 'Проверить сохранённый ответ'}
                 </button>
               ) : null}
-              {currentId && !interactionBusy ? (
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={() => void selectThread(currentId)}
-                >
-                  Обновить переписку
-                </button>
-              ) : null}
             </div>
           ) : null}
           <div className="chat-composer-dock">
@@ -2249,7 +2253,10 @@ export function AiChatPage({
                   ref={composer}
                   value={draft}
                   maxLength={3000}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    setDraft(event.target.value);
+                    dismissModelNotice();
+                  }}
                   onPaste={(event) => {
                     const files = Array.from(event.clipboardData.files);
                     if (!files.length) return;
@@ -2493,7 +2500,10 @@ export function AiChatPage({
                                   ? status?.ollamaModel || 'Локальная модель'
                                   : selectedModel || status?.model))
                           }
-                          onChange={setSelectedModel}
+                          onChange={(model) => {
+                            setSelectedModel(model);
+                            dismissModelNotice();
+                          }}
                           disabled={interactionBusy || !status?.enabled}
                           options={[
                             ...(status &&
