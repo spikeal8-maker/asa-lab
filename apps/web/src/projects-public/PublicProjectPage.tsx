@@ -164,78 +164,82 @@ export function PublicProjectPage({
               </div>
             </div>
           </header>
-          <section className="public-project-viewer" aria-label="Просмотр проекта">
-            <PublicationArtifact
-              key={publication.revisionId}
-              publication={publication}
-              onUnavailable={unavailable}
-            />
-          </section>
-          <div className="public-project-commandbar" aria-label="Действия с проектом">
-            <CopyPublicProject key={publication.revisionId} publication={publication} />
-            <div className="public-project-actions">
-              <PublicationLike
+          <div className="public-project-workspace">
+            <section className="public-project-viewer" aria-label="Просмотр проекта">
+              <PublicationArtifact
                 key={publication.revisionId}
                 publication={publication}
-                authenticated={authenticated}
+                onUnavailable={unavailable}
               />
-              {typeof publication.copyCount === 'number' ? (
-                <span
-                  className="public-project-detail-copies"
-                  title="Добавили к себе"
-                  aria-label={`Добавили к себе: ${publication.copyCount}`}
-                >
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    width="16"
-                    height="16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
+            </section>
+            <div className="public-project-commandbar" aria-label="Действия с проектом">
+              <CopyPublicProject key={publication.revisionId} publication={publication} />
+              <div className="public-project-actions">
+                <PublicationLike
+                  key={publication.revisionId}
+                  publication={publication}
+                  authenticated={authenticated}
+                />
+                {typeof publication.copyCount === 'number' ? (
+                  <span
+                    className="public-project-detail-copies"
+                    title="Добавили к себе"
+                    aria-label={`Добавили к себе: ${publication.copyCount}`}
                   >
-                    <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
-                  </svg>
-                  {publication.copyCount}
-                </span>
-              ) : null}
-              <SharePublicationLink
-                key={publication.publicationId}
-                publicationId={publication.publicationId}
-              />
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                    </svg>
+                    {publication.copyCount}
+                  </span>
+                ) : null}
+                <SharePublicationLink
+                  key={publication.publicationId}
+                  publicationId={publication.publicationId}
+                />
+              </div>
             </div>
           </div>
           <section className="public-project-about" aria-label="О проекте">
-            {publication.description ? (
-              <>
-                <h2>О проекте</h2>
-                <p
-                  id={descriptionId}
-                  className={`public-project-description${publication.description.length > 600 && !descriptionExpanded ? ' is-collapsed' : ''}`}
-                  data-testid="public-project-description"
-                >
-                  {publication.description}
-                </p>
-                {publication.description.length > 600 ? (
-                  <button
-                    type="button"
-                    className="public-project-description-toggle"
-                    aria-controls={descriptionId}
-                    aria-expanded={descriptionExpanded}
-                    onClick={() => setDescriptionExpanded((value) => !value)}
+            <div className="public-project-description-block">
+              {publication.description ? (
+                <>
+                  <h2>О проекте</h2>
+                  <p
+                    id={descriptionId}
+                    className={`public-project-description${publication.description.length > 600 && !descriptionExpanded ? ' is-collapsed' : ''}`}
+                    data-testid="public-project-description"
                   >
-                    {descriptionExpanded ? 'Свернуть описание' : 'Читать полностью'}
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-            {publication.tags.length ? (
-              <ul className="public-project-tags" aria-label="Теги">
-                {publication.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            ) : null}
+                    {publication.description}
+                  </p>
+                  {publication.description.length > 600 ? (
+                    <button
+                      type="button"
+                      className="public-project-description-toggle"
+                      aria-controls={descriptionId}
+                      aria-expanded={descriptionExpanded}
+                      onClick={() => setDescriptionExpanded((value) => !value)}
+                    >
+                      {descriptionExpanded ? 'Свернуть описание' : 'Читать полностью'}
+                    </button>
+                  ) : null}
+                </>
+              ) : null}
+              {publication.tags.length ? (
+                <ul className="public-project-tags" aria-label="Теги">
+                  {publication.tags.map((tag) => (
+                    <li key={tag}>{tag}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
             <details className="public-project-metadata">
               <summary>Лицензия и сведения о публикации</summary>
               <dl className="public-project-facts">
