@@ -275,12 +275,12 @@ export function AdminPolzaConnection({
       ) : null}
       <div className="asa-polza-capabilities" aria-label="Направления Polza AI">
         <div>
-          <strong>Текст</strong>
-          <span>Адаптер планируется</span>
+          <strong>Текст и Vision</strong>
+          <span>Модели выбираются в каталоге ниже</span>
         </div>
         <div>
           <strong>Изображения</strong>
-          <span>Адаптер планируется</span>
+          <span>В чате используется ComfyUI</span>
         </div>
         <div>
           <strong>Транскрибация</strong>
