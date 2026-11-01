@@ -1,3 +1,4 @@
+import { prepareChatImage } from './prepare-image';
 import { aiImageDimensions, aiImageSizeLabel } from '@asa-lab/contracts';
 import {
   useEffect,
@@ -244,6 +245,8 @@ export function AiChatPage({
   useEffect(() => setOverflowTranscript(null), [currentId, seatId]);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerMaximized, setComposerMaximized] = useState(false);
+  const [preparingImages, setPreparingImages] = useState(false);
+  const preparingImagesRef = useRef(false);
   const [attachments, setAttachments] = useState<readonly AiChatFileDraft[]>([]);
   const [historyAttachments, setHistoryAttachments] = useState<
     Record<string, readonly AiHistoryAttachment[]>
@@ -282,7 +285,7 @@ export function AiChatPage({
   const selectedHistoryReady = useRef(true);
   const [historyReady, setHistoryReady] = useState(true);
   const composerBusy = busy || imageUi.busy;
-  const interactionBusy = composerBusy || creatingChat || threadActionBusy;
+  const interactionBusy = composerBusy || creatingChat || threadActionBusy || preparingImages;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
@@ -405,25 +408,49 @@ export function AiChatPage({
     setAttachments([]);
   }
 
-  function addFiles(files: readonly File[]): void {
-    if (interactionBusy || requestBusy.current || currentArchived.current) {
+  async function addFiles(files: readonly File[]): Promise<void> {
+    if (
+      interactionBusy ||
+      preparingImagesRef.current ||
+      requestBusy.current ||
+      currentArchived.current
+    ) {
       setError('Дождитесь окончания ответа или остановите его перед добавлением файлов.');
       return;
     }
-    const selected = [...attachments.map((item) => item.file), ...files];
-    const issue = checkAiChatFiles(selected);
-    if (issue) {
-      setError(issue);
+    if (attachments.length + files.length > 4) {
+      setError('Можно прикрепить не более четырёх файлов.');
       return;
     }
-    const additions = files.map((file) => {
-      const image = /\.(png|jpe?g|webp)$/i.test(file.name);
-      const preview = image ? URL.createObjectURL(file) : null;
-      if (preview) previewUrls.current.add(preview);
-      return { uploadId: crypto.randomUUID(), file, preview };
-    });
-    setAttachments((current) => [...current, ...additions]);
-    setError(null);
+    const version = selectedVersion.current;
+    preparingImagesRef.current = true;
+    setPreparingImages(true);
+    try {
+      const prepared = [];
+      for (const file of files) prepared.push(await prepareChatImage(file));
+      if (version !== selectedVersion.current) return;
+      const issue = checkAiChatFiles([
+        ...attachments.map((item) => item.file),
+        ...prepared.map((item) => item.file),
+      ]);
+      if (issue) {
+        setError(issue);
+        return;
+      }
+      const additions = prepared.map(({ file, originalBytes, dimensions }) => {
+        const preview = /\.(png|jpe?g|webp)$/i.test(file.name) ? URL.createObjectURL(file) : null;
+        if (preview) previewUrls.current.add(preview);
+        return { uploadId: crypto.randomUUID(), file, preview, originalBytes, dimensions };
+      });
+      setAttachments((current) => [...current, ...additions]);
+      setError(null);
+    } catch (error) {
+      if (version === selectedVersion.current)
+        setError(error instanceof Error ? error.message : 'Не удалось обработать файлы.');
+    } finally {
+      preparingImagesRef.current = false;
+      setPreparingImages(false);
+    }
   }
 
   function removeFile(uploadId: string): void {
@@ -2081,6 +2108,9 @@ export function AiChatPage({
                   addFiles(Array.from(event.dataTransfer.files));
                 }}
               >
+                {preparingImages ? (
+                  <p role="status">Подготавливаем изображения в браузере…</p>
+                ) : null}
                 {attachments.length && !busy ? (
                   <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
                     {attachments.map((item) => (
@@ -2089,7 +2119,7 @@ export function AiChatPage({
                         className={
                           'chat-attachment-chip ' + (item.preview ? 'is-image' : 'is-file')
                         }
-                        data-ai-tooltip={`${item.file.name} · ${attachmentSize(item.file.size)}`}
+                        data-ai-tooltip={`${item.file.name} · ${attachmentSize(item.file.size)}${item.originalBytes && item.originalBytes > item.file.size ? ` · до: ${attachmentSize(item.originalBytes)} → после: ${attachmentSize(item.file.size)}` : ''}${item.dimensions ? ' · ' + item.dimensions : ''}`}
                       >
                         {item.preview ? (
                           <AiAttachmentPreview src={item.preview} name={item.file.name} />
@@ -2104,7 +2134,9 @@ export function AiChatPage({
                           <small>
                             {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
                               ' · ' +
-                              attachmentSize(item.file.size)}
+                              (item.originalBytes && item.originalBytes > item.file.size
+                                ? `${attachmentSize(item.originalBytes)} → ${attachmentSize(item.file.size)}`
+                                : attachmentSize(item.file.size))}
                           </small>
                         </span>
                         <button
@@ -2489,6 +2521,7 @@ export function AiChatPage({
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
                         (!composerBusy && !imageMode && selectedBudget?.available === false) ||
                         (!composerBusy && ((!status?.enabled && !imageMode) || archived)) ||
+                        preparingImages ||
                         creatingChat ||
                         threadActionBusy ||
                         (!composerBusy && (!historyReady || !draft.trim()))

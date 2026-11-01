@@ -8,6 +8,8 @@ export interface AiChatFileDraft {
   readonly uploadId: string;
   readonly file: File;
   readonly preview: string | null;
+  readonly originalBytes?: number;
+  readonly dimensions?: string | undefined;
 }
 
 interface Receipt {
