@@ -85,6 +85,11 @@ COPY --from=workspace --chown=node:node --chmod=0555 /workspace/docker/migrate-e
 RUN mkdir -p /var/lib/asa-application-logs && chown node:node /var/lib/asa-application-logs
 ENV ASA_APPLICATION_LOG_STORE=/var/lib/asa-application-logs
 
+COPY --from=workspace /workspace/apps/api/src/ai-attachments/document-reader.py /tmp/asa-documents/apps/api/src/ai-attachments/document-reader.py
+COPY --from=workspace /workspace/tools/test_ai_document_reader.py /tmp/asa-documents/tools/test_ai_document_reader.py
+COPY --from=workspace /workspace/tests/ai-attachments/documents /tmp/asa-documents/tests/ai-attachments/documents
+RUN /opt/asa-document-python/bin/python /tmp/asa-documents/tools/test_ai_document_reader.py && rm -rf /tmp/asa-documents
+
 USER node
 
 EXPOSE 4611
