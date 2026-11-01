@@ -17,12 +17,22 @@ python tools/asa_manager.py import-target-plan --backup "D:\ASA-Archive\complete
 Пути и порты в команде служат примером. Выбирайте реальные новые значения,
 не повторяйте имена действующих Docker-проектов. Каталог целевого проекта
 должен быть **явно** задан аргументом `--root` (значение по умолчанию
-запрещено), уже содержать доверенный Git checkout, но ещё не иметь
-`.env` и состояния установленной ASA Lab.
+запрещено), уже содержать **чистый официальный Git checkout текущего
+`main`**, но ещё не иметь `.env` и состояния установленной ASA Lab.
+Требуется доступ к официальному GitHub HTTPS API: при его недоступности
+проверка блокирует операцию и не принимает SHA из локального checkout.
+Любая непубликованная PR-ветка не является доверенной целевой версией.
 
-Проверка вызывает WIN-04A и существующий
-`assert_clean_install_destination` (чтение Docker ps/volumes/networks
-и проверка доступности localhost-портов). При этом не создаются и не
+Проверка вызывает WIN-04A, независимую `attest_target_checkout`
+и существующий `assert_clean_install_destination` (чтение Docker
+ps/volumes/networks и проверка доступности localhost-портов).
+`attest_target_checkout` проверяет фактический Git root, URL `origin`
+`https://github.com/spikeal8-maker/asa-lab.git` без URL-rewrite,
+независимо получает текущий SHA `main` из
+`https://api.github.com/repos/spikeal8-maker/asa-lab/branches/main`,
+проверяет пустой Git status и хеши десяти критических установочных
+файлов непосредственно по рабочим байтам и Git-объектам SHA. Подменённые
+`assume-unchanged` файлы также блокируются. При этом не создаются и не
 запускаются контейнеры, не записываются ключи, не изменяются тома,
 базы данных, Docker Engine, Windows, WSL, VPN или брандмауэр.
 
@@ -35,6 +45,9 @@ python tools/asa_manager.py import-target-plan --backup "D:\ASA-Archive\complete
 - Цель или родительские пути проходят через symlink/junction.
 - Цель содержит `.env`, установочный receipt, operation markers или
   существующие Docker-контейнеры/volumes/networks выбранного проекта.
+- Целевой Git не принадлежит официальному origin, не является текущим
+  опубликованным `main`, имеет изменённые или незарегистрированные файлы
+  либо критический файл отличается от закреплённого Git blob.
   Дополнительно отклоняются даже **без Docker labels** контейнеры и сети,
   чьи имена начинаются с префикса целевого проекта (варианты `-` и `_`).
 - Новые порты Web/API/Scratch пересекаются или уже прослушиваются.
@@ -43,6 +56,11 @@ python tools/asa_manager.py import-target-plan --backup "D:\ASA-Archive\complete
 между планом и установкой порт может занять другое приложение. До
 создания нового проекта проверки должны быть повторены под отдельной
 эксклюзивной блокировкой.
+
+Отчёт содержит подтверждённые поля `officialTargetOriginVerified`,
+`officialTargetCommitVerified`, `cleanTargetVerified`,
+`targetCriticalFilesVerified` и точный `targetCommit`.
+Это не Authenticode-подпись издателя; `publisherSignatureVerified=false`.
 
 Отчёт явно содержит:
 `targetReserved=false`, `targetProvisioned=false`,

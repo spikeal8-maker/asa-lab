@@ -2,6 +2,7 @@
 import io
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import asa_manager
 from deployment.contracts import Blocked
 from deployment.import_target_plan import plan_transfer
+from deployment.target_git import CRITICAL_FILES, attest_target_checkout
 
 
 SOURCE_REVISION = "a" * 40
@@ -47,6 +49,14 @@ class TargetPlanTests(unittest.TestCase):
                   return_value=evidence) as verify,
             patch("deployment.import_target_plan.assert_clean_install_destination",
                   return_value=True) as isolated,
+            patch("deployment.import_target_plan.attest_target_checkout",
+                  return_value={
+                      "officialOriginVerified": True,
+                      "officialCommitVerified": True,
+                      "verifiedCommit": "a" * 40,
+                      "cleanWorkingTreeVerified": True,
+                      "criticalFilesVerified": len(CRITICAL_FILES),
+                  }) as trust,
             patch("deployment.import_target_plan.run", return_value="") as docker_read,
         ):
             result = plan_transfer(
@@ -55,6 +65,7 @@ class TargetPlanTests(unittest.TestCase):
             )
         verify.assert_called_once_with(self.archive)
         isolated.assert_called_once()
+        trust.assert_called_once_with(self.target)
         self.assertEqual(docker_read.call_count, 2)
         self.assertEqual(docker_read.call_args_list[0].args[0],
                          ["docker", "ps", "-a", "--format", "{{.Names}}"])
@@ -123,6 +134,14 @@ class TargetPlanTests(unittest.TestCase):
         with (
             patch("deployment.import_target_plan.validate_import_archive",
                   return_value=EVIDENCE),
+            patch("deployment.import_target_plan.attest_target_checkout",
+                  return_value={
+                      "officialOriginVerified": True,
+                      "officialCommitVerified": True,
+                      "verifiedCommit": "a" * 40,
+                      "cleanWorkingTreeVerified": True,
+                      "criticalFilesVerified": len(CRITICAL_FILES),
+                  }),
             patch("deployment.import_target_plan.assert_clean_install_destination",
                   side_effect=Blocked(
                       "FRESH_VOLUME_EXISTS",
@@ -149,6 +168,14 @@ class TargetPlanTests(unittest.TestCase):
                 with (
                     patch("deployment.import_target_plan.validate_import_archive",
                           return_value=EVIDENCE),
+                    patch("deployment.import_target_plan.attest_target_checkout",
+                          return_value={
+                              "officialOriginVerified": True,
+                              "officialCommitVerified": True,
+                              "verifiedCommit": "a" * 40,
+                              "cleanWorkingTreeVerified": True,
+                              "criticalFilesVerified": len(CRITICAL_FILES),
+                          }),
                     patch("deployment.import_target_plan.assert_clean_install_destination",
                           return_value=True),
                     patch("deployment.import_target_plan.run",
@@ -218,6 +245,125 @@ class TargetPlanTests(unittest.TestCase):
         self.assertEqual(code, 0, stderr.getvalue())
         self.assertIn("TARGET_PREFLIGHT_ONLY", stdout.getvalue())
         planner.assert_called_once()
+
+
+class OfficialCheckoutTests(unittest.TestCase):
+    """Disposable synthetic Git repos: no real checkout or remote is mutated."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix="asa-target-git-")
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name) / "checkout"
+        self.root.mkdir()
+        subprocess.run(["git", "init", "--quiet", str(self.root)],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(self.root), "remote", "add", "origin",
+                        "https://github.com/spikeal8-maker/asa-lab.git"],
+                       check=True, capture_output=True)
+        for name in CRITICAL_FILES:
+            file = self.root / name
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text("# Synthetic source\n", encoding="utf8")
+        subprocess.run(["git", "-C", str(self.root), "add", "."],
+                       check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-C", str(self.root), "-c", "user.email=synthetic@example.test",
+             "-c", "user.name=Synthetic Test", "commit", "--quiet",
+             "-m", "Synthetic disposable checkout"],
+            check=True, capture_output=True)
+        self.synthetic_sha = subprocess.check_output(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            text=True).strip()
+
+    def invoke(self, official=None):
+        if official is None:
+            official = self.synthetic_sha
+        with patch("deployment.target_git._official_main_sha", return_value=official):
+            return attest_target_checkout(self.root)
+
+    def test_clean_synthetic_git_fixture_is_verified_only_under_mocked_api(self):
+        report = self.invoke()
+        self.assertEqual(report["status"], "OFFICIAL_CHECKOUT_VERIFIED")
+        self.assertEqual(report["verifiedCommit"], self.synthetic_sha)
+        self.assertEqual(report["criticalFilesVerified"], len(CRITICAL_FILES))
+        self.assertFalse(report["writesPerformed"])
+
+    def test_foreign_origin_is_blocked_even_if_commit_sha_claims_valid(self):
+        subprocess.run(["git", "-C", str(self.root), "remote", "set-url",
+                        "origin", "https://github.com/foreign/asa-lab.git"],
+                       check=True)
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_GIT_ORIGIN")
+
+    def test_fake_local_repo_with_official_looking_remote_is_blocked(self):
+        # An arbitrary git init + remote add cannot manufacture current main.
+        with self.assertRaises(Blocked) as error:
+            self.invoke(official="f" * 40)
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_SOURCE_SHA")
+
+    def test_fabricated_dot_git_directory_is_not_a_repository(self):
+        target = self.root.parent / "faked-git"
+        target.mkdir()
+        (target / ".git").mkdir()
+        with self.assertRaises(Blocked) as error:
+            with patch("deployment.target_git._official_main_sha",
+                       return_value=self.synthetic_sha):
+                attest_target_checkout(target)
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_GIT")
+
+    def test_modified_tracked_source_is_blocked(self):
+        (self.root / "tools" / "asa_manager.py").write_text(
+            "# maliciously changed without committing\n", encoding="utf8")
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_DIRTY")
+
+    def test_staged_change_is_blocked(self):
+        file = self.root / "compose.yaml"
+        file.write_text("services:\n  web: {}\n", encoding="utf8")
+        subprocess.run(["git", "-C", str(self.root), "add", "compose.yaml"],
+                       check=True)
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_DIRTY")
+
+    def test_untracked_payload_is_blocked(self):
+        (self.root / "injected.ps1").write_text("Write-Host malicious", encoding="utf8")
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_DIRTY")
+
+    def test_assume_unchanged_cannot_hide_modified_script(self):
+        file = self.root / "tools" / "asa_manager.py"
+        subprocess.run(["git", "-C", str(self.root), "update-index",
+                        "--assume-unchanged", "tools/asa_manager.py"],
+                       check=True)
+        file.write_text("# injected manager even though index claims unchanged\n",
+                        encoding="utf8")
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_SOURCE_CONTENT")
+
+    def test_local_git_url_rewrite_cannot_redirect_official_origin(self):
+        subprocess.run(
+            ["git", "-C", str(self.root), "config", "--local",
+             "url.https://evil.example/fork/.insteadOf",
+             "https://github.com/spikeal8-maker/asa-lab.git"],
+            check=True)
+        with self.assertRaises(Blocked) as error:
+            self.invoke()
+        self.assertEqual(error.exception.code, "IMPORT_TARGET_GIT_ORIGIN")
+
+    def test_independent_github_unavailable_fails_closed(self):
+        with patch("deployment.target_git._official_main_sha",
+                   side_effect=Blocked("IMPORT_TARGET_OFFICIAL_UNAVAILABLE",
+                                       "Mock network outage",
+                                       "No local SHA fallback")):
+            with self.assertRaises(Blocked) as error:
+                attest_target_checkout(self.root)
+        self.assertEqual(error.exception.code,
+                         "IMPORT_TARGET_OFFICIAL_UNAVAILABLE")
 
 
 if __name__ == "__main__":

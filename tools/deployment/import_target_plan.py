@@ -10,6 +10,7 @@ import stat
 from .contracts import require
 from .fresh_install import fresh_options, assert_clean_install_destination
 from .import_preflight import validate_import_archive
+from .target_git import attest_target_checkout
 from .system import run
 
 
@@ -58,6 +59,9 @@ def plan_transfer(source_archive, target_root, *, profile, project, web_port, bl
     require(manifest["project"] != spec["project"],
             "IMPORT_TARGET_PROJECT",
             "Target Docker Compose project must differ from the source project.")
+    # Both checks are necessary: a local ".git" folder alone does not
+    # establish official source identity or that source bytes are unchanged.
+    source_trust = attest_target_checkout(target)
     # Existing fresh-install guard performs bounded read-only Docker project,
     # volume, network and local-port checks; never removes foreign resources.
     assert_clean_install_destination(target, spec)
@@ -86,6 +90,11 @@ def plan_transfer(source_archive, target_root, *, profile, project, web_port, bl
         "targetScratchPort": spec["blocks"],
         "targetOrigin": spec["origin"],
         "publisherSignatureVerified": False,
+        "officialTargetOriginVerified": source_trust["officialOriginVerified"],
+        "officialTargetCommitVerified": source_trust["officialCommitVerified"],
+        "targetCommit": source_trust["verifiedCommit"],
+        "cleanTargetVerified": source_trust["cleanWorkingTreeVerified"],
+        "targetCriticalFilesVerified": source_trust["criticalFilesVerified"],
         "portsCheckedAtThisInstantOnly": True,
         "targetReserved": False,
         "targetProvisioned": False,
@@ -95,7 +104,7 @@ def plan_transfer(source_archive, target_root, *, profile, project, web_port, bl
         "operatorCutoverApprovalRequired": True,
         "writesPerformed": False,
         "nextActions": [
-            "Independently verify source provenance and signed publisher identity",
+            "Independently verify backup source provenance and signed publisher identity",
             "Perform isolated target Compose provisioning with new volumes only",
             "Stage original private environment and keyrings without rotation",
             "Restore PostgreSQL into a new candidate database, preserving ACL/RLS",
