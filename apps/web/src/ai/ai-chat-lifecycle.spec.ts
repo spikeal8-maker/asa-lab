@@ -50,6 +50,7 @@ function pendingCreation(webStatus?: unknown) {
       });
     }
     if (path === '/api/ai/threads' && init?.method === 'POST') return promise;
+    if (path === '/api/ai/threads/' + CREATED_THREAD + '/working-files') return ok({ items: [] });
     if (path === '/api/ai/threads/' + CREATED_THREAD + '/messages')
       return ok({ items: [], nextCursor: null });
     if (path === '/api/ai/threads') {

@@ -1,3 +1,12 @@
+import type { AiImageService } from './ai-image.service';
+import {
+  TOOL_PROVIDERS,
+  TOOL_TEST_ROOT,
+  toolProviderRuntime,
+  toolProviderResponse,
+  isToolModelUrl,
+  type ToolProvider,
+} from './testing/ai-tool-provider.fixture';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { AiChatService } from './ai-chat.service';
@@ -11,13 +20,15 @@ const REQUEST = '33333333-3333-4333-8333-333333333333';
 
 function fixture(
   mode: 'auto' | 'off',
-  tool: 'web_search' | 'image_search' | 'weather' | 'read_page' = 'web_search',
+  tool: 'web_search' | 'image_search' | 'weather' | 'read_page' | 'generate_image' = 'web_search',
   toolQuery = 'Казань новости',
   disabledTools: readonly ('web_search' | 'image_search' | 'weather')[] = [],
   weatherVariant: 'complete' | 'partial' | 'ambiguous' | 'future' = 'complete',
   toolsCapable = true,
   userPrompt = tool === 'weather' ? 'Какая погода сейчас в Казани?' : 'Найди факты',
   chooseRead = false,
+  provider: ToolProvider = 'ollama',
+  imageReady = true,
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -44,14 +55,17 @@ function fixture(
       };
     if (sql.includes('ai_runtime_config'))
       return {
-        rows: [
-          { enabled: false, configuration_version: 1, provider: 'openai', model: 'gpt-6-luna' },
-        ],
+        rows: [toolProviderRuntime(provider)],
       };
     if (sql.includes('ai_ollama_runtime'))
       return {
         rows: [
-          { enabled: true, base_url: 'http://127.0.0.1:11434', model: 'fixture:8b', revision: 1 },
+          {
+            enabled: provider === 'ollama',
+            base_url: 'http://127.0.0.1:11434',
+            model: 'fixture:8b',
+            revision: 1,
+          },
         ],
       };
     if (sql.includes('ai_web_search_runtime'))
@@ -123,7 +137,8 @@ function fixture(
             };
       return { rows: [{ value: { state: 'fresh', body } }] };
     }
-    if (sql.includes('ai_web_text_begin')) {
+    if (sql.includes('ai_tool_request_options')) return { rows: [{ value: true }] };
+    if (sql.includes('ai_web_text_begin') || sql.includes('ai_text_begin')) {
       const fresh = !admitted;
       admitted = true;
       return { rows: [{ admitted: fresh }] };
@@ -160,10 +175,13 @@ function fixture(
       ? (JSON.parse(String(options.body)) as Record<string, unknown>)
       : undefined;
     requests.push({ url: address, body });
-    if (address.endsWith('/api/chat')) {
-      const round = requests.filter((item) => item.url.endsWith('/api/chat')).length;
+    if (isToolModelUrl(address)) {
+      const round = requests.filter((item) => isToolModelUrl(item.url)).length;
       const packet =
-        round === 1 && mode === 'auto' && toolsCapable && disabledTools.length < 3
+        round === 1 &&
+        (mode === 'auto' || tool === 'generate_image') &&
+        toolsCapable &&
+        disabledTools.length < 3
           ? {
               message: {
                 tool_calls: [
@@ -171,11 +189,17 @@ function fixture(
                     function: {
                       name: tool,
                       arguments:
-                        tool === 'weather'
-                          ? { city: 'Казань' }
-                          : tool === 'read_page'
-                            ? { url: toolQuery }
-                            : { query: toolQuery },
+                        tool === 'generate_image'
+                          ? {
+                              prompt: 'Синий замок в лесу',
+                              size: 1024,
+                              model: 'flux2-klein-4b-fp8-izo-v1',
+                            }
+                          : tool === 'weather'
+                            ? { city: 'Казань' }
+                            : tool === 'read_page'
+                              ? { url: toolQuery }
+                              : { query: toolQuery },
                     },
                   },
                 ],
@@ -202,7 +226,7 @@ function fixture(
                 eval_count: 5,
                 model: 'fixture:8b',
               };
-      return new Response(JSON.stringify(packet) + '\n');
+      return toolProviderResponse(provider, packet);
     }
     if (address.includes('/search?'))
       return new Response(
@@ -212,8 +236,26 @@ function fixture(
       );
     throw new Error('Unexpected network request: ' + address);
   });
-  const service = new AiChatService({ query } as unknown as pg.Pool, { fetchImpl });
+  const images = {
+    nativeSchemaReady: vi.fn(async () => true),
+    status: vi.fn(async () => ({
+      enabled: imageReady,
+      ready: imageReady,
+      sizes: [1024],
+      remainingToday: 10,
+      recipe: 'flux2-klein-4b-fp8-izo-v1',
+    })),
+    toolContext: vi.fn(async () => []),
+    replayTool: vi.fn(async () => ({ id: 'image-job', status: 'queued' })),
+    createFromTool: vi.fn(async () => ({ id: 'image-job', status: 'queued' })),
+  };
+  const service = new AiChatService({ query } as unknown as pg.Pool, {
+    fetchImpl,
+    encryptionKey: TOOL_TEST_ROOT,
+    ...(tool === 'generate_image' ? { images: images as unknown as AiImageService } : {}),
+  });
   const deltas: string[] = [];
+  const client = new AbortController();
   const send = () =>
     service.sendStream(
       OWNER,
@@ -221,13 +263,15 @@ function fixture(
       userPrompt,
       REQUEST,
       (chunk) => deltas.push(chunk),
-      new AbortController().signal,
+      client.signal,
       undefined,
       undefined,
       [],
       mode,
+      undefined,
+      tool === 'generate_image' ? { mode: 'auto', size: 1024 } : undefined,
     );
-  return { service, send, calls, requests, fetchImpl, deltas };
+  return { service, send, calls, requests, fetchImpl, deltas, images, client };
 }
 
 describe('native local internet tools', () => {
@@ -627,4 +671,173 @@ it('offers only user-provided URLs, executes a selected direct read and follows 
   } finally {
     read.mockRestore();
   }
+});
+
+// The actual service executor, not only the transport parser, must be provider-neutral.
+describe.each(TOOL_PROVIDERS)('%s internet executor', (provider) => {
+  it.each(['web_search', 'image_search', 'weather'] as const)(
+    'executes %s once and never sends follow-up to another provider',
+    async (tool) => {
+      const f = fixture(
+        'auto',
+        tool,
+        'Казань новости',
+        [],
+        'complete',
+        true,
+        undefined,
+        false,
+        provider,
+      );
+      await f.send();
+      const rounds = f.requests.filter((item) => isToolModelUrl(item.url));
+      expect(rounds.length).toBe(tool === 'weather' ? 1 : 2);
+      expect(new Set(rounds.map((item) => item.url)).size).toBe(1);
+      const tools = rounds[0]!.body!.tools;
+      expect(JSON.stringify(tools)).toContain('web_search');
+      expect(JSON.stringify(tools)).toContain('image_search');
+      expect(JSON.stringify(tools)).toContain('weather');
+      expect(f.deltas.join('')).not.toContain('"arguments"');
+      const count = f.fetchImpl.mock.calls.length;
+      expect((await f.send()).replayed).toBe(true);
+      expect(f.fetchImpl).toHaveBeenCalledTimes(count);
+    },
+  );
+  it('allows search, selected page reading, then a final answer without tools', async () => {
+    const read = vi
+      .spyOn(AiWebSearchService.prototype, 'readPages')
+      .mockImplementation(async (evidence) => ({
+        ...evidence,
+        sources: evidence.sources.map((source) => ({
+          ...source,
+          pageRead: 'read',
+          pageText: 'FULL_ARTICLE_MARKER',
+        })),
+      }));
+    try {
+      const f = fixture(
+        'auto',
+        'web_search',
+        'Казань новости',
+        [],
+        'complete',
+        true,
+        'Сравни новости',
+        true,
+        provider,
+      );
+      await f.send();
+      const rounds = f.requests.filter((item) => isToolModelUrl(item.url));
+      expect(rounds).toHaveLength(3);
+      expect(new Set(rounds.map((item) => item.url)).size).toBe(1);
+      expect(rounds[2]!.body!.tools).toBeUndefined();
+      expect(JSON.stringify(rounds[2]!.body)).toContain('FULL_ARTICLE_MARKER');
+      expect(read).toHaveBeenCalledOnce();
+    } finally {
+      read.mockRestore();
+    }
+  });
+  it('respects internet off without issuing a search or offering tools', async () => {
+    const f = fixture(
+      'off',
+      'web_search',
+      undefined,
+      [],
+      'complete',
+      true,
+      undefined,
+      false,
+      provider,
+    );
+    await f.send();
+    expect(f.requests).toHaveLength(1);
+    expect(f.requests[0]!.body!.tools).toBeUndefined();
+  });
+});
+
+describe.each(TOOL_PROVIDERS)('%s native image executor', (provider) => {
+  it('offers the configured generator and submits exactly one owner-bound image job', async () => {
+    const f = fixture(
+      'off',
+      'generate_image',
+      '',
+      [],
+      'complete',
+      true,
+      'Создай картинку замка',
+      false,
+      provider,
+    );
+    const result = await f.send();
+    expect(result.imageJob?.id).toBe('image-job');
+    expect(f.images.createFromTool).toHaveBeenCalledTimes(1);
+    expect(f.images.createFromTool.mock.calls[0]?.slice(0, 5)).toEqual([
+      OWNER,
+      THREAD,
+      REQUEST,
+      'Синий замок в лесу',
+      1024,
+    ]);
+    const wire = f.requests.find((r) => isToolModelUrl(r.url))!.body!;
+    expect(JSON.stringify(wire.tools)).toContain('generate_image');
+    expect(JSON.stringify(wire)).toContain('НА РУССКОМ ЯЗЫКЕ');
+    const count = f.fetchImpl.mock.calls.length;
+    expect((await f.send()).replayed).toBe(true);
+    expect(f.fetchImpl).toHaveBeenCalledTimes(count);
+    expect(f.images.createFromTool).toHaveBeenCalledTimes(1);
+  });
+  it('rejects an invented generator call when image generation is unavailable', async () => {
+    const f = fixture(
+      'off',
+      'generate_image',
+      '',
+      [],
+      'complete',
+      true,
+      'Создай картинку',
+      false,
+      provider,
+      false,
+    );
+    await expect(f.send()).rejects.toMatchObject({ code: 'ai_tool_call_invalid' });
+    expect(f.images.createFromTool).not.toHaveBeenCalled();
+  });
+  it('advertises native image use for available cloud models without local Ollama', async () => {
+    const f = fixture(
+      'off',
+      'generate_image',
+      '',
+      [],
+      'complete',
+      true,
+      'Создай картинку',
+      false,
+      provider,
+    );
+    const status = await f.service.status();
+    expect(status.nativeImageTools).toEqual(status.availableModels);
+  });
+});
+
+it.each(TOOL_PROVIDERS)('%s never dispatches a tool after user cancellation', async (provider) => {
+  const f = fixture(
+    'auto',
+    'web_search',
+    undefined,
+    [],
+    'complete',
+    true,
+    undefined,
+    false,
+    provider,
+  );
+  const original = f.fetchImpl.getMockImplementation()!;
+  f.fetchImpl.mockImplementation(async (url, init) => {
+    const response = await original(url, init);
+    if (isToolModelUrl(String(url))) f.client.abort();
+    return response;
+  });
+  const result = await f.send();
+  expect(result.stopped).toBe(true);
+  expect(f.requests.some((item) => item.url.includes('/search?'))).toBe(false);
 });

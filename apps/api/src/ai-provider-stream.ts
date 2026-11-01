@@ -301,7 +301,7 @@ export async function streamProviderText({
     }
     const packetType =
       payload && typeof payload === 'object' ? (payload as { type?: unknown }).type : null;
-    if (tools?.length && payload && typeof payload === 'object') {
+    if (payload && typeof payload === 'object') {
       if (
         provider === 'openai' &&
         (event === 'response.output_item.done' || packetType === 'response.output_item.done')
@@ -336,6 +336,7 @@ export async function streamProviderText({
         }
       }
       if (
+        (functionCalls.size > 0 && !tools?.length) ||
         functionCalls.size > 1 ||
         [...functionCalls.values()].some((c) => c.name.length > 80 || c.arguments.length > 131072)
       )
