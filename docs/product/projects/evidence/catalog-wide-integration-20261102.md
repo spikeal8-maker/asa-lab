@@ -45,3 +45,25 @@ The repair passed web typecheck/lint, 74 focused support/value/serialization tes
 and the editor Arduino suites (215 tests, including the unchanged contract
 assertions updated to read the new canonical source files). The final publication
 build/graph gate is run against the resulting integration commit before Main push.
+
+## Final local verification
+
+- Product build and emitted graph passed on `ef850cf8`: 19 public chunks,
+  2,917,275 bytes, zero forbidden editor/runtime sources. Pure static block
+  metadata has its own chunk; the Worker admission list adds that exact metadata
+  module only, without broadening executable-module rules.
+- Publication/API/PostgreSQL suites: 725 tests passed; creator portal: 51 passed.
+- Installed-prefix upgrade: 4 passed after extending the explicit migration list
+  through 0293 and independently checking the four newly added discussion defaults.
+  The strict comparison of every old field/row remains intact. Only this failed
+  migration-fixture phase was rerun; the already green 776 tests were not repeated.
+- Catalog/detail browser checks passed on seven widths, including real loading,
+  connection-error, empty search and keyboard focus/title expansion scenarios.
+  Legacy expectations were updated to the owner's four-column, 4:3, single-footer
+  design and the existing 1100px detail-sidebar breakpoint.
+- Separate final catalog check: guest + Account, all 12 widths through 3840px,
+  16 actual publications. API/web builds and typechecks passed.
+
+The final follow-up modifies tests/documentation only; product sources remain the
+verified `ef850cf8` build. Cloud CI and production deployment are separate facts;
+the owner requested Main integration only, not a site update.

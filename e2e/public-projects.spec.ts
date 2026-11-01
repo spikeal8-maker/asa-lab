@@ -828,13 +828,9 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const top = cards[0].getBoundingClientRect().top;
         return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - top) < 2).length;
       });
-      expect(rowCount).toBeLessThanOrEqual(4);
-      if (width === 320) expect(rowCount).toBe(1);
-      if (width >= 360 && width <= 768) expect(rowCount).toBe(2);
-      if (width === 1024) expect(rowCount).toBe(3);
-      if (width === 1440) expect(rowCount).toBe(4);
+      expect(rowCount).toBe(4);
       const searchBounds = await guest.getByRole('search').boundingBox();
-      expect(searchBounds!.width).toBeLessThanOrEqual(width >= 768 ? 400 : width);
+      expect(searchBounds!.width).toBeLessThanOrEqual(260);
       expect(
         (await guest.getByTestId('public-project-card').first().boundingBox())!.y,
       ).toBeLessThan(400);
@@ -868,20 +864,20 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const module = card.querySelector('.publication-module')!.getBoundingClientRect();
         const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
         return {
-          square: Math.abs(bounds.width - bounds.height),
+          aspect: Math.abs(bounds.width / bounds.height - 4 / 3),
           titleInside: footer.top >= cover.top && footer.bottom <= cover.bottom,
           fullBleed: Math.abs(cover.height - (bounds.height - 2)),
           identityFits: identity.right <= module.left && identity.left >= cover.left,
           likesInside: likes.bottom <= cover.bottom && likes.right <= cover.right,
-          titleOnly: card.querySelector('.public-project-card-body')!.children.length === 1,
+          titleAndCounts: card.querySelector('.public-project-card-body')!.children.length === 2,
         };
       });
-      expect(cardGeometry.square).toBeLessThan(3);
+      expect(cardGeometry.aspect).toBeLessThan(0.025);
       expect(cardGeometry.titleInside).toBe(true);
       expect(cardGeometry.fullBleed).toBeLessThan(1);
       expect(cardGeometry.identityFits).toBe(true);
       expect(cardGeometry.likesInside).toBe(true);
-      expect(cardGeometry.titleOnly).toBe(true);
+      expect(cardGeometry.titleAndCounts).toBe(true);
       // Date is discoverable with pointer and keyboard, without an extra footer row.
       await guest.mouse.move(0, 0);
       await visualCard.locator('a').evaluate((element: HTMLElement) => element.blur());
@@ -954,6 +950,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           workspace: rect('[aria-label="Просмотр проекта"]'),
           actions: rect('[aria-label="Действия с проектом"]'),
           about: rect('[aria-label="О проекте"]'),
+          sidebar: rect('.public-project-sidebar'),
           nestedScroll: [...article.querySelectorAll('*')].some((element) => {
             const style = getComputedStyle(element);
             return (
@@ -964,18 +961,19 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         };
       });
       expect(geometry.heading.bottom).toBeLessThanOrEqual(geometry.workspace.top);
-      expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.actions.top);
-      if (width >= 900) {
-        expect(geometry.workspace.right).toBeLessThanOrEqual(geometry.about.left);
-        expect(Math.abs(geometry.workspace.top - geometry.about.top)).toBeLessThan(2);
+      expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.workspace.top);
+      if (width > 1100) {
+        expect(geometry.workspace.right).toBeLessThanOrEqual(geometry.sidebar.left);
+        expect(Math.abs(geometry.workspace.top - geometry.sidebar.top)).toBeLessThan(2);
         expect(geometry.workspace.width).toBeGreaterThan(Math.min(width, 1180) * 0.5);
       } else {
-        expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.about.top);
+        expect(geometry.workspace.bottom).toBeLessThanOrEqual(geometry.sidebar.top);
         expect(geometry.workspace.width).toBeGreaterThan(width * 0.8);
       }
-      await expect(guest.getByTestId('public-project-detail').locator('aside, figure')).toHaveCount(
-        0,
-      );
+      await expect(
+        guest.getByTestId('public-project-detail').locator('aside.public-project-sidebar'),
+      ).toHaveCount(1);
+      await expect(guest.getByTestId('public-project-detail').locator('figure')).toHaveCount(0);
       expect(geometry.nestedScroll).toBe(false);
       await guest.screenshot({ path: `${EVIDENCE}/detail-${width}.png`, fullPage: true });
       if ([320, 390, 1440].includes(width)) {
