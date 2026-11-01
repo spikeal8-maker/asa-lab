@@ -11,10 +11,10 @@
   --chess-ink-soft: #294d68;
   --chess-cyan: #0a91b6;
   --chess-cyan-strong: #067999;
-  --chess-light-square: #eeeed2;
-  --chess-dark-square: #769656;
-  --chess-last: #f3d35d;
-  --chess-select: #baca44;
+  --chess-light-square: #e6f5fa;
+  --chess-dark-square: #8aafc3;
+  --chess-last: rgba(10, 145, 182, 0.24);
+  --chess-select: #0877b3;
   --chess-panel: #ffffff;
   --chess-bg: #e9eef2;
   --chess-line: #c6d1d9;
@@ -374,7 +374,7 @@
 }
 
 .asa-chess-square.last-move {
-  box-shadow: inset 0 0 0 999px rgba(243, 211, 93, 0.48);
+  box-shadow: inset 0 0 0 999px var(--chess-last);
 }
 
 .asa-chess-square.selected {
@@ -452,7 +452,7 @@
   z-index: 5;
   font-size: clamp(8px, 1.2vw, 12px);
   font-weight: 850;
-  opacity: 0.83;
+  opacity: 1;
 }
 
 .rank-coordinate {
@@ -466,11 +466,11 @@
 }
 
 .asa-chess-square.light .asa-chess-coordinate {
-  color: #4d7e68;
+  color: #0b3558;
 }
 
 .asa-chess-square.dark .asa-chess-coordinate {
-  color: #e7f0e8;
+  color: #0b3558;
 }
 
 .asa-chess-move-dot {
