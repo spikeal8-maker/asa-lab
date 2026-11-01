@@ -312,7 +312,7 @@ const upgradeArtifacts = [
   [
     '0287',
     '0287_publication_copy_counts.sql',
-    '8d47d748e61bd7119a0b1f2caaf0c020719d8b4bc5ff28ece67d55bc9f38f956',
+    'ed604dbc0034caac069c261457bfb699f5e1c8cd06b1b20d7c7910af4b96718b',
   ],
 ] as const;
 
