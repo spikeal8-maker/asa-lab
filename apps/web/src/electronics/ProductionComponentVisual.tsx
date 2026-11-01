@@ -1912,6 +1912,7 @@ export function ProductionComponentVisual({
     entry.key === 'resistor-axial'
       ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
       : null;
+  const selectionModelRadius = selectionOffset / TINKERCAD_MODEL_TO_WORLD;
   const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const arduinoGlowFilterId = `arduino-led-glow-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
@@ -2064,15 +2065,6 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pitch"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          <line
-            x1="0"
-            y1="-20"
-            x2="0"
-            y2="20"
-            stroke="#8c8c8c"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
               <line
@@ -2082,7 +2074,7 @@ export function ProductionComponentVisual({
                 y2="20"
                 fill="none"
                 stroke="#3b8ed7"
-                strokeWidth="2"
+                strokeWidth={2 + 2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -2090,12 +2082,21 @@ export function ProductionComponentVisual({
                 d={TINKERCAD_RESISTOR_BODY}
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </g>
           ) : null}
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
           <path d={TINKERCAD_RESISTOR_BODY} fill="#d9b477" />
           {resistorBands ? (
             <g data-testid="resistor-colour-bands">
@@ -2122,6 +2123,38 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pin-6x6"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="-10"
+                y1="-15"
+                x2="-10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <line
+                x1="10"
+                y1="-15"
+                x2="10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <rect
+                x="-12"
+                y="-12"
+                width="24"
+                height="24"
+                rx="1"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth={2 * selectionModelRadius}
+              />
+            </g>
+          ) : null}
           <line
             x1="-10"
             y1="-15"
@@ -2140,38 +2173,6 @@ export function ProductionComponentVisual({
             strokeWidth="2"
             strokeLinecap="round"
           />
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              <line
-                x1="-10"
-                y1="-15"
-                x2="-10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <line
-                x1="10"
-                y1="-15"
-                x2="10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <rect
-                x="-12"
-                y="-12"
-                width="24"
-                height="24"
-                rx="1"
-                fill="none"
-                stroke="#3b8ed7"
-                strokeWidth="3"
-              />
-            </g>
-          ) : null}
           <rect x="-12" y="-12" width="24" height="24" rx="1" fill="#bfbfbf" />
           <path d={TINKERCAD_BUTTON_FRAME} fill="#a3a3a3" />
           {[
@@ -2192,31 +2193,42 @@ export function ProductionComponentVisual({
           data-visual-contract={`tinkercad-sp${twoPinSwitch ? 'st-two' : 'dt-three'}-pin`}
           transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
+                <line
+                  key={x}
+                  x1={x}
+                  x2={x}
+                  y2="-5"
+                  stroke="#3b8ed7"
+                  strokeWidth={2 + 2 * selectionModelRadius}
+                  strokeLinecap="round"
+                />
+              ))}
+              <rect
+                x="-14"
+                y="-15"
+                width="28"
+                height="10"
+                rx="1"
+                fill="#3b8ed7"
+                stroke="#3b8ed7"
+                strokeWidth={2 * selectionModelRadius}
+              />
+            </g>
+          ) : null}
           {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
             <line
               key={x}
               x1={x}
               x2={x}
               y2="-5"
-              stroke={selected ? '#3b8ed7' : '#8c8c8c'}
+              stroke="#8c8c8c"
               strokeWidth="2"
               strokeLinecap="round"
             />
           ))}
-          {selected ? (
-            <rect
-              className="workbench-tinkercad-selection"
-              pointerEvents="none"
-              x="-14"
-              y="-15"
-              width="28"
-              height="10"
-              rx="1"
-              fill="#3b8ed7"
-              stroke="#3b8ed7"
-              strokeWidth="3.5"
-            />
-          ) : null}
           <g
             data-testid="spdt-actuator"
             transform="translate(0 -10)"

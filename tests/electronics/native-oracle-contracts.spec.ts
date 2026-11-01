@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { ProductionComponentVisual } from '../../apps/web/src/electronics/ProductionComponentVisual';
 import { catalogEntry, renderedSize } from '../../apps/web/src/electronics/component-catalog';
 import { configureProductionLibrary } from '../../apps/web/src/electronics/production-manifest-adapter';
+import { WORLD_UNITS_PER_MM } from '../../apps/web/src/electronics/production-asset-contracts';
 import {
   installNativeSaveInputObserver,
   selectionStrokeDimensions,
@@ -41,12 +42,8 @@ describe('native qualification observes existing DOM contracts without waiving g
     root.innerHTML = markup;
     return root;
   };
-  for (const [type, body] of [
-    ['resistor-axial', 3.5],
-    ['button-tactile-6mm', 3],
-    ['switch-spdt', 3.5],
-  ] as const)
-    it(`measures the actual ${type} selection and retains the zero outward lead width`, () => {
+  for (const type of ['resistor-axial', 'button-tactile-6mm', 'switch-spdt'] as const)
+    it(`measures the actual ${type} selection at the canonical default world radius`, () => {
       const unselected = rootFor(actualVisual(type, false));
       const ordinary = Number(
         unselected
@@ -56,10 +53,11 @@ describe('native qualification observes existing DOM contracts without waiving g
           .getAttribute('stroke-width'),
       );
       const dimensions = selectionStrokeDimensions(rootFor(actualVisual(type)), ordinary);
-      expect(dimensions).toEqual({ body, pin: 2, ordinary: 2 });
-      // Existing leads have no outward halo; keep zero so the unchanged native
-      // nonzero-radius assertion continues to expose the real geometry defect.
-      expect((dimensions.pin - dimensions.ordinary) / 2).toBe(0);
+      const modelScale = 0.254 * WORLD_UNITS_PER_MM;
+      const body = (2 * 2) / modelScale;
+      expect(dimensions).toEqual({ body, pin: 2 + body, ordinary: 2 });
+      expect((dimensions.body / 2) * modelScale).toBeCloseTo(2, 10);
+      expect(((dimensions.pin - dimensions.ordinary) / 2) * modelScale).toBeCloseTo(2, 10);
     });
 
   it('rejects missing, ambiguous and unrelated selection shapes instead of finding arbitrary SVG', () => {
