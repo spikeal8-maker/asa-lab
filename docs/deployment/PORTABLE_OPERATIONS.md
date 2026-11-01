@@ -26,6 +26,12 @@ PostgreSQL. В Docker Desktop это память Linux VM, а не вся RAM �
 Windows/Linux, права, автозапуск и признаки неполного сбора описаны в
 [Admin Logs](ADMIN_LOGS.md#поддержка-host-collection). Сборщик не требует браузера;
 пользовательские браузерные сценарии проходят отдельные CI/owner gates.
+Для root-operated Linux режим коллектора выбирается один раз при установке:
+`python3 tools/asa_manager.py install --collector-mode system-root --collector-reader-gid 1000`.
+Число — выбранная ненулевая группа чтения API, отличная от группы Docker socket.
+Режим и GID сохраняются для последующих обновлений; root-controlled checkout и
+родительские каталоги обязательны. Это не выдаёт другому пользователю доступ к Docker.
+Порядок настройки существующей установки и границы доверия описаны в Admin Logs.
 Структурированные журналы API собираются дополнительно самим приложением, без
 Windows Task Scheduler/systemd и доступа контейнера к Docker socket. Compose
 автоматически подключает постоянный том `application-logs`; пересоздание API
