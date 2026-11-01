@@ -361,6 +361,7 @@ export function App(): JSX.Element {
     if (current !== href) pushSettingsAwareLocation(href);
     acceptedLocation.current = window.location.href;
     acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
+    window.dispatchEvent(new Event('settings-route'));
   }, []);
   const setView = useCallback(
     (next: CreatorPortalView) =>

@@ -1089,20 +1089,63 @@ async function exerciseExactReviewStream(
   await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
   await expect(form.getByTestId('submission-version-id')).toHaveText(current.project_version_id);
   faultPath = '/api/classrooms/' + classId + '/attempts/' + current.id + '/review';
+  const rejectNativeFocus = async (kind: 'remove-stream' | 'course-hint') => {
+    const acceptedUrl = review.url();
+    const frozenVersion = await form.getByTestId('submission-version-id').textContent();
+    await review.evaluate((change) => {
+      const [base, raw] = window.location.hash.split('?');
+      const params = new URLSearchParams(raw ?? '');
+      params.delete('review');
+      if (change === 'course-hint') {
+        params.delete('assignment');
+        params.set('courseRun', '10000000-0000-4000-8000-000000000001');
+      }
+      window.location.hash = base + '?' + params;
+    }, kind);
+    await expect(review).toHaveURL(acceptedUrl);
+    await expect(stream).toBeVisible();
+    await expect(form.getByTestId('submission-version-id')).toHaveText(frozenVersion!);
+  };
+  const retainedFeedback = 'Не потерять отзыв при отклонённом переходе';
+  await form.getByLabel('Отзыв', { exact: true }).fill(retainedFeedback);
+  for (const change of ['remove-stream', 'course-hint'] as const) {
+    await rejectNativeFocus(change);
+    await expect(form.getByLabel('Отзыв', { exact: true })).toHaveValue(retainedFeedback);
+  }
   const requestIds: string[] = [];
+  let releaseBusy!: () => void;
+  let committedBusy = false;
+  const busyReceipt = new Promise<void>((resolve) => {
+    releaseBusy = resolve;
+  });
   await review.route('**' + faultPath, async (route) => {
     requestIds.push((route.request().postDataJSON() as { requestId: string }).requestId);
     if (requestIds.length === 1) {
       const actual = await route.fetch();
       expect(actual.ok()).toBe(true);
+      committedBusy = true;
+      await busyReceipt;
       await route.abort('failed');
     } else await route.continue();
   });
   await form.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect.poll(() => committedBusy).toBe(true);
+  for (const change of ['remove-stream', 'course-hint'] as const) {
+    await rejectNativeFocus(change);
+    await expect(form.getByLabel('Отзыв', { exact: true })).toHaveValue(retainedFeedback);
+    await expect(
+      form.getByRole('button', { name: 'Принять выполнение', exact: true }),
+    ).toBeDisabled();
+  }
+  releaseBusy();
   await expect(form.getByText(/Ответ проверки не подтверждён/)).toBeVisible();
   await expect(
     stream.getByRole('button', { name: 'Следующий ученик', exact: true }),
   ).toBeDisabled();
+  for (const change of ['remove-stream', 'course-hint'] as const) {
+    await rejectNativeFocus(change);
+    await expect(form.getByText(/Ответ проверки не подтверждён/)).toBeVisible();
+  }
   await form.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
   await expect(form.getByText('Ревизия 1 · Принято')).toBeVisible();
   expect(requestIds).toHaveLength(2);
@@ -1332,9 +1375,14 @@ async function exerciseExactReviewStream(
         )
       ).rows[0].result_code,
     ).toBe('ok');
-  await stream.getByRole('button', { name: 'Вернуться к журналу', exact: true }).click();
-  await enter(runtime.source_classroom_assignment_id);
+  // An approved same-page assignment change must mount a fresh queue scope,
+  // without carrying the old run, learner or continuation cursor into B.
+  await review.evaluate((assignment) => {
+    const base = window.location.hash.split('?')[0];
+    window.location.hash = base + '?' + new URLSearchParams({ assignment, review: 'stream' });
+  }, runtime.source_classroom_assignment_id);
   await expect(stream.getByLabel('Практика в очереди')).toHaveValue('');
+  await expect(form).toHaveCount(0);
   await expect(
     stream
       .getByLabel('Практика в очереди')

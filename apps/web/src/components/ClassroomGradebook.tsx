@@ -46,7 +46,7 @@ export function ClassroomGradebook({
       key={classroomId}
       classroomId={classroomId}
       onOpenStudent={onOpenStudent}
-      onNavigationBlocked={onNavigationBlocked}
+      {...(onNavigationBlocked ? { onNavigationBlocked } : {})}
     />
   );
 }
@@ -216,11 +216,12 @@ function AssignedClassroomGradebook({
   if (stream)
     return (
       <ClassroomReviewStream
+        key={classroomId + ':' + stream}
         classroomId={classroomId}
         assignmentId={stream}
         onClose={() => setStream(null)}
         onChanged={reload}
-        onNavigationBlocked={onNavigationBlocked}
+        {...(onNavigationBlocked ? { onNavigationBlocked } : {})}
       />
     );
   return (
