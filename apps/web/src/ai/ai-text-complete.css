@@ -110,6 +110,68 @@
 .asa-ai-layout .asa-ai-code-block .asa-ai-code-actions button {
   margin-left: 0;
 }
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-block {
+  border-radius: 18px;
+  border-color: color-mix(in srgb, var(--ai-accent) 18%, var(--ai-border));
+  background: color-mix(in srgb, var(--ai-accent) 4%, var(--ai-surface));
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
+  padding: 8px 10px;
+  gap: 4px;
+  background: color-mix(in srgb, var(--ai-accent) 9%, var(--ai-surface));
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-format {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px;
+  color: var(--ai-text);
+  font-weight: 600;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  color: var(--ai-text);
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ai-accent) 13%, transparent);
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button[data-copied='true'] {
+  color: #16834f;
+}
+.asa-ai-layout[data-chat-theme='dark'] .asa-ai-rich-text .asa-ai-code-actions button[data-copied='true'] {
+  color: #4ade80;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-block pre {
+  max-height: 340px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ai-accent) 24%, transparent) transparent;
+  color: var(--ai-text);
+  border-top-color: color-mix(in srgb, var(--ai-accent) 15%, transparent);
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-block[data-expanded] pre {
+  max-height: 75vh;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-block pre:focus-visible {
+  outline: 2px solid var(--ai-accent);
+  outline-offset: -3px;
+}
+@media (max-width: 560px) {
+  .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions .ai-copy-button > span:not(.sr-only) {
+    display: none;
+  }
+}
 .asa-ai-layout .chat-answer-download {
   min-width: 0;
   font-size: 12px;

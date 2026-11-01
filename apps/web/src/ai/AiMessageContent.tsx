@@ -1,5 +1,6 @@
 import { AiCopyButton } from './AiCopyButton';
-import { Component, isValidElement, type ReactNode } from 'react';
+import { Component, isValidElement, useState, type ReactNode } from 'react';
+import { AiChatIcon } from './AiChatIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -31,6 +32,67 @@ interface ContentProps {
   readonly content: string;
   readonly pending?: boolean;
   readonly webSearch?: unknown;
+}
+
+function CodeCard({ children, pending }: { children: ReactNode; pending: boolean }): JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+  const code = flattenText(children).replace(/\n$/, '');
+  const child = Array.isArray(children) ? children[0] : children;
+  const language = isValidElement<{ className?: string }>(child)
+    ? (child.props.className?.match(/language-([^\s]+)/)?.[1] ?? '')
+    : '';
+  const file = codeDownloadFormat(language, code);
+  return (
+    <div className="asa-ai-code-block" data-expanded={expanded || undefined}>
+      <div className="asa-ai-code-actions">
+        <span className="asa-ai-code-format">
+          <AiChatIcon name="file" size={16} />
+          {language || 'Текст'}
+        </span>
+        <AiCopyButton text={code} label="Копировать код" showLabel />
+        <button
+          type="button"
+          disabled={pending}
+          data-ai-tooltip={pending ? 'Доступно после завершения ответа' : file.name}
+          onClick={() => downloadBlob(new Blob([code], { type: file.mime }), file.name)}
+          aria-label={'Скачать код: ' + file.name}
+        >
+          <AiChatIcon name="download" size={17} />
+          <span>Скачать {file.name.split('.').at(-1)?.toUpperCase()}</span>
+        </button>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Свернуть код' : 'Развернуть код'}
+          data-ai-tooltip={expanded ? 'Свернуть код' : 'Развернуть код'}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d={
+                expanded
+                  ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6'
+                  : 'M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5'
+              }
+            />
+          </svg>
+        </button>
+      </div>
+      <pre tabIndex={0} role="region" aria-label={'Код: ' + (language || 'текст')}>
+        {children}
+      </pre>
+    </div>
+  );
 }
 
 // A malformed formula normally becomes KaTeX's escaped source fallback. An
@@ -108,34 +170,7 @@ export function AiMessageContent({
                 <span>{children}</span>
               );
             },
-            pre: ({ children }) => {
-              const code = flattenText(children).replace(/\n$/, '');
-              const child = Array.isArray(children) ? children[0] : children;
-              const language = isValidElement<{ className?: string }>(child)
-                ? (child.props.className?.match(/language-([^\s]+)/)?.[1] ?? '')
-                : '';
-              const file = codeDownloadFormat(language, code);
-              return (
-                <div className="asa-ai-code-block">
-                  <div className="asa-ai-code-actions">
-                    <span>{language || file.name.split('.').at(-1)}</span>
-                    <AiCopyButton text={code} label="Копировать код" showLabel />
-                    <button
-                      type="button"
-                      disabled={pending}
-                      title={
-                        pending ? 'Скачивание доступно после завершения ответа' : 'Скачать файл'
-                      }
-                      onClick={() => downloadBlob(new Blob([code], { type: file.mime }), file.name)}
-                      aria-label={'Скачать код: ' + file.name}
-                    >
-                      Скачать {file.name.split('.').at(-1)?.toUpperCase()}
-                    </button>
-                  </div>
-                  <pre>{children}</pre>
-                </div>
-              );
-            },
+            pre: ({ children }) => <CodeCard pending={pending}>{children}</CodeCard>,
             table: ({ children }) => (
               <div
                 className="asa-ai-table-scroll"
