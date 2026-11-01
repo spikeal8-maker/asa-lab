@@ -65,7 +65,9 @@ class TargetPlanTests(unittest.TestCase):
             )
         verify.assert_called_once_with(self.archive)
         isolated.assert_called_once()
-        trust.assert_called_once_with(self.target)
+        # Windows runners may hand tempfile an 8.3 short path (RUNNER~1),
+        # whereas the security guard canonicalizes the same target via resolve().
+        trust.assert_called_once_with(self.target.resolve())
         self.assertEqual(docker_read.call_count, 2)
         self.assertEqual(docker_read.call_args_list[0].args[0],
                          ["docker", "ps", "-a", "--format", "{{.Names}}"])
