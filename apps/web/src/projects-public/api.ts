@@ -115,7 +115,14 @@ export const publicProjectsApi = {
       };
     return { ok: true, status: result.status, data: { artifact: validated.artifact } };
   },
-  list: (input: { search?: string; module?: string; offset?: number } = {}) => {
+  list: (
+    input: {
+      search?: string;
+      module?: string;
+      offset?: number;
+      sort?: 'newest' | 'oldest' | 'likes' | 'copies';
+    } = {},
+  ) => {
     const query = new URLSearchParams({
       offset: String(input.offset ?? 0),
       limit: '24',
@@ -123,6 +130,7 @@ export const publicProjectsApi = {
     });
     if (input.search) query.set('q', input.search);
     if (input.module) query.set('module', input.module);
+    if (input.sort) query.set('sort', input.sort);
     return call<PublicProjectList>(`/api/public-projects?${query}`, { cache: 'no-store' });
   },
   get: (publicationId: string, signal?: AbortSignal) =>

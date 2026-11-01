@@ -30,6 +30,7 @@ export type PublicProjectListView = {
   kind: 'public-projects';
   search?: string;
   module?: string;
+  sort?: 'newest' | 'oldest' | 'likes' | 'copies';
 };
 
 export type PublicProjectView =
@@ -41,10 +42,12 @@ function publicProjectListView(query: string | undefined): PublicProjectListView
   const params = new URLSearchParams(query);
   const search = params.get('q')?.trim().slice(0, 120);
   const module = params.get('module');
+  const sort = params.get('sort');
   return {
     kind: 'public-projects',
     ...(search ? { search } : {}),
     ...(module && /^[a-z][a-z0-9-]{0,63}$/.test(module) ? { module } : {}),
+    ...(sort === 'oldest' || sort === 'likes' || sort === 'copies' ? { sort } : {}),
   };
 }
 
@@ -240,6 +243,7 @@ export function creatorViewToHash(view: CreatorPortalView): string {
     const query = new URLSearchParams();
     if (view.search) query.set('q', view.search);
     if (view.module) query.set('module', view.module);
+    if (view.sort && view.sort !== 'newest') query.set('sort', view.sort);
     return `#/explore${query.size ? `?${query}` : ''}`;
   }
   if (view.kind === 'public-project') {

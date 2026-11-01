@@ -3,6 +3,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { PublicProjectListView } from '../creator-portal/navigation';
+import { creatorViewFromHash, creatorViewToHash } from '../creator-portal/navigation';
 import { PublicProjectsPage } from './PublicProjectsPage';
 import { publicProjectsApi, type PublicProject } from './api';
 
@@ -95,10 +96,40 @@ it('keeps immutable card navigation, actual likes and editorial metadata without
   expect(card.querySelector('[aria-label="7 нравится"]')).not.toBeNull();
   expect(card.querySelector('[data-testid="public-project-featured"]')).not.toBeNull();
   expect(card.querySelector('[data-testid="public-project-pinned"]')).not.toBeNull();
-  expect(host.querySelector('.public-projects-results')?.textContent).toContain('Показано 1');
+  expect(host.querySelector('.public-projects-results')).toBeNull();
   expect(host.textContent).not.toMatch(/просмотров|комментариев|ремиксов/);
   await act(async () => card.click());
   expect(onOpen).toHaveBeenCalledWith('published');
+});
+
+it('keeps sorting with search and category changes and restores it from the URL', async () => {
+  const view: PublicProjectListView = {
+    kind: 'public-projects',
+    search: 'схема',
+    module: 'electronics',
+    sort: 'likes',
+  };
+  expect(creatorViewFromHash(creatorViewToHash(view))).toEqual(view);
+  expect(creatorViewFromHash('#/explore?sort=unknown')).toEqual({ kind: 'public-projects' });
+  await render(view);
+  expect(publicProjectsApi.list).toHaveBeenLastCalledWith({
+    search: 'схема',
+    module: 'electronics',
+    sort: 'likes',
+  });
+  const select = host.querySelector<HTMLSelectElement>('select')!;
+  expect(select.value).toBe('likes');
+  await act(async () => {
+    select.value = 'oldest';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(onView).toHaveBeenLastCalledWith({ ...view, sort: 'oldest' });
+  await act(async () => category('Все').click());
+  expect(onView).toHaveBeenLastCalledWith({
+    kind: 'public-projects',
+    search: 'схема',
+    sort: 'likes',
+  });
 });
 
 it('places identity on the preview and keeps the title and counters in one bottom row', async () => {

@@ -270,6 +270,7 @@ export class PublicProjectsController {
     @Query('offset') offset?: string,
     @Query('limit') limit?: string,
     @Query('catalog') catalog?: string,
+    @Query('sort') sort?: string,
   ) {
     if (query !== undefined && (typeof query !== 'string' || query.length > 120)) {
       throw publicationError('validation_error', 'Поисковый запрос слишком длинный.', 400);
@@ -281,13 +282,25 @@ export class PublicProjectsController {
     const take = boundedInteger(limit, 24, 1, 48);
     if (catalog !== undefined && catalog !== 'projects')
       throw publicationError('validation_error', 'Некорректный каталог.', 400);
+    if (
+      sort !== undefined &&
+      (catalog !== 'projects' || !['newest', 'oldest', 'likes', 'copies'].includes(sort))
+    )
+      throw publicationError('validation_error', 'Некорректная сортировка.', 400);
     const readFunction =
       catalog === 'projects'
         ? 'public.public_projects_catalog_read'
         : 'public.public_projects_read';
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      `SELECT entry.*, public.project_publication_author_avatar(entry.publication_id,false)->>'url' AS author_avatar_url, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM ${readFunction}($1, $2, $3, $4, $5) entry`,
-      [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
+      `SELECT entry.*, public.project_publication_author_avatar(entry.publication_id,false)->>'url' AS author_avatar_url, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM ${readFunction}($1, $2, $3, $4, $5${catalog === 'projects' ? ', $6' : ''}) entry`,
+      [
+        null,
+        query?.trim() || null,
+        moduleKey ?? null,
+        take + 1,
+        skip,
+        ...(catalog === 'projects' ? [sort ?? 'newest'] : []),
+      ],
     );
     const page = result.rows.slice(0, take);
     const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, page);

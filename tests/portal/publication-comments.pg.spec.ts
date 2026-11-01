@@ -696,6 +696,39 @@ describe('real publication discussion identity, policy and moderation boundary',
 });
 
 describe('publication author identity and projects-only catalog', () => {
+  it('orders the full catalog before pagination and rejects unknown sorting', async () => {
+    const a = await source(),
+      b = await source(),
+      c = await source();
+    const title = 'Catalog sorting ' + randomUUID();
+    await a.publish(title);
+    const bRevision = (await b.publish(title)).publication.revisionId;
+    await c.publish(title);
+    await runtime.query('SELECT publication_like_write($1,$2,$3,true,$4)', [
+      c.owner.principal,
+      b.publicationId,
+      bRevision,
+      c.owner.hash,
+    ]);
+    const url = '/api/public-projects?catalog=projects&q=' + encodeURIComponent(title);
+    const order = async (sort: string, offset = 0) => {
+      const res = await inject(app, {
+        method: 'GET',
+        url: url + '&sort=' + sort + '&limit=1&offset=' + offset,
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      return res.json().items[0].publicationId;
+    };
+    expect(await order('newest')).toBe(c.publicationId);
+    expect(await order('oldest')).toBe(a.publicationId);
+    expect(await order('likes')).toBe(b.publicationId);
+    expect(await order('likes', 1)).toBe(c.publicationId);
+    expect(await order('copies')).toBe(c.publicationId);
+    expect((await inject(app, { method: 'GET', url: url + '&sort=unknown' })).statusCode).toBe(400);
+    expect(
+      (await inject(app, { method: 'GET', url: '/api/public-projects?sort=likes' })).statusCode,
+    ).toBe(400);
+  });
   it('uses the published author profile and guards the avatar when publication is removed', async () => {
     const s = await source();
     const png = new PNG({ width: 16, height: 16 });

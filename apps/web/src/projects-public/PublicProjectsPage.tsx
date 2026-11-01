@@ -41,6 +41,7 @@ export function PublicProjectsPage({
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
       ...(moduleFilter ? { module: moduleFilter } : {}),
+      ...(view.sort ? { sort: view.sort } : {}),
     });
     if (current !== request.current) return;
     if (!result.ok || !Array.isArray(result.data?.items)) {
@@ -49,7 +50,7 @@ export function PublicProjectsPage({
     }
     setItems(result.data.items);
     setNextOffset(result.data.nextOffset);
-  }, [view.search, moduleFilter]);
+  }, [view.search, moduleFilter, view.sort]);
 
   useEffect(() => {
     void reload();
@@ -68,6 +69,7 @@ export function PublicProjectsPage({
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
       ...(moduleFilter ? { module: moduleFilter } : {}),
+      ...(view.sort ? { sort: view.sort } : {}),
       offset: nextOffset,
     });
     if (current !== request.current) return;
@@ -94,6 +96,7 @@ export function PublicProjectsPage({
         kind: 'public-projects',
         ...(value ? { search: value } : {}),
         ...(moduleFilter ? { module: moduleFilter } : {}),
+        ...(view.sort ? { sort: view.sort } : {}),
       });
   }
 
@@ -108,7 +111,7 @@ export function PublicProjectsPage({
       <header className="public-projects-heading">
         <div className="public-projects-intro">
           <div className="public-projects-title-row">
-            <h1>Проекты</h1>
+            <h1>Идеи, схемы и программы сообщества ASA Lab</h1>
             {onMyProjects ? (
               <PortalLink
                 className="public-projects-personal"
@@ -119,7 +122,6 @@ export function PublicProjectsPage({
               </PortalLink>
             ) : null}
           </div>
-          <p>Идеи, схемы и программы сообщества ASA Lab.</p>
         </div>
         <form className="public-projects-search" role="search" onSubmit={search}>
           <label htmlFor="public-project-search" className="sr-only">
@@ -171,6 +173,7 @@ export function PublicProjectsPage({
                   kind: 'public-projects',
                   ...(view.search ? { search: view.search } : {}),
                   ...(module.value ? { module: module.value } : {}),
+                  ...(view.sort ? { sort: view.sort } : {}),
                 })
               }
             >
@@ -178,13 +181,27 @@ export function PublicProjectsPage({
             </button>
           ))}
         </div>
-        <div className="public-projects-results">
-          <div>
-            <h2>{view.search ? 'Результаты поиска' : 'Работы сообщества'}</h2>
-            {items && items.length > 0 ? <span>Показано {items.length}</span> : null}
-          </div>
-          <span className="public-projects-order">Новые публикации</span>
-        </div>
+        <label className="public-projects-order">
+          <span className="sr-only">Сортировка проектов</span>
+          <select
+            value={view.sort ?? 'newest'}
+            onChange={(event) =>
+              onView({
+                kind: 'public-projects',
+                ...(view.search ? { search: view.search } : {}),
+                ...(moduleFilter ? { module: moduleFilter } : {}),
+                ...(event.target.value !== 'newest'
+                  ? { sort: event.target.value as NonNullable<PublicProjectListView['sort']> }
+                  : {}),
+              })
+            }
+          >
+            <option value="newest">Сначала новые</option>
+            <option value="oldest">Сначала ранние</option>
+            <option value="likes">По лайкам</option>
+            <option value="copies">По добавлениям</option>
+          </select>
+        </label>
       </section>
 
       {items === null && !error ? (
@@ -246,7 +263,15 @@ export function PublicProjectsPage({
                   <div className="public-project-card-topline">
                     <div className="public-project-card-identity" title={publication.authorLabel}>
                       <PublicAuthorAvatar publication={publication} />
-                      <span className="public-project-author">{publication.authorLabel}</span>
+                      <span className="public-project-author-caption">
+                        <span className="public-project-author">{publication.authorLabel}</span>
+                        <time
+                          className="public-project-card-date"
+                          dateTime={publication.publishedAt}
+                        >
+                          {time.date(publication.publishedAt)}
+                        </time>
+                      </span>
                     </div>
                     <span
                       className="publication-module"
@@ -255,7 +280,7 @@ export function PublicProjectsPage({
                     >
                       <span className="public-project-module-full">
                         {publication.moduleKey === 'blocks'
-                          ? 'Scratch'
+                          ? 'Программа'
                           : publication.moduleKey === 'three-d'
                             ? '3D'
                             : publicModuleName(publication.moduleKey)}
@@ -267,9 +292,6 @@ export function PublicProjectsPage({
                       ) : null}
                     </span>
                   </div>
-                  <time className="public-project-card-date" dateTime={publication.publishedAt}>
-                    Опубликовано {time.date(publication.publishedAt)}
-                  </time>
                   <div className="public-project-card-marks">
                     {publication.pinned ? (
                       <span className="public-project-pinned" data-testid="public-project-pinned">

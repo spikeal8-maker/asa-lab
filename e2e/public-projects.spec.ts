@@ -41,6 +41,16 @@ test('preview cards have no vignette or added strips and electronics uses a whit
     await page.getByRole('button', { name: 'Найти', exact: true }).click();
     const card = page.getByTestId('public-project-card').filter({ hasText: title });
     await expect(card).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Идеи, схемы и программы сообщества ASA Lab',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.locator('.public-projects-results')).toHaveCount(0);
+    await page.getByRole('combobox', { name: 'Сортировка проектов' }).selectOption('likes');
+    await expect(page).toHaveURL(/sort=likes/);
+    await expect(card).toBeVisible();
     await expect(page.getByRole('button', { name: 'Шахматы', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Шашки', exact: true })).toHaveCount(0);
     await expect(card.locator('.public-project-author')).toHaveText('Автор проверки превью');
@@ -54,6 +64,36 @@ test('preview cards have no vignette or added strips and electronics uses a whit
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expectNoOverflow(page);
+      const columns = await page
+        .getByTestId('public-project-grid')
+        .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length);
+      expect(columns).toBe(4);
+      const authorStyle = await card.locator('.public-project-author').evaluate((element) => ({
+        wrapping: getComputedStyle(element).whiteSpace,
+        overflow: getComputedStyle(element).textOverflow,
+      }));
+      expect(authorStyle).toEqual({ wrapping: 'nowrap', overflow: 'ellipsis' });
+      await card.hover();
+      const date = card.locator('.public-project-card-date');
+      expect(await date.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+      expect(await date.textContent()).not.toContain('Опубликовано');
+      const authorBox = await card.locator('.public-project-author').boundingBox();
+      const dateBox = await date.boundingBox();
+      expect(Math.abs(dateBox!.x - authorBox!.x)).toBeLessThan(1);
+      expect(dateBox!.y).toBeGreaterThanOrEqual(authorBox!.y + authorBox!.height - 1);
+      await page.mouse.move(0, 0);
+      expect(await date.evaluate((element) => getComputedStyle(element).opacity)).toBe('0');
+      const chipsBox = await page.getByRole('group', { name: 'Среда проекта' }).boundingBox();
+      const sortBox = await page
+        .getByRole('combobox', { name: 'Сортировка проектов' })
+        .boundingBox();
+      expect(
+        Math.abs(chipsBox!.y + chipsBox!.height / 2 - sortBox!.y - sortBox!.height / 2),
+      ).toBeLessThan(2);
+      expect(chipsBox!.x + chipsBox!.width).toBeLessThanOrEqual(sortBox!.x);
+      const toolsBox = await page.locator('.public-projects-tools').boundingBox();
+      expect(sortBox!.width).toBeLessThanOrEqual(148);
+      expect(Math.abs(sortBox!.x + sortBox!.width - toolsBox!.x - toolsBox!.width)).toBeLessThan(1);
       const bounds = await card.boundingBox();
       expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
       const titleBox = await card.getByTestId('public-project-card-title').boundingBox();
