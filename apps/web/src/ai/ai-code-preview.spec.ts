@@ -6,9 +6,11 @@ describe('isolated static code preview', () => {
     const code =
       '<canvas id="board" width="300" height="300"></canvas><button onclick="score++">Play</button><script src="https://external.test/code.js">let score=0;document.querySelector("#board").getContext("2d").fillRect(1,2,3,4);</script>';
     const doc = codePreviewDocument(code, true);
-    expect(doc).toContain('<canvas id="board" width="300" height="300"></canvas>');
-    expect(doc).toContain('onclick="score++"');
-    expect(doc).toContain('<script>let score=0;');
+    expect(doc).toContain(
+      '&lt;canvas id=&quot;board&quot; width=&quot;300&quot; height=&quot;300&quot;&gt;&lt;/canvas&gt;',
+    );
+    expect(doc).toContain('onclick=&quot;score++&quot;');
+    expect(doc).toContain('&lt;script&gt;let score=0;');
     expect(doc).not.toContain('src="https:');
     expect(doc).toContain("script-src 'unsafe-inline'");
     expect(doc).toContain("connect-src 'none'");
