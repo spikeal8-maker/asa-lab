@@ -4930,6 +4930,12 @@ test('Course media errors survive saved author preview and learner delivery with
   const videoTitle = 'Сохранённое видео платформы';
   const audioTitle = 'Сохранённое аудио платформы';
   const fileLabel = 'Памятка к сохранённому уроку';
+  // Only exact provisional URLs are allowed to fail while previewing an unsaved lesson.
+  const initialMediaUrls = [
+    '/assets/initial-' + suffix + '.png',
+    '/assets/initial-' + suffix + '.webm',
+    '/assets/initial-' + suffix + '.wav',
+  ];
   const media = [
     {
       url: imageUrl,
@@ -4953,7 +4959,11 @@ test('Course media errors survive saved author preview and learner delivery with
   // publication, assignment and learner responses always come from the API.
   async function observeMedia(target: Page) {
     const origin = new URL(target.url()).origin;
-    const expectedUrls = new Set(media.map((item) => new URL(item.url, origin).href));
+    const expectedUrls = new Set(
+      [...media.map((item) => item.url), ...initialMediaUrls].map(
+        (url) => new URL(url, origin).href,
+      ),
+    );
     const requestCounts = new Map<string, number>();
     const responses = new Map<string, number[]>();
     const consoleErrors: string[] = [];
@@ -5092,7 +5102,7 @@ test('Course media errors survive saved author preview and learner delivery with
       await expect(open).toHaveAttribute('rel', 'noreferrer');
     }
 
-    for (const width of [1440, 390, 320]) {
+    for (const width of [1440, 1024, 390, 320]) {
       await target.setViewportSize({ width, height: 900 });
       for (const item of media) {
         const fallback = scope.locator(item.selector).locator('.lesson-media-error');
@@ -5173,7 +5183,7 @@ test('Course media errors survive saved author preview and learner delivery with
     await expect(imageWrapper.getByRole('button', { name: 'Повторить загрузку' })).toHaveCount(0);
     await expect(scope.locator('.lesson-media-error')).toHaveCount(2);
     await expect(imageWrapper).toBeFocused();
-    for (const width of [1440, 390, 320]) {
+    for (const width of [1440, 1024, 390, 320]) {
       await target.setViewportSize({ width, height: 900 });
       await imageWrapper.scrollIntoViewIfNeeded();
       await expect(imageWrapper.locator('img')).toBeVisible();
@@ -5284,6 +5294,51 @@ test('Course media errors survive saved author preview and learner delivery with
     await expect(editor.getByLabel('Название урока')).toHaveValue(lessonTitle);
   }
   await reopen();
+  // Read-only witnesses are scoped to this synthetic class/course, not shared
+  // teacher state that other scenarios or notification polling may change.
+  async function academicRows() {
+    return (
+      await admin.query(
+        `WITH runs AS (
+           SELECT id FROM classroom_course_runs WHERE course_id=$1 OR classroom_id=$2
+         ), participations AS (
+           SELECT p.* FROM activity_participations p
+           JOIN activity_runs r ON r.id=p.activity_run_id
+           WHERE r.classroom_id=$2 OR r.source_course_run_id IN (SELECT id FROM runs)
+         ), attempts AS (
+           SELECT a.* FROM learning_attempts a WHERE a.classroom_id=$2
+             OR a.activity_participation_id IN (SELECT id FROM participations)
+         )
+         SELECT jsonb_build_object(
+           'enrollments',(SELECT COALESCE(jsonb_agg(to_jsonb(e) ORDER BY e.id),'[]'::jsonb)
+             FROM course_enrollments e WHERE e.course_run_id IN (SELECT id FROM runs)),
+           'participations',(SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb) FROM participations p),
+           'attempts',(SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a.id),'[]'::jsonb) FROM attempts a),
+           'submissions',(SELECT COALESCE(jsonb_agg(to_jsonb(s) ORDER BY s.id),'[]'::jsonb)
+             FROM learning_submissions s WHERE s.attempt_id IN (SELECT id FROM attempts)),
+           'results',(SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id),'[]'::jsonb)
+             FROM assessment_results r WHERE r.attempt_id IN (SELECT id FROM attempts)),
+           'completion',(SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.id),'[]'::jsonb)
+             FROM classroom_course_lesson_progress p WHERE p.run_id IN (SELECT id FROM runs)),
+           'notifications',(SELECT COALESCE(jsonb_agg(to_jsonb(n) ORDER BY n.id),'[]'::jsonb)
+             FROM learning_notifications n WHERE n.classroom_id=$2 OR n.course_run_id IN (SELECT id FROM runs))
+         ) AS value`,
+        [courseId, classroomId],
+      )
+    ).rows[0].value;
+  }
+  const beforeInlineAcademic = await academicRows();
+  expect(Object.values(beforeInlineAcademic)).toEqual(Array(7).fill([]));
+  const inlineAcademicWrites: string[] = [];
+  const observeInlineWrite = (request: import('@playwright/test').Request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method()) &&
+      /^\/api\/(?:courses|learning|classrooms|class-join)(?:\/|$)/.test(pathname)
+    )
+      inlineAcademicWrites.push(request.method() + ' ' + pathname);
+  };
+  page.on('request', observeInlineWrite);
   await editor.getByLabel('Ссылка на изображение').fill(imageUrl);
   await editor.getByLabel('Описание изображения').fill(imageAlt);
   await editor.getByLabel('Подпись изображения').fill(imageCaption);
@@ -5301,6 +5356,93 @@ test('Course media errors survive saved author preview and learner delivery with
     .filter({ has: page.getByLabel('Ссылка на аудио') })
     .getByLabel('Название медиа')
     .fill(audioTitle);
+
+  // The author sees the actual learner media renderer without saving or
+  // publishing. Missing resources expose the same native error and retry,
+  // and the HTTPS PDF stays a link: it must not make a speculative request.
+  const beforeAuthorMediaPreview = await outline();
+  const authorImage = editor.getByRole('region', {
+    name: 'Предпросмотр вложения блока 2',
+    exact: true,
+  });
+  const authorImg = authorImage.locator('img');
+  await expect(authorImg).toHaveAttribute('src', imageUrl);
+  await authorImg.scrollIntoViewIfNeeded();
+  await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await authorImage.scrollIntoViewIfNeeded();
+    const imageWrapper = authorImage.locator('.lesson-media-block');
+    const retry = authorImage.getByRole('button', { name: 'Повторить загрузку', exact: true });
+    for (const control of [
+      authorImage,
+      authorImage.getByRole('alert'),
+      retry,
+      authorImage.getByRole('link', { name: 'Открыть отдельно', exact: true }),
+    ]) {
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x, 'inline control left at ' + width).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width, 'inline control right at ' + width).toBeLessThanOrEqual(
+        width,
+      );
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+      'inline page overflow at ' + width,
+    ).toBeLessThanOrEqual(0);
+    // Tab from the existing focusable media wrapper must reach the native
+    // retry button; activating it keeps focus in the remounted media block.
+    await imageWrapper.focus();
+    await page.keyboard.press('Tab');
+    await expect(retry).toBeFocused();
+    const beforeRetry = authorObserver.requestCounts.get(imageUrl) ?? 0;
+    const retried = page.waitForResponse(
+      (response) =>
+        response.url() === new URL(imageUrl, page.url()).href &&
+        response.request().method() === 'GET',
+    );
+    await page.keyboard.press('Enter');
+    expect((await retried).status()).toBe(404);
+    expect(authorObserver.requestCounts.get(imageUrl)).toBeGreaterThan(beforeRetry);
+    await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
+    await expect(imageWrapper).toBeFocused();
+    await page.screenshot({ path: directory + '/inline-error-' + width + '.png', fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const authorFile = editor.getByRole('region', {
+    name: 'Предпросмотр вложения блока 3',
+    exact: true,
+  });
+  const authorFileLink = authorFile.getByRole('link', { name: new RegExp(fileLabel) });
+  await expect(authorFileLink).toHaveAttribute('href', fileUrl);
+  await expect(authorFileLink).toHaveAttribute('target', '_blank');
+  await expect(authorFileLink).toHaveAttribute('rel', 'noreferrer');
+  await expect(
+    editor.getByRole('region', { name: 'Предпросмотр вложения блока 4' }).locator('video'),
+  ).toHaveAttribute('src', videoUrl);
+  await expect(
+    editor.getByRole('region', { name: 'Предпросмотр вложения блока 5' }).locator('audio'),
+  ).toHaveAttribute('src', audioUrl);
+  for (const kind of ['video', 'audio']) {
+    const control = editor.locator('.lesson-block-edit-preview').locator(kind);
+    await expect(control).toHaveAttribute('controls', '');
+    await expect(control).toHaveAttribute('preload', 'metadata');
+    await expect(control).not.toHaveAttribute('autoplay', '');
+  }
+  expect(await outline(), 'inline author preview must not write the draft').toEqual(
+    beforeAuthorMediaPreview,
+  );
+  expect(await academicRows(), 'inline preview must not create or change academic history').toEqual(
+    beforeInlineAcademic,
+  );
+  page.off('request', observeInlineWrite);
+  expect(inlineAcademicWrites, 'inline preview must not send academic mutation commands').toEqual(
+    [],
+  );
+
   const save = page.waitForResponse(
     (response) =>
       response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
