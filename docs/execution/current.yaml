@@ -8864,7 +8864,25 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: design_approved_bounded_courses_main_integration_selected
+      checkpoint: author_workspace_course_usage_selected
+      selected_slice:
+        id: LRN-E1-AUTHOR-USAGE-001
+        owner_authorization: Owner requested checking the Courses specification and starting completion of the author workspace on 2026-11-01.
+        normative_ref: PRODUCT-INTEGRATED-V15 section 4.2.1 Usage
+        scope: >-
+          Add the missing Course Usage read surface over existing CourseRuns:
+          authorized classes only, exact pinned version, run status and audience,
+          and navigation to Class Learning. Preserve editor drafts and published
+          history. No separate progress, grade or roster store.
+        acceptance:
+        - Server-scoped read with foreign course, foreign class and revoked access negatives; no learner answers or inaccessible counts.
+        - Loading, empty, error and populated UI; safe navigation using existing dirty guards.
+        - Focused PostgreSQL and browser evidence, viewports 1440/1024/390/320 and existing authoring regressions.
+        - Exact final focused and repository gates and independent review before integration.
+        constraints:
+        - Reuse course and class authorization; no Auth, tenant/RLS redesign, migration or deployment.
+        - Preserve PR727 media preview and PR739 progress sources; do not reimplement or merge them in this slice.
+        - This Usage slice only; executor reports and stops before another task.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -16232,7 +16250,7 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1 corrections remain open, but owner review 2026-10-04 changed implementation priority to visible-first. V-UX2A Assignment list is the selected next visible slice; A6/A7/A8 backend/media work may proceed only when it blocks that exact visible flow. Owner acceptance and release/deployment claims remain blocked.
+    reason: E1 corrections remain open. The learning task selects the current bounded author-workspace slice; earlier visible-first assignments are historical evidence. Owner acceptance and release/deployment claims remain blocked until the required E1 corrections and evidence are complete.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
   - id: ELECTRONICS-538-ASSET-548
     kind: acceptance_blocker
