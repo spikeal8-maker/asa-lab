@@ -12,6 +12,7 @@ import { addComponentToDocument } from '../apps/web/src/electronics/workbench-do
 import type { ElectronicsSimulationWorkerResponse } from '../apps/web/src/electronics/simulation-worker-protocol';
 import { collectBrowserFailures } from './browser-failures';
 import { selectionStrokeDimensions } from '../tests/electronics/native-oracle-contracts';
+import { scanFiniteNumbers } from '../tests/electronics/finite-evidence';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
 
@@ -1030,10 +1031,11 @@ async function localDocument(page: Page, user: string, project: string, requireD
 }
 
 function assertFinite(value: unknown) {
-  if (typeof value === 'number') expect(Number.isFinite(value)).toBe(true);
-  else if (Array.isArray(value)) for (const item of value) assertFinite(item);
-  else if (value && typeof value === 'object')
-    for (const item of Object.values(value)) assertFinite(item);
+  const { nonFiniteLeaves } = scanFiniteNumbers(value);
+  expect(
+    nonFiniteLeaves,
+    `Every original numeric result leaf must be finite: ${nonFiniteLeaves.map(({ path }) => path).join(', ')}`,
+  ).toEqual([]);
 }
 
 let admin: pg.Pool;
