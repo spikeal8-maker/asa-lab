@@ -8871,6 +8871,14 @@ parallel_lanes:
       checkpoint: author_workspace_course_usage_selected
       selected_slice:
         id: LRN-E1-AUTHOR-USAGE-001
+        ci_prerequisite:
+          id: LRN-E1-CI-RUNNER-001
+          owner_authorization: Owner approved current.yaml reconciliation, CI repair, PR900 verification and green-gated main integration, then continued Courses completion on 2026-11-01.
+          classification: D_infrastructure
+          scope: Pin the existing Learning E1 workflow jobs to supported Ubuntu 24.04 without changing tests or gates.
+          path: .github/workflows/learning-e1-focused.yml
+          evidence: Learning run 41325031781 job 124903073394 fails before tests because Playwright does not support ubuntu26.04-x64.
+          constraints: Separate workflow-only executor and independent review; preserve commands, case partitions, retries, timeouts and mandatory aggregate.
         owner_authorization: Owner requested checking the Courses specification and starting completion of the author workspace on 2026-11-01.
         normative_ref: PRODUCT-INTEGRATED-V15 section 4.2.1 Usage
         scope: >-
