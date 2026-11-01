@@ -147,6 +147,11 @@ describe('public V3 execution projection', () => {
       expect(validatePublicProjectDisplayArtifact(input).ok).toBe(false);
     },
   );
+  it.each([null, false, 12, '{}'])('rejects noncanonical public block data %s', (value) => {
+    const input = simulation();
+    Object.assign(input.components[0]!.stateProperties, { arduinoBlocks: value });
+    expect(validatePublicProjectDisplayArtifact(input).ok).toBe(false);
+  });
   it.each(['arduinoWorkspace', 'token', 'url', 'runtime', 'password'])(
     'rejects unclassified public property %s',
     (key) => {
