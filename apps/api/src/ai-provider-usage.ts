@@ -11,7 +11,7 @@ export function providerTokenCount(value: unknown): number | null {
 
 export function providerModel(value: unknown): string | null {
   return typeof value === 'string' &&
-    /^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,199}$/.test(value) &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]{0,199}$/.test(value) &&
     !value.includes('://')
     ? value
     : null;

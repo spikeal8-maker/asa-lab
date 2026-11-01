@@ -228,7 +228,7 @@ DECLARE v_operation varchar;
 BEGIN
     IF p_operation IS NULL OR p_operation NOT IN ('chat','regeneration') OR p_transport IS NULL OR p_transport NOT IN ('json','sse')
        OR p_provider IS NULL OR p_provider NOT IN ('openai','deepseek','ollama','ollama-cloud','polza') OR p_model IS NULL
-       OR p_model !~ '^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,199}$' OR position('://' IN p_model)>0 THEN
+       OR p_model !~ '^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]{0,199}$' OR position('://' IN p_model)>0 THEN
         RAISE EXCEPTION 'AI_USAGE_INVALID' USING ERRCODE='22023';
     END IF;
     -- Canonical admission, exact owner, and current thread lease are mandatory.
@@ -435,5 +435,43 @@ BEGIN
       'updatedAt', updated_at
     ) FROM public.ai_polza_settings WHERE singleton_key
   );
+END;
+$$;
+
+-- Keep the monthly-budget wrapper and the private journal finalizer permissions.
+-- Provider model IDs may contain @; URL-shaped IDs remain forbidden.
+CREATE OR REPLACE FUNCTION public.ai_usage_finish_before_budgets(p_owner uuid,p_request uuid,p_status varchar,p_error varchar,p_input bigint,p_output bigint,p_model varchar)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_row public.ai_usage_journal%ROWTYPE; v_end timestamptz;
+BEGIN
+    IF p_status IS NULL OR p_status NOT IN ('succeeded','stopped','cancelled','failed')
+       OR (p_error IS NOT NULL AND p_error NOT IN ('ai_provider_error','ai_response_incomplete','ai_response_invalid','ai_response_empty',
+         'ai_stream_invalid','ai_stream_interrupted','ai_provider_timeout','ai_provider_unavailable','ai_provider_rate_limit',
+         'ai_provider_authentication_failed','ai_provider_invalid_request','ai_provider_access_denied','ai_provider_insufficient_balance',
+         'ai_provider_invalid_parameters','ai_provider_model_unavailable','ai_ollama_unreachable',
+         'ai_ollama_timeout','ai_ollama_interrupted','ai_ollama_invalid','ai_ollama_upstream_error','ai_ollama_empty',
+         'ai_generation_failed')) OR p_input<0 OR p_output<0 OR p_input>9007199254740991 OR p_output>9007199254740991
+       OR (p_model IS NOT NULL AND (p_model !~ '^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]{0,199}$' OR position('://' IN p_model)>0)) THEN
+        RAISE EXCEPTION 'AI_USAGE_INVALID' USING ERRCODE='22023';
+    END IF;
+    SELECT * INTO v_row FROM public.ai_usage_journal WHERE owner_principal_id=p_owner AND request_id=p_request FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'AI_USAGE_DENIED' USING ERRCODE='42501'; END IF;
+    IF v_row.status NOT IN ('admitted','running') THEN
+        IF v_row.status IS DISTINCT FROM p_status OR v_row.error_code IS DISTINCT FROM p_error
+           OR v_row.input_tokens IS DISTINCT FROM p_input OR v_row.output_tokens IS DISTINCT FROM p_output
+           OR v_row.actual_model IS DISTINCT FROM p_model THEN
+            RAISE EXCEPTION 'AI_USAGE_CONFLICT' USING ERRCODE='22023';
+        END IF;
+        RETURN true;
+    END IF;
+    IF v_row.status <> 'running' OR NOT EXISTS(SELECT 1 FROM public.ai_assistant_request_quota q WHERE q.owner_principal_id=p_owner AND q.request_id=p_request) THEN
+        RAISE EXCEPTION 'AI_USAGE_DENIED' USING ERRCODE='42501';
+    END IF;
+    v_end:=clock_timestamp();
+    UPDATE public.ai_usage_journal SET status=p_status,error_code=p_error,finished_at=v_end,
+      duration_ms=greatest(0,floor(extract(epoch FROM (v_end-started_at))*1000)::bigint),
+      input_tokens=p_input,output_tokens=p_output,actual_model=p_model
+     WHERE owner_principal_id=p_owner AND request_id=p_request;
+    RETURN true;
 END;
 $$;
