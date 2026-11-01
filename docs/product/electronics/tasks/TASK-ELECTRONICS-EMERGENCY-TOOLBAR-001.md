@@ -72,3 +72,19 @@ the complete time value, all actions and readable typography. Include the actual
 explicit vertical containment as well as horizontal checks. Preserve rejected
 raw receipts and the frozen original-CSS comparison. No clock computation,
 pacing, persistence or extra product path is authorized by this display repair.
+
+## Denied-storage caption qualification repair
+
+Repair the original E01 denied-local-storage failure at `captionVisible` in
+`e01AffectedToolbarLayouts`. Keep its complete oracle unchanged. The exported
+emergency document equality already passed: this slice changes display only.
+Inspect actual native rendered text and pseudo-elements before choosing the CSS
+fix. Keep a readable emergency-copy caption and all required native actions,
+including at320px; no font-zero substitution for the required caption.
+
+Only `workbench.css` is production scope. Reuse the existing native toolbar
+matrix for reachable actions, Code open/closed, running/stopped/pausing/paused,
+emergency present/absent and long elapsed values. Run the original full E01
+scenario in isolated CI, preserving JSON, network, CAS and fresh-context checks.
+Do not adjust assertion thresholds, timeout, retry or simulator/persistence code.
+Other compact hit-ownership and clock-throughput failures remain separate slices.
