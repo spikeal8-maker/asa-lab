@@ -7920,7 +7920,8 @@ parallel_lanes:
       owner_authorization: >-
         Owner requests image-filled compact catalog cards matching supplied reference:
         public author top left, minimal module top right, title in a light lower strip,
-        real likes over the preview and publication date on hover/focus. Existing DTO
+        real likes over the preview and publication date on hover/focus. Owner follow-up
+        requires title also over the preview, without a separate lower strip. Existing DTO
         has no avatar or download total; use honest initials fallback, no fabricated
         totals, no new private data projection. Scope catalog DOM/CSS and regression
         evidence only; no deployment, permissions, source data or player changes.

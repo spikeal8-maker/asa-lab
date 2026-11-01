@@ -100,7 +100,7 @@ it('keeps immutable card navigation, actual likes and editorial metadata without
   expect(onOpen).toHaveBeenCalledWith('published');
 });
 
-it('places identity and real likes on the preview, with only the title in the lower strip', async () => {
+it('places identity and real likes on the preview, with a separate title overlay', async () => {
   await render({ kind: 'public-projects' });
   const cover = host.querySelector('.public-project-card-cover')!;
   expect(cover.querySelector('.public-project-author')?.textContent).toBe(work.authorLabel);

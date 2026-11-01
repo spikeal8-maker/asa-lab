@@ -723,14 +723,16 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
         return {
           square: Math.abs(bounds.width - bounds.height),
-          flush: Math.abs(cover.bottom - footer.top),
+          titleInside: footer.top >= cover.top && footer.bottom <= cover.bottom,
+          fullBleed: Math.abs(cover.height - (bounds.height - 2)),
           identityFits: identity.right <= module.left && identity.left >= cover.left,
           likesInside: likes.bottom <= cover.bottom && likes.right <= cover.right,
           titleOnly: card.querySelector('.public-project-card-body')!.children.length === 1,
         };
       });
       expect(geometry.square).toBeLessThan(3);
-      expect(geometry.flush).toBeLessThan(1);
+      expect(geometry.titleInside).toBe(true);
+      expect(geometry.fullBleed).toBeLessThan(1);
       expect(geometry.identityFits).toBe(true);
       expect(geometry.likesInside).toBe(true);
       expect(geometry.titleOnly).toBe(true);
