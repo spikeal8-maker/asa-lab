@@ -7912,18 +7912,25 @@ parallel_lanes:
       branch: main
       base_branch: main
       status: in_progress
-      checkpoint: owner_reference_card_local_visual_verified
+      checkpoint: real_copy_count_selected
       kind: implementation
-      risk: low
-      semantic_change: 'no'
+      risk: high
+      semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
         Owner requests image-filled compact catalog cards matching supplied reference:
         public author top left, minimal module top right, title in a light lower strip,
-        real likes over the preview and publication date on hover/focus. Existing DTO
+        real likes over the preview and publication date on hover/focus. Owner follow-up
+        requires title also over the preview, without a separate lower strip. Existing DTO
         has no avatar or download total; use honest initials fallback, no fabricated
-        totals, no new private data projection. Scope catalog DOM/CSS and regression
-        evidence only; no deployment, permissions, source data or player changes.
+        totals, no private row/actor disclosure. Owner now requests the missing count of
+        downloads: per prior terminology this is Add to my projects, not physical
+        file export. Add a real successful-copy aggregate, idempotent replay and
+        failed/rolled-back attempts must not inflate it. Preserve lifetime count
+        after copy trash/removal using minimal private event data; backfill only
+        provable existing copies. One forward migration, existing API/card and
+        focused negative/transactional evidence, independent security challenge.
+        No deployment, permissions, private profile projection or player changes.
       context_hints:
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
@@ -8864,6 +8871,14 @@ parallel_lanes:
       checkpoint: author_workspace_course_usage_selected
       selected_slice:
         id: LRN-E1-AUTHOR-USAGE-001
+        ci_prerequisite:
+          id: LRN-E1-CI-RUNNER-001
+          owner_authorization: Owner approved current.yaml reconciliation, CI repair, PR900 verification and green-gated main integration, then continued Courses completion on 2026-11-01.
+          classification: D_infrastructure
+          scope: Pin the existing Learning E1 workflow jobs to supported Ubuntu 24.04 without changing tests or gates.
+          path: .github/workflows/learning-e1-focused.yml
+          evidence: Learning run 41325031781 job 124903073394 fails before tests because Playwright does not support ubuntu26.04-x64.
+          constraints: Separate workflow-only executor and independent review; preserve commands, case partitions, retries, timeouts and mandatory aggregate.
         owner_authorization: Owner requested checking the Courses specification and starting completion of the author workspace on 2026-11-01.
         normative_ref: PRODUCT-INTEGRATED-V15 section 4.2.1 Usage
         scope: >-

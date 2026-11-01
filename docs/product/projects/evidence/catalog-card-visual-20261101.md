@@ -54,3 +54,18 @@ ubuntu-latest selected Ubuntu26.04, unsupported by pinned Playwright1.55.1.
 Category D, not a card failure. Pin only this existing publication job to supported
 Ubuntu24.04; retain exact dependencies, all existing assertions and artifacts.
 No broad workflow repair, Playwright upgrade, product fallback or test weakening.
+
+## Owner correction — title inside the image
+
+Owner rejected the separate lower title strip. Final CSS places the existing title
+body absolutely over the preview at bottom-left, reserving space for real likes
+bottom-right. Preview now fills the entire square including lower rounded corners;
+no blue/white title strip remains. Two-line bounded white title with soft dark
+contrast gradient; full title remains in native tooltip and accessible link name.
+Editorial marks move above the two-line title. No DTO/data changes.
+
+Final isolated native screenshots replaced with this version. Four widths PASS:
+preview occupies full card height, title remains inside image, title and likes do
+not overlap, author/module separate, no page overflow, hover/focus date works.
+Inspected final desktop card and390 layout. Updated built-browser regression
+checks full-bleed geometry and title-inside instead of obsolete footer adjacency.

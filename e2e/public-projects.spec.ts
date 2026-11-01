@@ -712,7 +712,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         ).toHaveCount(8);
       }
       const visualCard = guest.getByTestId('public-project-card').filter({ hasText: longTitle });
-      const geometry = await visualCard.evaluate((card) => {
+      const cardGeometry = await visualCard.evaluate((card) => {
         const bounds = card.getBoundingClientRect();
         const cover = card.querySelector('.public-project-card-cover')!.getBoundingClientRect();
         const footer = card.querySelector('.public-project-card-body')!.getBoundingClientRect();
@@ -723,17 +723,19 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
         return {
           square: Math.abs(bounds.width - bounds.height),
-          flush: Math.abs(cover.bottom - footer.top),
+          titleInside: footer.top >= cover.top && footer.bottom <= cover.bottom,
+          fullBleed: Math.abs(cover.height - (bounds.height - 2)),
           identityFits: identity.right <= module.left && identity.left >= cover.left,
           likesInside: likes.bottom <= cover.bottom && likes.right <= cover.right,
           titleOnly: card.querySelector('.public-project-card-body')!.children.length === 1,
         };
       });
-      expect(geometry.square).toBeLessThan(3);
-      expect(geometry.flush).toBeLessThan(1);
-      expect(geometry.identityFits).toBe(true);
-      expect(geometry.likesInside).toBe(true);
-      expect(geometry.titleOnly).toBe(true);
+      expect(cardGeometry.square).toBeLessThan(3);
+      expect(cardGeometry.titleInside).toBe(true);
+      expect(cardGeometry.fullBleed).toBeLessThan(1);
+      expect(cardGeometry.identityFits).toBe(true);
+      expect(cardGeometry.likesInside).toBe(true);
+      expect(cardGeometry.titleOnly).toBe(true);
       // Date is discoverable with pointer and keyboard, without an extra footer row.
       await guest.mouse.move(0, 0);
       await visualCard.locator('a').evaluate((element: HTMLElement) => element.blur());
