@@ -1,3 +1,5 @@
+import * as cloudAdapter from './ai-provider-stream';
+import * as localAdapter from './ai-ollama';
 import type { AiImageService } from './ai-image.service';
 import {
   TOOL_PROVIDERS,
@@ -14,6 +16,8 @@ import { imageSearchQueryAllowed } from './ai-web-search';
 import { AiWebSearchService } from './ai-web-search';
 import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 
+const originalLocal = localAdapter.streamOllamaText;
+const originalCloud = cloudAdapter.streamProviderText;
 const OWNER = '11111111-1111-4111-8111-111111111111';
 const THREAD = '22222222-2222-4222-8222-222222222222';
 const REQUEST = '33333333-3333-4333-8333-333333333333';
@@ -841,3 +845,60 @@ it.each(TOOL_PROVIDERS)('%s never dispatches a tool after user cancellation', as
   expect(result.stopped).toBe(true);
   expect(f.requests.some((item) => item.url.includes('/search?'))).toBe(false);
 });
+
+it.each(TOOL_PROVIDERS)(
+  '%s accounts for a failed follow-up as well as the successful tool-selection round',
+  async (provider) => {
+    const f = fixture(
+      'auto',
+      'web_search',
+      undefined,
+      [],
+      'complete',
+      true,
+      undefined,
+      false,
+      provider,
+    );
+    const usage = { inputTokens: 20, outputTokens: 7, actualModel: 'failed-follow-up' };
+    let round = 0;
+    const spy =
+      provider === 'ollama'
+        ? vi.spyOn(localAdapter, 'streamOllamaText').mockImplementation(async (input) => {
+            if (++round === 2)
+              throw new localAdapter.OllamaError(
+                'ai_stream_interrupted',
+                503,
+                'Interrupted',
+                'Partial answer',
+                usage,
+              );
+            return originalLocal(input);
+          })
+        : vi.spyOn(cloudAdapter, 'streamProviderText').mockImplementation(async (input) => {
+            if (++round === 2)
+              throw new cloudAdapter.ProviderStreamError(
+                'ai_stream_interrupted',
+                503,
+                'Interrupted',
+                'Partial answer',
+                usage,
+              );
+            return originalCloud(input);
+          });
+    try {
+      await expect(f.send()).rejects.toMatchObject({ code: 'ai_stream_interrupted' });
+      const finish = f.calls.find((item) => item.sql.includes('ai_usage_finish'))!;
+      expect(finish.params).toContain('failed');
+      expect(finish.params).toContain(30);
+      expect(finish.params).toContain(9);
+      expect(f.calls.find((item) => item.sql.includes('ai_chat_finish'))?.params.slice(3)).toEqual([
+        'Partial answer',
+        'stopped',
+      ]);
+      expect(f.requests.filter((item) => item.url.includes('/search?'))).toHaveLength(1);
+    } finally {
+      spy.mockRestore();
+    }
+  },
+);

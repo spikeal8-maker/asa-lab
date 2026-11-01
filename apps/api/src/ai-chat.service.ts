@@ -2563,7 +2563,8 @@ export class AiChatService {
           requestId,
           'failed',
           usageFailureCode(problem),
-          problem instanceof OllamaError && capturedUsage
+          (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
+            capturedUsage
             ? addNativeUsage(capturedUsage, problem.usage)
             : (capturedUsage ??
                 (problem instanceof ProviderStreamError || problem instanceof OllamaError
