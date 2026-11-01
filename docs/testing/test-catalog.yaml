@@ -118,6 +118,16 @@ tests:
     timeout_seconds: 180
     owner: ai-assistant
     artifacts: [vitest-report, private-storage-reconciliation-report]
+  - id: TST-AI-FIXTURE-STARTUP-001
+    title: Actual fixture CLI rejects incomplete asynchronous startup without Docker or network access
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: node --test tests/ai-attachments/minio-fixture.test.mjs
+    timeout_seconds: 30
+    owner: ai-assistant
+    artifacts: [node-test-report]
   - id: TST-AI-CLOUD-PG-001
     title: Separate encrypted cloud provider credentials, Ollama Cloud transport, paid admission and durable usage
     suite: authorization

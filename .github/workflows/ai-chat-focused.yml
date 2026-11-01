@@ -96,7 +96,8 @@ concurrency:
 jobs:
   focused:
     name: AI unit and API/Web types
-    runs-on: ubuntu-latest
+    # Playwright 1.55.1 supports this image; ubuntu-latest can advance to 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       NX_SKIP_NX_CACHE: 'true'
@@ -118,6 +119,8 @@ jobs:
         run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
+      - name: Attachment fixture CLI startup regression without Docker
+        run: node --test tests/ai-attachments/minio-fixture.test.mjs
       - name: No unformatted files
         run: |
           pnpm exec prettier --check apps/api/src/ai-* apps/api/src/ai-attachments apps/api/src/app.factory.ts apps/api/src/abuse-protection.ts apps/api/src/abuse-protection.spec.ts apps/api/src/seat-context.ts apps/api/src/account-verification.guard* apps/web/src/components/ClassroomAiAccess.tsx apps/web/src/components/classroom-ai-access.css apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts tests/ai-attachments package.json
@@ -129,7 +132,7 @@ jobs:
 
   database:
     name: AI real PostgreSQL isolation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     services:
       postgres:
@@ -176,7 +179,7 @@ jobs:
 
   storage:
     name: AI real S3 attachment isolation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       CI: 'true'
@@ -225,7 +228,7 @@ jobs:
 
   browser:
     name: AI desktop and mobile browser
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -256,7 +259,7 @@ jobs:
 
   usage-overview-browser:
     name: AI usage overview real API and built Web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -330,7 +333,7 @@ jobs:
     # This comparator neither deploys a revision nor selects another task.
     if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'assistant/asai-01-')
     name: ASAI-01 pristine pre-density overview comparison
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
