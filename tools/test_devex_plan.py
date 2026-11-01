@@ -108,6 +108,43 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(['shared', 'web'], report['affected_projects'])
         self.assertIn('TST-CONSUMER-001', ids(report))
 
+    def test_added_direct_consumer_edit_cannot_remove_dependency_checks_or_risk(self):
+        shared, local, consumer = 'packages/shared/x.ts', 'apps/web/local.css', 'apps/web/page.tsx'
+        fixture(self.root, [shared, local])
+        add_consumer(self.root, consumer)
+        dependency = {'projects': {'shared': {'root': 'packages/shared'}, 'web': {'root': 'apps/web'}},
+                      'reverse_projects': {'shared': ['web']}}
+        before = result(self.root, [shared], dependency)
+        after = result(self.root, [shared, local], dependency)
+        self.assertEqual('PLANNED', after['status'])
+        self.assertTrue(ids(before) <= ids(after))
+        self.assertIn('TST-CONSUMER-001', ids(after))
+        self.assertEqual('L1_UI_BEHAVIOR', after['change_class'])
+        # Project dependency expansion also cannot be narrowed to one L0 control
+        # when it shares a Surface Map with the higher-risk consumer control.
+        surface_path = self.root / 'docs/agent/surfaces/fixture.yaml'
+        data = yaml.safe_load(surface_path.read_text())
+        data['surfaces'][0]['implementation']['files'] = [*data['surfaces'][0]['implementation']['files'], consumer]
+        data['surfaces'][0]['controls'].extend(data['surfaces'].pop()['controls'])
+        surface_path.write_text(yaml.safe_dump(data))
+        combined = result(self.root, [shared, local], dependency)
+        self.assertTrue(ids(before) <= ids(combined))
+        self.assertEqual('L1_UI_BEHAVIOR', combined['change_class'])
+
+    def test_added_control_edit_cannot_narrow_unclassified_surface_coverage(self):
+        fixture(self.root, ['apps/web/local.css'])
+        add_consumer(self.root, 'apps/web/page.tsx')
+        surface_path = self.root / 'docs/agent/surfaces/fixture.yaml'
+        data = yaml.safe_load(surface_path.read_text())
+        data['surfaces'][0]['implementation']['files'] = [*data['surfaces'][0]['implementation']['files'], 'apps/web/shared.css']
+        data['surfaces'][0]['controls'].extend(data['surfaces'].pop()['controls'])
+        surface_path.write_text(yaml.safe_dump(data))
+        before = result(self.root, ['apps/web/shared.css'])
+        after = result(self.root, ['apps/web/shared.css', 'apps/web/local.css'])
+        self.assertTrue(ids(before) <= ids(after))
+        self.assertIn('TST-CONSUMER-001', ids(after))
+        self.assertEqual('L1_UI_BEHAVIOR', after['change_class'])
+
     def test_dependency_failure_fallback(self):
         fixture(self.root, ['x.ts'])
         report = result(self.root, ['x.ts'], {'unknown': ['nonliteral dynamic import']})
@@ -129,6 +166,16 @@ class PlannerTests(unittest.TestCase):
             {'source': 'tools/consumer.ts', 'reason': 'nonliteral import could consume changed code', 'unbounded_code_consumer': True},
         ]:
             self.assertEqual('BLOCKED', result(self.root, ['apps/web/button.tsx'], {'unknown': [issue]})['status'])
+
+    def test_uncertain_consumer_covers_assets_of_any_extension(self):
+        paths = ['apps/web/image.svg', 'apps/web/font.woff2', 'apps/web/data.yaml', 'docs/images/image.svg', 'apps/web/extensionless']
+        fixture(self.root, paths)
+        dependency = {'unknown': [{'source': 'apps/web/style.css', 'reason': 'unsupported CSS URL', 'unbounded_code_consumer': True}]}
+        for path in paths:
+            with self.subTest(path=path):
+                report = result(self.root, [path], dependency)
+                self.assertEqual('BLOCKED', report['status'])
+                self.assertTrue(CRITICAL <= ids(report))
 
     def test_local_project_does_not_select_unrelated_sensitive_surface(self):
         fixture(self.root, ['apps/web/local.css'], 'L0_LOCAL_UI')

@@ -124,6 +124,8 @@ def plan(root: Path, changes: list[dict[str, str]], dependency: dict[str, Any], 
         if change.get('status', '')[:1] in {'D', 'R', 'C', 'U', 'X', 'B'}:
             unknown.append(f'old/deleted/conflicted dependency graph unavailable: {change}')
     original = set(files)
+    # Documentation text is metadata; runtime assets have no extension allowlist.
+    runtime_paths = {p for p in original if not (p.startswith('docs/') and re.search(r'\.(?:md|ya?ml)$', p, re.I))}
     reverse = dependency.get('reverse_imports', {})
     pending = list(files)
     while pending:
@@ -134,14 +136,16 @@ def plan(root: Path, changes: list[dict[str, str]], dependency: dict[str, Any], 
                 pending.append(consumer)
     project_nodes = dependency.get('projects', {})
     affected = {name for name, data in project_nodes.items() if any(p == data['root'] or p.startswith(data['root'] + '/') for p in files)}
-    direct_projects = set(affected)
+    # A consumer remains dependency-reached even when it also has a direct edit.
+    # Subtracting direct projects makes adding a local edit remove required checks.
+    propagated_projects: set[str] = set()
     pending_projects = list(affected)
     while pending_projects:
         for consumer in dependency.get('reverse_projects', {}).get(pending_projects.pop(), []):
+            propagated_projects.add(consumer)
             if consumer not in affected:
                 affected.add(consumer)
                 pending_projects.append(consumer)
-    propagated_projects = affected - direct_projects
     for issue in dependency.get('unknown', []):
         if not isinstance(issue, dict):
             unknown.append(str(issue))
@@ -150,7 +154,9 @@ def plan(root: Path, changes: list[dict[str, str]], dependency: dict[str, Any], 
         relevant = source in files or any(source.startswith(project_nodes[n]['root'] + '/') for n in propagated_projects)
         for potential in issue.get('potential_roots', []):
             relevant |= any(p == potential or p.startswith(potential + '/') or p.rsplit('.', 1)[0] == potential for p in files)
-        if issue.get('unbounded_code_consumer') and any(re.search(r'\.(?:[cm]?[jt]sx?|css|json)$', p) for p in original):
+        # Unresolved runtime imports can consume assets of any extension. Canonical
+        # documentation text is metadata; docs assets (SVG, fonts, etc.) still count.
+        if issue.get('unbounded_code_consumer') and runtime_paths:
             relevant = True
         if relevant:
             unknown.append(str(issue.get('reason') or issue))
@@ -171,7 +177,8 @@ def plan(root: Path, changes: list[dict[str, str]], dependency: dict[str, Any], 
         if not hit and not project_hit:
             continue
         mapped.update(hit)
-        selected_controls = [c for c in controls if hit.intersection(c.get('files', []))] if hit else controls
+        control_files = {p for c in controls for p in c.get('files', [])}
+        selected_controls = controls if project_hit or hit - control_files else [c for c in controls if hit.intersection(c.get('files', []))]
         if not selected_controls:
             selected_controls = controls
         for test_id in surface.get('tests', []):
