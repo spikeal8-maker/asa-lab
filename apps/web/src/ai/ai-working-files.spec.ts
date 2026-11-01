@@ -11,12 +11,18 @@ it('updates the same file card, retains viewing controls and loads the new versi
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const host = document.createElement('div');
   document.body.append(host);
-  const root = createRoot(host);
+  const mount = document.createElement('div');
+  const anchor = document.createElement('div');
+  host.append(mount, anchor);
+  const root = createRoot(mount);
+  const messages = [{ id: 'message', requestId: 'request', role: 'assistant' }];
+  const targets = { message: anchor };
   let head = 1;
   const contents = ['<button>Snake</button>', '<button>Змейка</button>'];
   const metadata = () => ({
     id: 'file',
     name: 'snake.html',
+    anchorRequestId: 'request',
     version: head,
     sourceMessageId: null,
     sourceBlock: null,
@@ -36,14 +42,24 @@ it('updates the same file card, retains viewing controls and loads the new versi
         },
   }));
   const onSources = vi.fn();
-  const render = (refreshKey: string) =>
+  const render = (refreshKey: string, latestRequestId = 'request') =>
     root.render(
-      createElement(AiWorkingFiles, { threadId: 'thread', refreshKey, busy: false, onSources }),
+      createElement(AiWorkingFiles, {
+        threadId: 'thread',
+        refreshKey,
+        busy: false,
+        onSources,
+        messages,
+        targets,
+        latestRequestId,
+      }),
     );
   try {
     await act(async () => render('1'));
     const card = host.querySelector('dialog');
     expect(card).not.toBeNull();
+    expect(anchor.contains(card)).toBe(true);
+    expect(mount.querySelector('dialog')).toBeNull();
     expect(host.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
     head = 2;
     await act(async () => render('2'));
@@ -57,6 +73,16 @@ it('updates the same file card, retains viewing controls and loads the new versi
     expect(onSources).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'file', version: 2 }),
     ]);
+    await act(async () => render('3', 'next-question'));
+    expect(anchor.querySelector('iframe')).toBeNull();
+    const open = anchor.querySelector<HTMLButtonElement>('[aria-label="Открыть файл snake.html"]')!;
+    expect(open).not.toBeNull();
+    await act(async () => open.click());
+    expect(anchor.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
+    await act(async () =>
+      anchor.querySelector<HTMLButtonElement>('[aria-label="Свернуть предпросмотр"]')!.click(),
+    );
+    expect(anchor.querySelector('iframe')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     host.remove();

@@ -222,6 +222,41 @@
   min-width: 0;
   margin-block: 16px;
 }
+.asa-ai-layout .chat-working-anchor {
+  width: 100%;
+  min-width: 0;
+}
+.asa-ai-layout .chat-working-collapsed {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  margin-block: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 6%, var(--ai-surface));
+  color: var(--ai-text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.asa-ai-layout .chat-working-collapsed > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asa-ai-layout .chat-working-collapsed small {
+  color: var(--ai-muted);
+}
+.asa-ai-layout .chat-working-collapsed .chat-working-open {
+  margin-left: auto;
+  font-size: 12px;
+}
+.asa-ai-layout .chat-working-collapsed:hover {
+  background: var(--ai-bg);
+}
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
   display: inline-flex;
   align-items: center;

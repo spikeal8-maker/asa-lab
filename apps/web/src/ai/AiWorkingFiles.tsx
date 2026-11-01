@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { createAiScopeCall } from './ai-scope-api';
 import { AiMessageContent } from './AiMessageContent';
 import { AiChatIcon } from './AiChatIcon';
@@ -6,6 +7,7 @@ import { AiChatIcon } from './AiChatIcon';
 export interface WorkingFileInfo {
   id: string;
   name: string;
+  anchorRequestId: string;
   version: number;
   headVersion?: number;
   content?: string;
@@ -19,12 +21,18 @@ export function AiWorkingFiles({
   refreshKey,
   busy,
   onSources,
+  messages,
+  targets,
+  latestRequestId,
 }: {
   threadId: string;
   seatId?: string | undefined;
   refreshKey: string;
   busy: boolean;
   onSources: (files: WorkingFileInfo[]) => void;
+  messages: readonly { id: string; requestId: string; role: string }[];
+  targets: Readonly<Record<string, HTMLElement>>;
+  latestRequestId: string | undefined;
 }): JSX.Element | null {
   const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [files, setFiles] = useState<WorkingFileInfo[]>([]);
@@ -34,6 +42,9 @@ export function AiWorkingFiles({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [collapsed, setCollapsed] = useState(false);
+  const seenFile = useRef(false);
+  const previousTurn = useRef(latestRequestId);
   const base = '/api/ai/threads/' + encodeURIComponent(threadId) + '/working-files';
   useEffect(() => {
     const controller = new AbortController();
@@ -52,8 +63,27 @@ export function AiWorkingFiles({
     return () => controller.abort();
   }, [base, call, refreshKey, refresh, onSources]);
   const head = files.find((f) => f.name === name);
+  const anchor =
+    messages.find((m) => m.id === head?.sourceMessageId) ??
+    messages.find((m) => m.requestId === head?.anchorRequestId && m.role === 'assistant') ??
+    messages.find((m) => m.requestId === head?.anchorRequestId) ??
+    messages.find((m) => m.role === 'assistant') ??
+    messages[0];
+  const target = anchor ? targets[anchor.id] : undefined;
   useEffect(() => {
     if (!head) return;
+    if (!seenFile.current) {
+      seenFile.current = true;
+      previousTurn.current = latestRequestId;
+      setCollapsed(Boolean(latestRequestId && latestRequestId !== head.anchorRequestId));
+    } else if (previousTurn.current !== latestRequestId) {
+      previousTurn.current = latestRequestId;
+      setCollapsed(true);
+      setVersion(null);
+    }
+  }, [head?.id, latestRequestId]);
+  useEffect(() => {
+    if (!head || collapsed || !target) return;
     const controller = new AbortController();
     void call<WorkingFileInfo>(
       base + '/' + encodeURIComponent(head.name) + (version ? '?version=' + version : ''),
@@ -66,7 +96,7 @@ export function AiWorkingFiles({
       } else setError(result.error.message);
     });
     return () => controller.abort();
-  }, [base, call, head?.id, head?.name, head?.version, version, refresh]);
+  }, [base, call, head?.id, head?.name, head?.version, version, refresh, collapsed, target]);
   async function restore(): Promise<void> {
     if (!file || !head || saving || busy) return;
     setSaving(true);
@@ -92,28 +122,58 @@ export function AiWorkingFiles({
       setRefresh((n) => n + 1);
     }
   }
-  if (!file || !head) return null;
+  if (!head || !target) return null;
+  if (collapsed)
+    return createPortal(
+      <button
+        type="button"
+        className="chat-working-collapsed"
+        aria-label={'Открыть файл ' + head.name}
+        aria-expanded={false}
+        onClick={() => setCollapsed(false)}
+      >
+        <AiChatIcon name="file" size={18} />
+        <span>{head.name}</span>
+        <small>v{head.version}</small>
+        <span className="chat-working-open">Открыть</span>
+        <AiChatIcon name="chevron-down" size={16} />
+      </button>,
+      target,
+    );
+  if (!file) return null;
   const language = file.name.split('.').at(-1) ?? 'text';
   // The server stores literal code; choose a fence longer than any in that code.
   const longest = Math.max(2, ...((file.content ?? '').match(/`+/g) ?? []).map((s) => s.length));
   const fence = '`'.repeat(longest + 1);
-  return (
+  return createPortal(
     <section className="chat-working-files" aria-label="Рабочие файлы чата">
       <AiMessageContent
         key={file.id}
         content={fence + language + '\n' + (file.content ?? '') + '\n' + fence}
         codeHeader={{
           name: file.name,
-          actions: file.version !== head.version && (
-            <button
-              type="button"
-              aria-label="Восстановить эту версию"
-              data-ai-tooltip="Восстановить как новую версию"
-              disabled={busy || saving}
-              onClick={() => void restore()}
-            >
-              <AiChatIcon name="refresh" size={17} />
-            </button>
+          actions: (
+            <>
+              <button
+                type="button"
+                aria-label="Свернуть предпросмотр"
+                data-ai-tooltip="Свернуть в строку"
+                onClick={() => setCollapsed(true)}
+              >
+                <AiChatIcon name="chevron-down" size={17} />
+              </button>
+              {file.version !== head.version && (
+                <button
+                  type="button"
+                  aria-label="Восстановить эту версию"
+                  data-ai-tooltip="Восстановить как новую версию"
+                  disabled={busy || saving}
+                  onClick={() => void restore()}
+                >
+                  <AiChatIcon name="refresh" size={17} />
+                </button>
+              )}
+            </>
           ),
           controls: (
             <>
@@ -164,6 +224,7 @@ export function AiWorkingFiles({
           {error}
         </p>
       )}
-    </section>
+    </section>,
+    target,
   );
 }

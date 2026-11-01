@@ -162,6 +162,17 @@ function searchExcerpt(preview: string, query: string): ReactNode {
   );
 }
 
+function WorkingFileAnchor({
+  id,
+  onTarget,
+}: {
+  id: string;
+  onTarget: (id: string, node: HTMLDivElement | null) => void;
+}): JSX.Element {
+  const ref = useCallback((node: HTMLDivElement | null) => onTarget(id, node), [id, onTarget]);
+  return <div ref={ref} className="chat-working-anchor" />;
+}
+
 export function AiChatPage({
   seatId,
   scopeControl,
@@ -240,6 +251,16 @@ export function AiChatPage({
   const currentArchived = useRef(false);
   const [messages, setMessages] = useState<readonly AiMessage[]>([]);
   const [workingSources, setWorkingSources] = useState<WorkingFileInfo[]>([]);
+  const [workingTargets, setWorkingTargets] = useState<Record<string, HTMLElement>>({});
+  const registerWorkingTarget = useCallback((id: string, node: HTMLDivElement | null) => {
+    setWorkingTargets((previous) => {
+      if (previous[id] === node || (!node && !previous[id])) return previous;
+      const next = { ...previous };
+      if (node) next[id] = node;
+      else delete next[id];
+      return next;
+    });
+  }, []);
   const receiveWorkingSources = useCallback(
     (files: WorkingFileInfo[]) => setWorkingSources(files),
     [],
@@ -1992,6 +2013,7 @@ export function AiChatPage({
                           ) : null}
                         </div>
                       )}
+                      <WorkingFileAnchor id={message.id} onTarget={registerWorkingTarget} />
                     </article>
                   ))}
                   {pendingMessage &&
@@ -2054,6 +2076,13 @@ export function AiChatPage({
                       refreshKey={messages.length + ':' + busy}
                       busy={busy}
                       onSources={receiveWorkingSources}
+                      messages={messages}
+                      targets={workingTargets}
+                      latestRequestId={
+                        pendingMessage?.requestId ??
+                        pendingRegeneration?.requestId ??
+                        messages.filter((m) => m.role === 'user').at(-1)?.requestId
+                      }
                     />
                   ) : null}
                   {imageUi.busy ? <AiActivity image /> : null}
