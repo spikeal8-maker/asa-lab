@@ -8,7 +8,7 @@ import {
 import {
   buildAiTextRequest,
   isModelForProvider,
-  isKnownOllamaCloudModel,
+  isKnownAdmittedModel,
   supportsAiImageInput,
 } from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
@@ -18,7 +18,7 @@ import {
   type NativeToolDefinition,
   type NativeToolResult,
 } from './ai-native-tools.js';
-export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud';
+export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud' | 'polza';
 
 export class ProviderStreamError extends Error {
   constructor(
@@ -185,7 +185,7 @@ export async function streamProviderText({
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
   if (signal.aborted) return { text: '', stopped: true };
-  if (!(isModelForProvider(provider, model) || isKnownOllamaCloudModel(provider, model))) {
+  if (!(isModelForProvider(provider, model) || isKnownAdmittedModel(provider, model))) {
     throw new ProviderStreamError('ai_model_invalid', 400, 'Выберите поддерживаемую модель.');
   }
   if (images?.length && !supportsAiImageInput(provider, model))

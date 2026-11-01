@@ -129,7 +129,8 @@ export class AiUsageJournal {
       operationRequestId: this.requestId(request),
       operation: attempt?.operation === 'regeneration' ? 'regeneration' : 'chat',
       provider:
-        attempt && ['openai', 'deepseek', 'ollama', 'ollama-cloud'].includes(attempt.provider)
+        attempt &&
+        ['openai', 'deepseek', 'ollama', 'ollama-cloud', 'polza'].includes(attempt.provider)
           ? attempt.provider
           : null,
       requestedModel: providerModel(attempt?.model),

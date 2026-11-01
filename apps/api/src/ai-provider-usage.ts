@@ -18,7 +18,7 @@ export function providerModel(value: unknown): string | null {
 }
 
 export function providerUsage(
-  provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud',
+  provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud' | 'polza',
   payload: unknown,
 ): AiProviderUsage | undefined {
   if (!payload || typeof payload !== 'object') return undefined;

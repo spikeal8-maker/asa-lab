@@ -1,3 +1,4 @@
+import { AdminPolzaCatalog } from './AdminPolzaCatalog';
 import { useEffect, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { isPolzaConfig, type AiPolzaAdminConfig } from './ai-polza-admin';
@@ -22,11 +23,13 @@ export function AdminPolzaConnection({
   const [config, setConfig] = useState<AiPolzaAdminConfig | null>(null);
   const [keyInput, setKeyInput] = useState('');
   const [enabled, setEnabled] = useState(false);
+  const [paidPerHour, setPaidPerHour] = useState(0);
   const [clearKey, setClearKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [catalogDirty, setCatalogDirty] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export function AdminPolzaConnection({
       if (reply.ok && isPolzaConfig(reply.data)) {
         setConfig(reply.data);
         setEnabled(reply.data.enabled);
+        setPaidPerHour(reply.data.paidOperationsPerHour ?? 0);
         setKeyInput('');
         setClearKey(false);
         setError('');
@@ -52,11 +56,16 @@ export function AdminPolzaConnection({
     };
   }, [reload, onAccessDenied]);
 
-  const dirty = !!config && (enabled !== config.enabled || !!keyInput || clearKey);
+  const dirty =
+    !!config &&
+    (enabled !== config.enabled ||
+      !!keyInput ||
+      clearKey ||
+      paidPerHour !== (config.paidOperationsPerHour ?? 0));
   useEffect(() => {
-    onDirtyChange?.(dirty);
+    onDirtyChange?.(dirty || catalogDirty);
     return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  }, [dirty, catalogDirty, onDirtyChange]);
   const keyReady = !!keyInput || (!!config?.apiKeyConfigured && !clearKey);
   const canSave =
     !!config &&
@@ -65,6 +74,9 @@ export function AdminPolzaConnection({
     !loading &&
     config.encryptionReady &&
     (!enabled || keyReady) &&
+    Number.isInteger(paidPerHour) &&
+    paidPerHour >= 0 &&
+    paidPerHour <= 10000 &&
     (!keyInput || /^pza_[A-Za-z0-9_-]{8,2040}$/.test(keyInput));
 
   async function check(): Promise<void> {
@@ -96,6 +108,12 @@ export function AdminPolzaConnection({
           dailySecondsLimit: config.dailySecondsLimit,
           globalDailySecondsLimit: config.globalDailySecondsLimit,
           maxAudioSeconds: config.maxAudioSeconds,
+          ...(config.textConfigurationVersion !== undefined
+            ? {
+                paidOperationsPerHour: paidPerHour,
+                textConfigurationVersion: config.textConfigurationVersion,
+              }
+            : {}),
           ...(keyInput ? { apiKey: keyInput } : {}),
           ...(clearKey ? { clearApiKey: true } : {}),
         }),
@@ -113,6 +131,7 @@ export function AdminPolzaConnection({
       }
       setConfig(result.data);
       setEnabled(result.data.enabled);
+      setPaidPerHour(result.data.paidOperationsPerHour ?? 0);
       setKeyInput('');
       setClearKey(false);
       setMessage('Ключ и параметры сохранены на сервере');
@@ -128,7 +147,7 @@ export function AdminPolzaConnection({
       <header className="asa-ai-integration-header">
         <div>
           <h2>Polza AI</h2>
-          <p>Единый ключ для речи и будущих текстовых и графических моделей.</p>
+          <p>Единый ключ для текстовых моделей и распознавания речи.</p>
         </div>
         <span className="asa-ai-integration-state">
           {config?.enabled
@@ -184,6 +203,24 @@ export function AdminPolzaConnection({
               Использовать Polza AI
             </label>
           </div>
+          {config.textConfigurationVersion !== undefined ? (
+            <label className="asa-polza-key">
+              <span>Общий лимит платных текстовых запросов в час</span>
+              <input
+                aria-label="Общий лимит платных запросов в час"
+                type="number"
+                min="0"
+                max="10000"
+                value={paidPerHour}
+                disabled={busy}
+                onChange={(e) => setPaidPerHour(Number(e.target.value))}
+              />
+              <small>
+                Для всех облачных провайдеров ASA. 0 запрещает новые платные запросы. Лимиты токенов
+                задаются в Настройках.
+              </small>
+            </label>
+          ) : null}
           <div className="asa-polza-actions">
             <button className="asa-polza-primary" type="submit" disabled={!canSave}>
               {busy ? 'Сохраняем…' : enabled ? 'Сохранить и проверить' : 'Сохранить'}
@@ -250,6 +287,13 @@ export function AdminPolzaConnection({
           <span>{config?.transcriptionEnabled ? 'Включена' : 'Настраивается отдельно'}</span>
         </div>
       </div>
+      {config?.apiKeyConfigured ? (
+        <AdminPolzaCatalog
+          onAccessDenied={onAccessDenied}
+          onUpdated={onUpdated}
+          onDirtyChange={setCatalogDirty}
+        />
+      ) : null}
     </section>
   );
 }

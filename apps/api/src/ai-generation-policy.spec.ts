@@ -1,4 +1,4 @@
-import type pg from 'pg';
+import { prePolzaPool } from './testing/ai-pre-polza-pool.fixture';
 import { getAiModelCatalog, installOllamaCloudCatalog } from './ai-model-catalog';
 import { randomUUID } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
@@ -235,7 +235,7 @@ it('projects the selected union of enabled configured Cloud keys independently o
     throw new Error('Unexpected SQL');
   });
   try {
-    const store = new AiGenerationPolicyStore({ query } as unknown as pg.Pool);
+    const store = new AiGenerationPolicyStore(prePolzaPool(query));
     const policy = await store.admin('admin', true);
     expect(
       policy.models

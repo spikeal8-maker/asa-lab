@@ -41,7 +41,12 @@ function fixture(
     calls.push({ sql, params });
     const journal = aiUsageQueryFixture(sql);
     if (journal) return journal;
-    if (sql.includes('to_regprocedure') && disabledTools.length) return { rows: [{ ready: true }] };
+    if (
+      sql.includes('to_regprocedure') &&
+      !sql.includes('ai_polza_catalog_runtime') &&
+      disabledTools.length
+    )
+      return { rows: [{ ready: true }] };
     if (sql.includes('ai_tool_policy_snapshot'))
       return {
         rows: [

@@ -1,3 +1,5 @@
+import { reloadPolzaCatalog } from './ai-polza-catalog.js';
+import { supportsAiTools } from './ai-model-catalog.js';
 import { readDocument, DOCUMENT_TYPES } from './ai-attachments/document-reader.js';
 import {
   WorkingFileStore,
@@ -425,7 +427,11 @@ export class AiChatService {
     ]);
     const policy = savedPolicy ?? current;
     const localReady = local.enabled && !!local.model;
-    let nativeReady = models.availableModels.some((id) => id !== OLLAMA_SELECTION);
+    let nativeReady = models.availableModels.some(
+      (id) =>
+        id !== OLLAMA_SELECTION &&
+        supportsAiTools(models.modelCatalog.models.find((m) => m.id === id)?.provider, id),
+    );
     if (!nativeReady && ready && localReady) {
       try {
         nativeReady = (
@@ -798,6 +804,7 @@ export class AiChatService {
       );
     }
     await reloadOllamaCloudCatalog(this.pool);
+    await reloadPolzaCatalog(this.pool);
     return {
       schemaVersion: 2,
       modelCatalog: getAiModelCatalog(),
@@ -1093,7 +1100,11 @@ export class AiChatService {
     const imageSchemaReady = !!(this.images && (await this.images.nativeSchemaReady()));
     const localImageReady = imageSchemaReady && (await this.nativeImageReady(local));
     const nativeImageModels = (available: readonly AiChatModel[]) =>
-      available.filter((id) => id !== OLLAMA_SELECTION || localImageReady);
+      available.filter((id) =>
+        id === OLLAMA_SELECTION
+          ? localImageReady
+          : supportsAiTools(modelCatalog.models.find((m) => m.id === id)?.provider, id),
+      );
     if (policy?.customized) {
       const available: AiChatModel[] = modelCatalog.models
         .filter(
@@ -1997,8 +2008,9 @@ export class AiChatService {
       );
       const toolPolicy = await this.toolPolicy.snapshot(principalId, threadId, requestId);
       let webEvidence: AiWebSearchEvidence | null = null;
+      const providerTools = useLocal || supportsAiTools(runtime.provider, model);
       const nativeInternetCandidate =
-        !sourceId && !attachmentIds.length && webSearchMode === 'auto';
+        providerTools && !sourceId && !attachmentIds.length && webSearchMode === 'auto';
       let nativeInternet = nativeInternetCandidate && !useLocal;
       let localCapabilities: readonly string[] | null = null;
       if (nativeInternetCandidate && useLocal) {
@@ -2066,6 +2078,7 @@ export class AiChatService {
       };
       const imageStatus =
         nativeImage?.mode === 'auto' &&
+        providerTools &&
         !sourceId &&
         !attachmentIds.length &&
         (useLocal
@@ -2121,7 +2134,9 @@ export class AiChatService {
         }
       }
       const fileTools =
-        fileReady && (!useLocal || localCapabilities?.includes('tools')) ? workingFileTools() : [];
+        fileReady && providerTools && (!useLocal || localCapabilities?.includes('tools'))
+          ? workingFileTools()
+          : [];
       const working = fileTools.length ? await this.workingFiles.list(principalId, threadId) : [];
       const fileMessages = fileTools.length ? await this.messages(principalId, threadId) : [];
       const priorCode = fileMessages
@@ -2866,6 +2881,7 @@ export class AiChatService {
     const row = result.rows[0];
     if (!row) throw new AiServiceError('ai_config_unavailable', 503, 'Конфигурация ИИ недоступна.');
     await reloadOllamaCloudCatalog(this.pool);
+    await reloadPolzaCatalog(this.pool);
     return row;
   }
 

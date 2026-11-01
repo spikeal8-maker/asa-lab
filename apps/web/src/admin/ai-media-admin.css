@@ -277,3 +277,122 @@
     color: #ff969d;
   }
 }
+
+.asa-polza-catalog {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid var(--border, #d5e0e9);
+  padding-top: 18px;
+}
+.asa-polza-catalog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.asa-polza-catalog h3,
+.asa-polza-catalog p {
+  margin: 0;
+}
+.asa-polza-catalog p {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.asa-polza-catalog-filters {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+.asa-polza-catalog-filters label {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 150px;
+  font-size: 13px;
+}
+.asa-polza-catalog-filters input,
+.asa-polza-catalog-filters select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--border, #d5e0e9);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.asa-polza-catalog-list {
+  max-height: 420px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.asa-polza-catalog-model {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px;
+  border-bottom: 1px solid var(--border, #e3edf5);
+}
+.asa-polza-catalog-model input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.asa-polza-catalog-model > span:first-of-type {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.asa-polza-catalog-model small {
+  color: var(--muted, #607384);
+  overflow-wrap: anywhere;
+}
+.asa-polza-catalog-badges {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: end;
+  font-size: 12px;
+}
+.asa-polza-catalog-badges span,
+.asa-ai-model-vision {
+  padding: 4px 7px;
+  background: #eaf5ff;
+  border-radius: 8px;
+  color: #175881;
+  font-size: 12px;
+}
+
+.asa-speech-test {
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border, #d5e0e9);
+}
+.asa-speech-test header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.asa-speech-test h3,
+.asa-speech-test p {
+  margin: 0;
+}
+.asa-speech-test p,
+.asa-speech-test small {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.asa-speech-test textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border, #d5e0e9);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #16344b);
+  padding: 12px;
+  font: inherit;
+}

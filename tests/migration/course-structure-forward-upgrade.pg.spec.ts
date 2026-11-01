@@ -158,6 +158,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0286', // Bounded search retrieval settings.
         '0287', // Bounded document extraction with private originals.
         '0288', // Private working files and immutable revisions.
+        '0289', // Polza text provider and bounded model catalogue.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -475,6 +476,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0286', // Bounded search retrieval settings.
           '0287', // Bounded document extraction with private originals.
           '0288', // Private working files and immutable revisions.
+          '0289', // Polza text provider and bounded model catalogue.
         ]);
         expect(
           await applyIsolatedTestPlan(

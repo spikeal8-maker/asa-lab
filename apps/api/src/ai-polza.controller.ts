@@ -77,6 +77,29 @@ export class AdminPolzaController {
     });
   }
 
+  @Get('models')
+  @Header('Cache-Control', 'private, no-store')
+  models(@Req() request: FastifyRequest) {
+    return safe(async () => this.polza.catalog(await this.actor(request)));
+  }
+  @Post('models/refresh')
+  @HttpCode(200)
+  @Header('Cache-Control', 'private, no-store')
+  refreshModels(@Req() request: FastifyRequest) {
+    return safe(async () => {
+      requireAiSameOrigin(request);
+      return this.polza.refreshCatalog(await this.actor(request));
+    });
+  }
+  @Put('models')
+  @Header('Cache-Control', 'private, no-store')
+  selectModels(@Req() request: FastifyRequest, @Body() body: unknown) {
+    return safe(async () => {
+      requireAiSameOrigin(request);
+      return this.polza.selectModels(await this.actor(request), body);
+    });
+  }
+
   @Post('check')
   @HttpCode(200)
   @Header('Cache-Control', 'private, no-store')
