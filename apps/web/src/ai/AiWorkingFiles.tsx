@@ -104,25 +104,39 @@ export function AiWorkingFiles({
         content={fence + language + '\n' + (file.content ?? '') + '\n' + fence}
         codeHeader={{
           name: file.name,
+          actions: file.version !== head.version && (
+            <button
+              type="button"
+              aria-label="Восстановить эту версию"
+              data-ai-tooltip="Восстановить как новую версию"
+              disabled={busy || saving}
+              onClick={() => void restore()}
+            >
+              <AiChatIcon name="refresh" size={17} />
+            </button>
+          ),
           controls: (
             <>
-              <select
-                className="ai-working-name"
-                aria-label="Рабочий файл"
-                title={file.name}
-                value={file.name}
-                onChange={(event) => {
-                  setFile(null);
-                  setVersion(null);
-                  setName(event.target.value);
-                }}
-              >
-                {files.map((f) => (
-                  <option key={f.id} value={f.name}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+              <span className="ai-working-picker" data-ai-tooltip={file.name}>
+                <AiChatIcon name="file" size={16} />
+                <select
+                  className="ai-working-name"
+                  aria-label="Рабочий файл"
+                  title={file.name}
+                  value={file.name}
+                  onChange={(event) => {
+                    setFile(null);
+                    setVersion(null);
+                    setName(event.target.value);
+                  }}
+                >
+                  {files.map((f) => (
+                    <option key={f.id} value={f.name}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </span>
               <select
                 className="ai-working-version"
                 aria-label="Версия файла"
@@ -138,21 +152,9 @@ export function AiWorkingFiles({
                 {file.versions?.map((v) => (
                   <option key={v.version} value={v.version}>
                     v{v.version}
-                    {v.version === head.version ? ' · текущая' : ''}
                   </option>
                 ))}
               </select>
-              {file.version !== head.version && (
-                <button
-                  type="button"
-                  aria-label="Восстановить эту версию"
-                  data-ai-tooltip="Восстановить как новую версию"
-                  disabled={busy || saving}
-                  onClick={() => void restore()}
-                >
-                  <AiChatIcon name="refresh" size={17} />
-                </button>
-              )}
             </>
           ),
         }}

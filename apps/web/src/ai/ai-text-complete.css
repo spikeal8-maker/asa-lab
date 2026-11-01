@@ -314,24 +314,75 @@
   gap: 8px;
   padding: 4px 8px;
 }
-.asa-ai-layout .asa-ai-code-file,
-.asa-ai-layout .asa-ai-code-utilities {
+.asa-ai-layout .asa-ai-code-file {
   display: flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
 }
 .asa-ai-layout .asa-ai-code-file {
-  flex: 1;
+  flex: 0 1 auto;
 }
-.asa-ai-layout .asa-ai-code-utilities {
-  flex-shrink: 0;
-}
-.asa-ai-layout .asa-ai-rich-text .asa-ai-code-viewbar {
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
+  flex-wrap: nowrap;
   justify-content: flex-start;
-  flex-wrap: wrap;
-  border-top: 1px solid color-mix(in srgb, var(--ai-border) 55%, transparent);
-  background: color-mix(in srgb, var(--color-brand, #0877b3) 4%, var(--ai-surface));
+}
+.asa-ai-layout .asa-ai-code-expand {
+  order: 9;
+}
+.asa-ai-layout .ai-working-picker {
+  display: flex;
+  min-width: 0;
+}
+.asa-ai-layout .ai-working-picker > svg,
+.asa-ai-layout .asa-ai-code-tabs button > svg,
+.asa-ai-layout .asa-ai-code-symbol {
+  display: none;
+}
+.asa-ai-layout .asa-ai-code-actions select.ai-working-version {
+  flex-basis: 58px;
+  width: 58px;
+  max-width: 58px;
+}
+.asa-ai-layout .asa-ai-code-overlay-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--ai-surface) 94%, transparent);
+  box-shadow: 0 2px 12px #071b2e14;
+}
+.asa-ai-layout .asa-ai-code-overlay-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ai-text);
+  background: transparent;
+}
+.asa-ai-layout .asa-ai-code-overlay-actions button:hover {
+  background: var(--ai-bg);
+}
+.asa-ai-layout .asa-ai-code-overlay-actions button[data-copied='true'] {
+  color: #16834f;
+}
+.asa-ai-layout .asa-ai-code-overlay-actions [data-ai-tooltip]::after {
+  bottom: auto;
+  top: calc(100% + 7px);
+}
+.asa-ai-layout .asa-ai-code-overlay-actions [data-ai-tooltip]::before {
+  display: none;
+}
+.asa-ai-layout .asa-ai-code-overlay-actions .ai-copy-button > span:not(.sr-only) {
+  display: none;
 }
 .asa-ai-layout .asa-ai-code-block .asa-ai-code-actions button.asa-ai-code-run {
   margin-left: auto;
@@ -353,7 +404,7 @@
 }
 @media (max-width: 560px) {
   .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
-    gap: 4px;
+    gap: 2px;
     padding: 4px 6px;
   }
   .asa-ai-layout .asa-ai-code-actions select.ai-working-name {
@@ -363,9 +414,9 @@
     min-width: 56px;
   }
   .asa-ai-layout .asa-ai-code-actions select.ai-working-version {
-    flex: 0 0 90px;
-    width: 90px;
-    max-width: 90px;
+    flex: 0 0 44px;
+    width: 44px;
+    max-width: 44px;
   }
   .asa-ai-layout .asa-ai-code-actions select {
     flex-basis: 54px;
@@ -377,12 +428,67 @@
     min-height: 34px;
     font-size: 12px;
   }
+  .asa-ai-layout .asa-ai-code-actions .ai-working-picker {
+    position: relative;
+    width: 28px;
+    height: 32px;
+    flex: 0 0 28px;
+    align-items: center;
+    justify-content: center;
+  }
+  .asa-ai-layout .asa-ai-code-actions .ai-working-picker select.ai-working-name {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    opacity: 0;
+  }
+  .asa-ai-layout .ai-working-picker > svg,
+  .asa-ai-layout .asa-ai-code-tabs button > svg,
+  .asa-ai-layout .asa-ai-code-symbol {
+    display: inline;
+  }
+  .asa-ai-layout .asa-ai-code-tabs button > span:not(.asa-ai-code-symbol),
+  .asa-ai-layout .asa-ai-code-run > span {
+    display: none;
+  }
+  .asa-ai-layout .asa-ai-code-actions .asa-ai-code-format {
+    width: 26px;
+    overflow: hidden;
+    padding: 0;
+    font-size: 0;
+  }
   .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block[data-expanded] {
     inset: 0;
     width: 100vw;
     height: 100dvh;
     border: 0;
     border-radius: 0;
+  }
+}
+@media (max-width: 360px) {
+  .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
+    padding-inline: 4px;
+  }
+  .asa-ai-layout .asa-ai-code-actions .ai-working-picker {
+    width: 24px;
+    flex-basis: 24px;
+  }
+  .asa-ai-layout .asa-ai-code-actions select.ai-working-version {
+    width: 36px;
+    max-width: 36px;
+    flex-basis: 36px;
+    padding-inline: 0;
+  }
+  .asa-ai-layout .asa-ai-code-actions select {
+    width: 44px;
+    max-width: 44px;
+    flex-basis: 44px;
+    padding-inline: 0;
+  }
+  .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
+    padding-inline: 3px;
   }
 }
 @media (max-width: 560px) {
