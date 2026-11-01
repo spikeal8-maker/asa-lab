@@ -22,6 +22,7 @@ const commands = [
     'tests/admin/ai-image-generation.embedded.spec.ts',
     'apps/api/src/ai-image.controller.spec.ts',
     'apps/api/src/ai-image-comfyui.spec.ts',
+    'apps/api/src/ai-image-worker-diagnostics.spec.ts',
     'apps/web/src/ai/ai-image-generation.spec.ts',
     'apps/web/src/ai/ai-generated-image.spec.ts',
     '--maxWorkers=1',
