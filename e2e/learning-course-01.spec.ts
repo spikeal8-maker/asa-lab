@@ -1371,20 +1371,39 @@ async function exerciseExactReviewStream(
     releaseContext = resolve;
   });
   let delayedContext = false;
-  const contextPath = '**/api/classrooms/' + classId + '/review-context?*';
+  let delayedContextUrl = '';
+  let contextDelivered!: () => void;
+  const contextDelivery = new Promise<void>((resolve) => {
+    contextDelivered = resolve;
+  });
+  const contextPath =
+    '**/api/classrooms/' +
+    classId +
+    '/assignments/' +
+    runtime.source_classroom_assignment_id +
+    '/students/*/review-context?*';
   await review.route(contextPath, async (route) => {
     const response = await route.fetch();
-    if (!delayedContext) {
+    const hold = !delayedContext;
+    if (hold) {
       delayedContext = true;
+      delayedContextUrl = route.request().url();
       await contextGate;
     }
     await route.fulfill({ response });
+    if (hold) contextDelivered();
   });
   await queue.getByRole('button', { name: 'Лена Главная', exact: true }).click();
   await expect.poll(() => delayedContext).toBe(true);
   await queue.getByRole('button', { name: betaLabel, exact: true }).click();
   await expect(form.getByTestId('submission-version-id')).toHaveText(frozenByLabel.get(betaLabel)!);
+  const lateContext = review.waitForResponse((response) => response.url() === delayedContextUrl);
   releaseContext();
+  await contextDelivery;
+  expect(await (await lateContext).finished()).toBeNull();
+  await review.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+  );
   await review.unroute(contextPath);
   await expect(form.getByTestId('submission-version-id')).toHaveText(frozenByLabel.get(betaLabel)!);
 

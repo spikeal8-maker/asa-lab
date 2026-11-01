@@ -108,7 +108,7 @@ export function createPortalHistoryGuard({
     }
     // Every different history entry leaves the accepted Learning entry, even
     // when its URL repeats. Only the href+index check above is a native no-op.
-    if (!hasSettingsDraft() && currentView.current.kind !== 'challenges') {
+    if (!hasSettingsDraft() && !['challenges', 'classroom'].includes(currentView.current.kind)) {
       apply();
       return;
     }

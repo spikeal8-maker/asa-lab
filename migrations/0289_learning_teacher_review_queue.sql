@@ -38,7 +38,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
        'submittedAt',attempt.submitted_at,'lateState',submission.late_state) END)
  FROM runs run
  JOIN public.learning_activity_versions version ON version.id=run.learning_activity_version_id
-   AND version.tenant_id=run.tenant_id AND version.kind='project'
+   AND version.tenant_id=run.tenant_id AND version.canonical_kind='project'
  JOIN public.activity_participations part ON part.activity_run_id=run.id
    AND part.tenant_id=run.tenant_id AND part.school_id=run.school_id
  JOIN public.learner_identity_links link ON link.learner_identity_id=part.learner_identity_id
