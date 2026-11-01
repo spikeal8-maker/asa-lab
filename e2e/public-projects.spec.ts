@@ -61,7 +61,7 @@ test('preview cards have no vignette or added strips and electronics uses a whit
           .evaluate((image: HTMLImageElement) => Boolean(image.complete && image.naturalWidth)),
       )
       .toBe(true);
-    for (const width of [1440, 1024, 390, 320]) {
+    for (const width of [3840, 2560, 1920, 1440, 1024, 1023, 601, 600, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expectNoOverflow(page);
       const columns = await page
@@ -96,6 +96,11 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       expect(Math.abs(sortBox!.x + sortBox!.width - toolsBox!.x - toolsBox!.width)).toBeLessThan(1);
       const bounds = await card.boundingBox();
       expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
+      const catalogBox = await page.getByTestId('public-project-catalog').boundingBox();
+      if (width >= 1920) {
+        expect(catalogBox!.width).toBeGreaterThan(width - 350);
+        expect(bounds!.width).toBeGreaterThan((width - 420) / 4);
+      }
       const titleBox = await card.getByTestId('public-project-card-title').boundingBox();
       const countsBox = await card.locator('.public-project-card-meta').boundingBox();
       expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(countsBox!.x);

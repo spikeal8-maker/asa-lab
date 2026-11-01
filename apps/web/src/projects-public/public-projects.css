@@ -795,6 +795,25 @@
   margin-left: auto;
   margin-right: auto;
 }
+/* Only the community catalog fills wide screens; other portal pages keep
+   their own reading widths and the existing sidebar offsets. */
+.portal-shell > .portal-content.public-projects {
+  width: calc(100% - 300px);
+  max-width: none;
+}
+.portal-shell:has(.portal-sidebar.collapsed) > .portal-content.public-projects {
+  width: calc(100% - 132px);
+}
+.portal-shell.public-projects-guest > .portal-content.public-projects {
+  width: calc(100% - 32px);
+}
+@media (max-width: 1023px) {
+  .portal-shell > .portal-content.public-projects,
+  .portal-shell:has(.portal-sidebar.collapsed) > .portal-content.public-projects {
+    width: calc(100% - 32px);
+    margin-inline: auto;
+  }
+}
 .portal-shell.public-projects-guest .portal-header {
   grid-template-areas: 'brand public account';
   grid-template-columns: minmax(44px, 220px) minmax(max-content, 1fr) max-content;
