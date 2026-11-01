@@ -7910,8 +7910,9 @@ parallel_lanes:
       id: TASK-PROJ-CATALOG-CARD-VISUAL-001
       issue: 211
       branch: main
+      base_branch: main
       status: in_progress
-      checkpoint: owner_reference_card_layout_selected
+      checkpoint: owner_reference_card_local_visual_verified
       kind: implementation
       risk: low
       semantic_change: 'no'

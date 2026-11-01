@@ -65,7 +65,8 @@ env:
 jobs:
   publication:
     name: Exact publication PostgreSQL and built browser
-    runs-on: ubuntu-latest
+    # Playwright1.55.1 supports Ubuntu24.04; ubuntu-latest now selects26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:

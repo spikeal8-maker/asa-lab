@@ -99,3 +99,20 @@ it('keeps immutable card navigation, actual likes and editorial metadata without
   await act(async () => card.click());
   expect(onOpen).toHaveBeenCalledWith('published');
 });
+
+it('places identity and real likes on the preview, with only the title in the lower strip', async () => {
+  await render({ kind: 'public-projects' });
+  const cover = host.querySelector('.public-project-card-cover')!;
+  expect(cover.querySelector('.public-project-author')?.textContent).toBe(work.authorLabel);
+  expect(cover.querySelector('.public-project-avatar')?.getAttribute('aria-hidden')).toBe('true');
+  expect(cover.querySelector('.public-project-card-identity')?.getAttribute('title')).toBe(
+    work.authorLabel,
+  );
+  expect(cover.querySelector('[aria-label="7 нравится"]')).not.toBeNull();
+  expect(cover.querySelector('time')?.getAttribute('datetime')).toBe(work.publishedAt);
+  const footer = host.querySelector('.public-project-card-body')!;
+  expect(footer.children).toHaveLength(1);
+  expect(footer.querySelector('h2')?.getAttribute('title')).toBe(work.title);
+  expect(footer.querySelector('.public-project-author, time')).toBeNull();
+  expect(host.textContent).not.toMatch(/скачиваний|загрузок/);
+});
