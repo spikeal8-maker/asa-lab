@@ -168,4 +168,3 @@ BEGIN
     ), v_origin;
 END;
 $$;
-
