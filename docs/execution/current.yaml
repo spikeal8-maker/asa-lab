@@ -7626,6 +7626,56 @@ parallel_lanes:
       convergence_baseline_sha: 1b4ba64fe7680ab1a22d63c9d3a1433c63deeb66
       head_sha: fc9407e68da4557200b2217585797360d3550c8e
 
+  - id: electronics-native-oracle-compat-901
+    parent_lane: electronics
+    worktree_id: electronics-native-oracle-compat-901
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901.md
+    execution_coordination: >-
+      Test paths remain shared with existing wire and selection lanes. Scope
+      is the bounded card, not exclusive ownership. Both source paths were
+      checked clean in every local worktree before selection. Preserve WIP.
+    task:
+      id: TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901
+      issue: 901
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: maintenance
+      risk: low
+      semantic_change: 'no'
+      checkpoint: proven_native_dom_oracle_compatibility_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly commissioned full browser qualification and repair of836,
+        preserving newer fixes and foreign work. This separate bounded test-only
+        dependency addresses proven existing native oracle mismatches; no waiver
+        of remaining pixel, wire, timing or full browser requirements.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-ORACLE-COMPAT-901.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 78e87e73f4d49d845e4cccd1304b6eda376a967d
+      head_sha: null
+      main:
+        branch: main
+        sha: 78e87e73f4d49d845e4cccd1304b6eda376a967d
+      observed_at: '2026-11-01T16:50:00Z'
+      observation_note: Selection baseline only; fresh fetch main and exact CI are required before writes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-committed-result-consumers
     parent_lane: electronics
     worktree_id: electronics-committed-result-consumers
