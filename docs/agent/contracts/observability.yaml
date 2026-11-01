@@ -6,6 +6,12 @@ master_documents:
   - ADMIN-LOGS-OPERATIONS
   - PORTABLE-DEPLOYMENT-STANDARD
 invariants:
+  - id: OBS-COVERAGE-001
+    statement: Finite required connected-source coverage is versioned and explicitly enumerated. Missing, stale, partial, unavailable, erroneous or unknown source/native/integrity evidence never becomes healthy coverage. Global retained-history completeness remains unproved; other-platform exclusions require explicit policy.
+    master_refs:
+      - document: ADMIN-LOGS-OPERATIONS
+        section: Обязательные подключённые источники
+    applies_to: [collector_status, required_source_policy, native_writer_integrity, release_gate]
   - id: OBS-COLLECTOR-001
     statement: Supported installations start continuous collection automatically, preserve diagnostic history, and expose unavailable sources truthfully.
     master_refs:

@@ -1,8 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EventEmitter } from 'node:events';
-import { mkdtemp, rm, writeFile, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import databaseContract from './database-diagnostic-contract.json';
+import { ApplicationLogStore } from './application-log-store.js';
+import { readLogCatalog, verifyNativeLogIntegrity, type LogCatalog } from './admin-logs.worker.js';
+import {
+  combineRequiredCoverage,
+  hostRequiredCoverage,
+  readRequiredSources,
+} from './required-log-coverage.js';
 const { workers, inputs } = vi.hoisted(() => ({
   workers: [] as EventEmitter[],
   inputs: [] as { filter: unknown }[],
@@ -267,6 +275,296 @@ describe('bounded archive jobs', () => {
       await service.status();
       expect(await readdir(root)).toEqual(['owner-backup.zip']);
     } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+function fixture() {
+  const now = new Date().toISOString();
+  const ids = [
+    'docker',
+    'database-events',
+    'metrics',
+    'docker-lifecycle',
+    'operations:updates',
+    ...['api', 'web', 'scratch', 'postgres', 'minio'].map((id) => `${id}:recent`),
+    ...Object.keys(databaseContract.sources).map((id) => `database-events:${id}`),
+    'linux:journal',
+    'windows',
+    'windows:System',
+    'windows:Application',
+    'windows:Security',
+  ];
+  const rules = ids.map((source) => ({
+    source,
+    applicable: !source.startsWith('windows'),
+    maxAgeSeconds: 300,
+    requireThrough:
+      source.endsWith(':recent') ||
+      source.startsWith('database-events:') ||
+      source === 'linux:journal',
+    ...(source.startsWith('windows') ? { reason: 'other-platform' as const } : {}),
+  }));
+  return {
+    version: 1,
+    collectedAt: now,
+    retentionDays: 30,
+    maxBytes: 1024 ** 3,
+    bytes: 0,
+    trimmed: false,
+    requiredSources: {
+      version: 1 as const,
+      policy: 'asa-connected-v1' as const,
+      platform: 'linux' as const,
+      auditMaxAgeSeconds: 900,
+      sources: rules,
+    },
+    historyAudit: {
+      state: 'complete',
+      generation: 'fixture-audit',
+      checked: 0,
+      total: 0,
+      deadline: Date.now() / 1000 + 900,
+      completedAt: now,
+      lastCompletedAt: now,
+      incomplete: false,
+    },
+    sources: rules.map((rule) => ({
+      source: rule.source,
+      state: rule.applicable ? 'ok' : 'unavailable',
+      checkedAt: now,
+      lastCollectedAt: now,
+      collectedThrough: rule.requireThrough ? now : null,
+      applicable: rule.applicable,
+      detail: 'fixture',
+      stale: false,
+      possibleCoverageGap: false,
+    })),
+    segments: [] as LogCatalog['segments'],
+  };
+}
+function host(catalog: ReturnType<typeof fixture>) {
+  return hostRequiredCoverage(catalog, { state: 'ok', checkedAt: new Date().toISOString() });
+}
+const healthyNative = { state: 'ok' as const, reason: 'fixture_verified' };
+
+describe('finite required connected-source coverage', () => {
+  it('requires the complete configured set and native proof while keeping global-history limitations', () => {
+    const coverage = host(fixture());
+    expect(coverage.state).toBe('ok');
+    expect(coverage.requiredSourceIds).toContain('scratch:recent');
+    expect(coverage.excludedSourceIds).toContain('windows:Security');
+    expect(
+      combineRequiredCoverage(coverage, { state: 'unknown', reason: 'writer_absent' }).state,
+    ).toBe('unknown');
+    expect(combineRequiredCoverage(coverage, healthyNative)).toMatchObject({
+      state: 'ok',
+      limitations: expect.any(Array),
+    });
+    expect(coverage.limitations.join(' ')).toContain('global retained history is not complete');
+  });
+  it('never infers coverage from a fresh catalog, empty declarations or API-only policy', () => {
+    const catalog = fixture();
+    expect(readRequiredSources({ ...catalog.requiredSources, sources: [] })).toBeUndefined();
+    expect(readRequiredSources({ ...catalog.requiredSources, version: 2 })).toBeUndefined();
+    expect(
+      readRequiredSources({ ...catalog.requiredSources, platform: { toString: null } }),
+    ).toBeUndefined();
+    catalog.requiredSources.sources = catalog.requiredSources.sources.filter(
+      (rule) => rule.source === 'api:recent',
+    );
+    expect(host(catalog).state).toBe('incomplete');
+    const partial = fixture();
+    delete (partial as Partial<typeof partial>).maxBytes;
+    expect(host(partial).state).toBe('unknown');
+  });
+  it.each(['pending', 'error', 'unavailable', 'unknown'])(
+    'does not green a required source with state %s',
+    (state) => {
+      const catalog = fixture();
+      catalog.sources.find((row) => row.source === 'scratch:recent')!.state = state;
+      expect(combineRequiredCoverage(host(catalog), healthyNative).state).toBe(
+        state === 'unknown' ? 'unknown' : 'incomplete',
+      );
+    },
+  );
+  it.each([
+    'checked',
+    'through',
+    'future',
+    'gap',
+    'missing',
+    'undeclared_live',
+    'missing_os_policy',
+  ])('rejects %s coverage', (failure) => {
+    const catalog = fixture();
+    const source = catalog.sources.find((row) => row.source === 'scratch:recent')!;
+    if (failure === 'checked') source.checkedAt = new Date(Date.now() - 301000).toISOString();
+    if (failure === 'through')
+      source.collectedThrough = new Date(Date.now() - 301000).toISOString();
+    if (failure === 'future') source.checkedAt = new Date(Date.now() + 60000).toISOString();
+    if (failure === 'gap') source.possibleCoverageGap = true;
+    if (failure === 'missing') catalog.sources = catalog.sources.filter((row) => row !== source);
+    if (failure === 'undeclared_live') catalog.sources.push({ ...source, source: 'search:recent' });
+    if (failure === 'missing_os_policy')
+      catalog.requiredSources.sources = catalog.requiredSources.sources.filter(
+        (rule) => rule.source !== 'windows:Security',
+      );
+    expect(host(catalog).state).not.toBe('ok');
+  });
+  it('excludes unavailable OS sources only through explicit opposite-platform policy', () => {
+    const catalog = fixture();
+    expect(host(catalog).state).toBe('ok');
+    const channel = 'windows:Microsoft-Windows-Windows Defender/Operational';
+    catalog.requiredSources.sources.push({
+      source: channel,
+      applicable: false,
+      maxAgeSeconds: 300,
+      requireThrough: true,
+      reason: 'other-platform',
+    });
+    expect(readRequiredSources(catalog.requiredSources)).toBeDefined();
+    const rule = catalog.requiredSources.sources.find((row) => row.source === 'windows:Security')!;
+    rule.applicable = true;
+    expect(readRequiredSources(catalog.requiredSources)).toBeUndefined();
+    rule.applicable = false;
+    rule.source = 'provider:ollama';
+    expect(readRequiredSources(catalog.requiredSources)).toBeUndefined();
+  });
+  it.each(['overdue', 'error', 'gap', 'partial', 'stale', 'missing'])(
+    'requires actual retained integrity evidence: %s',
+    (failure) => {
+      const catalog = fixture();
+      if (failure === 'overdue' || failure === 'error') catalog.historyAudit.state = failure;
+      if (failure === 'gap') catalog.historyAudit.incomplete = true;
+      if (failure === 'partial') catalog.historyAudit.total = 1;
+      if (failure === 'stale')
+        catalog.historyAudit.completedAt = new Date(Date.now() - 901000).toISOString();
+      if (failure === 'missing') delete (catalog as Partial<typeof catalog>).historyAudit;
+      expect(host(catalog).state).not.toBe('ok');
+    },
+  );
+  it('allows bounded ongoing audit only after a recent completed sweep, never an unproved first sweep', () => {
+    const catalog = fixture();
+    catalog.historyAudit.state = 'running';
+    catalog.historyAudit.total = 10;
+    expect(host(catalog).state).toBe('ok');
+    catalog.historyAudit.lastCompletedAt = '';
+    expect(host(catalog).state).toBe('incomplete');
+  });
+});
+
+describe('native writer and bounded immutable integrity proofs', () => {
+  it('reports real native storage failure and queued writes without a false healthy result', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'asa-native-failure-'));
+    const hostRoot = join(base, 'host');
+    await mkdir(hostRoot);
+    await writeFile(join(hostRoot, 'catalog.json'), JSON.stringify(fixture()));
+    await writeFile(
+      join(hostRoot, 'collector-health.json'),
+      JSON.stringify({ version: 1, state: 'ok', checkedAt: new Date().toISOString() }),
+    );
+    const brokenRoot = join(base, 'not-a-directory');
+    await writeFile(brokenRoot, 'fixture');
+    const broken = new ApplicationLogStore(brokenRoot);
+    const queued = new ApplicationLogStore(join(base, 'native'));
+    try {
+      broken.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/write-failure' }));
+      expect(
+        await new AdminLogsService(hostRoot, join(base, 'exports'), () => broken).status(),
+      ).toMatchObject({
+        requiredCoverage: { state: 'incomplete', native: { state: 'incomplete' } },
+      });
+      queued.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/initial' }));
+      await queued.flush();
+      const flush = queued.flush.bind(queued);
+      const spy = vi.spyOn(queued, 'flush').mockImplementation(async () => {
+        await flush();
+        queued.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/pending' }));
+      });
+      expect(
+        await new AdminLogsService(hostRoot, join(base, 'exports'), () => queued).status(),
+      ).toMatchObject({
+        requiredCoverage: {
+          state: 'incomplete',
+          native: { state: 'incomplete', counters: { pending: 1 } },
+        },
+      });
+      spy.mockRestore();
+    } finally {
+      vi.restoreAllMocks();
+      await broken.close();
+      await queued.close();
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+  it('combines real native persistence with host declarations; dropped writes cannot green', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'asa-required-status-'));
+    const writer = new ApplicationLogStore(join(base, 'native'), 128 * 1024 * 1024, 1);
+    try {
+      const root = join(base, 'host');
+      await mkdir(root);
+      await writeFile(join(root, 'catalog.json'), JSON.stringify(fixture()));
+      await writeFile(
+        join(root, 'collector-health.json'),
+        JSON.stringify({ version: 1, state: 'ok', checkedAt: new Date().toISOString() }),
+      );
+      writer.enqueue(
+        JSON.stringify({
+          kind: 'http',
+          time: new Date().toISOString(),
+          path: '/api/scratch/fixture',
+        }),
+      );
+      const service = new AdminLogsService(root, join(base, 'exports'), () => writer);
+      expect(await service.status()).toMatchObject({
+        coverageComplete: false,
+        requiredCoverage: {
+          state: 'ok',
+          native: { state: 'ok', counters: { dropped: 0, pending: 0 } },
+        },
+      });
+      writer.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/one' }));
+      writer.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/two' }));
+      expect(await service.status()).toMatchObject({
+        coverageComplete: false,
+        requiredCoverage: { state: 'incomplete', native: { state: 'incomplete' } },
+      });
+    } finally {
+      await writer.close();
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+  it('bounds/cache-checks proofs, never calls a partial audit healthy, and rechecks expired content', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-native-proof-'));
+    const writer = new ApplicationLogStore(root);
+    try {
+      writer.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/one' }));
+      await writer.flush();
+      let catalog = (await readLogCatalog(root))!;
+      const proofs = new Map<string, number>();
+      expect(await verifyNativeLogIntegrity(root, catalog, proofs, 0)).toBe('partial');
+      expect(proofs.size).toBe(0);
+      expect(await verifyNativeLogIntegrity(root, catalog, proofs)).toBe('ok');
+      const previous = new Map(proofs);
+      writer.enqueue(JSON.stringify({ kind: 'http', path: '/fixture/two' }));
+      await writer.flush();
+      catalog = (await readLogCatalog(root))!;
+      expect(await verifyNativeLogIntegrity(root, catalog, proofs)).toBe('ok');
+      expect(proofs.size).toBe(2);
+      for (const [key, value] of previous) expect(proofs.get(key)).toBe(value);
+      const file = join(root, catalog.segments[0]!.file);
+      const bytes = await readFile(file);
+      bytes[0] = 0;
+      await writeFile(file, bytes);
+      const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 300001);
+      expect(await verifyNativeLogIntegrity(root, catalog, proofs)).toBe('invalid');
+      clock.mockRestore();
+      expect(await verifyNativeLogIntegrity(root, catalog, new Map())).toBe('invalid');
+    } finally {
+      vi.restoreAllMocks();
+      await writer.close();
       await rm(root, { recursive: true, force: true });
     }
   });
