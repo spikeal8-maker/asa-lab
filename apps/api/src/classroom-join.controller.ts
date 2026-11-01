@@ -316,13 +316,15 @@ function courseActivityOccurrenceMap(
       occurrenceCanonicalState = exactRunCanonicalState;
     } else if (
       modernScope &&
+      (row.academic_result_visible === true || modernReadable) &&
       !originPresent &&
       exactRunCanonicalState !== null &&
       (!workOriginAmbiguous ||
         exactRunCanonicalState.selectedResult !== null ||
         row.project_id === null)
     ) {
-      // The existing modern unique-Run path retains its workflow state.
+      // Modern lineage alone cannot override an explicit academic denial.
+      // Keep independent readable-Project authority separate from this proof.
       occurrenceCanonicalState = exactRunCanonicalState;
     } else if (exactNotStarted) {
       occurrenceCanonicalState = {
@@ -334,6 +336,7 @@ function courseActivityOccurrenceMap(
       };
     } else if (
       modernScope &&
+      (row.academic_result_visible === true || modernReadable) &&
       ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
         legacyAllowed) &&
       !originPresent &&

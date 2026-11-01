@@ -98,6 +98,7 @@ function mixedLesson(
     })),
     activityOccurrences: practices.map((practice) => ({
       blockId: practice.blockId,
+      learningActivityVersionId: practice.blockId,
       requirement: practice.requirement ?? (practice.excused ? 'excused' : 'required'),
       submittedAt: practice.submittedAt ?? null,
       canonicalState: practice.canonicalMissing
@@ -114,6 +115,40 @@ function mixedLesson(
 describe('LRN-UX-02 pinned mixed-lesson completion', () => {
   const unstarted = { blockId: '3d-block', workflow: 'not_started' } as const;
   const accepted = { blockId: 'electronics-block', workflow: 'completed', accepted: true } as const;
+
+  it('does not credit a result for another or missing frozen activity version', () => {
+    for (const runtimeVersion of ['another-version', undefined]) {
+      const historical = mixedLesson(true, [accepted]);
+      Object.assign(historical.activityOccurrences[0]!, {
+        learningActivityVersionId: runtimeVersion,
+      });
+      expect(lessonPracticeProgress(historical)).toMatchObject({
+        total: 0,
+        completed: 0,
+        unavailable: 1,
+      });
+      expect(lessonComplete(historical)).toBe(false);
+    }
+    const missingPin = mixedLesson(true, [accepted]);
+    Object.assign(missingPin.blocks![0]!, { learningActivityVersionId: undefined });
+    expect(lessonPracticeProgress(missingPin).unavailable).toBe(1);
+    expect(lessonComplete(missingPin)).toBe(false);
+  });
+
+  it('leaves duplicate visible published activity identities unresolved', () => {
+    const ambiguous = mixedLesson(true, [accepted]);
+    ambiguous.blocks!.push({ ...ambiguous.blocks![0]! });
+    expect(lessonPracticeProgress(ambiguous)).toMatchObject({
+      total: 0,
+      completed: 0,
+      unavailable: 1,
+    });
+    expect(lessonComplete(ambiguous)).toBe(false);
+
+    // A hidden author block is not an assigned obligation or an ambiguity.
+    ambiguous.blocks![1]!.hidden = true;
+    expect(lessonComplete(ambiguous)).toBe(true);
+  });
 
   it('does not complete an assigned mixed lesson when theory alone is read', () => {
     const studentLesson = mixedLesson(true, [

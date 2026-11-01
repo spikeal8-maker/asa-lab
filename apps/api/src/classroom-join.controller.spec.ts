@@ -796,6 +796,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         snapshot_revision: 7,
         work_updated_at: '2026-09-20T22:00:00.000Z',
         shared_assignment: false,
+        academic_result_visible: true,
         modern_provenance: {
           modernCourseRun: true,
           activityRunId: activityRunA,
@@ -819,6 +820,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         snapshot_revision: null,
         work_updated_at: null,
         shared_assignment: false,
+        academic_result_visible: true,
         modern_provenance: {
           modernCourseRun: true,
           activityRunId: activityRunB,
@@ -903,6 +905,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
             rows: occurrenceRows.map((row) => ({
               ...row,
               modern_provenance: { modernCourseRun: false, projectReadable: false },
+              academic_result_visible: false,
               not_started_visible: false,
             })),
           };
@@ -1083,8 +1086,28 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       expect(practices?.map((practice) => practice.projectId)).toEqual([null, null]);
     }
     for (const [index, row] of occurrenceRows.entries()) {
-      Object.assign(row, originalWorkRows[index], { academic_result_visible: false });
+      Object.assign(row, originalWorkRows[index]);
     }
+
+    // Historical modern lineage does not prove the frozen version or current
+    // academic authorization. Respect SQL's denial without Project/origin proof.
+    Object.assign(occurrenceRows[0], {
+      academic_result_visible: false,
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunA,
+        projectReadable: false,
+      },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const denied = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0];
+      expect(denied?.canonicalState).toBeNull();
+      expect(denied?.projectId).toBeNull();
+    }
+    Object.assign(occurrenceRows[0], originalWorkRows[0]);
 
     // Another learner's accepted 3D cannot credit this seat even if a
     // compromised upstream list accidentally includes that evidence row.
@@ -1148,7 +1171,10 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     Object.assign(evidenceRows[1], {
       participation: { applicable: true, status: 'withdrawn', excused: false },
     });
-    Object.assign(occurrenceRows[1], { not_started_visible: false });
+    Object.assign(occurrenceRows[1], {
+      academic_result_visible: false,
+      not_started_visible: false,
+    });
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),
       await controller.courseRuns(seatRequest()),
@@ -1161,6 +1187,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     Object.assign(evidenceRows[1], {
       participation: { applicable: true, status: 'active', excused: false },
     });
+    occurrenceRows[1]!.academic_result_visible = true;
 
     Object.assign(occurrenceRows[0], { shared_assignment: false });
     Object.assign(occurrenceRows[1], {
@@ -1208,6 +1235,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     Object.assign(evidenceRows[1], {
       participation: { applicable: false, status: 'active', excused: false },
     });
+    occurrenceRows[1]!.academic_result_visible = false;
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),
       await controller.courseRuns(seatRequest()),
@@ -1221,6 +1249,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       participation: { applicable: true, status: 'active', excused: false },
       activityRunId: activityRunA,
     });
+    occurrenceRows[1]!.academic_result_visible = true;
     for (const payload of [
       await controller.accountCourseRuns(accountRequest),
       await controller.courseRuns(seatRequest()),

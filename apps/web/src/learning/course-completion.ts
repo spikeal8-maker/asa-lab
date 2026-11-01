@@ -27,16 +27,33 @@ export function lessonPracticeProgress(lesson: SeatCourseRunLesson): PracticePro
 
   // Lesson blocks come from the immutable version assigned to this learner.
   // Do not count hidden author blocks, a shared activity title, or an orphan run.
-  const visibleBlockIds = new Set(
-    (lesson.blocks ?? [])
-      .filter((block) => block.type === 'activity' && block.hidden !== true)
-      .map((block) => block.id),
-  );
+  const visiblePins = new Map<string, string | null>();
+  for (const block of lesson.blocks ?? []) {
+    if (block.type !== 'activity' || block.hidden === true) continue;
+    // A duplicate published identity cannot identify two independent obligations.
+    // Missing historical pins are unknown, never evidence of completion.
+    visiblePins.set(
+      block.id,
+      visiblePins.has(block.id) ||
+        !block.id ||
+        typeof block.learningActivityVersionId !== 'string' ||
+        !block.learningActivityVersionId
+        ? null
+        : block.learningActivityVersionId,
+    );
+  }
   const seenBlockIds = new Set<string>();
 
   for (const occurrence of lesson.activityOccurrences ?? []) {
-    if (!visibleBlockIds.has(occurrence.blockId) || seenBlockIds.has(occurrence.blockId)) continue;
+    if (!visiblePins.has(occurrence.blockId) || seenBlockIds.has(occurrence.blockId)) continue;
     seenBlockIds.add(occurrence.blockId);
+    const pinnedVersion = visiblePins.get(occurrence.blockId);
+    if (!pinnedVersion || occurrence.learningActivityVersionId !== pinnedVersion) {
+      // Match immutable SQL0267: a result for another activity version cannot
+      // satisfy this published occurrence, even if its block ID is unchanged.
+      result.unavailable += 1;
+      continue;
+    }
     const state = occurrence.canonicalState;
     const requirement = occurrence.requirement;
     if (requirement === 'not_assigned') {
@@ -79,7 +96,7 @@ export function lessonPracticeProgress(lesson: SeatCourseRunLesson): PracticePro
 
   // No assignment means no charge against the learner. Keep the missing
   // projection distinguishable so the UI can explain unavailable practices.
-  result.unavailable += visibleBlockIds.size - seenBlockIds.size;
+  result.unavailable += visiblePins.size - seenBlockIds.size;
   return result;
 }
 
