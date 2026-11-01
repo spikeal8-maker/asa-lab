@@ -8,6 +8,7 @@ import { CopyPublicProject } from './CopyPublicProject';
 import { PublicationArtifact } from './PublicationArtifact';
 import { PublicProjectTitle } from './PublicProjectTitle';
 import { SharePublicationLink } from './SharePublicationLink';
+import { PublicAuthorAvatar } from './PublicAuthorAvatar';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
 import './public-projects.css';
 
@@ -199,15 +200,7 @@ export function PublicProjectPage({
             <aside className="public-project-sidebar" aria-label="Об авторе и проекте">
               <div className="public-project-authorline">
                 <div className="public-project-author-identity">
-                  <span className="public-project-detail-avatar" aria-hidden="true">
-                    {publication.authorLabel
-                      .trim()
-                      .split(/\s+/u)
-                      .slice(0, 2)
-                      .map((part) => Array.from(part)[0])
-                      .join('')
-                      .toLocaleUpperCase('ru') || '?'}
-                  </span>
+                  <PublicAuthorAvatar publication={publication} detail />
                   <div className="public-project-author-text">
                     <span className="public-project-detail-author">{publication.authorLabel}</span>
                     <time dateTime={publication.publishedAt}>

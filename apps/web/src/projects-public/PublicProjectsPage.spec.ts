@@ -130,3 +130,29 @@ it('does not fabricate a count when an older server omits copy statistics', asyn
   await render({ kind: 'public-projects' });
   expect(host.querySelector('[title="Добавили к себе"]')).toBeNull();
 });
+
+it('shows the real author avatar, keeps initials on failure and ignores stale games filters', async () => {
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          ...work,
+          authorLabel: 'Анна Петрова',
+          authorAvatarUrl: '/api/public-projects/published/author-avatar',
+        },
+      ],
+      nextOffset: null,
+    },
+  });
+  await render({ kind: 'public-projects', module: 'chess' });
+  expect(publicProjectsApi.list).toHaveBeenLastCalledWith({});
+  expect(category('Шахматы')).toBeUndefined();
+  expect(category('Шашки')).toBeUndefined();
+  const avatar = host.querySelector('.public-project-avatar img')!;
+  expect(avatar.getAttribute('src')).toBe('/api/public-projects/published/author-avatar');
+  expect(host.querySelector('.public-project-author')?.textContent).toBe('Анна Петрова');
+  await act(async () => avatar.dispatchEvent(new Event('error')));
+  expect(host.querySelector('.public-project-avatar')?.textContent).toBe('АП');
+});

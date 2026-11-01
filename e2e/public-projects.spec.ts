@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { expect, test, type APIResponse, type Browser, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher } from './seed';
@@ -17,6 +17,16 @@ test('preview cards have no vignette or added strips and electronics uses a whit
 }) => {
   await page.goto('/#/explore');
   await register(page, 'Автор проверки превью');
+  await ok(
+    await page.request.patch('/api/account/avatar', {
+      headers: { origin: origin(page) },
+      data: {
+        avatarDataUrl:
+          'data:image/webp;base64,' +
+          readFileSync('apps/web/public/assets/avatars/default/avatar-01.webp').toString('base64'),
+      },
+    }),
+  );
   const title = 'Без виньетки ' + randomUUID().slice(0, 8);
   const image = await raster(page, 'Preview');
   const projectId = await createProject(page, title, image);
@@ -29,9 +39,21 @@ test('preview cards have no vignette or added strips and electronics uses a whit
     await page.getByRole('button', { name: 'Найти', exact: true }).click();
     const card = page.getByTestId('public-project-card').filter({ hasText: title });
     await expect(card).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Шахматы', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Шашки', exact: true })).toHaveCount(0);
+    await expect(card.locator('.public-project-author')).toHaveText('Автор проверки превью');
+    await expect
+      .poll(() =>
+        card
+          .locator('.public-project-avatar img')
+          .evaluate((image: HTMLImageElement) => Boolean(image.complete && image.naturalWidth)),
+      )
+      .toBe(true);
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expectNoOverflow(page);
+      const bounds = await card.boundingBox();
+      expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
       const styles = await card.evaluate((el) => ({
         vignette: getComputedStyle(el.querySelector('.public-project-card-cover')!, '::after')
           .content,
@@ -50,6 +72,15 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       await card.screenshot({ path: `${EVIDENCE}/no-vignette-${width}.png` });
     }
     expect(await imageHash(page, data.preview.url)).toBe(original);
+    await page.goto(`/#/public-projects/${published.publicationId}`);
+    await expect(page.locator('.public-project-detail-author')).toHaveText('Автор проверки превью');
+    await expect
+      .poll(() =>
+        page
+          .locator('.public-project-detail-avatar img')
+          .evaluate((image: HTMLImageElement) => Boolean(image.complete && image.naturalWidth)),
+      )
+      .toBe(true);
   } finally {
     await page.request.delete(`/api/projects/${projectId}/publication`, {
       headers: { origin: origin(page) },

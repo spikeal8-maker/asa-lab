@@ -28,7 +28,8 @@ afterAll(async () => {
   } finally {
     await app?.close();
     await admin?.end();
-    await runtime?.end();
+    // The application owns and closes its runtime pool on shutdown.
+    if (!app) await runtime?.end();
   }
 });
 async function identity(platform = false) {
@@ -63,7 +64,7 @@ async function identity(platform = false) {
   );
   return { teacher, principal, account, hash, token, cookies: { asa_session: token } };
 }
-async function source() {
+async function source(moduleKey = 'electronics') {
   const owner = await identity();
   const actor = { userId: owner.teacher.teacherId, principalId: owner.principal };
   const created = await repo.createWithDraft({
@@ -71,7 +72,7 @@ async function source() {
     scope: 'personal',
     classroomId: null,
     actor,
-    moduleKey: 'electronics',
+    moduleKey,
     title: 'Comments immutable source',
     idempotencyKey: randomUUID(),
     requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
@@ -178,8 +179,8 @@ describe('real publication discussion identity, policy and moderation boundary',
     const listed = (await read(s)).json();
     expect(listed.items).toHaveLength(1);
     expect(JSON.stringify(listed)).not.toContain(a.principal);
-    const fresh = (await create(s, a, 'Новый комментарий с фото')).json();
-    expect(fresh.comment.avatarUrl).toBe(endpoint(s) + '/' + fresh.id + '/avatar');
+    const fresh = (await create(s, a, 'Новый комментарий без фото')).json();
+    expect(fresh.comment.avatarUrl).toBeNull();
     expect(JSON.stringify(listed)).not.toContain(a.account);
     expect(listed.items[0].body).toBe(body);
   });
@@ -691,5 +692,73 @@ describe('real publication discussion identity, policy and moderation boundary',
       (await inject(app, { method: 'GET', url: endpoint(s) + '/' + seat.json().id + '/avatar' }))
         .statusCode,
     ).toBe(404);
+  });
+});
+
+describe('publication author identity and projects-only catalog', () => {
+  it('uses the published author profile and guards the avatar when publication is removed', async () => {
+    const s = await source();
+    const png = new PNG({ width: 16, height: 16 });
+    png.data.fill(255);
+    const bytes = PNG.sync.write(png);
+    await admin.query(
+      'UPDATE profiles SET display_name=$2,avatar_data_url=$3 WHERE account_id=$1',
+      [s.owner.account, 'Анна — автор схемы', 'data:image/png;base64,' + bytes.toString('base64')],
+    );
+    const detail = await inject(app, {
+      method: 'GET',
+      url: '/api/public-projects/' + s.publicationId,
+    });
+    expect(detail.statusCode, detail.body).toBe(200);
+    const publication = detail.json().publication;
+    expect(publication.authorLabel).toBe('Анна — автор схемы');
+    expect(publication.authorAvatarUrl).toBe(
+      '/api/public-projects/' + s.publicationId + '/author-avatar',
+    );
+    const avatar = await inject(app, { method: 'GET', url: publication.authorAvatarUrl });
+    expect(avatar.statusCode, avatar.body).toBe(200);
+    expect(avatar.rawPayload.equals(bytes)).toBe(true);
+    expect(avatar.headers['cache-control']).toBe('private, no-store');
+    const other = await source();
+    expect(
+      (
+        await inject(app, { method: 'GET', url: '/api/public-projects/' + other.publicationId })
+      ).json().publication.authorAvatarUrl,
+    ).toBeNull();
+    await admin.query(
+      "UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE id=$1",
+      [s.publicationId],
+    );
+    expect(
+      (await inject(app, { method: 'GET', url: publication.authorAvatarUrl })).statusCode,
+    ).toBe(404);
+  });
+  it('filters games before pagination without changing general reads or game publication links', async () => {
+    const circuit = await source();
+    const chess = await source('chess');
+    const checkers = await source('checkers');
+    const title = 'Catalog boundary ' + randomUUID();
+    await circuit.publish(title);
+    await chess.publish(title);
+    await checkers.publish(title);
+    const url = '/api/public-projects?q=' + encodeURIComponent(title);
+    const first = await inject(app, { method: 'GET', url: url + '&catalog=projects&limit=1' });
+    expect(first.statusCode, first.body).toBe(200);
+    expect(first.json().items.map((p: { publicationId: string }) => p.publicationId)).toEqual([
+      circuit.publicationId,
+    ]);
+    expect(first.json().nextOffset).toBeNull();
+    expect(
+      (await inject(app, { method: 'GET', url: url + '&limit=10' })).json().items,
+    ).toHaveLength(3);
+    for (const game of [chess, checkers]) {
+      expect(
+        (await inject(app, { method: 'GET', url: '/api/public-projects/' + game.publicationId }))
+          .statusCode,
+      ).toBe(200);
+    }
+    expect((await inject(app, { method: 'GET', url: url + '&catalog=unknown' })).statusCode).toBe(
+      400,
+    );
   });
 });

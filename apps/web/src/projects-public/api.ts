@@ -16,6 +16,7 @@ export interface PublicProject {
   readonly license: string;
   readonly moduleKey: string;
   readonly authorLabel: string;
+  readonly authorAvatarUrl?: string | null;
   readonly featured: boolean;
   readonly pinned: boolean;
   readonly likeCount?: number;
@@ -115,7 +116,11 @@ export const publicProjectsApi = {
     return { ok: true, status: result.status, data: { artifact: validated.artifact } };
   },
   list: (input: { search?: string; module?: string; offset?: number } = {}) => {
-    const query = new URLSearchParams({ offset: String(input.offset ?? 0), limit: '24' });
+    const query = new URLSearchParams({
+      offset: String(input.offset ?? 0),
+      limit: '24',
+      catalog: 'projects',
+    });
     if (input.search) query.set('q', input.search);
     if (input.module) query.set('module', input.module);
     return call<PublicProjectList>(`/api/public-projects?${query}`, { cache: 'no-store' });

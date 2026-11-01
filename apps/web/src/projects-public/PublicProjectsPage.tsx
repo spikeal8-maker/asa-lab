@@ -4,6 +4,7 @@ import { useSchoolTime } from '../components/school-time';
 import type { PublicProjectListView } from '../creator-portal/navigation';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
+import { PublicAuthorAvatar } from './PublicAuthorAvatar';
 import { PUBLIC_PROJECT_MODULES, publicationHref, publicModuleName } from './presentation';
 import './public-projects.css';
 
@@ -18,6 +19,7 @@ export function PublicProjectsPage({
   readonly onOpen: (publicationId: string) => void;
   readonly onMyProjects?: () => void;
 }): JSX.Element {
+  const moduleFilter = ['chess', 'checkers'].includes(view.module ?? '') ? undefined : view.module;
   const [query, setQuery] = useState(view.search ?? '');
   const [items, setItems] = useState<readonly PublicProject[] | null>(null);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
@@ -38,7 +40,7 @@ export function PublicProjectsPage({
     moreRequest.current = false;
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
-      ...(view.module ? { module: view.module } : {}),
+      ...(moduleFilter ? { module: moduleFilter } : {}),
     });
     if (current !== request.current) return;
     if (!result.ok || !Array.isArray(result.data?.items)) {
@@ -47,7 +49,7 @@ export function PublicProjectsPage({
     }
     setItems(result.data.items);
     setNextOffset(result.data.nextOffset);
-  }, [view.search, view.module]);
+  }, [view.search, moduleFilter]);
 
   useEffect(() => {
     void reload();
@@ -65,7 +67,7 @@ export function PublicProjectsPage({
     setMoreError(null);
     const result = await publicProjectsApi.list({
       ...(view.search ? { search: view.search } : {}),
-      ...(view.module ? { module: view.module } : {}),
+      ...(moduleFilter ? { module: moduleFilter } : {}),
       offset: nextOffset,
     });
     if (current !== request.current) return;
@@ -91,11 +93,11 @@ export function PublicProjectsPage({
       onView({
         kind: 'public-projects',
         ...(value ? { search: value } : {}),
-        ...(view.module ? { module: view.module } : {}),
+        ...(moduleFilter ? { module: moduleFilter } : {}),
       });
   }
 
-  const filtered = Boolean(view.search || view.module);
+  const filtered = Boolean(view.search || moduleFilter);
   return (
     <main
       id="main-content"
@@ -153,9 +155,9 @@ export function PublicProjectsPage({
           {[
             { value: '', label: 'Все' },
             ...PUBLIC_PROJECT_MODULES,
-            ...(view.module &&
-            !PUBLIC_PROJECT_MODULES.some((module) => module.value === view.module)
-              ? [{ value: view.module, label: publicModuleName(view.module) }]
+            ...(moduleFilter &&
+            !PUBLIC_PROJECT_MODULES.some((module) => module.value === moduleFilter)
+              ? [{ value: moduleFilter, label: publicModuleName(moduleFilter) }]
               : []),
           ].map((module) => (
             <button
@@ -163,7 +165,7 @@ export function PublicProjectsPage({
               type="button"
               className="public-projects-category"
               data-module={module.value}
-              aria-pressed={(view.module ?? '') === module.value}
+              aria-pressed={(moduleFilter ?? '') === module.value}
               onClick={() =>
                 onView({
                   kind: 'public-projects',
@@ -243,15 +245,7 @@ export function PublicProjectsPage({
                   <PublicationPreview publication={publication} />
                   <div className="public-project-card-topline">
                     <div className="public-project-card-identity" title={publication.authorLabel}>
-                      <span className="public-project-avatar" aria-hidden="true">
-                        {publication.authorLabel
-                          .trim()
-                          .split(/\s+/u)
-                          .slice(0, 2)
-                          .map((part) => Array.from(part)[0])
-                          .join('')
-                          .toLocaleUpperCase('ru') || '?'}
-                      </span>
+                      <PublicAuthorAvatar publication={publication} />
                       <span className="public-project-author">{publication.authorLabel}</span>
                     </div>
                     <span

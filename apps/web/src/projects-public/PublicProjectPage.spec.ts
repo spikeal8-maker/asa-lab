@@ -306,3 +306,24 @@ it('refreshes the real copy counter after a confirmed copy without remounting th
     'new-private-id',
   );
 });
+
+it('shows the same selected author avatar and public name on the project page', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      publication: {
+        ...publication,
+        authorLabel: 'Анна Петрова',
+        authorAvatarUrl: '/api/public-projects/public-id/author-avatar',
+      },
+    },
+  });
+  await render();
+  expect(container.querySelector('.public-project-detail-avatar img')?.getAttribute('src')).toBe(
+    '/api/public-projects/public-id/author-avatar',
+  );
+  expect(container.querySelector('.public-project-detail-author')?.textContent).toBe(
+    'Анна Петрова',
+  );
+});
