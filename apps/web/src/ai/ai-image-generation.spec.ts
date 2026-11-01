@@ -1,4 +1,4 @@
-import { AI_IMAGE_PRESETS } from '@asa-lab/contracts';
+import { AI_IMAGE_PRESETS, AI_IMAGE_UNAVAILABLE } from '@asa-lab/contracts';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -153,7 +153,8 @@ it.each([
       )!;
     await act(async () => create().click());
     expect(sessionStorage.getItem('asa-ai-image:personal:' + THREAD)).toBeNull();
-    expect(host.textContent).toContain(message);
+    expect(host.textContent).toContain(AI_IMAGE_UNAVAILABLE);
+    expect(host.textContent).not.toContain(message);
     expect(statusReads).toBe(2);
     expect(
       host.querySelector<HTMLSelectElement>('select[aria-label="Размер изображения"]')!.value,
@@ -269,7 +270,7 @@ it('refreshes lost readiness after a confirmed 503 race while preserving the rej
   expect(sessionStorage.getItem('asa-ai-image:personal:' + THREAD)).toBeNull();
   expect(host.querySelector('textarea')!.value).toBe('Preserve this image description');
   expect(create().disabled).toBe(true);
-  expect(host.textContent).toContain('Локальная генерация больше не готова.');
+  expect(host.textContent).toContain(AI_IMAGE_UNAVAILABLE);
   expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   expect(vi.mocked(call).mock.calls.filter(([path]) => path.endsWith('/status'))).toHaveLength(2);
 });
@@ -359,7 +360,7 @@ it('a failed image is not presented as complete and never creates a text request
     data: path.endsWith('/status') ? status : { ...job, state: 'failed' },
   }));
   await render();
-  expect(host.textContent).toContain('Не удалось создать изображение.');
+  expect(host.textContent).toContain(AI_IMAGE_UNAVAILABLE);
   expect(complete).not.toHaveBeenCalled();
   expect(vi.mocked(call).mock.calls.every(([, init]) => !init?.method)).toBe(true);
 });

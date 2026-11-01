@@ -169,8 +169,10 @@ describe('first-send lifecycle', () => {
       await act(async () => completeCreation());
       expect(streamAiRequest).toHaveBeenCalledTimes(1);
       const first = vi.mocked(streamAiRequest).mock.calls[0]!;
-      expect(first).toHaveLength(7);
+      expect(first).toHaveLength(11);
       expect(composer().value).toBe('Первый вопрос');
+      expect(host.textContent).toContain('Извините, текстовая модель сейчас недоступна.');
+      expect(host.textContent).not.toContain('Uncertain provider result');
       await act(async () =>
         release({
           schemaVersion: 1,
@@ -183,7 +185,10 @@ describe('first-send lifecycle', () => {
       await submit('Первый вопрос');
       const retry = vi.mocked(streamAiRequest).mock.calls[1]!;
       expect(retry[2]).toBe(first[2]);
-      expect(retry).toHaveLength(7);
+      expect(retry.slice(7, 10)).toEqual(first.slice(7, 10));
+      expect(first.slice(7, 10)).toEqual([[], undefined, undefined]);
+      expect(first[10]).toEqual(expect.any(Function));
+      expect(retry).toHaveLength(11);
     },
   );
   it.each([
@@ -209,7 +214,7 @@ describe('first-send lifecycle', () => {
       await submit('Первый вопрос');
       await act(async () => completeCreation());
       expect(streamAiRequest).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(streamAiRequest).mock.calls[0]).toHaveLength(7);
+      expect(vi.mocked(streamAiRequest).mock.calls[0]).toHaveLength(11);
       expect(host.querySelector('[aria-label="Режим интернет-поиска"]')).toBeNull();
     },
   );
@@ -276,9 +281,33 @@ describe('first-send lifecycle', () => {
       expect.any(AbortSignal),
       'gpt-6-luna',
       {},
+      [],
+      undefined,
+      undefined,
+      expect.any(Function),
     );
     expect(creationCalls()).toHaveLength(1);
     expect(composer().value).toBe('');
     expect(composer().disabled).toBe(false);
   });
+});
+
+it('shows a tool while it executes, keeps the composer editable, then clears its activity', async () => {
+  let finish!: (value: { messages: never[]; replayed: boolean; stopped: boolean }) => void;
+  const waiting = new Promise<{ messages: never[]; replayed: boolean; stopped: boolean }>((r) => {
+    finish = r;
+  });
+  const completeCreation = pendingCreation();
+  vi.mocked(streamAiRequest).mockReturnValueOnce(waiting);
+  await mount();
+  await submit('Найди информацию');
+  await act(async () => completeCreation());
+  const args = vi.mocked(streamAiRequest).mock.calls[0]!;
+  await act(async () => args[10]?.({ tool: 'read_page', state: 'running' }));
+  expect(host.textContent).toContain('Читаю выбранные страницы');
+  expect(composer().disabled).toBe(false);
+  await act(async () => args[10]?.({ tool: 'read_page', state: 'complete' }));
+  expect(host.textContent).not.toContain('Читаю выбранные страницы');
+  await act(async () => finish({ messages: [], replayed: false, stopped: false }));
+  expect(host.querySelector('.ai-activity')).toBeNull();
 });

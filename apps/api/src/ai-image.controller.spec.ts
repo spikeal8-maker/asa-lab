@@ -1,3 +1,4 @@
+import { AiImageError } from './ai-image.service';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
@@ -73,4 +74,20 @@ it('teacher scope cannot configure global image settings', async () => {
   );
   await expect(admin.get(f.request)).rejects.toMatchObject({ status: 403 });
   expect(f.images.admin).not.toHaveBeenCalled();
+});
+
+it('hides generator connection diagnostics in the public chat', async () => {
+  const f = fixture();
+  f.images.create.mockRejectedValueOnce(
+    new AiImageError('ai_image_unavailable', 503, 'SECRET private GPU address'),
+  );
+  const error = await f.controller
+    .create(f.request, A, { requestId: A, prompt: 'image', size: 1024 })
+    .catch((e) => e);
+  expect(error.getResponse()).toMatchObject({
+    error: {
+      code: 'ai_image_unavailable',
+      message: 'Извините, генератор изображений сейчас недоступен.',
+    },
+  });
 });

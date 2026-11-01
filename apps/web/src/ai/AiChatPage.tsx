@@ -1,3 +1,4 @@
+import { AI_TEXT_UNAVAILABLE, type AiToolActivity } from '@asa-lab/contracts';
 import { prepareChatImage } from './prepare-image';
 import { aiImageDimensions, aiImageSizeLabel } from '@asa-lab/contracts';
 import {
@@ -315,6 +316,7 @@ export function AiChatPage({
   const composerBusy = busy || imageUi.busy;
   const interactionBusy = composerBusy || creatingChat || threadActionBusy || preparingImages;
   const [loading, setLoading] = useState(true);
+  const [toolActivity, setToolActivity] = useState<AiToolActivity | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
@@ -1127,6 +1129,7 @@ export function AiChatPage({
     setPendingMessage({ requestId, text });
     setStreamedText('');
     setBusy(true);
+    setToolActivity(null);
     setError(null);
     const version = ++selectedVersion.current;
     try {
@@ -1189,17 +1192,13 @@ export function AiChatPage({
           controller.signal,
           selectedModel || status.model,
           aiScopeHeaders(seatId),
-          ...((frozenNativeImage
-            ? [uploadIds, frozenWebSearch, frozenNativeImage]
-            : frozenWebSearch
-              ? [uploadIds, frozenWebSearch]
-              : uploadIds.length
-                ? [uploadIds]
-                : []) as [
-            uploadIds?: readonly string[],
-            webSearch?: { mode: AiWebSearchMode },
-            nativeImage?: { mode: 'off' | 'auto'; size: AiImageSize },
-          ]),
+          uploadIds,
+          frozenWebSearch,
+          frozenNativeImage,
+          (activity) => {
+            if (version === selectedVersion.current)
+              setToolActivity(activity.state === 'running' ? activity : null);
+          },
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -1251,11 +1250,7 @@ export function AiChatPage({
           }
         }
         setDraft((value) => value || text);
-        setError(
-          problem instanceof Error
-            ? problem.message
-            : 'Не удалось завершить ответ. Проверьте историю диалога.',
-        );
+        setError(problem instanceof AiStreamClientError ? problem.message : AI_TEXT_UNAVAILABLE);
         const history = await call<AiPage<AiMessage>>(
           '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
         );
@@ -1284,6 +1279,7 @@ export function AiChatPage({
       setPendingMessage(null);
       setStreamedText('');
       setBusy(false);
+      setToolActivity(null);
     }
   }
 
@@ -1368,6 +1364,7 @@ export function AiChatPage({
     const version = ++selectedVersion.current;
     requestBusy.current = true;
     setBusy(true);
+    setToolActivity(null);
     setError(null);
     setPendingMessage(null);
     setStreamedText('');
@@ -1385,6 +1382,10 @@ export function AiChatPage({
         controller.signal,
         selectedModel || status.model,
         aiScopeHeaders(seatId),
+        (activity) => {
+          if (version === selectedVersion.current)
+            setToolActivity(activity.state === 'running' ? activity : null);
+        },
       );
       if (version !== selectedVersion.current) return;
       const acknowledged = result.messages.filter(
@@ -1407,16 +1408,13 @@ export function AiChatPage({
         await refreshAdmission();
         return;
       }
-      setError(
-        problem instanceof AiStreamClientError
-          ? problem.message
-          : 'Соединение прервалось. Проверьте сохранённый ответ.',
-      );
+      setError(problem instanceof AiStreamClientError ? problem.message : AI_TEXT_UNAVAILABLE);
       await readRegeneration(operation, version);
     } finally {
       activeStream.current = null;
       requestBusy.current = false;
       setBusy(false);
+      setToolActivity(null);
       setStreamedText('');
     }
     void refreshThreads();
@@ -2061,7 +2059,9 @@ export function AiChatPage({
                       </div>
                     </article>
                   ) : null}
-                  {busy ? <AiActivity responding={Boolean(streamedText)} /> : null}
+                  {busy ? (
+                    <AiActivity responding={Boolean(streamedText)} tool={toolActivity?.tool} />
+                  ) : null}
                   {imageUi.busy && imageJob?.threadId === currentId && imageJob.prompt ? (
                     <AiImagePrompt
                       prompt={imageJob.prompt}
@@ -2085,7 +2085,7 @@ export function AiChatPage({
                       }
                     />
                   ) : null}
-                  {imageUi.busy ? <AiActivity image /> : null}
+                  {imageUi.busy ? <AiActivity image imageSize={imageJob?.size} /> : null}
                 </div>
               </div>
             </div>
@@ -2371,7 +2371,7 @@ export function AiChatPage({
                           data-ai-tooltip={
                             webSearchStatus?.enabled && webSearchStatus.configured
                               ? 'Включить поиск с источниками'
-                              : 'Интернет-поиск не подключён администратором'
+                              : 'Интернет-поиск сейчас недоступен'
                           }
                           onClick={() => {
                             setWebSearchMode('web');
@@ -2434,7 +2434,7 @@ export function AiChatPage({
                           data-ai-tooltip={
                             imageStatus?.enabled && imageStatus.ready
                               ? 'Создать моделью FLUX.2 Klein 4B'
-                              : 'Локальная генерация недоступна или выключена администратором'
+                              : 'Генерация изображений сейчас недоступна'
                           }
                           onClick={() => {
                             setImageSelection('flux2-klein-4b-v1');
@@ -2501,7 +2501,7 @@ export function AiChatPage({
                               ? [
                                   {
                                     value: selectedModel || status.model,
-                                    label: 'Выбранная модель недоступна — выберите другую',
+                                    label: 'Выбранная модель сейчас недоступна',
                                     disabled: true,
                                   },
                                 ]

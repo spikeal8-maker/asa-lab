@@ -1,3 +1,4 @@
+import { isAiImageSize, type AiChatTool, type AiToolActivity } from '@asa-lab/contracts';
 import { reloadPolzaCatalog } from './ai-polza-catalog.js';
 import { supportsAiTools } from './ai-model-catalog.js';
 import { readDocument, DOCUMENT_TYPES } from './ai-attachments/document-reader.js';
@@ -24,7 +25,7 @@ import { isOllamaCloudPoolManaged } from './ai-model-catalog.js';
 import type { AiOllamaCloudPool, AiOllamaCloudKeyUpdate } from '@asa-lab/contracts';
 import type { AiOllamaCloudInspection } from '@asa-lab/contracts';
 import type { AiGeneratedImage, AiImageGenerationJob, AiImageStoredSize } from '@asa-lab/contracts';
-import { AiImageService } from './ai-image.service.js';
+import { AiImageService, AiImageError } from './ai-image.service.js';
 import {
   AiToolPolicyError,
   AiToolPolicyService,
@@ -50,7 +51,7 @@ import {
   policyInstructions,
   type PolicyRow,
 } from './ai-generation-policy.js';
-import { AiWebSearchService } from './ai-web-search.js';
+import { AiWebSearchService, internetIntent } from './ai-web-search.js';
 import { cityQuery } from './ai-web-search-provider.js';
 import {
   classifyProviderHttpFailure,
@@ -1676,6 +1677,7 @@ export class AiChatService {
     webSearchMode?: AiWebSearchMode,
     weatherCity?: string,
     nativeImage?: AiNativeImageOptions,
+    onActivity?: (activity: AiToolActivity) => void,
   ): Promise<{
     readonly messages: readonly AiMessage[];
     readonly replayed: boolean;
@@ -2007,6 +2009,15 @@ export class AiChatService {
         useLocal ? local!.model : model,
       );
       const toolPolicy = await this.toolPolicy.snapshot(principalId, threadId, requestId);
+      const runTool = async <T>(tool: AiChatTool, run: () => Promise<T>): Promise<T> => {
+        combined.throwIfAborted();
+        onActivity?.({ tool, state: 'running' });
+        try {
+          return await run();
+        } finally {
+          onActivity?.({ tool, state: 'complete' });
+        }
+      };
       let webEvidence: AiWebSearchEvidence | null = null;
       const providerTools = useLocal || supportsAiTools(runtime.provider, model);
       const nativeInternetCandidate =
@@ -2025,18 +2036,26 @@ export class AiChatService {
           // A model without confirmed tool support still gets the prepared auto-search path.
         }
       }
-      if (!sourceId && !nativeInternet)
-        webEvidence = await this.web.prepare(
-          principalId,
-          threadId,
-          requestId,
-          prompt,
+      if (!sourceId && !nativeInternet) {
+        const mode =
           attachmentIds.length && webSearchMode === 'auto' && !providedPageUrls(prompt).length
             ? 'off'
-            : (webSearchMode ?? 'off'),
-          combined,
-          weatherCity,
-        );
+            : (webSearchMode ?? 'off');
+        const prepare = () =>
+          this.web.prepare(principalId, threadId, requestId, prompt, mode, combined, weatherCity);
+        const intent = internetIntent(prompt, mode);
+        const tool: AiChatTool | null =
+          (mode === 'auto' || mode === 'web') && providedPageUrls(prompt).length
+            ? 'read_page'
+            : intent === 'web'
+              ? 'web_search'
+              : intent === 'images'
+                ? 'image_search'
+                : intent === 'weather'
+                  ? 'weather'
+                  : null;
+        webEvidence = tool ? await runTool(tool, prepare) : await prepare();
+      }
       const historyContext = await this.history.generationContext(principalId, threadId, requestId);
       let pageVision = !useLocal && supportsAiImageInput(runtime.provider, model);
       if (
@@ -2273,14 +2292,16 @@ export class AiChatService {
           throw new AiServiceError('ai_tool_call_invalid', 503, 'Инструмент файла не разрешён.');
         let content: string;
         try {
-          content = await this.workingFiles.execute(
-            principalId,
-            threadId,
-            requestId,
-            call,
-            round,
-            fileMessages,
-            fileReads,
+          content = await runTool(call.name as AiChatTool, () =>
+            this.workingFiles.execute(
+              principalId,
+              threadId,
+              requestId,
+              call,
+              round,
+              fileMessages,
+              fileReads,
+            ),
           );
         } catch (error) {
           if (!(error instanceof WorkingFileError)) throw error;
@@ -2318,16 +2339,19 @@ export class AiChatService {
       ) {
         const call = result.toolCalls[0]!;
         if (call.name === 'generate_image') {
-          if (!nativeImageEnabled)
+          if (!nativeImageEnabled || !isAiImageSize(nativeImage?.size))
             throw new AiServiceError('ai_tool_call_invalid', 503, 'Инструмент не разрешён.');
-          const imageJob = await this.images!.createFromTool(
-            principalId,
-            threadId,
-            requestId,
-            call.arguments.prompt as string,
-            nativeImage!.size,
-            combined,
-            call.arguments.model as AiImageRecipe,
+          const requestedImageSize = nativeImage!.size;
+          const imageJob = await runTool('generate_image', () =>
+            this.images!.createFromTool(
+              principalId,
+              threadId,
+              requestId,
+              call.arguments.prompt as string,
+              requestedImageSize,
+              combined,
+              call.arguments.model as AiImageRecipe,
+            ),
           );
           await this.usage.finish(
             principalId,
@@ -2356,7 +2380,7 @@ export class AiChatService {
         const query = String(
           call.arguments[mode === 'weather' ? 'city' : call.name === 'read_page' ? 'url' : 'query'],
         );
-        webEvidence =
+        webEvidence = await runTool(call.name, async () =>
           call.name === 'read_page'
             ? await this.web.prepareDirect(
                 principalId,
@@ -2375,7 +2399,8 @@ export class AiChatService {
                 combined,
                 mode === 'weather' ? query : undefined,
                 mode === 'web',
-              );
+              ),
+        );
         // Only a whole, simple current-weather question can use the first forecast hour.
         // Any additional period or unmatched city stays with the full hourly follow-up.
         const currentCity = /^(?:какая\s+)?погода\s+сейчас\s+в\s+(\p{L}{2,50})[?!.]?$/iu.exec(
@@ -2480,10 +2505,8 @@ export class AiChatService {
         if (mode === 'web' && webEvidence) {
           const read = followup.toolCalls?.[0];
           if (read?.name === 'read_page' && !followup.stopped && !combined.aborted) {
-            webEvidence = await this.web.readPages(
-              webEvidence,
-              read.arguments.sourceIds as number[],
-              combined,
+            webEvidence = await runTool('read_page', () =>
+              this.web.readPages(webEvidence!, read.arguments.sourceIds as number[], combined),
             );
             // Persist the exact selected pages before final generation; replay never fetches again.
             await this.web.finish(principalId, threadId, requestId, webEvidence);
@@ -2614,6 +2637,8 @@ export class AiChatService {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
       if (problem instanceof AiToolPolicyError)
+        throw new AiServiceError(problem.code, problem.status, problem.message);
+      if (problem instanceof AiImageError)
         throw new AiServiceError(problem.code, problem.status, problem.message);
       if (problem instanceof AiServiceError) throw problem;
       throw new AiServiceError(

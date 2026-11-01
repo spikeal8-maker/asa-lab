@@ -1,6 +1,7 @@
+import type { AiToolActivity } from '@asa-lab/contracts';
 import * as cloudAdapter from './ai-provider-stream';
 import * as localAdapter from './ai-ollama';
-import type { AiImageService } from './ai-image.service';
+import { AiImageError, type AiImageService } from './ai-image.service';
 import {
   TOOL_PROVIDERS,
   TOOL_TEST_ROOT,
@@ -264,6 +265,7 @@ function fixture(
     ...(tool === 'generate_image' ? { images: images as unknown as AiImageService } : {}),
   });
   const deltas: string[] = [];
+  const activities: AiToolActivity[] = [];
   const client = new AbortController();
   const send = () =>
     service.sendStream(
@@ -279,8 +281,9 @@ function fixture(
       mode,
       undefined,
       tool === 'generate_image' ? { mode: 'auto', size: 1024 } : undefined,
+      (activity) => activities.push(activity),
     );
-  return { service, send, calls, requests, fetchImpl, deltas, images, client };
+  return { service, send, calls, requests, fetchImpl, deltas, images, client, activities };
 }
 
 describe('native local internet tools', () => {
@@ -308,8 +311,14 @@ describe('native local internet tools', () => {
     const usage = f.calls.find((item) => item.sql.includes('ai_usage_finish'))!;
     expect(usage.params).toContain(30);
     expect(usage.params).toContain(7);
+    expect(f.activities).toEqual([
+      { tool: 'web_search', state: 'running' },
+      { tool: 'web_search', state: 'complete' },
+    ]);
+    const activityCount = f.activities.length;
     const count = f.fetchImpl.mock.calls.length;
     expect((await f.send()).replayed).toBe(true);
+    expect(f.activities).toHaveLength(activityCount);
     expect(f.fetchImpl).toHaveBeenCalledTimes(count);
   });
 
@@ -341,6 +350,12 @@ describe('native local internet tools', () => {
       );
       await f.send();
       expect(read).toHaveBeenCalledOnce();
+      expect(f.activities).toEqual([
+        { tool: 'web_search', state: 'running' },
+        { tool: 'web_search', state: 'complete' },
+        { tool: 'read_page', state: 'running' },
+        { tool: 'read_page', state: 'complete' },
+      ]);
       const rounds = f.requests.filter((item) => item.url.endsWith('/api/chat'));
       expect(rounds).toHaveLength(3);
       expect(rounds[2]!.body!.tools).toBeUndefined();
@@ -765,6 +780,29 @@ describe.each(TOOL_PROVIDERS)('%s internet executor', (provider) => {
 });
 
 describe.each(TOOL_PROVIDERS)('%s native image executor', (provider) => {
+  it('retains generator failure identity and finishes its activity without submitting twice', async () => {
+    const f = fixture(
+      'off',
+      'generate_image',
+      '',
+      [],
+      'complete',
+      true,
+      'Создай картинку',
+      false,
+      provider,
+    );
+    f.images.createFromTool.mockRejectedValueOnce(
+      new AiImageError('ai_image_unavailable', 503, 'PRIVATE GPU host'),
+    );
+    await expect(f.send()).rejects.toMatchObject({ code: 'ai_image_unavailable' });
+    expect(f.images.createFromTool).toHaveBeenCalledOnce();
+    expect(f.activities).toEqual([
+      { tool: 'generate_image', state: 'running' },
+      { tool: 'generate_image', state: 'complete' },
+    ]);
+  });
+
   it('offers the configured generator and submits exactly one owner-bound image job', async () => {
     const f = fixture(
       'off',
