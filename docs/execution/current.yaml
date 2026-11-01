@@ -8126,27 +8126,29 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
-      id: TASK-PROJ-DETAIL-LAYOUT-PREVIEW-001
+      id: TASK-PROJ-R8-04-COMMENTS-001
       issue: 211
       branch: main
       base_branch: main
       status: in_progress
-      checkpoint: owner_requested_layout_example
+      checkpoint: owner_requested_complete_comments
       kind: implementation
-      risk: low
-      semantic_change: 'no'
+      risk: high
+      semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Owner requests critical layout analysis and actual public project page markup
-        with a browser example. One local UI slice: compact back/title header, public
-        author identity/date, stable viewer/notes grid, compact existing real actions
-        and count, readable long text and responsive layout. Preserve native players,
-        copy/like/share permissions and immutable source. No nonfunctional comments,
-        fake settings, new API/migration or production update. Show local browser
-        evidence before treating the proposed visual as owner accepted.
+        Owner explicitly requests real publication comments storage, class and individual
+        learner permissions, owner discussion close and admin moderation, with isolated
+        tests and native UI examples. Guest read only; personal Accounts may write;
+        StudentSeat requires independent class/seat permission default off. Publication
+        permission never implies comment permission. Rating-based access deferred until
+        approved real scoring policy. Bounded replies, own delete, owner hide and admin
+        moderation/report audit use existing identity and moderation foundations.
+        No production deployment, production DB writes or fake discussion UI.
       context_hints:
-      - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
-      - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
+      - docs/product/projects/tasks/PROJ-R8-04.md
+      - docs/product/projects/DECISION_LEDGER.md
+      - docs/agent/contracts/identity.yaml
     integration_dependencies:
       - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
         issue: 836
@@ -9055,6 +9057,31 @@ parallel_lanes:
       acceptance_limit: Core completion and authorized academic read-model only; no new visible counters or fresh raster proof of malformed-history completion.
       owner_acceptance: pending
       deployment: not_run
+    - id: LRN-E1-AUTHOR-MEDIA-727-RECOVERY
+      source_pr: 906
+      superseded_pr: 727
+      source_sha: 958e3544cceb4533dbad6acfca2abb801e8a1643
+      integrated_sha: 2ac9473a5b2d9aae3774af4aa7bbe951d7bd2de0
+      status: technical_accepted
+      source_general_run: 41341174147
+      source_general_attempt: 2
+      source_learning_run: 41341174153
+      source_account_run: 41341174165
+      source_public_run: 41341174171
+      independent_source_review: approved
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      viewed_viewports: [1440, 1024, 390, 320]
+      viewed_pngs: 20
+      qa_artifact: 13097862252
+      qa_zip_sha256: d91725c1dc11c41e7757e7d67a88cd58f5e4562ee587ca04b43388199432106d
+      qa_manifest_sha256: 9acc94a2e5dec94c5675f9f2ee5711e1d8c3d3a909ef334e0ebf7d9d69e8a4aa
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/906#issuecomment-6562887648
+      diagnostic_retry: One unchanged-code Data-only retry after unrelated CRM5000ms timeout; same-SHA isolated case369ms and successful retry831ms; no source or timeout changes.
+      acceptance_limit: Inline media preview and truthful error/retry; no successful video/audio playback or separate inline-success/loading raster claim.
+      owner_acceptance: pending
+      deployment: not_run
     owned_paths:
     - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
@@ -9121,38 +9148,38 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: author_media_727_fresh_main_recovery_selected
+      checkpoint: exact_review_context_selected
       selected_slice:
-        id: LRN-E1-AUTHOR-MEDIA-727-RECOVERY
+        id: LRN-E1-EXACT-REVIEW-CONTEXT
         owner_authorization: Owner explicitly commissioned continued Courses completion after green-gated PR900 integration on 2026-11-01.
-        source_pr: 727
-        source_sha: a1e54d810aac22e0221b200ea03a4a3f2d76570c
-        normative_ref: PRODUCT-INTEGRATED-V15 sections 4.10 and 4.13; existing Learning author editor and material preview
+        normative_ref: Learning UX sections 25-26 and Teacher Learner Oversight sections 1.2-3; exact immutable practice review
         scope: >-
-          Recover existing inline image, native video/audio and safe file-link preview
-          within the accepted lesson block editor. Hidden draft preview uses an
-          immutable author-only clone; preserve learner visibility and editor-first composition.
-        integration_strategy: >-
-          Fresh main-based branch ports only the four source contributions, preserving
-          old published PR727 as provenance. Reconcile only the media hunks of the E1
-          browser spec; never replace its old whole file or lose accepted Usage900,
-          exact-practice navigation, archive assertions or any existing test identity.
+          Make the existing authorized teacher review-context read unambiguous for
+          exact ActivityRun occurrences before adding stream queue navigation.
+          Preserve canonical review/result commands and immutable exact submissions.
+        source_finding: >-
+          Published 0155 permits shared-handout sibling runs and an existing real
+          PostgreSQL regression creates them through activity_run_create. Existing
+          review SQL0115 returns their authorized contexts but controller takes
+          unordered rows[0]. This is a source finding, not a fresh incident reproduction.
+        integration_strategy: Fresh main-based bounded API/read selection repair, reusing authorized SQL rows; no migration or new academic engine.
         expected_write_paths:
-        - apps/web/src/components/LessonBlockEditor.tsx
-        - apps/web/src/components/courses-panel.css
-        - apps/web/src/components/lesson-informational-blocks.spec.ts
-        - e2e/learning-course-01.spec.ts
+        - apps/api/src/learning-assessments.controller.ts
+        - apps/api/src/learning-assessments.controller.spec.ts
+        - apps/web/src/api.ts
+        - tests/courses/course-activity-blocks.pg.spec.ts
         acceptance:
-        - Actual inline image, native video/audio controls and safe PDF link, with caption/alt and no speculative PDF request or autoplay.
-        - Native media loading failure and same-URL retry remain truthful; recovered image has naturalWidth greater than zero.
-        - Real browser interaction and viewed screenshots at 1440, 1024, 390 and 320; no page/control overflow and keyboard-reachable retry with retained focus.
-        - Draft structure remains unchanged; narrowly observed requests and read-only academic before/after witnesses prove preview creates no participation, attempt, submission, result, completion or learning notification.
-        - Full registered Learning and repository gates plus applicable checks, new independent source review and four-viewport visual QA before integration.
+        - Optional validated exact activityRunId selects only that run from already authorized classroom/seat/assignment rows.
+        - Without an exact run return a context only when uniquely resolved; ambiguous or duplicate matches fail closed instead of choosing the first row.
+        - Wrong run, class, seat and foreign educator remain denied; returned participation and attempts belong only to the exact requested run.
+        - Existing unique-handout callers and response shape remain compatible, including the client three-argument call; invalid supplied discriminator cannot silently fall back.
+        - Real isolated PostgreSQL shared-handout sibling witnesses plus controller/client boundary tests; immutable submission, review correction, idempotency and result-selection behavior unchanged.
+        - Full registered Learning and repository gates, applicable Classroom/Account/Public checks and new independent academic/security source review before integration.
         constraints:
-        - Only four listed product/test paths; no metadata, workflows, timeout/retry increases, new upload/provider, schema or authentication changes.
-        - Preserve all existing 46 browser identities and assertions; add only exact synthetic initial media URLs to strict request allowlists, never suppress broad asset errors.
-        - Historical staged helper change in an old owner worktree is already in accepted main; preserve that worktree and all other unfinished work.
-        - No local services, Docker, deployment or live database actions. New bounded executor reports and stops; controller continues programme.
+        - Only four listed source/test paths; no SQL, metadata, workflow, timeout/retry changes, UI queue rewrite, new writer or Auth/tenant/RLS model changes.
+        - Preserve PR900 Usage and all PR904 exact-completion and PR906 media source/assertions, including all46 registered browser identities.
+        - No local services, Docker, live database, deployment or owner acceptance. If existing SQL cannot support this bounded read repair, report scope gap before expanding.
+        - New bounded executor and independent reviewer; executor reports and stops after this prerequisite, controller continues programme.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -9212,17 +9239,18 @@ parallel_lanes:
         revision: '1.0'
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      convergence_baseline_sha: 2ac9473a5b2d9aae3774af4aa7bbe951d7bd2de0
       head_sha: null
-      observed_at: '2026-11-01T19:14:41Z'
+      observed_at: '2026-11-01T20:03:32Z'
       main:
         branch: main
-        sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+        sha: 2ac9473a5b2d9aae3774af4aa7bbe951d7bd2de0
       observation_note: >-
-        Dated post-PR904 integration observation. Exact source a7 passed required
-        General, Learning, Classroom, Account and Public workflows and independent
-        integration review. Main push workflows were still running when observed;
-        do not relabel them PASS. Fetch main and selected source before new writes.
+        Dated post-PR906 integration observation. Exact source958 passed General
+        attempt2, Learning, Account and Public, fresh visual QA and independent
+        integration review; the sole failed CRM timing attempt remains disclosed.
+        Main push checks are a separate observation, not relabelled PASS.
+        Fetch main and exact source checks before new writes.
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned

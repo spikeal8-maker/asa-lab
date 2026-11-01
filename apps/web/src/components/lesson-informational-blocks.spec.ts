@@ -631,6 +631,76 @@ describe('informational lesson blocks', () => {
     );
   });
 
+  it('shows the exact learner image renderer in the author editor, even for a hidden draft block', async () => {
+    const blocks: LessonBlock[] = [
+      {
+        id: 'image-preview',
+        type: 'image',
+        url: '/assets/assignments/demo-car.jpg',
+        alt: 'Учебное изображение',
+        caption: 'Рисунок к уроку',
+        hidden: true,
+      },
+    ];
+    const original = structuredClone(blocks);
+    const changed = await mountEditor(blocks);
+    const preview = container!.querySelector<HTMLElement>('.lesson-block-edit-preview');
+    expect(preview?.getAttribute('role')).toBe('region');
+    expect(preview?.getAttribute('aria-label')).toBe('Предпросмотр вложения блока 1');
+    expect(preview?.textContent).toContain('Как увидит ученик');
+    const image = preview!.querySelector<HTMLImageElement>('img');
+    expect(image?.getAttribute('src')).toBe('/assets/assignments/demo-car.jpg');
+    expect(image?.getAttribute('alt')).toBe('Учебное изображение');
+    expect(preview?.textContent).toContain('Рисунок к уроку');
+    await act(async () => image?.dispatchEvent(new Event('error')));
+    expect(preview?.querySelector('[role="alert"]')?.textContent).toBe(
+      'Не удалось загрузить изображение',
+    );
+    const retry = preview?.querySelector<HTMLButtonElement>('.lesson-media-error button');
+    expect(retry?.textContent?.trim()).toBe('Повторить загрузку');
+    await act(async () => retry?.click());
+    expect(preview?.querySelector('[role="alert"]')).toBeNull();
+    expect(preview?.querySelector<HTMLImageElement>('img')).not.toBe(image);
+    expect(blocks, 'author preview must not unhide the persisted draft').toEqual(original);
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('uses the existing safe file link preview with exact label and no unsafe navigation', async () => {
+    await mountEditor([
+      {
+        id: 'file-preview',
+        type: 'file',
+        url: 'https://example.edu/lesson.pdf',
+        label: 'Памятка к занятию.pdf',
+      },
+    ]);
+    const preview = container!.querySelector<HTMLElement>('.lesson-block-edit-preview');
+    const link = preview?.querySelector<HTMLAnchorElement>('a.lesson-file-block');
+    expect(link?.getAttribute('href')).toBe('https://example.edu/lesson.pdf');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noreferrer');
+    expect(link?.textContent).toContain('Памятка к занятию.pdf');
+  });
+
+  it('refuses an unpublishable image source before mounting any network-backed media', async () => {
+    const blocks: LessonBlock[] = [
+      {
+        id: 'invalid-media',
+        type: 'image',
+        url: 'https://example.edu/image.png',
+        alt: '',
+        caption: '',
+      },
+    ];
+    expect(lessonBlocksValid(blocks)).toBe(false);
+    await mountEditor(blocks);
+    expect(container?.querySelector('.lesson-block-edit-preview')).toBeNull();
+    expect(container?.querySelector('.lesson-block-card [role="status"]')?.textContent).toContain(
+      '/assets/',
+    );
+    expect(container?.querySelector('.lesson-block-card img')).toBeNull();
+  });
+
   it('renders code as escaped text together with formula, table and divider', () => {
     const blocks: LessonBlock[] = [
       {

@@ -1,0 +1,36 @@
+schema_version: 1.0.0
+context: development
+surfaces:
+- id: SURF-DEVELOPMENT-SHADOW-PLANNER
+  routes:
+  - cli:devex:plan
+  implementation:
+    files: &id001
+    - tools/devex_plan.py
+    - tools/devex-dependencies.mjs
+    - tools/devex-python.mjs
+    - tools/test-devex-python.mjs
+    - tools/test_devex_plan.py
+    - tools/test-devex-dependencies.mjs
+    - tools/test_devex_plan_integration.py
+    - tools/gate-governance.sh
+    - package.json
+    - docs/testing/test-catalog.yaml
+    - docs/agent/contracts/development.yaml
+    - docs/agent/surfaces/development.yaml
+    - docs/agent/document-registry.yaml
+    - docs/testing/evidence/devex-shadow-control-set-20261030.json
+  invariants:
+  - DEVEX-SHADOW-001
+  - DEVEX-RISK-001
+  tests: &id002
+  - TST-DEVEX-SHADOW-UNIT-001
+  - TST-DEVEX-SHADOW-INTEGRATION-001
+  controls:
+  - id: CTRL-DEVELOPMENT-SHADOW-SELECTION
+    change_class: L3_CRITICAL
+    files: *id001
+    invariants:
+    - DEVEX-SHADOW-001
+    - DEVEX-RISK-001
+    tests: *id002
