@@ -1,0 +1,71 @@
+name: ASA Portable Restore Focused
+
+'on':
+  workflow_dispatch: {}
+  pull_request:
+    paths:
+      - 'tools/deployment/backup.py'
+      - 'tools/deployment/restore_toc.py'
+      - 'tools/deployment/test*restore*.py'
+      - '.github/workflows/portable-restore.yml'
+  push:
+    branches: ['main']
+    paths:
+      - 'tools/deployment/backup.py'
+      - 'tools/deployment/restore_toc.py'
+      - 'tools/deployment/test*restore*.py'
+      - '.github/workflows/portable-restore.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portable-restore-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tools/deployment -p 'test_*.py' -v
+        env:
+          ASA_TEST_DOCKER_COMPOSE: '0'
+
+  postgres:
+    needs: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.7-bookworm
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-ci-only
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd 'pg_isready -U postgres -d postgres'
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Real PostgreSQL custom export and restore, with unchanged constraints and ACLs
+        run: python -m unittest discover -s tools/deployment -p 'test_backup_restore_pg.py' -v
+        env:
+          ASA_TEST_POSTGRES_RESTORE: '1'
+          ASA_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}

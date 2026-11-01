@@ -10,6 +10,7 @@ import stat
 import uuid
 
 from .contracts import atomic_json, inventory_files, require, verify_backup
+from .restore_toc import plan_restore_toc
 from .system import run
 
 PRIVILEGES_SQL = """
@@ -221,17 +222,24 @@ def restore_check(install, backup, database):
                              "-U", install.env["POSTGRES_USER"], "-d", install.env["POSTGRES_DB"], input_data=query + ";\n", capture=True)
     require(not exists, "RESTORE_EXISTS", "Restore-test database already exists.", "Choose a new *_test database; no database is deleted automatically.")
     remote = f"/tmp/asa-restore-{uuid.uuid4().hex}.dump"
+    remote_toc = remote + ".list"
     try:
         upload_dump(install, Path(backup).resolve() / "database.dump", remote)
-        install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
+        toc = install.compose("exec", "-T", "postgres", "pg_restore", "--list", remote, capture=True)
+        plan = plan_restore_toc(toc)
+        # Both files are private, seekable PostgreSQL-owned files. Never stream
+        # an archive into pg_restore when its data order needs random access.
+        install.compose("exec", "-T", "postgres", "sh", "-eu", "-c",
+                        'umask 077; cat > "$1"', "asa-restore-plan", remote_toc,
+                        input_data=plan, capture=True)
         db_command(install, 'createdb -U "$POSTGRES_USER" "$RESTORE_DATABASE"', database=database)
         # Keep ACLs; target admin owns restored objects. Missing referenced roles
         # fail closed instead of silently weakening RLS or creating superusers.
         install.compose("exec", "-T", "postgres", "pg_restore", "--exit-on-error", "--single-transaction", "--no-owner",
-                        "-U", install.env["POSTGRES_USER"], "-d", database, remote)
+                        "--use-list", remote_toc, "-U", install.env["POSTGRES_USER"], "-d", database, remote)
         db_command(install, 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$RESTORE_DATABASE" -c "SELECT count(*) FROM schema_migrations"', database=database)
         require(privileges(install, database) == manifest["applicationPrivileges"],
                 "RESTORE_PRIVILEGES", "Restored application table privileges/RLS differ from the source.")
         print(f"RESTORE_CHECK verified database and object checksums: {database}; application journeys still require acceptance.")
     finally:
-        install.compose("exec", "-T", "postgres", "rm", "-f", remote, capture=True)
+        install.compose("exec", "-T", "postgres", "rm", "-f", remote, remote_toc, capture=True)
