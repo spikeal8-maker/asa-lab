@@ -9035,6 +9035,26 @@ parallel_lanes:
       ci_prerequisite_source: c1b9ae464bba403523770b523d3d849eab87db18
       owner_acceptance: pending
       deployment: not_run
+    - id: LRN-E1-MIXED-COMPLETION-739-RECOVERY
+      source_pr: 904
+      superseded_pr: 739
+      source_sha: a7cc0c907b6b96408819d38007da10768aaa2263
+      integrated_sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      status: technical_accepted
+      source_general_run: 41337764380
+      source_learning_run: 41337764381
+      source_classroom_run: 41337764378
+      source_account_run: 41337764383
+      source_public_run: 41337764385
+      independent_source_review: approved
+      independent_integration_review: approved
+      browser_cases_passed: 46
+      browser_skips_and_retries: 0
+      qa_manifest_sha256: 9a71b19cf5c322ee8e76c85fd6b41793f6202d7fd4d23a09d54b873aab5a1029
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/904#issuecomment-6562511700
+      acceptance_limit: Core completion and authorized academic read-model only; no new visible counters or fresh raster proof of malformed-history completion.
+      owner_acceptance: pending
+      deployment: not_run
     owned_paths:
     - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
@@ -9101,56 +9121,38 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mixed_completion_739_fresh_main_recovery_selected
+      checkpoint: author_media_727_fresh_main_recovery_selected
       selected_slice:
-        id: LRN-E1-MIXED-COMPLETION-739-RECOVERY
+        id: LRN-E1-AUTHOR-MEDIA-727-RECOVERY
         owner_authorization: Owner explicitly commissioned continued Courses completion after green-gated PR900 integration on 2026-11-01.
-        source_pr: 739
-        source_sha: a29bcd52f3aaee692839668cce3baaa85a967b2f
-        normative_ref: PRODUCT-INTEGRATED-V15 sections 4.10 and 4.13; Learning canonical completion and result selection
+        source_pr: 727
+        source_sha: a1e54d810aac22e0221b200ea03a4a3f2d76570c
+        normative_ref: PRODUCT-INTEGRATED-V15 sections 4.10 and 4.13; existing Learning author editor and material preview
         scope: >-
-          Recover existing PR739 exact published-practice occurrence completion,
-          selected-result truth and seatId/activityRunId evidence on fresh main.
-          Preserve accepted PR900 and published main history. This is the core
-          read-model/helper integration, not a claim of completed visible counters
-          or the entire learner hub.
+          Recover existing inline image, native video/audio and safe file-link preview
+          within the accepted lesson block editor. Hidden draft preview uses an
+          immutable author-only clone; preserve learner visibility and editor-first composition.
         integration_strategy: >-
-          Use a fresh main-based recovery branch and port only the reviewed
-          source contributions. Preserve the old published PR739 branch as
-          provenance; no published rebase or old-tree replacement. Reconcile
-          additive changes against current API, migration fixtures and the new
-          Usage PostgreSQL regression rather than copying stale whole files.
-        migration:
-          source_path: migrations/0269_learning_course_academic_result_access.sql
-          source_blob: 18cb3f6cc3da42d27677be7fac9dca64e5e43fd6
-          source_sha256: 73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4
-          candidate_path: migrations/0288_learning_course_academic_result_access.sql
-          allocation_rule: Recheck remote main before writing and publication; stop for new controller selection if 0288 is occupied. This is not an exclusive reservation.
-          preservation: Rename only the unmerged Courses SQL, byte-identical; published main 0269 and 0267 and every later accepted migration remain unchanged.
+          Fresh main-based branch ports only the four source contributions, preserving
+          old published PR727 as provenance. Reconcile only the media hunks of the E1
+          browser spec; never replace its old whole file or lose accepted Usage900,
+          exact-practice navigation, archive assertions or any existing test identity.
         expected_write_paths:
-        - apps/api/src/classroom-join.controller.spec.ts
-        - apps/api/src/classroom-join.controller.ts
-        - apps/api/src/learning-canonical-projection.service.spec.ts
-        - apps/api/src/learning-canonical-projection.service.ts
-        - apps/web/src/api.ts
-        - apps/web/src/learning/course-completion.spec.ts
-        - apps/web/src/learning/course-completion.ts
-        - migrations/0288_learning_course_academic_result_access.sql
-        - tests/courses/course-activity-blocks.pg.spec.ts
-        - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
-        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
-        - tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts
+        - apps/web/src/components/LessonBlockEditor.tsx
+        - apps/web/src/components/courses-panel.css
+        - apps/web/src/components/lesson-informational-blocks.spec.ts
+        - e2e/learning-course-01.spec.ts
         acceptance:
-        - Exact visible practice occurrences and selectedResult completion; no submittedAt or read-theory false completion, missing/excused/revision remain distinct.
-        - Real PostgreSQL plus actual Account and StudentSeat controller output agrees with immutable 0267 at 0/2, 1/2 and 2/2; same handout in different runs stays isolated.
-        - Academic result access is separate from Project bytes; own authorized result is readable while peer/foreign result remains denied.
-        - Preserve all accepted migration checksums, strict unsupported-history rejection, supported prefix upgrade and second-apply zero.
-        - Full registered Learning and repository gates, applicable Classroom/Account/Public checks and new exact-source independent academic/security review before integration.
+        - Actual inline image, native video/audio controls and safe PDF link, with caption/alt and no speculative PDF request or autoplay.
+        - Native media loading failure and same-URL retry remain truthful; recovered image has naturalWidth greater than zero.
+        - Real browser interaction and viewed screenshots at 1440, 1024, 390 and 320; no page/control overflow and keyboard-reachable retry with retained focus.
+        - Draft structure remains unchanged; narrowly observed requests and read-only academic before/after witnesses prove preview creates no participation, attempt, submission, result, completion or learning notification.
+        - Full registered Learning and repository gates plus applicable checks, new independent source review and four-viewport visual QA before integration.
         constraints:
-        - Only the listed recovery paths; no metadata, workflow, timeout/retry, UI composition, Auth/tenant/RLS redesign, deployment or live database changes.
-        - Preserve all PR900 source and assertions, including its Usage PostgreSQL regression and existing 46 browser identities.
-        - Do not edit the existing E1 browser spec or old owner worktrees; its inspected historical staged helper change is already in accepted main.
-        - New independent source author and academic/security reviewer; executor reports and stops after this core recovery slice.
+        - Only four listed product/test paths; no metadata, workflows, timeout/retry increases, new upload/provider, schema or authentication changes.
+        - Preserve all existing 46 browser identities and assertions; add only exact synthetic initial media URLs to strict request allowlists, never suppress broad asset errors.
+        - Historical staged helper change in an old owner worktree is already in accepted main; preserve that worktree and all other unfinished work.
+        - No local services, Docker, deployment or live database actions. New bounded executor reports and stops; controller continues programme.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -9210,14 +9212,17 @@ parallel_lanes:
         revision: '1.0'
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: fd7dd9dcc12ea74adb490ad9d435d730e866d4e7
+      convergence_baseline_sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
       head_sha: null
-      observed_at: '2026-11-01T17:50:23Z'
+      observed_at: '2026-11-01T19:14:41Z'
       main:
         branch: main
-        sha: fd7dd9dcc12ea74adb490ad9d435d730e866d4e7
-      observation_note: Dated post-PR900 integration observation. Source64df passed the required gates and independent integration review;
-        merged-main push workflows are a separate observation, not relabelled PASS. Fetch main and task source before new writes.
+        sha: 2212821f6f3d3f806680764f7708c2620edfcdf9
+      observation_note: >-
+        Dated post-PR904 integration observation. Exact source a7 passed required
+        General, Learning, Classroom, Account and Public workflows and independent
+        integration review. Main push workflows were still running when observed;
+        do not relabel them PASS. Fetch main and selected source before new writes.
     execution_lease:
       executor_id: codex-learning-course-01
       holder: unassigned
