@@ -112,6 +112,7 @@ it('starts recording with one click and shows only compact voice activity', asyn
   expect(acquire).toHaveBeenCalledTimes(1);
   expect(host.querySelector('[role="dialog"]')).toBeNull();
   expect(host.textContent).not.toMatch(/Polza|Продолжить|ASA Lab/);
+  expect(button('Остановить запись и распознать').hasAttribute('data-ai-tooltip')).toBe(false);
   expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(5);
   expect(host.querySelector('time')?.textContent).toBe('0:00');
   expect(button('Остановить запись и распознать').getAttribute('aria-pressed')).toBe('true');

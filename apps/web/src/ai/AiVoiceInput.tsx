@@ -344,7 +344,7 @@ export function AiVoiceInput({
         type="button"
         aria-label={label}
         aria-pressed={mode === 'recording'}
-        data-ai-tooltip={label}
+        data-ai-tooltip={mode === 'idle' ? label : undefined}
         disabled={
           mode === 'transcribing' ||
           mode === 'acquiring' ||

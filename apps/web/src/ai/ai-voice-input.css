@@ -1,5 +1,8 @@
-.asa-ai-layout .ai-voice-control {
+.asa-ai-layout .chat-composer-wrap:has(.ai-voice-control) {
   position: relative;
+}
+.asa-ai-layout .ai-voice-control {
+  position: static;
   flex: 0 0 36px;
   width: 36px;
   min-width: 0;
@@ -23,8 +26,8 @@
 .asa-ai-layout .ai-voice-toast {
   position: absolute;
   z-index: 20;
-  right: -36px;
-  bottom: calc(100% + 13px);
+  right: 12px;
+  bottom: calc(100% + 10px);
   display: flex;
   align-items: center;
   gap: 10px;
