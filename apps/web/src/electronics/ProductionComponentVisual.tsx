@@ -398,6 +398,10 @@ function useOwnerImageHref(asset: string): {
   const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
   useEffect(() => {
     let active = true;
+    const existingRecovery = recoveredOwnerImages.get(asset);
+    const existingCycle = ownerImageCycles.get(asset);
+    let ownEventReceived = false;
+    let observerFailed = false;
     let pending: Promise<boolean> | null = null;
     const load = (): Promise<boolean> => {
       if (pending) return pending;
@@ -459,7 +463,12 @@ function useOwnerImageHref(asset: string): {
         });
         return;
       }
-      if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
+      if (
+        current.current.asset === asset &&
+        current.current.failed &&
+        failedOwnerImages.has(asset) &&
+        !observerFailed
+      )
         return;
       if (
         current.current.asset === asset &&
@@ -477,9 +486,20 @@ function useOwnerImageHref(asset: string): {
     };
     const mountedHandlers = {
       asset,
-      error: recover,
+      error: () => {
+        ownEventReceived = true;
+        recover();
+        observerFailed = false;
+      },
       load: () => {
-        if (active && current.current.asset === asset) recovery.recovered();
+        ownEventReceived = true;
+        if (active && current.current.asset === asset) {
+          if (observerFailed) {
+            observerFailed = false;
+            setLoaded({ ...current.current, failed: false });
+          }
+          recovery.recovered();
+        }
       },
     };
     handlers.current = mountedHandlers;
@@ -490,6 +510,21 @@ function useOwnerImageHref(asset: string): {
       earlyEvent.current = null;
       mountedHandlers[kind]();
     }
+    // A late same-asset consumer may never receive its own native error.
+    // Observe only work already started elsewhere; native events own newer proof.
+    const observeExistingFailure = (): void => {
+      if (
+        active &&
+        !ownEventReceived &&
+        ownerImageCycles.get(asset) === existingCycle &&
+        failedOwnerImages.has(asset)
+      ) {
+        observerFailed = true;
+        setLoaded({ asset, href: asset, failed: true });
+      }
+    };
+    if (existingRecovery) void existingRecovery.catch(observeExistingFailure);
+    else observeExistingFailure();
     const retry = (): void => {
       if (failedOwnerImages.has(asset)) start();
     };
