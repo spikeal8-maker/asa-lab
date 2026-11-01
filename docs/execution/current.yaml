@@ -5211,51 +5211,22 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
-      issue: 569
+      id: TASK-ELECTRONICS-GOVERNANCE-014
+      issue: 929
       branch: main
       base_branch: main
       pr: null
-      status: done
-      checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
-      kind: repair
+      status: in_progress
+      kind: maintenance
+      checkpoint: selected_doc_only_routes_after_accepted_static_split
       owner_acceptance: pending
-      programme_issue: 452
-      owner_problem: E01 verify all four approved saving and server-request points
-        together; publish missing truthful indicator only after permitted review
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/arduino-peripherals.yaml
         - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto
-        main containing570 and571; verify all four points on one exact candidate.
-        Preserve existing local protection and all suspended work.
-      baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
-      preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
-      technical_acceptance: accepted_exact_main_general_and_new_independent_review
-      publication_authorization: owner_explicit_all_four_points_in_main;
-        development_publication_only_after_new_independent_functional_verification
-      school_actions: deferred_by_owner_no_installation_actions
-      deployment: not_run
-      database_actions: none
-      next_action: STOP all four approved saving points technically accepted; no next
-        task selected;566 and programme452 remain open; no deployment or owner
-        acceptance
-      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
-      independent_review: approved
-      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
-      exact_main_general_run: 38626738375
-      exact_main_general_conclusion: success
-      source_focused_run: 38623487785
-      source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
-      source_directed_browser_cases: 3
-      point3_verification: PRESERVED_PASS immediate synchronous local draft/readback;
-        held remote reply retains pupil166.7; no new storage repair
-      resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
-      historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records
-        supersede their historical pending/blocked snapshots
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+      scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
+      owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
+      next_action: Add actual moved declaration source paths and remove only the below-threshold arduino-blocks entry; validate routing, control-plane and bounded self-review; STOP. Preserve every accepted product blob and server state.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
@@ -6915,6 +6886,51 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      task:
+        id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+        issue: 569
+        branch: main
+        base_branch: main
+        pr: null
+        status: done
+        checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 verify all four approved saving and server-request points together; publish missing truthful
+          indicator only after permitted review
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY transfer preserved569 indicator and compatible tests onto main containing570 and571; verify
+          all four points on one exact candidate. Preserve existing local protection and all suspended work.
+        baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
+        preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+        technical_acceptance: accepted_exact_main_general_and_new_independent_review
+        publication_authorization: owner_explicit_all_four_points_in_main; development_publication_only_after_new_independent_functional_verification
+        school_actions: deferred_by_owner_no_installation_actions
+        deployment: not_run
+        database_actions: none
+        next_action: STOP all four approved saving points technically accepted; no next task selected;566 and programme452
+          remain open; no deployment or owner acceptance
+        accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+        independent_review: approved
+        independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+        exact_main_general_run: 38626738375
+        exact_main_general_conclusion: success
+        source_focused_run: 38623487785
+        source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+        source_directed_browser_cases: 3
+        point3_verification: PRESERVED_PASS immediate synchronous local draft/readback; held remote reply retains pupil166.7;
+          no new storage repair
+        resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
+        historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records supersede their historical
+          pending/blocked snapshots
     - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
       issue: 466
       status: suspended_owner_direct_field_priority
