@@ -18,7 +18,15 @@ export function NativeLedDiagnostic({
   badgeAnchorKind,
   badgeGeometry,
 }: {
-  readonly controller: ElectronicsWorkbenchController;
+  readonly controller: Pick<
+    ElectronicsWorkbenchController,
+    | 'simulationRunning'
+    | 'nativeOpticalPresentation'
+    | 'diagnosticsByComponent'
+    | 'runtimePresentationResultByComponent'
+    | 'errorDiagnosticComponentIds'
+    | 'selectComponent'
+  >;
   readonly component: SchematicComponent;
   readonly entryKey: string;
   readonly baseSize: { readonly width: number; readonly height: number };
