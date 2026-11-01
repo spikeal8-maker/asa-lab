@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_b_shadow_planner_selected
+      checkpoint: package_c_changed_local_checks_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -108,16 +108,18 @@ parallel_lanes:
         host network operations. Docker/browser/data execution uses isolated CI only.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 5905889681b40b58d757680fda16e247b49c7869
+      convergence_baseline_sha: ec0956bea68a6c592ab1e98388b1027ef3cc03f2
       head_sha: null
-      observed_at: '2026-10-30T19:35:56Z'
+      observed_at: '2026-11-01T20:09:15Z'
       main:
         branch: main
-        sha: 5905889681b40b58d757680fda16e247b49c7869
+        sha: ec0956bea68a6c592ab1e98388b1027ef3cc03f2
       observation_note: >-
-        Dated package A integration after independently reviewed source 2c5407f3711903203dabd3d71b28a78981e5dd77
-        and exact General 41111731364 succeeded; fetch main before writes. Select package B in SHADOW only;
-        existing gates remain enabled. Programme completion, speed gains and owner acceptance are not claimed.
+        Dated package B integration after independently reviewed source baae3ffd5f58f67cd0b9c114cdea61af1e9c6717
+        and exact General 41342442748 succeeded in all four jobs. Protected gate:code and the image guard are preserved;
+        D13 WIP was untouched. Select C: execute explicitly eligible local checks from live plans without waiving
+        pending mandatory CI. Fetch main before writes. Existing gates remain enabled. No deployment, speed gains
+        or owner acceptance claimed.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -129,8 +131,8 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: B
-      remaining_slices: [B, C, D, E, F, G]
+      selected_slice: C
+      remaining_slices: [C, D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -149,6 +151,14 @@ parallel_lanes:
           independent_review: approved
           evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6531875035
           baseline_report: docs/testing/evidence/devex-baseline-20261030.json
+        - id: B
+          source_sha: baae3ffd5f58f67cd0b9c114cdea61af1e9c6717
+          integrated_sha: ec0956bea68a6c592ab1e98388b1027ef3cc03f2
+          pr: 898
+          exact_source_general_run: 41342442748
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6563214545
+          shadow_control_report: docs/testing/evidence/devex-shadow-control-set-20261030.json
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
