@@ -1433,7 +1433,7 @@ export function AiChatPage({
     void refreshThreads();
   }
 
-  const empty = messages.length === 0 && pendingMessage === null && !streamedText;
+  const empty = messages.length === 0 && pendingMessage === null && !streamedText && !imageUi.busy;
   const currentTitle = currentThread?.title || 'Новый диалог';
   const archived = !!currentThread?.archivedAt;
   const visibleError = error ?? historyError;

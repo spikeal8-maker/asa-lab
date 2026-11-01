@@ -353,23 +353,19 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
               ? { images: args.images }
               : {}),
           })),
-          ...(args.toolResults?.length
-            ? [
+          ...(args.toolResults ?? []).flatMap((result) => [
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
                 {
-                  role: 'assistant',
-                  content: '',
-                  tool_calls: args.toolResults.map((result) => ({
-                    type: 'function',
-                    function: { name: result.call.name, arguments: result.call.arguments },
-                  })),
+                  type: 'function',
+                  function: { name: result.call.name, arguments: result.call.arguments },
                 },
-                ...args.toolResults.map((result) => ({
-                  role: 'tool',
-                  tool_name: result.call.name,
-                  content: result.content,
-                })),
-              ]
-            : []),
+              ],
+            },
+            { role: 'tool', tool_name: result.call.name, content: result.content },
+          ]),
         ],
         ...(args.tools?.length ? { tools: args.tools } : {}),
         stream: true,

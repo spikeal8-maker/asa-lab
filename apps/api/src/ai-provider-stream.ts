@@ -223,12 +223,11 @@ export async function streamProviderText({
     else
       request.body.messages = [
         ...(request.body.messages as unknown[]),
-        { role: 'assistant', content: '', tool_calls: calls },
-        ...toolResults.map((r, i) => ({
-          role: 'tool',
-          tool_call_id: 'call_asa_' + i,
-          content: r.content,
-        })),
+        // Preserve sequential model decisions, rather than fabricating one parallel batch.
+        ...toolResults.flatMap((r, i) => [
+          { role: 'assistant', content: '', tool_calls: [calls[i]] },
+          { role: 'tool', tool_call_id: 'call_asa_' + i, content: r.content },
+        ]),
       ];
   }
   const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);

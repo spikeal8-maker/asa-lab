@@ -354,3 +354,48 @@ it('dismisses a model failure immediately after choosing a different model witho
   expect(host.querySelector('[aria-label="Модель ИИ"]')?.textContent).toContain('deepseek-flash');
   expect(streamAiRequest).toHaveBeenCalledTimes(1);
 });
+
+it('shows image progress in an otherwise empty conversation, including recovery after reload', async () => {
+  const complete = pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  const request = '50000000-0000-4000-8000-000000000005';
+  const key = 'asa-ai-image:personal:' + CREATED_THREAD;
+  sessionStorage.setItem(key, request);
+  vi.mocked(call).mockImplementation((path, init) => {
+    if (path === '/api/ai/image-generation/status')
+      return Promise.resolve(
+        ok({ enabled: true, ready: true, sizes: [1024], dailyLimit: 10, remainingToday: 10 }),
+      );
+    if (path.includes('/image-generations/'))
+      return Promise.resolve(
+        ok({
+          threadId: CREATED_THREAD,
+          requestId: request,
+          state: 'running',
+          prompt: 'Синяя мастерская',
+          size: 1024,
+          recipe: 'flux2-klein-4b-v1',
+          cancelRequested: false,
+          errorCode: null,
+          image: null,
+          createdAt: '2026-11-02T00:00:00Z',
+        }),
+      );
+    return original(path, init);
+  });
+  try {
+    await mount();
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Создать новый диалог"]')!.click(),
+    );
+    await act(async () => complete());
+    expect(host.querySelector('.ai-activity-image')).not.toBeNull();
+    expect(host.querySelector('.ai-activity-canvas')).not.toBeNull();
+    expect(host.querySelector('.asa-ai-chat.is-empty')).toBeNull();
+    expect(host.textContent).toContain('Синяя мастерская');
+    expect(composer().disabled).toBe(false);
+    expect(streamAiRequest).not.toHaveBeenCalled();
+  } finally {
+    sessionStorage.removeItem(key);
+  }
+});

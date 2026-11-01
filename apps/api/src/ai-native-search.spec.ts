@@ -360,6 +360,20 @@ describe('native local internet tools', () => {
       expect(rounds).toHaveLength(3);
       expect(rounds[2]!.body!.tools).toBeUndefined();
       expect(JSON.stringify(rounds[2]!.body!.messages)).toContain('Verified article contents');
+      const chain = rounds[2]!.body!.messages as {
+        role: string;
+        tool_calls?: { function: { name: string } }[];
+      }[];
+      expect(chain.filter((m) => m.role === 'tool')).toHaveLength(2);
+      expect(
+        chain.filter((m) => m.role === 'assistant').map((m) => m.tool_calls?.[0]?.function.name),
+      ).toEqual(['web_search', 'read_page']);
+      expect(chain.slice(-4).map((m) => m.role)).toEqual([
+        'assistant',
+        'tool',
+        'assistant',
+        'tool',
+      ]);
       expect(f.calls.filter((item) => item.sql.includes('ai_web_search_finish'))).toHaveLength(1);
       const count = f.fetchImpl.mock.calls.length;
       expect((await f.send()).replayed).toBe(true);
@@ -756,6 +770,32 @@ describe.each(TOOL_PROVIDERS)('%s internet executor', (provider) => {
       expect(new Set(rounds.map((item) => item.url)).size).toBe(1);
       expect(rounds[2]!.body!.tools).toBeUndefined();
       expect(JSON.stringify(rounds[2]!.body)).toContain('FULL_ARTICLE_MARKER');
+      const finalWire = rounds[2]!.body!;
+      if (provider === 'openai') {
+        const input = finalWire.input as { type?: string; name?: string }[];
+        expect(input.filter((x) => x.type === 'function_call').map((x) => x.name)).toEqual([
+          'web_search',
+          'read_page',
+        ]);
+        expect(input.filter((x) => x.type === 'function_call_output')).toHaveLength(2);
+      } else {
+        const messages = finalWire.messages as {
+          role: string;
+          tool_calls?: { function: { name: string } }[];
+        }[];
+        expect(
+          messages
+            .filter((m) => m.role === 'assistant')
+            .map((m) => m.tool_calls?.[0]?.function.name),
+        ).toEqual(['web_search', 'read_page']);
+        expect(messages.slice(-4).map((m) => m.role)).toEqual([
+          'assistant',
+          'tool',
+          'assistant',
+          'tool',
+        ]);
+      }
+
       expect(read).toHaveBeenCalledOnce();
     } finally {
       read.mockRestore();
