@@ -767,3 +767,13 @@ documents:
     - student_seat
     - learner_ui
     - access_card
+
+  - id: DEVELOPMENT-DOMAIN-CONTRACT
+    path: docs/agent/contracts/development.yaml
+    scope: development
+    lanes: [devex-engine]
+    kind: domain_contract
+    status: canonical
+    authority: development_shadow_selection_invariants
+    context_role: compact
+    read_when: [development_tooling, shadow_test_selection]

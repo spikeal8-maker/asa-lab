@@ -140,7 +140,7 @@
     "control-plane:check": "python tools/validate_control_plane.py",
     "gate:governance": "node tools/run-governance-gate.mjs",
     "gate:admin-control-plane": "corepack pnpm nx run api:build && corepack pnpm nx run web:build && corepack pnpm contracts:check && corepack pnpm db:migrate:check && corepack pnpm test:admin-control-plane",
-    "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm validate:electronics-agent-docs && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm test:release && corepack pnpm build && corepack pnpm bundle:check",
+    "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm validate:electronics-agent-docs && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm test:release && corepack pnpm build && corepack pnpm bundle:check && corepack pnpm test:devex-plan:integration",
     "gate:data": "corepack pnpm db:migrate:check && corepack pnpm test && corepack pnpm test:rls",
     "gate:repository": "corepack pnpm gate:governance && corepack pnpm gate:code && corepack pnpm gate:data",
     "generate:electronics-component-coverage": "node tools/generate-electronics-component-coverage.mjs --write",
@@ -165,7 +165,9 @@
     "e2e:learning-e1": "playwright test e2e/learning-author-preview.spec.ts e2e/learning-course-01.spec.ts e2e/courses-sharing.spec.ts --workers=1 && playwright test e2e/learning-learner-submits-project-assignment.spec.ts e2e/learning-surface-convergence.spec.ts e2e/learning-teacher-assigns-activity.spec.ts --workers=1",
     "gate:blocks": "node tools/blocks/gate.mjs",
     "test:auth-confirmation:installation": "python -m unittest tools.deployment.test_auth_installer",
-    "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts"
+    "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts",
+    "devex:plan": "python tools/devex_plan.py",
+    "test:devex-plan:integration": "node --test tools/test-devex-dependencies.mjs && python tools/test_devex_plan_integration.py"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

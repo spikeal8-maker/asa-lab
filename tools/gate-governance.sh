@@ -21,6 +21,7 @@ run() {
 run "$PYTHON" -m compileall -q tools
 run "$PYTHON" tools/test_collect_logs.py
 run "$PYTHON" tools/test_ci_metrics.py
+run "$PYTHON" tools/test_devex_plan.py
 
 # State consistency first: every later validator reads the active task from
 # docs/execution/current.yaml, so a drifted control plane must fail loudly here
