@@ -577,6 +577,8 @@ export interface ClassroomCourseRun {
 }
 
 export interface CourseActivityOccurrence {
+  /** Exact assignment applicability. Missing on historic responses. */
+  requirement?: 'required' | 'excused' | 'not_assigned' | 'unknown';
   blockId: string;
   activityRunId: string;
   classroomAssignmentId: string;

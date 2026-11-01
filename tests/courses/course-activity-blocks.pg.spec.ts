@@ -1,6 +1,14 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import type { FastifyRequest } from 'fastify';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
+import type { SeatCourseRunLesson } from '../../apps/web/src/api';
+import { ClassroomJoinController } from '../../apps/api/src/classroom-join.controller';
+import {
+  courseCompletion,
+  lessonPracticeProgress,
+} from '../../apps/web/src/learning/course-completion';
 import {
   ACCOUNT_COURSE_LESSON_LIST_SQL,
   SEAT_COURSE_LESSON_LIST_SQL,
@@ -691,7 +699,23 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
           )
         ).rows[0].count,
       );
-    const sweep = async () => admin.query('SELECT learning_notification_sweep()');
+    // The sweeper uses a non-blocking global advisory lock and may legitimately
+    // skip a call while another test worker sweeps. Hold that same lock on our
+    // connection so this fixture's sweep cannot silently skip its transition.
+    const sweep = async () => {
+      const client = await admin.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(1122,1)');
+        await client.query('SELECT learning_notification_sweep()');
+        await client.query('COMMIT');
+      } catch (failure) {
+        await client.query('ROLLBACK');
+        throw failure;
+      } finally {
+        client.release();
+      }
+    };
 
     expect(await completion()).toMatchObject({
       completed: false,
@@ -777,22 +801,46 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     expect(await countCompletedNotifications()).toBe(0);
 
     const threeDCorrected = await addAttempt(practiceRuns[1].id, 2, 'closed', threeDPending);
-    await publishReview(threeDCorrected, 'accepted');
-    expect(await completion()).toMatchObject({
-      completed: true,
-      total: 1,
-      lessonCount: 1,
-      completedCount: 1,
-      reason: 'required_lessons_completed',
-    });
-
-    await inTenant(author, (client) =>
-      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,false)', [
-        seat,
-        delivery.run_id,
-        runLesson.id,
-      ]),
-    );
+    // Another Vitest worker may sweep the same PostgreSQL fixture concurrently.
+    // Make the transient completed state unobservable outside the transaction:
+    // academic acceptance and theory unread must commit atomically. Inside the
+    // transaction we still assert the accepted result completes the course.
+    const transaction = await admin.connect();
+    try {
+      await transaction.query('BEGIN');
+      await transaction.query("SELECT set_config('app.tenant_id',$1,true)", [author.tenantId]);
+      const accepted = await transaction.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         SELECT tenant_id,id,20,'passed','accepted',true
+           FROM learning_attempts WHERE id=$1 RETURNING id`,
+        [threeDCorrected],
+      );
+      expect(accepted.rows).toHaveLength(1);
+      const completedInTransaction = (
+        await transaction.query('SELECT learning_course_completion_internal($1) AS value', [
+          enrollment.id,
+        ])
+      ).rows[0].value;
+      expect(completedInTransaction).toMatchObject({
+        completed: true,
+        total: 1,
+        lessonCount: 1,
+        completedCount: 1,
+        reason: 'required_lessons_completed',
+      });
+      const unread = await transaction.query(
+        'SELECT * FROM classroom_course_material_progress_set($1,$2,$3,false)',
+        [seat, delivery.run_id, runLesson.id],
+      );
+      expect(unread.rows[0].result_code).toBe('ok');
+      await transaction.query('COMMIT');
+    } catch (error) {
+      await transaction.query('ROLLBACK');
+      throw error;
+    } finally {
+      transaction.release();
+    }
     expect(await completion()).toMatchObject({ completed: false, completedCount: 0 });
     await sweep();
     expect(await countCompletedNotifications()).toBe(0);
@@ -1088,6 +1136,49 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       proof: { modernCourseRun: true, projectReadable: true },
     });
     expect(revisited.rows[0].submitted_at).toBeTruthy();
+
+    // Actual historical Course handout: submission exists, but no selected
+    // assessment result. API and client must agree with immutable SQL 0267.
+    const enrollment = (
+      await admin.query(
+        'SELECT id FROM course_enrollments WHERE course_run_id=$1 AND learner_identity_id=$2',
+        [assigned.run_id, identity],
+      )
+    ).rows[0] as { id: string };
+    expect(enrollment.id).toBeTruthy();
+    const historicSql = (
+      await admin.query('SELECT learning_course_completion_internal($1) AS value', [enrollment.id])
+    ).rows[0].value as { completed: boolean; total: number; completedCount: number };
+    expect(historicSql).toMatchObject({
+      total: 1,
+      completedCount: 0,
+      completed: false,
+    });
+    const historicApi = await inTenant(author, async (client) => {
+      const controller = new ClassroomJoinController(
+        client as unknown as pg.Pool,
+        {
+          resolve: async () => ({
+            accountId: learnerAccount,
+            principalId: learnerPrincipal,
+          }),
+        } as unknown as ActiveContextUseCase,
+      );
+      const request = {
+        cookies: { asa_session: 'isolated-historical-course' },
+      } as unknown as FastifyRequest;
+      return controller.accountCourseRuns(request);
+    });
+    const historicLesson = historicApi.items
+      .find((run) => run.id === assigned.run_id)
+      ?.sections.flatMap((section) => section.lessons)
+      .find((lesson) => lesson.id === runs[0].source_course_lesson_id);
+    expect(historicLesson?.submittedAt).toBeTruthy();
+    expect(historicLesson?.canonicalState?.selectedResult ?? null).toBeNull();
+    const historicalCompletion = courseCompletion([historicLesson as SeatCourseRunLesson]);
+    expect(historicalCompletion.complete).toBe(false);
+    expect(historicalCompletion.complete).toBe(historicSql.completed);
+
     expect((await accountList()).rows[0]).toMatchObject({
       project_id: projectId,
       modern_activity_run_id: activityRunId,
@@ -1655,6 +1746,382 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     );
     await expectUnattributedWork();
   });
+
+  it('matches exact SQL 0267 completion with the real Account API on shared-handout Course Activity runs', async () => {
+    const electronics = await publishActivity(author, principalId, 'electronics');
+    const threeD = await publishActivity(author, principalId, 'three-d');
+    const { courseId, sectionId } = await newCourse('P1 SQL and API convergence');
+    const firstBlock = {
+      id: 'p1-electronics',
+      type: 'activity',
+      learningActivityVersionId: electronics.versionId,
+    };
+    await admin.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,'P1 mixed lesson',NULL,$4::jsonb,'material',NULL,15,NULL)",
+      [principalId, courseId, sectionId, JSON.stringify([firstBlock])],
+    );
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    const published = await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      'p1:publish:' + ++sequence,
+    ]);
+    expect(published.rows[0].result_code).toBe('ok');
+
+    const { classroom, seat } = await classroomWithSeat(accountId);
+    const assigned = await assignCourseRun(courseId, classroom, seat, 'p1:assigned:' + ++sequence);
+    expect(assigned.result_code).toBe('ok');
+    const first = (
+      await admin.query(
+        `SELECT run.id,run.source_classroom_assignment_id,run.source_course_lesson_id,
+                part.learner_identity_id,part.source_course_enrollment_id
+           FROM activity_runs run
+           JOIN activity_participations part ON part.activity_run_id=run.id
+          WHERE run.source_course_run_id=$1 AND run.source_course_block_id='p1-electronics'`,
+        [assigned.run_id],
+      )
+    ).rows[0];
+    expect(first.source_course_enrollment_id).toBeTruthy();
+    const sibling = (
+      await inTenant(author, (client) =>
+        client.query(
+          `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,
+             NULL,NULL,'{}'::jsonb,$6,'p1-three-d')`,
+          [
+            principalId,
+            first.source_classroom_assignment_id,
+            threeD.versionId,
+            assigned.run_id,
+            first.source_course_lesson_id,
+            'p1:sibling:' + ++sequence,
+          ],
+        ),
+      )
+    ).rows[0];
+    expect(sibling.result_code).toBe('ok');
+    const runIds = [first.id as string, sibling.activity_run_id as string];
+    await admin.query(
+      `UPDATE classroom_course_run_lessons
+          SET blocks=blocks || jsonb_build_array(jsonb_build_object(
+            'id','p1-three-d','type','activity','learningActivityVersionId',$2::text))
+        WHERE id=$1`,
+      [first.source_course_lesson_id, threeD.versionId],
+    );
+    const markTheory = await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_course_material_progress_set($1,$2,$3,true)', [
+        seat,
+        assigned.run_id,
+        first.source_course_lesson_id,
+      ]),
+    );
+    expect(markTheory.rows[0].result_code).toBe('ok');
+    const originCount = await admin.query(
+      'SELECT count(*)::int AS count FROM learning_project_origins WHERE activity_run_id=ANY($1::uuid[])',
+      [runIds],
+    );
+    expect(originCount.rows[0].count).toBe(0);
+    const deniedModern = await inTenant(author, (client) =>
+      client.query(
+        'SELECT learning_course_modern_provenance(principal_for_seat($1),$1,$2,NULL) AS proof',
+        [seat, first.id],
+      ),
+    );
+    expect(deniedModern.rows[0].proof.modernCourseRun).toBe(false);
+
+    const seatPrincipal = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])
+    ).rows[0].principal_id as string;
+    const academicVisible = async (actor: string, runId: string, viewerSeat = seat) =>
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT learning_course_academic_result_visible($1,$2,$3) AS allowed', [
+            actor,
+            viewerSeat,
+            runId,
+          ]),
+        )
+      ).rows[0].allowed as boolean;
+    expect(await academicVisible(seatPrincipal, first.id)).toBe(true);
+    expect(await academicVisible(principalId, first.id)).toBe(true);
+    expect(await academicVisible(outsiderPrincipalId, first.id)).toBe(false);
+
+    // Use genuine PostgreSQL-backed Seat session authority, never a mocked
+    // academic_result_visible field. The cookie is resolved by currentSeat().
+    const issueSeatSession = async (testSeat: string): Promise<string> => {
+      await admin.query(
+        `INSERT INTO classroom_seat_credentials
+           (seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+         VALUES($1,repeat('a',64),1,$2,$3)
+         ON CONFLICT (seat_id) DO NOTHING`,
+        [testSeat, randomUUID(), accountId],
+      );
+      const credential = (
+        await admin.query('SELECT version FROM classroom_seat_credentials WHERE seat_id=$1', [
+          testSeat,
+        ])
+      ).rows[0] as { version: number };
+      expect(credential.version).toBeGreaterThan(0);
+      const token = randomUUID();
+      const tokenHash = createHash('sha256').update(token).digest('hex');
+      await admin.query(
+        `INSERT INTO classroom_student_sessions
+           (seat_id,token_hash,credential_version,expires_at)
+         VALUES($1,$2,$3,now()+interval '1 hour')`,
+        [testSeat, tokenHash, credential.version],
+      );
+      const verified = await inTenant(author, (client) =>
+        client.query('SELECT seat_id FROM classroom_student_session_context($1)', [tokenHash]),
+      );
+      expect(verified.rows.map((row) => row.seat_id)).toEqual([testSeat]);
+      return token;
+    };
+    const seatToken = await issueSeatSession(seat);
+
+    const inspect = async (
+      total: number,
+      completed: number,
+      unavailable: number,
+      expectedComplete: boolean,
+    ) => {
+      const reads = await inTenant(author, async (client) => {
+        const controller = new ClassroomJoinController(
+          client as unknown as pg.Pool,
+          { resolve: async () => ({ accountId, principalId }) } as unknown as ActiveContextUseCase,
+        );
+        const accountRequest = {
+          cookies: { asa_session: 'isolated-pg-fixture' },
+        } as unknown as FastifyRequest;
+        const seatRequest = {
+          cookies: { asa_student_session: seatToken },
+        } as unknown as FastifyRequest;
+        return {
+          account: await controller.accountCourseRuns(accountRequest),
+          seat: await controller.courseRuns(seatRequest),
+        };
+      });
+      const canonicalSql = (
+        await admin.query('SELECT learning_course_completion_internal($1) AS value', [
+          first.source_course_enrollment_id,
+        ])
+      ).rows[0].value;
+      expect(canonicalSql).toMatchObject({
+        completed: expectedComplete,
+        total: 1,
+        completedCount: expectedComplete ? 1 : 0,
+      });
+      let accountPractices: SeatCourseRunLesson['activityOccurrences'] = [];
+      for (const [viewer, apiPayload] of [
+        ['Account', reads.account],
+        ['StudentSeat', reads.seat],
+      ] as const) {
+        const run = apiPayload.items.find((item) => item.id === assigned.run_id);
+        expect(run, viewer).toBeDefined();
+        const lesson = run?.sections
+          .flatMap((section) => section.lessons)
+          .find((item) => item.id === first.source_course_lesson_id);
+        expect(lesson, viewer).toBeDefined();
+        const courseLesson = lesson as unknown as SeatCourseRunLesson;
+        const practices = courseLesson.activityOccurrences;
+        expect(practices.map((item) => item.activityRunId)).toEqual(runIds);
+        expect(practices.map((item) => item.classroomAssignmentId)).toEqual([
+          first.source_classroom_assignment_id,
+          first.source_classroom_assignment_id,
+        ]);
+        expect(practices.map((item) => item.projectId)).toEqual([null, null]);
+        expect(practices.map((item) => item.snapshotRevision)).toEqual([null, null]);
+        expect(practices.map((item) => item.submittedAt)).toEqual([null, null]);
+        const progress = lessonPracticeProgress(courseLesson);
+        expect(progress, viewer).toMatchObject({ total, completed, unavailable });
+        const webCompletion = courseCompletion([courseLesson]);
+        expect(webCompletion.complete, viewer).toBe(expectedComplete);
+        expect(webCompletion.complete, viewer).toBe(canonicalSql.completed);
+        if (viewer === 'Account') {
+          accountPractices = practices;
+        } else {
+          const selectedCompletion = (entries: typeof practices) =>
+            entries.map((entry) => entry.canonicalState?.selectedResult?.completionValue ?? null);
+          expect(selectedCompletion(practices)).toEqual(selectedCompletion(accountPractices));
+        }
+      }
+      return accountPractices;
+    };
+
+    // A frozen block without participation must not disappear from completion obligations.
+    await inspect(1, 0, 1, false);
+    const joined = await inTenant(author, (client) =>
+      client.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+        principalId,
+        sibling.activity_run_id,
+        first.learner_identity_id,
+        first.source_course_enrollment_id,
+      ]),
+    );
+    expect(joined.rows[0].result_code).toBe('ok');
+    await inspect(2, 0, 0, false);
+
+    const accept = async (runId: string) => {
+      const attempt = await admin.query(
+        `INSERT INTO learning_attempts
+           (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+            seat_id,learner_identity_id,activity_participation_id,attempt_number,state,
+            started_at,submitted_at,evaluated_at)
+         SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+                run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,
+                'closed',now()-interval '4 minutes',now()-interval '2 minutes',
+                now()-interval '1 minute'
+           FROM activity_runs run
+           JOIN activity_participations part ON part.activity_run_id=run.id
+          WHERE run.id=$1 AND part.source_course_enrollment_id=$3 RETURNING id`,
+        [runId, seat, first.source_course_enrollment_id],
+      );
+      expect(attempt.rows).toHaveLength(1);
+      const publishedResult = await admin.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         SELECT tenant_id,id,20,'passed','accepted',true
+           FROM learning_attempts WHERE id=$1 RETURNING id`,
+        [attempt.rows[0].id],
+      );
+      expect(publishedResult.rows).toHaveLength(1);
+    };
+    await accept(first.id);
+    const threeDPending = (
+      await admin.query(
+        `INSERT INTO learning_attempts
+           (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+            seat_id,learner_identity_id,activity_participation_id,attempt_number,state,
+            started_at,submitted_at)
+         SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+                run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,
+                'submitted',now()-interval '4 minutes',now()-interval '2 minutes'
+           FROM activity_runs run
+           JOIN activity_participations part ON part.activity_run_id=run.id
+          WHERE run.id=$1 AND part.source_course_enrollment_id=$3 RETURNING id`,
+        [sibling.activity_run_id, seat, first.source_course_enrollment_id],
+      )
+    ).rows[0] as { id: string };
+    expect(threeDPending.id).toBeTruthy();
+    const half = await inspect(2, 1, 0, false);
+    expect(half[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
+    expect(half[1]?.canonicalState?.selectedResult ?? null).toBeNull();
+    await admin.query(
+      "UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1",
+      [threeDPending.id],
+    );
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+       SELECT tenant_id,id,20,'passed','accepted',true
+         FROM learning_attempts WHERE id=$1`,
+      [threeDPending.id],
+    );
+    const all = await inspect(2, 2, 0, true);
+    expect(all.map((item) => item.canonicalState?.selectedResult?.completionValue)).toEqual([
+      true,
+      true,
+    ]);
+
+    // Revocation of the Account's learner link must revoke academic result
+    // visibility, even though no Project exists for either selected result.
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, first.learner_identity_id],
+    );
+    expect(await academicVisible(principalId, first.id)).toBe(false);
+    expect(await academicVisible(seatPrincipal, first.id)).toBe(true);
+    const revokedRead = await inTenant(author, async (client) => {
+      const controller = new ClassroomJoinController(
+        client as unknown as pg.Pool,
+        { resolve: async () => ({ accountId, principalId }) } as unknown as ActiveContextUseCase,
+      );
+      const request = {
+        cookies: { asa_session: 'isolated-pg-fixture' },
+      } as unknown as FastifyRequest;
+      return controller.accountCourseRuns(request);
+    });
+    const revokedPractices = revokedRead.items
+      .flatMap((run) => run.sections)
+      .flatMap((section) => section.lessons)
+      .flatMap((lesson) => lesson.activityOccurrences);
+    expect(revokedPractices.every((item) => item.canonicalState?.selectedResult == null)).toBe(
+      true,
+    );
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, first.learner_identity_id],
+    );
+    expect(await academicVisible(principalId, first.id)).toBe(true);
+
+    const excused = await inTenant(author, (client) =>
+      client.query('SELECT * FROM activity_participation_excuse($1,$2,$3)', [
+        principalId,
+        joined.rows[0].participation_id,
+        'P1 regression: excused 3D',
+      ]),
+    );
+    expect(excused.rows[0].result_code).toBe('ok');
+    await inspect(1, 1, 0, true);
+
+    // A withdrawn participation retains history but is no longer completion evidence.
+    const withdrawn = await inTenant(author, (client) =>
+      client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
+        principalId,
+        joined.rows[0].participation_id,
+      ]),
+    );
+    expect(withdrawn.rows[0].result_code).toBe('ok');
+    expect(await academicVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
+    await inspect(1, 1, 1, false);
+
+    // A different classroom Seat or Account cannot read this frozen course.
+    const foreign = await classroomWithSeat();
+    const otherAccount = await identityFor(outsider);
+    const foreignReads = await inTenant(author, async (client) => {
+      const [seatRows, accountRows] = await Promise.all([
+        client.query(
+          'SELECT activity_run_id FROM classroom_course_activity_occurrences_for_seat($1) WHERE activity_run_id=ANY($2::uuid[])',
+          [foreign.seat, runIds],
+        ),
+        client.query(
+          'SELECT activity_run_id FROM classroom_course_activity_occurrences_for_account($1) WHERE activity_run_id=ANY($2::uuid[])',
+          [otherAccount.account_id, runIds],
+        ),
+      ]);
+      return { seatRows, accountRows };
+    });
+    expect(foreignReads.seatRows.rows).toEqual([]);
+    expect(foreignReads.accountRows.rows).toEqual([]);
+
+    const foreignSeatToken = await issueSeatSession(foreign.seat);
+    const foreignPayloads = await inTenant(author, async (client) => {
+      const controller = new ClassroomJoinController(
+        client as unknown as pg.Pool,
+        {
+          resolve: async () => ({
+            accountId: otherAccount.account_id,
+            principalId: outsiderPrincipalId,
+          }),
+        } as unknown as ActiveContextUseCase,
+      );
+      return {
+        seat: await controller.courseRuns({
+          cookies: { asa_student_session: foreignSeatToken },
+        } as unknown as FastifyRequest),
+        account: await controller.accountCourseRuns({
+          cookies: { asa_session: 'isolated-foreign-account' },
+        } as unknown as FastifyRequest),
+      };
+    });
+    for (const payload of [foreignPayloads.seat, foreignPayloads.account]) {
+      expect(payload.items.some((run) => run.id === assigned.run_id)).toBe(false);
+    }
+  }, 45_000);
 
   // This real PostgreSQL integration scenario performs multiple independent
   // Seat/Account projections, version changes and legacy work checks. Its
