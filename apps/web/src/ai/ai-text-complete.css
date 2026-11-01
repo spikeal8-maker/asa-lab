@@ -112,13 +112,13 @@
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block {
   border-radius: 18px;
-  border-color: color-mix(in srgb, var(--ai-accent) 18%, var(--ai-border));
-  background: color-mix(in srgb, var(--ai-accent) 4%, var(--ai-surface));
+  border-color: color-mix(in srgb, var(--color-brand, #0877b3) 18%, var(--ai-border));
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 4%, var(--ai-surface));
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
   padding: 8px 10px;
   gap: 4px;
-  background: color-mix(in srgb, var(--ai-accent) 9%, var(--ai-surface));
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 9%, var(--ai-surface));
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-format {
   display: inline-flex;
@@ -139,7 +139,7 @@
   color: var(--ai-text);
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ai-accent) 13%, transparent);
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 13%, transparent);
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button:disabled {
   opacity: 0.45;
@@ -156,15 +156,15 @@
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--ai-accent) 24%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--color-brand, #0877b3) 24%, transparent) transparent;
   color: var(--ai-text);
-  border-top-color: color-mix(in srgb, var(--ai-accent) 15%, transparent);
+  border-top-color: color-mix(in srgb, var(--color-brand, #0877b3) 15%, transparent);
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block[data-expanded] pre {
   max-height: 75vh;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block pre:focus-visible {
-  outline: 2px solid var(--ai-accent);
+  outline: 2px solid var(--color-brand, #0877b3);
   outline-offset: -3px;
 }
 @media (max-width: 560px) {
