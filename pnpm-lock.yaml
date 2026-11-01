@@ -278,6 +278,9 @@ importers:
       katex:
         specifier: 0.16.47
         version: 0.16.47
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
       pdfmake:
         specifier: 0.3.13
         version: 0.3.13

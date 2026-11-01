@@ -1,5 +1,6 @@
 import { AiCopyButton } from './AiCopyButton';
-import { Component, isValidElement, useState, type ReactNode } from 'react';
+import { Component, isValidElement, useMemo, useState, type ReactNode } from 'react';
+import { codePreviewDocument } from './ai-code-preview';
 import { AiChatIcon } from './AiChatIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -36,12 +37,21 @@ interface ContentProps {
 
 function CodeCard({ children, pending }: { children: ReactNode; pending: boolean }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
+  const [zoom, setZoom] = useState(0.5);
   const code = flattenText(children).replace(/\n$/, '');
   const child = Array.isArray(children) ? children[0] : children;
   const language = isValidElement<{ className?: string }>(child)
     ? (child.props.className?.match(/language-([^\s]+)/)?.[1] ?? '')
     : '';
   const file = codeDownloadFormat(language, code);
+  const previewable = file.name.endsWith('.html') || file.name.endsWith('.svg');
+  const preview = useMemo(
+    () => (previewable && !pending ? codePreviewDocument(code) : null),
+    [code, pending, previewable],
+  );
+  const previewVisible = Boolean(preview && showPreview);
+  const scale = file.name.endsWith('.svg') ? 1 : zoom;
   return (
     <div className="asa-ai-code-block" data-expanded={expanded || undefined}>
       <div className="asa-ai-code-actions">
@@ -88,9 +98,66 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           </svg>
         </button>
       </div>
-      <pre tabIndex={0} role="region" aria-label={'Код: ' + (language || 'текст')}>
+      {preview && (
+        <div className="asa-ai-preview-toolbar">
+          <div role="group" aria-label="Отображение результата">
+            <button
+              type="button"
+              aria-pressed={previewVisible}
+              onClick={() => setShowPreview(true)}
+            >
+              Предпросмотр
+            </button>
+            <button
+              type="button"
+              aria-pressed={!previewVisible}
+              onClick={() => setShowPreview(false)}
+            >
+              Код
+            </button>
+          </div>
+          {previewVisible && file.name.endsWith('.html') && (
+            <div role="group" aria-label="Масштаб HTML">
+              {[0.5, 0.75, 1].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={zoom === value}
+                  onClick={() => setZoom(value)}
+                >
+                  {value * 100}%
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {previewVisible && (
+        <div
+          className="asa-ai-code-preview"
+          style={{ '--code-preview-scale': scale } as React.CSSProperties}
+        >
+          <iframe
+            title={'Предпросмотр ' + (file.name.endsWith('.svg') ? 'SVG' : 'HTML')}
+            sandbox=""
+            referrerPolicy="no-referrer"
+            srcDoc={preview!}
+          />
+        </div>
+      )}
+      <pre
+        hidden={previewVisible}
+        tabIndex={0}
+        role="region"
+        aria-label={'Код: ' + (language || 'текст')}
+      >
         {children}
       </pre>
+      {previewable && !pending && !preview && (
+        <p className="asa-ai-preview-notice">
+          Предпросмотр недоступен для этого блока. Код можно скопировать или скачать.
+        </p>
+      )}
     </div>
   );
 }

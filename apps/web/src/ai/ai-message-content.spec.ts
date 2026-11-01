@@ -10,6 +10,26 @@ function render(content: string): string {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AI mathematical Markdown', () => {
+  it('isolates completed HTML and SVG previews and keeps streamed code literal', () => {
+    for (const language of ['html', 'svg']) {
+      const html = render(
+        '```' +
+          language +
+          '\n' +
+          (language === 'svg' ? '<svg><circle r="8"/></svg>' : '<h1>Preview</h1>') +
+          '\n```',
+      );
+      expect(html).toContain('sandbox=""');
+      expect(html).not.toContain('allow-scripts');
+      expect(html).toContain('referrerPolicy="no-referrer"');
+      expect(html).toContain('Предпросмотр');
+    }
+    const pending = renderToStaticMarkup(
+      createElement(AiMessageContent, { content: '```html\n<h1>Partial', pending: true }),
+    );
+    expect(pending).not.toContain('<iframe');
+    expect(pending).toContain('&lt;h1&gt;Partial');
+  });
   it('does not download incomplete streamed code', () => {
     const html = renderToStaticMarkup(
       createElement(AiMessageContent, { content: '```html\n<!doctype html>\n```', pending: true }),
