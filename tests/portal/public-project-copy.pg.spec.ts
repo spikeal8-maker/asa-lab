@@ -376,6 +376,8 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     });
     expect(trashed.statusCode).toBe(201);
     expect(await total()).toBe(1);
+    // Synthetic fixture purge respects the existing restrictive Draft FK.
+    await admin.query('DELETE FROM project_drafts WHERE project_id=$1', [destination]);
     await admin.query('DELETE FROM projects WHERE id=$1', [destination]);
     expect(await total()).toBe(1);
     await admin.query(
