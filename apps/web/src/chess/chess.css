@@ -426,6 +426,11 @@
   --chess-ink-offset: 0.12425em;
 }
 
+.asa-chess-piece[data-piece-type='queen'] .asa-chess-piece-glyph {
+  /* Balance the queen's top-heavy raster bounds on Windows and Linux. */
+  --chess-ink-offset: calc(0.139875em + 1px);
+}
+
 .asa-chess-piece[data-piece-type='knight'] .asa-chess-piece-glyph,
 .asa-chess-piece[data-piece-type='pawn'] .asa-chess-piece-glyph {
   --chess-ink-offset: 0.1633125em;

@@ -35,6 +35,52 @@ const TIMES = [
 ];
 const PROMOTIONS = { queen: 'Ферзь', rook: 'Ладья', bishop: 'Слон', knight: 'Конь' };
 
+/** Only the server's terminal result and current opaque viewer identity establish an outcome. */
+export function networkResultPresentation(match: ChessNetworkMatch, viewerPlayerId?: string) {
+  if (match.status === 'aborted')
+    return {
+      kind: 'aborted',
+      title: 'Партия остановлена',
+      detail: 'Доступ или круг соперников изменился. Результат не засчитан.',
+    } as const;
+  if (match.status === 'active')
+    return {
+      kind: 'active',
+      title: 'Партия продолжается',
+      detail: match.activeColor === match.viewerColor ? 'Ваш ход' : 'Ход соперника',
+    } as const;
+  const detail = resultLabel(match.result, match.termination);
+  if (match.result === '1/2-1/2') return { kind: 'draw', title: 'Ничья', detail } as const;
+  if (match.result === '*')
+    return {
+      kind: 'finished',
+      title: 'Партия завершена',
+      detail: 'Итог партии пока недоступен.',
+    } as const;
+  if (!viewerPlayerId || match[match.viewerColor].playerId !== viewerPlayerId)
+    return { kind: 'finished', title: 'Партия завершена', detail } as const;
+  const won = (match.result === '1-0') === (match.viewerColor === 'white');
+  return {
+    kind: won ? 'win' : 'loss',
+    title: won ? 'Вы победили' : 'Вы проиграли',
+    detail,
+  } as const;
+}
+
+export function isNewNetworkVictory(
+  previous: ChessNetworkMatch | null,
+  incoming: ChessNetworkMatch,
+  viewerPlayerId?: string,
+): boolean {
+  return (
+    previous?.id === incoming.id &&
+    previous.status === 'active' &&
+    incoming.version > previous.version &&
+    incoming.sequence > previous.sequence &&
+    networkResultPresentation(incoming, viewerPlayerId).kind === 'win'
+  );
+}
+
 export function ChessNetworkLobby({
   user,
   onExit,
@@ -62,6 +108,11 @@ export function ChessNetworkLobby({
   const [selected, setSelected] = useState<Square | null>(null);
   const [promotion, setPromotion] = useState<ChessMove[]>([]);
   const [clockTick, setClockTick] = useState(0);
+  const [victoryEffect, setVictoryEffect] = useState<string | null>(null);
+  const observedMatch = useRef<ChessNetworkMatch | null>(null);
+  const celebrated = useRef(new Set<string>());
+  const currentMatch = useRef(match);
+  currentMatch.current = match;
   const commandPending = useRef(false);
   const receivedAt = useRef(performance.now());
   const mounted = useRef(true);
@@ -162,6 +213,39 @@ export function ChessNetworkLobby({
   }, [refreshHistory]);
   const matchId = match?.id;
   const matchStatus = match?.status;
+  const viewerPlayerId = access?.player.playerId;
+  useEffect(() => {
+    const previous = observedMatch.current;
+    observedMatch.current = match;
+    if (match?.status !== 'active') {
+      setSelected(null);
+      setPromotion([]);
+    }
+    if (
+      match &&
+      isNewNetworkVictory(previous, match, viewerPlayerId) &&
+      !celebrated.current.has(match.id)
+    ) {
+      celebrated.current.add(match.id);
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+        setVictoryEffect(match.id);
+    } else if (!match || networkResultPresentation(match, viewerPlayerId).kind !== 'win') {
+      setVictoryEffect(null);
+    }
+  }, [match, viewerPlayerId]);
+  useEffect(() => {
+    if (!victoryEffect) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const cancelMotion = () => {
+      if (reducedMotion.matches) setVictoryEffect(null);
+    };
+    reducedMotion.addEventListener('change', cancelMotion);
+    const timer = window.setTimeout(() => setVictoryEffect(null), 900);
+    return () => {
+      window.clearTimeout(timer);
+      reducedMotion.removeEventListener('change', cancelMotion);
+    };
+  }, [victoryEffect]);
   useEffect(() => {
     if (!matchId || matchStatus !== 'active') return;
     return startLivePoll(
@@ -254,7 +338,15 @@ export function ChessNetworkLobby({
     }
   }
   function play(move: ChessMove): void {
-    if (!match || busy || !connected) return;
+    if (
+      !match ||
+      match.status !== 'active' ||
+      currentMatch.current?.id !== match.id ||
+      currentMatch.current.status !== 'active' ||
+      busy ||
+      !connected
+    )
+      return;
     setPromotion([]);
     void command(() => chessNetworkApi.action(match.id, match.version, 'move', moveToUci(move)));
   }
@@ -276,7 +368,14 @@ export function ChessNetworkLobby({
     setSelected(pieceAt(position, target)?.color === match.viewerColor ? target : null);
   }
   function control(action: ChessNetworkAction): void {
-    if (match) void command(() => chessNetworkApi.action(match.id, match.version, action));
+    if (
+      match?.status === 'active' &&
+      currentMatch.current?.id === match.id &&
+      currentMatch.current.status === 'active' &&
+      connected &&
+      !busy
+    )
+      void command(() => chessNetworkApi.action(match.id, match.version, action));
   }
   function player(color: 'white' | 'black') {
     if (!match) return null;
@@ -310,6 +409,7 @@ export function ChessNetworkLobby({
     );
   }
   const heading = match ? 'Сетевая партия' : 'Онлайн-шахматы';
+  const outcome = match ? networkResultPresentation(match, viewerPlayerId) : null;
   return (
     <main className="asa-online-shell asa-network-shell">
       <ChessSectionHeader
@@ -335,14 +435,18 @@ export function ChessNetworkLobby({
         </section>
       )}
       {match && position ? (
-        <div className="asa-online-game-layout">
+        <div className="asa-online-game-layout" data-match-status={match.status}>
           <section className="asa-online-board-column" aria-label="Доска сетевой партии">
             {player(match.viewerColor === 'white' ? 'black' : 'white')}
             <ChessBoard
               position={position}
               orientation={match.viewerColor}
-              selectedSquare={selected}
-              legalMoves={selected ? legal.filter((move) => move.from === selected) : []}
+              selectedSquare={match.status === 'active' ? selected : null}
+              legalMoves={
+                match.status === 'active' && selected
+                  ? legal.filter((move) => move.from === selected)
+                  : []
+              }
               lastMoveUci={match.moves.at(-1)?.uci}
               disabled={!canMove}
               onSquare={square}
@@ -351,7 +455,7 @@ export function ChessNetworkLobby({
               }}
             />
             {player(match.viewerColor)}
-            {promotion.length > 0 && (
+            {match.status === 'active' && promotion.length > 0 && (
               <section
                 className="asa-network-promotion"
                 role="dialog"
@@ -370,21 +474,20 @@ export function ChessNetworkLobby({
             )}
           </section>
           <aside className="asa-online-game-panel">
-            <section className="asa-online-result" aria-live="polite">
-              <strong>
-                {match.status === 'aborted'
-                  ? 'Партия остановлена'
-                  : resultLabel(match.result, match.termination)}
-              </strong>
-              <span>
-                {match.status === 'aborted'
-                  ? 'Доступ или круг соперников изменился. Результат не засчитан.'
-                  : match.status === 'active'
-                    ? match.activeColor === match.viewerColor
-                      ? 'Ваш ход'
-                      : 'Ход соперника'
-                    : 'Результат сохранён.'}
-              </span>
+            <section
+              className="asa-online-result asa-network-result"
+              aria-live="polite"
+              aria-atomic="true"
+              data-outcome={outcome?.kind}
+              data-victory-effect={
+                outcome?.kind === 'win' && victoryEffect === match.id ? 'active' : undefined
+              }
+            >
+              <strong>{outcome?.title}</strong>
+              <span>{outcome?.detail}</span>
+              {match.status === 'finished' && match.result !== '*' && (
+                <span>Результат сохранён.</span>
+              )}
             </section>
             {match.drawOfferedBy && match.status === 'active' && (
               <section className="asa-online-draw-offer">
@@ -394,10 +497,18 @@ export function ChessNetworkLobby({
                   <>
                     <strong>Соперник предлагает ничью</strong>
                     <div>
-                      <button type="button" disabled={busy} onClick={() => control('draw-accept')}>
+                      <button
+                        type="button"
+                        disabled={busy || !connected}
+                        onClick={() => control('draw-accept')}
+                      >
                         Принять ничью
                       </button>
-                      <button type="button" disabled={busy} onClick={() => control('draw-decline')}>
+                      <button
+                        type="button"
+                        disabled={busy || !connected}
+                        onClick={() => control('draw-decline')}
+                      >
                         Отклонить ничью
                       </button>
                     </div>

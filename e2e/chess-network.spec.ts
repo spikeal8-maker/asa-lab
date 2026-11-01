@@ -197,8 +197,14 @@ async function seat(page: Page, fixture: ClassFixture, name: string): Promise<Is
   expect(issued.status(), await issued.text()).toBe(201);
   return (await issued.json()).student as IssuedSeat;
 }
-async function pupil(browser: Browser, origin: string, fixture: ClassFixture, issued: IssuedSeat) {
-  const context = await browser.newContext({ baseURL: origin });
+async function pupil(
+  browser: Browser,
+  origin: string,
+  fixture: ClassFixture,
+  issued: IssuedSeat,
+  touch = false,
+) {
+  const context = await browser.newContext({ baseURL: origin, hasTouch: touch });
   const page = await context.newPage();
   await page.goto(`${origin}/#/join-class?code=${encodeURIComponent(fixture.code)}`);
   await page.getByLabel('Код ученика', { exact: true }).fill(issued.studentCode);
@@ -499,5 +505,281 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
   } finally {
     await Promise.all(contexts.map((context) => context.close()));
     await admin?.end();
+  }
+});
+
+// These games start from the normal initial position and finish through actual touch/click
+// moves. Requests below only observe persistence or attempt forbidden commands; none seed a FEN.
+test('two pupils finish white and black checkmates with personal outcomes on desktop and touch', async ({
+  browser,
+  page,
+  baseURL,
+}) => {
+  test.setTimeout(240000);
+  if (
+    process.env['CI'] !== 'true' ||
+    !process.env['APP_TEST_DATABASE_URL'] ||
+    !new URL(process.env['APP_TEST_DATABASE_URL']).pathname.endsWith('_test')
+  )
+    throw new Error('Isolated CI Chess network stack required');
+  const origin = new URL(baseURL!).origin;
+  const admin = e2eAdminPool();
+  const contexts: Awaited<ReturnType<Browser['newContext']>>[] = [];
+  const errors: string[] = [];
+  mkdirSync(evidence, { recursive: true });
+  try {
+    await loginWithOrganization(page, await seedTeacher(admin, 'chess-mate-outcomes'));
+    const fixture = await classroom(page, 'Мат и результат двух учеников');
+    await policy(page, fixture.id, 'classroom');
+    const white = await pupil(browser, origin, fixture, await seat(page, fixture, 'Белые'), true);
+    contexts.push(white.context);
+    const black = await pupil(browser, origin, fixture, await seat(page, fixture, 'Чёрные'), true);
+    contexts.push(black.context);
+    for (const learner of [white, black]) {
+      learner.page.on('pageerror', (error) => errors.push(error.message));
+      await learner.page.setViewportSize({ width: 390, height: 900 });
+      await openChessGame(learner.page, 'Партия до мата');
+      await learner.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    }
+    async function readMatch(view: Page, id: string) {
+      const response = await view.request.get(`/api/games/chess/matches/${id}`);
+      expect(response.status(), await response.text()).toBe(200);
+      return (await response.json()).match;
+    }
+    async function start() {
+      await white.page.getByLabel('Ваш цвет', { exact: true }).selectOption('white');
+      await white.page.getByRole('button', { name: 'Создать приглашение', exact: true }).tap();
+      const code = (await white.page.getByLabel('Ваш код приглашения').innerText()).trim();
+      await black.page.getByLabel('Код приглашения', { exact: true }).fill(code);
+      await black.page.getByRole('button', { name: 'Принять приглашение', exact: true }).tap();
+      for (const learner of [white, black])
+        await expect(learner.page.getByTestId('asa-chess-board')).toBeVisible();
+      const history = await (await white.page.request.get('/api/games/chess/history')).json();
+      const active = history.matches.find((match: { status: string }) => match.status === 'active');
+      expect(active).toBeTruthy();
+      return active.id as string;
+    }
+    async function move(view: Page, other: Page, id: string, uci: string, ply: number) {
+      const sent = view.waitForResponse(
+        (response) =>
+          response.url().endsWith(`/matches/${id}/commands`) &&
+          response.request().method() === 'POST',
+      );
+      await view.locator(`[data-square="${uci.slice(0, 2)}"]`).tap();
+      await view.locator(`[data-square="${uci.slice(2, 4)}"]`).tap();
+      const response = await sent;
+      expect(response.status(), await response.text()).toBe(201);
+      const match = (await response.json()).match;
+      expect(match.moves).toHaveLength(ply);
+      expect(match.moves.at(-1).uci).toBe(uci);
+      if (match.status === 'finished' && match.result === '1-0') {
+        // Observe the short live effect before waiting for the opponent polling cycle.
+        await expect(view.locator('[data-victory-effect="active"]')).toHaveCount(1);
+        await view.screenshot({
+          path: `${evidence}/live-white-victory-touch-390.png`,
+          fullPage: true,
+        });
+      }
+      await expect.poll(async () => (await readMatch(other, id)).moves.length).toBe(ply);
+      await expect(other.getByLabel('Ходы сетевой партии')).toContainText(match.moves.at(-1).san);
+      return match;
+    }
+    async function forbidden(
+      view: Page,
+      id: string,
+      expectedVersion: number,
+      uci: string,
+      finished = false,
+    ) {
+      const response = await post(view.request, origin, `matches/${id}/commands`, {
+        expectedVersion,
+        action: 'move',
+        uci,
+      });
+      expect(response.status(), await response.text()).toBe(finished ? 409 : 422);
+      expect((await response.json()).error.code).toBe(
+        finished ? 'MATCH_FINISHED' : 'GAME_COMMAND_REJECTED',
+      );
+      expect((await readMatch(view, id)).version).toBe(expectedVersion);
+    }
+    const whiteWinId = await start();
+    const initial = await readMatch(white.page, whiteWinId);
+    // Both a wrong-turn move and an impossible king leap are rejected by the real server.
+    await forbidden(black.page, whiteWinId, initial.version, 'e7e5');
+    await forbidden(white.page, whiteWinId, initial.version, 'e1e3');
+    await expect(black.page.locator('[data-square="e7"]')).toBeDisabled();
+    await white.page.locator('[data-square="e1"]').tap();
+    await white.page.locator('[data-square="e3"]').tap();
+    expect((await readMatch(white.page, whiteWinId)).moves).toHaveLength(0);
+    const scholar = ['e2e4', 'e7e5', 'd1h5', 'b8c6', 'f1c4', 'g8f6', 'h5f7'];
+    for (const [index, uci] of scholar.entries()) {
+      const active = index % 2 === 0 ? white.page : black.page;
+      const observer = index % 2 === 0 ? black.page : white.page;
+      await move(active, observer, whiteWinId, uci, index + 1);
+    }
+    await expect(white.page.locator('[data-outcome="win"]')).toContainText('Вы победили');
+    await expect(black.page.locator('[data-outcome="loss"]')).toContainText('Вы проиграли');
+    await expect(black.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
+
+    async function finished(id: string, result: string, winner: Page, loser: Page, prefix: string) {
+      const clockLabels = ['Время белых', 'Время чёрных'];
+      const frozenClocks = await Promise.all(
+        [white, black].map(async (learner) =>
+          Promise.all(
+            clockLabels.map((label) => learner.page.getByLabel(label, { exact: true }).innerText()),
+          ),
+        ),
+      );
+      const a = await readMatch(white.page, id);
+      const b = await readMatch(black.page, id);
+      expect(a).toMatchObject({ status: 'finished', result, termination: 'checkmate' });
+      expect(b.currentFen).toBe(a.currentFen);
+      expect(b.moves).toEqual(a.moves);
+      expect(b.result).toBe(a.result);
+      expect(a.currentFen).toContain(result === '1-0' ? ' b ' : ' w ');
+      const frozen = {
+        currentFen: a.currentFen,
+        result: a.result,
+        version: a.version,
+        moves: a.moves,
+      };
+      for (const learner of [white, black]) {
+        await expect(
+          learner.page.getByRole('dialog', {
+            name: 'Выберите фигуру для превращения',
+            exact: true,
+          }),
+        ).toHaveCount(0);
+        await expect(learner.page.locator('[data-square="e1"]')).toBeDisabled();
+        await expect(
+          learner.page.getByRole('button', { name: 'Сдаться', exact: true }),
+        ).toBeDisabled();
+        await expect(
+          learner.page.getByRole('button', { name: 'Предложить ничью', exact: true }),
+        ).toBeDisabled();
+        await forbidden(learner.page, id, a.version, 'e2e4', true);
+        expect(await readMatch(learner.page, id)).toMatchObject(frozen);
+      }
+      for (const width of [1440, 1024, 390, 320]) {
+        for (const [view, outcome] of [
+          [winner, 'win'],
+          [loser, 'loss'],
+        ] as const) {
+          await view.setViewportSize({ width, height: 900 });
+          const board = await view.getByTestId('asa-chess-board').boundingBox();
+          expect(board).not.toBeNull();
+          expect(Math.abs(board!.width - board!.height)).toBeLessThan(1);
+          expect(board!.x).toBeGreaterThanOrEqual(0);
+          expect(board!.x + board!.width).toBeLessThanOrEqual(width + 1);
+          expect(
+            await view.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+          ).toBe(true);
+          await expect(view.locator(`[data-outcome="${outcome}"]`)).toBeVisible();
+          const back = view.getByRole('button', { name: 'К приглашениям', exact: true });
+          await back.scrollIntoViewIfNeeded();
+          await expect(back).toBeVisible();
+          const bounds = await back.boundingBox();
+          expect(bounds!.x).toBeGreaterThanOrEqual(0);
+          expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width + 1);
+          await view.screenshot({
+            path: `${evidence}/${prefix}-${outcome}-${width}.png`,
+            fullPage: true,
+          });
+        }
+      }
+      // Real requests and sixteen layout/screenshot checks have elapsed; neither terminal clock ticks.
+      for (const [index, learner] of [white, black].entries())
+        for (const [clock, label] of clockLabels.entries())
+          await expect(learner.page.getByLabel(label, { exact: true })).toHaveText(
+            frozenClocks[index][clock],
+          );
+      // Replay and reload are durable views, never a second victory celebration/result insertion.
+      for (const learner of [white, black]) {
+        const historyBefore = await (
+          await learner.page.request.get('/api/games/chess/history')
+        ).json();
+        expect(
+          historyBefore.matches.filter((match: { id: string }) => match.id === id),
+        ).toHaveLength(1);
+        expect(
+          historyBefore.matches.find((match: { id: string }) => match.id === id),
+        ).toMatchObject(frozen);
+        await learner.page.getByRole('button', { name: 'К приглашениям', exact: true }).tap();
+        await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        await expect(learner.page.locator('[data-outcome]')).toContainText(
+          learner.page === winner ? 'Вы победили' : 'Вы проиграли',
+        );
+        await expect(learner.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
+        await learner.page.reload();
+        await expect(
+          learner.page.getByRole('heading', { name: 'Мои сетевые партии', exact: true }),
+        ).toBeVisible();
+        await learner.page.locator(`button[data-match-id="${id}"]`).tap();
+        await expect(learner.page.locator('[data-outcome]')).toContainText(
+          learner.page === winner ? 'Вы победили' : 'Вы проиграли',
+        );
+        await expect(learner.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
+        expect(await readMatch(learner.page, id)).toMatchObject(frozen);
+        const historyAfter = await (
+          await learner.page.request.get('/api/games/chess/history')
+        ).json();
+        expect(
+          historyAfter.matches.filter((match: { id: string }) => match.id === id),
+        ).toHaveLength(1);
+        await learner.page.getByRole('button', { name: 'К приглашениям', exact: true }).tap();
+      }
+    }
+    await finished(whiteWinId, '1-0', white.page, black.page, 'scholar-mate');
+    // A second game reverses the winner; reduced-motion users still receive the full result.
+    for (const learner of [white, black]) {
+      await learner.page.emulateMedia({ reducedMotion: 'reduce' });
+      await learner.page.setViewportSize({ width: 390, height: 900 });
+    }
+    const blackWinId = await start();
+    const fool = ['f2f3', 'e7e5', 'g2g4', 'd8h4'];
+    for (const [index, uci] of fool.entries())
+      await move(
+        index % 2 === 0 ? white.page : black.page,
+        index % 2 === 0 ? black.page : white.page,
+        blackWinId,
+        uci,
+        index + 1,
+      );
+    await expect(black.page.locator('[data-outcome="win"]')).toContainText('Вы победили');
+    await expect(white.page.locator('[data-outcome="loss"]')).toContainText('Вы проиграли');
+    for (const learner of [white, black])
+      await expect(learner.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
+    await finished(blackWinId, '0-1', black.page, white.page, 'fool-mate-reduced-motion');
+    // Both already mounted clients must observe policy revocation as an abort, never a victory.
+    const abortedId = await start();
+    await move(white.page, black.page, abortedId, 'e2e4', 1);
+    await policy(page, fixture.id, 'classroom', false);
+    for (const learner of [white, black]) {
+      await expect(learner.page.locator('[data-outcome="aborted"]')).toContainText(
+        'Партия остановлена',
+      );
+      await expect(
+        learner.page.getByText('Доступ или круг соперников изменился. Результат не засчитан.', {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(learner.page.locator('[data-victory-effect="active"]')).toHaveCount(0);
+      await expect(learner.page.getByText('Вы победили', { exact: true })).toHaveCount(0);
+      await expect(learner.page.getByText('Вы проиграли', { exact: true })).toHaveCount(0);
+      await expect(learner.page.locator('[data-square="e7"]')).toBeDisabled();
+      const stopped = await readMatch(learner.page, abortedId);
+      expect(stopped).toMatchObject({
+        status: 'aborted',
+        result: '*',
+        termination: 'security_abort',
+      });
+    }
+    expect((await readMatch(white.page, abortedId)).currentFen).toBe(
+      (await readMatch(black.page, abortedId)).currentFen,
+    );
+    expect(errors).toEqual([]);
+  } finally {
+    await Promise.all(contexts.map((context) => context.close()));
+    await admin.end();
   }
 });

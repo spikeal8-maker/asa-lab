@@ -30,6 +30,7 @@ test('all twelve chess symbols center their visible ink without clipping', async
     'apps/web/public/assets/chess/fonts/noto-sans-symbols-2-v25-symbols.woff2',
   ).toString('base64');
   const measurements: object[] = [];
+  const violations: string[] = [];
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const orientation of ['white', 'black'] as const) {
@@ -94,13 +95,12 @@ test('all twelve chess symbols center their visible ink without clipping', async
           top,
           bottom,
         });
-        expect(right, context).toBeGreaterThan(left);
-        expect(Math.abs((left + right + 1) / 2 - png.width / 2), context).toBeLessThanOrEqual(1.5);
-        expect(Math.abs((top + bottom + 1) / 2 - png.height / 2), context).toBeLessThanOrEqual(1.5);
-        expect(
-          Math.min(left, top, png.width - right - 1, png.height - bottom - 1),
-          context,
-        ).toBeGreaterThanOrEqual(3);
+        const horizontalError = Math.abs((left + right + 1 - png.width) / 2);
+        const verticalError = Math.abs((top + bottom + 1 - png.height) / 2);
+        const margin = Math.min(left, top, png.width - right - 1, png.height - bottom - 1);
+        if (right <= left || horizontalError > 1.5 || verticalError > 1.5 || margin < 3) {
+          violations.push(`${context}: x=${horizontalError}, y=${verticalError}, margin=${margin}`);
+        }
       }
       expect(seen.size).toBe(12);
     }
@@ -110,4 +110,7 @@ test('all twelve chess symbols center their visible ink without clipping', async
   await test
     .info()
     .attach('visible-ink-bounds', { path: metricsPath, contentType: 'application/json' });
+  expect(violations, 'Visible ink must be centered within 1.5px and retain a 3px margin').toEqual(
+    [],
+  );
 });
