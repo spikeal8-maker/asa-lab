@@ -444,12 +444,17 @@ export function WorkbenchComponentBody({
   component: SchematicComponent;
 }): JSX.Element | null {
   const c = useCommittedWorkbenchPresentation(controller);
+  // This is the parent-render fallback. Live native/ordinary visual leaves own
+  // their observation; do not re-read the parent's stale callback on every commit.
+  const visualState = useMemo(
+    () => controller.componentVisualState(component),
+    [controller, component],
+  );
   const document = c.document!;
   const entry = catalogEntry(component);
   if (!entry?.asset || !entry.terminals) return null;
   const baseSize = renderedSize(entry, 0);
   const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
-  const visualState = c.componentVisualState(component);
   const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
   const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
   const photoresistorPercent = Math.round(
