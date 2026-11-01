@@ -180,9 +180,9 @@ it('upgrades the complete 0279 ledger preserving saved endpoint, controls and le
   expect(settings).toMatchObject({
     enabled: true,
     daily_limit: 17,
-    global_concurrency: 2,
+    global_concurrency: 1,
     sizes: AI_IMAGE_PRESETS.map((p) => p.id),
-    revision: 3,
+    revision: 4,
     comfy_revision: 2,
     comfy_base_url: 'http://192.168.12.20:8188',
   });
@@ -338,9 +338,13 @@ it('admits local image without any text keys, dispatches once, unknown keeps glo
     s.create(owner, thread, { requestId: id, prompt: 'different', size: 768 }),
   ).rejects.toThrow();
   await expect(s.get(stranger, thread, id)).rejects.toThrow();
-  await expect(
-    s.create(owner, thread, { requestId: randomUUID(), prompt: 'other', size: 768 }),
-  ).rejects.toThrow();
+  const waiting = await s.create(owner, thread, {
+    requestId: randomUUID(),
+    prompt: 'other',
+    size: 768,
+  });
+  expect(waiting.state).toBe('admitted');
+  await s.cancel(owner, thread, waiting.requestId);
   await s.sweep();
   expect((await s.get(owner, thread, id)).state).toBe('unknown');
   const rows = (
@@ -369,7 +373,7 @@ it('cancellation never interrupts or refunds unknown; deleted receipt denies UUI
   await service().cancel(owner, thread, row.request_id);
   expect(transport.cancelPending).not.toHaveBeenCalled();
   await pool.query('SELECT ai_chat_delete($1,$2)', [owner, thread]);
-  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(1);
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(2);
   await expect(
     service().create(owner, thread, {
       requestId: row.request_id,
@@ -425,10 +429,10 @@ it('unknown immutable PUT is never retried; verified image persists in history a
   await expireImageLeases();
   await s.sweep();
   expect(blobs.remove).toHaveBeenCalledTimes(1);
-  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(2);
+  expect((await db.query('SELECT * FROM ai_assistant_request_quota')).rows).toHaveLength(3);
   expect(
     (await db.query("SELECT * FROM ai_usage_journal WHERE provider='comfyui'")).rows,
-  ).toHaveLength(2);
+  ).toHaveLength(3);
 });
 it('disabled image settings and archived threads fail before another dispatch; admin CAS replay is immutable', async () => {
   await config(false);
@@ -672,6 +676,8 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
       })
     ).state,
   ).toBe('submitting');
+  // The scheduler observes active GPU work before lower-priority object cleanup.
+  await s.sweep();
   let lateObjectPresent = true;
   blobs.remove.mockImplementationOnce(async () => {
     lateObjectPresent = false;
@@ -728,13 +734,13 @@ it('deleting an uncertain storing job releases only the finished GPU slot while 
   ).toBe('unknown');
   const thirdThread = (await pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [fresh]))
     .rows[0]!.id;
-  await expect(
-    s.create(fresh, thirdThread, {
-      requestId: randomUUID(),
-      prompt: 'Must wait for known terminal GPU result',
-      size: 768,
-    }),
-  ).rejects.toMatchObject({ code: 'ai_image_not_admitted', status: 429 });
+  const waiting = await s.create(fresh, thirdThread, {
+    requestId: randomUUID(),
+    prompt: 'Must wait for known terminal GPU result',
+    size: 768,
+  });
+  expect(waiting).toMatchObject({ state: 'admitted', queuePaused: true });
+  await s.cancel(fresh, thirdThread, waiting.requestId);
 });
 it('cleanup_done defensively closes historical deleted storing rows without erasing their uncertain PUT tombstone', async () => {
   const j = (
@@ -849,6 +855,9 @@ it('atomically turns an admitted local text request into one owner-scoped image 
     new AbortController().signal,
     parsed.arguments.model as typeof fp8Settings.recipe,
   );
+  expect(job.state).toBe('admitted');
+  expect(transport.dispatch.mock.calls.length).toBe(before);
+  await service().sweep();
   expect(
     (
       await db.query<{ size: number }>('SELECT size FROM ai_image_jobs WHERE request_id=$1', [

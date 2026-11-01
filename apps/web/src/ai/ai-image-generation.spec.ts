@@ -301,7 +301,7 @@ it('reports queued and cancellation honestly without creating a second job', asy
       : { ...job, state: 'admitted', cancelRequested: init?.method === 'POST' },
   }));
   await render();
-  expect(host.textContent).toContain('Задание принято');
+  expect(host.textContent).toContain('В очереди');
   await act(async () =>
     Array.from(host.querySelectorAll('button'))
       .find((b) => b.getAttribute('aria-label') === 'Отменить задание')!
@@ -309,6 +309,18 @@ it('reports queued and cancellation honestly without creating a second job', asy
   );
   expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   expect(vi.mocked(call).mock.calls.some(([path]) => path.endsWith('/cancel'))).toBe(true);
+});
+it('distinguishes a reconciliation pause from an ordinary queued image without resubmission', async () => {
+  sessionStorage.setItem('asa-ai-image:personal:' + THREAD, REQUEST);
+  vi.mocked(call).mockImplementation(async (path) => ({
+    ok: true,
+    status: 200,
+    data: path.endsWith('/status') ? status : { ...job, state: 'admitted', queuePaused: true },
+  }));
+  await render();
+  expect(host.textContent).toContain('Очередь приостановлена');
+  expect(host.textContent).toContain('Задание можно отменить');
+  expect(vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(0);
 });
 it('fetches the closed authenticated image route and revokes its object URL', async () => {
   const create = vi.fn(() => 'blob:private-image'),
