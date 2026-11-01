@@ -5216,9 +5216,9 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: maintenance
-      checkpoint: selected_doc_only_routes_after_accepted_static_split
+      checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/components/arduino-peripherals.yaml
@@ -5226,7 +5226,10 @@ parallel_lanes:
         - docs/product/electronics/evidence/hygiene-baseline.yaml
       scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
       owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
-      next_action: Add actual moved declaration source paths and remove only the below-threshold arduino-blocks entry; validate routing, control-plane and bounded self-review; STOP. Preserve every accepted product blob and server state.
+      next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
+      routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
+      actual_arduino_blocks_bytes: 34881
+      self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
