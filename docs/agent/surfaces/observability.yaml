@@ -1,6 +1,29 @@
 schema_version: 1.0.0
 context: observability
 surfaces:
+  - id: SURF-OBSERVABILITY-REQUIRED-COVERAGE
+    routes: [/api/admin/v1/logs/status, '#/admin/logs']
+    implementation:
+      files: &coverage_files
+        - apps/api/src/admin-logs.service.ts
+        - apps/api/src/admin-logs.worker.ts
+        - apps/api/src/required-log-coverage.ts
+        - apps/api/src/admin-logs.service.spec.ts
+        - apps/api/src/admin-logs.worker.spec.ts
+        - tools/deployment/operational.py
+        - tools/deployment/test_operational.py
+        - apps/web/src/admin/AdminLogsPage.tsx
+        - docs/deployment/ADMIN_LOGS.md
+        - docs/agent/contracts/observability.yaml
+        - docs/agent/surfaces/observability.yaml
+    invariants: &coverage_invariants [OBS-COVERAGE-001, OBS-COLLECTOR-001, OBS-PRIVACY-001]
+    tests: &coverage_tests [TST-ADMIN-LOGS-001]
+    controls:
+      - id: CTRL-OBSERVABILITY-REQUIRED-COVERAGE
+        change_class: L3_CRITICAL
+        files: *coverage_files
+        invariants: *coverage_invariants
+        tests: *coverage_tests
   - id: SURF-OBSERVABILITY-COLLECTOR-LIFECYCLE
     routes:
       - cli:log-collector:prepare

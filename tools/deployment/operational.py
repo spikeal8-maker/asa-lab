@@ -402,7 +402,7 @@ def required_sources(config, database_sources, platform):
     def add(name, through=False, applicable=True):
         rows[name] = {'source': name, 'applicable': applicable, 'maxAgeSeconds': 300, 'requireThrough': through}
         if not applicable: rows[name]['reason'] = 'other-platform'
-    for name in ('docker','database-events','metrics','docker-lifecycle','operations:updates'): add(name, name in ('metrics','docker-lifecycle'))
+    for name in ('docker','database-events','metrics','docker-lifecycle','operations:updates','operations:backup'): add(name, name in ('metrics','docker-lifecycle'))
     for name in ('api','web','scratch','postgres','minio'): add(name + ':recent', True)
     for name in database_sources: add('database-events:' + name, True)
     add('linux:journal', True, platform == 'linux')
@@ -410,7 +410,6 @@ def required_sources(config, database_sources, platform):
     for item in config.get('fileSources', []): add(item['source'])
     settings = configuration(config)
     for name in settings.get('providers', {}): add('provider:' + name)
-    if settings.get('backupSuccessReceipt'): add('operations:backup')
     return {'version': 1, 'policy': 'asa-connected-v1', 'platform': platform,
             'auditMaxAgeSeconds': 900, 'sources': [rows[k] for k in sorted(rows)]}
 
