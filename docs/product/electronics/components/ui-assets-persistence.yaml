@@ -81,6 +81,7 @@ components:
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
+    - apps/web/src/electronics/testing/emergency-toolbar.browser.mjs
     - apps/web/src/electronics/testing/simulation-speed-control.spec.ts
     - apps/web/src/electronics/testing/simulation-speed.browser.mjs
     - apps/web/src/electronics/testing/native-led-diagnostic.spec.ts

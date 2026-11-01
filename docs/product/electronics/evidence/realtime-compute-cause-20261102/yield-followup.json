@@ -1,0 +1,66 @@
+{
+  "sourceSha": "8080c1e4343e41be1ea13ab9eababc7c011df117",
+  "primitive": "same setTimeout(resolve,0), with only count/performance timing instrumentation",
+  "limits": "Windows Node timers, not browser Worker latency evidence; cold JIT and instrumentation affect yield count",
+  "rows": [
+    {
+      "label": "no-delay",
+      "index": 2,
+      "requestHash": "243d08d5e895f5a0834392f842234432b7fe837e7d5af7c6c19dffd3a746a7ae",
+      "sourceHash": "bafae2c146b82d1ee69a3e74b9e57ebe7408bd754dce3d1e40e1f6ed4bb9dbaf",
+      "horizon": 26000,
+      "executionStatus": "ready",
+      "computeMs": 137.42119999999977,
+      "wallMs": 188.4298,
+      "yieldCalls": 9,
+      "waits": [
+        6.920099999999991,
+        6.27800000000002,
+        7.117599999999925,
+        0.561200000000099,
+        12.515999999999963,
+        6.59030000000007,
+        6.154700000000048,
+        2.737700000000018,
+        0.9409999999999172
+      ],
+      "waitMs": 49.81660000000005,
+      "wallMinusComputeMs": 51.00860000000023,
+      "unattributedMs": 1.1920000000001778,
+      "canonicalHash": "029f0b957f26e4d9531fbcbe170da004f9ebe1826dca79777babed9cbfb43191",
+      "fullResponseHash": "f51fd245b9bf231b4e6e759602918cb0d9988492c369e98101f00ae497bc50ca",
+      "completePriorEquality": true
+    },
+    {
+      "label": "millis",
+      "index": 2,
+      "requestHash": "33cb6d2f34f601cc8a4747fb0f69f916673135eae029e04c33348afb3b10d789",
+      "sourceHash": "751ee30c6dfbd898394c927c30f7f65f79a54d1c2a7d012e2263b83a8d1bf570",
+      "horizon": 26000,
+      "executionStatus": "ready",
+      "computeMs": 116.82719999999983,
+      "wallMs": 189.15819999999997,
+      "yieldCalls": 12,
+      "waits": [
+        0.926900000000046,
+        1.9927999999999884,
+        5.833700000000022,
+        7.249399999999923,
+        7.173600000000079,
+        6.922500000000014,
+        7.318399999999997,
+        6.334299999999985,
+        1.1346999999999525,
+        13.86239999999998,
+        0.5619000000000369,
+        12.218399999999974
+      ],
+      "waitMs": 71.529,
+      "wallMinusComputeMs": 72.33100000000013,
+      "unattributedMs": 0.8020000000001346,
+      "canonicalHash": "42a91b0f64ebf0c0b0545e5b82544ec7f4e73ea6d2e01d254b42a3af7ddc7877",
+      "fullResponseHash": "208a0ad749fe2fb70916ad2ebabce47c22699ac0840d224a0038dd561fb39ff4",
+      "completePriorEquality": true
+    }
+  ]
+}

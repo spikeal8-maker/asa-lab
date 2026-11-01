@@ -127,6 +127,9 @@ try {
                 const r = element.getBoundingClientRect();
                 const style = getComputedStyle(element);
                 const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+                const caption = document.createRange();
+                caption.selectNodeContents(element);
+                const captionBox = caption.getBoundingClientRect();
                 return {
                   x: r.x,
                   y: r.y,
@@ -139,6 +142,23 @@ try {
                   label: element.getAttribute('aria-label'),
                   unobstructed: element.contains(hit),
                   text: element.textContent,
+                  caption: {
+                    x: captionBox.x,
+                    y: captionBox.y,
+                    right: captionBox.right,
+                    bottom: captionBox.bottom,
+                    contentLeft:
+                      r.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+                    contentRight:
+                      r.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+                    contentTop:
+                      r.top + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop),
+                    contentBottom:
+                      r.bottom -
+                      parseFloat(style.borderBottomWidth) -
+                      parseFloat(style.paddingBottom),
+                    pseudoAfter: getComputedStyle(element, '::after').content,
+                  },
                 };
               };
               return {
@@ -194,6 +214,19 @@ try {
                   );
                 }
               assert.equal(Boolean(geometry.copy), emergency);
+              if (emergency) {
+                const copy = geometry.copy;
+                const detail = JSON.stringify({ width, dpr, code, running, copy });
+                assert.equal(copy.text.trim(), 'Копия JSON');
+                assert.ok(parseFloat(copy.fontSize) >= 11, detail);
+                assert.ok(copy.caption.right > copy.caption.x, detail);
+                assert.ok(copy.caption.bottom > copy.caption.y, detail);
+                assert.ok(copy.caption.x >= copy.caption.contentLeft - 0.5, detail);
+                assert.ok(copy.caption.right <= copy.caption.contentRight + 0.5, detail);
+                assert.ok(copy.caption.y >= copy.caption.contentTop - 0.5, detail);
+                assert.ok(copy.caption.bottom <= copy.caption.contentBottom + 0.5, detail);
+                assert.ok(['none', 'normal', '""'].includes(copy.caption.pseudoAfter), detail);
+              }
               assert.equal(Boolean(geometry.clock), running);
               if (running)
                 assert.ok(
