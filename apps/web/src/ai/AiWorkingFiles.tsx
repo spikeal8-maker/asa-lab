@@ -109,6 +109,7 @@ export function AiWorkingFiles({
               <select
                 className="ai-working-name"
                 aria-label="Рабочий файл"
+                title={file.name}
                 value={file.name}
                 onChange={(event) => {
                   setFile(null);
@@ -125,6 +126,7 @@ export function AiWorkingFiles({
               <select
                 className="ai-working-version"
                 aria-label="Версия файла"
+                title={file.versions?.find((v) => v.version === file.version)?.summary}
                 value={file.version}
                 disabled={saving}
                 onChange={(event) =>
@@ -136,7 +138,7 @@ export function AiWorkingFiles({
                 {file.versions?.map((v) => (
                   <option key={v.version} value={v.version}>
                     v{v.version}
-                    {v.version === head.version ? ' · текущая' : ''} — {v.summary}
+                    {v.version === head.version ? ' · текущая' : ''}
                   </option>
                 ))}
               </select>

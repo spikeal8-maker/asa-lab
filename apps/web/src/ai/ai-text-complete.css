@@ -274,14 +274,17 @@
 .asa-ai-layout .asa-ai-code-preview {
   height: 100%;
   overflow: auto;
-  background: white;
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 3%, var(--ai-surface));
   border-top: 1px solid var(--ai-border);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ai-muted) 25%, transparent) transparent;
 }
 .asa-ai-layout .asa-ai-preview-stage {
   width: calc(var(--code-device-width) * var(--code-preview-scale));
   height: 100%;
   overflow: hidden;
   margin-inline: auto;
+  max-width: none;
 }
 .asa-ai-layout .asa-ai-code-preview[data-device='svg'] .asa-ai-preview-stage {
   width: 100%;
@@ -304,6 +307,83 @@
   padding: 8px 16px;
   font-size: 12px;
   color: var(--ai-muted);
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
+  overflow: visible;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+}
+.asa-ai-layout .asa-ai-code-file,
+.asa-ai-layout .asa-ai-code-utilities {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.asa-ai-layout .asa-ai-code-file {
+  flex: 1;
+}
+.asa-ai-layout .asa-ai-code-utilities {
+  flex-shrink: 0;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-viewbar {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  border-top: 1px solid color-mix(in srgb, var(--ai-border) 55%, transparent);
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 4%, var(--ai-surface));
+}
+.asa-ai-layout .asa-ai-code-block .asa-ai-code-actions button.asa-ai-code-run {
+  margin-left: auto;
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 12%, transparent);
+  font-weight: 600;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-block {
+  border-width: 1px;
+  overflow: visible;
+}
+.asa-ai-layout .asa-ai-code-actions:first-child {
+  border-radius: 17px 17px 0 0;
+}
+.asa-ai-layout .asa-ai-code-body {
+  border-radius: 0 0 17px 17px;
+}
+.asa-ai-layout .asa-ai-code-body::after {
+  background: repeating-linear-gradient(135deg, transparent 0 3px, #0877b333 3px 4px);
+}
+@media (max-width: 560px) {
+  .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
+    gap: 4px;
+    padding: 4px 6px;
+  }
+  .asa-ai-layout .asa-ai-code-actions select.ai-working-name {
+    flex: 1 1 90px;
+    width: 90px;
+    max-width: 140px;
+    min-width: 56px;
+  }
+  .asa-ai-layout .asa-ai-code-actions select.ai-working-version {
+    flex: 0 0 90px;
+    width: 90px;
+    max-width: 90px;
+  }
+  .asa-ai-layout .asa-ai-code-actions select {
+    flex-basis: 54px;
+    width: 54px;
+    max-width: 54px;
+  }
+  .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
+    padding: 6px;
+    min-height: 34px;
+    font-size: 12px;
+  }
+  .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block[data-expanded] {
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
 }
 @media (max-width: 560px) {
   .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions .ai-copy-button > span:not(.sr-only) {

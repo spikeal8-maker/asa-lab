@@ -58,6 +58,14 @@ function CodePre({ children }: { children?: ReactNode }): JSX.Element {
 
 function CodeCard({ children, pending }: { children: ReactNode; pending: boolean }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
+  const inlineZoom = useRef(0.5);
+  function expand(next: boolean): void {
+    if (next) {
+      inlineZoom.current = zoom;
+      setZoom(1);
+    } else setZoom(inlineZoom.current);
+    setExpanded(next);
+  }
   const card = useRef<HTMLDialogElement>(null);
   const modal = useRef(false);
   useEffect(() => {
@@ -109,131 +117,144 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
       aria-modal={expanded || undefined}
       onCancel={(event) => {
         event.preventDefault();
-        setExpanded(false);
+        expand(false);
       }}
     >
       <div className="asa-ai-code-actions">
-        {header ? (
-          header.controls
-        ) : (
-          <span className="asa-ai-code-format">
-            <AiChatIcon name="file" size={16} />
-            {language || 'Текст'}
-          </span>
-        )}
-        {preview && (
-          <div className="asa-ai-code-tabs" role="group" aria-label="Отображение результата">
-            <button
-              type="button"
-              aria-pressed={previewVisible}
-              onClick={() => setShowPreview(true)}
+        <div className="asa-ai-code-file">
+          {header ? (
+            header.controls
+          ) : (
+            <span className="asa-ai-code-format">
+              <AiChatIcon name="file" size={16} />
+              {language || 'Текст'}
+            </span>
+          )}
+        </div>
+        <div className="asa-ai-code-utilities" role="group" aria-label="Действия с файлом">
+          <AiCopyButton text={code} label="Копировать код" />
+          <button
+            type="button"
+            disabled={pending}
+            data-ai-tooltip={pending ? 'Доступно после завершения ответа' : 'Скачать ' + file.name}
+            onClick={() => downloadBlob(new Blob([code], { type: file.mime }), file.name)}
+            aria-label={'Скачать код: ' + file.name}
+          >
+            <AiChatIcon name="download" size={17} />
+          </button>
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-label={expanded ? 'Вернуть в чат' : 'Открыть на всё окно'}
+            data-ai-tooltip={expanded ? 'Вернуть в чат · Esc' : 'На всё окно · масштаб 100%'}
+            onClick={() => expand(!expanded)}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              Просмотр
-            </button>
-            <button
-              type="button"
-              aria-pressed={!previewVisible}
-              onClick={() => {
-                setShowPreview(false);
-                setRunCode(null);
-              }}
-            >
-              Код
-            </button>
-          </div>
-        )}
-        {previewVisible && file.name.endsWith('.html') && (
-          <>
-            <div className="asa-ai-code-devices" role="group" aria-label="Размер экрана">
+              <path
+                d={
+                  expanded
+                    ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6'
+                    : 'M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5'
+                }
+              />
+            </svg>
+          </button>
+        </div>
+      </div>
+      {preview && (
+        <div className="asa-ai-code-actions asa-ai-code-viewbar">
+          {preview && (
+            <div className="asa-ai-code-tabs" role="group" aria-label="Отображение результата">
               <button
                 type="button"
-                aria-label="Компьютер — 1024 пикселя"
-                data-ai-tooltip="Компьютер · 1024 px"
-                aria-pressed={device === 'desktop'}
-                onClick={() => setDevice('desktop')}
+                aria-pressed={previewVisible}
+                onClick={() => setShowPreview(true)}
               >
-                <AiChatIcon name="monitor" size={17} />
+                Просмотр
               </button>
               <button
                 type="button"
-                aria-label="Телефон — 390 пикселей"
-                data-ai-tooltip="Телефон · 390 px"
-                aria-pressed={device === 'phone'}
-                onClick={() => setDevice('phone')}
+                aria-pressed={!previewVisible}
+                onClick={() => {
+                  setShowPreview(false);
+                  setRunCode(null);
+                }}
               >
-                <AiChatIcon name="phone" size={17} />
+                Код
               </button>
             </div>
-            <select
-              aria-label="Масштаб HTML"
-              value={zoom}
-              onChange={(event) => setZoom(Number(event.target.value))}
-            >
-              {[0.25, 0.5, 0.75, 1].map((value) => (
-                <option key={value} value={value}>
-                  {value * 100}%
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              aria-label={running ? 'Остановить приложение' : 'Запустить приложение'}
-              data-ai-tooltip={running ? 'Остановить' : 'Запустить'}
-              onClick={() => setRunCode(running ? null : code)}
-            >
-              <AiChatIcon name={running ? 'stop' : 'play'} size={17} />
-            </button>
-            {running && (
+          )}
+          {previewVisible && file.name.endsWith('.html') && (
+            <>
+              <div className="asa-ai-code-devices" role="group" aria-label="Размер экрана">
+                <button
+                  type="button"
+                  aria-label="Компьютер — 1024 пикселя"
+                  data-ai-tooltip="Компьютер · 1024 px"
+                  aria-pressed={device === 'desktop'}
+                  onClick={() => setDevice('desktop')}
+                >
+                  <AiChatIcon name="monitor" size={17} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Телефон — 390 пикселей"
+                  data-ai-tooltip="Телефон · 390 px"
+                  aria-pressed={device === 'phone'}
+                  onClick={() => setDevice('phone')}
+                >
+                  <AiChatIcon name="phone" size={17} />
+                </button>
+              </div>
+              <select
+                aria-label="Масштаб HTML"
+                value={zoom}
+                onChange={(event) => setZoom(Number(event.target.value))}
+              >
+                {[0.25, 0.5, 0.75, 1].map((value) => (
+                  <option key={value} value={value}>
+                    {value * 100}%
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                aria-label="Перезапустить приложение"
-                data-ai-tooltip="Перезапустить"
-                onClick={() => setRunId(runId + 1)}
+                aria-label={running ? 'Остановить приложение' : 'Запустить приложение'}
+                className="asa-ai-code-run"
+                data-ai-tooltip={
+                  running
+                    ? 'Остановить приложение и сбросить его состояние'
+                    : 'Включить игру и кнопки в изолированном окне'
+                }
+                onClick={() => setRunCode(running ? null : code)}
               >
-                <AiChatIcon name="refresh" size={17} />
+                <AiChatIcon name={running ? 'stop' : 'play'} size={17} />
+                <span>{running ? 'Стоп' : 'Запустить'}</span>
               </button>
-            )}
-          </>
-        )}
-        <span className="asa-ai-code-spacer" />
-        <AiCopyButton text={code} label="Копировать код" />
-        <button
-          type="button"
-          disabled={pending}
-          data-ai-tooltip={pending ? 'Доступно после завершения ответа' : file.name}
-          onClick={() => downloadBlob(new Blob([code], { type: file.mime }), file.name)}
-          aria-label={'Скачать код: ' + file.name}
-        >
-          <AiChatIcon name="download" size={17} />
-        </button>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-label={expanded ? 'Вернуть в чат' : 'Открыть на всё окно'}
-          data-ai-tooltip={expanded ? 'Вернуть в чат · Esc' : 'Открыть на всё окно'}
-          onClick={() => setExpanded(!expanded)}
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path
-              d={
-                expanded
-                  ? 'M9 3v6H3m18 0h-6V3M3 15h6v6m6 0v-6h6'
-                  : 'M8 3H3v5m13-5h5v5M3 16v5h5m8 0h5v-5'
-              }
-            />
-          </svg>
-        </button>
-      </div>
+              {running && (
+                <button
+                  type="button"
+                  aria-label="Перезапустить приложение"
+                  data-ai-tooltip="Перезапустить"
+                  onClick={() => setRunId(runId + 1)}
+                >
+                  <AiChatIcon name="refresh" size={17} />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
       <div className="asa-ai-code-body" aria-label="Область кода и предпросмотра">
         {previewVisible && (
           <div
