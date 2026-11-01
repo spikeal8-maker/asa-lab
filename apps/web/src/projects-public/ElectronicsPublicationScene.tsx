@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
@@ -15,6 +15,10 @@ import { ordinaryLedVisualState } from '../electronics/component-result-presenta
 import { PublicElectronicsRuntime, publicSimulationDocument } from './electronics-public-runtime';
 import { componentTransform } from '../electronics/workbench-model';
 import { roundedWirePath, wirePoints } from '../electronics/workbench-geometry';
+
+const PublishedBlocks = lazy(() =>
+  import('./PublicArduinoBlocks').then((m) => ({ default: m.PublicArduinoBlocks })),
+);
 
 /** Reconstruct only validated display fields; never accept an editor property bag. */
 export function publicDisplayComponentModel(source: PublicDisplayComponent): SchematicComponent {
@@ -437,15 +441,30 @@ export function ElectronicsPublicationScene({
           {programs.map((c) => (
             <div key={c.id}>
               <h3>{c.name ?? 'Arduino'}</h3>
-              {c.stateProperties?.arduinoCodeMode !== 'text' ? (
-                <p>
-                  Программа создана блоками. В этой публикации доступен только сгенерированный
-                  текст; структура блоков пока не передаётся.
-                </p>
+              {['blocks', 'blocks-text'].includes(String(c.stateProperties?.arduinoCodeMode)) ? (
+                typeof c.stateProperties?.arduinoBlocks === 'string' ? (
+                  <Suspense fallback={<p role="status">Загружаем блоки…</p>}>
+                    <PublishedBlocks value={c.stateProperties.arduinoBlocks} />
+                  </Suspense>
+                ) : (
+                  <p role="status">
+                    В этой опубликованной версии структура блоков не сохранена. Автор может обновить
+                    публикацию из редактора.
+                  </p>
+                )
+              ) : (
+                <pre>
+                  <code>{String(c.stateProperties?.arduinoSource)}</code>
+                </pre>
+              )}
+              {c.stateProperties?.arduinoCodeMode === 'blocks-text' ? (
+                <details>
+                  <summary>Сгенерированный текст</summary>
+                  <pre>
+                    <code>{String(c.stateProperties.arduinoSource)}</code>
+                  </pre>
+                </details>
               ) : null}
-              <pre>
-                <code>{String(c.stateProperties?.arduinoSource)}</code>
-              </pre>
             </div>
           ))}
         </aside>

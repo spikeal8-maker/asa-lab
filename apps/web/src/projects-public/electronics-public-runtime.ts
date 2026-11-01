@@ -36,7 +36,14 @@ export function publicSimulationDocument(
         ...(internalConnections
           ? { internalConnections: internalConnections.map(([a, b]): [string, string] => [a, b]) }
           : {}),
-        stateProperties: { ...visualProperties, ...component.stateProperties },
+        stateProperties: {
+          ...visualProperties,
+          ...Object.fromEntries(
+            Object.entries(component.stateProperties ?? {}).filter(
+              ([key]) => key !== 'arduinoBlocks',
+            ),
+          ),
+        },
       }),
     ),
     connections: artifact.connections.map(({ vertices, ...connection }) => ({

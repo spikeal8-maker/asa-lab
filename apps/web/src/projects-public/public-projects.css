@@ -1729,3 +1729,26 @@
   color: #617689;
   font-weight: 500;
 }
+
+.public-electronics-viewer > .public-electronics-code {
+  width: min(440px, 100%);
+}
+.public-arduino-blocks {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dde6ef;
+  border-radius: 10px;
+  background: #f5f8fc;
+}
+.public-arduino-blocks[hidden] {
+  display: none;
+}
+.public-arduino-blocks .blocklySvg {
+  background: #f5f8fc;
+}
+.public-arduino-blocks .blocklyMainBackground {
+  stroke: none;
+}
