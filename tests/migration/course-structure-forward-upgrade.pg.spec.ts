@@ -158,6 +158,12 @@ describe('Course Builder structure forward upgrade', () => {
         '0286', // Bounded search retrieval settings.
         '0287', // Durable successful-publication-copy aggregate.
         '0288', // Separate authorization for published Course academic results.
+        '0289', // Persistent publication discussions and independent learner permission.
+        '0290', // Comment likes, pinning and stable ordering.
+        '0291', // Guarded Account/Seat comment avatars.
+        '0292', // Publication author avatars and projects-only catalog projection.
+        '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+        '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -475,6 +481,12 @@ describe('Course Builder structure forward upgrade', () => {
           '0286', // Bounded search retrieval settings.
           '0287', // Durable successful-publication-copy aggregate.
           '0288', // Exact academic-result authorization independent of Project files.
+          '0289', // Persistent publication discussions and independent learner permission.
+          '0290', // Comment likes, pinning and stable ordering.
+          '0291', // Guarded Account/Seat comment avatars.
+          '0292', // Publication author avatars and projects-only catalog projection.
+          '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+          '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
         ]);
         expect(
           await applyIsolatedTestPlan(
