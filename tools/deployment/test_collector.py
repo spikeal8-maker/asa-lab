@@ -3,6 +3,7 @@ import datetime as dt
 import json
 import os
 import subprocess
+import stat
 from pathlib import Path
 import sys
 import tempfile
@@ -25,10 +26,113 @@ def fixture(root):
     for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py', 'memory_sampling.py'):
         (root / 'tools' / name).write_text('fixture-' + name)
     (root / '.env').write_text('COMPOSE_PROJECT_NAME=asa-lab-dev\n')
+    contract = root / 'apps/api/src/database-diagnostic-contract.json'
+    contract.parent.mkdir(parents=True)
+    contract.write_text('{}')
     return Installation(root, 'dev')
 
 
 class CollectorLifecycleTests(unittest.TestCase):
+    @staticmethod
+    def trusted_stats(path, *, foreign=None, writable=None):
+        """Synthetic ownership only; tests never chmod or chown the host tree."""
+        original = CollectorLifecycleTests.original_lstat(path)
+        uid = 1234 if foreign is not None and path == foreign else 0
+        mode = stat.S_IFMT(original.st_mode) | (0o777 if writable is not None and path == writable else 0o755)
+        return SimpleNamespace(st_uid=uid, st_gid=1000, st_mode=mode,
+                               st_size=original.st_size, st_nlink=original.st_nlink)
+
+    original_lstat = Path.lstat
+
+    def test_root_selection_is_explicit_and_preserves_operator_security(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory))
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), patch('deployment.collector.docker_group_gid', return_value=0):
+                lifecycle.select_root_mode(install, 1000)
+                selected = Installation(install.root, 'dev')
+                self.assertEqual(selected.settings['collectorMode'], 'system-root')
+                self.assertEqual(selected.settings['collectorReaderGid'], 1000)
+                self.assertEqual(selected.settings['format'], 'asa-installation-v1')
+                self.assertEqual(selected.settings['project'], install.project)
+                operator = lifecycle.linux_operator(selected)
+                self.assertEqual((operator.pw_name, operator.pw_uid, operator.pw_gid), ('root', 0, 1000))
+                identity = lifecycle.runner_identity(selected)
+                self.assertEqual((identity['mode'], identity['owner']), ('system-root', 'root'))
+                lifecycle.select_root_mode(selected, 1000)
+                with self.assertRaises(Blocked): lifecycle.select_root_mode(selected, 2000)
+
+    def test_root_mode_never_escalates_nonroot_or_accepts_socket_group(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory))
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=1000, create=True), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), patch('deployment.collector.docker_group_gid', return_value=1000), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            self.assertFalse((install.state/'installation.json').exists())
+
+    def test_root_selection_refuses_existing_nonroot_runner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory)); install.state.mkdir()
+            atomic_json(install.state/'collector-runner.json', {'mode':'system','owner':'operator'})
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            self.assertEqual(json.loads((install.state/'collector-runner.json').read_text())['owner'], 'operator')
+
+    def test_root_selection_rejects_existing_group_conflict_without_persisting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory)); install.env['ASA_LOG_READER_GID'] = '2000'
+            with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                    patch('deployment.collector.root_runner_paths'), self.assertRaises(Blocked):
+                lifecycle.select_root_mode(install, 1000)
+            self.assertFalse((install.state/'installation.json').exists())
+
+    def test_root_selection_rejects_nonstandard_socket_group(self):
+        with patch('deployment.collector.docker_group_gid', return_value=999), \
+                patch('deployment.collector.docker_socket_gid', return_value=1000), self.assertRaises(Blocked):
+            lifecycle.verify_reader_gid(1000)
+
+    def test_root_flags_are_prepare_only_and_paired(self):
+        for arguments in (['status', '--mode', 'system-root', '--reader-gid', '1000'],
+                          ['reconcile', '--mode', 'system-root', '--reader-gid', '1000'],
+                          ['prepare', '--mode', 'system-root'], ['prepare', '--reader-gid', '1000']):
+            with self.subTest(arguments=arguments), patch('deployment.collector.Installation',
+                    side_effect=AssertionError('must reject before accessing installation')):
+                self.assertEqual(lifecycle.main(arguments), 2)
+
+    def test_root_trust_checks_foreign_or_writable_runtime_and_parents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory)); code = install.root/'tools/collect_logs.py'
+            for bad in (code, install.root/'apps/api/src/database-diagnostic-contract.json', install.root.parent):
+                for kind in ('foreign', 'writable'):
+                    with self.subTest(path=str(bad), kind=kind), patch.object(Path, 'lstat',
+                            lambda path: self.trusted_stats(path, **{kind:bad})), self.assertRaises(Blocked) as error:
+                        lifecycle.root_runner_paths(install)
+                    self.assertEqual(error.exception.code, 'COLLECTOR_ROOT_TRUST')
+            with patch.object(Path, 'lstat', lambda path:self.trusted_stats(path)):
+                lifecycle.root_runner_paths(install)
+
+    def test_root_unit_remains_fixed_identity_and_has_no_implicit_conversion(self):
+        identity = dict(root='/srv/asa', owner='root', mode='system-root')
+        text = lifecycle.systemd_unit(identity, '/usr/bin/python3')
+        self.assertIn('User=root\n', text)
+        self.assertIn('WantedBy=multi-user.target', text)
+        lifecycle.verify_systemd_unit(text, identity, '/usr/bin/python3')
+        with self.assertRaises(Blocked):
+            lifecycle.verify_systemd_unit(text.replace('User=root', 'User=operator'), identity, '/usr/bin/python3')
+        with self.assertRaises(Blocked):
+            lifecycle.verify_systemd_unit(text + 'ExecStartPost=/bin/foreign\n', identity, '/usr/bin/python3')
+        with self.assertRaises(Blocked):
+            lifecycle.verify_systemd_unit(text, {**identity, 'mode':'system', 'owner':'operator'}, '/usr/bin/python3')
+
+    def test_manager_readonly_actions_refuse_root_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            install = fixture(Path(directory))
+            with patch('asa_manager.Installation', side_effect=AssertionError('must reject before installation access')):
+                self.assertEqual(asa_manager.main(['check','--root',str(install.root),'--collector-mode','system-root','--collector-reader-gid','1000']), 2)
+
     def native_config(self):
         return {'services': {'api': {'environment': {'ASA_APPLICATION_LOG_STORE': '/var/lib/asa-application-logs'},
             'volumes': [{'type': 'volume', 'source': 'application-logs', 'target': '/var/lib/asa-application-logs'}]}},
@@ -153,7 +257,7 @@ class CollectorLifecycleTests(unittest.TestCase):
             (install.state / 'diagnostics/private').mkdir()
             identity = process_identity(root, install.project); write_process_health(root, identity)
             runner = {'root': str(root), 'project': install.project, 'scriptDigest': lifecycle.digest(root), 'mode': 'windows-task'}
-            with patch.object(install, 'identity'), patch('deployment.collector.finalize_permissions'), patch('deployment.collector.reader_probe'), patch('deployment.collector.runner_identity', return_value=runner), patch('deployment.collector.reconcile_runner', return_value='owned runner') as start:
+            with patch('deployment.collector.os.geteuid', return_value=1000, create=True), patch.object(install, 'identity'), patch('deployment.collector.finalize_permissions'), patch('deployment.collector.reader_probe'), patch('deployment.collector.runner_identity', return_value=runner), patch('deployment.collector.reconcile_runner', return_value='owned runner') as start:
                 failed = lifecycle.reconcile(install, wait_seconds=0)
                 self.assertEqual(failed['state'], 'degraded'); self.assertEqual(failed['code'], 'COLLECTOR_START')
                 def restarted(*args):
