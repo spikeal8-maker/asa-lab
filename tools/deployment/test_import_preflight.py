@@ -130,6 +130,46 @@ class ImportPreflightTests(unittest.TestCase):
             validate_import_archive(self.root)
         self.assertEqual(caught.exception.code, "IMPORT_CONFIGURATION")
 
+    def test_legacy_windows_crlf_archive_is_accepted_when_hashes_match(self):
+        profile_file = self.root / "configuration" / "compose.production.yaml"
+        expected = self.recovery["files"]["compose.production.yaml"]
+        profile_file.write_bytes(expected.replace("\n", "\r\n").encode("utf8"))
+        self.manifest["files"] = inventory_files(self.root)
+        (self.root / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf8")
+        self.assertEqual(validate_import_archive(self.root)["status"],
+                         "ARCHIVE_VERIFIED_NO_IMPORT")
+
+    def test_portable_lf_compose_archive_is_accepted(self):
+        for relative, content in self.recovery["files"].items():
+            (self.root / "configuration" / relative).write_bytes(content.encode("utf8"))
+        self.manifest["files"] = inventory_files(self.root)
+        (self.root / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf8")
+        self.assertEqual(validate_import_archive(self.root)["status"],
+                         "ARCHIVE_VERIFIED_NO_IMPORT")
+
+    def test_mixed_line_endings_rejected_even_if_hash_inventory_rebased(self):
+        profile_file = self.root / "configuration" / "compose.production.yaml"
+        expected = self.recovery["files"]["compose.production.yaml"]
+        self.assertGreater(expected.count("\n"), 1)
+        profile_file.write_bytes(expected.replace("\n", "\r\n", 1).encode("utf8"))
+        # Text-mode newline normalization would conceal this mixed encoding.
+        self.assertEqual(profile_file.read_text(encoding="utf8"), expected)
+        self.manifest["files"] = inventory_files(self.root)
+        (self.root / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf8")
+        with self.assertRaises(Blocked) as caught:
+            validate_import_archive(self.root)
+        self.assertEqual(caught.exception.code, "IMPORT_CONFIGURATION")
+
+    def test_manifest_parent_traversal_is_blocked_before_archive_read(self):
+        self.manifest["files"]["../outside-archive-secret.txt"] = {
+            "bytes": 1,
+            "sha256": "0" * 64,
+        }
+        (self.root / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf8")
+        with self.assertRaises(Blocked) as caught:
+            validate_import_archive(self.root)
+        self.assertEqual(caught.exception.code, "BACKUP_PATH")
+
     def test_missing_original_secret_blocks(self):
         self.env.pop("ASA_SETTINGS_ENCRYPTION_KEY")
         self.save()

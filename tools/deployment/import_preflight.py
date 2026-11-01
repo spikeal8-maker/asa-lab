@@ -161,9 +161,25 @@ def validate_import_archive(location):
                 "Recovery Compose file is absent from the complete backup inventory.")
         source_file = root / "configuration" / relative
         _regular(source_file, "IMPORT_CONFIGURATION")
-        require(source_file.read_text(encoding="utf-8") == content,
+        require("\r" not in content, "IMPORT_CONFIGURATION",
+                "Recovery JSON must contain canonical LF line endings.")
+        try:
+            expected_bytes = content.encode("utf-8")
+        except UnicodeError as exc:
+            raise Blocked(
                 "IMPORT_CONFIGURATION",
-                "Recovery Compose file bytes differ from the attested configuration snapshot.")
+                "Recovery Compose configuration contains invalid Unicode.",
+                "Preserve the original archive; do not import this copy.",
+            ) from exc
+        # Existing Windows backup writer serializes text files through
+        # os.fdopen(..., "w"), producing CRLF even though recovery JSON
+        # contains normalized LF. Accept exactly those two deterministic
+        # byte representations, never arbitrary text-mode normalization.
+        legacy_windows_bytes = expected_bytes.replace(b"\n", b"\r\n")
+        raw = source_file.read_bytes()
+        require(raw == expected_bytes or raw == legacy_windows_bytes,
+                "IMPORT_CONFIGURATION",
+                "Recovery Compose bytes differ from the two attested LF/Windows-CRLF formats.")
     object_files = [key for key in manifest["files"] if key.startswith("objects/")]
     require(object_files, "IMPORT_OBJECTS_MISSING",
             "Full source MinIO data is absent; archive is not a complete transfer.")
