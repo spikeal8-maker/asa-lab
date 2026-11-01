@@ -103,7 +103,7 @@ describe('structured course prepublication diagnostics', () => {
   it('distinguishes unused owned courses from inaccessible IDs without exposing counts', async () => {
     const authorOnly = controller([{ run_id: null }]);
     vi.mocked(authorOnly.accounts.capabilities).mockResolvedValue([
-      { capability: 'creator', state: 'verified' },
+      { capability: 'content_author', state: 'verified' },
     ] as Awaited<ReturnType<AccountDirectoryPort['capabilities']>>);
     await expect(authorOnly.value.usage(request(), COURSE_ID)).resolves.toEqual({ items: [] });
     expect(authorOnly.query).toHaveBeenCalledWith(expect.any(String), [
