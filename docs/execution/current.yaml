@@ -7907,29 +7907,33 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
-      id: TASK-PROJ-PUBLIC-AUTHOR-NAME-001
+      id: TASK-PROJ-CATALOG-CARD-VISUAL-001
       issue: 211
       branch: main
-      candidate_branch: codex/public-author-name-20261030
       base_branch: main
-      pr: 884
-      pr_draft: false
-      status: done
-      checkpoint: existing_public_author_name_technical_accepted_main
+      status: in_progress
+      checkpoint: real_copy_count_selected
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
-      owner_authorization: Owner explicitly clarified on 2026-10-30 that the existing registration display name is public,
-        always visible as author, and no user name-visibility switch exists. Remove incorrect dependency on whole-profile
-        visibility for this one field. No new duplicate author-name field or whole-profile exposure. Existing publications
-        must display the canonical public name without manual republishing while immutable source/history remain intact.
-        Exact Code and Security review plus real PG/API/browser and General before Main. No live DB or deployment.
+      owner_authorization: >-
+        Owner requests image-filled compact catalog cards matching supplied reference:
+        public author top left, minimal module top right, title in a light lower strip,
+        real likes over the preview and publication date on hover/focus. Owner follow-up
+        requires title also over the preview, without a separate lower strip. Existing DTO
+        has no avatar or download total; use honest initials fallback, no fabricated
+        totals, no private row/actor disclosure. Owner now requests the missing count of
+        downloads: per prior terminology this is Add to my projects, not physical
+        file export. Add a real successful-copy aggregate, idempotent replay and
+        failed/rolled-back attempts must not inflate it. Preserve lifetime count
+        after copy trash/removal using minimal private event data; backfill only
+        provable existing copies. One forward migration, existing API/card and
+        focused negative/transactional evidence, independent security challenge.
+        No deployment, permissions, private profile projection or player changes.
       context_hints:
-      - docs/product/projects/tasks/PROJ-PUBLIC-AUTHOR-NAME.md
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
-      - docs/product/projects/DECISION_LEDGER.md
-      - docs/agent/contracts/identity.yaml
+      - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
     integration_dependencies:
       - id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
         issue: 836
@@ -8864,7 +8868,33 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: design_approved_bounded_courses_main_integration_selected
+      checkpoint: author_workspace_course_usage_selected
+      selected_slice:
+        id: LRN-E1-AUTHOR-USAGE-001
+        ci_prerequisite:
+          id: LRN-E1-CI-RUNNER-001
+          owner_authorization: Owner approved current.yaml reconciliation, CI repair, PR900 verification and green-gated main integration, then continued Courses completion on 2026-11-01.
+          classification: D_infrastructure
+          scope: Pin the existing Learning E1 workflow jobs to supported Ubuntu 24.04 without changing tests or gates.
+          path: .github/workflows/learning-e1-focused.yml
+          evidence: Learning run 41325031781 job 124903073394 fails before tests because Playwright does not support ubuntu26.04-x64.
+          constraints: Separate workflow-only executor and independent review; preserve commands, case partitions, retries, timeouts and mandatory aggregate.
+        owner_authorization: Owner requested checking the Courses specification and starting completion of the author workspace on 2026-11-01.
+        normative_ref: PRODUCT-INTEGRATED-V15 section 4.2.1 Usage
+        scope: >-
+          Add the missing Course Usage read surface over existing CourseRuns:
+          authorized classes only, exact pinned version, run status and audience,
+          and navigation to Class Learning. Preserve editor drafts and published
+          history. No separate progress, grade or roster store.
+        acceptance:
+        - Server-scoped read with foreign course, foreign class and revoked access negatives; no learner answers or inaccessible counts.
+        - Loading, empty, error and populated UI; safe navigation using existing dirty guards.
+        - Focused PostgreSQL and browser evidence, viewports 1440/1024/390/320 and existing authoring regressions.
+        - Exact final focused and repository gates and independent review before integration.
+        constraints:
+        - Reuse course and class authorization; no Auth, tenant/RLS redesign, migration or deployment.
+        - Preserve PR727 media preview and PR739 progress sources; do not reimplement or merge them in this slice.
+        - This Usage slice only; executor reports and stops before another task.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -16232,7 +16262,7 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1 corrections remain open, but owner review 2026-10-04 changed implementation priority to visible-first. V-UX2A Assignment list is the selected next visible slice; A6/A7/A8 backend/media work may proceed only when it blocks that exact visible flow. Owner acceptance and release/deployment claims remain blocked.
+    reason: E1 corrections remain open. The learning task selects the current bounded author-workspace slice; earlier visible-first assignments are historical evidence. Owner acceptance and release/deployment claims remain blocked until the required E1 corrections and evidence are complete.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
   - id: ELECTRONICS-538-ASSET-548
     kind: acceptance_blocker
