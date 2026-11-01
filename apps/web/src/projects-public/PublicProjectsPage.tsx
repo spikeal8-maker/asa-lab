@@ -292,6 +292,25 @@ export function PublicProjectsPage({
                     ) : null}
                   </div>
                   <div className="public-project-card-meta">
+                    {typeof publication.copyCount === 'number' ? (
+                      <span
+                        aria-label={`${publication.copyCount} добавлений в свои проекты`}
+                        title="Добавили к себе"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          width="16"
+                          height="16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
+                          <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                        </svg>
+                        {publication.copyCount}
+                      </span>
+                    ) : null}
                     <span aria-label={`${publication.likeCount ?? 0} нравится`}>
                       <svg
                         aria-hidden="true"
