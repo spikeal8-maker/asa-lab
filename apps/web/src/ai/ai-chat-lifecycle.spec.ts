@@ -399,3 +399,64 @@ it('shows image progress in an otherwise empty conversation, including recovery 
     sessionStorage.removeItem(key);
   }
 });
+
+it('keeps voice activity inside the composer and preserves the draft without sending it', async () => {
+  pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation((path, init) =>
+    path === '/api/ai/stt/status'
+      ? Promise.resolve(ok({ enabled: true, model: 'fixture-stt', maxAudioSeconds: 20 }))
+      : original(path, init),
+  );
+  const stopTrack = vi.fn();
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: stopTrack }] })),
+    },
+  });
+  class Recording {
+    static isTypeSupported() {
+      return true;
+    }
+    state: RecordingState = 'inactive';
+    onstop: (() => void) | null = null;
+    start() {
+      this.state = 'recording';
+    }
+    stop() {
+      this.state = 'inactive';
+      this.onstop?.();
+    }
+  }
+  vi.stubGlobal('MediaRecorder', Recording);
+  await mount();
+  await enter('Неотправленный черновик');
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Продиктовать сообщение"]')!.click(),
+  );
+  expect(
+    host.querySelector('form.chat-composer .chat-voice-slot .ai-voice-panel[data-active="true"]'),
+  ).not.toBeNull();
+  expect(host.querySelector('.ai-voice-control .ai-voice-panel')).toBeNull();
+  expect(
+    host.querySelector<HTMLButtonElement>('[aria-label="Отправить сообщение"]')!.disabled,
+  ).toBe(true);
+  await act(async () =>
+    host
+      .querySelector('form.chat-composer')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  );
+  expect(creationCalls()).toHaveLength(0);
+  expect(streamAiRequest).not.toHaveBeenCalled();
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Отменить голосовой ввод"]')!.click(),
+  );
+  expect(composer().value).toBe('Неотправленный черновик');
+  expect(document.activeElement).toBe(composer());
+  expect(host.querySelector('.chat-voice-slot .ai-voice-panel')).toBeNull();
+  expect(
+    host.querySelector<HTMLButtonElement>('[aria-label="Отправить сообщение"]')!.disabled,
+  ).toBe(false);
+  expect(stopTrack).toHaveBeenCalled();
+});

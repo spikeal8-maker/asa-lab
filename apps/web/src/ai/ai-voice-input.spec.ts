@@ -113,7 +113,7 @@ it('starts recording with one click and shows only compact voice activity', asyn
   expect(host.querySelector('[role="dialog"]')).toBeNull();
   expect(host.textContent).not.toMatch(/Polza|Продолжить|ASA Lab/);
   expect(button('Остановить запись и распознать').hasAttribute('data-ai-tooltip')).toBe(false);
-  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(5);
+  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(40);
   expect(host.querySelector('time')?.textContent).toBe('0:00');
   expect(button('Остановить запись и распознать').getAttribute('aria-pressed')).toBe('true');
   expect(requests.map((r) => r.path)).toEqual(['/api/ai/stt/status']);
@@ -127,7 +127,7 @@ it('Escape cancels recording without transmitting audio', async () => {
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
     );
   });
-  expect(host.querySelector('.ai-voice-toast')).toBeNull();
+  expect(host.querySelector('.ai-voice-panel')).toBeNull();
   expect(stopTrack).toHaveBeenCalled();
   expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
   expect(document.activeElement).toBe(button('Продиктовать сообщение'));
@@ -279,8 +279,78 @@ it('ignores a late audio-read failure after cancel and a new recording', async (
   await act(async () => button('Продиктовать сообщение').click());
   await act(async () => failRead());
   expect(button('Остановить запись и распознать').getAttribute('aria-pressed')).toBe('true');
-  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(5);
+  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(40);
   expect(host.textContent).not.toContain('Не удалось прочитать');
   expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
   expect(transcript).not.toHaveBeenCalled();
+});
+
+it('uses real microphone samples for bar heights and releases the meter on cancel', async () => {
+  let nextFrame!: FrameRequestCallback;
+  let amplitude = 0;
+  const disconnect = vi.fn();
+  const close = vi.fn(async () => {});
+  const connect = vi.fn();
+  const analyser = {
+    fftSize: 1024,
+    disconnect,
+    getByteTimeDomainData: (data: Uint8Array) => {
+      for (let i = 0; i < data.length; i++) data[i] = 128 + (i % 2 ? amplitude : -amplitude);
+    },
+  };
+  class MeterContext {
+    state = 'running';
+    createAnalyser() {
+      return analyser;
+    }
+    createMediaStreamSource() {
+      return { connect, disconnect };
+    }
+    resume = vi.fn(async () => {});
+    close = close;
+  }
+  vi.stubGlobal('AudioContext', MeterContext);
+  vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => {
+    nextFrame = frame;
+    return 1;
+  });
+  const cancelFrame = vi.fn();
+  vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+  const slot = document.createElement('div');
+  document.body.append(slot);
+  const active = vi.fn();
+  await act(async () =>
+    root.render(
+      createElement(AiVoiceInput, {
+        call,
+        disabled: false,
+        onTranscript: transcript,
+        target: slot,
+        onActiveChange: active,
+      }),
+    ),
+  );
+  await act(async () => button('Продиктовать сообщение').click());
+  expect(slot.querySelector('.ai-voice-panel')).not.toBeNull();
+  expect(active).toHaveBeenLastCalledWith(true);
+  await act(async () => nextFrame(100));
+  expect(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height).toBe('3px');
+  amplitude = 24;
+  await act(async () => nextFrame(160));
+  expect(
+    parseFloat(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height),
+  ).toBeGreaterThan(20);
+  amplitude = 0;
+  await act(async () => nextFrame(220));
+  expect(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height).toBe('3px');
+  expect(connect).toHaveBeenCalledExactlyOnceWith(analyser);
+  await act(async () =>
+    slot.querySelector<HTMLButtonElement>('[aria-label="Отменить голосовой ввод"]')!.click(),
+  );
+  expect(active).toHaveBeenLastCalledWith(false);
+  expect(close).toHaveBeenCalledOnce();
+  expect(cancelFrame).toHaveBeenCalled();
+  expect(disconnect).toHaveBeenCalledTimes(2);
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
+  slot.remove();
 });

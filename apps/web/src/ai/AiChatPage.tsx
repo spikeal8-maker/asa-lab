@@ -250,6 +250,13 @@ export function AiChatPage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [voiceTarget, setVoiceTarget] = useState<HTMLDivElement | null>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const wasVoiceBusy = useRef(false);
+  useEffect(() => {
+    if (wasVoiceBusy.current && !voiceBusy) composer.current?.focus();
+    wasVoiceBusy.current = voiceBusy;
+  }, [voiceBusy]);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
   const threadMutationBusy = useRef(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -1075,6 +1082,7 @@ export function AiChatPage({
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (voiceBusy) return;
     const active = document.activeElement;
     const focusWasInComposer =
       active === composer.current || active?.classList.contains('chat-send-button') === true;
@@ -2249,6 +2257,7 @@ export function AiChatPage({
                     </button>
                   </div>
                 ) : null}
+                <div className="chat-voice-slot" ref={setVoiceTarget} />
                 <textarea
                   ref={composer}
                   value={draft}
@@ -2552,6 +2561,8 @@ export function AiChatPage({
                     <AiVoiceInput
                       key={(seatId ?? 'personal') + ':' + (currentId ?? 'new')}
                       call={call}
+                      target={voiceTarget}
+                      onActiveChange={setVoiceBusy}
                       disabled={
                         interactionBusy ||
                         archived ||
@@ -2578,6 +2589,7 @@ export function AiChatPage({
                           : undefined
                       }
                       disabled={
+                        voiceBusy ||
                         (imageUi.busy && !imageUi.canCancel) ||
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
                         (!composerBusy && !imageMode && selectedBudget?.available === false) ||

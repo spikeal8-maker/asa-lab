@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ApiResult } from '../api-call';
 import { newClientId } from '../client-id';
 import './ai-voice-input.css';
@@ -27,14 +28,19 @@ export function AiVoiceInput({
   call,
   disabled,
   onTranscript,
+  target,
+  onActiveChange,
 }: {
   readonly call: ScopedCall;
   readonly disabled: boolean;
   readonly onTranscript: (text: string) => 'inserted' | 'overflow';
+  readonly target?: HTMLElement | null;
+  readonly onActiveChange?: (active: boolean) => void;
 }) {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
   const [mode, setMode] = useState<RecordingMode>('idle');
   const [seconds, setSeconds] = useState(0);
+  const [levels, setLevels] = useState<number[]>(() => Array(40).fill(0));
   const [message, setMessage] = useState('');
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -101,6 +107,60 @@ export function AiVoiceInput({
     if (mode !== 'recording') return;
     const clock = setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => clearInterval(clock);
+  }, [mode]);
+
+  useEffect(() => {
+    onActiveChange?.(mode !== 'idle');
+  }, [mode, onActiveChange]);
+  useEffect(() => () => onActiveChange?.(false), [onActiveChange]);
+
+  useEffect(() => {
+    if (mode !== 'recording' || !stream.current) return;
+    setLevels(Array(40).fill(0));
+    if (typeof AudioContext === 'undefined') return;
+    let context: AudioContext | undefined;
+    let source: MediaStreamAudioSourceNode | undefined;
+    let analyser: AnalyserNode | undefined;
+    let frame = 0;
+    let active = true;
+    let lastSample = -Infinity;
+    const history: number[] = Array(40).fill(0);
+    const cleanup = () => {
+      active = false;
+      cancelAnimationFrame(frame);
+      source?.disconnect();
+      analyser?.disconnect();
+      if (context && context.state !== 'closed') void context.close().catch(() => {});
+    };
+    try {
+      context = new AudioContext();
+      source = context.createMediaStreamSource(stream.current);
+      analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser); // Deliberately no speaker/destination connection.
+      void context.resume().catch(() => {});
+      const samples = new Uint8Array(analyser.fftSize);
+      const meter = analyser;
+      const sample = (time: number) => {
+        if (!active) return;
+        if (time - lastSample >= 50) {
+          lastSample = time;
+          meter.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (const value of samples) sum += ((value - 128) / 128) ** 2;
+          // Noise floor keeps silence flat. Every displayed height comes from captured audio.
+          const level = Math.min(1, Math.max(0, (Math.sqrt(sum / samples.length) - 0.006) * 9));
+          history.shift();
+          history.push(level);
+          setLevels([...history]);
+        }
+        frame = requestAnimationFrame(sample);
+      };
+      frame = requestAnimationFrame(sample);
+    } catch {
+      cleanup(); // Recording still works when a browser cannot provide a local level meter.
+    }
+    return cleanup;
   }, [mode]);
 
   function releaseOwned(media: MediaRecorder, ownedStream: MediaStream, serial: number) {
@@ -328,6 +388,63 @@ export function AiVoiceInput({
             : 'Голосовой ввод недоступен';
   const elapsed = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 
+  const panel =
+    mode !== 'idle' || message ? (
+      <div
+        className="ai-voice-panel"
+        data-active={mode !== 'idle'}
+        role="status"
+        aria-live="polite"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && mode !== 'idle') {
+            event.preventDefault();
+            cancel();
+          }
+        }}
+      >
+        {mode === 'recording' ? (
+          <span className="ai-voice-wave" aria-hidden="true">
+            {levels.map((level, index) => (
+              <i key={index} style={{ height: `${3 + Math.round(level * 27)}px` }} />
+            ))}
+          </span>
+        ) : null}
+        <span className={mode === 'recording' ? 'sr-only' : 'ai-voice-caption'}>
+          {mode === 'recording'
+            ? 'Слушаю…'
+            : mode === 'acquiring'
+              ? 'Подключаю микрофон…'
+              : mode === 'transcribing'
+                ? 'Распознаю…'
+                : message}
+        </span>
+        {mode === 'recording' ? (
+          <time className="ai-voice-time" aria-hidden="true">
+            {elapsed}
+          </time>
+        ) : null}
+        <button
+          type="button"
+          onClick={mode !== 'idle' ? cancel : () => setMessage('')}
+          aria-label={mode !== 'idle' ? 'Отменить голосовой ввод' : 'Закрыть сообщение'}
+          data-ai-tooltip={mode !== 'idle' ? 'Отменить запись' : 'Закрыть'}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+    ) : null;
+
   return (
     <div
       className="ai-voice-control"
@@ -377,52 +494,7 @@ export function AiVoiceInput({
           </svg>
         )}
       </button>
-      {mode !== 'idle' || message ? (
-        <div className="ai-voice-toast" role="status" aria-live="polite">
-          {mode === 'recording' ? (
-            <span className="ai-voice-wave" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-              <i />
-              <i />
-            </span>
-          ) : null}
-          <span className="ai-voice-caption">
-            {mode === 'recording'
-              ? 'Слушаю…'
-              : mode === 'acquiring'
-                ? 'Подключаю микрофон…'
-                : mode === 'transcribing'
-                  ? 'Распознаю…'
-                  : message}
-          </span>
-          {mode === 'recording' ? (
-            <time className="ai-voice-time" aria-hidden="true">
-              {elapsed}
-            </time>
-          ) : null}
-          <button
-            type="button"
-            onClick={mode !== 'idle' ? cancel : () => setMessage('')}
-            aria-label={mode !== 'idle' ? 'Отменить голосовой ввод' : 'Закрыть сообщение'}
-            data-ai-tooltip={mode !== 'idle' ? 'Отменить запись' : 'Закрыть'}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              <path d="m6 6 12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
-      ) : null}
+      {panel && target ? createPortal(panel, target) : panel}
     </div>
   );
 }
