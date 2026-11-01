@@ -1843,7 +1843,7 @@ def main():
             raise ValueError('Invalid installation project')
         # The running collector needs public installation identity, not .env
         # credentials. Canonical Docker labels are checked on every cycle.
-        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'])
+        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'], settings=installation)
         safe_paths(install)
         validate_config(install)
         for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):

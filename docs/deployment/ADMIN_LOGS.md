@@ -285,6 +285,38 @@ Rootless Docker / user namespace remapping пока не подтвержден�
 host-store доступа и не входят в этот режим поддержки. Недостаток прав остаётся
 видимым `degraded`/`unavailable`, без открытия журналов всем пользователям.
 
+Для Linux, который уже обслуживается непосредственно root, предусмотрен отдельный
+явно выбранный режим `system-root`. Выбор сохраняется в приватной
+`.asa/installation.json`; обычные последующие install/update/source up/reconcile
+используют его без повторного ввода. Новая установка выбирает его флагами менеджера:
+
+```bash
+python3 tools/asa_manager.py install --collector-mode system-root --collector-reader-gid 1000
+```
+
+`1000` — пример заранее выбранной ненулевой группы чтения API; она не должна
+совпадать с группой Docker socket. Для уже работающей root-установки выбор можно
+сделать командой `python3 tools/log_collector.py prepare --mode system-root
+--reader-gid 1000`, затем выполнить штатный install/update для применения группы
+API или `sh tools/install-log-collector.sh`, если API уже имеет нужную группу.
+Prepare и reconcile сами не перезапускают API. Команды выполняются из канонического
+каталога с уже имеющимися правами root. `status`, `doctor` и `check` режим не выбирают.
+
+Root-служба допустима только для root-owned checkout: runtime Python, все файлы
+`tools`, контракт `apps/api/src/database-diagnostic-contract.json`, конфигурация,
+диагностическое хранилище и родительские каталоги проверяются
+на владельца root, отсутствие symlink и записи для группы/остальных. Доверенный
+системный Python может использовать штатный symlink на проверяемый executable;
+его каталог также должен контролироваться root. Установщик не исправляет чужое
+владение или writable checkout автоматически. Существующий непривилегированный
+runner и чужой legacy unit автоматически в root-режим не переводятся. Проверки
+точного argv, effective unit, владельца и дополнительных команд сохраняются.
+Приватный индекс остаётся `root`, `0700`; опубликованные журналы — `root`, группа
+чтения API, каталоги `2750`, файлы `0640`, mount API только read-only. Членство
+пользователей в Docker/системных группах, права socket, sudo и lingering не меняются.
+Это привилегированный сборщик ОС, поэтому root-controlled checkout — обязательная
+граница доверия, включая обновление его исходников.
+
 Перед изменением задачи/службы сверяются точные action, root, owner и interpreter;
 для systemd также effective unit path, drop-ins, дополнительные команды,
 User, NoNewPrivileges и WorkingDirectory загруженной службы, включая путь без перезапуска.
@@ -329,6 +361,7 @@ adapter неприменим, исключается из completeness aggregate
 | --- | --- | --- |
 | Windows 11 x64 | Python 3.11+, Git, Docker Desktop с Linux amd64 containers, Task Scheduler, пользователь Docker вошёл в систему | Без входа пользователя сбор не обещается; Windows Security требует имеющихся прав |
 | Linux amd64 с systemd и rootful Docker Engine | Python 3.11+, Git, systemctl и busctl с JSON-поддержкой, Docker Compose plugin, оператор уже имеет доступ к Docker; работает user manager либо заранее разрешён system mode | User mode до входа требует existing linger; system journal без прав честно unavailable |
+| Linux amd64, явно выбранный `system-root` | Те же runtime/systemd требования; существующий root-доступ, root-controlled canonical checkout и persisted ненулевой API reader GID | Автостарт при загрузке; существующий nonroot runner не конвертируется; никакие Docker-права другим аккаунтам не выдаются |
 
 Общие требования приложения, диска/RAM и браузеров описаны в
 [Portable Operations](PORTABLE_OPERATIONS.md). ARM, macOS, non-systemd Linux и
