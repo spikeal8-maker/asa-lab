@@ -58,7 +58,7 @@ function CodePre({ children }: { children?: ReactNode }): JSX.Element {
 
 function CodeCard({ children, pending }: { children: ReactNode; pending: boolean }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
-  const inlineZoom = useRef(0.5);
+  const inlineZoom = useRef<number | 'fit'>('fit');
   function expand(next: boolean): void {
     if (next) {
       inlineZoom.current = zoom;
@@ -82,13 +82,12 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
     }
   }, [expanded]);
   const [showPreview, setShowPreview] = useState(true);
-  const [zoom, setZoom] = useState(0.5);
+  const [zoom, setZoom] = useState<number | 'fit'>('fit');
+  const previewArea = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(0);
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
-  const [runCode, setRunCode] = useState<string | null>(null);
   const [runId, setRunId] = useState(0);
   const code = flattenText(children).replace(/\n$/, '');
-  const running = runCode === code;
-  useEffect(() => setRunCode(null), [code]);
   const header = useContext(CodeHeaderContext);
   const child = Array.isArray(children) ? children[0] : children;
   const language = isValidElement<{ className?: string }>(child)
@@ -97,6 +96,7 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const format = codeDownloadFormat(language, code);
   const file = { ...format, name: header?.name ?? format.name };
   const previewable = file.name.endsWith('.html') || file.name.endsWith('.svg');
+  const running = !pending && file.name.endsWith('.html');
   const preview = useMemo(
     () =>
       previewable && !pending
@@ -105,7 +105,23 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
     [code, pending, previewable, running, file.name],
   );
   const previewVisible = Boolean(preview && showPreview);
-  const scale = file.name.endsWith('.svg') ? 1 : zoom;
+  useEffect(() => {
+    const element = previewArea.current;
+    if (!element) return;
+    const measure = () => setAvailableWidth(element.clientWidth);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [previewVisible]);
+  const scale = file.name.endsWith('.svg')
+    ? 1
+    : zoom === 'fit'
+      ? availableWidth > 0
+        ? availableWidth / (device === 'phone' ? 390 : 1024)
+        : 0.5
+      : zoom;
   return (
     <dialog
       ref={card}
@@ -149,7 +165,6 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
               aria-pressed={!previewVisible}
               onClick={() => {
                 setShowPreview(false);
-                setRunCode(null);
               }}
             >
               <span aria-hidden="true" className="asa-ai-code-symbol">
@@ -177,31 +192,21 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
             <select
               aria-label="Масштаб HTML"
               value={zoom}
-              onChange={(event) => setZoom(Number(event.target.value))}
+              onChange={(event) =>
+                setZoom(event.target.value === 'fit' ? 'fit' : Number(event.target.value))
+              }
             >
+              <option value="fit">По ширине</option>
               {[0.25, 0.5, 0.75, 1].map((value) => (
                 <option key={value} value={value}>
                   {value * 100}%
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              aria-label={running ? 'Остановить приложение' : 'Запустить приложение'}
-              className="asa-ai-code-run"
-              data-ai-tooltip={
-                running
-                  ? 'Остановить приложение и сбросить его состояние'
-                  : 'Включить игру и кнопки в изолированном окне'
-              }
-              onClick={() => setRunCode(running ? null : code)}
-            >
-              <AiChatIcon name={running ? 'stop' : 'play'} size={17} />
-              <span>{running ? 'Стоп' : 'Запустить'}</span>
-            </button>
             {running && (
               <button
                 type="button"
+                className="asa-ai-code-restart"
                 aria-label="Перезапустить приложение"
                 data-ai-tooltip="Перезапустить"
                 onClick={() => setRunId(runId + 1)}
@@ -257,6 +262,8 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
         {previewVisible && (
           <div
             className="asa-ai-code-preview"
+            ref={previewArea}
+            data-fit={zoom === 'fit' || undefined}
             data-device={file.name.endsWith('.html') ? device : 'svg'}
             style={
               {
@@ -268,6 +275,7 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
             <div className="asa-ai-preview-stage">
               <iframe
                 key={String(running) + ':' + runId}
+                loading="lazy"
                 title={'Предпросмотр ' + (file.name.endsWith('.svg') ? 'SVG' : 'HTML')}
                 sandbox={running && file.name.endsWith('.html') ? 'allow-scripts' : ''}
                 allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; payment 'none'; usb 'none'; fullscreen 'none'"

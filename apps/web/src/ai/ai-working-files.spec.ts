@@ -7,7 +7,7 @@ import { AiWorkingFiles } from './AiWorkingFiles';
 const api = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock('./ai-scope-api', () => ({ createAiScopeCall: () => api.call }));
 
-it('updates the same file card, retains viewing controls and revokes script execution on a new version', async () => {
+it('updates the same file card, retains viewing controls and loads the new version in the isolated runtime', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const host = document.createElement('div');
   document.body.append(host);
@@ -44,18 +44,16 @@ it('updates the same file card, retains viewing controls and revokes script exec
     await act(async () => render('1'));
     const card = host.querySelector('dialog');
     expect(card).not.toBeNull();
-    await act(async () =>
-      (host.querySelector('[aria-label="Запустить приложение"]') as HTMLButtonElement).click(),
-    );
     expect(host.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
     head = 2;
     await act(async () => render('2'));
     expect(host.querySelector('dialog')).toBe(card);
-    expect(host.querySelector('iframe')?.getAttribute('sandbox')).toBe('');
+    expect(host.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(host.querySelector('iframe')?.getAttribute('srcdoc')).toContain('Змейка');
     expect(
       host.querySelector<HTMLSelectElement>('[aria-label="Версия файла"]')?.options,
     ).toHaveLength(2);
-    expect(host.querySelector('[aria-label="Запустить приложение"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Запустить приложение"]')).toBeNull();
     expect(onSources).toHaveBeenLastCalledWith([
       expect.objectContaining({ id: 'file', version: 2 }),
     ]);

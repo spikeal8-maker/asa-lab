@@ -192,9 +192,9 @@
   gap: 2px;
 }
 .asa-ai-layout .asa-ai-code-actions select {
-  width: 68px;
-  max-width: 68px;
-  flex: 0 0 68px;
+  width: 90px;
+  max-width: 90px;
+  flex: 0 0 90px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -273,7 +273,8 @@
 }
 .asa-ai-layout .asa-ai-code-preview {
   height: 100%;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: color-mix(in srgb, var(--color-brand, #0877b3) 3%, var(--ai-surface));
   border-top: 1px solid var(--ai-border);
   scrollbar-width: thin;
@@ -287,6 +288,9 @@
   max-width: none;
 }
 .asa-ai-layout .asa-ai-code-preview[data-device='svg'] .asa-ai-preview-stage {
+  width: 100%;
+}
+.asa-ai-layout .asa-ai-code-preview[data-fit] .asa-ai-preview-stage {
   width: 100%;
 }
 .asa-ai-layout .asa-ai-code-preview iframe {
@@ -329,6 +333,9 @@
 }
 .asa-ai-layout .asa-ai-code-expand {
   order: 9;
+}
+.asa-ai-layout .asa-ai-code-block .asa-ai-code-actions button.asa-ai-code-restart {
+  margin-left: auto;
 }
 .asa-ai-layout .ai-working-picker {
   display: flex;
@@ -400,7 +407,7 @@
   border-radius: 0 0 17px 17px;
 }
 .asa-ai-layout .asa-ai-code-body::after {
-  background: repeating-linear-gradient(135deg, transparent 0 3px, #0877b333 3px 4px);
+  display: none;
 }
 @media (max-width: 560px) {
   .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
@@ -419,9 +426,9 @@
     max-width: 44px;
   }
   .asa-ai-layout .asa-ai-code-actions select {
-    flex-basis: 54px;
-    width: 54px;
-    max-width: 54px;
+    flex-basis: 86px;
+    width: 86px;
+    max-width: 86px;
   }
   .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
     padding: 6px;
@@ -482,9 +489,9 @@
     padding-inline: 0;
   }
   .asa-ai-layout .asa-ai-code-actions select {
-    width: 44px;
-    max-width: 44px;
-    flex-basis: 44px;
+    width: 70px;
+    max-width: 70px;
+    flex-basis: 70px;
     padding-inline: 0;
   }
   .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
