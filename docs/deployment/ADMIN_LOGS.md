@@ -593,3 +593,22 @@ Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
 through that port may appear to have the same trusted peer. A proposed external
 rate policy must account for school NAT traffic and retain abuse protection;
 raising limits without these checks is not the application IP fix.
+
+### Container stdout/stderr disk budget
+
+The base Compose configuration explicitly selects Docker `json-file` logging with
+`max-size: 10m` and `max-file: 5` for the eight owned services: `postgres`, `api`,
+`web`, `scratch`, `minio`, `minio-init`, `search`, and `migration`. These settings
+survive the supported dev/test/staging/production overlays. They bound the rotating
+stdout/stderr files per container; they do not change the shared Docker daemon or
+other projects. Additional preview/test-only services are outside this policy.
+
+Existing containers acquire the policy only when recreated through an authorized
+normal ASA release/update operation. Persistent volumes and installation identity
+must be retained. Do not truncate live logs, prune Docker storage, or recreate a
+working database merely to apply this source change. Docker rotation, the host
+collector's separate default 1 GiB budget, and the API native journal's separate
+128 MiB budget are independent. Rotation does not guarantee a retention duration
+or that a delayed collector captured every event; monitor source gaps and disk
+usage. The real merged Compose contract runs in Linux CI with
+`ASA_TEST_DOCKER_COMPOSE=1 python -m unittest tools.deployment.test_resources -v`.
