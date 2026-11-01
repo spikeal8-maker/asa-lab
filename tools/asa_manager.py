@@ -188,6 +188,12 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         print("NO_CHANGE the verified release is already running; no backup or restart")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
         reconcile_collector(install)
+        # A real verified no-change update has an outcome too. Do not replace
+        # its original switch/backup receipt or manufacture a backup.
+        from deployment.operational import append_safely, from_manager_receipt, stamp
+        append_safely(install.root, from_manager_receipt({'status':'success', 'at':stamp(),
+            'trigger':'automatic' if scheduled else 'manual', 'phase':'verify_entry',
+            'selected':release, 'previous':before}))
         return
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
@@ -214,7 +220,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     backup = None
     if not fresh:
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "node", "migration", "tools/migrate.mjs", "--plan")
-        backup = export_backup(backup_install)
+        backup = export_backup(backup_install, trigger='automatic' if scheduled else 'manual')
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
     if "search" in release["images"]:
@@ -240,14 +246,14 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         install.identity()
         atomic_json(install.state / "installed-release.json", release)
         save_settings(install, install.settings.get("automaticUpdates", False))
-        install.receipt({"status": "success", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
+        install.receipt({"status": "success", "trigger": "automatic" if scheduled else "manual", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
                          "entryHttp": "pass", "userFlow": "not_run", **operation})
         (install.state / "maintenance.json").unlink()
         print(f"UPDATED {release['revision']} schema={release['schema']}")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
     except BaseException:
         atomic_json(install.state / "failed-switch.json", operation)
-        install.receipt({"status": "failed_switch", **operation, "automaticDatabaseRestore": False})
+        install.receipt({"status": "failed_switch", "trigger": "automatic" if scheduled else "manual", **operation, "automaticDatabaseRestore": False})
         raise
     # Application acceptance and diagnostic runner maintenance are independent.
     reconcile_collector(install)
