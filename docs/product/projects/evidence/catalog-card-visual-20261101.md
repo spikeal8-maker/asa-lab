@@ -46,3 +46,11 @@ VISUAL_EVIDENCE: local paths above, isolated component explicitly labelled
 DOC_DRIFT: none; missing API avatar/download metrics explicitly recorded
 UNVERIFIED: complete built-app CI; owner acceptance; deployed visual
 VERDICT: local surface PASS; not a release/deployment acceptance
+
+## CI infrastructure classification
+
+Initial run41325281445 stopped at Chromium installation before schema/product tests:
+ubuntu-latest selected Ubuntu26.04, unsupported by pinned Playwright1.55.1.
+Category D, not a card failure. Pin only this existing publication job to supported
+Ubuntu24.04; retain exact dependencies, all existing assertions and artifacts.
+No broad workflow repair, Playwright upgrade, product fallback or test weakening.
