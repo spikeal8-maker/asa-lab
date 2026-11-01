@@ -241,17 +241,34 @@ export function PublicProjectsPage({
               >
                 <div className="public-project-card-cover">
                   <PublicationPreview publication={publication} />
-                  <span
-                    className="publication-module"
-                    data-module={publication.moduleKey}
-                    title={publicModuleName(publication.moduleKey)}
-                  >
-                    {publication.moduleKey === 'blocks'
-                      ? 'Блоки'
-                      : publication.moduleKey === 'three-d'
-                        ? '3D'
-                        : publicModuleName(publication.moduleKey)}
-                  </span>
+                  <div className="public-project-card-topline">
+                    <div className="public-project-card-identity" title={publication.authorLabel}>
+                      <span className="public-project-avatar" aria-hidden="true">
+                        {publication.authorLabel
+                          .trim()
+                          .split(/\s+/u)
+                          .slice(0, 2)
+                          .map((part) => Array.from(part)[0])
+                          .join('')
+                          .toLocaleUpperCase('ru') || '?'}
+                      </span>
+                      <span className="public-project-author">{publication.authorLabel}</span>
+                    </div>
+                    <span
+                      className="publication-module"
+                      data-module={publication.moduleKey}
+                      title={publicModuleName(publication.moduleKey)}
+                    >
+                      {publication.moduleKey === 'blocks'
+                        ? 'Scratch'
+                        : publication.moduleKey === 'three-d'
+                          ? '3D'
+                          : publicModuleName(publication.moduleKey)}
+                    </span>
+                  </div>
+                  <time className="public-project-card-date" dateTime={publication.publishedAt}>
+                    Опубликовано {time.date(publication.publishedAt)}
+                  </time>
                   <div className="public-project-card-marks">
                     {publication.pinned ? (
                       <span className="public-project-pinned" data-testid="public-project-pinned">
@@ -267,22 +284,25 @@ export function PublicProjectsPage({
                       </span>
                     ) : null}
                   </div>
+                  <div className="public-project-card-meta">
+                    <span aria-label={`${publication.likeCount ?? 0} нравится`}>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        width="16"
+                        height="16"
+                        fill="currentColor"
+                      >
+                        <path d="M12 21 3.7 13A5.5 5.5 0 0 1 12 5.8 5.5 5.5 0 0 1 20.3 13Z" />
+                      </svg>
+                      {publication.likeCount ?? 0}
+                    </span>
+                  </div>
                 </div>
                 <div className="public-project-card-body">
                   <h2 data-testid="public-project-card-title" title={publication.title}>
                     {publication.title}
                   </h2>
-                  <p className="public-project-author" title={publication.authorLabel}>
-                    {publication.authorLabel}
-                  </p>
-                  <div className="public-project-card-meta">
-                    <span aria-label={`${publication.likeCount ?? 0} нравится`}>
-                      ♡ {publication.likeCount ?? 0}
-                    </span>
-                    <time dateTime={publication.publishedAt}>
-                      {time.shortDate(publication.publishedAt)}
-                    </time>
-                  </div>
                 </div>
               </PortalLink>
             </li>

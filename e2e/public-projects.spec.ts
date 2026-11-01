@@ -711,6 +711,36 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           guest.getByTestId('public-project-card').filter({ hasText: prefix }),
         ).toHaveCount(8);
       }
+      const visualCard = guest.getByTestId('public-project-card').filter({ hasText: longTitle });
+      const geometry = await visualCard.evaluate((card) => {
+        const bounds = card.getBoundingClientRect();
+        const cover = card.querySelector('.public-project-card-cover')!.getBoundingClientRect();
+        const footer = card.querySelector('.public-project-card-body')!.getBoundingClientRect();
+        const identity = card
+          .querySelector('.public-project-card-identity')!
+          .getBoundingClientRect();
+        const module = card.querySelector('.publication-module')!.getBoundingClientRect();
+        const likes = card.querySelector('.public-project-card-meta')!.getBoundingClientRect();
+        return {
+          square: Math.abs(bounds.width - bounds.height),
+          flush: Math.abs(cover.bottom - footer.top),
+          identityFits: identity.right <= module.left && identity.left >= cover.left,
+          likesInside: likes.bottom <= cover.bottom && likes.right <= cover.right,
+          titleOnly: card.querySelector('.public-project-card-body')!.children.length === 1,
+        };
+      });
+      expect(geometry.square).toBeLessThan(3);
+      expect(geometry.flush).toBeLessThan(1);
+      expect(geometry.identityFits).toBe(true);
+      expect(geometry.likesInside).toBe(true);
+      expect(geometry.titleOnly).toBe(true);
+      // Date is discoverable with pointer and keyboard, without an extra footer row.
+      await guest.mouse.move(0, 0);
+      await visualCard.locator('a').evaluate((element: HTMLElement) => element.blur());
+      await expect(visualCard.locator('time')).toHaveCSS('opacity', '0');
+      await visualCard.hover();
+      await expect(visualCard.locator('time')).toHaveCSS('opacity', '1');
+      await guest.mouse.move(0, 0);
       await guest.screenshot({ path: `${EVIDENCE}/catalogue-${width}.png`, fullPage: true });
       const link = guest.getByRole('link', { name: `Открыть проект «${longTitle}»` });
       // A programmatic focus after clicking a category retains pointer modality.
@@ -721,6 +751,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
       await expect(link).not.toBeFocused();
       await guest.keyboard.press('Tab');
       await expect(link).toBeFocused();
+      await expect(visualCard.locator('time')).toHaveCSS('opacity', '1');
       const visibleFocus = await link.evaluate((element) => {
         const style = getComputedStyle(element);
         return (
