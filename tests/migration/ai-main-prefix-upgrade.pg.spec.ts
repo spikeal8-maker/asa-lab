@@ -66,6 +66,7 @@ const expectedPending = [
   '0285', // Existing public author name projection, immutable history preserved.
   '0286', // Bounded search retrieval settings.
   '0287', // Durable successful-publication-copy aggregate.
+  '0288', // Exact Course academic-result visibility without Project byte access.
 ];
 
 interface Identity {
