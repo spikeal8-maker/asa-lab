@@ -1178,38 +1178,33 @@
   }
 }
 
-/* Public project: one full-width project workspace, editorial information below. */
+/* Detail: native working area and useful project information share the first screen. */
 .portal-shell.public-projects-guest > .public-project-detail,
 .public-project-detail {
   max-width: 1200px;
   margin-inline: auto;
 }
 .public-project-detail .public-project-layout {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
 }
 .public-project-detail .public-project-heading {
-  display: grid;
-  gap: 14px;
   padding: 0;
   border: 0;
 }
 .public-project-detail-topline {
   display: flex;
   align-items: baseline;
-  gap: 16px;
+  gap: 20px;
   min-width: 0;
 }
 .public-project-detail-topline > .public-project-back {
   flex-shrink: 0;
   margin: 0;
-  min-height: 44px;
   padding: 0;
-  border: 0;
-  color: #728091;
-  font-size: 12px;
+  font-size: 13px;
+  color: var(--asa-slate-700);
 }
 .public-project-detail-topline > .public-project-title-group {
   flex: 1;
@@ -1217,147 +1212,95 @@
 }
 .public-project-detail .public-project-heading h1 {
   margin: 0;
-  font-size: clamp(23px, 2.5vw, 34px);
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.18;
-  color: #172d43;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--asa-ink-900);
+}
+.public-project-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  align-items: start;
+  gap: 28px;
+  min-width: 0;
+}
+.public-project-stage-column,
+.public-project-sidebar {
+  min-width: 0;
+}
+.public-project-sidebar {
+  display: grid;
+  gap: 24px;
+}
+.public-project-stage-column .public-project-viewer {
+  overflow: hidden;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 12px;
+  background: white;
+}
+.public-project-stage-column
+  :is(.public-electronics-viewer, .public-scratch-player, .publication-preview.is-detail) {
+  border: 0;
+  border-radius: 0;
+}
+.public-project-stage-column .public-electronics-scene {
+  height: clamp(320px, 45vw, 520px);
+}
+.public-project-stage-column .public-scratch-player:not(:fullscreen) iframe {
+  height: auto;
+  aspect-ratio: 4 / 3;
+  min-height: 360px;
 }
 .public-project-authorline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px 20px;
+  display: grid;
+  gap: 14px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--asa-slate-200);
 }
 .public-project-author-identity {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   min-width: 0;
-  max-width: 100%;
 }
 .public-project-detail-avatar {
   display: grid;
   place-items: center;
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: #dceaf0;
+  background: #e5f1f5;
   color: #245369;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 .public-project-author-text {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 3px 10px;
+  display: grid;
+  gap: 4px;
   min-width: 0;
 }
 .public-project-detail .public-project-detail-author {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: #344c61;
 }
 .public-project-author-text time {
-  font-size: 11px;
-  color: #7b8794;
-}
-.public-project-detail .public-project-badges {
-  gap: 6px 10px;
-  font-size: 10px;
+  font-size: 12px;
+  color: var(--asa-slate-700);
 }
 .public-project-detail .publication-module {
   padding: 0;
-  border-radius: 0;
-  background: transparent;
-  color: #728091;
-  font-size: 11px;
-}
-.public-project-workspace {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid #e0e7ed;
-  border-radius: 18px;
-  background: white;
-  box-shadow: 0 8px 32px rgb(29 54 75 / 5%);
-}
-.public-project-workspace .public-project-viewer {
-  min-width: 0;
-  background: #f7f9fb;
-}
-.public-project-workspace
-  :is(.publication-preview.is-detail, .public-electronics-viewer, .public-scratch-player) {
-  border: 0;
-  border-radius: 0;
-}
-.public-project-workspace .publication-preview.is-detail {
-  aspect-ratio: auto;
-  height: clamp(300px, 47svh, 520px);
-  background: #f7f9fb;
-}
-.public-project-detail .public-project-commandbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  min-width: 0;
-  gap: 12px 20px;
-  padding: 16px 20px;
-  border: 0;
-  border-top: 1px solid #e8edf2;
-  background: white;
-}
-.public-project-commandbar :is(.btn-primary, .btn-secondary) {
-  min-height: 40px;
-  border-radius: 9px;
-  font-size: 12px;
-  padding: 9px 13px;
-}
-.public-project-commandbar .public-project-copy {
-  min-width: 0;
-  margin: 0;
-}
-.public-project-detail .public-project-copy > .btn-secondary {
-  border: 1px solid #243c51;
-  background: #243c51;
-  color: white;
-}
-.public-project-commandbar .public-project-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.public-project-workspace .publication-like-button {
-  min-height: 40px;
-  padding: 6px 0;
-  border: 0;
-  border-radius: 0;
-  font-size: 14px;
-}
-.public-project-workspace .publication-share > .btn-secondary {
-  border-color: transparent;
-  background: transparent;
-  color: #52677b;
-}
-.public-project-detail-copies {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: #6b7d8e;
+  background: none;
+  color: var(--asa-slate-700);
   font-size: 12px;
 }
 .public-project-detail .public-project-about {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
-  align-items: start;
-  gap: 24px 64px;
-  padding: 6px 4px 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding: 0;
   border: 0;
-  border-radius: 0;
-  background: transparent;
+  background: none;
 }
 .public-project-description-block {
   display: grid;
@@ -1368,41 +1311,38 @@
   display: none;
 }
 .public-project-detail .public-project-about h2 {
-  font-size: 14px;
-  color: #2b4258;
+  font-size: 15px;
 }
 .public-project-detail .public-project-description {
-  color: #68798a;
-  font-size: 13px;
-  line-height: 1.8;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--asa-slate-700);
 }
 .public-project-description.is-collapsed {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: 8;
   overflow: hidden;
 }
 .public-project-description-toggle {
   justify-self: start;
   min-height: 44px;
-  margin-top: -8px;
   padding: 0;
   border: 0;
-  background: transparent;
-  color: #245e80;
+  background: none;
+  color: var(--asa-cyan-700);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .public-project-detail .public-project-tags {
-  gap: 6px 12px;
+  gap: 6px 10px;
 }
 .public-project-detail .public-project-tags li {
   padding: 0;
   border: 0;
-  border-radius: 0;
-  color: #728496;
-  font-size: 11px;
+  font-size: 12px;
+  color: var(--asa-slate-700);
 }
 .public-project-detail .public-project-tags li::before {
   content: '#';
@@ -1410,17 +1350,50 @@
 .public-project-metadata {
   min-width: 0;
   font-size: 12px;
-  color: #7a8998;
+  color: var(--asa-slate-700);
 }
 .public-project-metadata > summary {
+  padding-block: 12px;
   cursor: pointer;
-  padding-block: 0 12px;
   line-height: 1.6;
 }
 .public-project-metadata .public-project-facts {
   display: grid;
   gap: 12px;
-  padding-top: 12px;
+}
+.public-project-detail .public-project-commandbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 16px;
+  padding-block: 12px;
+  border-top: 0;
+  border-bottom: 1px solid var(--asa-slate-200);
+}
+.public-project-commandbar :is(button, a) {
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.public-project-commandbar .public-project-actions {
+  gap: 12px;
+}
+.public-project-commandbar .publication-like-button {
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+}
+.public-project-commandbar .publication-share > .btn-secondary {
+  border-color: transparent;
+  background: none;
+}
+.public-project-detail-copies {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--asa-slate-700);
 }
 .public-scratch-tools {
   position: absolute;
@@ -1443,41 +1416,36 @@
   margin: 0;
   font-size: 12px;
 }
-@media (max-width: 600px) {
-  .public-project-detail .public-project-layout {
-    gap: 18px;
-  }
-  .public-project-detail-topline {
-    gap: 10px;
-  }
-  .public-project-detail-topline > .public-project-back {
-    font-size: 11px;
-  }
-  .public-project-detail .public-project-heading {
-    gap: 8px;
-  }
-  .public-project-author-text {
-    display: grid;
-    gap: 3px;
-  }
+@media (max-width: 899px) {
   .public-project-workspace {
-    border-radius: 14px;
-  }
-  .public-project-workspace .publication-preview.is-detail {
-    height: auto;
-    aspect-ratio: 4 / 3;
-  }
-  .public-project-detail .public-project-commandbar {
-    gap: 8px;
-    padding: 12px;
-  }
-  .public-project-commandbar :is(.btn-primary, .btn-secondary, .publication-like-button) {
-    min-height: 44px;
-  }
-  .public-project-detail .public-project-about {
     grid-template-columns: minmax(0, 1fr);
     gap: 20px;
-    padding: 2px 0;
+  }
+  .public-project-sidebar {
+    gap: 18px;
+  }
+  .public-project-authorline {
+    padding-bottom: 16px;
+  }
+}
+@media (max-width: 600px) {
+  .public-project-detail .public-project-layout {
+    gap: 12px;
+  }
+  .public-project-detail-topline {
+    gap: 12px;
+  }
+  .public-project-detail-topline > .public-project-back {
+    font-size: 12px;
+  }
+  .public-project-stage-column .public-electronics-scene {
+    height: 340px;
+  }
+  .public-project-stage-column .public-scratch-player:not(:fullscreen) iframe {
+    min-height: 290px;
+  }
+  .public-project-detail .public-project-commandbar {
+    gap: 4px 12px;
   }
 }
 

@@ -68,12 +68,8 @@ it('reads title, honest cover, real actions, then description and publication fa
   });
   await render();
   const article = container.querySelector('article')!;
-  expect([...article.children].map((element) => element.tagName)).toEqual([
-    'HEADER',
-    'DIV',
-    'SECTION',
-  ]);
-  expect(article.querySelector('header')?.textContent).toContain('Автор');
+  expect([...article.children].map((element) => element.tagName)).toEqual(['HEADER', 'DIV']);
+  expect(article.querySelector('aside')?.textContent).toContain('Автор');
   expect(container.querySelector('.public-project-title-toggle')).toBeNull();
   expect(article.querySelector('.public-project-info')).toBeNull();
   expect(article.querySelector('.public-project-viewer button')).toBeNull();
