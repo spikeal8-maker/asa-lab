@@ -1,3 +1,4 @@
+import { installNativeSaveInputObserver } from '../tests/electronics/native-oracle-contracts';
 import { createInterface } from 'node:readline';
 import { appendFileSync, createReadStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -5397,21 +5398,7 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
         expect(before.revision).toBe(baseline.revision + rows.length);
         const index = rows.length;
         phase = 'intended-save';
-        await page.evaluate(() => {
-          (window as unknown as { f2SaveInput: unknown }).f2SaveInput = null;
-          window.addEventListener(
-            'pointerdown',
-            (event) => {
-              const button = (event.target as Element)?.closest('button');
-              (window as unknown as { f2SaveInput: unknown }).f2SaveInput = {
-                trusted: event.isTrusted,
-                pointerType: event.pointerType,
-                title: button?.getAttribute('title') ?? null,
-              };
-            },
-            { capture: true, once: true },
-          );
-        });
+        await page.evaluate(installNativeSaveInputObserver);
         const response = page.waitForResponse(
           (reply) =>
             reply.request().method() === 'PUT' &&
@@ -5448,7 +5435,8 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
         expect(nativeSave).toEqual({
           trusted: true,
           pointerType: input,
-          title: 'Сохранить проект сейчас',
+          ariaLabel: 'Сохранить проект',
+          saveButton: true,
         });
         await response;
         await settle();

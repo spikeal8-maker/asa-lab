@@ -11,6 +11,7 @@ import { configureProductionLibrary } from '../apps/web/src/electronics/producti
 import { addComponentToDocument } from '../apps/web/src/electronics/workbench-document';
 import type { ElectronicsSimulationWorkerResponse } from '../apps/web/src/electronics/simulation-worker-protocol';
 import { collectBrowserFailures } from './browser-failures';
+import { selectionStrokeDimensions } from '../tests/electronics/native-oracle-contracts';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
 
@@ -718,6 +719,9 @@ async function geometry(page: Page, id: string) {
       },
       visualMatrix: matrix(visual.getScreenCTM()),
       measuredMatrix: matrix(measured?.getScreenCTM() ?? null),
+      ordinaryPinWidth: measured
+        ? Number(measured.querySelector(':scope > line')?.getAttribute('stroke-width') ?? NaN)
+        : null,
       bounds: { x: box.x, y: box.y, width: box.width, height: box.height },
       transform: root.querySelector('.workbench-part')?.getAttribute('transform'),
       outline: selection?.outerHTML ?? null,
@@ -918,18 +922,10 @@ async function pair(page: Page, id: string, phase: string, info: TestInfo, outpu
   }
   const measured = afterGeometry.measuredMatrix;
   if (measured) {
-    const dimensions = await part(page, id).evaluate((root) => {
-      const selection = root.querySelector('.workbench-tinkercad-selection')!;
-      const pin = selection.querySelector('line')!;
-      const ordinary = Array.from(selection.parentElement!.children).find(
-        (node) => node.tagName === 'line',
-      )!;
-      return {
-        body: Number(selection.querySelector('path, rect')!.getAttribute('stroke-width')),
-        pin: Number(pin.getAttribute('stroke-width')),
-        ordinary: Number(ordinary.getAttribute('stroke-width')),
-      };
-    });
+    const dimensions = await part(page, id).evaluate(
+      selectionStrokeDimensions,
+      beforeGeometry.ordinaryPinWidth,
+    );
     const scale = Math.hypot(measured.a, measured.b);
     expect
       .soft((dimensions.body / 2) * scale, `${id} measured body versus actual common screen radius`)
