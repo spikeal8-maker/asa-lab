@@ -1,5 +1,5 @@
-name: Electronics UI 679-557 scoped qualification
-run-name: Electronics UI six cases ${{ github.sha }}
+name: Electronics 532 five original scoped qualification
+run-name: Electronics UI five cases ${{ github.sha }}
 
 # Additive technical qualification only; the full Electronics workflow is unchanged.
 on:
@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 env:
-  NX_SKIP_NX_CACHE: 'true'
+  NX_SKIP_NX_CACHE: "true"
 
 concurrency:
-  group: electronics-ui-679-557-${{ github.ref }}
+  group: electronics-532-five-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      CI: 'true'
+      CI: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -54,71 +54,20 @@ jobs:
       - name: Mandatory classroom qualification adversarial tests
         run: pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1
 
-  benchmark:
-    name: Electronics E-OPT benchmark integrity
-    needs: focused
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chromium for benchmark probes
-        run: pnpm exec playwright install --with-deps chromium
-
-      # Performance timings are evidence only at E-OPT-0. This gate fails on
-      # execution errors, status drift, golden-result drift or nondeterminism;
-      # it deliberately has no millisecond threshold yet.
-      - name: Electronics E-OPT quick benchmark suite
-        run: pnpm benchmark:electronics:ci
-
-      - name: Upload E-OPT benchmark evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-e-opt-${{ github.run_id }}
-          path: |
-            reports/electronics-opt0-*.json
-            reports/electronics-opt0-*.md
-          if-no-files-found: ignore
-          retention-days: 14
-
   browser:
-    name: Scoped six-case UI qualification (not full Electronics)
+    name: Scoped five-case UI qualification (not full Electronics)
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
-      CI: 'true'
+      CI: "true"
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: strict-real-time
-      ASA_ELECTRONICS_BROWSER_GATE: gate:electronics-ui-679-557:browser
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
-      ASA_TEST_UID: '1000'
-      ASA_TEST_GID: '1000'
+      ASA_TEST_UID: "1000"
+      ASA_TEST_GID: "1000"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -163,14 +112,12 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
-      # Identical to the command registered in docs/testing/active-task-tests.yaml.
-      # Named as its own gate because `gate:electronics-m1` deliberately does not
-      # include it: that gate needs no browser stack, this one does.
-      - name: Six existing native cases, unchanged assertions
+      # Temporary evidence-only branch: exact five original cases, no main integration.
+      - name: Five existing native cases, unchanged assertions
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
-          pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
+          node tools/run-electronics-532-five-browser.mjs
 
       - name: Show isolated stack state
         if: always()
@@ -180,7 +127,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-ui-679-557-browser-${{ github.run_id }}
+          name: electronics-532-five-browser-${{ github.run_id }}
           path: |
             e2e/artifacts/electronics-simulation
             reports
@@ -192,4 +139,3 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           down -v --remove-orphans
-
