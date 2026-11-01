@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ASA Lab · Контролёр задач классов</title>
+    <style>
+      :root {
+        font:
+          14px system-ui,
+          -apple-system,
+          Segoe UI,
+          sans-serif;
+        color: #1b2633;
+        background: #f4f7f9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      .container {
+        width: min(1220px, 100%);
+        margin: auto;
+        padding: 18px;
+      }
+      h1 {
+        font-size: 23px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 15px;
+        margin: 0;
+      }
+      .muted {
+        color: #657487;
+        font-size: 12px;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .summary {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 14px 0;
+      }
+      .stat {
+        padding: 8px 12px;
+        background: white;
+        border: 1px solid #dfe5ec;
+        border-radius: 9px;
+      }
+      .stat b {
+        font-size: 16px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        margin: 15px 0;
+        flex-wrap: wrap;
+      }
+      input,
+      select {
+        font: inherit;
+        background: white;
+        border: 1px solid #becbd6;
+        border-radius: 7px;
+        padding: 10px;
+        min-height: 42px;
+      }
+      input {
+        flex: 1;
+        min-width: 220px;
+      }
+      select {
+        max-width: 160px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.15fr);
+        gap: 12px;
+      }
+      .list {
+        display: grid;
+        gap: 5px;
+        max-height: 70vh;
+        overflow: auto;
+        padding-right: 4px;
+      }
+      .task {
+        width: 100%;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        background: white;
+        padding: 11px;
+        border-radius: 9px;
+        border: 1px solid #dce4eb;
+      }
+      .task[aria-selected='true'] {
+        border-color: #3577aa;
+        box-shadow: inset 3px 0 #3577aa;
+      }
+      .task strong {
+        display: block;
+        font-size: 13px;
+      }
+      .task .meta {
+        display: flex;
+        gap: 7px;
+        color: #5f6e7a;
+        font-size: 11px;
+        margin-top: 5px;
+      }
+      .pill {
+        border-radius: 5px;
+        padding: 2px 5px;
+        background: #eff2f6;
+      }
+      .detail {
+        align-self: start;
+        position: sticky;
+        top: 12px;
+        background: white;
+        padding: 16px;
+        border: 1px solid #dce4eb;
+        border-radius: 10px;
+        max-height: 78vh;
+        overflow: auto;
+      }
+      .detail p {
+        line-height: 1.5;
+      }
+      .detail ul {
+        padding-left: 18px;
+      }
+      button:focus-visible,
+      input:focus-visible,
+      select:focus-visible {
+        outline: 3px solid #74aee0;
+        outline-offset: 1px;
+      }
+      .copy {
+        border: 1px solid #3577aa;
+        background: #fff;
+        color: #24638f;
+        border-radius: 7px;
+        padding: 10px;
+        min-height: 44px;
+        font-weight: 650;
+        cursor: pointer;
+      }
+      .empty {
+        padding: 18px;
+        color: #657487;
+        background: #fff;
+        border-radius: 9px;
+      }
+      .bad {
+        color: #92383a;
+      }
+      .good {
+        color: #2b7658;
+      }
+      @media (max-width: 740px) {
+        .container {
+          padding: 10px;
+        }
+        .layout {
+          display: block;
+        }
+        .list {
+          max-height: none;
+          overflow: visible;
+        }
+        .detail {
+          display: none;
+          position: fixed;
+          top: auto;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 20;
+          max-height: min(76dvh, 720px);
+          overflow: auto;
+          margin: 0;
+          border-radius: 12px 12px 0 0;
+          box-shadow: 0 -10px 48px #15203344;
+        }
+        .detail.open {
+          display: block;
+        }
+        .task {
+          padding: 10px;
+        }
+        h1 {
+          font-size: 18px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="top">
+        <div>
+          <h1>ASA Lab · программа «Классы»</h1>
+          <div class="muted">
+            Обзор 38 атомарных задач. Статусы сохранённого снимка, не online GitHub.
+          </div>
+        </div>
+        <div class="muted" id="meta"></div>
+      </header>
+      <div class="summary" id="summary"></div>
+      <div class="toolbar">
+        <input
+          id="q"
+          placeholder="Поиск по задаче, требованию или коду"
+          aria-label="Поиск"
+          type="search"
+        /><select id="state" aria-label="Статус">
+          <option value="">Все статусы</option>
+          <option>READY</option>
+          <option>BLOCKED</option>
+          <option>IN_PROGRESS</option>
+          <option>REVIEW</option>
+          <option>ACCEPTED_MAIN</option>
+          <option>STOPPED</option></select
+        ><select id="area" aria-label="Направление">
+          <option value="">Все направления</option>
+        </select>
+      </div>
+      <div class="layout">
+        <section class="list" id="list" aria-label="Задачи"></section>
+        <aside id="detail" class="detail" aria-live="polite">
+          <p>
+            Выберите задачу слева. Кнопка копирует её ограничения и критерии, но
+            <strong>не запускает разработку</strong>.
+          </p>
+        </aside>
+      </div>
+    </div>
+    <script>
+      const program=/*__PROGRAM_DATA__*/;
+      const $=id=>document.getElementById(id);const tasks=program.tasks;const areaNames=[...new Set(tasks.map(x=>x.area))].sort();
+      for(const x of areaNames){let o=document.createElement('option');o.value=x;o.textContent=x;$('area').append(o)}
+      function el(tag,text,attrs){let e=document.createElement(tag);if(text!==undefined)e.textContent=text;for(const [k,v] of Object.entries(attrs||{}))e.setAttribute(k,v);return e}
+      const statusCount={};tasks.forEach(x=>statusCount[x.status]=(statusCount[x.status]||0)+1);
+      $('summary').append(...Object.entries(statusCount).sort().map(([k,v])=>{let e=el('div',undefined,{class:'stat'});e.append(el('b',v+' '),el('span',k));return e}));$('meta').textContent=program.program;
+      let chosen=null;
+      function drawList(){const q=$('q').value.trim().toLocaleLowerCase('ru');const filtered=tasks.filter(x=>(!$('state').value||x.status===$('state').value)&&(!$('area').value||x.area===$('area').value)&&(!q||[x.title,x.id,x.area,...x.requirements].join(' ').toLocaleLowerCase('ru').includes(q)));$('list').replaceChildren();for(const x of filtered){let b=el('button',undefined,{type:'button',class:'task','aria-selected':String(chosen===x.id)});b.append(el('strong',x.id+' · '+x.title));let m=el('div',undefined,{class:'meta'});m.append(el('span',x.status,{class:'pill'}),el('span',x.priority),el('span',x.area));b.append(m);b.onclick=()=>{chosen=x.id;drawList();drawDetail(x)};$('list').append(b)}if(!filtered.length)$('list').append(el('div','Под заданный фильтр задач нет.',{class:'empty'}));if(!chosen&&filtered.length){chosen=filtered[0].id;drawListSelected(filtered[0]);}}
+      function drawListSelected(x){for(let node of $('list').children){if(node.textContent.startsWith(x.id+' · '))node.setAttribute('aria-selected','true')}drawDetail(x,false)}
+      function fmt(x){return x.join(', ')||'нет'}
+      function drawDetail(x,openOnMobile=true){let d=$('detail');d.classList.toggle('open',openOnMobile);let close=el('button','Закрыть',{type:'button',class:'copy','aria-label':'Закрыть карточку задачи'});close.style.cssText='float:right;padding:5px 10px;min-height:36px';close.onclick=()=>{d.classList.remove('open');document.activeElement?.blur?.()};d.replaceChildren(close,el('h2',x.id+' — '+x.title),el('p','Результат: '+x.one_result),el('div','Статус: '+x.status+' · '+x.priority,{class:'muted'}));
+      for(const [head,rows] of [['Требования',x.requirements],['Разрешённые пути',x.paths],['Зависимости',x.depends_on],['Решения',x.decisions],['Gate',x.gates],['Приёмка',x.acceptance],['Почему заблокировано',x.blockers]]){if(!rows.length)continue;d.append(el('h2',head));let u=el('ul');for(const t of rows)u.append(el('li',t));d.append(u)}
+      let btn=el('button','Копировать задание',{type:'button',class:'copy'});btn.onclick=()=>{const note=[`Задача ${x.id}: ${x.title}`,`Статус: ${x.status}`,`Результат: ${x.one_result}`,`Требования: ${fmt(x.requirements)}`,`Файлы: ${fmt(x.paths)}`,`Зависимости: ${fmt(x.depends_on)}`,`Решения: ${fmt(x.decisions)}`,`Приёмка:\n- ${x.acceptance.join('\n- ')}`,`Evidence gates: ${fmt(x.gates)}`,`Нельзя начинать coding без реального pnpm agent:preflight и принятого scope в current.yaml.`, `Один автор на файл, один срез, independent review, потом STOP.`].join('\n\n');const copy=()=>{let a=el('textarea');a.value=note;document.body.append(a);a.select();document.execCommand('copy');a.remove()};if(navigator.clipboard?.writeText)navigator.clipboard.writeText(note).then(()=>{btn.textContent='Скопировано'}).catch(()=>{copy();btn.textContent='Скопировано'});else{copy();btn.textContent='Скопировано'}};d.append(btn,el('p','Для полного поручения с SHA: python classroomctl.py brief '+x.id+' --base-sha <фактический_SHA_main>',{class:'muted'}));}
+      document.addEventListener('keydown',e=>{if(e.key==='Escape')$('detail').classList.remove('open')});for(const id of ['q','state','area'])$(id).addEventListener('input',()=>{chosen=null;drawList()});drawList();
+    </script>
+  </body>
+</html>
