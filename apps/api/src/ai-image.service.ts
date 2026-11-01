@@ -64,6 +64,9 @@ export interface ImageJobRow {
   put_started: boolean;
   put_uncertain: boolean;
   cleanup_required: boolean;
+  queue_paused?: boolean;
+  /** Transient SQL result flag, never a persisted/public receipt property. */
+  fresh_admission?: boolean;
 }
 interface ImageConfig extends Omit<AiImageGenerationAdminConfig, 'ready' | 'reason'> {
   remainingToday?: number;
@@ -116,7 +119,7 @@ export function imageAdminInput(raw: unknown): AiImageGenerationAdminUpdate {
     p.dailyLimit > 100 ||
     !Number.isSafeInteger(p.globalConcurrency) ||
     p.globalConcurrency < 1 ||
-    p.globalConcurrency > 2 ||
+    p.globalConcurrency > 1 ||
     !Array.isArray(p.sizes) ||
     p.sizes.length < 1 ||
     p.sizes.length > AI_IMAGE_PRESETS.length ||
@@ -169,6 +172,7 @@ export function imageJob(j: ImageJobRow): AiImageGenerationJob {
     createdAt: new Date(j.created_at).toISOString(),
     cancelRequested: j.cancel_requested,
     errorCode: j.error_code,
+    queuePaused: j.queue_paused === true,
     image: j.state === 'complete' && !j.cancel_requested && !j.deleted_at ? image(j) : null,
   };
 }
@@ -218,6 +222,18 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
           'ai_image_busy',
           429,
           'Лимит генерации исчерпан или видеокарта занята.',
+        );
+      if (/AI_IMAGE_OWNER_QUEUE_FULL/.test(m))
+        throw new AiImageError(
+          'ai_image_owner_queue_full',
+          429,
+          'У вас уже два незавершённых задания. Дождитесь результата или отмените задание в очереди.',
+        );
+      if (/AI_IMAGE_QUEUE_FULL/.test(m))
+        throw new AiImageError(
+          'ai_image_queue_full',
+          429,
+          'Очередь изображений заполнена. Подождите освобождения места.',
         );
       if (/AI_(?:REQUEST_ID_REUSED|CONFIG_CHANGED)/.test(m))
         throw new AiImageError('ai_image_conflict', 409, 'Запрос или настройки уже изменились.');
@@ -354,7 +370,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       return this.get(owner, t, input.requestId);
     }
     const j = await this.admit(owner, thread, raw);
-    await this.dispatchAdmitted(j);
+    if (j.fresh_admission === true) await this.dispatchAdmitted(j);
     return this.get(owner, j.thread_id, j.request_id);
   }
   private async dispatchAdmitted(j: ImageJobRow): Promise<void> {
@@ -420,7 +436,8 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     signal.addEventListener('abort', cancel, { once: true });
     try {
       if (signal.aborted) await this.cancel(owner, thread, j.request_id);
-      else await this.dispatchAdmitted(j);
+      // The native SQL receipt may be a replay. Only the durable worker dispatches;
+      // repeating a tool call never becomes a provider POST.
       return await this.get(owner, thread, j.request_id);
     } finally {
       signal.removeEventListener('abort', cancel);
