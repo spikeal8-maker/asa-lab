@@ -1,0 +1,30 @@
+schema_version: 1.0.0
+contract_id: DEVEX-DOMAIN
+domain: development
+registry_document_id: DEVELOPMENT-DOMAIN-CONTRACT
+master_documents:
+- DOCSYSTEM-MAINTENANCE
+invariants:
+- id: DEVEX-SHADOW-001
+  statement: Plans derive from verified Git changes, a freshly generated Nx graph,
+    existing Surface Maps and executable Test Catalogs. Unknown coverage blocks selection
+    and retains conservative fallback checks. SHADOW plans never execute, waive, or
+    report PASS for selected checks.
+  master_refs:
+  - document: DOCSYSTEM-MAINTENANCE
+    section: 3. Единственные источники истины
+  applies_to:
+  - test_planning
+  - git_diff
+  - dependency_analysis
+- id: DEVEX-RISK-001
+  statement: Mapped control rank and critical minimums cannot be downgraded by UI
+    scope. Partial routing and unavailable previous dependency graphs remain explicit
+    unknowns. No execution state is copied into contracts.
+  master_refs:
+  - document: DOCSYSTEM-MAINTENANCE
+    section: 5. Классы изменений
+  applies_to:
+  - critical_checks
+  - review
+  - failure_recovery
