@@ -44,7 +44,7 @@ self.onmessage = async (event: MessageEvent<File>) => {
       const smaller = await canvas.convertToBlob({ type: 'image/webp', quality: 0.9 });
       if (smaller.size < blob.size) blob = smaller;
     }
-    if (blob.size > 8 * 1024 * 1024)
+    if (blob.size > 3 * 1024 * 1024)
       throw new Error(
         'Не удалось уменьшить изображение без сильной потери качества. Выберите нужный фрагмент.',
       );
