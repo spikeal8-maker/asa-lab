@@ -158,6 +158,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0286', // Bounded search retrieval settings.
         '0287', // Durable successful-publication-copy aggregate.
         '0288', // Separate authorization for published Course academic results.
+        '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -475,6 +476,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0286', // Bounded search retrieval settings.
           '0287', // Durable successful-publication-copy aggregate.
           '0288', // Exact academic-result authorization independent of Project files.
+          '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
         ]);
         expect(
           await applyIsolatedTestPlan(

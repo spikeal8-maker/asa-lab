@@ -319,6 +319,11 @@ const upgradeArtifacts = [
     '0288_learning_course_academic_result_access.sql',
     '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
   ],
+  [
+    '0289',
+    '0289_learning_quiz_policy_authority.sql',
+    'a13663dd475eb51671572b82e173bd547fe50c62369eb50a0519aeb22f7fe038',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -400,6 +405,11 @@ const preservedTables = [
   'learner_identity_links',
   'learning_activities',
   'learning_activity_versions',
+  'question_bank_items',
+  'question_versions',
+  'question_answer_keys',
+  'quiz_versions',
+  'quiz_version_questions',
   'courses',
   'course_sections',
   'course_lessons',
@@ -560,6 +570,51 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
     assessmentPolicy: { mode: 'manual' },
     feedbackReleasePolicy: { mode: 'immediate' },
   };
+  // These rows are created under the OLD normalizer before the additive
+  // authority repair. Full table snapshots below must preserve their old rules
+  // and content digests byte-for-byte through the forward upgrade.
+  const quizQuestion = (
+    await pool.query(
+      `SELECT * FROM question_version_create($1,$2,'school','boolean',
+      '[{"type":"paragraph","text":"Historical Quiz?"}]'::jsonb,'{}'::jsonb,
+      '{"value":true}'::jsonb,3,'Science','10-12',ARRAY['prefix'])`,
+      [principal, teacher.tenantId],
+    )
+  ).rows[0];
+  expect(quizQuestion.result_code).toBe('ok');
+  const oldQuiz = (
+    await pool.query(
+      `SELECT * FROM quiz_version_create($1,$2,'Historical Quiz','Keep its rules',$3::jsonb,2,15,7500,'after_close')`,
+      [principal, teacher.tenantId, JSON.stringify([quizQuestion.question_version_id])],
+    )
+  ).rows[0];
+  expect(oldQuiz.result_code).toBe('ok');
+  const oldCanonicalQuiz = (
+    await pool.query(
+      `SELECT * FROM learning_activity_create($1,$2,'school','private','quiz',
+      'Old canonical Quiz','Keep frozen policy','graded',3,$3::jsonb,NULL,$4,NULL,NULL,'prefix-quiz-225')`,
+      [principal, teacher.tenantId, JSON.stringify(policies), oldQuiz.quiz_version_id],
+    )
+  ).rows[0];
+  expect(oldCanonicalQuiz.result_code).toBe('ok');
+  const oldQuizVersion = (
+    await pool.query(
+      `SELECT * FROM learning_activity_publish($1,$2,$3,1,'prefix-quiz-publish-225')`,
+      [principal, teacher.tenantId, oldCanonicalQuiz.activity_id],
+    )
+  ).rows[0];
+  expect(oldQuizVersion.result_code).toBe('ok');
+  expect(
+    (
+      await pool.query('SELECT policy_snapshot FROM learning_activity_versions WHERE id=$1', [
+        oldQuizVersion.activity_version_id,
+      ])
+    ).rows[0].policy_snapshot,
+  ).toMatchObject({
+    attemptPolicy: { maxAttempts: 2, timeLimitMinutes: 15 },
+    assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 7500 },
+    feedbackReleasePolicy: { mode: 'after_close' },
+  });
   const activity = (
     await pool.query(
       `SELECT * FROM learning_activity_create($1,$2,'school','private','project',
@@ -726,6 +781,12 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           .filter((item) => Number(item.version) <= 225)
           .map(({ version, name, checksum }) => ({ version, name, checksum })),
       );
+      const normalizerSecurity = (
+        await pool.query(
+          `SELECT proowner,proacl,prosecdef,proconfig FROM pg_proc
+          WHERE oid='learning_activity_normalize_draft(uuid,uuid,character varying,character varying,character varying,character varying,integer,jsonb,character varying,uuid,uuid,uuid)'::regprocedure`,
+        )
+      ).rows;
       const before = await preservedData(pool);
       expect(before.course_versions).toHaveLength(1);
       expect(before.course_enrollments).toHaveLength(1);
@@ -795,6 +856,14 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         })),
       );
       expect(await preservedData(pool)).toEqual(before);
+      expect(
+        (
+          await pool.query(
+            `SELECT proowner,proacl,prosecdef,proconfig FROM pg_proc
+          WHERE oid='learning_activity_normalize_draft(uuid,uuid,character varying,character varying,character varying,character varying,integer,jsonb,character varying,uuid,uuid,uuid)'::regprocedure`,
+          )
+        ).rows,
+      ).toEqual(normalizerSecurity);
       // New public-copy provenance columns must be NULL on every historical Project.
       expect(
         (
