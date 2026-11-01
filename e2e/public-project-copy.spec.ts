@@ -157,6 +157,7 @@ for (const { width, seat } of [
       );
       expect(detailResponse.status()).toBe(200);
       const publicDetail = (await detailResponse.json()).publication;
+      expect(publicDetail.copyCount).toBe(0);
       const requests: string[] = [];
       reader.on('request', (request) => {
         if (
@@ -232,6 +233,19 @@ for (const { width, seat } of [
         `/api/public-projects/${publication.publicationId}`,
       );
       expect((await publicAfter.json()).publication.revisionId).toBe(publication.revisionId);
+      const counted = await reader.request.get(`/api/public-projects/${publication.publicationId}`);
+      expect((await counted.json()).publication.copyCount).toBe(1);
+      await reader.goto('/#/explore');
+      const countedCard = reader.getByTestId('public-project-card').filter({
+        has: reader.locator(`a[href="/#/public-projects/${publication.publicationId}"]`),
+      });
+      await expect(
+        countedCard.getByLabel('1 добавлений в свои проекты', { exact: true }),
+      ).toBeVisible();
+      await reader.screenshot({
+        path: `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-counted-catalog.png`,
+        fullPage: true,
+      });
       await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
       failures.assertEmpty();
     } finally {
@@ -414,6 +428,7 @@ for (const seat of [false, true]) {
       );
       expect(detailResponse.status()).toBe(200);
       const publicDetail = (await detailResponse.json()).publication;
+      expect(publicDetail.copyCount).toBe(0);
       const requests: string[] = [];
       reader.on('request', (request) => {
         if (
@@ -508,6 +523,19 @@ for (const seat of [false, true]) {
       expect(requests).toHaveLength(1);
       expect((await opened(author, id)).draft).toEqual(before.draft);
       expect(await immutable()).toEqual(immutableBefore);
+      const counted = await reader.request.get(`/api/public-projects/${publication.publicationId}`);
+      expect((await counted.json()).publication.copyCount).toBe(1);
+      await reader.goto('/#/explore');
+      const countedCard = reader.getByTestId('public-project-card').filter({
+        has: reader.locator(`a[href="/#/public-projects/${publication.publicationId}"]`),
+      });
+      await expect(
+        countedCard.getByLabel('1 добавлений в свои проекты', { exact: true }),
+      ).toBeVisible();
+      await reader.screenshot({
+        path: `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-counted-catalog.png`,
+        fullPage: true,
+      });
       await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
       const lineage = await admin.query(
         `SELECT copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license

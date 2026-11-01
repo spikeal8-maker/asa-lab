@@ -19,6 +19,8 @@ export interface PublicProject {
   readonly featured: boolean;
   readonly pinned: boolean;
   readonly likeCount?: number;
+  /** Successfully created personal copies; not physical file downloads. */
+  readonly copyCount?: number;
   readonly publishedAt: string;
   readonly preview: {
     readonly url: string;
