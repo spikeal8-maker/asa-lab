@@ -44,6 +44,21 @@ const editorSource = readFileSync(
 const css = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('Arduino programming room contract', () => {
+  it('keeps shared static block metadata outside the executable solver chunk', () => {
+    if (typeof webViteConfig !== 'function') throw new Error('Expected the canonical Vite config');
+    const config = webViteConfig({ command: 'build', mode: 'production' });
+    if (config instanceof Promise) throw new Error('Expected synchronous Vite config');
+    const output = config.build?.rollupOptions?.output;
+    if (!output || Array.isArray(output) || typeof output.manualChunks !== 'function')
+      throw new Error('Expected canonical chunk boundaries');
+    const graph = { getModuleInfo: () => null, getModuleIds: () => ([] as string[]).values() };
+    expect(
+      output.manualChunks('/repo/contexts/electronics/domain/arduino-block-support.ts', graph),
+    ).toBe('electronics-block-support');
+    expect(output.manualChunks('/repo/contexts/electronics/domain/solver.ts', graph)).toBe(
+      'electronics-simulation-core',
+    );
+  });
   it('initializes Scratch media with the same local directory as the emitted pinned assets', () => {
     expect(panelSource).toContain(
       "media: new URL('.', new URL(scratchZoomInUrl, document.baseURI)).href",
