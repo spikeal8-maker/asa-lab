@@ -2351,9 +2351,14 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/conditions`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  learningReviewContext: (classroomId: string, assignmentId: string, seatId: string) =>
+  learningReviewContext: (
+    classroomId: string,
+    assignmentId: string,
+    seatId: string,
+    activityRunId?: string,
+  ) =>
     call<LearningReviewContext>(
-      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context`,
+      `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/students/${encodeURIComponent(seatId)}/review-context${activityRunId === undefined ? '' : `?activityRunId=${encodeURIComponent(activityRunId)}`}`,
     ),
   exactLearningSubmission: (classroomId: string, attemptId: string) =>
     call<{
