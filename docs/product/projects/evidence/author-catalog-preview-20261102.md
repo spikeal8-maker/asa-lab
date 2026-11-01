@@ -58,3 +58,16 @@ not rewritten. Game exclusions affect the opted-in catalog query only.
 
 Evidence: `e2e/artifacts/publication-author-preview/`. Local preview uses port 4612
 and a disposable test database. The working production site was not updated.
+
+## Owner visual follow-up: compact bottom row and white text halo
+
+The title and counts now share one bottom flex row. Counts keep their width;
+the title truncates with an ellipsis and retains its full tooltip. Electronics
+uses a teal label without a panel. Author/title/module/date/marks/count text has
+a light white shadow; count icons receive a small white drop shadow as well.
+The image itself remains unfiltered, without a vignette or added bands.
+
+The seven catalog component tests pass. The focused real-browser check also
+passes at 1440/1024/390/320, asserting title/count alignment, no overlap,
+ellipsis for a long title and white label shadows. Real demo screenshots were
+refreshed. No API, database or production changes were needed for this follow-up.

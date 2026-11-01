@@ -27,7 +27,9 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       },
     }),
   );
-  const title = 'Без виньетки ' + randomUUID().slice(0, 8);
+  const title =
+    'Длинное название электронной схемы для проверки сокращения рядом с лайками ' +
+    randomUUID().slice(0, 8);
   const image = await raster(page, 'Preview');
   const projectId = await createProject(page, title, image);
   try {
@@ -54,6 +56,30 @@ test('preview cards have no vignette or added strips and electronics uses a whit
       await expectNoOverflow(page);
       const bounds = await card.boundingBox();
       expect(Math.abs(bounds!.width / bounds!.height - 4 / 3)).toBeLessThan(0.025);
+      const titleBox = await card.getByTestId('public-project-card-title').boundingBox();
+      const countsBox = await card.locator('.public-project-card-meta').boundingBox();
+      expect(titleBox!.x + titleBox!.width).toBeLessThanOrEqual(countsBox!.x);
+      expect(
+        Math.abs(titleBox!.y + titleBox!.height / 2 - countsBox!.y - countsBox!.height / 2),
+      ).toBeLessThan(2);
+      const titleStyle = await card
+        .getByTestId('public-project-card-title')
+        .evaluate((element) => ({
+          overflow: getComputedStyle(element).textOverflow,
+          wrapping: getComputedStyle(element).whiteSpace,
+          truncated: element.scrollWidth > element.clientWidth,
+        }));
+      expect(titleStyle.overflow).toBe('ellipsis');
+      expect(titleStyle.wrapping).toBe('nowrap');
+      if (width <= 390) expect(titleStyle.truncated).toBe(true);
+      const labels = await card
+        .locator(
+          '.public-project-card-body h2, .public-project-card-meta, .public-project-author, .publication-module',
+        )
+        .evaluateAll((elements) => elements.map((element) => getComputedStyle(element).textShadow));
+      expect(labels.every((shadow) => shadow !== 'none' && shadow.includes('255, 255, 255'))).toBe(
+        true,
+      );
       const styles = await card.evaluate((el) => ({
         vignette: getComputedStyle(el.querySelector('.public-project-card-cover')!, '::after')
           .content,

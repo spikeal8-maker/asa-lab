@@ -285,44 +285,44 @@ export function PublicProjectsPage({
                       </span>
                     ) : null}
                   </div>
-                  <div className="public-project-card-meta">
-                    {typeof publication.copyCount === 'number' ? (
-                      <span
-                        aria-label={`${publication.copyCount} добавлений в свои проекты`}
-                        title="Добавили к себе"
-                      >
+                  <div className="public-project-card-body">
+                    <h2 data-testid="public-project-card-title" title={publication.title}>
+                      {publication.title}
+                    </h2>
+                    <div className="public-project-card-meta">
+                      {typeof publication.copyCount === 'number' ? (
+                        <span
+                          aria-label={`${publication.copyCount} добавлений в свои проекты`}
+                          title="Добавили к себе"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 24 24"
+                            width="16"
+                            height="16"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                          </svg>
+                          {publication.copyCount}
+                        </span>
+                      ) : null}
+                      <span aria-label={`${publication.likeCount ?? 0} нравится`}>
                         <svg
                           aria-hidden="true"
                           viewBox="0 0 24 24"
                           width="16"
                           height="16"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
+                          fill="currentColor"
                         >
-                          <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                          <path d="M12 21 3.7 13A5.5 5.5 0 0 1 12 5.8 5.5 5.5 0 0 1 20.3 13Z" />
                         </svg>
-                        {publication.copyCount}
+                        {publication.likeCount ?? 0}
                       </span>
-                    ) : null}
-                    <span aria-label={`${publication.likeCount ?? 0} нравится`}>
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="currentColor"
-                      >
-                        <path d="M12 21 3.7 13A5.5 5.5 0 0 1 12 5.8 5.5 5.5 0 0 1 20.3 13Z" />
-                      </svg>
-                      {publication.likeCount ?? 0}
-                    </span>
+                    </div>
                   </div>
-                </div>
-                <div className="public-project-card-body">
-                  <h2 data-testid="public-project-card-title" title={publication.title}>
-                    {publication.title}
-                  </h2>
                 </div>
               </PortalLink>
             </li>

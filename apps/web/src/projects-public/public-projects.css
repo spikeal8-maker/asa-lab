@@ -302,8 +302,7 @@
 }
 .public-project-card-topline,
 .public-project-card-date,
-.public-project-card-marks,
-.public-project-card-meta {
+.public-project-card-marks {
   position: absolute;
   z-index: 1;
   color: #23485f;
@@ -388,6 +387,10 @@
   opacity: 0;
   pointer-events: none;
 }
+.public-project-card .public-project-card-topline > .publication-module[data-module='electronics'] {
+  color: #08755b;
+  font-weight: 600;
+}
 .public-project-card-link:is(:hover, :focus-visible) .public-project-card-date {
   opacity: 1;
 }
@@ -410,35 +413,41 @@
 .public-project-card-body {
   position: absolute;
   z-index: 2;
-  bottom: 34px;
+  bottom: 9px;
   left: 9px;
   right: 9px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .public-project-card-body h2 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  flex: 1;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
   margin: 0;
   color: #23485f;
   font-size: 14px;
   line-height: 1.35;
   font-weight: 600;
-  overflow-wrap: anywhere;
   text-shadow:
     0 1px 2px #fff,
     0 0 3px #fff;
 }
 .public-project-card-meta {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 12px;
-  bottom: 9px;
-  right: 9px;
+  gap: 8px;
+  color: #23485f;
+  white-space: nowrap;
   font-size: 12px;
   line-height: 1.4;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
 }
 .public-project-card-meta > span {
   display: flex;
@@ -448,6 +457,7 @@
 }
 .public-project-card-meta svg {
   flex-shrink: 0;
+  filter: drop-shadow(0 0 2px #fff);
 }
 .public-project-card-meta svg[fill='currentColor'] {
   color: #c83d68;
