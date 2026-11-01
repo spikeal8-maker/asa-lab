@@ -22,6 +22,7 @@ import {
   type PublishedAuthorVersion,
 } from '../api';
 import { AuthorVersionHistory } from './AuthorVersionHistory';
+import { CourseUsage } from './CourseUsage';
 import { CanonicalPracticePicker, PinnedPracticePreview } from './CanonicalPracticePicker';
 import { PinnedManualMaterialPreview } from './CanonicalManualMaterialPicker';
 import { CourseAssignDialog, type CourseAssignAttempt } from './CourseAssignDialog';
@@ -833,6 +834,8 @@ function CourseEditor({
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
   const [saveTarget, setSaveTarget] = useState<HTMLDivElement | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
+  const [usageRefreshVersion, setUsageRefreshVersion] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const compactHeaderRef = useRef<HTMLElement>(null);
   // The outline and focused block actions must clear the actual sticky
@@ -1570,6 +1573,15 @@ function CourseEditor({
                   >
                     История версий
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      setUsageOpen(true);
+                    }}
+                  >
+                    Использование
+                  </button>
                   {course.publishedVersion || publicationReceipt.current ? (
                     <button
                       type="button"
@@ -1683,6 +1695,18 @@ function CourseEditor({
             </p>
           ) : null}
 
+          {usageOpen ? (
+            <CourseUsage
+              courseId={course.id}
+              refreshVersion={usageRefreshVersion}
+              onClose={() => setUsageOpen(false)}
+              onNavigate={(href) =>
+                withSavedDraft(() => {
+                  window.location.hash = href;
+                })
+              }
+            />
+          ) : null}
           <section
             className="course-history-panel"
             hidden={!historyOpen}
@@ -2191,6 +2215,10 @@ function CourseEditor({
             version={assignVersion}
             attempt={assignmentAttempt.current.value}
             onBusyChange={setAssignBusy}
+            onAssigned={() => {
+              setUsageRefreshVersion((value) => value + 1);
+              onChanged();
+            }}
             onClose={() => {
               setPreview(false);
               setAssignVersion(null);

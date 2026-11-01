@@ -3739,6 +3739,68 @@ paths:
             },
         },
     }
+  /api/courses/{courseId}/usage:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getAuthorCourseUsage
+      summary: Existing course deliveries in classes currently accessible to the author
+      description: >-
+        Requires current author capability and ownership of the course. Content ownership
+        does not grant class access. Only current class owner/co-teacher memberships are
+        used, including archived classes. Returns pinned version and delivery metadata,
+        never roster, learner answers, progress or counts for inaccessible classes.
+        Author-only users without class access receive an empty items array.
+      responses:
+        '200':
+          description: Authorized delivery metadata; no academic writes
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: false
+                      required:
+                        [
+                          id,
+                          classroomId,
+                          classroomTitle,
+                          classroomStatus,
+                          courseVersionId,
+                          versionNumber,
+                          title,
+                          status,
+                          audienceType,
+                        ]
+                      properties:
+                        id: { type: string, format: uuid }
+                        classroomId: { type: string, format: uuid }
+                        classroomTitle: { type: string }
+                        classroomStatus: { type: string, enum: [active, archived] }
+                        courseVersionId: { type: string, format: uuid }
+                        versionNumber: { type: integer, minimum: 1 }
+                        title: { type: string }
+                        status: { type: string, enum: [open, closed] }
+                        audienceType:
+                          {
+                            type: string,
+                            nullable: true,
+                            enum: [whole_class, named_learners, null],
+                          }
+        '400': { description: Invalid course identifier }
+        '401': { description: Current session required }
+        '403': { description: Current author capability required }
+        '404': { description: Course unavailable }
+        '503': { description: Database unavailable }
   /api/courses/{courseId}/versions:
     parameters:
       - name: courseId

@@ -36,7 +36,8 @@ jobs:
       fail-fast: false
       matrix:
         batch: [first, second]
-    runs-on: ubuntu-latest
+    # Locked Playwright supports Ubuntu 24.04; ubuntu-latest now selects 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:
@@ -135,7 +136,7 @@ jobs:
     name: Learning fresh upgrade and real browser journeys
     needs: [learning-e1-batch]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Require both independent complete browser partitions
