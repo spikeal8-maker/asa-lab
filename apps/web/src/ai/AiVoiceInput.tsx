@@ -13,7 +13,7 @@ interface Transcript {
   readonly model: string;
 }
 type ScopedCall = <T>(path: string, init?: RequestInit) => Promise<ApiResult<T>>;
-type RecordingMode = 'idle' | 'confirm' | 'acquiring' | 'recording' | 'transcribing';
+type RecordingMode = 'idle' | 'acquiring' | 'recording' | 'transcribing';
 
 function selectMime(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -45,7 +45,6 @@ export function AiVoiceInput({
   const acquiring = useRef(false);
   const mounted = useRef(true);
   const microphoneButton = useRef<HTMLButtonElement>(null);
-  const consentButton = useRef<HTMLButtonElement>(null);
   const callback = useRef(onTranscript);
   callback.current = onTranscript;
 
@@ -99,10 +98,6 @@ export function AiVoiceInput({
   }, [disabled]);
 
   useEffect(() => {
-    if (mode === 'confirm') consentButton.current?.focus();
-  }, [mode]);
-
-  useEffect(() => {
     if (mode !== 'recording') return;
     const clock = setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => clearInterval(clock);
@@ -134,8 +129,8 @@ export function AiVoiceInput({
     currentStream?.getTracks().forEach((track) => track.stop());
     setMode('idle');
     setSeconds(0);
-    setMessage(mode === 'confirm' ? '' : 'Запись отменена');
-    if (mode === 'confirm') microphoneButton.current?.focus();
+    setMessage('');
+    microphoneButton.current?.focus();
   }
 
   async function transcribe(blob: Blob, durationSeconds: number, mimeType: string, serial: number) {
@@ -163,35 +158,47 @@ export function AiVoiceInput({
     if (cancelled.current || !mounted.current || serial !== acquisitionSerial.current) return;
     const controller = new AbortController();
     pending.current = controller;
-    const result = await call<Transcript>('/api/ai/stt/transcribe', {
-      method: 'POST',
-      signal: controller.signal,
-      body: JSON.stringify({
-        requestId: newClientId(),
-        audioBase64: dataUrl.slice(dataUrl.indexOf(',') + 1),
-        mimeType,
-        durationSeconds,
-      }),
-    });
-    if (!mounted.current || cancelled.current || serial !== acquisitionSerial.current) return;
-    pending.current = null;
-    setMode('idle');
-    if (result.ok && result.data.text) {
-      const placement = callback.current(result.data.text);
-      setMessage(
-        placement === 'overflow'
-          ? 'Расшифровка не поместилась в сообщение. Черновик сохранён; полный текст доступен ниже.'
-          : 'Текст добавлен в сообщение. Проверьте его перед отправкой.',
-      );
-      return;
+    try {
+      const result = await call<Transcript>('/api/ai/stt/transcribe', {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({
+          requestId: newClientId(),
+          audioBase64: dataUrl.slice(dataUrl.indexOf(',') + 1),
+          mimeType,
+          durationSeconds,
+        }),
+      });
+      if (!mounted.current || cancelled.current || serial !== acquisitionSerial.current) return;
+      if (result.ok && result.data.text) {
+        const placement = callback.current(result.data.text);
+        setMessage(
+          placement === 'overflow'
+            ? 'Расшифровка не поместилась в сообщение. Полный текст доступен ниже.'
+            : '',
+        );
+      } else {
+        setMessage(
+          result.ok
+            ? 'Речь не распознана. Попробуйте ещё раз.'
+            : 'Голосовой ввод сейчас недоступен.',
+        );
+      }
+    } catch {
+      if (mounted.current && !cancelled.current && serial === acquisitionSerial.current)
+        setMessage('Голосовой ввод сейчас недоступен.');
+    } finally {
+      if (mounted.current && !cancelled.current && serial === acquisitionSerial.current) {
+        pending.current = null;
+        setMode('idle');
+      }
     }
-    setMessage(result.ok ? 'Речь не распознана.' : result.error.message);
   }
 
   async function start() {
     if (
       acquiring.current ||
-      mode !== 'confirm' ||
+      mode !== 'idle' ||
       disabled ||
       !status?.enabled ||
       !navigator.mediaDevices?.getUserMedia
@@ -312,29 +319,32 @@ export function AiVoiceInput({
   const label =
     mode === 'recording'
       ? 'Остановить запись и распознать'
-      : mode === 'confirm'
-        ? 'Подтверждение записи'
-        : mode === 'acquiring'
-          ? 'Запрашиваем доступ к микрофону'
-          : mode === 'transcribing'
-            ? 'Распознаём речь'
-            : available
-              ? 'Продиктовать сообщение'
-              : status?.enabled && typeof window !== 'undefined' && !window.isSecureContext
-                ? 'Для голосового ввода нужен HTTPS'
-                : status?.enabled
-                  ? 'Браузер не поддерживает голосовой ввод'
-                  : 'Голосовой ввод не подключён';
+      : mode === 'acquiring'
+        ? 'Подключаем микрофон'
+        : mode === 'transcribing'
+          ? 'Распознаём речь'
+          : available
+            ? 'Продиктовать сообщение'
+            : 'Голосовой ввод недоступен';
+  const elapsed = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
 
   return (
-    <div className="ai-voice-control">
+    <div
+      className="ai-voice-control"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && mode !== 'idle') {
+          event.preventDefault();
+          cancel();
+        }
+      }}
+    >
       <button
         ref={microphoneButton}
         className={'chat-microphone' + (mode === 'recording' ? ' ai-voice-recording' : '')}
         type="button"
         aria-label={label}
         aria-pressed={mode === 'recording'}
-        title={label}
+        data-ai-tooltip={label}
         disabled={
           mode === 'transcribing' ||
           mode === 'acquiring' ||
@@ -342,12 +352,15 @@ export function AiVoiceInput({
         }
         onClick={() => {
           if (mode === 'recording') stop();
-          else if (mode === 'confirm') cancel();
-          else setMode('confirm');
+          else if (mode === 'idle') void start();
         }}
       >
-        {mode === 'transcribing' ? (
+        {mode === 'transcribing' || mode === 'acquiring' ? (
           <span className="ai-voice-spinner" aria-hidden="true" />
+        ) : mode === 'recording' ? (
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="3" />
+          </svg>
         ) : (
           <svg
             width="19"
@@ -365,52 +378,49 @@ export function AiVoiceInput({
         )}
       </button>
       {mode !== 'idle' || message ? (
-        <div
-          className="ai-voice-toast"
-          role={mode === 'confirm' ? 'dialog' : 'status'}
-          aria-label={mode === 'confirm' ? 'Подтверждение голосового ввода' : undefined}
-          aria-live="polite"
-        >
-          <span>
-            {mode === 'confirm'
-              ? 'Запись будет отправлена в Polza AI для распознавания. ASA Lab не сохраняет аудио.'
-              : mode === 'recording'
-                ? 'Запись ' + seconds + ' / ' + status?.maxAudioSeconds + ' сек'
-                : mode === 'acquiring'
-                  ? 'Ожидаем разрешения браузера на микрофон…'
-                  : mode === 'transcribing'
-                    ? 'Распознаём речь…'
-                    : message}
+        <div className="ai-voice-toast" role="status" aria-live="polite">
+          {mode === 'recording' ? (
+            <span className="ai-voice-wave" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+              <i />
+            </span>
+          ) : null}
+          <span className="ai-voice-caption">
+            {mode === 'recording'
+              ? 'Слушаю…'
+              : mode === 'acquiring'
+                ? 'Подключаю микрофон…'
+                : mode === 'transcribing'
+                  ? 'Распознаю…'
+                  : message}
           </span>
-          {mode === 'confirm' ? (
-            <>
-              <button
-                ref={consentButton}
-                type="button"
-                onClick={() => void start()}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    cancel();
-                  }
-                }}
-                aria-label="Разрешить голосовой ввод"
-              >
-                Продолжить
-              </button>
-              <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">
-                Отмена
-              </button>
-            </>
-          ) : mode !== 'idle' ? (
-            <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">
-              Отмена
-            </button>
-          ) : (
-            <button type="button" onClick={() => setMessage('')} aria-label="Закрыть сообщение">
-              ×
-            </button>
-          )}
+          {mode === 'recording' ? (
+            <time className="ai-voice-time" aria-hidden="true">
+              {elapsed}
+            </time>
+          ) : null}
+          <button
+            type="button"
+            onClick={mode !== 'idle' ? cancel : () => setMessage('')}
+            aria-label={mode !== 'idle' ? 'Отменить голосовой ввод' : 'Закрыть сообщение'}
+            data-ai-tooltip={mode !== 'idle' ? 'Отменить запись' : 'Закрыть'}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
         </div>
       ) : null}
     </div>
