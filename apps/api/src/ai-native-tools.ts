@@ -1,8 +1,16 @@
 import { aiImageSizeLabel, isAiImageSize, type AiImageRecipe } from '@asa-lab/contracts';
 import type { AiProviderUsage } from './ai-provider-usage.js';
+import { isFileTool, validateFileCall } from './ai-working-files.js';
 
 export type NativeToolName =
-  'generate_image' | 'web_search' | 'image_search' | 'weather' | 'read_page';
+  | 'generate_image'
+  | 'web_search'
+  | 'image_search'
+  | 'weather'
+  | 'read_page'
+  | 'create_working_file'
+  | 'read_working_file'
+  | 'edit_working_file';
 export interface NativeToolCall {
   readonly name: NativeToolName;
   readonly arguments: Readonly<Record<string, unknown>>;
@@ -155,6 +163,10 @@ export function parseNativeToolCalls(
     throw new Error('AI_TOOL_CALL_INVALID');
   const values = args as Record<string, unknown>;
   const keys = Object.keys(values).sort().join(',');
+  if (isFileTool(name)) {
+    if (!validateFileCall(name, values)) throw new Error('AI_TOOL_CALL_INVALID');
+    return [{ name: name as NativeToolName, arguments: values }];
+  }
   if (name === 'generate_image') {
     const sizes = (
       offered.find((tool) => tool.function.name === name)!.function.parameters.properties as {

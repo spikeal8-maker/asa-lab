@@ -1,4 +1,5 @@
 import { isAiImageSize } from '@asa-lab/contracts';
+import { WorkingFileError, validFileName } from './ai-working-files.js';
 import type { AiWebSearchMode } from '@asa-lab/contracts';
 import { AiPolicyError } from './ai-generation-policy.js';
 import { AiToolPolicyError } from './ai-tool-policy.js';
@@ -96,7 +97,8 @@ export class AiChatController {
         problem instanceof AiServiceError ||
         problem instanceof AiWebSearchError ||
         problem instanceof AiPolicyError ||
-        problem instanceof AiToolPolicyError
+        problem instanceof AiToolPolicyError ||
+        problem instanceof WorkingFileError
       ) {
         return reject(problem.code, problem.message, problem.status);
       }
@@ -302,6 +304,76 @@ export class AiChatController {
     this.requireSameOrigin(request);
     const account = await this.requireOwner(request);
     return this.safe(() => this.ai.createThread(account.principalId));
+  }
+
+  @Get('threads/:threadId/working-files')
+  @Header('Cache-Control', 'private, no-store')
+  async workingFiles(@Req() request: FastifyRequest, @Param('threadId') raw: string) {
+    const owner = await this.requireOwner(request);
+    return this.safe(async () => ({
+      items: await this.ai.workingFiles.list(owner.principalId, this.threadId(raw)),
+    }));
+  }
+
+  @Get('threads/:threadId/working-files/:name')
+  @Header('Cache-Control', 'private, no-store')
+  async workingFile(
+    @Req() request: FastifyRequest,
+    @Param('threadId') raw: string,
+    @Param('name') name: string,
+    @Query('version') version?: string,
+  ) {
+    const owner = await this.requireOwner(request);
+    if (
+      !validFileName(name) ||
+      (version !== undefined &&
+        (!/^\d{1,3}$/.test(version) || Number(version) < 1 || Number(version) > 100))
+    )
+      return reject('ai_file_invalid', 'Неверный файл или версия.', 400);
+    return this.safe(() =>
+      this.ai.workingFiles.read(
+        owner.principalId,
+        this.threadId(raw),
+        name,
+        version === undefined ? undefined : Number(version),
+      ),
+    );
+  }
+
+  @Post('threads/:threadId/working-files/:name/restore')
+  @Header('Cache-Control', 'private, no-store')
+  async restoreWorkingFile(
+    @Req() request: FastifyRequest,
+    @Param('threadId') raw: string,
+    @Param('name') name: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.requireSameOrigin(request);
+    const owner = await this.requireOwner(request);
+    if (
+      !validFileName(name) ||
+      !body ||
+      Object.keys(body).sort().join(',') !== 'expectedVersion,operationId,version' ||
+      !Number.isSafeInteger(body.version) ||
+      Number(body.version) < 1 ||
+      Number(body.version) > 100 ||
+      !Number.isSafeInteger(body.expectedVersion) ||
+      Number(body.expectedVersion) < 1 ||
+      Number(body.expectedVersion) > 100 ||
+      typeof body.operationId !== 'string' ||
+      !UUID.test(body.operationId)
+    )
+      return reject('ai_file_invalid', 'Неверный файл или версия.', 400);
+    return this.safe(() =>
+      this.ai.workingFiles.restore(
+        owner.principalId,
+        this.threadId(raw),
+        name,
+        Number(body.version),
+        Number(body.expectedVersion),
+        String(body.operationId),
+      ),
+    );
   }
 
   @Get('threads/:threadId/messages')

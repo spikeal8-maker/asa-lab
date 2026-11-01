@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseProviderText, ProviderStreamError, streamProviderText } from './ai-provider-stream';
+import { workingFileTools } from './ai-working-files';
 
 const encoding = new TextEncoder();
 
@@ -29,6 +30,101 @@ const input = {
 };
 
 describe('provider SSE adapter', () => {
+  it.each(['deepseek', 'ollama-cloud', 'openai'] as const)(
+    'decodes %s file calls without printing arguments and returns results to the model',
+    async (provider) => {
+      const call = { name: 'read_working_file' as const, arguments: { name: 'snake.html' } };
+      const event = (data: unknown) => 'data: ' + JSON.stringify(data) + '\n\n';
+      const response =
+        provider === 'openai'
+          ? event({
+              type: 'response.output_item.done',
+              output_index: 0,
+              item: {
+                type: 'function_call',
+                name: call.name,
+                arguments: JSON.stringify(call.arguments),
+              },
+            }) + event({ type: 'response.completed' })
+          : event({
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      { index: 0, function: { name: 'read_working_', arguments: '{"name":' } },
+                    ],
+                  },
+                },
+              ],
+            }) +
+            event({
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      { index: 0, function: { name: 'file', arguments: '"snake.html"}' } },
+                    ],
+                  },
+                  finish_reason: 'tool_calls',
+                },
+              ],
+            }) +
+            'data: [DONE]\n\n';
+      const fetchImpl = vi.fn<typeof fetch>(async () => fakeSse(response, [1, 9, 3]));
+      const delta = vi.fn();
+      const args = {
+        ...input,
+        provider,
+        model:
+          provider === 'openai'
+            ? input.model
+            : provider === 'deepseek'
+              ? 'deepseek-flash'
+              : 'gemma4:31b',
+        tools: workingFileTools(),
+        fetchImpl,
+        signal: new AbortController().signal,
+        onDelta: delta,
+      };
+      expect(await streamProviderText(args)).toMatchObject({
+        text: '',
+        stopped: false,
+        toolCalls: [call],
+      });
+      expect(delta).not.toHaveBeenCalled();
+      await streamProviderText({
+        ...args,
+        toolResults: [{ call, content: '{"version":1,"content":"snake"}' }],
+      });
+      const body = JSON.parse(String(fetchImpl.mock.calls[1]![1]?.body));
+      expect(body.parallel_tool_calls).toBe(false);
+      const messages = provider === 'openai' ? body.input : body.messages;
+      expect(messages.at(-1)).toMatchObject(
+        provider === 'openai'
+          ? { type: 'function_call_output', call_id: 'call_asa_0' }
+          : { role: 'tool', tool_call_id: 'call_asa_0' },
+      );
+      expect(JSON.stringify(messages)).toContain('snake');
+    },
+  );
+  it('rejects malformed function arguments as a typed stream failure', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      fakeSse(
+        'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"name":"read_working_file","arguments":"{"}}]},"finish_reason":"tool_calls"}]}\n\ndata: [DONE]\n\n',
+      ),
+    );
+    await expect(
+      streamProviderText({
+        ...input,
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        tools: workingFileTools(),
+        fetchImpl,
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_tool_call_invalid', status: 503 });
+  });
   it('uses only the fixed Ollama Cloud endpoint with Bearer key and records reported usage', async () => {
     const fetchImpl = vi.fn<typeof fetch>(async (url, options) => {
       expect(url).toBe('https://ollama.com/v1/chat/completions');

@@ -207,6 +207,21 @@
   background: var(--ai-surface);
   color: var(--ai-text);
 }
+.asa-ai-layout .asa-ai-code-actions select.ai-working-name {
+  width: 130px;
+  max-width: 160px;
+  flex: 0 1 130px;
+}
+.asa-ai-layout .asa-ai-code-actions select.ai-working-version {
+  width: 90px;
+  max-width: 90px;
+  flex: 0 0 90px;
+}
+.asa-ai-layout .chat-working-files {
+  width: 100%;
+  min-width: 0;
+  margin-block: 16px;
+}
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
   display: inline-flex;
   align-items: center;

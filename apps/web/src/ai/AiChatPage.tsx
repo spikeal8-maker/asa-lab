@@ -14,6 +14,7 @@ import {
 import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
+import { AiWorkingFiles, type WorkingFileInfo } from './AiWorkingFiles';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
 import { AiCopyButton } from './AiCopyButton';
@@ -238,6 +239,12 @@ export function AiChatPage({
   const [currentThread, setCurrentThread] = useState<AiThread | null>(null);
   const currentArchived = useRef(false);
   const [messages, setMessages] = useState<readonly AiMessage[]>([]);
+  const [workingSources, setWorkingSources] = useState<WorkingFileInfo[]>([]);
+  const receiveWorkingSources = useCallback(
+    (files: WorkingFileInfo[]) => setWorkingSources(files),
+    [],
+  );
+  useEffect(() => setWorkingSources([]), [currentId, seatId]);
   const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
@@ -1924,6 +1931,11 @@ export function AiChatPage({
                           {message.content !== 'Задание на создание изображения принято.' ? (
                             <AiMessageContent
                               content={message.content}
+                              hideCodeBlocks={workingSources
+                                .filter(
+                                  (f) => f.sourceMessageId === message.id && f.sourceBlock !== null,
+                                )
+                                .map((f) => f.sourceBlock!)}
                               webSearch={message.webSearch}
                             />
                           ) : null}
@@ -2032,6 +2044,16 @@ export function AiChatPage({
                     <AiImagePrompt
                       prompt={imageJob.prompt}
                       label={`Генерирую изображение${imageJob.size ? ` · ${aiImageDimensions(imageJob.size).width} × ${aiImageDimensions(imageJob.size).height}` : ''} · ${imageModelLabel(imageJob.recipe)}`}
+                    />
+                  ) : null}
+                  {currentId ? (
+                    <AiWorkingFiles
+                      key={currentId + ':' + (seatId ?? '')}
+                      threadId={currentId}
+                      seatId={seatId}
+                      refreshKey={messages.length + ':' + busy}
+                      busy={busy}
+                      onSources={receiveWorkingSources}
                     />
                   ) : null}
                   {imageUi.busy ? <AiActivity image /> : null}

@@ -12,6 +12,12 @@ import {
   supportsAiImageInput,
 } from './ai-model-catalog.js';
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
+import {
+  parseNativeToolCalls,
+  type NativeToolCall,
+  type NativeToolDefinition,
+  type NativeToolResult,
+} from './ai-native-tools.js';
 export type StreamProvider = 'openai' | 'deepseek' | 'ollama-cloud';
 
 export class ProviderStreamError extends Error {
@@ -28,6 +34,8 @@ export class ProviderStreamError extends Error {
 }
 
 interface StreamArgs {
+  readonly tools?: readonly NativeToolDefinition[];
+  readonly toolResults?: readonly NativeToolResult[];
   readonly fetchImpl: typeof fetch;
   readonly provider: StreamProvider;
   readonly model: string;
@@ -40,6 +48,7 @@ interface StreamArgs {
 }
 
 export interface ProviderStreamResult {
+  readonly toolCalls?: readonly NativeToolCall[];
   readonly text: string;
   readonly stopped: boolean;
   readonly usage?: AiProviderUsage;
@@ -170,6 +179,8 @@ export async function streamProviderText({
   context,
   instructions,
   images,
+  tools,
+  toolResults,
   signal,
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
@@ -184,6 +195,42 @@ export async function streamProviderText({
       'Выбранная модель не поддерживает чтение изображений. Выберите модель с Vision.',
     );
   const request = buildAiTextRequest(provider, model, context, instructions, true, images);
+  if (tools?.length)
+    request.body.tools =
+      provider === 'openai'
+        ? tools.map((t) => ({ type: 'function', ...t.function, strict: false }))
+        : tools;
+  if (tools?.length) request.body.parallel_tool_calls = false;
+  if (toolResults?.length) {
+    const calls = toolResults.map((r, i) => ({
+      type: 'function',
+      id: 'call_asa_' + i,
+      function: { name: r.call.name, arguments: JSON.stringify(r.call.arguments) },
+    }));
+    if (provider === 'openai')
+      request.body.input = [
+        ...(request.body.input as unknown[]),
+        ...toolResults.flatMap((r, i) => [
+          {
+            type: 'function_call',
+            call_id: 'call_asa_' + i,
+            name: r.call.name,
+            arguments: JSON.stringify(r.call.arguments),
+          },
+          { type: 'function_call_output', call_id: 'call_asa_' + i, output: r.content },
+        ]),
+      ];
+    else
+      request.body.messages = [
+        ...(request.body.messages as unknown[]),
+        { role: 'assistant', content: '', tool_calls: calls },
+        ...toolResults.map((r, i) => ({
+          role: 'tool',
+          tool_call_id: 'call_asa_' + i,
+          content: r.content,
+        })),
+      ];
+  }
   const timeout = AbortSignal.timeout(AI_GENERATION_TIMEOUT_MS);
   const combined = AbortSignal.any([signal, timeout]);
   let response: Response;
@@ -224,6 +271,7 @@ export async function streamProviderText({
   let finished = false;
   let providerState: 'complete' | 'stopped' | null = null;
   let usage: AiProviderUsage | undefined;
+  const functionCalls = new Map<number, { name: string; arguments: string }>();
 
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
@@ -253,6 +301,50 @@ export async function streamProviderText({
     }
     const packetType =
       payload && typeof payload === 'object' ? (payload as { type?: unknown }).type : null;
+    if (tools?.length && payload && typeof payload === 'object') {
+      if (
+        provider === 'openai' &&
+        (event === 'response.output_item.done' || packetType === 'response.output_item.done')
+      ) {
+        const p = payload as {
+          output_index?: number;
+          item?: { type?: string; name?: string; arguments?: string };
+        };
+        if (p.item?.type === 'function_call')
+          functionCalls.set(p.output_index ?? 0, {
+            name: p.item.name ?? '',
+            arguments: p.item.arguments ?? '',
+          });
+      }
+      if (provider !== 'openai') {
+        const calls = (
+          payload as {
+            choices?: {
+              delta?: {
+                tool_calls?: { index?: number; function?: { name?: string; arguments?: string } }[];
+              };
+            }[];
+          }
+        ).choices?.[0]?.delta?.tool_calls;
+        for (const call of calls ?? []) {
+          const i = call.index ?? 0,
+            previous = functionCalls.get(i) ?? { name: '', arguments: '' };
+          functionCalls.set(i, {
+            name: previous.name + (call.function?.name ?? ''),
+            arguments: previous.arguments + (call.function?.arguments ?? ''),
+          });
+        }
+      }
+      if (
+        functionCalls.size > 1 ||
+        [...functionCalls.values()].some((c) => c.name.length > 80 || c.arguments.length > 131072)
+      )
+        throw new ProviderStreamError(
+          'ai_tool_call_invalid',
+          503,
+          'Некорректный вызов инструмента.',
+        );
+    }
     usage = mergeProviderUsage(
       usage,
       providerUsage(
@@ -286,7 +378,10 @@ export async function streamProviderText({
       const reason = (payload as { choices?: Array<{ finish_reason?: string | null }> })
         .choices?.[0]?.finish_reason;
       if (reason !== null && reason !== undefined) {
-        providerState = completionState(provider, reason);
+        providerState =
+          reason === 'tool_calls' && functionCalls.size && tools?.length
+            ? 'complete'
+            : completionState(provider, reason);
       }
     }
     if (
@@ -360,7 +455,7 @@ export async function streamProviderText({
       usage,
     );
   }
-  if (!content.trim() && !signal.aborted) {
+  if (!content.trim() && !signal.aborted && !functionCalls.size) {
     throw new ProviderStreamError(
       'ai_response_empty',
       503,
@@ -369,7 +464,27 @@ export async function streamProviderText({
       usage,
     );
   }
+  let toolCalls: readonly NativeToolCall[] | undefined;
+  if (functionCalls.size && !signal.aborted && providerState !== 'stopped') {
+    try {
+      toolCalls = parseNativeToolCalls(
+        [...functionCalls.values()].map((c) => ({
+          function: { name: c.name, arguments: JSON.parse(c.arguments) },
+        })),
+        tools ?? [],
+      );
+    } catch {
+      throw new ProviderStreamError(
+        'ai_tool_call_invalid',
+        503,
+        'Модель вернула некорректный вызов инструмента.',
+        content,
+        usage,
+      );
+    }
+  }
   return {
+    ...(toolCalls ? { toolCalls } : {}),
     text: content,
     stopped: signal.aborted || providerState === 'stopped' || content.length >= MAX_RESULT_CHARS,
     ...(usage ? { usage } : {}),

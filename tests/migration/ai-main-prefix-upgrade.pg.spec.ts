@@ -66,6 +66,7 @@ const expectedPending = [
   '0285', // Existing public author name projection, immutable history preserved.
   '0286', // Bounded search retrieval settings.
   '0287', // Bounded document extraction with private originals.
+  '0288', // Private working files and immutable revisions.
 ];
 
 interface Identity {

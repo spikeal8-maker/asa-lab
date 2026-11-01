@@ -40,12 +40,15 @@ function safeLink(href?: string): { href: string; external: boolean } | null {
 }
 
 interface ContentProps {
+  readonly hideCodeBlocks?: readonly number[];
+  readonly codeHeader?: { name: string; controls: ReactNode };
   readonly content: string;
   readonly pending?: boolean;
   readonly webSearch?: unknown;
 }
 
 const CodePendingContext = createContext(false);
+const CodeHeaderContext = createContext<ContentProps['codeHeader']>(undefined);
 // Stable renderer identity keeps a running app alive when the surrounding chat
 // rerenders (typing, focus, provider status). Inline component functions remount it.
 function CodePre({ children }: { children?: ReactNode }): JSX.Element {
@@ -73,14 +76,18 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const [showPreview, setShowPreview] = useState(true);
   const [zoom, setZoom] = useState(0.5);
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
-  const [running, setRunning] = useState(false);
+  const [runCode, setRunCode] = useState<string | null>(null);
   const [runId, setRunId] = useState(0);
   const code = flattenText(children).replace(/\n$/, '');
+  const running = runCode === code;
+  useEffect(() => setRunCode(null), [code]);
+  const header = useContext(CodeHeaderContext);
   const child = Array.isArray(children) ? children[0] : children;
   const language = isValidElement<{ className?: string }>(child)
     ? (child.props.className?.match(/language-([^\s]+)/)?.[1] ?? '')
     : '';
-  const file = codeDownloadFormat(language, code);
+  const format = codeDownloadFormat(language, code);
+  const file = { ...format, name: header?.name ?? format.name };
   const previewable = file.name.endsWith('.html') || file.name.endsWith('.svg');
   const preview = useMemo(
     () =>
@@ -106,10 +113,14 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
       }}
     >
       <div className="asa-ai-code-actions">
-        <span className="asa-ai-code-format">
-          <AiChatIcon name="file" size={16} />
-          {language || 'Текст'}
-        </span>
+        {header ? (
+          header.controls
+        ) : (
+          <span className="asa-ai-code-format">
+            <AiChatIcon name="file" size={16} />
+            {language || 'Текст'}
+          </span>
+        )}
         {preview && (
           <div className="asa-ai-code-tabs" role="group" aria-label="Отображение результата">
             <button
@@ -124,7 +135,7 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
               aria-pressed={!previewVisible}
               onClick={() => {
                 setShowPreview(false);
-                setRunning(false);
+                setRunCode(null);
               }}
             >
               Код
@@ -168,7 +179,7 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
               type="button"
               aria-label={running ? 'Остановить приложение' : 'Запустить приложение'}
               data-ai-tooltip={running ? 'Остановить' : 'Запустить'}
-              onClick={() => setRunning(!running)}
+              onClick={() => setRunCode(running ? null : code)}
             >
               <AiChatIcon name={running ? 'stop' : 'play'} size={17} />
             </button>
@@ -298,65 +309,75 @@ export function AiMessageContent({
   content,
   pending = false,
   webSearch,
+  codeHeader,
+  hideCodeBlocks,
 }: ContentProps): JSX.Element {
   const evidence = readWebEvidence(webSearch);
+  let blockIndex = 0;
+  const visibleContent = hideCodeBlocks?.length
+    ? content.replace(/^(`{3,}|~{3,})[\w+-]*[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, (block) =>
+        hideCodeBlocks.includes(blockIndex++) ? '' : block,
+      )
+    : content;
   return (
     <div className="asa-ai-rich-text">
       <ContentBoundary content={content}>
         <CodePendingContext.Provider value={pending}>
-          <ReactMarkdown
-            skipHtml
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[
-              [
-                rehypeKatex,
-                {
-                  trust: false,
-                  maxExpand: 1000,
-                  maxSize: 8,
-                  strict: 'ignore',
-                  output: 'htmlAndMathml',
+          <CodeHeaderContext.Provider value={codeHeader}>
+            <ReactMarkdown
+              skipHtml
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[
+                [
+                  rehypeKatex,
+                  {
+                    trust: false,
+                    maxExpand: 1000,
+                    maxSize: 8,
+                    strict: 'ignore',
+                    output: 'htmlAndMathml',
+                  },
+                ],
+              ]}
+              components={{
+                a: ({ href, children }) => {
+                  const safe = safeLink(href);
+                  const number = flattenText(children).replace(/^\[|\]$/g, '');
+                  const cited = evidence?.sources.find(
+                    (source) => String(source.id) === number && safe?.href === source.url,
+                  );
+                  return safe ? (
+                    <a
+                      href={safe.href}
+                      target={safe.external ? '_blank' : undefined}
+                      rel={safe.external ? 'noreferrer noopener' : undefined}
+                      className={cited ? 'asa-ai-citation' : undefined}
+                      aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
+                      title={cited?.hostname}
+                    >
+                      {children}
+                    </a>
+                  ) : (
+                    <span>{children}</span>
+                  );
                 },
-              ],
-            ]}
-            components={{
-              a: ({ href, children }) => {
-                const safe = safeLink(href);
-                const number = flattenText(children).replace(/^\[|\]$/g, '');
-                const cited = evidence?.sources.find(
-                  (source) => String(source.id) === number && safe?.href === source.url,
-                );
-                return safe ? (
-                  <a
-                    href={safe.href}
-                    target={safe.external ? '_blank' : undefined}
-                    rel={safe.external ? 'noreferrer noopener' : undefined}
-                    className={cited ? 'asa-ai-citation' : undefined}
-                    aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
-                    title={cited?.hostname}
+                pre: CodePre,
+                table: ({ children }) => (
+                  <div
+                    className="asa-ai-table-scroll"
+                    role="region"
+                    aria-label="Таблица ответа"
+                    tabIndex={0}
                   >
-                    {children}
-                  </a>
-                ) : (
-                  <span>{children}</span>
-                );
-              },
-              pre: CodePre,
-              table: ({ children }) => (
-                <div
-                  className="asa-ai-table-scroll"
-                  role="region"
-                  aria-label="Таблица ответа"
-                  tabIndex={0}
-                >
-                  <table>{children}</table>
-                </div>
-              ),
-              img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
-            }}
-          >
-            {content}
-          </ReactMarkdown>
+                    <table>{children}</table>
+                  </div>
+                ),
+                img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
+              }}
+            >
+              {visibleContent}
+            </ReactMarkdown>
+          </CodeHeaderContext.Provider>
         </CodePendingContext.Provider>
       </ContentBoundary>
     </div>

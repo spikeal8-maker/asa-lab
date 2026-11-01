@@ -174,7 +174,9 @@ function policy(value: unknown): ToolPolicy {
   return { configurationVersion: Number(raw.revision), tools: TOOL_IDS.map((id) => byId.get(id)!) };
 }
 export function toolRule(p: ToolPolicy, id: NativeToolName): ToolRule {
-  const policyId = id === 'read_page' ? 'web_search' : id;
+  if (id !== 'read_page' && !TOOL_IDS.includes(id as ToolId))
+    return { id: 'web_search', enabled: false, instructions: '' };
+  const policyId: ToolId = id === 'read_page' ? 'web_search' : (id as ToolId);
   return (
     p.tools.find((item) => item.id === policyId) ?? {
       id: policyId,
