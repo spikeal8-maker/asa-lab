@@ -252,6 +252,43 @@ describe('central account verification API guard', () => {
     await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');
   });
 
+  it.each([
+    ['POST', '/api/learning/activity-participations/:participationId/attempts'],
+    ['GET', '/api/learning/attempts/:attemptId'],
+    ['PATCH', '/api/learning/attempts/:attemptId/quiz-answers'],
+  ])(
+    'keeps Quiz persistence Seat-first but verifies an Account on %s %s',
+    async (method, route) => {
+      const seat = harness({
+        cookie: 'valid-session',
+        seatCookie: 'valid-seat',
+        resolveSeat: true,
+        method,
+        route,
+        failure: new Error('required'),
+      });
+      expect(await seat.guard.canActivate(seat.context)).toBe(true);
+      expect(seat.requireAccount).not.toHaveBeenCalled();
+      const account = harness({
+        cookie: 'valid-session',
+        seatCookie: 'forged-seat',
+        method,
+        route,
+        failure: new Error('required'),
+      });
+      await expect(account.guard.canActivate(account.context)).rejects.toThrow('required');
+      const unrelated = harness({
+        cookie: 'valid-session',
+        seatCookie: 'valid-seat',
+        resolveSeat: true,
+        method: 'POST',
+        route: '/api/learning/attempts/:attemptId/submit',
+        failure: new Error('required'),
+      });
+      await expect(unrelated.guard.canActivate(unrelated.context)).rejects.toThrow('required');
+    },
+  );
+
   it('does not substitute a Seat on Account-first project endpoints', async () => {
     const test = harness({
       cookie: 'valid-session',

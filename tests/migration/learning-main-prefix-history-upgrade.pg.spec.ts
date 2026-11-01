@@ -324,6 +324,11 @@ const upgradeArtifacts = [
     '0289_learning_quiz_policy_authority.sql',
     '476451b2f0f31d60be2295e0189cc0484e746c8c4bae2d3492673d73ad8e4c03',
   ],
+  [
+    '0290',
+    '0290_learning_quiz_attempt_state.sql',
+    'dbd2c30bebf51058702dde89f65efe66ad2d116a27fc7782cd95c3b21b73faa1',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -419,6 +424,11 @@ const preservedTables = [
   'course_enrollments',
   'activity_runs',
   'activity_participations',
+  'learning_attempts',
+  'learning_submissions',
+  'learning_evaluations',
+  'assessment_results',
+  'gradebook_entries',
   'projects',
   'project_drafts',
   'project_versions',
@@ -444,9 +454,16 @@ async function preservedData(pool: pg.Pool) {
     const addedColumns =
       table === 'projects'
         ? [...copiedProjectOriginFields]
-        : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version', 'reactions_enabled', 'reactions_version']
-          : [];
+        : table === 'learning_attempts'
+          ? ['expires_at']
+          : table === 'project_publication_state'
+            ? [
+                'acquisition_allowed',
+                'acquisition_version',
+                'reactions_enabled',
+                'reactions_version',
+              ]
+            : [];
     result[table] = (
       await pool.query(
         `SELECT to_jsonb(snapshot_row) - $1::text[] AS value

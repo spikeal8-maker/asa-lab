@@ -68,6 +68,7 @@ const expectedPending = [
   '0287', // Durable successful-publication-copy aggregate.
   '0288', // Exact Course academic-result visibility without Project byte access.
   '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+  '0290', // Exact Quiz Start and answer state; historical rows remain unchanged.
 ];
 
 interface Identity {

@@ -15,6 +15,109 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/learning/activity-participations/{participationId}/attempts:
+    post:
+      operationId: startCanonicalQuizAttempt
+      summary: Start or resume the exact Quiz participation with a server-owned timer
+      description: Seat-first authenticated persistence only; does not submit or grade. Tenant, learner and content are derived from the participation. A request receipt preserves the same Attempt after a lost response.
+      parameters:
+        - in: path
+          name: participationId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200':
+          description: Frozen learner-safe Attempt and replay indicator
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt, reused]
+                properties:
+                  attempt: { $ref: '#/components/schemas/QuizAttemptState' }
+                  reused: { type: boolean }
+        '400': { description: Invalid request }
+        '401': { description: No active session }
+        '404': { description: Participation unavailable to the actor }
+        '409': { description: Admission, window, budget or policy conflict }
+        '503': { description: Database unavailable }
+  /api/learning/attempts/{attemptId}:
+    get:
+      operationId: readCanonicalQuizAttempt
+      summary: Restore frozen questions, confirmed answers and revision without restarting the timer
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Owned learner-safe history; no answer keys or grading evidence
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt]
+                properties:
+                  attempt: { $ref: '#/components/schemas/QuizAttemptState' }
+        '400': { description: Invalid attempt identifier }
+        '401': { description: No active session }
+        '404': { description: Attempt absent or unavailable to current actor }
+        '503': { description: Database unavailable }
+  /api/learning/attempts/{attemptId}/quiz-answers:
+    patch:
+      operationId: saveCanonicalQuizAnswers
+      summary: Save a complete confirmed answer map using optimistic revision
+      description: A competing revision returns 409 quiz_attempt_conflict; reload before retry. Server expiry and effective closing windows reject writes. Save creates no Submission, Evaluation, Result or journal entry.
+      parameters:
+        - in: path
+          name: attemptId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion, answers]
+              properties:
+                expectedVersion: { type: integer, minimum: 1, maximum: 2147483646 }
+                answers:
+                  type: object
+                  description: Frozen question-version UUID keys. Multiple choice uses values array; other supported types use value. Missing questions are unanswered. JSON map is limited to 262144 UTF-8 bytes.
+                  additionalProperties:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      value: { type: [string, number, boolean, 'null'] }
+                      values: { type: [array, 'null'], uniqueItems: true, items: { type: string } }
+      responses:
+        '200':
+          description: Confirmed answers with incremented version and server timestamp
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [attempt]
+                properties:
+                  attempt: { $ref: '#/components/schemas/QuizAttemptState' }
+        '400': { description: Invalid body or frozen question response }
+        '401': { description: No active session }
+        '404': { description: Attempt absent or unavailable to current actor }
+        '409': { description: quiz_attempt_conflict or quiz_attempt_closed }
+        '503': { description: Database unavailable }
   /api/admin/v1/users:
     get:
       operationId: getFilteredCrmUsers
@@ -7777,6 +7880,68 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    QuizAttemptState:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          attemptId,
+          participationId,
+          activityRunId,
+          activityVersionId,
+          attemptNumber,
+          state,
+          startedAt,
+          expiresAt,
+          serverNow,
+          version,
+          answers,
+          questions,
+          questionOrder,
+          optionOrder,
+          lastSavedAt,
+        ]
+      properties:
+        attemptId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityRunId: { type: string, format: uuid }
+        activityVersionId: { type: string, format: uuid }
+        attemptNumber: { type: integer, minimum: 1 }
+        state:
+          { type: string, enum: [in_progress, submitted, evaluating, closed, invalidated, expired] }
+        startedAt: { type: string, format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        serverNow: { type: string, format: date-time }
+        version: { type: integer, minimum: 1 }
+        answers: { type: object, additionalProperties: { type: object } }
+        questions:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, type, promptBlocks, maxPoints, options]
+            properties:
+              id: { type: string, format: uuid }
+              type:
+                {
+                  type: string,
+                  enum: [single_choice, multiple_choice, boolean, numeric, short_text],
+                }
+              promptBlocks: { type: array, items: { type: object } }
+              maxPoints: { type: integer, minimum: 1 }
+              options:
+                type: [array, 'null']
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [id, label]
+                  properties:
+                    id: { type: string }
+                    label: { type: string }
+        questionOrder: { type: array, items: { type: string, format: uuid } }
+        optionOrder:
+          { type: object, additionalProperties: { type: array, items: { type: string } } }
+        lastSavedAt: { type: [string, 'null'], format: date-time }
     CrmDirectoryPage:
       type: object
       required: [items, matchedCount, analytics, asOf, next, studentCoverage]

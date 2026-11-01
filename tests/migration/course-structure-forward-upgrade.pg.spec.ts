@@ -159,6 +159,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0287', // Durable successful-publication-copy aggregate.
         '0288', // Separate authorization for published Course academic results.
         '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0290', // Exact Quiz Start and answer state; historical rows remain unchanged.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -477,6 +478,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0287', // Durable successful-publication-copy aggregate.
           '0288', // Exact academic-result authorization independent of Project files.
           '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0290', // Exact Quiz Start and answer state; historical rows remain unchanged.
         ]);
         expect(
           await applyIsolatedTestPlan(
@@ -529,7 +531,7 @@ describe('Course Builder structure forward upgrade', () => {
       expect(
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],
-      ).toEqual(legacyAttemptBefore);
+      ).toEqual({ ...legacyAttemptBefore, expires_at: null });
 
       const draftAfter = (
         await pool.query(
