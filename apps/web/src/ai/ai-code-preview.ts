@@ -56,6 +56,8 @@ export function codePreviewDocument(code: string, interactive = false): string |
           !a.namespace &&
           (ATTRS.has(a.name.toLowerCase()) ||
             /^aria-[a-z-]+$/.test(a.name) ||
+            /^data-[a-z0-9_-]+$/.test(a.name) ||
+            ['tabindex', 'for', 'name'].includes(a.name) ||
             (interactive && /^on[a-z]+$/.test(a.name))),
       )
       .map((a) => ` ${CASED[a.name.toLowerCase()] || a.name}="${escape(a.value)}"`)

@@ -9,6 +9,7 @@ test('interactive preview runs buttons, isolates ASA data and blocks navigation 
   context,
 }) => {
   const outgoing: string[] = [];
+  page.on('websocket', (socket) => outgoing.push(socket.url()));
   await context.addCookies([
     { name: 'asa_probe', value: 'private-cookie', url: 'https://asa-preview.test' },
   ]);
@@ -59,7 +60,7 @@ test('interactive preview runs buttons, isolates ASA data and blocks navigation 
     `navigator.sendBeacon('https://blocked.invalid/beacon','test')`,
     `new Image().src='https://blocked.invalid/image'`,
     `new WebSocket('wss://blocked.invalid/socket')`,
-    `document.open();document.write('<h1>rewritten</h1><script>location.replace("https://blocked.invalid/rewrite")<\\/script>');document.close()`,
+    `document.open();document.write('<h1>rewritten</h1><script>location.replace("https://blocked.invalid/rewrite")</scr'+'ipt>');document.close()`,
   ];
   for (const probe of probes) {
     await mount(`<script>try{${probe}}catch{}</script><p>probe</p>`);
