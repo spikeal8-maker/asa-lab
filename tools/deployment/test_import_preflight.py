@@ -42,7 +42,11 @@ class ImportPreflightTests(unittest.TestCase):
         }
         self.recovery = {
             "revision": SHA,
-            "files": {"compose.yaml": "services:\n  postgres:\n    image: pinned\n"},
+            "files": {
+                "compose.yaml": "services:\n  postgres:\n    image: pinned\n",
+                "compose.production.yaml": "services:\n  api:\n    environment:\n      ASA_SEED_DEV: false\n",
+                ".asa/docker-networks.yaml": "networks:\n  database:\n    driver: bridge\n",
+            },
             "installedRelease": self.release,
         }
         self.env = {
@@ -76,6 +80,10 @@ class ImportPreflightTests(unittest.TestCase):
             json.dumps(self.release), encoding="utf8")
         (self.root / "configuration" / "runtime-configuration.json").write_text(
             json.dumps(self.recovery), encoding="utf8")
+        for relative, content in self.recovery["files"].items():
+            member = self.root / "configuration" / relative
+            member.parent.mkdir(parents=True, exist_ok=True)
+            member.write_text(content, encoding="utf8")
         self.manifest["files"] = inventory_files(self.root)
         (self.root / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf8")
 
@@ -84,6 +92,7 @@ class ImportPreflightTests(unittest.TestCase):
         self.assertEqual(response["status"], "ARCHIVE_VERIFIED_NO_IMPORT")
         self.assertEqual(response["sourceRevision"], SHA)
         self.assertEqual(response["bucketFileCount"], 1)
+        self.assertEqual(response["composeFileCount"], 3)
         self.assertTrue(response["preservesOriginalKeys"])
         self.assertFalse(response["writesPerformed"])
         self.assertFalse(response["targetProvisioned"])
@@ -102,6 +111,24 @@ class ImportPreflightTests(unittest.TestCase):
         self.assertEqual(code, 0, stderr.getvalue())
         self.assertIn("ARCHIVE_VERIFIED_NO_IMPORT", stdout.getvalue())
         self.assertNotIn("synthetic_settings_original_key", stdout.getvalue())
+
+    def test_missing_production_compose_overlay_is_blocked(self):
+        self.recovery["files"].pop("compose.production.yaml")
+        self.save()
+        with self.assertRaises(Blocked) as caught:
+            validate_import_archive(self.root)
+        self.assertEqual(caught.exception.code, "IMPORT_CONFIGURATION")
+
+    def test_compose_bytes_mismatch_even_if_inventory_hashes_are_rebased(self):
+        profile_file = self.root / "configuration" / "compose.production.yaml"
+        profile_file.write_text("services:\n  api:\n    image: foreign\n", encoding="utf8")
+        # Forge a matching hash inventory: recovered JSON must still match the
+        # actual Compose file used by a later importer, not only its SHA listing.
+        self.manifest["files"] = inventory_files(self.root)
+        (self.root / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf8")
+        with self.assertRaises(Blocked) as caught:
+            validate_import_archive(self.root)
+        self.assertEqual(caught.exception.code, "IMPORT_CONFIGURATION")
 
     def test_missing_original_secret_blocks(self):
         self.env.pop("ASA_SETTINGS_ENCRYPTION_KEY")

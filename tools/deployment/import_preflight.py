@@ -141,9 +141,29 @@ def validate_import_archive(location):
             and recovery.get("installedRelease") == installed,
             "IMPORT_RELEASE_IDENTITY",
             "Backup runtime, recovery configuration, and pinned release do not identify the same state.")
-    require(isinstance(recovery.get("files"), dict)
-            and "compose.yaml" in recovery["files"],
-            "IMPORT_CONFIGURATION", "Archive lacks the exact original Compose configuration.")
+    recovery_files = recovery.get("files")
+    profile = manifest["profile"]
+    required_compose = {"compose.yaml"}
+    if profile != "base":
+        required_compose.add("compose." + profile + ".yaml")
+    permitted_compose = required_compose | {
+        ".asa/docker-networks.yaml", "compose.frp.yaml",
+    }
+    require(isinstance(recovery_files, dict)
+            and required_compose <= set(recovery_files)
+            and set(recovery_files) <= permitted_compose,
+            "IMPORT_CONFIGURATION",
+            "Archive lacks the exact original Compose/profile overlay or contains unexpected configuration paths.")
+    for relative, content in recovery_files.items():
+        require(isinstance(content, str)
+                and "configuration/" + relative in manifest["files"],
+                "IMPORT_CONFIGURATION",
+                "Recovery Compose file is absent from the complete backup inventory.")
+        source_file = root / "configuration" / relative
+        _regular(source_file, "IMPORT_CONFIGURATION")
+        require(source_file.read_text(encoding="utf-8") == content,
+                "IMPORT_CONFIGURATION",
+                "Recovery Compose file bytes differ from the attested configuration snapshot.")
     object_files = [key for key in manifest["files"] if key.startswith("objects/")]
     require(object_files, "IMPORT_OBJECTS_MISSING",
             "Full source MinIO data is absent; archive is not a complete transfer.")
@@ -158,6 +178,7 @@ def validate_import_archive(location):
         "sourceRevision": runtime["revision"],
         "sourceSchema": runtime["schema"],
         "archiveFileCount": len(manifest["files"]),
+        "composeFileCount": len(recovery_files),
         "minioFileCount": len(object_files),
         "bucketFileCount": len(bucket_files),
         "databaseDumpBytes": (root / "database.dump").stat().st_size,

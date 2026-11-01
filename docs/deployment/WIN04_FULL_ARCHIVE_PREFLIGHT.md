@@ -23,6 +23,12 @@ SHA-256 **каждого** файла архива и запрещает `.incom
 - наличие `database.dump`, `globals.sql`, `private.env`;
 - `configuration/runtime-configuration.json`, `installed-release.json`,
   точный исходный SHA, версию схемы и закреплённые Docker-образы;
+- все Compose-конфигурации исходного профиля: обязательные `compose.yaml` и
+  `compose.production.yaml` / `compose.staging.yaml` / `compose.dev.yaml`
+  (для `base` только `compose.yaml`), а также при наличии
+  `.asa/docker-networks.yaml` и `compose.frp.yaml`. Каждая конфигурация
+  должна физически присутствовать в проверяемом файловом инвентаре и
+  дословно совпадать с recovery JSON. Посторонние пути запрещены;
 - полноту MinIO-экспорта `objects/`, наличие пользовательского bucket
   `asa-blocks` и точные SHA-256 объектов по манифесту;
 - наличие **исходных**, а не вновь сгенерированных ключей PostgreSQL,
