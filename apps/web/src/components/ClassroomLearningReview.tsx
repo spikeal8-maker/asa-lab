@@ -334,6 +334,7 @@ export function ClassroomLearningReview({
               <label>
                 Отзыв
                 <textarea
+                  aria-label="Отзыв"
                   maxLength={8000}
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}

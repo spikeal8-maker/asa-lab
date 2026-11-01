@@ -1111,9 +1111,18 @@ async function exerciseExactReviewStream(
     await expect(review).toHaveURL(acceptedUrl);
     await expect(stream).toBeVisible();
     await expect(form.getByTestId('submission-version-id')).toHaveText(frozenVersion!);
+    expect(
+      await feedbackNode!.evaluate((node) => ({
+        connected: node.isConnected,
+        value: (node as HTMLTextAreaElement).value,
+      })),
+    ).toEqual({ connected: true, value: retainedFeedback });
   };
   const retainedFeedback = 'Не потерять отзыв при отклонённом переходе';
   await form.getByLabel('Отзыв', { exact: true }).fill(retainedFeedback);
+  await expect(form.getByLabel('Отзыв', { exact: true })).toHaveValue(retainedFeedback);
+  const feedbackNode = await form.getByLabel('Отзыв', { exact: true }).elementHandle();
+  expect(feedbackNode).not.toBeNull();
   for (const change of ['remove-stream', 'course-hint'] as const) {
     await rejectNativeFocus(change);
     await expect(form.getByLabel('Отзыв', { exact: true })).toHaveValue(retainedFeedback);
