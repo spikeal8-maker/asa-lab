@@ -481,4 +481,121 @@ describe('real publication discussion identity, policy and moderation boundary',
     expect(new Set(responses.map((r) => r.json().id)).size).toBe(1);
     expect((await read(s)).json().items).toHaveLength(1);
   });
+  it('persists idempotent comment likes independently of classroom write permission, with live identity and removal after hide', async () => {
+    const s = await source(),
+      reader = await identity();
+    const c = (await create(s, s.owner, 'Полезный комментарий')).json();
+    const like = (actor: typeof reader, on = true) =>
+      command(s, actor, 'like', { commentId: c.id, on });
+    expect((await like(s.owner)).statusCode).toBe(403);
+    const parallel = await Promise.all(Array.from({ length: 5 }, () => like(reader)));
+    expect(parallel.map((r) => r.statusCode)).toEqual([200, 200, 200, 200, 200]);
+    expect((await read(s, reader)).json().items[0]).toMatchObject({
+      likeCount: 1,
+      liked: true,
+      canLike: true,
+    });
+    const f = await studentProjectPolicyFixture(admin, runtime);
+    expect((await f.read()).comments).toBe(false);
+    const seatLike = await inject(app, {
+      method: 'POST',
+      url: endpoint(s) + '/commands',
+      cookies: { asa_student_session: f.token },
+      payload: { action: 'like', commentId: c.id, on: true },
+    });
+    expect(seatLike.statusCode, seatLike.body).toBe(200);
+    expect((await read(s)).json().items[0].likeCount).toBe(2);
+    expect(
+      (
+        await inject(app, {
+          method: 'POST',
+          url: endpoint(s) + '/commands',
+          payload: { action: 'like', commentId: c.id, on: true },
+        })
+      ).statusCode,
+    ).toBe(401);
+    await command(s, s.owner, 'hide', { commentId: c.id, expectedVersion: 0 });
+    expect((await like(reader)).statusCode).toBe(404);
+    expect((await like(reader, false)).statusCode).toBe(200);
+    expect((await read(s, reader)).json().items[0]).toMatchObject({
+      body: null,
+      likeCount: 0,
+      liked: false,
+    });
+    await expect(runtime.query('SELECT * FROM publication_comment_likes')).rejects.toMatchObject({
+      code: '42501',
+    });
+    await admin.query('UPDATE sessions_v2 SET revoked_at=now() WHERE token_hash=$1', [reader.hash]);
+    expect((await like(reader, false)).statusCode).toBe(401);
+  });
+  it('pins one visible root for an owner or live platform admin and keeps hidden pins out of public projection', async () => {
+    const s = await source(),
+      other = await identity(),
+      mod = await identity(true);
+    const a = (await create(s, s.owner, 'Первый')).json(),
+      b = (await create(s, s.owner, 'Второй')).json();
+    const pin = (actor: typeof other, id: string, on: boolean, version: number) =>
+      command(s, actor, 'pin', { commentId: id, on, expectedVersion: version });
+    expect((await pin(other, a.id, true, 0)).statusCode).toBe(403);
+    expect((await pin(s.owner, a.id, true, 0)).statusCode).toBe(200);
+    const pinned = (await read(s, s.owner)).json();
+    expect(pinned.pinnedComment).toMatchObject({ id: a.id, pinned: true });
+    expect(pinned.items.map((i: { id: string }) => i.id)).toEqual([b.id, a.id]);
+    const legacy = (
+      await runtime.query('SELECT publication_comments_read($1,$2,$3,NULL,NULL,20) result', [
+        s.owner.principal,
+        s.owner.hash,
+        s.publicationId,
+      ])
+    ).rows[0].result;
+    expect(legacy.items.map((i: { id: string }) => i.id)).toContain(a.id);
+    expect((await pin(mod, b.id, true, 1)).statusCode).toBe(200);
+    expect((await pin(s.owner, a.id, false, 1)).statusCode).toBe(409);
+    expect((await read(s)).json().pinnedComment.id).toBe(b.id);
+    const reply = (await create(s, s.owner, 'Ответ', { parentId: a.id })).json();
+    expect((await pin(s.owner, reply.id, true, 2)).statusCode).toBe(404);
+    await command(s, s.owner, 'hide', { commentId: b.id, expectedVersion: 0 });
+    expect((await read(s)).json().pinnedComment).toBeNull();
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*)::int n FROM administrative_audit_events WHERE actor_principal_id=$1 AND action='publication.comment.pin'",
+          [mod.principal],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    await admin.query(
+      "UPDATE capability_grants SET state='revoked' WHERE account_id=$1 AND capability='platform_admin'",
+      [mod.account],
+    );
+    expect((await pin(mod, a.id, true, 2)).statusCode).toBe(403);
+  });
+  it('sorts and keyset-pages new, old and popular comments on the server', async () => {
+    const s = await source(),
+      r1 = await identity(),
+      r2 = await identity();
+    const a = (await create(s, s.owner, 'Старый популярный')).json(),
+      b = (await create(s, s.owner, 'Средний')).json(),
+      c = (await create(s, s.owner, 'Новый')).json();
+    for (const actor of [r1, r2])
+      expect((await command(s, actor, 'like', { commentId: a.id, on: true })).statusCode).toBe(200);
+    await command(s, r1, 'like', { commentId: b.id, on: true });
+    expect(
+      (await read(s, r1, '?sort=newest')).json().items.map((i: { id: string }) => i.id),
+    ).toEqual([c.id, b.id, a.id]);
+    for (const sort of ['oldest', 'popular']) {
+      const ids: string[] = [];
+      let cursor = '';
+      for (let n = 0; n < 3; n++) {
+        const p = (
+          await read(s, r1, `?sort=${sort}&limit=1${cursor ? '&before=' + cursor : ''}`)
+        ).json();
+        ids.push(p.items[0].id);
+        cursor = p.nextCursor;
+      }
+      expect(ids).toEqual([a.id, b.id, c.id]);
+      expect(cursor).toBeNull();
+    }
+    expect((await read(s, r1, '?sort=unknown')).statusCode).toBe(400);
+  });
 });

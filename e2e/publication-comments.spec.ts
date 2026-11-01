@@ -173,6 +173,22 @@ test('real discussion persists, class and learner permissions are independent, o
         exact: true,
       }),
     ).toBeVisible();
+    const ownerRoot = ownerComments
+      .getByTestId('publication-comment')
+      .filter({ hasText: 'Интересный проект! Как изменить скорость?' });
+    await ownerRoot.getByRole('button', { name: 'Нравится комментарий', exact: true }).click();
+    await expect(ownerRoot.getByRole('button', { name: 'Убрать лайк комментария' })).toHaveText(
+      '1',
+    );
+    await owner.reload();
+    await expect(
+      ownerRoot.getByRole('button', { name: 'Убрать лайк комментария' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await ownerRoot.getByLabel('Действия с комментарием').click();
+    await ownerRoot.getByRole('button', { name: 'Закрепить', exact: true }).click();
+    await expect(ownerRoot.getByText('Закреплено', { exact: true })).toBeVisible();
+    await ownerComments.getByLabel('Порядок комментариев').selectOption('popular');
+    await expect(ownerRoot.getByText('Закреплено', { exact: true })).toBeVisible();
     await ownerComments.getByLabel('Обсуждение открыто').click();
     await expect(ownerComments.getByLabel('Обсуждение открыто')).not.toBeChecked();
     await expect(ownerComments).toContainText('Автор закрыл обсуждение');
@@ -206,6 +222,7 @@ test('real discussion persists, class and learner permissions are independent, o
     await layout(moderator, individual, 'learner-permission');
     await moderator.setViewportSize({ width: 1024, height: 1000 });
     await learner.reload();
+    await pupilComments.getByLabel('Действия с комментарием').first().click();
     await pupilComments.getByRole('button', { name: 'Пожаловаться', exact: true }).first().click();
     await pupilComments.getByLabel('Причина жалобы').fill('Проверка маршрута модерации');
     await pupilComments.getByRole('button', { name: 'Отправить жалобу', exact: true }).click();

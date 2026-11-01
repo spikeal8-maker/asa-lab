@@ -452,10 +452,6 @@ export function ElectronicsPublicationScene({
           </g>
         </svg>
       </NativeOpticalProvider>
-      <p className="public-electronics-hint">
-        {artifact.schemaVersion === 2 ? 'Для этой версии доступен только просмотр. ' : ''}
-        Перетаскивайте схему · Масштаб + / − · Home — вписать
-      </p>
       {codeOpen ? (
         <aside className="public-electronics-code" aria-label="Код Arduino">
           <div className="public-electronics-code-heading">

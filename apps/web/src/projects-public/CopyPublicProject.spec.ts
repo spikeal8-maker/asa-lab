@@ -71,7 +71,11 @@ describe('published private copy UI', () => {
     expect(container.textContent).toContain('Создаём копию');
     await act(async () => finish(success));
     const link = container.querySelector('a')!;
-    expect(link.textContent).toBe('Открыть мою копию');
+    expect(link.textContent).toContain('Открыть мою копию');
+    expect(container.querySelector('.publication-copy-check')).not.toBeNull();
+    expect(container.querySelector('[role=status]')?.textContent).toContain(
+      'Добавлено в мои проекты',
+    );
     expect(link.getAttribute('href')).toBe(
       '/projects/my-private-copy/electronics/edit?returnTo=%23%2Fprojects',
     );

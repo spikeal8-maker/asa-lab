@@ -216,3 +216,42 @@ it('requires report reason and sends CAS when the owner closes comments', async 
   await click('Пожаловаться');
   expect(host.querySelector('textarea[name=reason]')?.hasAttribute('required')).toBe(true);
 });
+it('renders authoritative reaction receipts and pins without duplicate root rows', async () => {
+  vi.mocked(call).mockResolvedValueOnce(
+    page({ canPin: true }, [{ ...row, canLike: true, likeCount: 2 }]),
+  );
+  await render();
+  vi.mocked(call).mockResolvedValueOnce({
+    ok: true,
+    status: 200,
+    data: { comment: { ...row, canLike: true, liked: true, likeCount: 3 } },
+  });
+  const heart = host.querySelector<HTMLButtonElement>('[aria-label="Нравится комментарий"]')!;
+  await act(async () => heart.click());
+  expect(host.querySelector('[aria-label="Убрать лайк комментария"]')?.textContent).toBe('3');
+  vi.mocked(call)
+    .mockResolvedValueOnce({ ok: true, status: 200, data: { succeeded: true } })
+    .mockResolvedValueOnce({
+      ...page({ canPin: true, version: 1 }),
+      data: {
+        ...page({ canPin: true, version: 1 }).data,
+        pinnedComment: { ...row, pinned: true, likeCount: 3, liked: true },
+      },
+    });
+  await click('Закрепить');
+  expect(host.querySelectorAll('[data-testid=publication-comment]')).toHaveLength(1);
+  expect(host.textContent).toContain('Закреплено');
+});
+it('changes server sorting without losing the comment draft', async () => {
+  vi.mocked(call).mockResolvedValueOnce(page());
+  await render();
+  await type('Черновик ответа');
+  vi.mocked(call).mockResolvedValueOnce(page({}, [row]));
+  await act(async () => {
+    const select = host.querySelector('select')!;
+    select.value = 'popular';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  expect(vi.mocked(call).mock.calls.at(-1)![0]).toContain('sort=popular');
+  expect(host.querySelector('textarea')!.value).toBe('Черновик ответа');
+});

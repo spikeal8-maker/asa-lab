@@ -1,18 +1,11 @@
 {
-  "publicationId": "11506fd2-0b50-42a3-8497-b41a2d51b820",
+  "publicationId": "09f77e1e-1ea3-4c65-a7e7-296a12cd3af7",
   "persistent": true,
   "classDefaultOff": true,
   "individualDeny": true,
   "individualAllow": true,
   "authorClose": true,
   "moderationAudit": true,
-  "widths": [
-    1440,
-    1024,
-    768,
-    600,
-    390,
-    320
-  ],
+  "widths": [1440, 1024, 768, 600, 390, 320],
   "pageErrors": []
 }

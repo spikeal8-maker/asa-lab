@@ -80,6 +80,20 @@ export function PublicProjectPage({
     }
     setPublication(result.data.publication);
   }, [publicationId]);
+  const refreshCopyCount = useCallback(async () => {
+    const current = request.current;
+    const result = await publicProjectsApi.get(publicationId, controller.current?.signal);
+    if (current !== request.current || !result.ok) return;
+    const count = result.data.publication?.copyCount;
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return;
+    setPublication((old) =>
+      old &&
+      old.publicationId === result.data.publication?.publicationId &&
+      old.revisionId === result.data.publication.revisionId
+        ? { ...old, copyCount: count }
+        : old,
+    );
+  }, [publicationId]);
   useEffect(() => {
     void reload();
     return () => {
@@ -132,7 +146,11 @@ export function PublicProjectPage({
               <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             </div>
             <div className="public-project-commandbar" aria-label="Действия с проектом">
-              <CopyPublicProject key={publication.revisionId} publication={publication} />
+              <CopyPublicProject
+                key={publication.revisionId}
+                publication={publication}
+                onCopied={() => void refreshCopyCount()}
+              />
               <div className="public-project-actions">
                 <PublicationLike
                   key={publication.revisionId}

@@ -26,6 +26,7 @@ for (const path of browser
       'tests/portal/publication-likes.pg.spec.ts',
       'tests/portal/publication-comments.pg.spec.ts',
       'apps/web/src/projects-public/PublicationComments.spec.ts',
+      'apps/web/src/projects-public/SharePublicationLink.spec.ts',
       'apps/web/src/admin/testing/publication-comments.spec.ts',
       'apps/api/src/publication-likes.controller.spec.ts',
       'apps/web/src/projects-public/PublicationLike.spec.ts',

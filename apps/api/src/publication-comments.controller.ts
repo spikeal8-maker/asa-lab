@@ -105,17 +105,23 @@ export class PublicationCommentsController {
     @Query('parentId') parent: string | undefined,
     @Query('before') before: string | undefined,
     @Query('limit') limit: string | undefined,
+    @Query('sort') sort: string | undefined,
   ) {
     const page = this.page(id, before, limit);
-    if (parent !== undefined && !uuid(parent)) invalid();
+    if (
+      (parent !== undefined && !uuid(parent)) ||
+      (sort !== undefined && !['newest', 'oldest', 'popular'].includes(sort))
+    )
+      invalid();
     const a = await this.actor(req, false);
-    return this.query('SELECT public.publication_comments_read($1,$2,$3,$4,$5,$6) AS result', [
+    return this.query('SELECT public.publication_comments_read($1,$2,$3,$4,$5,$6,$7) AS result', [
       a.id,
       a.hash,
       id,
       parent ?? null,
       page.before,
       page.limit,
+      sort ?? 'newest',
     ]);
   }
   @Post('public-projects/:publicationId/comments/commands')
@@ -137,9 +143,39 @@ export class PublicationCommentsController {
       'expectedVersion',
       'reason',
       'enabled',
+      'on',
     ]);
     if (!shape.ok) invalid();
     const { action, ...input } = shape.body;
+    if (action === 'like' || action === 'pin') {
+      if (
+        !uuid(input['commentId']) ||
+        typeof input['on'] !== 'boolean' ||
+        Object.keys(input).some(
+          (k) => !['commentId', 'on', ...(action === 'pin' ? ['expectedVersion'] : [])].includes(k),
+        )
+      )
+        invalid();
+      if (action === 'pin' && !expected(input['expectedVersion'])) invalid();
+      const a = await this.actor(req, true);
+      return action === 'like'
+        ? this.query('SELECT public.publication_comment_react($1,$2,$3,$4,$5) AS result', [
+            a.id,
+            a.hash,
+            id,
+            input['commentId'],
+            input['on'],
+          ])
+        : this.query('SELECT public.publication_comment_pin($1,$2,$3,$4,$5,$6,$7) AS result', [
+            a.id,
+            a.hash,
+            id,
+            input['commentId'],
+            input['on'],
+            input['expectedVersion'],
+            req.id,
+          ]);
+    }
     if (action === 'create') {
       if (
         typeof input['body'] !== 'string' ||

@@ -4,6 +4,7 @@ import { PortalLink } from '../components/PortalLink';
 import { newClientId } from '../client-id';
 import { onSessionLoggedOut } from '../session-fetch';
 import { subscribeTelemetry, telemetryContext } from '../telemetry-context';
+import { LikeSignIn } from './PublicationLike';
 
 export interface DiscussionState {
   authenticated: boolean;
@@ -12,6 +13,7 @@ export interface DiscussionState {
   version: number;
   revisionId: string;
   canManage: boolean;
+  canPin?: boolean;
   canComment: boolean;
   reason: 'closed' | 'sign_in' | 'permission' | null;
 }
@@ -26,11 +28,16 @@ export interface PublicComment {
   canDelete: boolean;
   canManage: boolean;
   replyCount: number;
+  likeCount?: number;
+  liked?: boolean;
+  canLike?: boolean;
+  pinned?: boolean;
 }
 interface Page {
   state: DiscussionState;
   items: PublicComment[];
   nextCursor: string | null;
+  pinnedComment?: PublicComment | null;
 }
 interface Receipt {
   comment?: PublicComment;
@@ -64,6 +71,8 @@ export function PublicationComments({
 }): JSX.Element {
   const [page, setPage] = useState<Page | null>(null),
     [items, setItems] = useState<PublicComment[]>([]);
+  const [sort, setSort] = useState('newest');
+  const sortRef = useRef('newest');
   const [text, setText] = useState(''),
     [parent, setParent] = useState<PublicComment | null>(null),
     [busy, setBusy] = useState(false),
@@ -99,7 +108,9 @@ export function PublicationComments({
       setLoading(true);
       setError(null);
       const result = await request<Page>(
-        endpoint + (cursor ? `?before=${encodeURIComponent(cursor)}` : ''),
+        endpoint +
+          `?sort=${sortRef.current}` +
+          (cursor ? `&before=${encodeURIComponent(cursor)}` : ''),
       );
       if (
         !active.current ||
@@ -185,7 +196,11 @@ export function PublicationComments({
       setError(
         commentError(
           result.status,
-          'Ответ не подтверждён. Повторная отправка того же текста не создаст второй комментарий.',
+          action === 'like'
+            ? 'Лайк не подтверждён. Повторите действие.'
+            : action === 'pin'
+              ? 'Не удалось изменить закрепление. Обновите обсуждение.'
+              : 'Ответ не подтверждён. Повторная отправка того же текста не создаст второй комментарий.',
         ),
       );
       if (result.status === 401) {
@@ -196,13 +211,20 @@ export function PublicationComments({
         setItems([]);
         setText('');
         setParent(null);
-      } else if (result.status === 403)
+      } else if (result.status === 403 && action !== 'like' && action !== 'pin')
         setPage((p) => (p ? { ...p, state: { ...p.state, canComment: false } } : p));
       return false;
+    }
+    if (action === 'pin') {
+      await load();
+      return true;
     }
     if (action === 'settings') setPage((p) => (p ? { ...p, state: result.data } : p));
     else if (result.data.comment) {
       const comment = result.data.comment;
+      if (page?.pinnedComment?.id === comment.id) {
+        setPage((p) => (p ? { ...p, pinnedComment: comment } : p));
+      }
       if (comment.parentId) {
         setItems((old) =>
           old.map((row) =>
@@ -213,7 +235,7 @@ export function PublicationComments({
         );
         setReplied(comment.parentId);
         setReplyEpoch((v) => v + 1);
-      } else
+      } else if (page?.pinnedComment?.id !== comment.id)
         setItems((old) =>
           old.some((row) => row.id === comment.id)
             ? old.map((row) => (row.id === comment.id ? comment : row))
@@ -221,6 +243,15 @@ export function PublicationComments({
         );
     }
     if (action === 'report') setNotice('Жалоба отправлена модератору.');
+    if (
+      result.data.comment &&
+      !result.data.comment.parentId &&
+      ((action === 'create' && sortRef.current !== 'newest') ||
+        (action === 'like' && sortRef.current === 'popular') ||
+        (page?.pinnedComment?.id === result.data.comment.id &&
+          result.data.comment.status !== 'visible'))
+    )
+      await load();
     return true;
   }
   async function submit() {
@@ -245,14 +276,33 @@ export function PublicationComments({
     >
       <div className="publication-comments-heading">
         <h2 id="publication-comments-title">Комментарии</h2>
-        <button
-          type="button"
-          className="publication-comment-link"
-          disabled={busy || loading || retired.current}
-          onClick={() => void load()}
-        >
-          Обновить
-        </button>
+        <div className="publication-comments-tools">
+          <label className="sr-only" htmlFor="comment-sort">
+            Порядок комментариев
+          </label>
+          <select
+            id="comment-sort"
+            value={sort}
+            disabled={busy || loading || retired.current}
+            onChange={(e) => {
+              sortRef.current = e.target.value;
+              setSort(e.target.value);
+              void load();
+            }}
+          >
+            <option value="newest">Сначала новые</option>
+            <option value="oldest">Сначала старые</option>
+            <option value="popular">Популярные</option>
+          </select>
+          <button
+            type="button"
+            className="publication-comment-link"
+            disabled={busy || loading || retired.current}
+            onClick={() => void load()}
+          >
+            Обновить
+          </button>
+        </div>
       </div>
       {page?.state.canManage ? (
         <label className="publication-comments-switch">
@@ -332,13 +382,16 @@ export function PublicationComments({
         </p>
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
-      {!loading && page && !items.length ? (
+      {!loading && page && !items.length && !page.pinnedComment ? (
         <p className="publication-comments-empty">
           Пока нет комментариев. Здесь можно обсудить работу проекта.
         </p>
       ) : null}
       <div className="publication-comment-list">
-        {items.map((row) => (
+        {[
+          ...(page?.pinnedComment ? [page.pinnedComment] : []),
+          ...items.filter((row) => row.id !== page?.pinnedComment?.id),
+        ].map((row) => (
           <CommentThread
             key={row.id}
             row={row}
@@ -346,6 +399,8 @@ export function PublicationComments({
             request={request}
             canComment={!!page?.state.canComment}
             signedIn={!!page?.state.authenticated}
+            canPin={!!page?.state.canPin}
+            pinVersion={page?.state.version ?? 0}
             busy={busy}
             epoch={replyEpoch}
             openInitially={replied === row.id}
@@ -375,6 +430,8 @@ function CommentThread({
   request,
   canComment,
   signedIn,
+  canPin,
+  pinVersion,
   busy,
   epoch,
   openInitially,
@@ -386,6 +443,8 @@ function CommentThread({
   readonly request: Request;
   readonly canComment: boolean;
   readonly signedIn: boolean;
+  readonly canPin: boolean;
+  readonly pinVersion: number;
   readonly busy: boolean;
   readonly epoch: number;
   readonly openInitially: boolean;
@@ -398,6 +457,7 @@ function CommentThread({
     [loading, setLoading] = useState(false),
     [error, setError] = useState<string | null>(null),
     [report, setReport] = useState<string | null>(null);
+  const [guestPrompt, setGuestPrompt] = useState(false);
   const sequence = useRef(0),
     alive = useRef(true);
   const visible = row.status === 'visible';
@@ -444,16 +504,20 @@ function CommentThread({
   const render = (item: PublicComment, reply = false) => (
     <article
       key={item.id}
-      className={`publication-comment${reply ? ' is-reply' : ''}`}
+      className={`publication-comment${reply ? ' is-reply' : ''}${item.pinned ? ' is-pinned' : ''}`}
       data-testid="publication-comment"
     >
       {item.status === 'visible' ? (
         <>
           <header>
+            <span className="publication-comment-avatar" aria-hidden="true">
+              {item.author?.trim().slice(0, 1).toLocaleUpperCase('ru-RU') || '·'}
+            </span>
             <strong>{item.author}</strong>
             <time dateTime={item.createdAt}>
               {new Date(item.createdAt).toLocaleString('ru-RU')}
             </time>
+            {item.pinned ? <span className="publication-comment-pin-label">Закреплено</span> : null}
           </header>
           <p className="publication-comment-body">{item.body}</p>
         </>
@@ -461,40 +525,93 @@ function CommentThread({
         <p className="publication-comment-tombstone">{statusText(item.status)}</p>
       )}
       <div className="publication-comment-actions">
+        {item.status === 'visible' && typeof item.likeCount === 'number' ? (
+          <button
+            type="button"
+            className="publication-comment-heart"
+            aria-label={item.liked ? 'Убрать лайк комментария' : 'Нравится комментарий'}
+            aria-pressed={!!item.liked}
+            disabled={busy || (signedIn && !item.liked && !item.canLike)}
+            onClick={() => {
+              if (!signedIn) {
+                setGuestPrompt(true);
+                return;
+              }
+              void command('like', { commentId: item.id, on: !item.liked });
+            }}
+          >
+            <svg
+              aria-hidden="true"
+              width="19"
+              height="19"
+              viewBox="0 0 24 24"
+              fill={item.liked ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth="1.7"
+            >
+              <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />
+            </svg>
+            <span>{item.likeCount ?? 0}</span>
+          </button>
+        ) : null}
         {!reply && item.status === 'visible' && canComment ? (
           <button type="button" disabled={busy} onClick={() => onReply(item)}>
             Ответить
           </button>
         ) : null}
-        {item.canDelete ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void command('delete', { commentId: item.id, expectedVersion: item.version })
-            }
-          >
-            Удалить
-          </button>
-        ) : null}
-        {item.canManage ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              void command(item.status === 'owner_hidden' ? 'restore' : 'hide', {
-                commentId: item.id,
-                expectedVersion: item.version,
-              })
-            }
-          >
-            {item.status === 'owner_hidden' ? 'Показать' : 'Скрыть'}
-          </button>
-        ) : null}
-        {item.status === 'visible' && signedIn ? (
-          <button type="button" disabled={busy} onClick={() => setReport(item.id)}>
-            Пожаловаться
-          </button>
+        {signedIn || item.canManage || item.canDelete || canPin ? (
+          <details className="publication-comment-menu">
+            <summary aria-label="Действия с комментарием" title="Действия с комментарием">
+              ···
+            </summary>
+            <div>
+              {!reply && item.status === 'visible' && canPin ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void command('pin', {
+                      commentId: item.id,
+                      on: !item.pinned,
+                      expectedVersion: pinVersion,
+                    })
+                  }
+                >
+                  {item.pinned ? 'Открепить' : 'Закрепить'}
+                </button>
+              ) : null}
+              {item.canDelete ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void command('delete', { commentId: item.id, expectedVersion: item.version })
+                  }
+                >
+                  Удалить
+                </button>
+              ) : null}
+              {item.canManage ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() =>
+                    void command(item.status === 'owner_hidden' ? 'restore' : 'hide', {
+                      commentId: item.id,
+                      expectedVersion: item.version,
+                    })
+                  }
+                >
+                  {item.status === 'owner_hidden' ? 'Показать' : 'Скрыть'}
+                </button>
+              ) : null}
+              {item.status === 'visible' && signedIn ? (
+                <button type="button" disabled={busy} onClick={() => setReport(item.id)}>
+                  Пожаловаться
+                </button>
+              ) : null}
+            </div>
+          </details>
         ) : null}
       </div>
       {report === item.id ? (
@@ -528,6 +645,7 @@ function CommentThread({
   return (
     <div className="publication-comment-thread">
       {render(row)}
+      {guestPrompt ? <LikeSignIn comment onClose={() => setGuestPrompt(false)} /> : null}
       {row.replyCount > 0 && visible ? (
         <button
           className="publication-comment-link"

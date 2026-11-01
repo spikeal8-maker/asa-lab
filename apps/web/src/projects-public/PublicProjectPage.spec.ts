@@ -275,3 +275,34 @@ it('expands long descriptions with a linked accessible control', async () => {
   await act(async () => button.click());
   expect(paragraph.classList.contains('is-collapsed')).toBe(true);
 });
+it('refreshes the real copy counter after a confirmed copy without remounting the viewer', async () => {
+  const source = {
+    ...publication,
+    copyCount: 4,
+    capabilities: { ...publication.capabilities, canCopy: true },
+  };
+  vi.spyOn(publicProjectsApi, 'get')
+    .mockResolvedValueOnce({ ok: true, status: 200, data: { publication: source } })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { publication: { ...source, copyCount: 5 } },
+    });
+  vi.spyOn(publicProjectsApi, 'copy').mockResolvedValueOnce({
+    ok: true,
+    status: 201,
+    data: { projectId: 'new-private-id', moduleKey: 'electronics', created: true },
+  });
+  await render();
+  const viewer = container.querySelector('.public-project-viewer');
+  await act(async () =>
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent?.includes('Добавить в мои проекты'))!
+      .click(),
+  );
+  expect(container.querySelector('[aria-label="Добавили к себе: 5"]')).not.toBeNull();
+  expect(container.querySelector('.public-project-viewer')).toBe(viewer);
+  expect(container.querySelector('.publication-copy-success a')?.getAttribute('href')).toContain(
+    'new-private-id',
+  );
+});

@@ -22,7 +22,13 @@ function Heart({ filled = false }: { readonly filled?: boolean }): JSX.Element {
   );
 }
 
-function LikeSignIn({ onClose }: { readonly onClose: () => void }): JSX.Element {
+export function LikeSignIn({
+  onClose,
+  comment = false,
+}: {
+  readonly onClose: () => void;
+  readonly comment?: boolean;
+}): JSX.Element {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -45,7 +51,7 @@ function LikeSignIn({ onClose }: { readonly onClose: () => void }): JSX.Element 
         ×
       </button>
       <Heart />
-      <h2 id={titleId}>Понравился проект?</h2>
+      <h2 id={titleId}>{comment ? 'Понравился комментарий?' : 'Понравился проект?'}</h2>
       <p>Войдите в аккаунт или класс, чтобы сохранить лайк.</p>
       <PortalLink className="btn-primary" href="/#/sign-in">
         Войти
