@@ -148,7 +148,10 @@
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button[data-copied='true'] {
   color: #16834f;
 }
-.asa-ai-layout[data-chat-theme='dark'] .asa-ai-rich-text .asa-ai-code-actions button[data-copied='true'] {
+.asa-ai-layout[data-chat-theme='dark']
+  .asa-ai-rich-text
+  .asa-ai-code-actions
+  button[data-copied='true'] {
   color: #4ade80;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block pre {
