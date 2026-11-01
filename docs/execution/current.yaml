@@ -9235,9 +9235,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: teacher_exact_review_stream_selected
+      checkpoint: teacher_review_stream_waiting_foreign_integration
       selected_slice:
         id: LRN-E1-TEACHER-EXACT-REVIEW-STREAM
+        status: waiting_foreign_integration
+        owner_wait_order: Сначала чужие изменения; очередь Курсов подождёт.
+        owner_wait_date_local: '2026-11-02'
+        owner_wait_evidence: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6564378342
+        preserved_candidate:
+          state: uncommitted_unverified
+          worktree: E:/ASA-previews/learning-ci-runner-20261101
+          branch: codex/courses-teacher-review-stream-20261101
+          base_head: e2a2ecab01b63869d2629bb4301ff0ad6f4e20c5
+          files: 18
+          backup: E:/ASA-previews/teacher-stream-wip-20261101T214832Z
+          manifest_sha256: 7b52b6249036ca95a860189f6e39bad33f14a0b2e3d005c2796c6866ed8ffd1d
+          formal_ci: not_run
         owner_authorization: Owner explicitly commissioned continued Courses completion after green-gated PR900 integration on 2026-11-01.
         normative_ref: Learning UX sections 25-26 and Teacher Learner Oversight sections 1.2-3; E1-FIX-13 exact practice review
         scope: >-
@@ -16496,6 +16509,32 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: LRN-TEACHER-STREAM-FOREIGN-FIRST-20261102
+    kind: execution_blocker
+    lane: learning
+    task_id: TASK-LRN-COURSE-001
+    blocks:
+      - bounded_implementation
+      - candidate_commit
+      - candidate_push
+      - source_integration
+    allows:
+      - readonly_diagnostics
+      - documentation_update
+      - preserve_existing_wip
+    reason: >-
+      Owner explicitly ordered foreign changes first on2026-11-02; teacher review
+      stream waits. Root ClassroomPage composition WIP is absent from main; AI
+      candidate6c3943c4 has competing0289 and the same three migration fixture edits.
+      Preserve all worktrees and the18-file uncommitted queue candidate; no new
+      queue source mutation, commit, push or integration until reconciliation.
+    unblock_requires: >-
+      Foreign owners integrate or explicitly reconcile/retire the overlapping
+      changes first, or owner explicitly approves another order. Then obtain fresh
+      remote main and actual WIP evidence, select a nonconflicting unmerged migration
+      number canonically and recover before a new bounded executor resumes. A text
+      change alone cannot close this blocker.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6564378342
   - id: ELECTRONICS-836-COMMITTED-RESULT-QUALIFICATION
     kind: deployment_blocker
     lane: electronics-committed-result-consumers
