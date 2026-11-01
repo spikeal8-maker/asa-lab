@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001
+    title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 294 with exact ledger and owned uncertain jobs intact
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm gate:ai-image-queue
+    timeout_seconds: 1200
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-TOKEN-BUDGETS-CORE-001
     title: Soft monthly model budgets, actual journal settlement, retained unknowns, complete native rounds, own-principal privacy and independent CAS settings
     suite: authorization

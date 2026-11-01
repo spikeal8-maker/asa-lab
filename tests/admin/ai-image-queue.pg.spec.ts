@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
@@ -7,6 +7,27 @@ import type { ComfyImageRecovery, ComfyImageTransport } from '../../apps/api/src
 
 let admin: pg.Pool, runtime: pg.Pool;
 let legacyBefore: unknown, legacyAfter: unknown;
+let installedLedgerBefore: unknown[], installedLedgerAfter: unknown[];
+const schoolPendingFiles = [
+  '0287_publication_copy_counts.sql',
+  '0288_learning_course_academic_result_access.sql',
+  '0289_publication_comments.sql',
+  '0290_publication_discussion_reactions.sql',
+  '0291_publication_comment_avatars.sql',
+  '0292_publication_author_catalog.sql',
+  '0293_public_projects_catalog_sort.sql',
+  '0294_ai_image_durable_queue.sql',
+];
+// Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
+// Normalize checkout line endings only; never permit an alternate DB checksum.
+const canonicalSqlDigests = {
+  '0289': '01bafc7722d6e904462211c9cc4c5d00bccd140f23c216b8825698d08f2e06d7',
+  '0290': 'f0ca6f9a9d15c6cff52005f18dcb160559ef251b82f27f5a1e7a2351bd13d165',
+  '0291': 'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
+  '0292': 'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
+  '0293': '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
+  '0294': '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+};
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
   readiness: vi.fn(async () => ({ ready: true, reason: null })),
@@ -85,6 +106,21 @@ async function failKnown(actor: Awaited<ReturnType<typeof owner>>, request: stri
   ).toBe(true);
 }
 
+describe('canonical school forward migration plan', () => {
+  it('retains every published suffix migration before the renumbered queue', () => {
+    const plan = planMigrations('migrations');
+    expect(
+      plan.filter((migration) => migration.version > '0286').map((migration) => migration.file),
+    ).toEqual(schoolPendingFiles);
+    for (const [version, digest] of Object.entries(canonicalSqlDigests)) {
+      const migration = plan.find((item) => item.version === version)!;
+      expect(createHash('sha256').update(migration.sql.replace(/\r\n/g, '\n')).digest('hex')).toBe(
+        digest,
+      );
+    }
+  });
+});
+
 describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
   'durable queue on a dedicated real PostgreSQL',
   () => {
@@ -109,11 +145,17 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
+        expect(migrations.at(-1)?.version).toBe('0294');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),
         );
         await client.query("ALTER ROLE asalab_app WITH LOGIN PASSWORD 'image-queue-ci-only'");
+        installedLedgerBefore = (
+          await client.query(
+            'SELECT to_jsonb(m) AS value FROM schema_migrations m ORDER BY version',
+          )
+        ).rows.map((row) => row.value);
         expect(
           (
             await runtime.query(
@@ -136,7 +178,23 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
             [j.request_id],
           )
         ).rows[0].value;
-        await applyPlan(client, migrations);
+        expect(await applyPlan(client, migrations)).toBe(schoolPendingFiles.length);
+        installedLedgerAfter = (
+          await client.query(
+            "SELECT to_jsonb(m) AS value FROM schema_migrations m WHERE version <= '0286' ORDER BY version",
+          )
+        ).rows.map((row) => row.value);
+        expect(
+          (
+            await client.query(
+              "SELECT version,name,checksum FROM schema_migrations WHERE version > '0286' ORDER BY version",
+            )
+          ).rows,
+        ).toEqual(
+          migrations
+            .filter((migration) => migration.version > '0286')
+            .map(({ version, name, checksum }) => ({ version, name, checksum })),
+        );
         legacyAfter = (
           await client.query(
             'SELECT to_jsonb(j) AS value FROM ai_image_jobs j WHERE request_id=$1',
@@ -161,6 +219,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
     });
 
     it('preserves a schema286 uncertain job byte-for-byte and retains single-GPU settings', async () => {
+      expect(installedLedgerAfter).toEqual(installedLedgerBefore);
       expect(legacyAfter).toEqual(legacyBefore);
       expect((legacyAfter as { state: string }).state).toBe('unknown');
       expect(
