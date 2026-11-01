@@ -21,6 +21,10 @@ const FIELDS = new Set([
   'errorClass',
   'frames',
   'clientAttemptId',
+  'httpStatus',
+  'relatedRequestId',
+  'operation',
+  'failureKind',
   'instanceId',
   'eventId',
   'sessionDatabase',
@@ -56,6 +60,31 @@ const FIELDS = new Set([
   'abruptTerminationTail',
 ]);
 const SEGMENT = /^seg-\d{16}-\d{16}\.jsonl$/;
+// Recheck the client controller's closed request context at the storage boundary.
+// These fields never admit URLs, error text or provider operation labels.
+const REQUEST_CONTEXT: Readonly<Record<string, (value: unknown) => boolean>> = {
+  httpStatus: (value) =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 100 && value <= 599,
+  relatedRequestId: (value) =>
+    typeof value === 'string' &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value),
+  operation: (value) =>
+    typeof value === 'string' &&
+    [
+      'auth_me',
+      'auth_refresh',
+      'auth_other',
+      'project_read',
+      'project_save',
+      'electronics_draft_read',
+      'electronics_draft_write',
+      'blocks_runtime_session',
+      'other_api',
+    ].includes(value),
+  failureKind: (value) =>
+    typeof value === 'string' &&
+    ['http', 'timeout', 'cancelled', 'network', 'unknown'].includes(value),
+};
 type Segment = {
   file: string;
   bytes: number;
@@ -147,7 +176,12 @@ export class ApplicationLogStore {
     }
     const projected = Object.fromEntries(
       Object.entries(value)
-        .filter(([key]) => FIELDS.has(key))
+        .filter(
+          ([key, item]) =>
+            FIELDS.has(key) &&
+            (!Object.hasOwn(REQUEST_CONTEXT, key) ||
+              (value['kind'] === 'client_diagnostic' && REQUEST_CONTEXT[key]!(item))),
+        )
         .map(([key, item]) => [key, safeValue(item)]),
     );
     if (typeof projected['path'] === 'string') projected['path'] = projected['path'].split('?')[0];

@@ -25,6 +25,11 @@ import type {
 } from '@asa-lab/contracts';
 import { ComfyImageTransport, imageWorkflowDigest } from './ai-image-comfyui.js';
 import { comfyUiRuntimeOrigin } from './ai-comfyui-settings.js';
+import {
+  AiImageWorkerDiagnostics,
+  type AiImageWorkerLog,
+  type AiImageWorkerStage,
+} from './ai-image-worker-diagnostics.js';
 import { readBlocksObjectStorageConfig } from './blocks-asset-storage.js';
 import {
   AiAttachmentStorageError,
@@ -64,6 +69,9 @@ export interface ImageJobRow {
   put_started: boolean;
   put_uncertain: boolean;
   cleanup_required: boolean;
+  queue_paused?: boolean;
+  /** Transient SQL result flag, never a persisted/public receipt property. */
+  fresh_admission?: boolean;
 }
 interface ImageConfig extends Omit<AiImageGenerationAdminConfig, 'ready' | 'reason'> {
   remainingToday?: number;
@@ -73,6 +81,7 @@ export interface AiImageServiceOptions {
   blobs?: AiAttachmentBlobStore;
   env?: NodeJS.ProcessEnv;
   maintenance?: boolean;
+  workerLog?: AiImageWorkerLog;
 }
 export function imageId(value: string): string {
   if (!UUID.test(value))
@@ -116,7 +125,7 @@ export function imageAdminInput(raw: unknown): AiImageGenerationAdminUpdate {
     p.dailyLimit > 100 ||
     !Number.isSafeInteger(p.globalConcurrency) ||
     p.globalConcurrency < 1 ||
-    p.globalConcurrency > 2 ||
+    p.globalConcurrency > 1 ||
     !Array.isArray(p.sizes) ||
     p.sizes.length < 1 ||
     p.sizes.length > AI_IMAGE_PRESETS.length ||
@@ -169,6 +178,7 @@ export function imageJob(j: ImageJobRow): AiImageGenerationJob {
     createdAt: new Date(j.created_at).toISOString(),
     cancelRequested: j.cancel_requested,
     errorCode: j.error_code,
+    queuePaused: j.queue_paused === true,
     image: j.state === 'complete' && !j.cancel_requested && !j.deleted_at ? image(j) : null,
   };
 }
@@ -181,6 +191,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | undefined;
   private sweeping: Promise<void> | undefined;
   private closing = false;
+  private readonly diagnostics: AiImageWorkerDiagnostics;
   constructor(
     private readonly pool: pg.Pool,
     private readonly options: AiImageServiceOptions = {},
@@ -189,6 +200,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     this.transport = options.transport;
     this.blobsValue = options.blobs;
     this.env = options.env ?? process.env;
+    this.diagnostics = new AiImageWorkerDiagnostics(options.workerLog);
   }
   private blobs(): AiAttachmentBlobStore {
     if (this.blobsValue) return this.blobsValue;
@@ -218,6 +230,18 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
           'ai_image_busy',
           429,
           'Лимит генерации исчерпан или видеокарта занята.',
+        );
+      if (/AI_IMAGE_OWNER_QUEUE_FULL/.test(m))
+        throw new AiImageError(
+          'ai_image_owner_queue_full',
+          429,
+          'У вас уже два незавершённых задания. Дождитесь результата или отмените задание в очереди.',
+        );
+      if (/AI_IMAGE_QUEUE_FULL/.test(m))
+        throw new AiImageError(
+          'ai_image_queue_full',
+          429,
+          'Очередь изображений заполнена. Подождите освобождения места.',
         );
       if (/AI_(?:REQUEST_ID_REUSED|CONFIG_CHANGED)/.test(m))
         throw new AiImageError('ai_image_conflict', 409, 'Запрос или настройки уже изменились.');
@@ -354,10 +378,10 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       return this.get(owner, t, input.requestId);
     }
     const j = await this.admit(owner, thread, raw);
-    await this.dispatchAdmitted(j);
+    if (j.fresh_admission === true) await this.dispatchAdmitted(j);
     return this.get(owner, j.thread_id, j.request_id);
   }
-  private async dispatchAdmitted(j: ImageJobRow): Promise<void> {
+  private async dispatchAdmitted(j: ImageJobRow, attemptId = randomUUID()): Promise<void> {
     if (j.state === 'admitted') {
       const claimed = await this.value<boolean>('SELECT ai_image_dispatch($1,$2) AS value', [
         j.owner_principal_id,
@@ -365,11 +389,20 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       ]);
       if (claimed) {
         // An uncertain CAS response never reaches this branch; this POST is never retried.
+        let stage: AiImageWorkerStage = 'provider_configuration';
         try {
-          await (
-            await this.provider()
-          ).dispatch(j.provider_id, j.prompt!, j.size, Number(j.seed), j.marker, j.recipe);
-        } catch {
+          const provider = await this.provider();
+          stage = 'dispatch';
+          await provider.dispatch(
+            j.provider_id,
+            j.prompt!,
+            j.size,
+            Number(j.seed),
+            j.marker,
+            j.recipe,
+          );
+        } catch (problem) {
+          this.diagnostics.report(stage, j.request_id, attemptId, problem);
           /* durable submitting is reconciled by known UUID only */
         }
       }
@@ -420,7 +453,8 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     signal.addEventListener('abort', cancel, { once: true });
     try {
       if (signal.aborted) await this.cancel(owner, thread, j.request_id);
-      else await this.dispatchAdmitted(j);
+      // The native SQL receipt may be a replay. Only the durable worker dispatches;
+      // repeating a tool call never becomes a provider POST.
       return await this.get(owner, thread, j.request_id);
     } finally {
       signal.removeEventListener('abort', cancel);
@@ -507,12 +541,14 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     this.closing = true;
     if (this.timer) clearInterval(this.timer);
     await this.sweeping?.catch(() => undefined);
+    this.diagnostics.health(true);
     this.blobsValue?.close?.();
   }
   sweep(): Promise<void> {
     if (this.sweeping) return this.sweeping;
     if (this.closing) return Promise.resolve();
     const p = this.one().finally(() => {
+      this.diagnostics.health();
       this.sweeping = undefined;
     });
     this.sweeping = p;
@@ -533,30 +569,52 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   }
   private async one(): Promise<void> {
     const lease = randomUUID();
-    const j = await this.value<ImageJobRow | null>('SELECT ai_image_claim($1) AS value', [lease]);
+    const attemptId = randomUUID();
+    let j: ImageJobRow | null;
+    try {
+      j = await this.value<ImageJobRow | null>('SELECT ai_image_claim($1) AS value', [lease]);
+    } catch (problem) {
+      this.diagnostics.report('claim', null, attemptId, problem);
+      throw problem;
+    }
     if (!j) return;
+    let stage: AiImageWorkerStage = 'cleanup_remove';
     try {
       if (j.cleanup_required) {
-        if (await this.blobs().remove(descriptor(j)))
+        if (await this.blobs().remove(descriptor(j))) {
+          stage = 'cleanup_ack';
           await this.value('SELECT ai_image_cleanup_done($1,$2,$3) AS value', [
             j.owner_principal_id,
             j.request_id,
             lease,
           ]);
+        }
         return;
       }
       if (j.state === 'admitted') {
-        await this.dispatchAdmitted(j);
+        stage = 'dispatch_claim';
+        await this.dispatchAdmitted(j, attemptId);
         return;
       }
       if (j.state === 'storing') {
-        if (await this.blobs().verify(descriptor(j))) await this.transition(j, lease, 'complete');
+        stage = 'storage_verify';
+        const verified = await this.blobs().verify(descriptor(j));
+        stage = 'transition';
+        if (verified) await this.transition(j, lease, 'complete');
         else await this.transition(j, lease, 'storing');
         return;
       }
-      const result = await (
-        await this.provider()
-      ).recover(j.provider_id, j.marker, j.size, j.graph_digest, j.recipe);
+      stage = 'provider_configuration';
+      const provider = await this.provider();
+      stage = 'recover';
+      const result = await provider.recover(
+        j.provider_id,
+        j.marker,
+        j.size,
+        j.graph_digest,
+        j.recipe,
+      );
+      stage = 'transition';
       if (result.state === 'missing') {
         await this.transition(j, lease, 'unknown');
         return;
@@ -577,13 +635,17 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         await this.transition(j, lease, 'running');
         return;
       }
+      stage = 'output_validate';
       if (!result.png) throw new Error('AI_IMAGE_BYTES_MISSING');
+      stage = 'transition';
       if (j.cancel_requested || j.deleted_at) {
         await this.transition(j, lease, 'cancelled');
         return;
       }
       const png = result.png;
+      stage = 'output_validate';
       const sha = createHash('sha256').update(png).digest('hex');
+      stage = 'transition';
       if (!(await this.transition(j, lease, 'storing', sha, png.length))) {
         await this.transition(j, lease, 'cancelled');
         return;
@@ -591,29 +653,34 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       const object = { ...j, sha256: sha, size_bytes: png.length };
       let directory: string | undefined;
       try {
+        stage = 'storage_prepare';
         directory = await mkdtemp(join(tmpdir(), 'asa-generated-'));
         const path = join(directory, 'image.png');
         await writeFile(path, png, { flag: 'wx', mode: 0o600 });
+        stage = 'storage_put';
         await this.blobs().putImmutable({
           ...descriptor(object),
           sourcePath: path,
           md5Base64: createHash('md5').update(png).digest('base64'),
         });
+        stage = 'transition';
         await this.transition(object, lease, 'complete');
       } catch (e) {
-        if (e instanceof AiAttachmentStorageError && e.outcome === 'not_written')
-          await this.transition(
-            object,
-            lease,
-            'failed',
-            null,
-            null,
-            'ai_image_storage_rejected',
-          ); /* unknown PUT stays storing; recovery only verifies */
+        this.diagnostics.report(stage, j.request_id, attemptId, e);
+        if (e instanceof AiAttachmentStorageError && e.outcome === 'not_written') {
+          stage = 'transition';
+          await this.transition(object, lease, 'failed', null, null, 'ai_image_storage_rejected');
+        } /* unknown PUT stays storing; recovery only verifies */
       } finally {
-        if (directory) await rm(directory, { recursive: true, force: true });
+        if (directory) {
+          await rm(directory, { recursive: true, force: true }).catch((problem: unknown) => {
+            stage = 'storage_cleanup';
+            throw problem;
+          });
+        }
       }
-    } catch {
+    } catch (problem) {
+      this.diagnostics.report(stage, j.request_id, attemptId, problem);
       /* Durable lease expires. Reconciliation never posts or repeats a PUT. */
     }
   }

@@ -10,6 +10,7 @@
     "pnpm": "9.15.9"
   },
   "scripts": {
+    "gate:ai-image-queue": "node tools/ai-image-queue-gate.mjs",
     "format": "prettier --write .",
     "prebuild": "node tools/assert-build-workspace.mjs",
     "format:check": "prettier --check .",

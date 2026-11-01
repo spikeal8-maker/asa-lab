@@ -6,6 +6,131 @@ afterEach(() => {
 });
 describe('client diagnostics isolation', () => {
   it.each([
+    [429, 5, 'request_failed', 'http'],
+    [500, 5, 'request_failed', 'http'],
+    [404, 5, null, null],
+    [404, 10_000, 'request_slow', null],
+    [200, 10_000, 'request_slow', null],
+    [429, 10_000, 'request_failed', 'http'],
+  ] as const)(
+    'classifies HTTP %s after %sms without consuming or retrying the response',
+    async (status, elapsed, code, failureKind) => {
+      vi.resetModules();
+      vi.useFakeTimers();
+      const id = '10000000-0000-4000-8000-000000000001';
+      const response = new Response('PRIVATE response body', {
+        status,
+        headers: { 'x-request-id': id },
+      });
+      let time = 0;
+      vi.stubGlobal('performance', { now: () => time });
+      const path = '/api/projects/PRIVATE-PROJECT/draft?token=PRIVATE';
+      const transport = vi.fn<typeof fetch>(async (input) => {
+        if (input === path) {
+          time = elapsed;
+          return response;
+        }
+        return new Response('{"accepted":true}', { status: 202 });
+      });
+      const browser = {
+        fetch: transport,
+        sessionStorage: { getItem: () => null, setItem() {} },
+        location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+        addEventListener: vi.fn(),
+      };
+      vi.stubGlobal('window', browser);
+      vi.stubGlobal('fetch', transport);
+      const { installClientDiagnostics, beginDiagnosticContext } =
+        await import('./client-diagnostics');
+      beginDiagnosticContext('electronics', id);
+      installClientDiagnostics();
+      expect(
+        await browser.fetch(path, {
+          method: 'PUT',
+          credentials: 'include',
+          body: 'PRIVATE payload',
+        }),
+      ).toBe(response);
+      expect(response.bodyUsed).toBe(false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(transport.mock.calls.filter(([url]) => url === path)).toHaveLength(1);
+      const headers = new Headers(transport.mock.calls[0]![1]!.headers);
+      const reports = transport.mock.calls.filter(([url]) => url === '/api/diagnostics/client');
+      expect(reports).toHaveLength(code ? 1 : 0);
+      if (code) {
+        const body = JSON.parse(reports[0]![1]!.body as string);
+        expect(body).toMatchObject({
+          code,
+          httpStatus: status,
+          durationMs: elapsed,
+          relatedRequestId: id,
+          operation: 'electronics_draft_write',
+          method: 'PUT',
+          clientAttemptId: headers.get('x-asa-client-attempt-id'),
+        });
+        if (failureKind) expect(body.failureKind).toBe(failureKind);
+        else expect(body).not.toHaveProperty('failureKind');
+        expect(JSON.stringify(body)).not.toMatch(/PRIVATE|token|payload|https?:/);
+      }
+      expect(transport.mock.calls[0]![1]).toMatchObject({
+        credentials: 'include',
+        body: 'PRIVATE payload',
+      });
+      expect(await response.text()).toBe('PRIVATE response body');
+    },
+  );
+
+  it('does not attribute a late 429 to the replacement editor context', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    const transport = vi.fn<typeof fetch>(async () => pending);
+    const browser = {
+      fetch: transport,
+      sessionStorage: { getItem: () => null, setItem() {} },
+      location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+      addEventListener: vi.fn(),
+    };
+    vi.stubGlobal('window', browser);
+    vi.stubGlobal('fetch', transport);
+    const { installClientDiagnostics, beginDiagnosticContext } =
+      await import('./client-diagnostics');
+    beginDiagnosticContext('scratch', '10000000-0000-4000-8000-000000000001');
+    installClientDiagnostics();
+    const request = browser.fetch('/api/projects/PRIVATE');
+    beginDiagnosticContext('electronics', '20000000-0000-4000-8000-000000000002');
+    const response = new Response('PRIVATE', { status: 429 });
+    finish(response);
+    expect(await request).toBe(response);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a 429 from diagnostics intake outside recursive request reporting', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    const transport = vi.fn<typeof fetch>(async () => new Response('{}', { status: 429 }));
+    const browser = {
+      fetch: transport,
+      location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+      addEventListener: vi.fn(),
+    };
+    vi.stubGlobal('window', browser);
+    vi.stubGlobal('fetch', transport);
+    const { installClientDiagnostics } = await import('./client-diagnostics');
+    installClientDiagnostics();
+    expect((await browser.fetch('/api/diagnostics/client')).status).toBe(429);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(new Headers(transport.mock.calls[0]![1]?.headers).has('x-asa-client-attempt-id')).toBe(
+      false,
+    );
+  });
+
+  it.each([
     ['GET', 'auth_cancelled', 'request_cancelled', 'cancelled'],
     ['POST', 'auth_cancelled', 'request_failed', 'cancelled'],
     ['GET', 'auth_timeout', 'request_failed', 'timeout'],
