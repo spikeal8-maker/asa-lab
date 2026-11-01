@@ -113,8 +113,11 @@ def from_backup_receipt(value):
     # closed legacy envelope, not permission to read its remote/archive fields.
     legacy = 'format' not in value and value.get('status') == 'verified_cloud_sha256'
     if legacy:
+        if value.get('project') != 'asa-lab-school' or value.get('trigger') not in ('scheduled', 'manual'):
+            raise ValueError('invalid school backup receipt')
         safe = {'format':'asa-backup-success-v1', 'status':'succeeded', 'completedAt':value.get('createdAt'),
-                'archiveSha256':value.get('sha256'), 'archiveBytes':value.get('size'), 'trigger':value.get('trigger')}
+                'archiveSha256':value.get('sha256'), 'archiveBytes':value.get('size'),
+                'trigger':'automatic' if value['trigger'] == 'scheduled' else 'manual'}
     else: safe = value
     if safe.get('format') != 'asa-backup-success-v1' or safe.get('status') != 'succeeded' or not number(safe.get('archiveBytes')) or safe['archiveBytes'] == 0 or not isinstance(safe.get('archiveSha256'), str) or not re.fullmatch('[a-f0-9]{64}', safe['archiveSha256']):
         raise ValueError('invalid verified backup receipt')

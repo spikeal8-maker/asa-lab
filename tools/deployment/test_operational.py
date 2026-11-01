@@ -39,6 +39,29 @@ def sources(c):
 
 
 class OperationalTests(unittest.TestCase):
+    def test_published_real_school_producer_receipts_normalize_and_collect_without_errors(self):
+        contract=json.loads((Path(__file__).parent/'fixtures/school-backup-success.json').read_text())
+        self.assertEqual(contract['contract'],'asa-school-verified-cloud-receipt-v1')
+        self.assertEqual(contract['producerRevision'],'8ae8d4bcd578bb05598ecb487b242772383d0ab3')
+        self.assertEqual(contract['producerLfSha256'],'fda5db30f0d3d79384682c6e96c50b706dbc502d51de9fbb14785ccd3a0f35d5')
+        self.assertEqual(set(contract['receipts']),{'manual','scheduled'})
+        for trigger,receipt in contract['receipts'].items():
+            with self.subTest(trigger=trigger), tempfile.TemporaryDirectory() as temp:
+                observed=op.from_backup_receipt(receipt)
+                self.assertEqual(observed,{'version':1,'operation':'backup','producer':'backup-receipt',
+                    'status':'succeeded','trigger':'automatic' if trigger=='scheduled' else 'manual',
+                    'at':'2026-11-01T00:20:00.000Z','archiveBytes':1024,'archiveSha256':'b'*64,'verification':'cloud_sha256'})
+                c=Collector(Path(temp),{})
+                try:
+                    fresh_receipt={**receipt,'createdAt':op.stamp()}
+                    with patch.object(op,'private_file',return_value=json.dumps(fresh_receipt).encode()):
+                        op.backup_event(c,normalize,{'backupSuccessReceipt':'/operator/latest-success.json'})
+                    self.assertEqual(sources(c)['operations:backup']['state'],'ok')
+                    self.assertEqual(len(entries(c)),1)
+                    self.assertNotIn(receipt['archive'],json.dumps(entries(c)))
+                    self.assertNotIn(receipt['remote'],json.dumps(entries(c)))
+                finally:c.db.close()
+
     def test_incomplete_success_receipts_never_create_green_evidence(self):
         with self.assertRaises(ValueError): op.from_manager_receipt({'status':'success','at':op.stamp(),'selected':{}})
         raw=('status=success\nupdated_at_utc='+dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'\n').encode()
@@ -202,13 +225,24 @@ class OperationalTests(unittest.TestCase):
         value={'format':'asa-backup-success-v1','status':'succeeded','completedAt':op.stamp(),'archiveSha256':'a'*64,'archiveBytes':1024,'trigger':'automatic','remoteUrl':SECRET,'files':[SECRET]}
         self.assertNotIn(SECRET,json.dumps(op.from_backup_receipt(value)))
         legacy={'status':'verified_cloud_sha256','trigger':'manual','createdAt':op.stamp(),
-                'archive':SECRET,'size':230876392,'sha256':'b'*64,'project':SECRET,'remote':SECRET,'restore_rehearsal':{'path':SECRET}}
+                'archive':SECRET,'size':230876392,'sha256':'b'*64,'project':'asa-lab-school','remote':SECRET,'restore_rehearsal':{'path':SECRET}}
         observed=op.from_backup_receipt(legacy)
         self.assertEqual(observed['verification'],'cloud_sha256')
         self.assertEqual(observed['archiveBytes'],230876392)
         self.assertEqual(observed['archiveSha256'],'b'*64)
         self.assertNotIn(SECRET,json.dumps(observed))
         with self.assertRaises(ValueError): op.from_backup_receipt({**legacy,'status':'uploaded'})
+        self.assertEqual(op.from_backup_receipt({**legacy,'trigger':'scheduled'})['trigger'],'automatic')
+        self.assertEqual(observed['trigger'],'manual')
+        for change in ({'trigger':'unknown'},{'trigger':'automatic'},{'trigger':SECRET},{'trigger':None},
+                       {'project':SECRET},{'sha256':SECRET},{'size':True},{'size':0},
+                       {'createdAt':'not-a-timestamp'},{'format':'unknown'}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                op.from_backup_receipt({**legacy,**change})
+        for trigger in ('manual','automatic','unknown'):
+            self.assertEqual(op.from_backup_receipt({**value,'trigger':trigger})['trigger'],trigger)
+        with self.assertRaises(ValueError):op.from_backup_receipt({**value,'trigger':'scheduled'})
+        with self.assertRaises(ValueError):op.operation(event(trigger='scheduled'))
         for change in ({'archiveBytes':True},{'archiveBytes':0},{'archiveSha256':SECRET},{'status':'complete'},{'trigger':SECRET}):
             with self.assertRaises(ValueError): op.from_backup_receipt({**value,**change})
         with tempfile.TemporaryDirectory() as temp:

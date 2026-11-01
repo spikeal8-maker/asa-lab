@@ -12,6 +12,8 @@ surfaces:
         - apps/api/src/admin-logs.worker.spec.ts
         - tools/deployment/operational.py
         - tools/deployment/test_operational.py
+        - tools/deployment/fixtures/school-backup-success.json
+        - docs/deployment/OPERATIONAL_DIAGNOSTICS.md
         - apps/web/src/admin/AdminLogsPage.tsx
         - docs/deployment/ADMIN_LOGS.md
         - docs/agent/contracts/observability.yaml

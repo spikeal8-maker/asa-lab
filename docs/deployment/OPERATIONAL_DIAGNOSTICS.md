@@ -14,7 +14,9 @@ Host `catalog.json` now contains `requiredSources` version1, policy
 entries use `reason: other-platform`; Windows never excuses a Linux source on a
 Linux host. Core Docker, database, resource, lifecycle, update and five service
 recent-log IDs are explicit, even when a service disappears. Every closed DB
-projection is explicit. Configured file/provider/backup sources become mandatory.
+projection is explicit. Configured file/provider sources become mandatory.
+`operations:backup` remains required even without an external receipt configured;
+absence of a verified successful operation stays pending.
 An operator acceptance run must also pin its expected configured IDs; removing a
 configuration entry is not evidence that its previously required source is healthy.
 The existing retained-history audit stays separate. Reader acceptance is a
@@ -27,6 +29,21 @@ unreadable input is error, and an old last-success receipt remains pending until
 real new operation is observed. No synthetic empty `.asa/logs` directory is made.
 
 ## Durable receipts
+
+The school `verified_cloud_sha256` receipt is a closed compatibility envelope for
+`project=asa-lab-school`. Its existing producer emits `manual` or `scheduled`;
+only this legacy adapter maps `scheduled` to the canonical `automatic` value.
+Other legacy trigger/project values are rejected. The versioned
+`asa-backup-success-v1` receipt and generic operation enum continue to accept only
+`manual`, `automatic`, `unknown`; `scheduled` is invalid there.
+
+The synthetic published producer contract lives in
+`tools/deployment/fixtures/school-backup-success.json`, matching the same file in
+Server-setings `tests/fixtures/` and pinning the existing producer revision and
+source digest. Infrastructure CI executes its actual receipt writer with a fake
+clock and synthetic upload result; application CI normalizes both receipts and
+checks backup-source health and private-field omission. These tests perform no
+backup, cloud request or restore and do not prove a real archive is recoverable.
 
 Both protected source updaters (shell and PowerShell) preserve their original
 `backups/update-*.receipt.txt` and append a closed event after writing it. The
