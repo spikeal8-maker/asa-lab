@@ -1112,6 +1112,18 @@ export function AiChatPage({
           uploadIds.push(await uploadAiChatFile(file, seatId, controller.signal));
           if (version !== selectedVersion.current) return;
         }
+        if (uploadIds.length) {
+          setHistoryAttachments((current) => ({
+            ...current,
+            [requestId]: attachments.map((item, index) => ({
+              uploadId: uploadIds[index]!,
+              fileName: item.file.name,
+              sizeBytes: item.file.size,
+              mediaType: item.file.type || 'text/plain',
+              kind: item.preview ? 'image' : 'text',
+            })),
+          }));
+        }
         const result = await streamAiRequest<AiMessage>(
           id,
           text,
@@ -1806,7 +1818,6 @@ export function AiChatPage({
                       </span>
                       {message.role === 'user' ? (
                         <>
-                          <div className="chat-user-bubble">{message.content}</div>
                           {historyAttachments[message.requestId]?.length ? (
                             <div className="chat-attached-history" aria-label="Вложения сообщения">
                               {historyAttachments[message.requestId]?.map((file) => (
@@ -1814,11 +1825,13 @@ export function AiChatPage({
                                   key={file.uploadId}
                                   file={file}
                                   seatId={seatId}
+                                  onUse={(file) => addFiles([file])}
                                   onDownload={() => void downloadAttachment(file)}
                                 />
                               ))}
                             </div>
                           ) : null}
+                          <div className="chat-user-bubble">{message.content}</div>
                           <div
                             className="chat-user-actions"
                             role="group"
@@ -1949,6 +1962,16 @@ export function AiChatPage({
                   ) ? (
                     <article className="chat-turn chat-turn-user" data-testid="ai-pending-message">
                       <span className="chat-turn-label">Вы</span>
+                      <div className="chat-attached-history">
+                        {historyAttachments[pendingMessage.requestId]?.map((file) => (
+                          <SavedAttachmentCard
+                            key={file.uploadId}
+                            file={file}
+                            seatId={seatId}
+                            onDownload={() => void downloadAttachment(file)}
+                          />
+                        ))}
+                      </div>
                       <div className="chat-user-bubble">{pendingMessage.text}</div>
                     </article>
                   ) : null}
@@ -2058,7 +2081,7 @@ export function AiChatPage({
                   addFiles(Array.from(event.dataTransfer.files));
                 }}
               >
-                {attachments.length ? (
+                {attachments.length && !busy ? (
                   <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
                     {attachments.map((item) => (
                       <div
