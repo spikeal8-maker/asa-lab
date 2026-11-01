@@ -420,5 +420,41 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       expect((await service().get(b.id, b.thread, waiting.request_id)).state).toBe('cancelled');
       expect(transport.dispatch).not.toHaveBeenCalled();
     });
+
+    it('prioritizes free-GPU dispatch over 121 recurring PUT tombstones and cleans while the active GPU is leased', async () => {
+      const a = await owner();
+      await admin.query(
+        `INSERT INTO ai_image_jobs(owner_principal_id,request_id,thread_id,provider_id,marker,seed,prompt,payload_digest,graph_digest,size,settings_snapshot,state,cancel_requested,sha256,size_bytes,put_started,put_uncertain,cleanup_required,created_at)
+        SELECT $1,gen_random_uuid(),$2,p.id,'ASA_'||replace(p.id::text,'-',''),1,NULL,$3,$3,768,'{}','cancelled',true,$3,3,true,true,true,clock_timestamp()-interval '1 day'
+        FROM (SELECT gen_random_uuid() AS id FROM generate_series(1,121)) p`,
+        [a.id, a.thread, 'a'.repeat(64)],
+      );
+      const queued = await begin(a);
+      const s = service();
+      await s.sweep();
+      expect(transport.dispatch).toHaveBeenCalledTimes(1);
+      expect(transport.dispatch.mock.calls[0][0]).toBe(queued.provider_id);
+      expect(blobs.remove).not.toHaveBeenCalled();
+      const waiting = await begin(a);
+      transport.recover.mockResolvedValueOnce({ state: 'running' });
+      await s.sweep();
+      await admin.query(
+        "UPDATE ai_image_jobs SET lease_until=clock_timestamp()+interval '2 minutes' WHERE request_id=$1",
+        [queued.request_id],
+      );
+      await s.sweep();
+      expect(blobs.remove).toHaveBeenCalledTimes(1);
+      expect(transport.dispatch).toHaveBeenCalledTimes(1);
+      expect((await s.get(a.id, a.thread, queued.request_id)).state).toBe('running');
+      expect((await s.get(a.id, a.thread, waiting.request_id)).state).toBe('admitted');
+      expect(
+        (
+          await admin.query(
+            "SELECT count(*)::int AS n FROM ai_image_jobs WHERE owner_principal_id=$1 AND state='cancelled' AND cleanup_required AND put_uncertain",
+            [a.id],
+          )
+        ).rows[0].n,
+      ).toBe(121);
+    });
   },
 );

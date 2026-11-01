@@ -19,6 +19,10 @@ owner is next and the GPU is free. Queued jobs survive API/worker restart.
 - Execution is one job at a time. A historical two-slot setting is narrowed to one
   with a configuration revision increment during the forward migration. Enabled,
   recipe, sizes, endpoint, quotas, private data and historical receipts survive.
+- Free-GPU dispatch takes priority over terminal object-cleanup tombstones.
+  Cleanup can run while active GPU observation is leased, while the queue head is
+  leased, or when there is no eligible dispatch. Recurring uncertain-PUT cleanup
+  retains its tombstone/fence and cannot indefinitely postpone an accepted job.
 - SQL serializes dispatch decisions across API processes/workers. Owners rotate
   by their last persisted image start, then FIFO within each owner. A direct API
   fast-path cannot bypass an older queue head. There is no process-local queue.
@@ -83,6 +87,10 @@ row/identity/recipe/digest survived and repeat migration is a no-op. It exercise
 backend connections with an observed database lock wait, fair scheduling,
 pre-/post-CAS crash recovery, exact replay, cancel/delete/quota, paused unknown
 recovery and denied foreign/private storage access. Existing embedded tests retain
-native-image, profile, immutable PUT and historical receipt coverage. No provider
+native-image, profile, immutable PUT and historical receipt coverage.
+The local embedded and real PostgreSQL suites additionally seed 121 recurring
+uncertain-PUT tombstones, prove dispatch occurs on the first free-GPU claim,
+then prove cleanup progresses during an active observation lease without a second
+GPU dispatch or loss of any cleanup fence. No provider
 network/generation is used by these fixtures. A fresh installation obtains the same
 schema/policy from the versioned source; no machine address is embedded by the queue.

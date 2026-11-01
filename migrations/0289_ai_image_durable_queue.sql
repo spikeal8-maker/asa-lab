@@ -73,18 +73,28 @@ CREATE OR REPLACE FUNCTION public.ai_image_claim(p_lease uuid) RETURNS jsonb LAN
 DECLARE j public.ai_image_jobs%ROWTYPE;
 BEGIN
  PERFORM pg_advisory_xact_lock(731289);
- -- Reconciliation/cleanup never authorizes a second POST. Prefer unfinished
- -- work; lease expiry only transfers observation, never execution ownership.
- SELECT * INTO j FROM public.ai_image_jobs WHERE (state IN('submitting','unknown','running','storing') OR cleanup_required)
+ -- Reconciliation never authorizes a second POST. Lease expiry transfers
+ -- observation only, never execution ownership.
+ SELECT * INTO j FROM public.ai_image_jobs WHERE state IN('submitting','unknown','running','storing')
  AND (lease_until IS NULL OR lease_until<clock_timestamp())
- ORDER BY CASE WHEN state IN('submitting','unknown','running','storing') THEN 0 ELSE 1 END,created_at,request_id FOR UPDATE SKIP LOCKED LIMIT 1;
- IF NOT FOUND THEN
-  IF EXISTS(SELECT 1 FROM public.ai_image_jobs WHERE state IN('submitting','unknown','running','storing')) THEN RETURN NULL;END IF;
+ ORDER BY created_at,request_id FOR UPDATE SKIP LOCKED LIMIT 1;
+ IF NOT FOUND AND NOT EXISTS(SELECT 1 FROM public.ai_image_jobs WHERE state IN('submitting','unknown','running','storing')) THEN
   -- Do not leapfrog a leased queue head. A crashed pre-CAS worker resumes this
   -- admitted row after expiry; a crashed post-CAS worker only reconciles.
+  -- When the GPU is free, dispatch has priority over terminal PUT tombstones:
+  -- their intentionally recurring cleanup must never starve accepted work.
   SELECT * INTO j FROM public.ai_image_queue_head();
-  IF NOT FOUND OR (j.lease_until IS NOT NULL AND j.lease_until>=clock_timestamp()) THEN RETURN NULL;END IF;
-  SELECT * INTO j FROM public.ai_image_jobs WHERE owner_principal_id=j.owner_principal_id AND request_id=j.request_id AND state='admitted' AND deleted_at IS NULL AND NOT cancel_requested FOR UPDATE;
+  IF FOUND AND (j.lease_until IS NULL OR j.lease_until<clock_timestamp()) THEN
+   SELECT * INTO j FROM public.ai_image_jobs WHERE owner_principal_id=j.owner_principal_id AND request_id=j.request_id AND state='admitted' AND deleted_at IS NULL AND NOT cancel_requested FOR UPDATE;
+  ELSE
+   j:=NULL;
+  END IF;
+ END IF;
+ -- Active observation/dispatch leases leave time for bounded cleanup work.
+ -- Keep uncertain PUT tombstones and their repeat cleanup fence unchanged.
+ IF j.request_id IS NULL THEN
+  SELECT * INTO j FROM public.ai_image_jobs WHERE cleanup_required AND state IN('complete','failed','cancelled')
+  AND (lease_until IS NULL OR lease_until<clock_timestamp()) ORDER BY created_at,request_id FOR UPDATE SKIP LOCKED LIMIT 1;
   IF NOT FOUND THEN RETURN NULL;END IF;
  END IF;
  UPDATE public.ai_image_jobs SET lease_id=p_lease,lease_until=clock_timestamp()+interval '2 minutes' WHERE owner_principal_id=j.owner_principal_id AND request_id=j.request_id RETURNING * INTO j;
