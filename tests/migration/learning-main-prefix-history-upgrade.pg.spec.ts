@@ -321,7 +321,32 @@ const upgradeArtifacts = [
   ],
   [
     '0289',
-    '0289_learning_quiz_policy_authority.sql',
+    '0289_publication_comments.sql',
+    '01bafc7722d6e904462211c9cc4c5d00bccd140f23c216b8825698d08f2e06d7',
+  ],
+  [
+    '0290',
+    '0290_publication_discussion_reactions.sql',
+    'f0ca6f9a9d15c6cff52005f18dcb160559ef251b82f27f5a1e7a2351bd13d165',
+  ],
+  [
+    '0291',
+    '0291_publication_comment_avatars.sql',
+    'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
+  ],
+  [
+    '0292',
+    '0292_publication_author_catalog.sql',
+    'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
+  ],
+  [
+    '0293',
+    '0293_public_projects_catalog_sort.sql',
+    '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
+  ],
+  [
+    '0295',
+    '0295_learning_quiz_policy_authority.sql',
     '476451b2f0f31d60be2295e0189cc0484e746c8c4bae2d3492673d73ad8e4c03',
   ],
 ] as const;
@@ -445,7 +470,16 @@ async function preservedData(pool: pg.Pool) {
       table === 'projects'
         ? [...copiedProjectOriginFields]
         : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version', 'reactions_enabled', 'reactions_version']
+          ? [
+              'acquisition_allowed',
+              'acquisition_version',
+              'reactions_enabled',
+              'reactions_version',
+              'comments_enabled',
+              'comments_admin_enabled',
+              'comments_version',
+              'pinned_comment_id',
+            ]
           : [];
     result[table] = (
       await pool.query(
@@ -853,6 +887,22 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           acquisition_version: 0,
           reactions_enabled: true,
           reactions_version: 0,
+        })),
+      );
+      // Independently assert the exact defaults of the published additive fields;
+      // excluding only those fields above must not hide historical mutations.
+      expect(
+        (
+          await pool.query(
+            'SELECT comments_enabled,comments_admin_enabled,comments_version,pinned_comment_id FROM public.project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          comments_enabled: true,
+          comments_admin_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
         })),
       );
       expect(await preservedData(pool)).toEqual(before);
