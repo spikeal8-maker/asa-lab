@@ -72,6 +72,7 @@ export function PublicationComments({
   const [page, setPage] = useState<Page | null>(null),
     [items, setItems] = useState<PublicComment[]>([]);
   const [sort, setSort] = useState('newest');
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const sortRef = useRef('newest');
   const [text, setText] = useState(''),
     [parent, setParent] = useState<PublicComment | null>(null),
@@ -267,7 +268,58 @@ export function PublicationComments({
       setNotice('Комментарий опубликован.');
     }
   }
+  useEffect(() => {
+    if (parent) composerRef.current?.focus();
+  }, [parent]);
+  useEffect(() => {
+    const field = composerRef.current;
+    if (field) {
+      field.style.height = 'auto';
+      field.style.height = `${Math.min(144, Math.max(40, field.scrollHeight))}px`;
+    }
+  }, [text, parent]);
   const length = Array.from(text.trim()).length;
+  const composer = page?.state.canComment ? (
+    <form
+      className={`publication-comment-form${parent ? ' is-inline-reply' : ''}`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      {parent ? (
+        <div className="publication-comment-reply-target">
+          Ответ: {parent.author}
+          <button type="button" onClick={() => setParent(null)}>
+            Отмена
+          </button>
+        </div>
+      ) : null}
+      <div className="publication-comment-compose-row">
+        <label className="sr-only" htmlFor="publication-comment-compose">
+          Ваш комментарий
+        </label>
+        <textarea
+          ref={composerRef}
+          id="publication-comment-compose"
+          rows={1}
+          value={text}
+          placeholder={parent ? 'Написать ответ…' : 'Написать комментарий…'}
+          maxLength={4000}
+          disabled={busy}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button className="btn-primary" type="submit" disabled={busy || !length || length > 2000}>
+          {busy ? 'Отправляем…' : 'Отправить'}
+        </button>
+      </div>
+      {length > 1800 ? (
+        <small className="publication-comment-length" aria-live="polite">
+          {length} / 2000
+        </small>
+      ) : null}
+    </form>
+  ) : null;
   return (
     <section
       className="publication-comments"
@@ -322,42 +374,9 @@ export function PublicationComments({
       ) : null}
       {loading && !page ? <p role="status">Загружаем комментарии…</p> : null}
       {page?.state.canComment ? (
-        <form
-          className="publication-comment-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-        >
-          {parent ? (
-            <div className="publication-comment-reply-target">
-              Ответ: {parent.author}
-              <button type="button" onClick={() => setParent(null)}>
-                Отмена
-              </button>
-            </div>
-          ) : null}
-          <label>
-            Ваш комментарий
-            <textarea
-              rows={3}
-              value={text}
-              maxLength={4000}
-              disabled={busy}
-              onChange={(e) => setText(e.target.value)}
-            />
-          </label>
-          <div className="publication-comment-form-footer">
-            <small aria-live="polite">{length} / 2000</small>
-            <button
-              className="btn-primary"
-              type="submit"
-              disabled={busy || !length || length > 2000}
-            >
-              {busy ? 'Отправляем…' : 'Отправить'}
-            </button>
-          </div>
-        </form>
+        !parent ? (
+          composer
+        ) : null
       ) : page ? (
         <p className="publication-comments-access">
           {page.state.reason === 'sign_in' ? (
@@ -404,7 +423,11 @@ export function PublicationComments({
             busy={busy}
             epoch={replyEpoch}
             openInitially={replied === row.id}
-            onReply={setParent}
+            onReply={(root, recipient) => {
+              setParent(recipient ? { ...root, author: recipient } : root);
+              if (recipient) setText((current) => (current.trim() ? current : `${recipient}, `));
+            }}
+            composer={parent?.id === row.id ? composer : null}
             command={command}
           />
         ))}
@@ -436,6 +459,7 @@ function CommentThread({
   epoch,
   openInitially,
   onReply,
+  composer,
   command,
 }: {
   readonly row: PublicComment;
@@ -448,7 +472,8 @@ function CommentThread({
   readonly busy: boolean;
   readonly epoch: number;
   readonly openInitially: boolean;
-  readonly onReply: (row: PublicComment) => void;
+  readonly onReply: (row: PublicComment, recipient?: string) => void;
+  readonly composer: React.ReactNode;
   readonly command: (action: string, input: Record<string, unknown>) => Promise<boolean>;
 }): JSX.Element {
   const [open, setOpen] = useState(openInitially),
@@ -457,7 +482,7 @@ function CommentThread({
     [loading, setLoading] = useState(false),
     [error, setError] = useState<string | null>(null),
     [report, setReport] = useState<string | null>(null);
-  const [guestPrompt, setGuestPrompt] = useState(false);
+  const [guestPrompt, setGuestPrompt] = useState<'like' | 'reply' | null>(null);
   const sequence = useRef(0),
     alive = useRef(true);
   const visible = row.status === 'visible';
@@ -514,8 +539,16 @@ function CommentThread({
               {item.author?.trim().slice(0, 1).toLocaleUpperCase('ru-RU') || '·'}
             </span>
             <strong>{item.author}</strong>
-            <time dateTime={item.createdAt}>
-              {new Date(item.createdAt).toLocaleString('ru-RU')}
+            <time
+              dateTime={item.createdAt}
+              title={new Date(item.createdAt).toLocaleString('ru-RU')}
+            >
+              {new Date(item.createdAt).toLocaleString('ru-RU', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </time>
             {item.pinned ? <span className="publication-comment-pin-label">Закреплено</span> : null}
           </header>
@@ -534,7 +567,7 @@ function CommentThread({
             disabled={busy || (signedIn && !item.liked && !item.canLike)}
             onClick={() => {
               if (!signedIn) {
-                setGuestPrompt(true);
+                setGuestPrompt('like');
                 return;
               }
               void command('like', { commentId: item.id, on: !item.liked });
@@ -554,8 +587,19 @@ function CommentThread({
             <span>{item.likeCount ?? 0}</span>
           </button>
         ) : null}
-        {!reply && item.status === 'visible' && canComment ? (
-          <button type="button" disabled={busy} onClick={() => onReply(item)}>
+        {item.status === 'visible' && (canComment || !signedIn) ? (
+          <button
+            type="button"
+            className="publication-comment-reply-button"
+            disabled={busy}
+            onClick={() => {
+              if (!signedIn) {
+                setGuestPrompt('reply');
+                return;
+              }
+              onReply(reply ? row : item, reply ? (item.author ?? undefined) : undefined);
+            }}
+          >
             Ответить
           </button>
         ) : null}
@@ -645,7 +689,10 @@ function CommentThread({
   return (
     <div className="publication-comment-thread">
       {render(row)}
-      {guestPrompt ? <LikeSignIn comment onClose={() => setGuestPrompt(false)} /> : null}
+      {guestPrompt ? (
+        <LikeSignIn comment reply={guestPrompt === 'reply'} onClose={() => setGuestPrompt(null)} />
+      ) : null}
+      {composer}
       {row.replyCount > 0 && visible ? (
         <button
           className="publication-comment-link"

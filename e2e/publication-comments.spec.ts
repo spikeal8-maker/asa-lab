@@ -173,6 +173,21 @@ test('real discussion persists, class and learner permissions are independent, o
         exact: true,
       }),
     ).toBeVisible();
+    await learner.reload();
+    await pupilComments.getByRole('button', { name: 'Ответы: 1', exact: true }).click();
+    const authorReply = pupilComments
+      .getByTestId('publication-comment')
+      .filter({ hasText: 'Скорость можно изменить в программе. Спасибо за вопрос!' });
+    await authorReply.getByRole('button', { name: 'Ответить', exact: true }).click();
+    await expect(
+      pupilComments.locator('.publication-comment-thread .is-inline-reply textarea'),
+    ).toBeVisible();
+    await expect(pupilComments.getByLabel('Ваш комментарий')).toHaveCount(1);
+    await pupilComments.getByLabel('Ваш комментарий').fill('Анна, спасибо за объяснение!');
+    await pupilComments.getByRole('button', { name: 'Отправить', exact: true }).click();
+    await expect(
+      pupilComments.getByText('Анна, спасибо за объяснение!', { exact: true }),
+    ).toBeVisible();
     const ownerRoot = ownerComments
       .getByTestId('publication-comment')
       .filter({ hasText: 'Интересный проект! Как изменить скорость?' });
@@ -235,6 +250,11 @@ test('real discussion persists, class and learner permissions are independent, o
       );
       const rect = await pupilComments.boundingBox();
       expect(rect!.width).toBeLessThanOrEqual(width);
+      const rootCard = pupilComments
+        .getByTestId('publication-comment')
+        .filter({ hasText: 'Интересный проект! Как изменить скорость?' });
+      expect((await rootCard.boundingBox())!.height).toBeLessThan(width <= 600 ? 185 : 145);
+      await expect(rootCard.locator('.publication-comment-avatar')).toBeVisible();
       await pupilComments.screenshot({ path: `${evidence}/discussion-${width}.png` });
     }
     await moderator.goto('/#/admin/publications');

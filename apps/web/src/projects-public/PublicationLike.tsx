@@ -25,9 +25,11 @@ function Heart({ filled = false }: { readonly filled?: boolean }): JSX.Element {
 export function LikeSignIn({
   onClose,
   comment = false,
+  reply = false,
 }: {
   readonly onClose: () => void;
   readonly comment?: boolean;
+  readonly reply?: boolean;
 }): JSX.Element {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -51,8 +53,14 @@ export function LikeSignIn({
         ×
       </button>
       <Heart />
-      <h2 id={titleId}>{comment ? 'Понравился комментарий?' : 'Понравился проект?'}</h2>
-      <p>Войдите в аккаунт или класс, чтобы сохранить лайк.</p>
+      <h2 id={titleId}>
+        {reply ? 'Хотите ответить?' : comment ? 'Понравился комментарий?' : 'Понравился проект?'}
+      </h2>
+      <p>
+        {reply
+          ? 'Войдите в аккаунт или класс, чтобы написать ответ.'
+          : 'Войдите в аккаунт или класс, чтобы сохранить лайк.'}
+      </p>
       <PortalLink className="btn-primary" href="/#/sign-in">
         Войти
       </PortalLink>

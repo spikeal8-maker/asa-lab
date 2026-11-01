@@ -255,3 +255,53 @@ it('changes server sorting without losing the comment draft', async () => {
   expect(vi.mocked(call).mock.calls.at(-1)![0]).toContain('sort=popular');
   expect(host.querySelector('textarea')!.value).toBe('Черновик ответа');
 });
+it('opens one compact composer in the thread and addresses a reply without introducing another nesting level', async () => {
+  vi.mocked(call).mockResolvedValueOnce(page({}, [{ ...row, replyCount: 1 }]));
+  await render();
+  vi.mocked(call).mockResolvedValueOnce(
+    page({}, [{ ...row, id: 'reply', parentId: row.id, author: 'Анна', body: 'Ответ автора' }]),
+  );
+  await click('Ответы: 1');
+  const reply = host.querySelector('.is-reply')!;
+  await act(async () =>
+    [...reply.querySelectorAll('button')].find((b) => b.textContent === 'Ответить')!.click(),
+  );
+  expect(host.querySelectorAll('textarea')).toHaveLength(1);
+  expect(
+    host.querySelector('.publication-comment-thread .is-inline-reply textarea'),
+  ).not.toBeNull();
+  expect(host.querySelector('textarea')!.value).toBe('Анна, ');
+  expect(host.querySelector('.publication-comment-avatar')).not.toBeNull();
+  vi.mocked(call)
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        comment: { ...row, id: 'new-reply', parentId: row.id, body: 'Анна, спасибо' },
+        parentReplyCount: 2,
+      },
+    })
+    .mockResolvedValueOnce(page({}, []));
+  await type('Анна, спасибо');
+  await submit();
+  const mutation = vi.mocked(call).mock.calls.find((c) => c[1]?.method === 'POST')!;
+  expect(JSON.parse(mutation[1]!.body as string)).toMatchObject({
+    parentId: row.id,
+    body: 'Анна, спасибо',
+  });
+});
+it('keeps Reply discoverable for guests and opens sign-in without writing a comment', async () => {
+  const show = vi.fn();
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: show,
+  });
+  vi.mocked(call).mockResolvedValueOnce(
+    page({ authenticated: false, canComment: false, reason: 'sign_in' }, [row]),
+  );
+  await render();
+  await click('Ответить');
+  expect(host.textContent).toContain('Хотите ответить?');
+  expect(show).toHaveBeenCalledOnce();
+  expect(vi.mocked(call).mock.calls.some((c) => c[1]?.method === 'POST')).toBe(false);
+});

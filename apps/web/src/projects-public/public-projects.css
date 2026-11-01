@@ -2433,3 +2433,176 @@
   clip-path: inset(50%);
   box-shadow: none;
 }
+/* Compact discussion: replies stay in their original thread, with one composer. */
+.publication-comment {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+.publication-comment header {
+  gap: 5px 7px;
+  min-height: 26px;
+}
+.publication-comment-avatar {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  font-size: 11px;
+}
+.publication-comment header strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+.publication-comment header time {
+  margin-left: auto;
+  margin-top: 0;
+  flex-basis: auto;
+  font-size: 11px;
+}
+.publication-comment-pin-label {
+  margin-left: 0;
+  font-size: 10px;
+  padding: 2px 5px;
+}
+.publication-comment .publication-comment-body {
+  margin: 5px 0 1px 33px;
+  line-height: 1.45;
+  font-size: 13px;
+}
+.publication-comments .publication-comment-actions {
+  margin-left: 27px;
+  gap: 8px;
+}
+.publication-comments .publication-comment-actions button,
+.publication-comment-menu summary {
+  min-height: 30px;
+  padding-block: 3px;
+}
+.publication-comments .publication-comment-actions .publication-comment-reply-button {
+  font-weight: 600;
+  color: #39728c;
+  padding-inline: 7px;
+  border-radius: 7px;
+}
+.publication-comment-reply-button:hover {
+  background: #edf5fa;
+}
+.publication-comments .publication-comment-actions .publication-comment-heart {
+  padding: 3px 6px;
+  min-width: 40px;
+  gap: 5px;
+}
+.publication-comment-heart svg {
+  width: 17px;
+  height: 17px;
+}
+.publication-comment-menu summary {
+  width: 30px;
+}
+.publication-comment.is-reply {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.publication-comment-replies {
+  margin: 5px 0 0 33px;
+  padding-left: 8px;
+  border-left: 1px solid #dce6ee;
+  gap: 4px;
+}
+.publication-comment-thread > .publication-comment-link {
+  margin-left: 39px;
+  min-height: 28px;
+  padding-block: 2px;
+  font-size: 11px;
+}
+.publication-comment-list {
+  gap: 10px;
+  margin-top: 14px;
+}
+.publication-comment-form {
+  margin-block: 12px;
+}
+.publication-comment-compose-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.publication-comment-compose-row textarea {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  min-height: 40px;
+  max-height: 144px;
+  resize: none;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 20px;
+  box-sizing: border-box;
+}
+.publication-comments .publication-comment-compose-row > button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.publication-comment-length {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  margin-top: 4px;
+  color: #728394;
+}
+.publication-comment-form.is-inline-reply {
+  margin: 7px 0 8px 33px;
+}
+.publication-comment-reply-target {
+  margin: 0 0 3px;
+  font-size: 12px;
+}
+.publication-comment-reply-target button {
+  min-height: 28px;
+  padding-block: 0;
+  font-size: 12px;
+}
+.publication-comments > p[role='status'] {
+  margin-block: 6px;
+  font-size: 12px;
+  color: #348268;
+}
+@media (max-width: 600px) {
+  .publication-comment {
+    padding: 8px 10px;
+  }
+  .publication-comment header {
+    gap: 4px 6px;
+  }
+  .publication-comment header time {
+    margin-left: auto;
+    margin-top: 0;
+    flex-basis: auto;
+  }
+  .publication-comment .publication-comment-body {
+    margin-left: 32px;
+  }
+  .publication-comments .publication-comment-actions {
+    margin-left: 26px;
+  }
+  .publication-comments .publication-comment-actions button,
+  .publication-comment-menu summary {
+    min-height: 36px;
+  }
+  .publication-comment-menu summary {
+    width: 36px;
+  }
+  .publication-comment-replies {
+    margin-left: 20px;
+    padding-left: 4px;
+  }
+  .publication-comment-form.is-inline-reply {
+    margin-left: 20px;
+  }
+}
