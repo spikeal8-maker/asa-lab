@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
+import { execFileSync } from 'node:child_process';
 
 const stage = process.argv[2];
 const url = new URL(process.env.TEST_DATABASE_URL ?? 'invalid:');
@@ -16,7 +17,8 @@ const options = { connectionString: url.toString(), connectionTimeoutMillis: 300
   statement_timeout: 15000, application_name: 'learning-capacity-diagnostic' };
 const client = new pg.Client(options);
 const observer = new pg.Client({ ...options, statement_timeout: 3000 });
-const report = { stage, revision: process.env.GITHUB_SHA, measurements: [], cardinality: {}, locks: [] };
+const report = { stage, checkoutRevision: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  githubEventSha: process.env.GITHUB_SHA, measurements: [], cardinality: {}, locks: [] };
 try {
   await client.connect(); await observer.connect();
   report.server = (await client.query(`SELECT version(),current_setting('jit') AS jit,
