@@ -89,7 +89,7 @@ export function AiHistoryAttachment({
       ? Math.max(1, Math.ceil(file.sizeBytes / 1024)) + ' КБ'
       : (file.sizeBytes / (1024 * 1024)).toFixed(1) + ' МБ';
   return (
-    <>
+    <div className={image ? 'chat-saved-image-group' : 'chat-saved-document-group'}>
       <button
         ref={card}
         type="button"
@@ -141,6 +141,6 @@ export function AiHistoryAttachment({
       {expanded && preview ? (
         <AiImageViewer src={preview} name={name} onClose={() => setExpanded(false)} />
       ) : null}
-    </>
+    </div>
   );
 }
