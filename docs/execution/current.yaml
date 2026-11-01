@@ -9247,12 +9247,14 @@ parallel_lanes:
         - apps/api/src/learning-canonical-projection.service.spec.ts
         - apps/api/src/learning-assessments.controller.ts
         - apps/api/src/learning-assessments.controller.spec.ts
+        - apps/web/src/App.tsx
         - apps/web/src/api.ts
         - apps/web/src/components/ClassroomGradebook.tsx
         - apps/web/src/components/ClassroomReviewStream.tsx
         - apps/web/src/components/ClassroomLearningReview.tsx
         - apps/web/src/components/classroom-gradebook.css
         - apps/web/src/learning/use-learning-destination.ts
+        - apps/web/src/pages/ClassroomPage.tsx
         - e2e/learning-course-01.spec.ts
         - tests/courses/course-activity-blocks.pg.spec.ts
         - migrations/0289_learning_teacher_review_queue.sql
@@ -9265,6 +9267,7 @@ parallel_lanes:
         - Bounded queue pages and continuation beyond30 learners; no artificial class ceiling. State filters and selection use exact seat/run identity.
         - Previous/next and refresh preserve the exact learner/run, frozen workflow attempt and submitted evidence; no latest-draft substitution or late-response overwrite.
         - Dirty, busy and uncertain-response navigation is guarded; confirmed review refreshes the queue without automatic unconfirmed advance. Preserve requestId replay, expectedResultId conflict and append-only correction history.
+        - Reuse the existing App registerLearningLeaveGuard for portal exits and guard ClassroomPage local desktop/mobile tab switches; nested close, journal modes and assignment switches cannot bypass review protection.
         - Existing journal cells and uniquely scoped conditions remain available; new exact stream hides handout-scoped LearningConditions rather than retargeting those mutations.
         - Real browser shared-handout siblings and two learners exercise the fourth review-context parameter through HTTP, exact submission versus newer draft, return/resubmit, stale correction and lost-response retry.
         - Actual1440/1024/390/320 layout and keyboard evidence, including long labels and applicable empty/loading/error states; no page overflow or lost controls.
@@ -9276,6 +9279,19 @@ parallel_lanes:
         - Historical staged E1 helper in an old owner worktree already exists in accepted main; preserve that worktree. Other selected source and migration-fixture paths were clean in79 registered root worktrees.
         - No local services, Docker, live database, deployment or owner acceptance; isolated CI only. Report a scope gap before expanding source paths or authority.
         - New bounded executor and independent reviewers; executor reports and stops after this visible stream, controller continues remaining Courses outcomes.
+        guard_scope_amendment: >-
+          Controller adds App.tsx and ClassroomPage.tsx on main before product edits:
+          the existing leave-guard is currently wired only to AssignmentLibraryPage,
+          so a journal-only guard cannot fulfill normal SPA exit protection. Reuse
+          that mechanism; no new guard framework or global click interception.
+        guard_path_coordination: >-
+          Read-only inspection of80 registered root worktrees found no App WIP.
+          The sole staged ClassroomPage patch in teacher-587-review-fixes-20261018
+          implements roster accessibility and persistent journal/profile layout
+          already integrated on main in1c41341a492f0318cec49b5ab8d32eb622c6e54d.
+          Current main retains those features and later profile improvements.
+          Preserve the historical worktree/index untouched and all accepted behavior;
+          the selected new leave-guard wiring is not a replay of that old patch.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
