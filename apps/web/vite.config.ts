@@ -287,6 +287,11 @@ export default defineConfig(({ command }) => {
               : 'assets/[name]-[hash][extname]';
           },
           manualChunks(id) {
+            // The public viewer needs pure geometry data, not the module provider
+            // and its SDK dependencies absorbed into the recovery/engine chunks.
+            if (id.includes('/contexts/three-d/domain/document.')) {
+              return 'three-d-document';
+            }
             // Static block metadata is shared with read-only publication code.
             // Keep Rollup from absorbing it into the solver's dependency chunk.
             if (id.includes('/contexts/electronics/domain/arduino-block-support.')) {
