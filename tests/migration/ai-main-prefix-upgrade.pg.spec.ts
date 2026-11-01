@@ -65,6 +65,7 @@ const expectedPending = [
   '0284', // Isolated Polza STT credentials and bounded speech admission.
   '0285', // Existing public author name projection, immutable history preserved.
   '0286', // Bounded search retrieval settings.
+  '0287', // Bounded document extraction with private originals.
 ];
 
 interface Identity {

@@ -57,8 +57,10 @@ FROM ${NODE_IMAGE} AS runtime
 # Validate compressed speech duration before any potentially billable Polza request.
 # ffprobe runs on bounded in-memory input; no audio is written to disk.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv \
     && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/asa-document-python && /opt/asa-document-python/bin/pip install --no-cache-dir pypdf==6.21.4 defusedxml==0.7.1
 
 ARG ASA_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
@@ -71,6 +73,7 @@ ENV NODE_EXTRA_CA_CERTS=/app/certs/russian-trusted-root-ca.pem
 WORKDIR /app
 
 COPY --from=workspace --chown=node:node /opt/asa-api/ ./
+COPY --from=workspace --chown=node:node /workspace/apps/api/src/ai-attachments/document-reader.py ./dist/ai-attachments/document-reader.py
 COPY --from=workspace --chown=node:node /workspace/migrations ./migrations
 COPY --from=workspace --chown=node:node /workspace/tools/migrate.mjs ./tools/migrate.mjs
 COPY --from=workspace --chown=node:node /workspace/tools/seed-dev.mjs ./tools/seed-dev.mjs
