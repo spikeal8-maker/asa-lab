@@ -390,6 +390,10 @@ function Write-Receipt {
 
   $lines = foreach ($key in $Values.Keys) { "$key=$($Values[$key])" }
   [System.IO.File]::WriteAllLines($Path, $lines, [System.Text.UTF8Encoding]::new($false))
+  try {
+    & python tools/deployment/operational.py source-update --root $RepoRoot --receipt $Path
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'Operation diagnostics failed; original update receipt is preserved.' }
+  } catch { Write-Warning 'Operation diagnostics failed; original update receipt is preserved.' }
 }
 
 function Invoke-GuardedUpdate {

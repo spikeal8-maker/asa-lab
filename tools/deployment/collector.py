@@ -51,7 +51,7 @@ def command(args, *, allow_missing=False):
 
 def digest(root):
     value = hashlib.sha256()
-    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py", "memory_sampling.py"):
+    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py", "memory_sampling.py", "deployment/operational.py"):
         path = root / "tools" / name
         value.update(name.encode()); value.update(path.read_bytes())
     return value.hexdigest()
@@ -99,6 +99,10 @@ def validate_config(install):
                 re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", item["source"]) and
                 isinstance(item.get("path"), str) and Path(item["path"]).is_absolute(),
                 "COLLECTOR_CONFIG", "File sources require a bounded name and an absolute path.")
+    from .operational import configuration
+    try: configuration(config, install.state/'log-collector.json')
+    except (OSError, ValueError) as exc:
+        raise Blocked('COLLECTOR_CONFIG', 'Operational source configuration is invalid or not root controlled.', 'Correct the private operator configuration; no source was contacted.') from None
     return config
 
 
@@ -120,6 +124,15 @@ def root_runner_paths(install):
     diagnostics = install.state / 'diagnostics'
     paths.add(diagnostics)
     if diagnostics.exists(): paths.update(diagnostics.rglob('*'))
+    operations = install.state/'operations'
+    paths.add(operations)
+    if operations.exists(): paths.update(operations.rglob('*'))
+    config = read_json(install.state/'log-collector.json', {})
+    operational_config = config.get('operationalSources', {})
+    require(isinstance(operational_config, dict), 'COLLECTOR_ROOT_TRUST', 'Operational configuration must be a mapping.')
+    external = operational_config.get('backupSuccessReceipt')
+    require(external is None or isinstance(external,str) and Path(external).is_absolute(), 'COLLECTOR_ROOT_TRUST', 'Configured backup input must be one absolute path.')
+    if external: paths.add(Path(external))
     for name in ('installation.json', 'log-collector.json', 'collector-runner.json'):
         paths.add(install.state / name)
     for path in list(paths):

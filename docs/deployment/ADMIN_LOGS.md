@@ -695,3 +695,11 @@ Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
 through that port may appear to have the same trusted peer. A proposed external
 rate policy must account for school NAT traffic and retain abuse protection;
 raising limits without these checks is not the application IP fix.
+
+## Операционные источники диагностики
+
+Версионированная декларация обязательных источников, закрытые события update/backup,
+сводки Ollama/ComfyUI и безопасная проекция AI-ledger описаны в
+[Operational diagnostics](OPERATIONAL_DIAGNOSTICS.md). Источники активируются только
+после штатного обновления; этот документ не подтверждает live-сбор. Отсутствие
+реальной квитанции или ошибка источника не заменяется пустым успешным журналом.
