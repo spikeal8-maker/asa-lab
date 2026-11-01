@@ -26,3 +26,22 @@ The persistent browser regression also verifies sorting alignment, single-line
 author/title labels, date-only hover placement, avatar rendering and unchanged
 preview bytes. Local test data and credentials remain outside Git. Main source
 integration must not be described as a deployment or a successful cloud CI run.
+
+## Integration repair: read-only Arduino block dependency
+
+The full publication build found that `PublicArduinoBlocks` imported the editor
+registry, its controls and the broad electronics package, making solver/runtime
+modules reachable from public viewing. The emitted-graph guard was retained.
+
+Shared block definitions, workspace serialization defaults/migration, theme/help
+and static support metadata now have presentation-only modules. The editor keeps
+its existing exported APIs and imports those same definitions; the public viewer
+imports only presentation. Code generation, connection controls, text diagnostics
+and electrical/Arduino runtime calculations remain in their original modules.
+No duplicated block registry, changed mathematical algorithm or stored program
+rewrite was introduced.
+
+The repair passed web typecheck/lint, 74 focused support/value/serialization tests
+and the editor Arduino suites (215 tests, including the unchanged contract
+assertions updated to read the new canonical source files). The final publication
+build/graph gate is run against the resulting integration commit before Main push.

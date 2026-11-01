@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as ScratchBlocks from 'scratch-blocks';
-import {
-  registerArduinoBlocks,
-  migrateLegacyArduinoWorkspaceState,
-} from '../electronics/arduino-blocks';
-import { ARDUINO_SCRATCH_THEME } from '../electronics/arduino-block-ui';
+import { registerArduinoBlockDefinitions } from '../electronics/arduino-block-definitions';
+import { migrateLegacyArduinoWorkspaceState } from '../electronics/arduino-block-schema';
+import { ARDUINO_SCRATCH_THEME } from '../electronics/arduino-block-appearance';
 import { publicArduinoBlocks } from '@asa-lab/contracts';
 import scratchZoomOutUrl from '../../node_modules/scratch-blocks/media/zoom-out.svg?url';
 import scratchZoomResetUrl from '../../node_modules/scratch-blocks/media/zoom-reset.svg?url';
@@ -23,7 +21,7 @@ export function PublicArduinoBlocks({ value }: { readonly value: string }): JSX.
     try {
       const safe = publicArduinoBlocks(value);
       if (!safe) throw Error();
-      registerArduinoBlocks();
+      registerArduinoBlockDefinitions();
       workspace = ScratchBlocks.inject(element, {
         readOnly: true,
         sounds: false,

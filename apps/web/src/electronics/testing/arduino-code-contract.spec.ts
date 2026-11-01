@@ -6,8 +6,18 @@ import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
 import webViteConfig from '../../../vite.config';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
-const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
-const blockUiSource = readFileSync(resolve(electronicsRoot, 'arduino-block-ui.ts'), 'utf8');
+// Definitions/format/theme are now shared with the read-only viewer. Keep the
+// same contract assertions over their canonical sources rather than the old file layout.
+const blocksSource = [
+  'arduino-blocks.ts',
+  'arduino-block-definitions.ts',
+  'arduino-block-schema.ts',
+]
+  .map((file) => readFileSync(resolve(electronicsRoot, file), 'utf8'))
+  .join('\n');
+const blockUiSource = ['arduino-block-ui.ts', 'arduino-block-appearance.ts']
+  .map((file) => readFileSync(resolve(electronicsRoot, file), 'utf8'))
+  .join('\n');
 const panelSource = readFileSync(resolve(electronicsRoot, 'ArduinoCodePanel.tsx'), 'utf8');
 const serialMonitorSource = readFileSync(
   resolve(electronicsRoot, 'ArduinoSerialMonitor.tsx'),
