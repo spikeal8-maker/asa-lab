@@ -23,19 +23,31 @@ function reject(code: string, status: number): never {
   throw new HttpException({ error: { code, message: 'Попытка теста недоступна.' } }, status);
 }
 
-function losslessJsonNumbers(input: unknown): boolean {
-  // JSON.parse can produce Infinity for an overflowing numeric token. Reject it
-  // before JSON.stringify can silently turn an answer into an unanswered null.
-  const pending: unknown[] = [input];
-  while (pending.length > 0) {
-    const value = pending.pop();
-    if (typeof value === 'number' && !Number.isFinite(value)) return false;
-    if (['undefined', 'bigint', 'symbol', 'function'].includes(typeof value)) return false;
-    if (Array.isArray(value)) {
-      for (const child of value) pending.push(child);
-    } else if (value && typeof value === 'object') {
-      for (const child of Object.values(value)) pending.push(child);
-    }
+function boundedAnswerShape(input: object): boolean {
+  // The supported response union is shallow. Reject arbitrary nesting before
+  // JSON.stringify can overflow, and non-finite numbers before they become null.
+  // Exact frozen question types/options remain the SQL boundary's authority.
+  for (const answer of Object.values(input) as unknown[]) {
+    if (!answer || typeof answer !== 'object' || Array.isArray(answer)) return false;
+    const keys = Object.keys(answer);
+    if (keys.length !== 1) return false;
+    if (keys[0] === 'value') {
+      const value = (answer as { value: unknown }).value;
+      if (
+        value !== null &&
+        typeof value !== 'string' &&
+        typeof value !== 'boolean' &&
+        !(typeof value === 'number' && Number.isFinite(value))
+      )
+        return false;
+    } else if (keys[0] === 'values') {
+      const values = (answer as { values: unknown }).values;
+      if (
+        values !== null &&
+        (!Array.isArray(values) || values.some((value) => typeof value !== 'string'))
+      )
+        return false;
+    } else return false;
   }
   return true;
 }
@@ -121,14 +133,15 @@ export class LearningQuizAttemptsController {
       !answers ||
       typeof answers !== 'object' ||
       Array.isArray(answers) ||
-      !losslessJsonNumbers(answers) ||
-      Buffer.byteLength(JSON.stringify(answers)) > 262144
+      !boundedAnswerShape(answers)
     )
       reject('validation_error', 400);
+    const serialized = JSON.stringify(answers);
+    if (Buffer.byteLength(serialized) > 262144) reject('validation_error', 400);
     const actor = await this.actor(request);
     const result = await this.pool!.query(
       'SELECT * FROM learning_quiz_attempt_save($1,$2,$3,$4::jsonb)',
-      [actor, attemptId, expected, JSON.stringify(answers)],
+      [actor, attemptId, expected, serialized],
     );
     const row = result.rows[0];
     if (!row || row['result_code'] === 'forbidden') reject('quiz_attempt_unavailable', 404);
@@ -137,6 +150,20 @@ export class LearningQuizAttemptsController {
         String(row['result_code'] ?? 'save_failed'),
         row['result_code'] === 'invalid_answers' ? 400 : 409,
       );
-    return { attempt: row['attempt'] as Record<string, unknown> };
+    const attempt = row['attempt'] as Record<string, unknown>;
+    const version = attempt['version'];
+    const savedAt = attempt['lastSavedAt'];
+    const expiresAt = attempt['expiresAt'];
+    if (
+      typeof version !== 'number' ||
+      !Number.isSafeInteger(version) ||
+      version !== expected + 1 ||
+      typeof savedAt !== 'string' ||
+      !Number.isFinite(Date.parse(savedAt)) ||
+      (expiresAt !== null &&
+        (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt))))
+    )
+      reject('save_failed', 409);
+    return { version, savedAt, expiresAt };
   }
 }

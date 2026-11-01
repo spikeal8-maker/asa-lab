@@ -86,6 +86,50 @@ describe('canonical Quiz persistence HTTP boundary', () => {
       });
       expect(restored.statusCode).toBe(200);
       expect(restored.headers['cache-control']).toBe('private, no-store');
+      const savedAt = '2026-11-02T10:00:00.000Z';
+      const positiveCases = [
+        { expectedVersion: 1, expiresAt: null, answers: { [id]: { value: 0 } } },
+        {
+          expectedVersion: 2,
+          expiresAt: '2026-11-02T10:10:00.000Z',
+          answers: { [id]: { values: ['a', 'b'] } },
+        },
+      ];
+      for (const input of positiveCases) {
+        f.pool.query.mockResolvedValueOnce({
+          rows: [
+            {
+              result_code: 'ok',
+              attempt: {
+                attemptId: id,
+                version: input.expectedVersion + 1,
+                lastSavedAt: savedAt,
+                expiresAt: input.expiresAt,
+                answers: input.answers,
+              },
+            },
+          ],
+        });
+        const saved = await app.inject({
+          method: 'PATCH',
+          url: `/api/learning/attempts/${id}/quiz-answers`,
+          headers,
+          payload: { expectedVersion: input.expectedVersion, answers: input.answers },
+        });
+        expect(saved.statusCode).toBe(200);
+        expect(saved.json()).toEqual({
+          version: input.expectedVersion + 1,
+          savedAt,
+          expiresAt: input.expiresAt,
+        });
+        expect(saved.headers['cache-control']).toBe('private, no-store');
+        expect(f.pool.query.mock.calls.at(-1)?.[1]).toEqual([
+          'seat-principal',
+          id,
+          input.expectedVersion,
+          JSON.stringify(input.answers),
+        ]);
+      }
       f.pool.query.mockResolvedValueOnce({ rows: [{ result_code: 'quiz_attempt_conflict' }] });
       const conflicted = await app.inject({
         method: 'PATCH',
@@ -103,6 +147,17 @@ describe('canonical Quiz persistence HTTP boundary', () => {
         payload: `{"expectedVersion":1,"answers":{"${id}":{"value":1e400}}}`,
       });
       expect(overflow.statusCode).toBe(400);
+      expect(f.pool.query).toHaveBeenCalledTimes(queryCount);
+      const nestedPayload = `{"expectedVersion":1,"answers":{"${id}":{"value":${'['.repeat(12000)}0${']'.repeat(12000)}}}}`;
+      expect(Buffer.byteLength(nestedPayload)).toBeLessThan(262144);
+      const nested = await app.inject({
+        method: 'PATCH',
+        url: `/api/learning/attempts/${id}/quiz-answers`,
+        headers: { ...headers, 'content-type': 'application/json' },
+        payload: nestedPayload,
+      });
+      expect(nested.statusCode).toBe(400);
+      expect(nested.json()).toMatchObject({ error: { code: 'validation_error' } });
       expect(f.pool.query).toHaveBeenCalledTimes(queryCount);
       expect(f.accounts.resolve).not.toHaveBeenCalled();
     } finally {
@@ -153,6 +208,9 @@ describe('canonical Quiz persistence HTTP boundary', () => {
       { expectedVersion: 1, answers: { [id]: { value: 'x'.repeat(262145) } } },
       { expectedVersion: 1, answers: { [id]: { value: Number.POSITIVE_INFINITY } } },
       { expectedVersion: 1, answers: { [id]: { value: Number.NaN } } },
+      { expectedVersion: 1, answers: { [id]: { value: [[['a']]] } } },
+      { expectedVersion: 1, answers: { [id]: { values: [['a']] } } },
+      { expectedVersion: 1, answers: { [id]: { value: 'a', values: ['a'] } } },
     ]) {
       await expect(f.controller.save(request, id, body)).rejects.toMatchObject({ status: 400 });
     }

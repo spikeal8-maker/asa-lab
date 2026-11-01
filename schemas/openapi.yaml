@@ -100,19 +100,27 @@ paths:
                   additionalProperties:
                     type: object
                     additionalProperties: false
+                    minProperties: 1
+                    maxProperties: 1
+                    oneOf:
+                      - required: [value]
+                      - required: [values]
                     properties:
                       value: { type: [string, number, boolean, 'null'] }
                       values: { type: [array, 'null'], uniqueItems: true, items: { type: string } }
       responses:
         '200':
-          description: Confirmed answers with incremented version and server timestamp
+          description: Confirmed answer revision and server timestamps
           content:
             application/json:
               schema:
                 type: object
-                required: [attempt]
+                additionalProperties: false
+                required: [version, savedAt, expiresAt]
                 properties:
-                  attempt: { $ref: '#/components/schemas/QuizAttemptState' }
+                  version: { type: integer, minimum: 2, maximum: 2147483647 }
+                  savedAt: { type: string, format: date-time }
+                  expiresAt: { type: [string, 'null'], format: date-time }
         '400': { description: Invalid body or frozen question response }
         '401': { description: No active session }
         '404': { description: Attempt absent or unavailable to current actor }
