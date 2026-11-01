@@ -48,6 +48,7 @@ export function ClassroomReviewStream({
   );
   const updateFocus = useCallback(
     (run: string | null, item: TeacherReviewQueueItem | null, exit = false) => {
+      if (blocked || loading) return;
       const [base, raw] = window.location.hash.split('?');
       const params = new URLSearchParams(raw ?? '');
       params.set('assignment', assignmentId);
@@ -67,9 +68,12 @@ export function ClassroomReviewStream({
         '',
         window.location.pathname + window.location.search + hash,
       );
+      // This clean, same-entry focus update is already approved locally. Teach
+      // the existing portal guard its new accepted URL before hash observers run.
+      window.dispatchEvent(new Event('settings-route'));
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     },
-    [assignmentId],
+    [assignmentId, blocked, loading],
   );
   const load = useCallback(
     async (scope: { after?: string; before?: string; edge: 'first' | 'last' }) => {

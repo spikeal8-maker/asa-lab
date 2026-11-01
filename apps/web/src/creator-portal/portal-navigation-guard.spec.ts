@@ -69,7 +69,10 @@ function historyFixture(
       back: () => go(-1),
       forward: () => go(1),
     },
-    dispatchEvent: vi.fn(),
+    dispatchEvent: vi.fn((event: Event) => {
+      // The existing App listener accepts approved in-place route normalization.
+      if (event.type === 'settings-route') guard.accept();
+    }),
   });
   const accepted = { location: { current: entries[1]!.href }, index: { current: 1 } };
   const editor = {
@@ -100,6 +103,38 @@ function historyFixture(
 }
 
 describe('combined portal navigation approval', () => {
+  it('accepts clean same-entry classroom focus replacement and protects that normalized entry on native exits', () => {
+    const f = historyFixture('classroom');
+    const originalEntries = f.entries.length;
+    const normalized = window.location.href + '?review=stream&learner=exact-seat';
+    window.history.replaceState(window.history.state, '', normalized);
+    window.dispatchEvent(new Event('settings-route'));
+    f.sync();
+    f.flush();
+    expect(f.accepted.location.current).toBe(normalized);
+    expect(f.accepted.index.current).toBe(1);
+    expect(f.go).not.toHaveBeenCalled();
+    expect(f.pushes).not.toHaveBeenCalled();
+    expect(f.apply).not.toHaveBeenCalled();
+    expect(f.mayLeave).not.toHaveBeenCalled();
+    expect(f.entries).toHaveLength(originalEntries);
+    const unchanged = structuredClone(f.editor);
+    f.mayLeave.mockReturnValue(false);
+    f.go(-1);
+    f.flush();
+    expect(window.location.href).toBe(normalized);
+    expect(f.editor).toEqual(unchanged);
+    expect(f.apply).not.toHaveBeenCalled();
+    f.pushes({ asaRouteIndex: 1 }, '', '#/help');
+    f.sync();
+    f.flush();
+    expect(window.location.href).toBe(normalized);
+    expect(f.accepted.location.current).toBe(normalized);
+    expect(f.editor).toEqual(unchanged);
+    expect(f.apply).not.toHaveBeenCalled();
+    expect(f.mayLeave).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     ['dirty feedback', -1],
     ['dirty feedback', 1],

@@ -1184,6 +1184,21 @@ async function exerciseExactReviewStream(
 
   // A new course starts normally; only AFTER real saves/submissions do we model
   // the historical shared-handout shape supported by published0155.
+  const commandInTenant = async <T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> => {
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [identity.tenantId]);
+      const result = await work(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
   const actor = (
     await admin.query(
       'SELECT principal_id,account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
@@ -1279,16 +1294,18 @@ async function exerciseExactReviewStream(
     );
   }
   const sibling = (
-    await admin.query(
-      `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,'review-second')`,
-      [
-        actor.principal_id,
-        runtime.source_classroom_assignment_id,
-        version,
-        assigned.run_id,
-        runtime.source_course_lesson_id,
-        'review:sibling:' + crypto.randomUUID(),
-      ],
+    await commandInTenant((client) =>
+      client.query(
+        `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,'review-second')`,
+        [
+          actor.principal_id,
+          runtime.source_classroom_assignment_id,
+          version,
+          assigned.run_id,
+          runtime.source_course_lesson_id,
+          'review:sibling:' + crypto.randomUUID(),
+        ],
+      ),
     )
   ).rows[0];
   expect(sibling.result_code).toBe('ok');
@@ -1305,12 +1322,14 @@ async function exerciseExactReviewStream(
   for (const participant of participants)
     expect(
       (
-        await admin.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
-          actor.principal_id,
-          sibling.activity_run_id,
-          participant.learner_identity_id,
-          participant.source_course_enrollment_id,
-        ])
+        await commandInTenant((client) =>
+          client.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+            actor.principal_id,
+            sibling.activity_run_id,
+            participant.learner_identity_id,
+            participant.source_course_enrollment_id,
+          ]),
+        )
       ).rows[0].result_code,
     ).toBe('ok');
   await stream.getByRole('button', { name: 'Вернуться к журналу', exact: true }).click();
@@ -1488,24 +1507,26 @@ async function exerciseExactReviewStream(
     const learner = (
       await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS id', [row.id])
     ).rows[0].id;
-    const enrolled = (
-      await admin.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
-        actor.principal_id,
-        assigned.run_id,
-        learner,
-      ])
-    ).rows[0];
-    expect(enrolled.result_code).toBe('ok');
-    expect(
-      (
-        await admin.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+    await commandInTenant(async (client) => {
+      const enrolled = (
+        await client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
           actor.principal_id,
-          runtime.id,
+          assigned.run_id,
           learner,
-          enrolled.enrollment_id,
         ])
-      ).rows[0].result_code,
-    ).toBe('ok');
+      ).rows[0];
+      expect(enrolled.result_code).toBe('ok');
+      expect(
+        (
+          await client.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+            actor.principal_id,
+            runtime.id,
+            learner,
+            enrolled.enrollment_id,
+          ])
+        ).rows[0].result_code,
+      ).toBe('ok');
+    });
   }
   await stream.getByLabel('Состояние в очереди').selectOption('not_started');
   await expect(queue.getByRole('listitem')).toHaveCount(20);

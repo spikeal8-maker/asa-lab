@@ -2366,24 +2366,26 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       const learner = (
         await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS id', [row.id])
       ).rows[0].id;
-      const enrollment = (
-        await admin.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
-          principalId,
-          assigned.run_id,
-          learner,
-        ])
-      ).rows[0];
-      expect(enrollment.result_code).toBe('ok');
-      expect(
-        (
-          await admin.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+      await inTenant(author, async (client) => {
+        const enrollment = (
+          await client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
             principalId,
-            first.id,
+            assigned.run_id,
             learner,
-            enrollment.enrollment_id,
           ])
-        ).rows[0].result_code,
-      ).toBe('ok');
+        ).rows[0];
+        expect(enrollment.result_code).toBe('ok');
+        expect(
+          (
+            await client.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+              principalId,
+              first.id,
+              learner,
+              enrollment.enrollment_id,
+            ])
+          ).rows[0].result_code,
+        ).toBe('ok');
+      });
     }
     const firstPage = await teacherQueue(classroom, first.source_classroom_assignment_id, first.id);
     const secondPage = await teacherQueue(
