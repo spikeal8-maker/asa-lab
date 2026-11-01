@@ -27,7 +27,10 @@ changes, player modifications, downloads, permissions or production deployment.
 - Screenshots and receipt: F:/Asa-Lab/operations/reports/catalog-card-20261101/
   catalog-{1440,1024,390,320}.png, card.png, visual-checks.json.
 - Controller visually inspected390 and enlarged actual card. Long public name is
-  ellipsized on narrow cards with full native tooltip; module label also bounded.
+  ellipsized with full native tooltip. Module gets reserved width rather than
+  shrinking into an unreadable fragment; mobile electronics label is compact
+  «Схемы», retaining full «Электроника» in accessible text and native tooltip.
+  An additional native touch390 check confirms date visible without hover.
 - Temporary local rendering harness removed; evidence retained outside repository.
 - Existing built-browser seven-width journey now checks square card, no empty
   footer rows, author/module placement, likes bounds and hover/keyboard date.

@@ -325,6 +325,7 @@
 }
 .public-project-card-identity {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -355,7 +356,7 @@
   text-shadow: 0 1px 3px #081522;
 }
 .public-project-card .public-project-card-topline > .publication-module {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   max-width: 48%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1295,4 +1296,30 @@
   font-size: 0.8rem;
   max-width: 24rem;
   overflow-wrap: anywhere;
+}
+
+.public-project-module-compact {
+  display: none;
+}
+@media (max-width: 600px) {
+  .public-project-card .publication-module[data-module='electronics'] .public-project-module-full {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .public-project-module-compact {
+    display: inline;
+  }
+  .public-project-card .public-project-author {
+    font-size: 11px;
+  }
+  .public-project-avatar {
+    flex-basis: 20px;
+    width: 20px;
+    height: 20px;
+    font-size: 8px;
+  }
 }

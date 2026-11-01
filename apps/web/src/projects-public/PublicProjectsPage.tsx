@@ -259,11 +259,18 @@ export function PublicProjectsPage({
                       data-module={publication.moduleKey}
                       title={publicModuleName(publication.moduleKey)}
                     >
-                      {publication.moduleKey === 'blocks'
-                        ? 'Scratch'
-                        : publication.moduleKey === 'three-d'
-                          ? '3D'
-                          : publicModuleName(publication.moduleKey)}
+                      <span className="public-project-module-full">
+                        {publication.moduleKey === 'blocks'
+                          ? 'Scratch'
+                          : publication.moduleKey === 'three-d'
+                            ? '3D'
+                            : publicModuleName(publication.moduleKey)}
+                      </span>
+                      {publication.moduleKey === 'electronics' ? (
+                        <span className="public-project-module-compact" aria-hidden="true">
+                          Схемы
+                        </span>
+                      ) : null}
                     </span>
                   </div>
                   <time className="public-project-card-date" dateTime={publication.publishedAt}>
