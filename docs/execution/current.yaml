@@ -16073,11 +16073,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: done
+      status: in_progress
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: source_review_evidence_done_a94_General41038088189_all4SUCCESS
+      checkpoint: owner_selected_strict_denied_storage_caption_repair
       accepted_candidate_sha: a94eba7bf3bf8c4623184996c022f907d0972509
       integrated_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
       composition_review: APPROVE_169candidate_and29foreign_blobs_preserved
@@ -16095,7 +16095,12 @@ parallel_lanes:
       rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
       initial_rejected_review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
       candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
-      repair_scope: CSS_and_toolbar_only_short_pausing_display_label_SimulationSpeedControl_no_timing_logic
+      repair_scope: Restore truthful visible emergency-copy caption in native toolbar across all original E01 widths and states; CSS only unless a proved cause requires separately selected scope.
+      current_owner_request: Repair remaining25 Electronics failures easiest first and complete8 unfinished cases; publish verified slices to main without server or foreign changes.
+      current_slice_baseline: 2a28f40dcd048fac1ce303bd207699c64199b041
+      current_slice_evidence: Strict41345471963 E01 denied-local-storage fails captionVisible after emergency JSON equality passed; actual CSS sets emergency button font-size0 and inserts JSON pseudo-label.
+      current_slice_next_action: Bounded author proves actual native caption and selects minimal CSS fix; retain full E01 oracle, all persistence semantics and responsive actions; fresh independent review and focused CI before integration.
+      programme_remaining: Other24 known failures and8 unfinished scenarios remain open; toolbar overlaps next, timing requires separately selected cause-based repair.
       owner_acceptance: pending
       execution_role: bounded_css_executor_then_fresh_independent_review
       context_hints:
