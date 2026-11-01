@@ -98,6 +98,9 @@ jobs:
       - name: DevEx shadow planner integration
         run: pnpm test:devex-plan:integration
 
+      - name: DevEx changed local checks execution
+        run: pnpm test:dev-check
+
       # The canonical focused gate includes collector and browser transport tests.
       - name: Observability focused gate
         run: pnpm test:admin-logs
