@@ -835,6 +835,7 @@ function CourseEditor({
   const [saveTarget, setSaveTarget] = useState<HTMLDivElement | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [usageRefreshVersion, setUsageRefreshVersion] = useState(0);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const compactHeaderRef = useRef<HTMLElement>(null);
   // The outline and focused block actions must clear the actual sticky
@@ -1697,6 +1698,7 @@ function CourseEditor({
           {usageOpen ? (
             <CourseUsage
               courseId={course.id}
+              refreshVersion={usageRefreshVersion}
               onClose={() => setUsageOpen(false)}
               onNavigate={(href) =>
                 withSavedDraft(() => {
@@ -2213,6 +2215,10 @@ function CourseEditor({
             version={assignVersion}
             attempt={assignmentAttempt.current.value}
             onBusyChange={setAssignBusy}
+            onAssigned={() => {
+              setUsageRefreshVersion((value) => value + 1);
+              onChanged();
+            }}
             onClose={() => {
               setPreview(false);
               setAssignVersion(null);

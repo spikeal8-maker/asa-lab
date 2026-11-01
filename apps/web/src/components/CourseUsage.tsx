@@ -7,10 +7,12 @@ export function CourseUsage({
   courseId,
   onClose,
   onNavigate,
+  refreshVersion = 0,
 }: {
   readonly courseId: string;
   readonly onClose: () => void;
   readonly onNavigate: (href: string) => void;
+  readonly refreshVersion?: number;
 }): JSX.Element {
   const [items, setItems] = useState<CourseUsageRun[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function CourseUsage({
     return () => {
       generation.current += 1;
     };
-  }, [load]);
+  }, [load, refreshVersion]);
 
   return (
     <section className="course-usage" aria-label="Использование курса">

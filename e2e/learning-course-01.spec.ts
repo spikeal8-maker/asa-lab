@@ -4598,6 +4598,15 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   );
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  const usagePath = `/api/courses/${courseId}/usage`;
+  const unusedRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === usagePath,
+  );
+  await openCourseActions(page);
+  await editor.getByRole('button', { name: 'Использование', exact: true }).click();
+  const usage = editor.getByRole('region', { name: 'Использование курса', exact: true });
+  expect(await (await unusedRead).json()).toEqual({ items: [] });
+  await expect(usage).toContainText('В доступных вам классах курс пока не используется.');
   await openCourseActions(page);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
@@ -4605,6 +4614,9 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   const firstResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' && new URL(response.url()).pathname === assignmentPath,
+  );
+  const usageRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === usagePath,
   );
   await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
   const assigned = await firstResponse;
@@ -4619,14 +4631,8 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
   await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
 
-  // Usage is a read over this real delivery, not a separate progress store.
-  const usagePath = `/api/courses/${courseId}/usage`;
-  const usageRead = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === usagePath,
-  );
-  await openCourseActions(page);
-  await editor.getByRole('button', { name: 'Использование', exact: true }).click();
-  const usage = editor.getByRole('region', { name: 'Использование курса', exact: true });
+  // The same mounted Usage must refresh after the real confirmed assignment;
+  // closing/reopening it here would conceal the stale-empty regression.
   const usageResponse = await usageRead;
   expect(usageResponse.status()).toBe(200);
   expect(await usageResponse.json()).toEqual({

@@ -8,12 +8,14 @@ import { CourseUsage } from '../../components/CourseUsage';
 let root: Root | undefined;
 let container: HTMLDivElement | undefined;
 const reactGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
-async function mount(courseId = 'course-a', onNavigate = vi.fn()) {
+async function mount(courseId = 'course-a', onNavigate = vi.fn(), refreshVersion = 0) {
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = true;
   container ??= document.body.appendChild(document.createElement('div'));
   root ??= createRoot(container);
   await act(async () =>
-    root!.render(createElement(CourseUsage, { courseId, onNavigate, onClose: vi.fn() })),
+    root!.render(
+      createElement(CourseUsage, { courseId, onNavigate, onClose: vi.fn(), refreshVersion }),
+    ),
   );
   return onNavigate;
 }
@@ -99,4 +101,38 @@ it('ignores stale responses after the selected course changes', async () => {
   );
   expect(container!.textContent).not.toContain('Old course error');
   expect(container!.textContent).toContain('курс пока не используется');
+});
+
+it('refreshes an already mounted empty Usage after a confirmed assignment without replacing the panel', async () => {
+  const read = vi
+    .spyOn(api, 'courseUsage')
+    .mockResolvedValueOnce({ ok: true, status: 200, data: { items: [] } })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            id: 'new-run',
+            classroomId: 'class-a',
+            classroomTitle: 'Class after assignment',
+            classroomStatus: 'active',
+            courseVersionId: 'exact-version',
+            versionNumber: 1,
+            title: 'New delivery',
+            status: 'open',
+            audienceType: 'whole_class',
+          },
+        ],
+      },
+    });
+  const navigate = vi.fn();
+  await mount('course-a', navigate, 0);
+  const panel = container!.querySelector('section');
+  expect(container!.textContent).toContain('курс пока не используется');
+  await mount('course-a', navigate, 1);
+  expect(container!.querySelector('section')).toBe(panel);
+  expect(read).toHaveBeenCalledTimes(2);
+  expect(container!.textContent).toContain('Class after assignment');
+  expect(container!.textContent).not.toContain('курс пока не используется');
 });
