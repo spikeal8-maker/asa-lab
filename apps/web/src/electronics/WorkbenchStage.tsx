@@ -1,6 +1,9 @@
 import { SPST_COMPONENT_TYPE } from './component-catalog';
+import { computeSupplySwitchClipGeometry } from './supply-switch-hit-geometry';
 import {
   memo,
+  useCallback,
+  useId,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -449,9 +452,11 @@ export function WorkbenchDiagnosticIndicators({
 export function WorkbenchComponentBody({
   controller,
   component,
+  onSupplySwitchAvailability,
 }: {
   controller: WorkbenchComponentBodyController;
   component: SchematicComponent;
+  onSupplySwitchAvailability?: ((id: string, available: boolean) => void) | undefined;
 }): JSX.Element | null {
   const c = useCommittedWorkbenchPresentation(controller, (projection) => {
     const result = projection.runtimePresentationResultByComponent.get(component.id);
@@ -606,6 +611,7 @@ export function WorkbenchComponentBody({
               ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
               : undefined
           }
+          onSupplySwitchAvailability={onSupplySwitchAvailability}
           onRegulatedPowerSupplyChange={
             entry.key === 'regulated-power-supply'
               ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
@@ -706,6 +712,19 @@ export function WorkbenchStage({
 }): JSX.Element {
   const document = c.document!;
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
+  const switchClipId = useId().replace(/:/g, '');
+  const [liveSupplySwitches, setLiveSupplySwitches] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const onSupplySwitchAvailability = useCallback((id: string, available: boolean) => {
+    setLiveSupplySwitches((previous) => {
+      if (previous.has(id) === available) return previous;
+      const next = new Set(previous);
+      if (available) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
   const controllerRef = useRef(c);
   controllerRef.current = c;
   // React delegates wheel passively. Navigation must cancel the native default
@@ -1029,6 +1048,20 @@ export function WorkbenchStage({
       },
     ];
   });
+  const bodyPaintOrder = [
+    ...orderedComponents.filter(wiresAboveComponentBody),
+    ...orderedComponents.filter((part) => part.kind !== 'wire' && !wiresAboveComponentBody(part)),
+  ];
+  const { switchClips, hitDomain } = computeSupplySwitchClipGeometry({
+    bodyPaintOrder,
+    liveSupplySwitches,
+    pendingTerminal: c.pendingTerminal,
+    hitDomainPoints: routedWires.flatMap(({ points }) => points),
+    viewBox: c.viewBox,
+    stageBounds: c.stageRef.current?.getBoundingClientRect(),
+    projectPoint: paintedComponentPoint,
+    projectBounds: paintedComponentBounds,
+  });
   const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
   const motorReadouts = <MotorReadouts controller={c} components={orderedComponents} />;
   // One compact marker per component renders above wires. Detailed values stay
@@ -1083,7 +1116,14 @@ export function WorkbenchStage({
       );
     });
   function renderComponentBody(component: SchematicComponent): JSX.Element {
-    return <WorkbenchComponentBody key={component.id} controller={c} component={component} />;
+    return (
+      <WorkbenchComponentBody
+        key={component.id}
+        controller={c}
+        component={component}
+        onSupplySwitchAvailability={onSupplySwitchAvailability}
+      />
+    );
   }
 
   function renderComponentTerminalOverlay(component: SchematicComponent): JSX.Element | null {
@@ -1236,6 +1276,19 @@ export function WorkbenchStage({
         onPointerCancel={handleStagePointerCancel}
       >
         <defs>
+          {switchClips.map((hole, index) => (
+            <clipPath
+              key={index}
+              id={`${switchClipId}-supply-${index}`}
+              clipPathUnits="userSpaceOnUse"
+            >
+              <path
+                clipPath={index ? `url(#${switchClipId}-supply-${index - 1})` : undefined}
+                clipRule="evenodd"
+                d={`M ${hitDomain!.minX} ${hitDomain!.minY} H ${hitDomain!.maxX} V ${hitDomain!.maxY} H ${hitDomain!.minX} Z ${hole.path}`}
+              />
+            </clipPath>
+          ))}
           <pattern id="asa-grid-small" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M20 0H0V20" fill="none" stroke="#eceff2" strokeWidth="0.8" />
           </pattern>
@@ -1260,7 +1313,14 @@ export function WorkbenchStage({
         {/* Wire hit geometry shares the saved-wire paint layer. Ordinary
             components are painted later, so an invisible wire target cannot
             steal input where the wire is visually hidden beneath a part. */}
-        <g className="workbench-wire-layer workbench-wire-hit-layer">
+        <g
+          className="workbench-wire-layer workbench-wire-hit-layer"
+          clipPath={
+            switchClips.length
+              ? `url(#${switchClipId}-supply-${switchClips.length - 1})`
+              : undefined
+          }
+        >
           {routedWires.map(({ wire, path }) => (
             <path
               key={wire.id}

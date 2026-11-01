@@ -1,0 +1,186 @@
+{
+  "task": "TASK-ELECTRONICS-INSTRUMENT-MIRROR-001",
+  "qualification": "source_candidate_bounded_proofs_not_full_strict_or_main_acceptance",
+  "base_main": "ee425c3257a397dc4c02bc300ec0c13ee7090ecb",
+  "prepared_sources": {
+    "836": "51e4ce1cf9221d073fd2921fb82cea2e4c487108",
+    "901": "2d03eb7aebf5a50b99a826ad687d520abe33240b",
+    "877D": "f2f94ad22728ed744539ec490f53a74e1c8e1f47"
+  },
+  "frozen_full_spec": {
+    "blob": "a3d5830c0b637e165cc60c8a43126e8f2ae8718f",
+    "sha256": "09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1"
+  },
+  "preserved_836_blobs": {
+    "apps/web/src/electronics/NativeLedDiagnostic.tsx": "2f3c2b7abc7fd7884085db9414427b023a4343c6",
+    "apps/web/src/electronics/NativeOpticalComponentVisual.tsx": "e75751399bf2d4ad94e3c25d2d3f10ac9a2a89d5",
+    "apps/web/src/electronics/WorkbenchSidebars.tsx": "24fc352c2a04a7730139504b326b63eadaa15b54",
+    "apps/web/src/electronics/committed-result-presentation.ts": "b701714a7a6fb54a45ef8a0bb8295f5831394f82",
+    "apps/web/src/electronics/component-presentation-geometry.ts": "002d3ac12dd939426a436337af35d335426a4124",
+    "apps/web/src/electronics/native-optical-presentation.ts": "13de0f6702eb7fbdbbb3d6fe1d09f88f39f3cf38",
+    "apps/web/src/electronics/use-electronics-workbench.ts": "c3e4f6857e55cad0d2d0f03263dc8ee74bd47e60",
+    "apps/web/src/electronics/use-piezo-audio.ts": "06516c30cf366293a2ab81c4820e7a72884782b7"
+  },
+  "stage_removed_lines_only_replaced_to_thread_availability_and_clip_hit_layer": [
+    "    return <WorkbenchComponentBody key={component.id} controller={c} component={component} />;",
+    "        <g className=\"workbench-wire-layer workbench-wire-hit-layer\">"
+  ],
+  "asset_contracts_reversal_matches_main": true,
+  "protected_asset_diff": [],
+  "native_hit_proof": {
+    "poses": 91,
+    "errors": [],
+    "changes_from_archived877D_script": "only frozen full spec hash updated to actual b4"
+  },
+  "actual_readout_ctm_proof": {
+    "poses": 64,
+    "readings": 512,
+    "axes_and_center_failures": 0,
+    "browser_errors": 0,
+    "boundary": "actual ProductionVisual and owner SVGs with declared visual result inputs; not Worker/timing/full persistence journey"
+  },
+  "varying_supply_readouts": {
+    "frames": 26,
+    "availability_calls_while_mounted": 1,
+    "cleanup_calls": 1
+  },
+  "focused_final": {
+    "files": 5,
+    "tests_pass": 67
+  },
+  "doc_guard": {
+    "adversarial_tests_pass": 114,
+    "actual_source_guard": "PASS"
+  },
+  "fresh_web_build": {
+    "nx_tasks": 7,
+    "cache": "SKIPPED",
+    "seconds": 35.3
+  },
+  "fixed_caps": {
+    "all8": "PASS",
+    "electronics_editor": 175676,
+    "electronics_cap": 222000,
+    "arduino_editor": 1998988,
+    "arduino_cap": 2000000
+  },
+  "full_web_attempt": {
+    "passed": 1159,
+    "failed": 4,
+    "files": 71,
+    "seconds": 96.68,
+    "classification": {
+      "B": {
+        "count": 3,
+        "cause": "private OwnerMultimeterVisual VM omitted actual new shared imported style",
+        "repair": "import and inject actual constant; all13 routing tests pass; assertions unchanged"
+      },
+      "D": {
+        "count": 1,
+        "cause": "unchanged 697 owner asset archive hash audit exceeded5000ms; total9case suite6085ms",
+        "isolated_actual_test_ms": 120,
+        "isolated_pass": 1,
+        "unselected_other_tests": 8
+      }
+    },
+    "full_web_green_claim": false
+  },
+  "typecheck": "NOT_RUN_local; final combined General required",
+  "deployment": "NOT_RUN",
+  "server_database_ports": "UNTOUCHED",
+  "archive": {
+    "path": "bounded-proof.zip",
+    "bytes": 131552,
+    "sha256": "419c567a13cfca33147877c9bb23023d7458d9f8c7636b79090ca991e34c010c",
+    "entries": {
+      "logs/asa-525-after-assets-isolated.txt.gz": {
+        "bytes": 284,
+        "sha256": "17b4c439ee6139a0cc503ad39f1eabc361a1e5d08166a693c219e23442d25ae4"
+      },
+      "logs/asa-525-after-caps.txt.gz": {
+        "bytes": 436,
+        "sha256": "7eed248ad49d3001409b8db63324c23de46b0f1fcb56717a4493e066fd7e4f3f"
+      },
+      "logs/asa-525-after-component-info.txt.gz": {
+        "bytes": 216,
+        "sha256": "eb120a67afe65050968cab1fdda9f7b9875146e98cce4a41af6e3dfa4dbd2599"
+      },
+      "logs/asa-525-after-docguard.txt.gz": {
+        "bytes": 3718,
+        "sha256": "730fb3938c0b4e4676aad56dc305ea1efecb3d8c575f387a142103cbaf52f93c"
+      },
+      "logs/asa-525-after-focused-final.txt.gz": {
+        "bytes": 358,
+        "sha256": "6d6abb8d33f22b277162392a671c7c206425e0ce19cd516f5f7ba31f961e029c"
+      },
+      "logs/asa-525-after-focused-repair.txt.gz": {
+        "bytes": 436,
+        "sha256": "07289288cb103280ac96a3d944d6e69d5b4609fa1ee976c74d008aa82450792e"
+      },
+      "logs/asa-525-after-focused.txt.gz": {
+        "bytes": 816,
+        "sha256": "5de5eced46f7279f04bb0d95cf653d4e9cfe4c07344ab3e9983c6ea209060f0c"
+      },
+      "logs/asa-525-after-full-web.txt.gz": {
+        "bytes": 3892,
+        "sha256": "d379e2c9d75439712967440b04126ff6c21daf4ead857627b9691aee8ed46023"
+      },
+      "logs/asa-525-after-lint-final.txt.gz": {
+        "bytes": 20,
+        "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+      },
+      "logs/asa-525-after-native-hit.txt.gz": {
+        "bytes": 50,
+        "sha256": "d7130849b86581b0698ce1efed0934a15e3a4927f8c234c039749ea3462af30e"
+      },
+      "logs/asa-525-after-readout-ctm.txt.gz": {
+        "bytes": 58,
+        "sha256": "c6bd8661271f46b549113dffe0980453cef25dbf4ffa8189a214848f777f03ba"
+      },
+      "logs/asa-525-after-sdk.txt.gz": {
+        "bytes": 212,
+        "sha256": "4b7a39ed2cec1489c424ab26f4a534d9b68df905276508db2482bf11886c749d"
+      },
+      "logs/asa-525-after-web-build.txt.gz": {
+        "bytes": 5087,
+        "sha256": "020fc54c75e8fb7362eb1837837dae47416440895a7f01ab7402769e427dbc52"
+      },
+      "native-1024.png": {
+        "bytes": 19474,
+        "sha256": "03321d9b4ff43803be64099efafb97f09d4157cf983e69780dbb893261e3c819"
+      },
+      "native-1440.png": {
+        "bytes": 20867,
+        "sha256": "b88685e1b9cbc018d7296eb3ea0ec0b7475217d704e811f23d7b61b133e5e509"
+      },
+      "native-320.png": {
+        "bytes": 15133,
+        "sha256": "ed36e9e4b7594b4b395e76aa39108cea669ca7bf1357206b6176c6d585fc942b"
+      },
+      "native-390.png": {
+        "bytes": 16725,
+        "sha256": "3a5052876c1d9b3d0232206f8ce4b8a81488f115411e500623e0411afdcf1914"
+      },
+      "native-hit.mjs": {
+        "bytes": 22000,
+        "sha256": "ee0c1f6647818d942a048b58f518637757a0b31cced2ef1fc85bc32436239438"
+      },
+      "native-result.json": {
+        "bytes": 413745,
+        "sha256": "48818d7739f8aa6ed74a8e261d5b0e81437ed9f0f311350dc85326ffa7706e23"
+      },
+      "readout-ctm-result.json": {
+        "bytes": 114439,
+        "sha256": "6f96c2da9d61e0c5959b56b61b173b613897c1b2458a73ad449ed69b44facdb8"
+      },
+      "readout-ctm.mjs": {
+        "bytes": 5344,
+        "sha256": "9dbb80f1f2eb42a897a0db1589c747d3ce666af80f943558f28655cb2eb2eca2"
+      },
+      "readouts-320-xy.png": {
+        "bytes": 38243,
+        "sha256": "ed2097798941a0eb63fd9a0f6ea2149335a500c428e16162acaf50d9734747b1"
+      }
+    }
+  }
+}
