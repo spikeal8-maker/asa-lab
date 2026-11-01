@@ -26,6 +26,7 @@ from deployment.fresh_install import fresh_options, assert_clean_install_destina
 from deployment.repair_plan import diagnose as diagnose_recovery
 from deployment.import_preflight import validate_import_archive
 from deployment.import_target_plan import plan_transfer
+from deployment.import_env_projection import project_private_environment
 
 
 def clean_checkout(install):
@@ -258,7 +259,7 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "import-target-plan", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "repair-plan", "import-preflight", "import-target-plan", "import-private-plan", "acknowledge"))
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -295,6 +296,19 @@ def main(argv=None):
                                    web_port=args.install_web_port,
                                    blocks_port=args.install_blocks_port)
             print("IMPORT_TARGET_PLAN " + json.dumps(report, sort_keys=True))
+            return 0
+        if args.action == "import-private-plan":
+            require(args.backup and args.install_project
+                    and args.install_web_port is not None
+                    and args.install_blocks_port is not None,
+                    "ARGUMENT", "Read-only private projection requires --backup, --install-project, --install-web-port and --install-blocks-port.")
+            private_values, report = project_private_environment(
+                args.backup, project=args.install_project,
+                web_port=args.install_web_port,
+                blocks_port=args.install_blocks_port)
+            # Private values must never enter console output, receipts or logs.
+            del private_values
+            print("IMPORT_PRIVATE_PLAN " + json.dumps(report, sort_keys=True))
             return 0
         install = Installation(args.root, args.profile)
         with nullcontext() if args.action in ('doctor', 'check', 'repair-plan') else operation_lock(install.root):
