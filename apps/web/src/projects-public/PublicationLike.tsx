@@ -1,8 +1,75 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { onSessionLoggedOut } from '../session-fetch';
 import { subscribeTelemetry, telemetryContext } from '../telemetry-context';
 import { publicProjectsApi, type PublicProject, type PublicationLikeState } from './api';
+
+function Heart({ filled = false }: { readonly filled?: boolean }): JSX.Element {
+  return (
+    <svg
+      aria-hidden="true"
+      width="26"
+      height="26"
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z" />
+    </svg>
+  );
+}
+
+export function LikeSignIn({
+  onClose,
+  comment = false,
+  reply = false,
+}: {
+  readonly onClose: () => void;
+  readonly comment?: boolean;
+  readonly reply?: boolean;
+}): JSX.Element {
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="publication-sign-in"
+      aria-labelledby={titleId}
+      onCancel={onClose}
+      onClose={onClose}
+    >
+      <button
+        type="button"
+        className="publication-sign-in-close"
+        aria-label="Закрыть"
+        onClick={onClose}
+      >
+        ×
+      </button>
+      <Heart />
+      <h2 id={titleId}>
+        {reply ? 'Хотите ответить?' : comment ? 'Понравился комментарий?' : 'Понравился проект?'}
+      </h2>
+      <p>
+        {reply
+          ? 'Войдите в аккаунт или класс, чтобы написать ответ.'
+          : 'Войдите в аккаунт или класс, чтобы сохранить лайк.'}
+      </p>
+      <PortalLink className="btn-primary" href="/#/sign-in">
+        Войти
+      </PortalLink>
+      <button type="button" className="btn-secondary" onClick={onClose}>
+        Не сейчас
+      </button>
+    </dialog>
+  );
+}
 
 export function PublicationLike({
   publication,
@@ -13,6 +80,7 @@ export function PublicationLike({
 }): JSX.Element {
   const [state, setState] = useState<PublicationLikeState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [guestPrompt, setGuestPrompt] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signIn, setSignIn] = useState(false);
@@ -144,16 +212,18 @@ export function PublicationLike({
   if (!authenticated) {
     return (
       <div className="publication-like">
-        <PortalLink
-          href="/#/sign-in"
+        <button
+          type="button"
           className="publication-like-button"
-          aria-label="Войти, чтобы поставить лайк"
-          title="Войдите в аккаунт или класс, чтобы поставить лайк"
+          aria-label="Нравится"
+          title="Нравится"
+          onClick={() => setGuestPrompt(true)}
+          data-testid="publication-like-button"
         >
-          <span aria-hidden="true">♡</span>
+          <Heart />
           <span data-testid="publication-like-count">{publication.likeCount ?? 0}</span>
-          <span>Войти</span>
-        </PortalLink>
+        </button>
+        {guestPrompt ? <LikeSignIn onClose={() => setGuestPrompt(false)} /> : null}
       </div>
     );
   }
@@ -178,7 +248,7 @@ export function PublicationLike({
         onClick={() => void toggle()}
         data-testid="publication-like-button"
       >
-        <span aria-hidden="true">{state?.liked ? '♥' : '♡'}</span>
+        <Heart filled={state?.liked ?? false} />
         <span data-testid="publication-like-count">
           {state?.likeCount ?? publication.likeCount ?? 0}
         </span>

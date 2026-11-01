@@ -23,6 +23,23 @@ function reject(code: string, status: number): never {
   throw new HttpException({ error: { code, message: 'Попытка теста недоступна.' } }, status);
 }
 
+function losslessJsonNumbers(input: unknown): boolean {
+  // JSON.parse can produce Infinity for an overflowing numeric token. Reject it
+  // before JSON.stringify can silently turn an answer into an unanswered null.
+  const pending: unknown[] = [input];
+  while (pending.length > 0) {
+    const value = pending.pop();
+    if (typeof value === 'number' && !Number.isFinite(value)) return false;
+    if (['undefined', 'bigint', 'symbol', 'function'].includes(typeof value)) return false;
+    if (Array.isArray(value)) {
+      for (const child of value) pending.push(child);
+    } else if (value && typeof value === 'object') {
+      for (const child of Object.values(value)) pending.push(child);
+    }
+  }
+  return true;
+}
+
 /** Persistence only. Final submission and grading use the canonical pipeline in a later slice. */
 @Controller('api/learning')
 export class LearningQuizAttemptsController {
@@ -104,6 +121,7 @@ export class LearningQuizAttemptsController {
       !answers ||
       typeof answers !== 'object' ||
       Array.isArray(answers) ||
+      !losslessJsonNumbers(answers) ||
       Buffer.byteLength(JSON.stringify(answers)) > 262144
     )
       reject('validation_error', 400);

@@ -5,6 +5,7 @@ ALTER TABLE learning_attempts ADD COLUMN expires_at timestamptz;
 CREATE TABLE quiz_attempt_states (
     tenant_id uuid NOT NULL REFERENCES tenants(id),
     attempt_id uuid PRIMARY KEY,
+    participation_attempt_number integer NOT NULL CHECK (participation_attempt_number>0),
     version integer NOT NULL DEFAULT 1 CHECK (version > 0),
     answers_jsonb jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(answers_jsonb)='object'),
     selected_questions_jsonb jsonb NOT NULL CHECK (jsonb_typeof(selected_questions_jsonb)='array'),
@@ -41,6 +42,7 @@ RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
  IF TG_OP='DELETE' OR NEW.tenant_id IS DISTINCT FROM OLD.tenant_id
    OR NEW.attempt_id IS DISTINCT FROM OLD.attempt_id
+   OR NEW.participation_attempt_number IS DISTINCT FROM OLD.participation_attempt_number
    OR NEW.selected_questions_jsonb IS DISTINCT FROM OLD.selected_questions_jsonb
    OR NEW.question_order_jsonb IS DISTINCT FROM OLD.question_order_jsonb
    OR NEW.option_order_jsonb IS DISTINCT FROM OLD.option_order_jsonb
@@ -96,7 +98,9 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg
      AND seat_link.link_kind='student_seat' AND seat_link.seat_id=seat.id AND seat_link.status='active'
    WHERE seat.tenant_id=part.tenant_id AND seat.classroom_id=run.classroom_id AND seat.status='active'
      AND ((actor.kind='student_seat' AND actor.seat_id=seat.id)
-       OR (actor.kind='account' AND seat.account_id=actor.account_id AND EXISTS (
+       OR (actor.kind='account' AND seat.account_id=actor.account_id
+         AND EXISTS (SELECT 1 FROM public.accounts account WHERE account.id=actor.account_id AND account.status='active')
+         AND EXISTS (
          SELECT 1 FROM public.learner_identity_links account_link
          WHERE account_link.tenant_id=part.tenant_id AND account_link.school_id=part.school_id
            AND account_link.learner_identity_id=part.learner_identity_id
@@ -132,7 +136,7 @@ BEGIN
  IF v_state.attempt_id IS NULL THEN RETURN NULL; END IF;
  RETURN jsonb_build_object('attemptId',v_attempt.id,'participationId',v_attempt.activity_participation_id,
    'activityRunId',v_scope->'activityRunId','activityVersionId',v_attempt.learning_activity_version_id,
-   'attemptNumber',v_attempt.attempt_number,'state',v_attempt.state,'startedAt',v_attempt.started_at,
+   'attemptNumber',v_state.participation_attempt_number,'state',v_attempt.state,'startedAt',v_attempt.started_at,
    'expiresAt',v_attempt.expires_at,'serverNow',clock_timestamp(),'version',v_state.version,
    'answers',v_state.answers_jsonb,'questions',v_state.selected_questions_jsonb,
    'questionOrder',v_state.question_order_jsonb,'optionOrder',v_state.option_order_jsonb,
@@ -145,7 +149,7 @@ RETURNS TABLE(result_code varchar,attempt jsonb,reused boolean)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE v_scope jsonb; v_attempt uuid; v_count bigint; v_limit bigint; v_number integer;
  v_now timestamptz; v_seconds bigint; v_time_source text; v_questions jsonb; v_order jsonb;
- v_options jsonb; v_effective jsonb; v_activation record; v_next_number bigint;
+ v_options jsonb; v_effective jsonb; v_next_number bigint;
 BEGIN
  IF p_request IS NULL OR p_request !~ '^[A-Za-z0-9._:-]{8,128}$' THEN
    RETURN QUERY SELECT 'invalid_request_id'::varchar,NULL::jsonb,false; RETURN; END IF;
@@ -179,6 +183,8 @@ BEGIN
    RETURN QUERY SELECT 'invalid_policy'::varchar,NULL::jsonb,false; RETURN; END IF;
  v_limit:=(v_effective#>>'{values,attemptLimit}')::bigint;
  SELECT count(*) INTO v_count FROM public.learning_attempts a WHERE a.activity_participation_id=p_part;
+ IF v_count>=2147483647 THEN
+   RETURN QUERY SELECT 'attempt_limit'::varchar,NULL::jsonb,false; RETURN; END IF;
  IF v_limit IS NOT NULL AND v_count>=v_limit+COALESCE((v_effective->>'extraAttempts')::bigint,0) THEN
    RETURN QUERY SELECT 'attempt_limit'::varchar,NULL::jsonb,false; RETURN; END IF;
  IF v_scope->>'timeOverrideSeconds' IS NOT NULL THEN
@@ -215,19 +221,30 @@ BEGIN
  IF v_next_number>2147483647 THEN
    RETURN QUERY SELECT 'attempt_limit'::varchar,NULL::jsonb,false; RETURN; END IF;
  v_number:=v_next_number::integer;
+ v_now:=clock_timestamp();
+ IF NOT public.learning_quiz_window_open_internal(v_scope,v_now) THEN
+   RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
  PERFORM set_config('app.tenant_id',v_scope->>'tenantId',true);
- SELECT * INTO v_activation FROM public.activity_participation_activate(p_actor,p_part);
- IF v_activation.result_code<>'ok' THEN
-   RETURN QUERY SELECT v_activation.result_code::varchar,NULL::jsonb,false; RETURN; END IF;
+ -- Admission above uses current effective conditions. The older standalone
+ -- activation command rechecks raw Run windows, so it cannot decide this Start.
+ -- Keep the same canonical transition and audit semantics atomically here.
+ UPDATE public.activity_participations SET status='active',activated_at=v_now,
+   activated_by_principal_id=p_actor,activation_source='meaningful_learner_interaction'
+ WHERE id=p_part AND status='assigned';
+ IF FOUND THEN
+   INSERT INTO public.audit_events(tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
+   VALUES((v_scope->>'tenantId')::uuid,NULL,'activity_participation',p_part,'participation.activated',
+     jsonb_build_object('actorPrincipalId',p_actor,'source','meaningful_learner_interaction'));
+ END IF;
  INSERT INTO public.learning_attempts(tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
    seat_id,learner_identity_id,activity_participation_id,attempt_number,state,started_at,expires_at,effective_conditions_at_start)
  VALUES((v_scope->>'tenantId')::uuid,(v_scope->>'classroomId')::uuid,(v_scope->>'assignmentId')::uuid,
    (v_scope->>'activityVersionId')::uuid,(v_scope->>'seatId')::uuid,(v_scope->>'learnerIdentityId')::uuid,
    p_part,v_number,'in_progress',v_now,CASE WHEN v_seconds IS NULL THEN NULL ELSE v_now+make_interval(secs=>v_seconds::double precision) END,
    v_effective||jsonb_build_object('timeLimitSeconds',v_seconds,'timeLimitSource',v_time_source)) RETURNING id INTO v_attempt;
- INSERT INTO public.quiz_attempt_states(tenant_id,attempt_id,selected_questions_jsonb,question_order_jsonb,
+ INSERT INTO public.quiz_attempt_states(tenant_id,attempt_id,participation_attempt_number,selected_questions_jsonb,question_order_jsonb,
    option_order_jsonb,content_snapshot,policy_snapshot)
- VALUES((v_scope->>'tenantId')::uuid,v_attempt,v_questions,v_order,v_options,
+ VALUES((v_scope->>'tenantId')::uuid,v_attempt,(v_count+1)::integer,v_questions,v_order,v_options,
    jsonb_build_object('quizVersionId',v_scope->'quizVersionId','contentDigest',v_scope->'contentDigest'),v_scope->'policy');
  INSERT INTO public.quiz_attempt_start_receipts(tenant_id,participation_id,request_id,attempt_id)
  VALUES((v_scope->>'tenantId')::uuid,p_part,p_request,v_attempt);

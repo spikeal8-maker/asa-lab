@@ -95,6 +95,15 @@ describe('canonical Quiz persistence HTTP boundary', () => {
       });
       expect(conflicted.statusCode).toBe(409);
       expect(conflicted.json()).toMatchObject({ error: { code: 'quiz_attempt_conflict' } });
+      const queryCount = f.pool.query.mock.calls.length;
+      const overflow = await app.inject({
+        method: 'PATCH',
+        url: `/api/learning/attempts/${id}/quiz-answers`,
+        headers: { ...headers, 'content-type': 'application/json' },
+        payload: `{"expectedVersion":1,"answers":{"${id}":{"value":1e400}}}`,
+      });
+      expect(overflow.statusCode).toBe(400);
+      expect(f.pool.query).toHaveBeenCalledTimes(queryCount);
       expect(f.accounts.resolve).not.toHaveBeenCalled();
     } finally {
       await app.close();
@@ -142,6 +151,8 @@ describe('canonical Quiz persistence HTTP boundary', () => {
       { expectedVersion: 1, answers: [] },
       { expectedVersion: 1, answers: {}, tenantId: id },
       { expectedVersion: 1, answers: { [id]: { value: 'x'.repeat(262145) } } },
+      { expectedVersion: 1, answers: { [id]: { value: Number.POSITIVE_INFINITY } } },
+      { expectedVersion: 1, answers: { [id]: { value: Number.NaN } } },
     ]) {
       await expect(f.controller.save(request, id, body)).rejects.toMatchObject({ status: 400 });
     }

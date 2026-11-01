@@ -1,3 +1,4 @@
+import { publicArduinoBlocks } from './public-arduino-blocks.js';
 import type { PublicArtifact, PublicArtifactProvenance } from './public-artifact.js';
 import { validatePublicArtifact } from './public-artifact.js';
 export type PublicDisplayComponentKind =
@@ -128,6 +129,7 @@ export const PUBLIC_ELECTRONICS_PROPERTIES = Object.freeze([
   'timePerDivisionMs',
   'triggerLevelVolt',
   'meterRange',
+  'arduinoBlocks',
   'arduinoSource',
   'arduinoCodeMode',
   'cells',
@@ -435,7 +437,9 @@ function validateSimulationArtifact(
       if ('stateProperties' in c) {
         const properties = object(c.stateProperties, [], [...PUBLIC_ELECTRONICS_PROPERTIES]);
         if (
-          ('arduinoSource' in properties || 'arduinoCodeMode' in properties) &&
+          ('arduinoSource' in properties ||
+            'arduinoCodeMode' in properties ||
+            'arduinoBlocks' in properties) &&
           c.componentTypeId !== 'arduino-uno' &&
           c.variantId !== 'arduino-uno'
         )
@@ -446,7 +450,14 @@ function validateSimulationArtifact(
         )
           throw Error();
         for (const [key, value] of Object.entries(properties)) {
-          if (key === 'arduinoSource') {
+          if (key === 'arduinoBlocks') {
+            if (
+              typeof value !== 'string' ||
+              publicArduinoBlocks(value) !== value ||
+              !['blocks', 'blocks-text'].includes(String(properties.arduinoCodeMode))
+            )
+              throw Error();
+          } else if (key === 'arduinoSource') {
             if (
               typeof value !== 'string' ||
               !value.trim() ||

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   ElectronicsDisplayArtifact,
   ElectronicsSimulationArtifact,
@@ -15,6 +15,10 @@ import { ordinaryLedVisualState } from '../electronics/component-result-presenta
 import { PublicElectronicsRuntime, publicSimulationDocument } from './electronics-public-runtime';
 import { componentTransform } from '../electronics/workbench-model';
 import { roundedWirePath, wirePoints } from '../electronics/workbench-geometry';
+
+const PublishedBlocks = lazy(() =>
+  import('./PublicArduinoBlocks').then((m) => ({ default: m.PublicArduinoBlocks })),
+);
 
 /** Reconstruct only validated display fields; never accept an editor property bag. */
 export function publicDisplayComponentModel(source: PublicDisplayComponent): SchematicComponent {
@@ -49,6 +53,12 @@ export function ElectronicsPublicationScene({
 }): JSX.Element {
   const [runtime, setRuntime] = useState<PublicElectronicsRuntime | null>(null);
   const [message, setMessage] = useState('');
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const programs =
+    artifact.schemaVersion === 3
+      ? artifact.components.filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
+      : [];
   const [inputs, setInputs] = useState<ReadonlyMap<string, SchematicComponent>>(new Map());
   const idlePort = useMemo(() => new NativeOpticalPresentation(), []);
   const section = useRef<HTMLElement>(null);
@@ -173,56 +183,86 @@ export function ElectronicsPublicationScene({
             >
               {runtime ? 'Стоп' : 'Начать'}
             </button>
-            <button
-              type="button"
-              data-testid="public-electronics-reset"
-              onClick={() => {
-                stop();
-                setInputs(new Map());
-                setMessage('');
-              }}
-            >
-              Сброс
-            </button>
           </>
+        ) : null}
+        {programs.length ? (
+          <button
+            type="button"
+            aria-label="Код Arduino"
+            title="Код Arduino"
+            aria-expanded={codeOpen}
+            onClick={() => setCodeOpen(!codeOpen)}
+          >
+            <span className="public-code-label-full">Код Arduino</span>
+            <span className="public-code-label-short" aria-hidden="true">
+              Код
+            </span>
+          </button>
         ) : null}
         <button
           type="button"
-          data-testid="public-electronics-zoom-out"
-          aria-label="Уменьшить схему"
-          onClick={() => zoom(1.25)}
+          className="public-electronics-more"
+          aria-label="Инструменты просмотра"
+          title="Инструменты просмотра"
+          aria-expanded={toolsOpen}
+          onClick={() => setToolsOpen((v) => !v)}
         >
-          −
+          •••
         </button>
-        <output aria-label="Масштаб">{Math.round((scene.fit.width / view.width) * 100)}%</output>
-        <button
-          type="button"
-          data-testid="public-electronics-zoom-in"
-          aria-label="Увеличить схему"
-          onClick={() => zoom(0.8)}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          data-testid="public-electronics-fit"
-          onClick={() => setView(scene.fit)}
-        >
-          Вписать
-        </button>
-        <button
-          type="button"
-          aria-label="На весь экран"
-          onClick={() => {
-            void (
-              document.fullscreenElement
-                ? document.exitFullscreen()
-                : section.current?.requestFullscreen()
-            )?.catch(() => setMessage('Полноэкранный режим недоступен.'));
-          }}
-        >
-          ⛶
-        </button>
+        <div className={`public-electronics-secondary-tools${toolsOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            data-testid="public-electronics-reset"
+            aria-label="Сброс"
+            title="Сброс"
+            onClick={() => {
+              stop();
+              setInputs(new Map());
+              setMessage('');
+            }}
+          >
+            ↺
+          </button>{' '}
+          <button
+            type="button"
+            data-testid="public-electronics-zoom-out"
+            aria-label="Уменьшить схему"
+            onClick={() => zoom(1.25)}
+          >
+            −
+          </button>
+          <output aria-label="Масштаб">{Math.round((scene.fit.width / view.width) * 100)}%</output>
+          <button
+            type="button"
+            data-testid="public-electronics-zoom-in"
+            aria-label="Увеличить схему"
+            onClick={() => zoom(0.8)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            data-testid="public-electronics-fit"
+            aria-label="Вписать схему"
+            title="Вписать схему"
+            onClick={() => setView(scene.fit)}
+          >
+            ⊡
+          </button>
+          <button
+            type="button"
+            aria-label="На весь экран"
+            onClick={() => {
+              void (
+                document.fullscreenElement
+                  ? document.exitFullscreen()
+                  : section.current?.requestFullscreen()
+              )?.catch(() => setMessage('Полноэкранный режим недоступен.'));
+            }}
+          >
+            ⛶
+          </button>{' '}
+        </div>
       </div>
       {message ? (
         <p role="status" className="public-electronics-hint">
@@ -412,25 +452,44 @@ export function ElectronicsPublicationScene({
           </g>
         </svg>
       </NativeOpticalProvider>
-      <p className="public-electronics-hint">
-        {artifact.schemaVersion === 2 ? 'Для этой версии доступен только просмотр. ' : ''}
-        Перетаскивайте схему · Масштаб + / − · Home — вписать
-      </p>
-      {artifact.schemaVersion === 3 &&
-      artifact.components.some((c) => typeof c.stateProperties?.arduinoSource === 'string') ? (
-        <details className="public-electronics-code">
-          <summary>Код Arduino</summary>
-          {artifact.components
-            .filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
-            .map((c) => (
-              <div key={c.id}>
-                <h3>{c.name ?? 'Arduino'}</h3>
+      {codeOpen ? (
+        <aside className="public-electronics-code" aria-label="Код Arduino">
+          <div className="public-electronics-code-heading">
+            <h2>Код Arduino</h2>
+            <button type="button" onClick={() => setCodeOpen(false)} aria-label="Закрыть код">
+              ×
+            </button>
+          </div>
+          {programs.map((c) => (
+            <div key={c.id}>
+              <h3>{c.name ?? 'Arduino'}</h3>
+              {['blocks', 'blocks-text'].includes(String(c.stateProperties?.arduinoCodeMode)) ? (
+                typeof c.stateProperties?.arduinoBlocks === 'string' ? (
+                  <Suspense fallback={<p role="status">Загружаем блоки…</p>}>
+                    <PublishedBlocks value={c.stateProperties.arduinoBlocks} />
+                  </Suspense>
+                ) : (
+                  <p role="status">
+                    В этой опубликованной версии структура блоков не сохранена. Автор может обновить
+                    публикацию из редактора.
+                  </p>
+                )
+              ) : (
                 <pre>
                   <code>{String(c.stateProperties?.arduinoSource)}</code>
                 </pre>
-              </div>
-            ))}
-        </details>
+              )}
+              {c.stateProperties?.arduinoCodeMode === 'blocks-text' ? (
+                <details>
+                  <summary>Сгенерированный текст</summary>
+                  <pre>
+                    <code>{String(c.stateProperties.arduinoSource)}</code>
+                  </pre>
+                </details>
+              ) : null}
+            </div>
+          ))}
+        </aside>
       ) : null}
     </section>
   );

@@ -68,6 +68,8 @@ async function fixture(
     runMinutes?: number;
     overrideSeconds?: number;
     policy?: Record<string, unknown>;
+    runOpensAt?: string;
+    runDueAt?: string;
   } = {},
 ) {
   const classroom = (
@@ -179,13 +181,15 @@ async function fixture(
   const run = (
     await inTenant((client) =>
       client.query(
-        "SELECT * FROM activity_run_create($1,$2,$3,'direct',NULL,NULL,NULL,NULL,NULL,NULL,NULL,$4::jsonb,$5)",
+        "SELECT * FROM activity_run_create($1,$2,$3,'direct',NULL,NULL,$6,$7,NULL,NULL,NULL,$4::jsonb,$5)",
         [
           ownerPrincipal,
           handout.classroom_assignment_id,
           version.activity_version_id,
           JSON.stringify(input.runMinutes ? { timeLimitMinutes: input.runMinutes } : {}),
           'q2:run:' + randomUUID(),
+          input.runOpensAt ?? null,
+          input.runDueAt ?? null,
         ],
       ),
     )
@@ -292,6 +296,14 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
       ).rows[0].count,
     ).toBe('1');
     expect(await academicCounts(f.assignment)).toEqual(before);
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='participation.activated'",
+          [f.part],
+        )
+      ).rows[0].count,
+    ).toBe('1');
     await expect(app.query('SELECT * FROM quiz_attempt_states')).rejects.toMatchObject({
       code: '42501',
     });
@@ -432,6 +444,75 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
     const unlimited = await fixture({ seconds: null });
     expect((await start(unlimited.student.principal, unlimited.part)).attempt.expiresAt).toBeNull();
   });
+  it('uses effective windows, authored late policy and teacher unlock without raw-Run activation overrides', async () => {
+    const future = await fixture({ runOpensAt: new Date(Date.now() + 3600000).toISOString() });
+    expect((await start(future.student.principal, future.part)).result_code).toBe('not_available');
+    expect(
+      (await admin.query('SELECT status FROM activity_participations WHERE id=$1', [future.part]))
+        .rows[0].status,
+    ).toBe('assigned');
+    expect(
+      (
+        await admin.query(
+          "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='participation.activated'",
+          [future.part],
+        )
+      ).rows[0].count,
+    ).toBe('0');
+    await admin.query(
+      "UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',now()-interval '1 minute') WHERE id=$1",
+      [future.run],
+    );
+    expect((await start(future.student.principal, future.part)).result_code).toBe('ok');
+    const late = await fixture({ runDueAt: new Date(Date.now() - 60000).toISOString() });
+    expect((await start(late.student.principal, late.part)).result_code).toBe('ok');
+    const blockedPolicy = { ...policies(), latePolicy: { mode: 'block_at_due' } };
+    const blocked = await fixture({
+      runDueAt: new Date(Date.now() - 60000).toISOString(),
+      policy: blockedPolicy,
+    });
+    expect((await start(blocked.student.principal, blocked.part)).result_code).toBe(
+      'not_available',
+    );
+    await admin.query('UPDATE activity_participations SET teacher_unlocked=true WHERE id=$1', [
+      blocked.part,
+    ]);
+    expect((await start(blocked.student.principal, blocked.part)).result_code).toBe('ok');
+    const closed = await fixture();
+    await admin.query(
+      "UPDATE activity_participations SET teacher_unlocked=true,operational_overrides=jsonb_build_object('closesAt',now()-interval '1 second') WHERE id=$1",
+      [closed.part],
+    );
+    expect((await start(closed.student.principal, closed.part)).result_code).toBe('not_available');
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*) FROM learning_attempts WHERE activity_participation_id=$1',
+          [closed.part],
+        )
+      ).rows[0].count,
+    ).toBe('0');
+    expect(
+      (await admin.query('SELECT status FROM activity_participations WHERE id=$1', [closed.part]))
+        .rows[0].status,
+    ).toBe('assigned');
+  });
+  it('requires an active Account while a genuine Seat remains independent of its linked Account status', async () => {
+    const f = await fixture();
+    await admin.query("UPDATE accounts SET status='suspended' WHERE id=$1", [learnerAccount]);
+    try {
+      expect((await start(learnerPrincipal, f.part)).result_code).toBe('forbidden');
+      const seat = await start(f.student.principal, f.part);
+      expect(seat.result_code).toBe('ok');
+      expect(await read(learnerPrincipal, seat.attempt.attemptId)).toBeNull();
+      expect((await save(learnerPrincipal, seat.attempt.attemptId, 1, {})).result_code).toBe(
+        'forbidden',
+      );
+      expect((await read(f.student.principal, seat.attempt.attemptId)).version).toBe(1);
+    } finally {
+      await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [learnerAccount]);
+    }
+  });
   it('rejects expired mutations and current closing windows while still returning owned history', async () => {
     const f = await fixture();
     const opened = await start(f.student.principal, f.part);
@@ -480,10 +561,54 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
     );
     const opened = await start(f.student.principal, f.part);
     expect(opened.result_code).toBe('ok');
-    expect(opened.attempt.attemptNumber).toBe(2);
+    expect(opened.attempt.attemptNumber).toBe(1);
+    expect(
+      (
+        await admin.query('SELECT attempt_number FROM learning_attempts WHERE id=$1', [
+          opened.attempt.attemptId,
+        ])
+      ).rows[0].attempt_number,
+    ).toBe(2);
     const anotherClass = await fixture({ attempts: 1 });
     expect((await start(anotherClass.student.principal, anotherClass.part)).result_code).toBe('ok');
     expect((await start(f.student.principal, anotherClass.part)).result_code).toBe('forbidden');
+  });
+  it('increments the canonical ordinal after Seat replacement even when compatibility numbering restarts', async () => {
+    const f = await fixture({ attempts: 2 });
+    const first = await start(f.student.principal, f.part, 'q2:ordinal:first');
+    expect(first.attempt.attemptNumber).toBe(1);
+    await admin.query("UPDATE learning_attempts SET state='expired' WHERE id=$1", [
+      first.attempt.attemptId,
+    ]);
+    await admin.query(
+      "UPDATE classroom_student_seats SET status='removed',account_id=NULL WHERE id=$1",
+      [f.student.id],
+    );
+    const replacement = await f.seat();
+    expect(replacement.learner).toBe(f.student.learner);
+    const second = await start(replacement.principal, f.part, 'q2:ordinal:second');
+    expect(second.result_code).toBe('ok');
+    expect(second.attempt.attemptNumber).toBe(2);
+    expect(
+      (
+        await admin.query('SELECT attempt_number FROM learning_attempts WHERE id=$1', [
+          second.attempt.attemptId,
+        ])
+      ).rows[0].attempt_number,
+    ).toBe(1);
+    expect(
+      (await start(replacement.principal, f.part, 'q2:ordinal:first')).attempt.attemptNumber,
+    ).toBe(1);
+    await expect(
+      admin.query(
+        'UPDATE quiz_attempt_states SET participation_attempt_number=7 WHERE attempt_id=$1',
+        [second.attempt.attemptId],
+      ),
+    ).rejects.toThrow(/immutable/);
+    await admin.query("UPDATE learning_attempts SET state='expired' WHERE id=$1", [
+      second.attempt.attemptId,
+    ]);
+    expect((await start(replacement.principal, f.part)).result_code).toBe('attempt_limit');
   });
   it('fails conflicting time units before activation, attempt creation or a result write', async () => {
     const contradictory = policies();
@@ -598,7 +723,15 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
     expect(first.result_code).toBe('ok');
     expect(second.result_code).toBe('ok');
     expect(first.attempt.attemptId).not.toBe(second.attempt.attemptId);
-    expect([first.attempt.attemptNumber, second.attempt.attemptNumber].sort()).toEqual([1, 2]);
+    expect([first.attempt.attemptNumber, second.attempt.attemptNumber]).toEqual([1, 1]);
+    expect(
+      (
+        await admin.query(
+          'SELECT attempt_number FROM learning_attempts WHERE classroom_assignment_id=$1 ORDER BY attempt_number',
+          [handout],
+        )
+      ).rows.map((row) => row.attempt_number),
+    ).toEqual([1, 2]);
     expect(
       (
         await save(f.student.principal, first.attempt.attemptId, 1, {

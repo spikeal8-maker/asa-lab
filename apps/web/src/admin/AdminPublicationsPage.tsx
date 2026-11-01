@@ -1,3 +1,4 @@
+import { PublicationCommentModeration } from './PublicationCommentModeration';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import './admin-publications.css';
@@ -456,6 +457,13 @@ export function AdminPublicationsPage({
                 </button>
               ) : null}
             </div>
+            {item.moderationSupported !== false ? (
+              <PublicationCommentModeration
+                key={`${item.publicationId}:${listEpoch}`}
+                publicationId={item.publicationId}
+                onAccessDenied={() => fail(403)}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

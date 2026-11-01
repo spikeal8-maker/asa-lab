@@ -7906,7 +7906,12 @@ components:
         participationId: { type: string, format: uuid }
         activityRunId: { type: string, format: uuid }
         activityVersionId: { type: string, format: uuid }
-        attemptNumber: { type: integer, minimum: 1 }
+        attemptNumber:
+          {
+            type: integer,
+            minimum: 1,
+            description: Frozen ordinal within the exact ActivityParticipation; legacy handout/Seat numbering stays internal,
+          }
         state:
           { type: string, enum: [in_progress, submitted, evaluating, closed, invalidated, expired] }
         startedAt: { type: string, format: date-time }

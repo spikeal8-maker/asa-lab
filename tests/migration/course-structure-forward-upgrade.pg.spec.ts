@@ -158,8 +158,13 @@ describe('Course Builder structure forward upgrade', () => {
         '0286', // Bounded search retrieval settings.
         '0287', // Durable successful-publication-copy aggregate.
         '0288', // Separate authorization for published Course academic results.
-        '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-        '0290', // Exact Quiz Start and answer state; historical rows remain unchanged.
+        '0289', // Persistent publication discussions and independent learner permission.
+        '0290', // Comment likes, pinning and stable ordering.
+        '0291', // Guarded Account/Seat comment avatars.
+        '0292', // Publication author avatars and projects-only catalog projection.
+        '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+        '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+        '0296', // Exact Quiz Start and answer state; historical rows remain unchanged.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -477,8 +482,13 @@ describe('Course Builder structure forward upgrade', () => {
           '0286', // Bounded search retrieval settings.
           '0287', // Durable successful-publication-copy aggregate.
           '0288', // Exact academic-result authorization independent of Project files.
-          '0289', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
-          '0290', // Exact Quiz Start and answer state; historical rows remain unchanged.
+          '0289', // Persistent publication discussions and independent learner permission.
+          '0290', // Comment likes, pinning and stable ordering.
+          '0291', // Guarded Account/Seat comment avatars.
+          '0292', // Publication author avatars and projects-only catalog projection.
+          '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+          '0295', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+          '0296', // Exact Quiz Start and answer state; historical rows remain unchanged.
         ]);
         expect(
           await applyIsolatedTestPlan(
@@ -532,6 +542,13 @@ describe('Course Builder structure forward upgrade', () => {
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],
       ).toEqual({ ...legacyAttemptBefore, expires_at: null });
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
 
       const draftAfter = (
         await pool.query(

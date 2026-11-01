@@ -66,9 +66,19 @@ it('renders the real public count and sign-in link without anonymous private pro
     root.render(createElement(PublicationLike, { publication, authenticated: false })),
   );
   expect(host.querySelector('[data-testid="publication-like-count"]')!.textContent).toBe('4');
-  expect(host.querySelector('a')!.getAttribute('href')).toBe('/#/sign-in');
-  expect(host.querySelector('a')!.textContent).toContain('Войти');
-  expect(host.querySelector('button')).toBeNull();
+  expect(host.querySelector('a')).toBeNull();
+  expect(button().getAttribute('aria-label')).toBe('Нравится');
+  const show = vi.fn();
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
+    configurable: true,
+    value: show,
+  });
+  await act(async () => button().click());
+  expect(show).toHaveBeenCalledTimes(1);
+  expect(host.querySelector('dialog a')!.getAttribute('href')).toBe('/#/sign-in');
+  expect(host.querySelector('[data-testid=publication-like-count]')!.textContent).toBe('4');
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label=Закрыть]')!.click());
+  expect(host.querySelector('dialog')).toBeNull();
   expect(read).not.toHaveBeenCalled();
   expect(write).not.toHaveBeenCalled();
   expect(fetch).not.toHaveBeenCalled();

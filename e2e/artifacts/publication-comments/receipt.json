@@ -1,0 +1,11 @@
+{
+  "publicationId": "6ccefe1d-7825-453f-94de-df0fbef99383",
+  "persistent": true,
+  "classDefaultOff": true,
+  "individualDeny": true,
+  "individualAllow": true,
+  "authorClose": true,
+  "moderationAudit": true,
+  "widths": [1440, 1024, 768, 600, 390, 320],
+  "pageErrors": []
+}

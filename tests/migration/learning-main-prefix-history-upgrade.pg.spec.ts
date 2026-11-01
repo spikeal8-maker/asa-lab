@@ -321,13 +321,38 @@ const upgradeArtifacts = [
   ],
   [
     '0289',
-    '0289_learning_quiz_policy_authority.sql',
-    '476451b2f0f31d60be2295e0189cc0484e746c8c4bae2d3492673d73ad8e4c03',
+    '0289_publication_comments.sql',
+    '01bafc7722d6e904462211c9cc4c5d00bccd140f23c216b8825698d08f2e06d7',
   ],
   [
     '0290',
-    '0290_learning_quiz_attempt_state.sql',
-    'dbd2c30bebf51058702dde89f65efe66ad2d116a27fc7782cd95c3b21b73faa1',
+    '0290_publication_discussion_reactions.sql',
+    'f0ca6f9a9d15c6cff52005f18dcb160559ef251b82f27f5a1e7a2351bd13d165',
+  ],
+  [
+    '0291',
+    '0291_publication_comment_avatars.sql',
+    'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
+  ],
+  [
+    '0292',
+    '0292_publication_author_catalog.sql',
+    'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
+  ],
+  [
+    '0293',
+    '0293_public_projects_catalog_sort.sql',
+    '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
+  ],
+  [
+    '0295',
+    '0295_learning_quiz_policy_authority.sql',
+    '476451b2f0f31d60be2295e0189cc0484e746c8c4bae2d3492673d73ad8e4c03',
+  ],
+  [
+    '0296',
+    '0296_learning_quiz_attempt_state.sql',
+    '1a3d54bd6b5bf8883053cc9f76bf45ff6099edcf67e2622b0153e7982fb11892',
   ],
 ] as const;
 
@@ -452,16 +477,20 @@ async function preservedData(pool: pg.Pool) {
     // Normalize only known additive columns; all old and unknown future fields
     // remain covered by the strict before/after equality below.
     const addedColumns =
-      table === 'projects'
-        ? [...copiedProjectOriginFields]
-        : table === 'learning_attempts'
-          ? ['expires_at']
+      table === 'learning_attempts'
+        ? ['expires_at']
+        : table === 'projects'
+          ? [...copiedProjectOriginFields]
           : table === 'project_publication_state'
             ? [
                 'acquisition_allowed',
                 'acquisition_version',
                 'reactions_enabled',
                 'reactions_version',
+                'comments_enabled',
+                'comments_admin_enabled',
+                'comments_version',
+                'pinned_comment_id',
               ]
             : [];
     result[table] = (
@@ -707,6 +736,19 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
     )
   ).rows;
   expect(participation).toHaveLength(1);
+  // A real historical Attempt exists before the new nullable expiry column.
+  // Preserve its complete old row, not a fabricated post-upgrade snapshot.
+  await pool.query(
+    `INSERT INTO learning_attempts
+    (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+     seat_id,learner_identity_id,activity_participation_id,attempt_number,state)
+    SELECT run.tenant_id,run.classroom_id,run.source_classroom_assignment_id,
+      run.learning_activity_version_id,$2,part.learner_identity_id,part.id,1,'closed'
+    FROM activity_participations part JOIN activity_runs run ON run.id=part.activity_run_id
+    WHERE part.id=$1`,
+    [participation[0].id, seat],
+  );
+
   // This historical command reads app.tenant_id. Keep its context and decision
   // on one connection/transaction; a prior autocommit query cannot supply it.
   try {
@@ -808,6 +850,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(before.course_versions).toHaveLength(1);
       expect(before.course_enrollments).toHaveLength(1);
       expect(before.activity_participations).toHaveLength(1);
+      expect(before.learning_attempts).toHaveLength(1);
       expect(before.project_versions).toHaveLength(1);
       expect(before.ai_paid_operation_quota).toHaveLength(2);
       const threads = (await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows;
@@ -872,7 +915,34 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           reactions_version: 0,
         })),
       );
+      // Independently assert the exact defaults of the published additive fields;
+      // excluding only those fields above must not hide historical mutations.
+      expect(
+        (
+          await pool.query(
+            'SELECT comments_enabled,comments_admin_enabled,comments_version,pinned_comment_id FROM public.project_publication_state ORDER BY id',
+          )
+        ).rows,
+      ).toEqual(
+        before.project_publication_state!.map(() => ({
+          comments_enabled: true,
+          comments_admin_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
+        })),
+      );
       expect(await preservedData(pool)).toEqual(before);
+      expect(
+        (await pool.query('SELECT expires_at FROM learning_attempts ORDER BY id')).rows,
+      ).toEqual(before.learning_attempts!.map(() => ({ expires_at: null })));
+      expect(
+        (
+          await pool.query(`SELECT
+        (SELECT count(*) FROM quiz_attempt_states) AS states,
+        (SELECT count(*) FROM quiz_attempt_start_receipts) AS receipts`)
+        ).rows[0],
+      ).toEqual({ states: '0', receipts: '0' });
+
       expect(
         (
           await pool.query(

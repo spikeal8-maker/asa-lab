@@ -1,5 +1,6 @@
+import { PublicationComments } from './PublicationComments';
 import { PublicationLike } from './PublicationLike';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
@@ -7,6 +8,7 @@ import { CopyPublicProject } from './CopyPublicProject';
 import { PublicationArtifact } from './PublicationArtifact';
 import { PublicProjectTitle } from './PublicProjectTitle';
 import { SharePublicationLink } from './SharePublicationLink';
+import { PublicAuthorAvatar } from './PublicAuthorAvatar';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
 import './public-projects.css';
 
@@ -48,6 +50,8 @@ export function PublicProjectPage({
 }): JSX.Element {
   const [publication, setPublication] = useState<PublicProject | null>(null);
   const [missing, setMissing] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionId = useId();
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -61,6 +65,7 @@ export function PublicProjectPage({
     controller.current = new AbortController();
     const current = ++request.current;
     setPublication(null);
+    setDescriptionExpanded(false);
     setMissing(false);
     setError(null);
     const result = await publicProjectsApi.get(publicationId, controller.current.signal);
@@ -75,6 +80,20 @@ export function PublicProjectPage({
       return;
     }
     setPublication(result.data.publication);
+  }, [publicationId]);
+  const refreshCopyCount = useCallback(async () => {
+    const current = request.current;
+    const result = await publicProjectsApi.get(publicationId, controller.current?.signal);
+    if (current !== request.current || !result.ok) return;
+    const count = result.data.publication?.copyCount;
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return;
+    setPublication((old) =>
+      old &&
+      old.publicationId === result.data.publication?.publicationId &&
+      old.revisionId === result.data.publication.revisionId
+        ? { ...old, copyCount: count }
+        : old,
+    );
   }, [publicationId]);
   useEffect(() => {
     void reload();
@@ -94,9 +113,11 @@ export function PublicProjectPage({
       className="portal-content public-projects public-project-detail"
       tabIndex={-1}
     >
-      <PortalLink className="public-project-back" href="/#/explore" onNavigate={onBack}>
-        ← Проекты
-      </PortalLink>
+      {!publication ? (
+        <PortalLink className="public-project-back" href="/#/explore" onNavigate={onBack}>
+          ← Проекты
+        </PortalLink>
+      ) : null}
       {error ? (
         <section
           className="public-projects-state notice-error"
@@ -114,89 +135,151 @@ export function PublicProjectPage({
         </p>
       ) : (
         <article
-          className={`public-project-layout${publication.description ? ' has-description' : ''}`}
+          className="public-project-layout"
+          data-module={publication.moduleKey}
           data-testid="public-project-detail"
         >
           <header className="public-project-heading">
-            <PublicProjectTitle key={publication.revisionId} title={publication.title} />
-            <div className="public-project-badges">
-              <span className="public-project-detail-author">{publication.authorLabel}</span>
-              <span className="publication-module" data-module={publication.moduleKey}>
-                {publicModuleName(publication.moduleKey)}
-              </span>
-              {publication.pinned ? (
-                <span className="public-project-pinned" data-testid="public-project-pinned">
-                  Закреплено
-                </span>
-              ) : null}
-              {publication.featured ? (
-                <span className="public-project-featured" data-testid="public-project-featured">
-                  ★ Выбор редакции
-                </span>
-              ) : null}
+            <div className="public-project-detail-topline">
+              <PortalLink className="public-project-back" href="/#/explore" onNavigate={onBack}>
+                ← Проекты
+              </PortalLink>
+              <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             </div>
-          </header>
-          <section className="public-project-viewer" aria-label="Просмотр проекта">
-            <PublicationArtifact
-              key={publication.revisionId}
-              publication={publication}
-              onUnavailable={unavailable}
-            />
-          </section>
-          <div className="public-project-commandbar" aria-label="Действия с проектом">
-            <CopyPublicProject key={publication.revisionId} publication={publication} />
-            <div className="public-project-actions">
-              <PublicationLike
+            <div className="public-project-commandbar" aria-label="Действия с проектом">
+              <CopyPublicProject
                 key={publication.revisionId}
                 publication={publication}
-                authenticated={authenticated}
+                onCopied={() => void refreshCopyCount()}
               />
-              <SharePublicationLink
-                key={publication.publicationId}
-                publicationId={publication.publicationId}
-              />
+              <div className="public-project-actions">
+                <PublicationLike
+                  key={publication.revisionId}
+                  publication={publication}
+                  authenticated={authenticated}
+                />
+                {typeof publication.copyCount === 'number' ? (
+                  <span
+                    className="public-project-detail-copies"
+                    title="Добавили к себе"
+                    aria-label={`Добавили к себе: ${publication.copyCount}`}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <rect x="8" y="8" width="12" height="12" rx="2" />
+                      <path d="M16 8V4H4v12h4" />
+                    </svg>
+                    {publication.copyCount}
+                  </span>
+                ) : null}
+                <SharePublicationLink
+                  compact
+                  key={publication.publicationId}
+                  publicationId={publication.publicationId}
+                />
+              </div>
             </div>
-          </div>
-          <section className="public-project-about" aria-label="О проекте">
-            {publication.description ? (
-              <>
-                <h2>О проекте</h2>
-                <p className="public-project-description" data-testid="public-project-description">
-                  {publication.description}
-                </p>
-              </>
-            ) : null}
-            {publication.tags.length ? (
-              <ul className="public-project-tags" aria-label="Теги">
-                {publication.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            ) : null}
-            <details className="public-project-metadata">
-              <summary>Лицензия и сведения о публикации</summary>
-              <dl className="public-project-facts">
-                <div>
-                  <dt>Лицензия</dt>
-                  <dd>{licence}</dd>
-                </div>
-                <div>
-                  <dt>Опубликовано</dt>
-                  <dd>
+          </header>
+          <div className="public-project-workspace">
+            <div className="public-project-stage-column">
+              <section className="public-project-viewer" aria-label="Просмотр проекта">
+                <PublicationArtifact
+                  key={publication.revisionId}
+                  publication={publication}
+                  onUnavailable={unavailable}
+                />
+              </section>
+            </div>
+            <aside className="public-project-sidebar" aria-label="Об авторе и проекте">
+              <div className="public-project-authorline">
+                <div className="public-project-author-identity">
+                  <PublicAuthorAvatar publication={publication} detail />
+                  <div className="public-project-author-text">
+                    <span className="public-project-detail-author">{publication.authorLabel}</span>
                     <time dateTime={publication.publishedAt}>
                       {time.date(publication.publishedAt)}
                     </time>
-                  </dd>
+                  </div>
                 </div>
-                <div>
-                  <dt>Версия проекта</dt>
-                  <dd>
-                    {publication.versionNo} · Публикация {publication.revisionNo}
-                  </dd>
+                <div className="public-project-badges">
+                  <span className="publication-module" data-module={publication.moduleKey}>
+                    {publicModuleName(publication.moduleKey)}
+                  </span>
+                  {publication.pinned ? (
+                    <span className="public-project-pinned" data-testid="public-project-pinned">
+                      Закреплено
+                    </span>
+                  ) : null}
+                  {publication.featured ? (
+                    <span className="public-project-featured" data-testid="public-project-featured">
+                      ★ Выбор редакции
+                    </span>
+                  ) : null}
                 </div>
-              </dl>
-            </details>
-          </section>
+              </div>
+              <section className="public-project-about" aria-label="О проекте">
+                <div className="public-project-description-block">
+                  {publication.description ? (
+                    <>
+                      <h2>О проекте</h2>
+                      <p
+                        id={descriptionId}
+                        className={`public-project-description${publication.description.length > 600 && !descriptionExpanded ? ' is-collapsed' : ''}`}
+                        data-testid="public-project-description"
+                      >
+                        {publication.description}
+                      </p>
+                      {publication.description.length > 600 ? (
+                        <button
+                          type="button"
+                          className="public-project-description-toggle"
+                          aria-controls={descriptionId}
+                          aria-expanded={descriptionExpanded}
+                          onClick={() => setDescriptionExpanded((value) => !value)}
+                        >
+                          {descriptionExpanded ? 'Свернуть описание' : 'Читать полностью'}
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {publication.tags.length ? (
+                    <ul className="public-project-tags" aria-label="Теги">
+                      {publication.tags.map((tag) => (
+                        <li key={tag}>{tag}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+                <details className="public-project-metadata">
+                  <summary>Лицензия и сведения о публикации</summary>
+                  <dl className="public-project-facts">
+                    <div>
+                      <dt>Лицензия</dt>
+                      <dd>{licence}</dd>
+                    </div>
+                    <div>
+                      <dt>Версия проекта</dt>
+                      <dd>
+                        {publication.versionNo} · Публикация {publication.revisionNo}
+                      </dd>
+                    </div>
+                  </dl>
+                </details>
+              </section>
+            </aside>
+          </div>
+          <PublicationComments
+            key={publication.publicationId}
+            publicationId={publication.publicationId}
+            revisionId={publication.revisionId}
+          />
         </article>
       )}
     </main>
