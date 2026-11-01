@@ -9,10 +9,15 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import type pg from 'pg';
-import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
+import {
+  hashSessionToken,
+  isValidAvatarDataUrl,
+  type ActiveContextUseCase,
+} from '@asa-lab/identity';
 import { TOKENS, SESSION_COOKIE } from './tokens.js';
 import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
@@ -96,6 +101,39 @@ export class PublicationCommentsController {
     )
       invalid();
     return { before: before ?? null, limit: limit === undefined ? 20 : Number(limit) };
+  }
+  @Get('public-projects/:publicationId/comments/:commentId/avatar')
+  async avatar(
+    @Param('publicationId') id: string,
+    @Param('commentId') comment: string,
+    @Res() reply: FastifyReply,
+  ) {
+    if (!uuid(id) || !uuid(comment)) invalid();
+    const source = (await this.query(
+      'SELECT public.publication_comment_avatar($1,$2,true) AS result',
+      [id, comment],
+    )) as { dataUrl?: string; builtinKey?: string } | null;
+    reply
+      .header('Cache-Control', 'private, no-store')
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Cross-Origin-Resource-Policy', 'same-origin');
+    if (source?.builtinKey && /^asa-avatar-(0[1-9]|[1-5][0-9]|6[0-7])$/.test(source.builtinKey))
+      return reply
+        .code(302)
+        .redirect(`/assets/avatars/default/avatar-${source.builtinKey.slice(-2)}.webp`);
+    if (typeof source?.dataUrl !== 'string' || !isValidAvatarDataUrl(source.dataUrl))
+      throw publicationError('not_found', 'Аватар недоступен.', 404);
+    const match = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(source!.dataUrl!);
+    if (!match) throw publicationError('not_found', 'Аватар недоступен.', 404);
+    const pixels = Buffer.from(match[2]!, 'base64');
+    const valid =
+      match[1] === 'png'
+        ? pixels.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+        : match[1] === 'jpeg'
+          ? pixels.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+          : pixels.toString('ascii', 0, 4) === 'RIFF' && pixels.toString('ascii', 8, 12) === 'WEBP';
+    if (!valid) throw publicationError('not_found', 'Аватар недоступен.', 404);
+    return reply.type(`image/${match[1]}`).send(pixels);
   }
   @Get('public-projects/:publicationId/comments')
   @Header('Cache-Control', 'private, no-store')

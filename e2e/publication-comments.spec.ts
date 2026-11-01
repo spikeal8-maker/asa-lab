@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import { e2eAdminPool } from './seed';
@@ -58,6 +58,17 @@ test('real discussion persists, class and learner permissions are independent, o
     mkdirSync(evidence, { recursive: true });
     for (const page of [owner, learner, moderator, guest]) await page.goto('/#/explore');
     await register(owner, 'Анна — автор проекта');
+    const portrait =
+      'data:image/webp;base64,' +
+      readFileSync('apps/web/public/assets/avatars/default/avatar-01.webp').toString('base64');
+    expect(
+      (
+        await owner.request.patch('/api/account/avatar', {
+          headers: headers(owner),
+          data: { avatarDataUrl: portrait },
+        })
+      ).status(),
+    ).toBe(200);
     const adminId = await register(moderator, 'Учитель и модератор');
     await db.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
       adminId,
@@ -93,6 +104,14 @@ test('real discussion persists, class and learner permissions are independent, o
         await learner.request.post('/api/class-join/studentseat', {
           headers: headers(learner),
           data: { code, studentCode: seat.studentCode },
+        })
+      ).status(),
+    ).toBe(200);
+    expect(
+      (
+        await learner.request.put('/api/class-join/me/avatar', {
+          headers: headers(learner),
+          data: { avatarKey: 'asa-avatar-03' },
         })
       ).status(),
     ).toBe(200);
@@ -255,6 +274,13 @@ test('real discussion persists, class and learner permissions are independent, o
         .filter({ hasText: 'Интересный проект! Как изменить скорость?' });
       expect((await rootCard.boundingBox())!.height).toBeLessThan(width <= 600 ? 185 : 145);
       await expect(rootCard.locator('.publication-comment-avatar')).toBeVisible();
+      await expect
+        .poll(() =>
+          rootCard
+            .locator('.publication-comment-avatar img')
+            .evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+        )
+        .toBe(true);
       await pupilComments.screenshot({ path: `${evidence}/discussion-${width}.png` });
     }
     await moderator.goto('/#/admin/publications');

@@ -21,6 +21,7 @@ export interface PublicComment {
   id: string;
   parentId: string | null;
   author: string | null;
+  avatarUrl?: string | null;
   body: string | null;
   status: 'visible' | 'deleted' | 'owner_hidden' | 'moderator_hidden';
   createdAt: string;
@@ -447,6 +448,38 @@ export function PublicationComments({
 }
 
 type Request = <T>(path: string, init?: RequestInit) => ReturnType<typeof call<T>>;
+function CommentAvatar({
+  item,
+  publicationEndpoint,
+}: {
+  readonly item: PublicComment;
+  readonly publicationEndpoint: string;
+}): JSX.Element {
+  const url =
+    item.status === 'visible' &&
+    item.avatarUrl === `${publicationEndpoint}/${encodeURIComponent(item.id)}/avatar`
+      ? item.avatarUrl
+      : null;
+  const [failed, setFailed] = useState<string | null>(null);
+  return (
+    <span className="publication-comment-avatar" aria-hidden="true">
+      {url && failed !== url ? (
+        <img
+          src={url}
+          alt=""
+          width={26}
+          height={26}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(url)}
+        />
+      ) : (
+        item.author?.trim().slice(0, 1).toLocaleUpperCase('ru-RU') || '·'
+      )}
+    </span>
+  );
+}
 function CommentThread({
   row,
   endpoint,
@@ -535,9 +568,7 @@ function CommentThread({
       {item.status === 'visible' ? (
         <>
           <header>
-            <span className="publication-comment-avatar" aria-hidden="true">
-              {item.author?.trim().slice(0, 1).toLocaleUpperCase('ru-RU') || '·'}
-            </span>
+            <CommentAvatar item={item} publicationEndpoint={endpoint} />
             <strong>{item.author}</strong>
             <time
               dateTime={item.createdAt}

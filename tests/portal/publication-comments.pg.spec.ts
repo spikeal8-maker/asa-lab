@@ -178,6 +178,8 @@ describe('real publication discussion identity, policy and moderation boundary',
     const listed = (await read(s)).json();
     expect(listed.items).toHaveLength(1);
     expect(JSON.stringify(listed)).not.toContain(a.principal);
+    const fresh = (await create(s, a, 'Новый комментарий с фото')).json();
+    expect(fresh.comment.avatarUrl).toBe(endpoint(s) + '/' + fresh.id + '/avatar');
     expect(JSON.stringify(listed)).not.toContain(a.account);
     expect(listed.items[0].body).toBe(body);
   });
@@ -597,5 +599,97 @@ describe('real publication discussion identity, policy and moderation boundary',
       expect(cursor).toBeNull();
     }
     expect((await read(s, r1, '?sort=unknown')).statusCode).toBe(400);
+  });
+  it('serves selected Account and Seat avatars through public comment IDs without leaking identity or embedding pixels in lists', async () => {
+    const s = await source(),
+      a = await identity();
+    const c = (await create(s, a, 'С аватаром')).json();
+    expect((await read(s)).json().items[0].avatarUrl).toBeNull();
+    expect(
+      (await inject(app, { method: 'GET', url: endpoint(s) + '/' + c.id + '/avatar' })).statusCode,
+    ).toBe(404);
+    const png = new PNG({ width: 32, height: 32 });
+    png.data.fill(255);
+    const bytes = PNG.sync.write(png);
+    const data = 'data:image/png;base64,' + bytes.toString('base64');
+    await admin.query('UPDATE profiles SET avatar_data_url=$2 WHERE account_id=$1', [
+      a.account,
+      data,
+    ]);
+    const listed = (await read(s)).json();
+    expect(listed.items[0].avatarUrl).toBe(endpoint(s) + '/' + c.id + '/avatar');
+    expect(JSON.stringify(listed)).not.toContain('base64');
+    expect(JSON.stringify(listed)).not.toContain(a.account);
+    expect(JSON.stringify(listed)).not.toContain(a.principal);
+    const avatar = await inject(app, { method: 'GET', url: listed.items[0].avatarUrl });
+    expect(avatar.statusCode, avatar.body).toBe(200);
+    expect(avatar.headers['content-type']).toContain('image/png');
+    expect(avatar.headers['cache-control']).toBe('private, no-store');
+    expect(avatar.rawPayload.equals(bytes)).toBe(true);
+    const other = await source();
+    expect(
+      (await inject(app, { method: 'GET', url: endpoint(other) + '/' + c.id + '/avatar' }))
+        .statusCode,
+    ).toBe(404);
+    const reply = (await create(s, a, 'Ответ с аватаром', { parentId: c.id })).json();
+    expect(
+      (await inject(app, { method: 'GET', url: endpoint(s) + '/' + reply.id + '/avatar' }))
+        .statusCode,
+    ).toBe(200);
+    await command(s, s.owner, 'hide', { commentId: c.id, expectedVersion: 0 });
+    expect((await read(s)).json().items[0].avatarUrl).toBeNull();
+    expect((await inject(app, { method: 'GET', url: listed.items[0].avatarUrl })).statusCode).toBe(
+      404,
+    );
+    expect(
+      (await inject(app, { method: 'GET', url: endpoint(s) + '/' + reply.id + '/avatar' }))
+        .statusCode,
+    ).toBe(404);
+    const f = await studentProjectPolicyFixture(admin, runtime);
+    await f.write({ publish: false, download: false, comments: true, expectedVersion: 0 });
+    await admin.query("UPDATE classroom_student_seats SET avatar_key='asa-avatar-03' WHERE id=$1", [
+      f.seatId,
+    ]);
+    const seat = await inject(app, {
+      method: 'POST',
+      url: endpoint(s) + '/commands',
+      cookies: { asa_student_session: f.token },
+      payload: {
+        action: 'create',
+        body: 'От ученика',
+        mutationId: randomUUID(),
+        revisionId: s.revisionId,
+      },
+    });
+    expect(seat.statusCode, seat.body).toBe(200);
+    const seatAvatar = await inject(app, {
+      method: 'GET',
+      url: endpoint(s) + '/' + seat.json().id + '/avatar',
+    });
+    expect(seatAvatar.statusCode).toBe(302);
+    expect(seatAvatar.headers.location).toBe('/assets/avatars/default/avatar-03.webp');
+    const custom = (
+      await admin.query(
+        'INSERT INTO classroom_custom_avatars(classroom_id,title,data_url,created_by) VALUES($1,$2,$3,$4) RETURNING id',
+        [f.classroomId, 'Личный аватар', data, f.actor],
+      )
+    ).rows[0].id;
+    await admin.query(
+      'INSERT INTO classroom_custom_avatar_choices(seat_id,avatar_id) VALUES($1,$2)',
+      [f.seatId, custom],
+    );
+    const selected = await inject(app, {
+      method: 'GET',
+      url: endpoint(s) + '/' + seat.json().id + '/avatar',
+    });
+    expect(selected.statusCode).toBe(200);
+    expect(selected.rawPayload.equals(bytes)).toBe(true);
+    await admin.query("UPDATE classroom_student_seats SET status='removed' WHERE id=$1", [
+      f.seatId,
+    ]);
+    expect(
+      (await inject(app, { method: 'GET', url: endpoint(s) + '/' + seat.json().id + '/avatar' }))
+        .statusCode,
+    ).toBe(404);
   });
 });

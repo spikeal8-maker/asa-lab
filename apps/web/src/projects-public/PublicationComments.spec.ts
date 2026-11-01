@@ -305,3 +305,29 @@ it('keeps Reply discoverable for guests and opens sign-in without writing a comm
   expect(show).toHaveBeenCalledOnce();
   expect(vi.mocked(call).mock.calls.some((c) => c[1]?.method === 'POST')).toBe(false);
 });
+it('uses only the public comment avatar endpoint and falls back to initials on image failure', async () => {
+  vi.mocked(call).mockResolvedValueOnce(
+    page({}, [{ ...row, avatarUrl: '/api/public-projects/pub/comments/comment/avatar' }]),
+  );
+  await render();
+  const image = host.querySelector('.publication-comment-avatar img')!;
+  expect(image.getAttribute('src')).toBe('/api/public-projects/pub/comments/comment/avatar');
+  expect(image.getAttribute('loading')).toBe('lazy');
+  expect(image.getAttribute('width')).toBe('26');
+  await act(async () => image.dispatchEvent(new Event('error')));
+  expect(host.querySelector('.publication-comment-avatar img')).toBeNull();
+  expect(host.querySelector('.publication-comment-avatar')?.textContent).toBe('А');
+});
+it('keeps initials for absent or untrusted avatar URLs', async () => {
+  vi.mocked(call).mockResolvedValueOnce(
+    page({}, [
+      { ...row, avatarUrl: 'https://untrusted.invalid/tracker.png' },
+      { ...row, id: 'no-photo', avatarUrl: null, author: 'Борис' },
+    ]),
+  );
+  await render();
+  expect(host.querySelectorAll('.publication-comment-avatar img')).toHaveLength(0);
+  expect(
+    [...host.querySelectorAll('.publication-comment-avatar')].map((a) => a.textContent),
+  ).toEqual(['А', 'Б']);
+});
