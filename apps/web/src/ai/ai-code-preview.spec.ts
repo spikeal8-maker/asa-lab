@@ -2,6 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { codePreviewDocument } from './ai-code-preview';
 
 describe('isolated static code preview', () => {
+  it('permits inline games only in an explicitly interactive document with network CSP intact', () => {
+    const code =
+      '<canvas id="board" width="300" height="300"></canvas><button onclick="score++">Play</button><script src="https://external.test/code.js">let score=0;document.querySelector("#board").getContext("2d").fillRect(1,2,3,4);</script>';
+    const doc = codePreviewDocument(code, true);
+    expect(doc).toContain('<canvas id="board" width="300" height="300"></canvas>');
+    expect(doc).toContain('onclick="score++"');
+    expect(doc).toContain('<script>let score=0;');
+    expect(doc).not.toContain('src="https:');
+    expect(doc).toContain("script-src 'unsafe-inline'");
+    expect(doc).toContain("connect-src 'none'");
+    expect(doc).toContain("frame-src 'none'");
+    expect(doc).toContain("worker-src 'none'");
+    expect(codePreviewDocument(code)).not.toContain('<script>');
+  });
   it('keeps HTML layout and inline CSS without fetching or using a live DOM parser', () => {
     const doc = codePreviewDocument(
       '<!doctype html><style>.card{color:blue}</style><main class="card"><h1>Мастерская</h1></main>',

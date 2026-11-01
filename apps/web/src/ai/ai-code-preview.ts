@@ -32,7 +32,11 @@ function escape(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function codePreviewDocument(code: string): string | null {
+// Games commonly save a high score. Opaque origins cannot use browser Storage;
+// supply bounded, per-run memory instead of granting access to ASA's storage.
+const RUN_STORAGE = `<script>(()=>{const make=()=>{const values=new Map();return Object.freeze({get length(){return values.size},key:i=>Array.from(values.keys())[i]??null,getItem:k=>values.get(String(k))??null,setItem:(k,v)=>{k=String(k);v=String(v);if(k.length<=128&&v.length<=8192&&(values.has(k)||values.size<64))values.set(k,v)},removeItem:k=>values.delete(String(k)),clear:()=>values.clear()})};for(const name of ['localStorage','sessionStorage'])Object.defineProperty(window,name,{value:make(),configurable:false})})();</script>`;
+
+export function codePreviewDocument(code: string, interactive = false): string | null {
   if (code.length > 200_000) return null;
   let nodes = 0;
   function render(node: DefaultTreeAdapterMap['node'], depth: number): string {
@@ -41,14 +45,18 @@ export function codePreviewDocument(code: string): string | null {
     if (!('tagName' in node))
       return 'childNodes' in node ? node.childNodes.map((n) => render(n, depth + 1)).join('') : '';
     const tag = node.tagName.toLowerCase();
-    if (!TAGS.has(tag)) return '';
+    if (!TAGS.has(tag) && tag !== 'canvas' && !(interactive && tag === 'script')) return '';
     // Outer document is always ours; no generated metadata, base, frames,
     // foreignObject, scripts, resource elements or event attributes survive.
     if (['html', 'head', 'body'].includes(tag))
       return node.childNodes.map((n) => render(n, depth + 1)).join('');
     const attrs = node.attrs
       .filter(
-        (a) => !a.namespace && (ATTRS.has(a.name.toLowerCase()) || /^aria-[a-z-]+$/.test(a.name)),
+        (a) =>
+          !a.namespace &&
+          (ATTRS.has(a.name.toLowerCase()) ||
+            /^aria-[a-z-]+$/.test(a.name) ||
+            (interactive && /^on[a-z]+$/.test(a.name))),
       )
       .map((a) => ` ${CASED[a.name.toLowerCase()] || a.name}="${escape(a.value)}"`)
       .join('');
@@ -59,17 +67,22 @@ export function codePreviewDocument(code: string): string | null {
         : undefined;
     const name = CASED[tag] || tag;
     const contents =
-      tag === 'style'
+      tag === 'script'
         ? node.childNodes
             .filter((n) => n.nodeName === '#text')
-            .map((n) => (n as DefaultTreeAdapterMap['textNode']).value.replace(/</g, '\\3c '))
+            .map((n) => (n as DefaultTreeAdapterMap['textNode']).value)
             .join('')
-        : node.childNodes.map((n) => render(n, depth + 1)).join('');
+        : tag === 'style'
+          ? node.childNodes
+              .filter((n) => n.nodeName === '#text')
+              .map((n) => (n as DefaultTreeAdapterMap['textNode']).value.replace(/</g, '\\3c '))
+              .join('')
+          : node.childNodes.map((n) => render(n, depth + 1)).join('');
     return `<${name}${attrs}${href ? ` href="${escape(href.value)}"` : ''}>${VOID.has(tag) ? '' : contents + `</${name}>`}`;
   }
   try {
     const body = render(parse(code), 0);
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html{background:white;color:#172b3a;font-family:Arial,sans-serif}body{margin:16px}svg{max-width:100%;height:auto}</style></head><body>${body}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src ${interactive ? "'unsafe-inline'" : "'none'"}; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html{background:white;color:#172b3a;font-family:Arial,sans-serif}body{margin:16px}svg{max-width:100%;height:auto}</style>${interactive ? RUN_STORAGE : ''}</head><body>${body}</body></html>`;
   } catch {
     return null;
   }

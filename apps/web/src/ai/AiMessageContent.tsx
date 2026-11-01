@@ -39,6 +39,9 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const [expanded, setExpanded] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
   const [zoom, setZoom] = useState(0.5);
+  const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
+  const [running, setRunning] = useState(false);
+  const [runId, setRunId] = useState(0);
   const code = flattenText(children).replace(/\n$/, '');
   const child = Array.isArray(children) ? children[0] : children;
   const language = isValidElement<{ className?: string }>(child)
@@ -47,8 +50,11 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const file = codeDownloadFormat(language, code);
   const previewable = file.name.endsWith('.html') || file.name.endsWith('.svg');
   const preview = useMemo(
-    () => (previewable && !pending ? codePreviewDocument(code) : null),
-    [code, pending, previewable],
+    () =>
+      previewable && !pending
+        ? codePreviewDocument(code, running && file.name.endsWith('.html'))
+        : null,
+    [code, pending, previewable, running, file.name],
   );
   const previewVisible = Boolean(preview && showPreview);
   const scale = file.name.endsWith('.svg') ? 1 : zoom;
@@ -59,7 +65,82 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           <AiChatIcon name="file" size={16} />
           {language || 'Текст'}
         </span>
-        <AiCopyButton text={code} label="Копировать код" showLabel />
+        {preview && (
+          <div className="asa-ai-code-tabs" role="group" aria-label="Отображение результата">
+            <button
+              type="button"
+              aria-pressed={previewVisible}
+              onClick={() => setShowPreview(true)}
+            >
+              Просмотр
+            </button>
+            <button
+              type="button"
+              aria-pressed={!previewVisible}
+              onClick={() => {
+                setShowPreview(false);
+                setRunning(false);
+              }}
+            >
+              Код
+            </button>
+          </div>
+        )}
+        {previewVisible && file.name.endsWith('.html') && (
+          <>
+            <div className="asa-ai-code-devices" role="group" aria-label="Размер экрана">
+              <button
+                type="button"
+                aria-label="Компьютер — 1024 пикселя"
+                data-ai-tooltip="Компьютер · 1024 px"
+                aria-pressed={device === 'desktop'}
+                onClick={() => setDevice('desktop')}
+              >
+                <AiChatIcon name="monitor" size={17} />
+              </button>
+              <button
+                type="button"
+                aria-label="Телефон — 390 пикселей"
+                data-ai-tooltip="Телефон · 390 px"
+                aria-pressed={device === 'phone'}
+                onClick={() => setDevice('phone')}
+              >
+                <AiChatIcon name="phone" size={17} />
+              </button>
+            </div>
+            <select
+              aria-label="Масштаб HTML"
+              value={zoom}
+              onChange={(event) => setZoom(Number(event.target.value))}
+            >
+              {[0.5, 0.75, 1].map((value) => (
+                <option key={value} value={value}>
+                  {value * 100}%
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              aria-label={running ? 'Остановить приложение' : 'Запустить приложение'}
+              data-ai-tooltip={running ? 'Остановить' : 'Запустить'}
+              onClick={() => setRunning(!running)}
+            >
+              <AiChatIcon name={running ? 'stop' : 'play'} size={17} />
+            </button>
+            {running && (
+              <button
+                type="button"
+                aria-label="Перезапустить приложение"
+                data-ai-tooltip="Перезапустить"
+                onClick={() => setRunId(runId + 1)}
+              >
+                <AiChatIcon name="refresh" size={17} />
+              </button>
+            )}
+          </>
+        )}
+        <span className="asa-ai-code-spacer" />
+        <AiCopyButton text={code} label="Копировать код" />
         <button
           type="button"
           disabled={pending}
@@ -68,7 +149,6 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           aria-label={'Скачать код: ' + file.name}
         >
           <AiChatIcon name="download" size={17} />
-          <span>Скачать {file.name.split('.').at(-1)?.toUpperCase()}</span>
         </button>
         <button
           type="button"
@@ -98,51 +178,27 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           </svg>
         </button>
       </div>
-      {preview && (
-        <div className="asa-ai-preview-toolbar">
-          <div role="group" aria-label="Отображение результата">
-            <button
-              type="button"
-              aria-pressed={previewVisible}
-              onClick={() => setShowPreview(true)}
-            >
-              Предпросмотр
-            </button>
-            <button
-              type="button"
-              aria-pressed={!previewVisible}
-              onClick={() => setShowPreview(false)}
-            >
-              Код
-            </button>
-          </div>
-          {previewVisible && file.name.endsWith('.html') && (
-            <div role="group" aria-label="Масштаб HTML">
-              {[0.5, 0.75, 1].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={zoom === value}
-                  onClick={() => setZoom(value)}
-                >
-                  {value * 100}%
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       {previewVisible && (
         <div
           className="asa-ai-code-preview"
-          style={{ '--code-preview-scale': scale } as React.CSSProperties}
+          data-device={file.name.endsWith('.html') ? device : 'svg'}
+          style={
+            {
+              '--code-preview-scale': scale,
+              '--code-device-width': device === 'phone' ? '390px' : '1024px',
+            } as React.CSSProperties
+          }
         >
-          <iframe
-            title={'Предпросмотр ' + (file.name.endsWith('.svg') ? 'SVG' : 'HTML')}
-            sandbox=""
-            referrerPolicy="no-referrer"
-            srcDoc={preview!}
-          />
+          <div className="asa-ai-preview-stage">
+            <iframe
+              key={String(running) + ':' + runId}
+              title={'Предпросмотр ' + (file.name.endsWith('.svg') ? 'SVG' : 'HTML')}
+              sandbox={running && file.name.endsWith('.html') ? 'allow-scripts' : ''}
+              allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; payment 'none'; usb 'none'; fullscreen 'none'"
+              referrerPolicy="no-referrer"
+              srcDoc={preview!}
+            />
+          </div>
         </div>
       )}
       <pre

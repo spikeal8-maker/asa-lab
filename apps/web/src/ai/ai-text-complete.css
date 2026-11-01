@@ -116,8 +116,11 @@
   background: color-mix(in srgb, var(--color-brand, #0877b3) 4%, var(--ai-surface));
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
-  padding: 8px 10px;
-  gap: 4px;
+  padding: 6px 8px;
+  gap: 3px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   background: color-mix(in srgb, var(--color-brand, #0877b3) 9%, var(--ai-surface));
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-format {
@@ -127,16 +130,46 @@
   padding: 6px;
   color: var(--ai-text);
   font-weight: 600;
+  margin-right: 0;
+  flex-shrink: 0;
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-spacer {
+  flex: 1;
+  margin: 0;
+}
+.asa-ai-layout .asa-ai-code-tabs,
+.asa-ai-layout .asa-ai-code-devices {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+.asa-ai-layout .asa-ai-code-actions select {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ai-text);
+  padding: 4px;
+  font-size: 12px;
+  min-height: 32px;
+}
+.asa-ai-layout .asa-ai-code-actions option {
+  background: var(--ai-surface);
+  color: var(--ai-text);
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 6px 9px;
+  min-height: 32px;
+  padding: 6px 7px;
+  flex-shrink: 0;
   border-radius: 10px;
   color: var(--ai-text);
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--color-brand, #0877b3) 15%, transparent);
+  font-weight: 600;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--color-brand, #0877b3) 13%, transparent);
@@ -170,41 +203,31 @@
   outline: 2px solid var(--color-brand, #0877b3);
   outline-offset: -3px;
 }
-.asa-ai-layout .asa-ai-preview-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-top: 1px solid var(--ai-border);
-}
-.asa-ai-layout .asa-ai-preview-toolbar > div {
-  display: flex;
-  gap: 4px;
-}
-.asa-ai-layout .asa-ai-preview-toolbar button {
-  margin: 0;
-  border-radius: 9px;
-  color: var(--ai-text);
-}
-.asa-ai-layout .asa-ai-preview-toolbar button[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--color-brand, #0877b3) 15%, transparent);
-  font-weight: 600;
-}
 .asa-ai-layout .asa-ai-code-preview {
   height: 340px;
-  overflow: hidden;
+  overflow: auto;
   background: white;
   border-top: 1px solid var(--ai-border);
 }
+.asa-ai-layout .asa-ai-preview-stage {
+  width: calc(var(--code-device-width) * var(--code-preview-scale));
+  height: 100%;
+  overflow: hidden;
+  margin-inline: auto;
+}
+.asa-ai-layout .asa-ai-code-preview[data-device='svg'] .asa-ai-preview-stage {
+  width: 100%;
+}
 .asa-ai-layout .asa-ai-code-preview iframe {
   display: block;
-  width: calc(100% / var(--code-preview-scale));
+  width: var(--code-device-width);
   height: calc(100% / var(--code-preview-scale));
   border: 0;
   transform: scale(var(--code-preview-scale));
   transform-origin: top left;
+}
+.asa-ai-layout .asa-ai-code-preview[data-device='svg'] iframe {
+  width: 100%;
 }
 .asa-ai-layout .asa-ai-code-block[data-expanded] .asa-ai-code-preview {
   height: 75vh;
