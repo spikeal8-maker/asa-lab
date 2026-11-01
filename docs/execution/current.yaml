@@ -16062,6 +16062,30 @@ parallel_lanes:
       observed_at: '2026-10-30T08:13:33Z'
       observation_note: Fresh fetch main before edits; remote main equals clean controller HEAD. General in_progress not claimed PASS. BEFORE16fixtures6actualmounts all overwrite old source and XML; product unchanged. Repair selected before864.
 
+  - id: electronics-realtime-compute-cause
+    parent_lane: electronics
+    worktree_id: electronics-realtime-compute-cause
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
+    task:
+      id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
+      issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: analysis/inventory
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: owner_selected_short_frozen_input_compute_measurement
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
+      scope: Read-only short TEMP-only replay and CPU attribution of exact saved no-delay and independent-millis requests; no product/test/clock/solver edits or runtime acceptance.
+      owner_authorization: Owner requests fixing25 remaining Electronics failures easiest first plus completing8 unfinished; prepare measured timing cause while independently reviewed caption waits for isolated CI.
+      preservation: Keep selected682 private harness and all foreign work unchanged; no server, Docker, live DB, new dependencies, full-suite rerun or thresholds change.
+      next_action: One new bounded executor verifies selected task then replays saved actual requests for at most2minutes; report hot functions, owned-path activation, full-response fingerprints and minimal separate repair scope; STOP.
+
   - id: electronics-emergency-toolbar
     parent_lane: electronics
     worktree_id: electronics-emergency-toolbar
