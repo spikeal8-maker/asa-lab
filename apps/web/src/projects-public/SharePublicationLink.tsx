@@ -4,8 +4,10 @@ import { publicationUrl } from './presentation';
 /** Clipboard failure on a local HTTP installation keeps the URL selectable. */
 export function SharePublicationLink({
   publicationId,
+  compact = false,
 }: {
   readonly publicationId: string;
+  readonly compact?: boolean;
 }): JSX.Element {
   const fieldId = useId();
   const [url, setUrl] = useState<string | null>(null);
@@ -30,8 +32,31 @@ export function SharePublicationLink({
   }
   return (
     <div className="publication-share">
-      <button type="button" className="btn-secondary" disabled={busy} onClick={() => void share()}>
-        {busy ? 'Копируем…' : 'Копировать ссылку'}
+      <button
+        type="button"
+        className={`btn-secondary${compact ? ' publication-share-compact' : ''}`}
+        aria-label="Копировать ссылку"
+        title="Копировать ссылку"
+        disabled={busy}
+        onClick={() => void share()}
+      >
+        {compact ? (
+          <svg
+            aria-hidden="true"
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          >
+            <path d="m10 13 4-4m-6 7-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0m2 1 1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" />
+          </svg>
+        ) : null}
+        <span className={compact ? 'sr-only' : undefined}>
+          {busy ? 'Копируем…' : 'Копировать ссылку'}
+        </span>
       </button>
       {notice ? <p role="status">{notice}</p> : null}
       {url ? (

@@ -153,17 +153,19 @@ export function PublicProjectPage({
                       stroke="currentColor"
                       strokeWidth="1.8"
                     >
-                      <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                      <rect x="8" y="8" width="12" height="12" rx="2" />
+                      <path d="M16 8V4H4v12h4" />
                     </svg>
                     {publication.copyCount}
                   </span>
                 ) : null}
                 <SharePublicationLink
+                  compact
                   key={publication.publicationId}
                   publicationId={publication.publicationId}
                 />
               </div>
-            </div>{' '}
+            </div>
           </header>
           <div className="public-project-workspace">
             <div className="public-project-stage-column">

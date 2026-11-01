@@ -87,3 +87,32 @@ checks no page overflow;320 code panel starts exactly at toolbar bottom404px.
 Evidence: code-drawer.png and code-drawer-320.png in the same local evidence folder.
 Still a visual candidate; no deployment/Main integration. Blocks representation
 and replacement of blank test fixture snapshots remain unfinished.
+
+## Owner refinement: social actions and honest preview fixtures
+
+Large SVG heart/count replaces anonymous underlined `0 Войти`. Guest click opens
+native modal dialogue with sign-in choice, cancel/Escape and browser focus handling;
+no anonymous private probe, optimistic count or like mutation. Existing authenticated
+server-owned count/permissions unchanged. Link action is a compact labelled icon in
+detail only; noncompact callers retain their text. Copy-count icon now means copies,
+not physical export. Acquisition CTA retained only when server canCopy permits;
+no permission grant, no fake enabled download. Code panel typography improved.
+
+Focused PublicationLike + PublicProjectPage:14PASS, including guest modal/count
+no-write regression. Web typecheck/ESLint PASS. Native browser at1440/1024/390/320:
+no page horizontal overflow; real modal open/close demonstrated. Catalog and detail
+screenshots: catalog-real-covers.png, actions-redesign.png, actions-mobile.png and
+guest-like-dialog.png in the local evidence folder.
+
+Preview fixture correction ONLY in asa_detail_preview_test: original32px blank
+snapshots replaced by new correctly published fixtures with native scene screenshots.
+Immutable revision update was rejected as designed, not bypassed; fresh publication
+API generated new revisions. Two failed-crop fixtures and original blank fixtures
+were revoked only in disposable test state. No production database touched.
+Current local fixture publications: Scratch7a3014ba-e460-4317-8b18-2c8c1a347aa8;
+Electronics2cab18c8-d9e6-4b68-b24d-5ee082c83cac. Acquisition remains off for these
+fixtures, so no enabled add-to-projects action is claimed in screenshots.
+
+Actual block representation remains NOT_IMPLEMENTED; public contract still excludes
+workspace. Main integration/deployment/complete repository CI NOT_RUN. Visual owner
+acceptance pending. No old evidence silently upgraded to a new release verdict.
