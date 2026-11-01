@@ -7697,7 +7697,7 @@ parallel_lanes:
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: proven_late_catalog_failure_delivery_selected
+      checkpoint: source_integrated_native_catalog_pass_whole_strict_open
       owner_acceptance: pending
       owner_authorization: >-
         Owner commissioned full836 browser verification and error repair while
@@ -7746,7 +7746,7 @@ parallel_lanes:
       kind: maintenance
       risk: low
       semantic_change: 'no'
-      checkpoint: proven_per_number_trace_overhead_repair_selected
+      checkpoint: source_integrated_owner_boundary_whole_strict_open
       owner_acceptance: pending
       owner_authorization: >-
         Owner commissioned full836 browser verification and error repair while
@@ -7889,7 +7889,7 @@ parallel_lanes:
       id: TASK-ELECTRONICS-COMMITTED-RESULT-CONSUMERS-001
       issue: 836
       branch: main
-      candidate_branch: codex/selection-halo-902
+      candidate_branch: codex/electronics-836-final-qualification-20261101
       base_branch: main
       pr: null
       historical_source_pr: 839
@@ -7897,23 +7897,37 @@ parallel_lanes:
       kind: implementation
       risk: high
       semantic_change: 'yes'
-      checkpoint: native_finalization_trace_repair_selected_after_verified_mirror
-      prepared_candidate_sha: 0d489e5e9b0305b33932eae124e267d6bfa00312
+      checkpoint: owner_approved_source_integration_full_strict_open
+      prepared_candidate_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+      source_integration_boundary:
+        decision_date: '2026-11-02'
+        authorization: explicit_owner_source_only_remaining_failures_open
+        owner_quote: Перенести проверенный срез №836 в main, остальные сбои оставить открытыми; сервер не трогать
+        reviewed_candidate_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+        main_integration: source_only_owner_approved
+        full_strict_acceptance: NOT_GRANTED
+        issue_closure: NOT_GRANTED
+        deployment: NOT_RUN_NOT_AUTHORIZED
+        evidence: docs/product/electronics/evidence/836-source-integration-20261102/README.md
       latest_exact_general:
-        run: 41334174616
+        source_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+        run: 41345302875
         conclusion: SUCCESS_all4_jobs
       latest_exact_native:
-        run: 41334492559
-        conclusion: CANCELLED_global50min_not_qualification
-        completed_tests: 175
-        passed_tests: 156
-        failed_tests: 19
+        source_sha: 6a23c93e9880653c64856f32ea6a1dd92f315c83
+        run: 41345471963
+        conclusion: CANCELLED_global50min_not_whole_qualification
+        scheduled_tests: 269
+        completed_tests: 261
+        passed_tests: 236
+        failed_tests: 25
+        uncompleted_tests: 8
+        target_independent_review: TARGET_EVIDENCE_PASS_FULL_GATE_NOT_READY
         mirror_journeys_complete_and_healthy: 16
-        piezo_three_cases: NOT_REACHED
-        proven_E11_tail: 129276_numeric_traced_assertions_consume18min20s
-        next_dependencies:
-          - TASK-ELECTRONICS-FINITE-EVIDENCE-905
-          - TASK-ELECTRONICS-LATE-IMAGE-CONSUMER-907
+        selection_journeys_complete_and_healthy: 16
+        piezo_three_cases: PASS_native_PCM_noTone_Stop_wholeSaveReopen
+        catalog_missing_image_case: PASS
+        remaining: 20_timing_classroom_4_compact_hit_ownership_1_denied_storage_caption
       confirmed_prior_timing_failures:
         source_before: b4c723b30abc5fa8e77b162fc27ccca59c2793f8
         run_before: 41094573695
@@ -16497,12 +16511,12 @@ blocking:
       - independent_source_review
       - source_integration
     reason: >-
-      Exact068 native evidence records 270 correct same-run ready advances with both piezos
-      at2300Hz/0.8/energized, but visual consumers stay zero and running AudioContext creates
-      no voice. Source lacks reactive committed-result delivery to those consumers. Artifact
-      SHA25666ad8c1a1ac2465059410852d051f89ef83ba76ddc74800569377656f74c15ed verified;
-      selected JSON/trace CRC PASS. No installed update has run. Other89 failures are not
-      declared solved or harmless by this selected diagnosis.
+      Reviewed6a23 has successful General41345302875 and independent target evidence
+      for all3 piezo,16 mirror,16 selection journeys and catalog image failure.
+      Owner expressly approved source-only main integration on2November while
+      leaving remaining failures open. Strict41345471963 remains CANCELLED with
+      236PASS25FAIL8uncompleted; whole runtime acceptance, production update and
+      full stability are not granted. No server or installed update has run.
     unblock_requires: >-
       Independently reviewed bounded source with successful actual original-active visual
       and audio evidence, relevant optical/lifecycle regression checks, General and focused
