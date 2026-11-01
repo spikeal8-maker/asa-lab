@@ -118,6 +118,12 @@
             "administration.ai_tool_policy.update",
             "administration.ai_ollama.update",
             "administration.ai_web_search.update",
+            "administration.ai_catalog.refresh",
+            "administration.ai_token_budget.update",
+            "administration.ai_web_search.retrieval.update",
+            "administration.comfyui.endpoint",
+            "administration.ollama_cloud.catalog",
+            "administration.ollama_cloud.keys",
             "administration.ip.label.clear",
             "administration.ip.label.set",
             "administration.max_configuration.update",
@@ -314,6 +320,135 @@
         "address_provenance": {
           "type": "enum",
           "values": ["server_resolved", "server_unresolved"]
+        }
+      }
+    },
+    "ai_image_jobs": {
+      "timeColumn": "created_at",
+      "operational": true,
+      "projection": {
+        "image_state": "state",
+        "image_error_code": "error_code",
+        "image_created_at": "created_at",
+        "image_lease_until": "lease_until"
+      },
+      "severity": {
+        "field": "image_state",
+        "error": ["failed"],
+        "warn": ["unknown", "cancelled"]
+      },
+      "fields": {
+        "image_state": {
+          "type": "enum",
+          "values": [
+            "admitted",
+            "submitting",
+            "unknown",
+            "running",
+            "storing",
+            "complete",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "image_error_code": {
+          "type": "enum",
+          "values": [
+            "ai_image_provider_failed",
+            "ai_image_storage_rejected",
+            "ai_image_denied",
+            "ai_image_cancelled",
+            "ai_image_unavailable",
+            "ai_image_dispatch_unknown",
+            "ai_image_storage_unavailable"
+          ]
+        },
+        "image_created_at": {
+          "type": "timestamp"
+        },
+        "image_lease_until": {
+          "type": "timestamp"
+        }
+      }
+    },
+    "ai_usage_journal": {
+      "timeColumn": "admitted_at",
+      "operational": true,
+      "projection": {
+        "generation_status": "status",
+        "generation_error_code": "error_code",
+        "generation_operation": "operation",
+        "generation_provider": "provider",
+        "generation_admitted_at": "admitted_at",
+        "generation_started_at": "started_at",
+        "generation_finished_at": "finished_at",
+        "generation_duration_ms": "duration_ms"
+      },
+      "severity": {
+        "field": "generation_status",
+        "error": ["failed"],
+        "warn": ["stopped", "cancelled"]
+      },
+      "fields": {
+        "generation_status": {
+          "type": "enum",
+          "values": ["admitted", "running", "succeeded", "stopped", "cancelled", "failed"]
+        },
+        "generation_error_code": {
+          "type": "enum",
+          "values": [
+            "ai_image_provider_failed",
+            "ai_image_storage_rejected",
+            "ai_image_denied",
+            "ai_image_cancelled",
+            "ai_image_unavailable",
+            "ai_image_dispatch_unknown",
+            "ai_image_storage_unavailable",
+            "ai_provider_error",
+            "ai_provider_timeout",
+            "ai_provider_rate_limit",
+            "ai_provider_unavailable",
+            "ai_generation_failed",
+            "ai_ollama_unreachable",
+            "ai_ollama_timeout",
+            "ai_ollama_invalid",
+            "ai_ollama_upstream_error",
+            "ai_ollama_interrupted",
+            "ai_response_incomplete",
+            "ai_stream_interrupted",
+            "ai_response_invalid",
+            "ai_response_empty",
+            "ai_stream_invalid",
+            "ai_provider_authentication_failed",
+            "ai_provider_invalid_request",
+            "ai_provider_access_denied",
+            "ai_provider_insufficient_balance",
+            "ai_provider_invalid_parameters",
+            "ai_provider_model_unavailable",
+            "ai_ollama_empty"
+          ]
+        },
+        "generation_operation": {
+          "type": "enum",
+          "values": ["chat", "regeneration", "image"]
+        },
+        "generation_provider": {
+          "type": "enum",
+          "values": ["ollama", "ollama-cloud", "comfyui", "openai", "deepseek"]
+        },
+        "generation_admitted_at": {
+          "type": "timestamp"
+        },
+        "generation_started_at": {
+          "type": "timestamp"
+        },
+        "generation_finished_at": {
+          "type": "timestamp"
+        },
+        "generation_duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       }
     }

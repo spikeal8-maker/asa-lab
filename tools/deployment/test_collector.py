@@ -23,7 +23,8 @@ from deployment import ci_collector_cleanup as ci_cleanup
 
 def fixture(root):
     (root / 'tools').mkdir()
-    for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py', 'memory_sampling.py'):
+    for name in ('collect_logs.py', 'collect-windows-logs.ps1', 'resource_sampling.py', 'memory_sampling.py', 'deployment/operational.py'):
+        (root/'tools'/name).parent.mkdir(parents=True,exist_ok=True)
         (root / 'tools' / name).write_text('fixture-' + name)
     (root / '.env').write_text('COMPOSE_PROJECT_NAME=asa-lab-dev\n')
     contract = root / 'apps/api/src/database-diagnostic-contract.json'
