@@ -266,8 +266,14 @@ class OfficialCheckoutTests(unittest.TestCase):
             file = self.root / name
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text("# Synthetic source\n", encoding="utf8")
-        subprocess.run(["git", "-C", str(self.root), "add", "."],
+        # Explicitly stage synthetic source even if another host test has
+        # installed a global Git excludesfile or ignore rule.
+        subprocess.run(["git", "-C", str(self.root), "add", "-f", "."],
                        check=True, capture_output=True)
+        tracked = set(subprocess.check_output(
+            ["git", "-C", str(self.root), "ls-files"], text=True).splitlines())
+        self.assertTrue(set(CRITICAL_FILES) <= tracked,
+                        "Disposable Git fixture must track every critical path")
         subprocess.run(
             ["git", "-C", str(self.root), "-c", "user.email=synthetic@example.test",
              "-c", "user.name=Synthetic Test", "commit", "--quiet",
