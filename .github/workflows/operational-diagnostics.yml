@@ -68,7 +68,7 @@ jobs:
           POSTGRES_PASSWORD: operational-ci-only
           POSTGRES_DB: asa_operational_test
         options: >-
-          --health-cmd 'pg_isready -U operational_ci -d asa_operational_test'
+          --health-cmd "pg_isready -U operational_ci -d asa_operational_test"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
