@@ -167,7 +167,7 @@
     "test:auth-confirmation:installation": "python -m unittest tools.deployment.test_auth_installer",
     "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts",
     "devex:plan": "python tools/devex_plan.py",
-    "test:devex-plan:integration": "node --test tools/test-devex-dependencies.mjs && python tools/test_devex_plan_integration.py"
+    "test:devex-plan:integration": "node --test tools/test-devex-dependencies.mjs tools/test-devex-python.mjs && node tools/devex-python.mjs tools/test_devex_plan_integration.py"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

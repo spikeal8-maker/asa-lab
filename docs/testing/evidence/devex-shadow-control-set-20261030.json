@@ -3,7 +3,7 @@
   "enforcement": false,
   "assertion": "PASS",
   "checks_state": "NOT_RUN",
-  "captured_at_utc": "2026-11-01T16:13:04.127721+00:00",
+  "captured_at_utc": "2026-11-01T17:08:16.215915+00:00",
   "observation_note": "Dated working-tree provider observation at actual_provider.git_head before the final source commit; the artifact filename is retained from package B initiation.",
   "controls": [
     {
@@ -1977,11 +1977,71 @@
     "graph_sha256": "4090e6f72fcd674bf493069cbc7ce23116084b7a3683960bf1d44b0a35076222",
     "project_count": 27,
     "edge_count": 34,
-    "source_file_count": 5813,
+    "source_file_count": 5815,
     "typescript_version": "5.9.3",
-    "git_head": "d8e873577524f8d0f959507e2268c2b09b13a0f1",
-    "source_inputs_sha256": "5a999a59f1b68b3daa633ef42e8c490e21e10f2ab7ce6e9b66db705de1ee70a1"
+    "git_head": "6af94102f1dc550defb6f75e1cb428b61fa9307d",
+    "source_inputs_sha256": "cd046a4cf96e76d26f43870487872c3e881705ccf90388bd0f16742a1a2370a6"
   },
   "actual_provider_unknown_count": 518,
-  "limitation": "Assertions test required selections and conservative blocking, not execution of selected gates. Canonical product maps currently have no L0 controls. Nonliteral imports retain potential-consumer uncertainty, so some actual CSS/UI plans remain BLOCKED. Partial mapping and current-only graph remain unknown; no claim of universal safety or historical runtime reconstruction."
+  "limitation": "Assertions test required selections and conservative blocking, not execution of selected gates. Canonical product maps currently have no L0 controls. Nonliteral imports retain potential-consumer uncertainty, so some actual CSS/UI plans remain BLOCKED. Partial mapping and current-only graph remain unknown; no claim of universal safety or historical runtime reconstruction.",
+  "python_bootstrap_validation": {
+    "captured_at_utc": "2026-11-01T17:09:34.194837+00:00",
+    "platform": "win32",
+    "canonical_command": "pnpm test:devex-plan:integration",
+    "requirements_authority": "tools/requirements.txt",
+    "bootstrap_unit_tests": {
+      "count": 22,
+      "state": "PASS"
+    },
+    "existing_dependency_unit_tests": {
+      "count": 11,
+      "state": "PASS"
+    },
+    "existing_python_unit_tests": {
+      "count": 22,
+      "state": "PASS"
+    },
+    "windows_case_policy": "Canonical uppercase before any subprocess; differing-value case aliases fail closed; equal-value aliases collapse before controlled overrides.",
+    "posix_case_policy": "Actual PATH and public case-sensitive variables preserved; controlled Python/pip aliases removed case-insensitively.",
+    "case_collision_controls": {
+      "differing_value_key_pairs": 11,
+      "no_subprocess_on_ambiguity": true,
+      "state": "PASS"
+    },
+    "actual_windows_mixed_environment_smoke": {
+      "state": "PASS",
+      "initial_yaml_absent": true,
+      "initial_pip_absent": true,
+      "actual_subprocesses": 5,
+      "all_spawn_environments_unique_and_normalized": true,
+      "all_root_target_prefix_destinations_absent": true,
+      "malicious_owned_pip_config_disabled": true,
+      "python_tests": 22,
+      "owned_venv_removed": true,
+      "outer_yaml_and_pip_still_absent": true,
+      "smoke_data_removed": true
+    },
+    "actual_windows_canonical_lowercase_redirect_smoke": {
+      "state": "PASS",
+      "raw_os_environment_key_verified": "pip_root",
+      "mixed_case_config_key": "pIP_CONFIG_FILE",
+      "initial_yaml_absent": true,
+      "initial_pip_absent": true,
+      "canonical_exit_code": 0,
+      "node_tests": 33,
+      "integration_controls": 55,
+      "all_external_destinations_absent": true,
+      "observed_install": "PyYAML 6.0.3 in owned temporary venv",
+      "owned_venv_removed": true,
+      "outer_yaml_and_pip_still_absent": true,
+      "smoke_data_removed": true
+    },
+    "unicode_json_pipe_and_nested_python": {
+      "state": "PASS",
+      "scope": "child environment only"
+    },
+    "linux_execution": "NOT_RUN",
+    "exact_final_ci_and_repository_gate": "NOT_RUN",
+    "limitation": "Local Windows bootstrap/containment and assertion evidence only. Selected SHADOW checks remain NOT_RUN; no production, PostgreSQL/browser or owner acceptance claim."
+  }
 }

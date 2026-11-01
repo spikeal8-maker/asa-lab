@@ -8,6 +8,8 @@ surfaces:
     files: &id001
     - tools/devex_plan.py
     - tools/devex-dependencies.mjs
+    - tools/devex-python.mjs
+    - tools/test-devex-python.mjs
     - tools/test_devex_plan.py
     - tools/test-devex-dependencies.mjs
     - tools/test_devex_plan_integration.py
