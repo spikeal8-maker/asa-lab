@@ -4,6 +4,7 @@ import type pg from 'pg';
 import { buildTestApp, inject, type NestApp } from './app';
 import { testAdminPool, testAppPool, seedTeacher } from './helpers';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+import { createEmptyThreeDDocument, createThreeDNode } from '../../contexts/three-d/index';
 let admin: pg.Pool;
 let runtime: pg.Pool;
 let app: NestApp;
@@ -44,7 +45,7 @@ function document(value = 330) {
     simulation: { running: false, maxIterations: 24 },
   };
 }
-async function fixture(initialDocument: unknown = document()) {
+async function fixture(initialDocument: unknown = document(), moduleKey = 'electronics') {
   const teacher = await seedTeacher(admin, 'artifact-' + randomUUID().slice(0, 8));
   const principal = (
     await admin.query(
@@ -59,7 +60,7 @@ async function fixture(initialDocument: unknown = document()) {
     scope: 'personal',
     classroomId: null,
     actor,
-    moduleKey: 'electronics',
+    moduleKey,
     title: 'Public circuit',
     idempotencyKey: randomUUID(),
     requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
@@ -125,6 +126,56 @@ async function read(
   };
 }
 describe('public Electronics artifact real HTTP and restricted PostgreSQL', () => {
+  it('projects only published 3D geometry, keeps private draft changes private and rechecks revoked cached reads', async () => {
+    const cube = createThreeDNode('box', 'published-cube');
+    const model = {
+      ...createEmptyThreeDDocument(),
+      nodes: [cube],
+      editorSecret: 'PRIVATE EDITOR SECRET',
+    };
+    const f = await fixture(model, 'three-d');
+    const first = await read(f.publication);
+    expect(first.statusCode, first.body).toBe(200);
+    expect(first.json().artifact).toMatchObject({
+      schemaVersion: 4,
+      viewerFamily: 'three-d',
+      nodes: [{ id: cube.id, color: cube.color }],
+      capabilities: { readOnly: true, interactive: true, download: false },
+    });
+    expect(first.body).not.toMatch(/PRIVATE|locked|bundleId|ruler|camera|grid/);
+    expect(first.body).not.toContain(f.projectId);
+    await f.repo.saveDraft({
+      tenantId: f.teacher.tenantId,
+      projectId: f.projectId,
+      actor: f.actor,
+      document: { ...model, nodes: [{ ...cube, color: '#ff0000' }] },
+      baseRevision: 1,
+      mutationId: randomUUID(),
+      preview: null,
+    });
+    expect((await read(f.publication)).json()).toEqual(first.json());
+    await f.snapshot(2);
+    const next = await f.publish();
+    expect((await read(f.publication)).statusCode).toBe(404);
+    expect((await read(next)).json().artifact.nodes[0].color).toBe('#ff0000');
+    await admin.query('SELECT project_publication_revoke($1,$2)', [f.principal, f.projectId]);
+    expect((await read(next)).statusCode).toBe(404);
+  });
+  it('keeps oversized 3D models on the static preview without transporting raw geometry', async () => {
+    const model = {
+      ...createEmptyThreeDDocument(),
+      nodes: Array.from({ length: 257 }, (_, i) => createThreeDNode('box', 'cube-' + i)),
+    };
+    const f = await fixture(model, 'three-d'),
+      readback = await read(f.publication);
+    expect(readback.statusCode, readback.body).toBe(200);
+    expect(readback.json().artifact).toMatchObject({
+      schemaVersion: 1,
+      status: 'static-only',
+      viewerFamily: 'three-d',
+    });
+    expect(readback.body).not.toContain('cube-');
+  });
   it('publishes exact saved Arduino source readonly, omits workspace and never reads a newer private draft', async () => {
     const source =
       'void setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(500);digitalWrite(13,LOW);delay(500);}';

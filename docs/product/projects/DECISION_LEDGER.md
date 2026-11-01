@@ -451,3 +451,14 @@ inherit/allow/deny. Publication permission does not grant comment permission.
 Rating-based access remains deferred. Implementation, verification and rollout
 boundaries: `evidence/publication-comments-20261101.md`. This is not production
 deployment, owner acceptance or release certification.
+
+### Owner implementation request — 2026-11-02: interactive 3D publications
+
+The owner requested 3D publication, confirmed rotation/zoom, and additionally asked
+for genuine pointer-driven model previews in the public catalog, Creator Home and
+My Projects. The selected slice is `TASK-PROJ-R7-04A-3D-001`. Reuse canonical geometry,
+publish only the exact immutable geometry projection, and retain native image
+fallback. Hover loads on demand with one active preview, reduced-motion support
+and explicit resource cleanup. This does not grant download/edit permissions or
+authorize production deployment. Implementation evidence:
+`evidence/public-three-d-viewer-20261102.md`.

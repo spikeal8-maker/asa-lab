@@ -1,0 +1,105 @@
+.three-d-presentation {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  touch-action: none;
+}
+.three-d-presentation canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline-offset: -3px;
+}
+.three-d-hover-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+.three-d-hover-preview > .project-preview-snapshot,
+.three-d-hover-preview > .project-preview-figure {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.three-d-hover-live {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.three-d-hover-live.is-ready {
+  opacity: 1;
+}
+.three-d-hover-live canvas {
+  pointer-events: none;
+}
+.public-three-d-viewer {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 12px;
+  background: #fafafa;
+}
+.public-three-d-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--asa-slate-200);
+  background: #fff;
+}
+.public-three-d-tools button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #245369;
+  cursor: pointer;
+}
+.public-three-d-tools button:hover {
+  background: #edf5fa;
+}
+.public-three-d-stage {
+  position: relative;
+  height: clamp(300px, 60svh, 680px);
+}
+.public-three-d-fallback {
+  position: absolute;
+  inset: 0;
+}
+.public-three-d-fallback .publication-preview {
+  height: 100%;
+  aspect-ratio: auto;
+}
+.public-three-d-fallback[hidden] {
+  display: none;
+}
+.public-three-d-viewer:fullscreen {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.public-three-d-viewer:fullscreen .public-three-d-stage {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+@media (max-width: 600px) {
+  .public-three-d-stage {
+    height: 340px;
+  }
+}

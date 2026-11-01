@@ -3274,13 +3274,13 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/learning-collection`,
       { method: 'POST', body: JSON.stringify({ collectionState }) },
     ),
-  openProject: <TDocument = unknown, TResult = unknown>(projectId: string) =>
+  openProject: <TDocument = unknown, TResult = unknown>(projectId: string, signal?: AbortSignal) =>
     call<{
       project: Project;
       draft: ProjectDraft<TDocument>;
       versions: ProjectVersion[];
       result: TResult | null;
-    }>(`/api/projects/${encodeURIComponent(projectId)}`),
+    }>(`/api/projects/${encodeURIComponent(projectId)}`, signal ? { signal } : undefined),
   saveDraft: async <TDocument = unknown, TResult = unknown>(
     projectId: string,
     document: TDocument,

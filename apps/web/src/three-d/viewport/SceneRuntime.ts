@@ -195,6 +195,7 @@ export class SceneRuntime {
   constructor(
     private readonly container: HTMLElement,
     callbacks: SceneRuntimeCallbacks,
+    private readonly readOnly = false,
   ) {
     this.onCameraChange = callbacks.onCameraChange;
     this.onGeometryStateChange = callbacks.onGeometryStateChange;
@@ -222,7 +223,10 @@ export class SceneRuntime {
     this.renderer.toneMappingExposure = 0.98;
     this.renderer.domElement.className = 'asa3d-canvas';
     this.renderer.domElement.tabIndex = 0;
-    this.renderer.domElement.setAttribute('aria-label', 'Рабочая область 3D-моделирования');
+    this.renderer.domElement.setAttribute(
+      'aria-label',
+      readOnly ? 'Просмотр 3D-модели' : 'Рабочая область 3D-моделирования',
+    );
     this.container.append(this.renderer.domElement);
 
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
@@ -236,26 +240,33 @@ export class SceneRuntime {
     this.orbit.maxDistance = 1200;
     // Tinkercad-style desktop navigation: the primary button belongs only to
     // object interaction and marquee selection. Camera gestures never steal it.
-    this.orbit.mouseButtons.LEFT = null;
+    this.orbit.mouseButtons.LEFT = readOnly ? THREE.MOUSE.ROTATE : null;
     this.orbit.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;
     this.orbit.mouseButtons.MIDDLE = THREE.MOUSE.PAN;
     this.orbit.addEventListener('change', this.publishCameraState);
-    this.container.dataset['mouseNavigation'] = 'left-select;right-orbit;middle-pan;wheel-zoom';
+    this.container.dataset['mouseNavigation'] = readOnly
+      ? 'left-orbit;right-orbit;middle-pan;wheel-zoom'
+      : 'left-select;right-orbit;middle-pan;wheel-zoom';
 
+    const pickableEntries = readOnly ? new Map<string, SceneEntry>() : this.entries;
     this.manipulator = new DirectManipulator(
       this.scene,
       this.camera,
       this.renderer.domElement,
       this.container,
       this.orbit,
-      () => this.entries,
+      () => pickableEntries,
       {
-        onSelect: callbacks.onSelect,
+        onSelect: (id, additive) => {
+          if (!readOnly) callbacks.onSelect(id, additive);
+        },
         onCommit: (nodeId, transform, dimensions, basis) => {
+          if (readOnly) return;
           this.acceptPreview([{ nodeId, transform, dimensions, basis }]);
           callbacks.onTransformCommit(nodeId, transform, dimensions, basis);
         },
         onCommitMany: (commits) => {
+          if (readOnly) return;
           this.acceptPreview(commits);
           callbacks.onTransformCommitMany(commits);
         },
@@ -270,7 +281,9 @@ export class SceneRuntime {
       orbit: (dx, dy) => this.orbitBy(dx, dy),
       panZoom: (dx, dy, scale) => this.panZoomBy(dx, dy, scale),
     });
-    this.container.dataset['touchNavigation'] = 'model-move;empty-orbit;two-finger-pan-zoom';
+    this.container.dataset['touchNavigation'] = readOnly
+      ? 'one-finger-orbit;two-finger-pan-zoom'
+      : 'model-move;empty-orbit;two-finger-pan-zoom';
 
     addCadSceneLights(this.scene);
     this.scene.add(this.gridRoot, this.booleanRoot, this.rulerRoot);
@@ -811,6 +824,7 @@ export class SceneRuntime {
   }
 
   setSelection(nodeId: string | null, nodeIds: readonly string[] = nodeId ? [nodeId] : []): void {
+    if (this.readOnly) return;
     this.manipulator.setSelection(nodeId, nodeIds);
   }
 
@@ -1024,6 +1038,7 @@ export class SceneRuntime {
     this.clearGrid();
     this.clearRuler();
     this.renderer.dispose();
+    if (this.readOnly) this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
   }
 }
