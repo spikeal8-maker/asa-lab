@@ -1,5 +1,5 @@
 import { PublicationLike } from './PublicationLike';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
@@ -48,6 +48,8 @@ export function PublicProjectPage({
 }): JSX.Element {
   const [publication, setPublication] = useState<PublicProject | null>(null);
   const [missing, setMissing] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionId = useId();
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -61,6 +63,7 @@ export function PublicProjectPage({
     controller.current = new AbortController();
     const current = ++request.current;
     setPublication(null);
+    setDescriptionExpanded(false);
     setMissing(false);
     setError(null);
     const result = await publicProjectsApi.get(publicationId, controller.current.signal);
@@ -94,9 +97,11 @@ export function PublicProjectPage({
       className="portal-content public-projects public-project-detail"
       tabIndex={-1}
     >
-      <PortalLink className="public-project-back" href="/#/explore" onNavigate={onBack}>
-        ← Проекты
-      </PortalLink>
+      {!publication ? (
+        <PortalLink className="public-project-back" href="/#/explore" onNavigate={onBack}>
+          ← Проекты
+        </PortalLink>
+      ) : null}
       {error ? (
         <section
           className="public-projects-state notice-error"
@@ -114,26 +119,49 @@ export function PublicProjectPage({
         </p>
       ) : (
         <article
-          className={`public-project-layout${publication.description ? ' has-description' : ''}`}
+          className={`public-project-layout${publication.description || publication.tags.length ? ' has-description' : ''}`}
           data-testid="public-project-detail"
         >
           <header className="public-project-heading">
-            <PublicProjectTitle key={publication.revisionId} title={publication.title} />
-            <div className="public-project-badges">
-              <span className="public-project-detail-author">{publication.authorLabel}</span>
-              <span className="publication-module" data-module={publication.moduleKey}>
-                {publicModuleName(publication.moduleKey)}
-              </span>
-              {publication.pinned ? (
-                <span className="public-project-pinned" data-testid="public-project-pinned">
-                  Закреплено
+            <div className="public-project-detail-topline">
+              <PortalLink className="public-project-back" href="/#/explore" onNavigate={onBack}>
+                ← Проекты
+              </PortalLink>
+              <PublicProjectTitle key={publication.revisionId} title={publication.title} />
+            </div>
+            <div className="public-project-authorline">
+              <div className="public-project-author-identity">
+                <span className="public-project-detail-avatar" aria-hidden="true">
+                  {publication.authorLabel
+                    .trim()
+                    .split(/\s+/u)
+                    .slice(0, 2)
+                    .map((part) => Array.from(part)[0])
+                    .join('')
+                    .toLocaleUpperCase('ru') || '?'}
                 </span>
-              ) : null}
-              {publication.featured ? (
-                <span className="public-project-featured" data-testid="public-project-featured">
-                  ★ Выбор редакции
+                <div className="public-project-author-text">
+                  <span className="public-project-detail-author">{publication.authorLabel}</span>
+                  <time dateTime={publication.publishedAt}>
+                    {time.date(publication.publishedAt)}
+                  </time>
+                </div>
+              </div>
+              <div className="public-project-badges">
+                <span className="publication-module" data-module={publication.moduleKey}>
+                  {publicModuleName(publication.moduleKey)}
                 </span>
-              ) : null}
+                {publication.pinned ? (
+                  <span className="public-project-pinned" data-testid="public-project-pinned">
+                    Закреплено
+                  </span>
+                ) : null}
+                {publication.featured ? (
+                  <span className="public-project-featured" data-testid="public-project-featured">
+                    ★ Выбор редакции
+                  </span>
+                ) : null}
+              </div>
             </div>
           </header>
           <section className="public-project-viewer" aria-label="Просмотр проекта">
@@ -151,6 +179,26 @@ export function PublicProjectPage({
                 publication={publication}
                 authenticated={authenticated}
               />
+              {typeof publication.copyCount === 'number' ? (
+                <span
+                  className="public-project-detail-copies"
+                  title="Добавили к себе"
+                  aria-label={`Добавили к себе: ${publication.copyCount}`}
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  >
+                    <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                  </svg>
+                  {publication.copyCount}
+                </span>
+              ) : null}
               <SharePublicationLink
                 key={publication.publicationId}
                 publicationId={publication.publicationId}
@@ -161,9 +209,24 @@ export function PublicProjectPage({
             {publication.description ? (
               <>
                 <h2>О проекте</h2>
-                <p className="public-project-description" data-testid="public-project-description">
+                <p
+                  id={descriptionId}
+                  className={`public-project-description${publication.description.length > 600 && !descriptionExpanded ? ' is-collapsed' : ''}`}
+                  data-testid="public-project-description"
+                >
                   {publication.description}
                 </p>
+                {publication.description.length > 600 ? (
+                  <button
+                    type="button"
+                    className="public-project-description-toggle"
+                    aria-controls={descriptionId}
+                    aria-expanded={descriptionExpanded}
+                    onClick={() => setDescriptionExpanded((value) => !value)}
+                  >
+                    {descriptionExpanded ? 'Свернуть описание' : 'Читать полностью'}
+                  </button>
+                ) : null}
               </>
             ) : null}
             {publication.tags.length ? (
@@ -179,14 +242,6 @@ export function PublicProjectPage({
                 <div>
                   <dt>Лицензия</dt>
                   <dd>{licence}</dd>
-                </div>
-                <div>
-                  <dt>Опубликовано</dt>
-                  <dd>
-                    <time dateTime={publication.publishedAt}>
-                      {time.date(publication.publishedAt)}
-                    </time>
-                  </dd>
                 </div>
                 <div>
                   <dt>Версия проекта</dt>

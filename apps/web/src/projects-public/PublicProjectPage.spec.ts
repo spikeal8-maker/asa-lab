@@ -233,3 +233,43 @@ it('reveals and collapses a long full heading through an accessible control', as
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(toggle.textContent).toBe('Название целиком');
 });
+
+it('groups the single back link and title, public author/date, and actual copy metric', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, copyCount: 4 } },
+  });
+  await render();
+  expect(container.querySelectorAll('.public-project-back')).toHaveLength(1);
+  const topline = container.querySelector('.public-project-detail-topline')!;
+  expect(topline.querySelector('a')?.getAttribute('href')).toBe('/#/explore');
+  expect(topline.querySelector('h1')?.textContent).toBe(publication.title);
+  expect(container.querySelector('.public-project-authorline time')?.getAttribute('datetime')).toBe(
+    publication.publishedAt,
+  );
+  expect(
+    container.querySelector('.public-project-detail-avatar')?.getAttribute('aria-hidden'),
+  ).toBe('true');
+  expect(container.querySelector('[aria-label="Добавили к себе: 4"]')).not.toBeNull();
+  expect(container.querySelector('.public-project-about time')).toBeNull();
+  expect(container.textContent).not.toMatch(/Включить комментарии|Все комментарии/);
+});
+it('expands long descriptions with a linked accessible control', async () => {
+  vi.spyOn(publicProjectsApi, 'get').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { publication: { ...publication, description: 'Длинное описание проекта. '.repeat(60) } },
+  });
+  await render();
+  const paragraph = container.querySelector('.public-project-description')!;
+  const button = container.querySelector<HTMLButtonElement>('.public-project-description-toggle')!;
+  expect(paragraph.classList.contains('is-collapsed')).toBe(true);
+  expect(button.getAttribute('aria-controls')).toBe(paragraph.id);
+  expect(button.getAttribute('aria-expanded')).toBe('false');
+  await act(async () => button.click());
+  expect(paragraph.classList.contains('is-collapsed')).toBe(false);
+  expect(button.getAttribute('aria-expanded')).toBe('true');
+  await act(async () => button.click());
+  expect(paragraph.classList.contains('is-collapsed')).toBe(true);
+});
