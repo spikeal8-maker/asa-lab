@@ -712,7 +712,7 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
         ).toHaveCount(8);
       }
       const visualCard = guest.getByTestId('public-project-card').filter({ hasText: longTitle });
-      const geometry = await visualCard.evaluate((card) => {
+      const cardGeometry = await visualCard.evaluate((card) => {
         const bounds = card.getBoundingClientRect();
         const cover = card.querySelector('.public-project-card-cover')!.getBoundingClientRect();
         const footer = card.querySelector('.public-project-card-body')!.getBoundingClientRect();
@@ -730,12 +730,12 @@ test('catalogue and detail fit seven widths with long Russian text, keyboard foc
           titleOnly: card.querySelector('.public-project-card-body')!.children.length === 1,
         };
       });
-      expect(geometry.square).toBeLessThan(3);
-      expect(geometry.titleInside).toBe(true);
-      expect(geometry.fullBleed).toBeLessThan(1);
-      expect(geometry.identityFits).toBe(true);
-      expect(geometry.likesInside).toBe(true);
-      expect(geometry.titleOnly).toBe(true);
+      expect(cardGeometry.square).toBeLessThan(3);
+      expect(cardGeometry.titleInside).toBe(true);
+      expect(cardGeometry.fullBleed).toBeLessThan(1);
+      expect(cardGeometry.identityFits).toBe(true);
+      expect(cardGeometry.likesInside).toBe(true);
+      expect(cardGeometry.titleOnly).toBe(true);
       // Date is discoverable with pointer and keyboard, without an extra footer row.
       await guest.mouse.move(0, 0);
       await visualCard.locator('a').evaluate((element: HTMLElement) => element.blur());

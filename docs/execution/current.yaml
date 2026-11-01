@@ -7912,10 +7912,10 @@ parallel_lanes:
       branch: main
       base_branch: main
       status: in_progress
-      checkpoint: owner_reference_card_local_visual_verified
+      checkpoint: real_copy_count_selected
       kind: implementation
-      risk: low
-      semantic_change: 'no'
+      risk: high
+      semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
         Owner requests image-filled compact catalog cards matching supplied reference:
@@ -7923,8 +7923,14 @@ parallel_lanes:
         real likes over the preview and publication date on hover/focus. Owner follow-up
         requires title also over the preview, without a separate lower strip. Existing DTO
         has no avatar or download total; use honest initials fallback, no fabricated
-        totals, no new private data projection. Scope catalog DOM/CSS and regression
-        evidence only; no deployment, permissions, source data or player changes.
+        totals, no private row/actor disclosure. Owner now requests the missing count of
+        downloads: per prior terminology this is Add to my projects, not physical
+        file export. Add a real successful-copy aggregate, idempotent replay and
+        failed/rolled-back attempts must not inflate it. Preserve lifetime count
+        after copy trash/removal using minimal private event data; backfill only
+        provable existing copies. One forward migration, existing API/card and
+        focused negative/transactional evidence, independent security challenge.
+        No deployment, permissions, private profile projection or player changes.
       context_hints:
       - docs/product/ASA_PROJECTS_UI_UX_SPEC.md
       - docs/product/ASA_UI_LAYOUT_ACCEPTANCE_SPEC.md
