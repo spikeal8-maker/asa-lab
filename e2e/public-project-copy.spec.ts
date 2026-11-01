@@ -533,7 +533,7 @@ for (const seat of [false, true]) {
         countedCard.getByLabel('1 добавлений в свои проекты', { exact: true }),
       ).toBeVisible();
       await reader.screenshot({
-        path: `${EVIDENCE}/${seat ? 'seat-' : ''}${width}-counted-catalog.png`,
+        path: `${EVIDENCE}/${seat ? 'seat-' : ''}electronics-counted-catalog.png`,
         fullPage: true,
       });
       await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
