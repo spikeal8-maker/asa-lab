@@ -165,7 +165,9 @@
     "e2e:learning-e1": "playwright test e2e/learning-author-preview.spec.ts e2e/learning-course-01.spec.ts e2e/courses-sharing.spec.ts --workers=1 && playwright test e2e/learning-learner-submits-project-assignment.spec.ts e2e/learning-surface-convergence.spec.ts e2e/learning-teacher-assigns-activity.spec.ts --workers=1",
     "gate:blocks": "node tools/blocks/gate.mjs",
     "test:auth-confirmation:installation": "python -m unittest tools.deployment.test_auth_installer",
-    "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts"
+    "test:email-verification:pg": "vitest run tests/account/email-verification.pg.spec.ts",
+    "devex:plan": "python tools/devex_plan.py",
+    "test:devex-plan:integration": "node --test tools/test-devex-dependencies.mjs tools/test-devex-python.mjs && node tools/devex-python.mjs tools/test_devex_plan_integration.py"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^10.1.1",

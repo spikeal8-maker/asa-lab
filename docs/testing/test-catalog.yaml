@@ -1448,3 +1448,24 @@ tests:
     timeout_seconds: 60
     owner: devex-engine
     artifacts: [test-report]
+
+  - id: TST-DEVEX-SHADOW-UNIT-001
+    title: Shadow selection fail-closed, Git diff and independent required-check controls without Node dependencies
+    suite: governance
+    level: unit
+    phase_available: PHASE-12
+    required_for: []
+    command: python tools/test_devex_plan.py
+    timeout_seconds: 120
+    owner: devex-engine
+    artifacts: [test-report]
+  - id: TST-DEVEX-SHADOW-INTEGRATION-001
+    title: Real Nx graph, TypeScript import parser and historical shadow selection controls
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:devex-plan:integration
+    timeout_seconds: 300
+    owner: devex-engine
+    artifacts: [shadow-control-report]
