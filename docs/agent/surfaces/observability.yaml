@@ -12,6 +12,7 @@ surfaces:
       files: &collector_files
         - tools/deployment/collector.py
         - tools/deployment/test_collector.py
+        - tools/collect_logs.py
         - tools/log_collector.py
         - tools/install-log-collector.sh
         - tools/asa_manager.py

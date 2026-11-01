@@ -1,6 +1,7 @@
 """Own-installation diagnostic runner lifecycle; never elevates privileges."""
 
 import argparse
+from copy import copy
 import datetime as dt
 import getpass
 import hashlib
@@ -172,10 +173,21 @@ def select_root_mode(install, reader_gid):
             install.settings.get('collectorReaderGid', reader_gid) == reader_gid,
             'COLLECTOR_RUNNER_IDENTITY', 'Persisted collector mode or reader GID differs.')
     verify_reader_gid(reader_gid)
-    install.state.mkdir(mode=0o700, parents=True, exist_ok=True)
-    atomic_json(install.state / 'installation.json', {'format': 'asa-installation-v1',
+    settings = {'format': 'asa-installation-v1',
                 'profile': install.profile, 'project': install.project, **install.settings,
-                'collectorMode': 'system-root', 'collectorReaderGid': reader_gid})
+                'collectorMode': 'system-root', 'collectorReaderGid': reader_gid}
+    # Validate the proposed identity before committing any configuration. In
+    # particular an unregistered legacy service must not leave root mode saved.
+    candidate = copy(install)
+    candidate.settings = settings
+    identity = runner_identity(candidate)
+    unit = Path('/etc/systemd/system') / identity['name']
+    require(not unit.is_symlink(), 'COLLECTOR_RUNNER_IDENTITY', 'Collector service unit must not be a symlink.')
+    if unit.exists():
+        verify_systemd_unit(unit.read_text(), identity, sys.executable)
+        require(unit.stat().st_uid == 0, 'COLLECTOR_RUNNER_OWNER', 'System collector unit is not root owned.')
+    install.state.mkdir(mode=0o700, parents=True, exist_ok=True)
+    atomic_json(install.state / 'installation.json', settings)
 
 
 def linux_operator(install=None):
@@ -343,7 +355,8 @@ def runner_identity(install):
         name = persisted.get("name", "asa-log-collector-" + install.project + ".service")
         require(name in ("asa-log-collector-" + install.project + ".service", "asa-log-collector.service"),
                 "COLLECTOR_RUNNER_IDENTITY", "Unexpected collector unit name.")
-        if not persisted and Path("/etc/systemd/system/asa-log-collector.service").exists():
+        legacy = Path("/etc/systemd/system/asa-log-collector.service")
+        if not persisted and (legacy.exists() or legacy.is_symlink()):
             require(not root_mode, "COLLECTOR_RUNNER_OWNER", "Existing legacy collector must be reviewed before root mode is selected.")
             mode, name = "system", "asa-log-collector.service"
         require(mode != 'user' or os.geteuid() == operator.pw_uid, 'COLLECTOR_RUNNER_OWNER',

@@ -81,6 +81,76 @@ class CollectorLifecycleTests(unittest.TestCase):
                 lifecycle.select_root_mode(install, 1000)
             self.assertEqual(json.loads((install.state/'collector-runner.json').read_text())['owner'], 'operator')
 
+    def test_root_selection_legacy_unit_conflict_preserves_all_configuration(self):
+        original_exists = Path.exists
+        for existing_metadata in (False, True):
+            with self.subTest(existing_metadata=existing_metadata), tempfile.TemporaryDirectory() as directory:
+                install = fixture(Path(directory))
+                if existing_metadata:
+                    atomic_json(install.state/'installation.json', {'project': install.project, 'automaticUpdates': True})
+                    install = Installation(install.root, 'dev')
+                before = {str(p.relative_to(install.root)): p.read_bytes()
+                          for p in install.root.rglob('*') if p.is_file()}
+                legacy = Path('/etc/systemd/system/asa-log-collector.service')
+                with patch('deployment.collector.WINDOWS', False), patch('deployment.collector.os.geteuid', return_value=0, create=True), \
+                        patch('deployment.collector.root_runner_paths'), patch('deployment.collector.docker_group_gid', return_value=0), \
+                        patch.object(Path, 'exists', lambda path: path == legacy or original_exists(path)):
+                    with self.assertRaises(Blocked) as error:
+                        lifecycle.select_root_mode(install, 1000)
+                self.assertEqual(error.exception.code, 'COLLECTOR_RUNNER_OWNER')
+                after = {str(p.relative_to(install.root)): p.read_bytes()
+                         for p in install.root.rglob('*') if p.is_file()}
+                self.assertEqual(after, before)
+
+    def test_actual_once_entrypoint_starts_legacy_nonroot_and_root_installations(self):
+        from deployment.ci_collector_fixture import copy_collector_fixture
+        modes = ('legacy', 'nonroot') + (() if os.name == 'nt' else ('system-root',))
+        for mode in modes:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                copy_collector_fixture(Path(__file__).resolve().parents[2], root)
+                metadata = {'format': 'asa-installation-v1', 'project': 'asa-entrypoint-test', 'profile': 'dev'}
+                if mode == 'system-root':
+                    metadata.update(collectorMode='system-root', collectorReaderGid=1000)
+                atomic_json(root/'.asa/installation.json', metadata)
+                if mode == 'nonroot':
+                    atomic_json(root/'.asa/collector-runner.json', {'mode': 'user', 'owner': 'operator'})
+                atomic_json(root/'.asa/log-collector.json', {'version': 1, 'project': metadata['project'], 'fileSources': []})
+                # Execute the real script's main(), config and publication.
+                # Block its external-process boundary: Windows
+                # executable search does not honor a child's overridden PATH.
+                empty_bin = root/'empty-bin'; empty_bin.mkdir()
+                environment = {**os.environ, 'PATH': str(empty_bin)}
+                bootstrap = """import runpy,sys
+from unittest.mock import patch
+script=sys.argv.pop(1)
+sys.argv[0]=script
+sys.path.insert(0,str(__import__('pathlib').Path(script).parent))
+with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture external source unavailable')), patch('subprocess.Popen', side_effect=FileNotFoundError('startup fixture external source unavailable')):
+    namespace=runpy.run_path(script,run_name='asa_startup_fixture')
+    if sys.platform == 'win32':
+        # This checks startup, not Windows host adapters. Preserve actual index
+        # and catalog publication while isolating native host enumeration.
+        with patch.object(namespace['Collector'],'cycle',namespace['Collector'].publish):
+            namespace['main']()
+    else:
+        namespace['main']()
+"""
+                try:
+                    result = subprocess.run([sys.executable, '-E', '-c', bootstrap, str(root/'tools/collect_logs.py'), '--root', str(root), '--once'],
+                                            cwd=empty_bin, env=environment, capture_output=True, timeout=20)
+                except subprocess.TimeoutExpired as error:
+                    self.fail((error.stderr or b'').decode('utf-8', errors='replace'))
+                self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', errors='replace'))
+                store = root/'.asa/diagnostics/store'
+                process = json.loads((store/'collector-process.json').read_text(encoding='utf-8'))
+                health = json.loads((store/'collector-health.json').read_text(encoding='utf-8'))
+                self.assertEqual(process['project'], metadata['project'])
+                self.assertEqual(len(process['nonce']), 32)
+                self.assertEqual(health['state'], 'ok')
+                self.assertIsNotNone(health['lastSuccessAt'])
+                self.assertTrue((store/'catalog.json').is_file())
+
     def test_root_selection_rejects_existing_group_conflict_without_persisting(self):
         with tempfile.TemporaryDirectory() as directory:
             install = fixture(Path(directory)); install.env['ASA_LOG_READER_GID'] = '2000'
