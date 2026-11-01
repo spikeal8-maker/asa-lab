@@ -35,6 +35,7 @@ import {
   vibrationMotorRuntimeMarkup,
   vibrationMotorVisualMotion,
   WORLD_UNITS_PER_MM,
+  instrumentReadoutStyle,
   type RgbCommonMode,
   type ResistorTolerancePercent,
   type SevenSegmentColour,
@@ -100,6 +101,7 @@ interface Props {
   readonly onArduinoReset?: (() => void) | undefined;
   readonly onMultimeterModeChange?:
     ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
+  readonly onSupplySwitchAvailability?: ((id: string, available: boolean) => void) | undefined;
   readonly onRegulatedPowerSupplyChange?:
     | ((patch: {
         readonly voltageSetpointVolt?: number;
@@ -1052,6 +1054,7 @@ function OwnerMultimeterVisual({
       {displayValue ? (
         <text
           className="workbench-multimeter-reading"
+          style={instrumentReadoutStyle}
           x="218.5"
           y="108"
           fontSize="58"
@@ -1201,6 +1204,7 @@ function OwnerRegulatedPowerSupplyVisual({
   result,
   simulationRunning,
   onChange,
+  onSwitchAvailability,
 }: {
   readonly asset: string;
   readonly width: number;
@@ -1209,6 +1213,7 @@ function OwnerRegulatedPowerSupplyVisual({
   readonly result?: ComponentResult | undefined;
   readonly simulationRunning: boolean;
   readonly onChange?: Props['onRegulatedPowerSupplyChange'];
+  readonly onSwitchAvailability?: Props['onSupplySwitchAvailability'];
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
@@ -1258,6 +1263,30 @@ function OwnerRegulatedPowerSupplyVisual({
       voltageSetpointVolt,
     ],
   );
+  const runtimeRef = useRef<SVGSVGElement>(null);
+  const hasLiveMarkup = Boolean(markup);
+  useLayoutEffect(() => {
+    const runtime = runtimeRef.current;
+    const track = runtime?.querySelector<SVGRectElement>(
+      'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
+    );
+    const available = Boolean(
+      hasLiveMarkup &&
+      runtime?.isConnected &&
+      track &&
+      runtime.getAttribute('viewBox') === '0 0 294 237' &&
+      !track.hasAttribute('transform') &&
+      [
+        ['x', 14],
+        ['y', 202],
+        ['width', 67],
+        ['height', 26],
+        ['rx', 13],
+      ].every(([name, value]) => Number(track.getAttribute(String(name))) === value),
+    );
+    onSwitchAvailability?.(component.id, available);
+    return () => onSwitchAvailability?.(component.id, false);
+  }, [component.id, hasLiveMarkup, ownerSvg, onSwitchAvailability]);
   const updateKnob = (
     event: ReactPointerEvent<SVGSVGElement>,
     knob: 'voltage' | 'current',
@@ -1286,6 +1315,7 @@ function OwnerRegulatedPowerSupplyVisual({
     );
   return (
     <svg
+      ref={runtimeRef}
       className="workbench-regulated-supply-runtime"
       data-testid="regulated-power-supply-runtime"
       data-output-enabled={String(outputEnabled)}
@@ -1783,6 +1813,7 @@ export function ProductionComponentVisual({
   onArduinoReset,
   onMultimeterModeChange,
   onRegulatedPowerSupplyChange,
+  onSupplySwitchAvailability,
   onSignalGeneratorChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
@@ -1881,6 +1912,7 @@ export function ProductionComponentVisual({
     entry.key === 'resistor-axial'
       ? resistorBandState(Math.max(0.1, Number(component.value ?? 220)), tolerance).bands
       : null;
+  const selectionModelRadius = selectionOffset / TINKERCAD_MODEL_TO_WORLD;
   const selectionFilterId = `component-selection-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const arduinoGlowFilterId = `arduino-led-glow-${component.id.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
   const imageFit = entry.assetFit === 'stretch' ? 'none' : 'xMidYMid meet';
@@ -1967,7 +1999,11 @@ export function ProductionComponentVisual({
       data-piezo-frequency={entry.familyId === 'piezo' ? piezoFrequencyHz : undefined}
       data-piezo-sounding={entry.familyId === 'piezo' ? String(piezoActive) : undefined}
       style={
-        rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
+        {
+          ...(rgbIsLit ? { '--workbench-rgb-led-glow': rgbDisplayColour } : {}),
+          '--workbench-readout-mirror-x': properties['mirrorX'] === true ? -1 : 1,
+          '--workbench-readout-mirror-y': properties['mirrorY'] === true ? -1 : 1,
+        } as CSSProperties
       }
       role="presentation"
     >
@@ -2029,15 +2065,6 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pitch"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          <line
-            x1="0"
-            y1="-20"
-            x2="0"
-            y2="20"
-            stroke="#8c8c8c"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
               <line
@@ -2047,7 +2074,7 @@ export function ProductionComponentVisual({
                 y2="20"
                 fill="none"
                 stroke="#3b8ed7"
-                strokeWidth="2"
+                strokeWidth={2 + 2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -2055,12 +2082,21 @@ export function ProductionComponentVisual({
                 d={TINKERCAD_RESISTOR_BODY}
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={2 * selectionModelRadius}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </g>
           ) : null}
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
           <path d={TINKERCAD_RESISTOR_BODY} fill="#d9b477" />
           {resistorBands ? (
             <g data-testid="resistor-colour-bands">
@@ -2087,6 +2123,38 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pin-6x6"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="-10"
+                y1="-15"
+                x2="-10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <line
+                x1="10"
+                y1="-15"
+                x2="10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + 2 * selectionModelRadius}
+                strokeLinecap="round"
+              />
+              <rect
+                x="-12"
+                y="-12"
+                width="24"
+                height="24"
+                rx="1"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth={2 * selectionModelRadius}
+              />
+            </g>
+          ) : null}
           <line
             x1="-10"
             y1="-15"
@@ -2105,38 +2173,6 @@ export function ProductionComponentVisual({
             strokeWidth="2"
             strokeLinecap="round"
           />
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              <line
-                x1="-10"
-                y1="-15"
-                x2="-10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <line
-                x1="10"
-                y1="-15"
-                x2="10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <rect
-                x="-12"
-                y="-12"
-                width="24"
-                height="24"
-                rx="1"
-                fill="none"
-                stroke="#3b8ed7"
-                strokeWidth="3"
-              />
-            </g>
-          ) : null}
           <rect x="-12" y="-12" width="24" height="24" rx="1" fill="#bfbfbf" />
           <path d={TINKERCAD_BUTTON_FRAME} fill="#a3a3a3" />
           {[
@@ -2157,31 +2193,42 @@ export function ProductionComponentVisual({
           data-visual-contract={`tinkercad-sp${twoPinSwitch ? 'st-two' : 'dt-three'}-pin`}
           transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
+                <line
+                  key={x}
+                  x1={x}
+                  x2={x}
+                  y2="-5"
+                  stroke="#3b8ed7"
+                  strokeWidth={2 + 2 * selectionModelRadius}
+                  strokeLinecap="round"
+                />
+              ))}
+              <rect
+                x="-14"
+                y="-15"
+                width="28"
+                height="10"
+                rx="1"
+                fill="#3b8ed7"
+                stroke="#3b8ed7"
+                strokeWidth={2 * selectionModelRadius}
+              />
+            </g>
+          ) : null}
           {(twoPinSwitch ? [-10, 0] : [-10, 0, 10]).map((x) => (
             <line
               key={x}
               x1={x}
               x2={x}
               y2="-5"
-              stroke={selected ? '#3b8ed7' : '#8c8c8c'}
+              stroke="#8c8c8c"
               strokeWidth="2"
               strokeLinecap="round"
             />
           ))}
-          {selected ? (
-            <rect
-              className="workbench-tinkercad-selection"
-              pointerEvents="none"
-              x="-14"
-              y="-15"
-              width="28"
-              height="10"
-              rx="1"
-              fill="#3b8ed7"
-              stroke="#3b8ed7"
-              strokeWidth="3.5"
-            />
-          ) : null}
           <g
             data-testid="spdt-actuator"
             transform="translate(0 -10)"
@@ -2271,6 +2318,7 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
               onChange={onRegulatedPowerSupplyChange}
+              onSwitchAvailability={onSupplySwitchAvailability}
             />
           ) : entry.key === 'signal-generator' ? (
             <OwnerSignalGeneratorVisual

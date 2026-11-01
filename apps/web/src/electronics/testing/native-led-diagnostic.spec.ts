@@ -147,6 +147,7 @@ it('renders physical LED failure with its native body without a parent render, a
     expect(visualState.mock.calls.length).toBe(stageVisualReads);
     await act(async () => port.commit(failedObservation));
     expect(host.querySelector('[data-testid="led-burnout-explosion"]')).not.toBeNull();
+    expect(visualState.mock.calls.length).toBe(stageVisualReads);
     await act(async () => port.setObservation(null));
     expect(host.querySelector('[data-testid="led-burnout-explosion"]')).toBeNull();
     await act(async () => port.setObservation(observe(healthy, 0)));

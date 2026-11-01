@@ -1166,7 +1166,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         : calculateLiveSimulation(runtimeDocument, persistedResult, false, 0),
     [liveResult, persistedResult, runtimeDocument, simulationRunning],
   );
-  usePiezoAudio(runtimeDocument, result, simulationRunning);
+  usePiezoAudio(runtimeDocument, nativeOpticalPresentation, simulationRunning);
 
   useEffect(() => {
     if (!document || simulationRunning || status !== 'ready') return;

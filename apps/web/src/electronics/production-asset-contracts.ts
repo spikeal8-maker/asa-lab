@@ -2,6 +2,15 @@ export const WORLD_UNITS_PER_MM = 5 as const;
 export const BREADBOARD_PITCH_MM = 2.54 as const;
 export const PIN_ANCHOR_TOLERANCE_MM = 0.25 as const;
 
+// Reverse the component's reflections at each text's own bounds. Its ordinary
+// rotation and the surrounding instrument window remain in the parent transform.
+export const instrumentReadoutStyle = {
+  transformBox: 'fill-box',
+  transformOrigin: 'center',
+  transform: 'scale(var(--workbench-readout-mirror-x, 1), var(--workbench-readout-mirror-y, 1))',
+} as const;
+const instrumentReadoutMarkupStyle = `style="transform-box:${instrumentReadoutStyle.transformBox};transform-origin:${instrumentReadoutStyle.transformOrigin};transform:${instrumentReadoutStyle.transform}"`;
+
 // Contact topology belongs to the shared browser/server domain. Re-export it
 // here for the visual contract tests instead of maintaining a second mapping.
 export {
@@ -694,7 +703,7 @@ export function multimeterRuntimeMarkup(
   const bodyEnd = withRuntimeState.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
   const reading = displayValue
-    ? `<text class="workbench-multimeter-reading" x="218.5" y="108" font-size="58" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(displayValue)}</text>`
+    ? `<text class="workbench-multimeter-reading" ${instrumentReadoutMarkupStyle} x="218.5" y="108" font-size="58" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(displayValue)}</text>`
     : '';
   return `${withRuntimeState.slice(bodyStart + 1, bodyEnd)}${reading}`;
 }
@@ -780,7 +789,7 @@ export function regulatedPowerSupplyRuntimeMarkup(
   const bodyStart = markup.indexOf('>');
   const bodyEnd = markup.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
-  const readings = `<text class="workbench-regulated-supply-reading" x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading" x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`;
+  const readings = `<text class="workbench-regulated-supply-reading" ${instrumentReadoutMarkupStyle} x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading" ${instrumentReadoutMarkupStyle} x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`;
   return `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
 }
 
@@ -889,7 +898,7 @@ export function signalGeneratorRuntimeMarkup(
   const bodyStart = markup.indexOf('>');
   const bodyEnd = markup.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
-  const readings = `<g class="workbench-signal-generator-readings" pointer-events="none"><text x="131.5" y="83" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(formatSignalFrequency(input.frequencyHz))}</text><text x="131.5" y="174" text-anchor="middle" dominant-baseline="central">${input.amplitudeVpp.toFixed(2)} Vpp</text><text x="131.5" y="264" text-anchor="middle" dominant-baseline="central">${input.dcOffsetVolt >= 0 ? '+' : ''}${input.dcOffsetVolt.toFixed(2)} V</text></g>`;
+  const readings = `<g class="workbench-signal-generator-readings" pointer-events="none"><text x="131.5" ${instrumentReadoutMarkupStyle} y="83" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(formatSignalFrequency(input.frequencyHz))}</text><text x="131.5" ${instrumentReadoutMarkupStyle} y="174" text-anchor="middle" dominant-baseline="central">${input.amplitudeVpp.toFixed(2)} Vpp</text><text x="131.5" ${instrumentReadoutMarkupStyle} y="264" text-anchor="middle" dominant-baseline="central">${input.dcOffsetVolt >= 0 ? '+' : ''}${input.dcOffsetVolt.toFixed(2)} V</text></g>`;
   markup = `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
   return markup;
 }
@@ -932,7 +941,7 @@ export function oscilloscopeRuntimeMarkup(
     : input.frequencyHz
       ? `${formatSignalFrequency(input.frequencyHz)} · ${(input.amplitudeVpp ?? 0).toFixed(2)} Vpp`
       : `${input.inputVoltageVolt.toFixed(3)} V DC`;
-  const runtime = `<g class="workbench-oscilloscope-runtime-layer" pointer-events="none">${tracePath ? `<path class="workbench-oscilloscope-trace" d="${tracePath}"/>` : ''}<text class="workbench-oscilloscope-status" x="72" y="78">${escapeMultimeterDisplay(status)}</text><text class="workbench-oscilloscope-scale" x="72" y="444">${input.voltsPerDivision.toFixed(2)} V/div · ${input.timePerDivisionMs.toFixed(2)} ms/div</text></g>`;
+  const runtime = `<g class="workbench-oscilloscope-runtime-layer" pointer-events="none">${tracePath ? `<path class="workbench-oscilloscope-trace" d="${tracePath}"/>` : ''}<text class="workbench-oscilloscope-status" ${instrumentReadoutMarkupStyle} x="72" y="78">${escapeMultimeterDisplay(status)}</text><text class="workbench-oscilloscope-scale" ${instrumentReadoutMarkupStyle} x="72" y="444">${input.voltsPerDivision.toFixed(2)} V/div · ${input.timePerDivisionMs.toFixed(2)} ms/div</text></g>`;
   return `${ownerSvg.slice(bodyStart + 1, bodyEnd)}${runtime}`;
 }
 

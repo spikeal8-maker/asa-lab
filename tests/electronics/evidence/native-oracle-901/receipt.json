@@ -1,0 +1,70 @@
+{
+  "issue": 901,
+  "base_sha": "0c6f6f984f586545e177e596b13ffa9e8dd1e745",
+  "scope": "test-only native oracle compatibility; not full836 acceptance",
+  "source_sha256": {
+    "e2e/electronics-interactions.spec.ts": "dcdeec431c9abbbd30a8f4d6610ba87cdd8e938447d736727a570ae112e973a6",
+    "e2e/electronics-selection-outline.spec.ts": "29e7bba2be08bb54b591eec0fb54b0eb8663b891693cfba6829ecaf5f245730b",
+    "tests/electronics/native-oracle-contracts.ts": "06fd2c3fe2e62fe6b45d8be674028d35774f5a3754e8cad11f7143ba7a375743",
+    "tests/electronics/native-oracle-contracts.spec.ts": "5d98ddcdf6a56bc83f76ec83d7162923ffb0bc3ce40a1d4c93f1f08e8ea008a5",
+    "tests/electronics/native-oracle-contracts.browser.mjs": "1d3a0f39cb7ba939ce39c5cf7cfc7774642e3634193a24e1c62f30041d843746"
+  },
+  "verified": {
+    "portable_unit_tests": 6,
+    "actual_Chromium": "three actual ProductionComponentVisual selection DOMs; trusted mouse/CDP touch Save; once-only, wrong and duplicate target, untrusted negatives",
+    "agent_document_guard_tests": 114,
+    "fresh_Nx_build_tasks": 2,
+    "Nx_cache": "Skipped; NX_SKIP_NX_CACHE=true",
+    "lint": "final logs accompany receipt"
+  },
+  "unverified": [
+    "full native F2/E11 journeys and real CAS/reopen on this candidate",
+    "full General and strict browser qualification"
+  ],
+  "retained_failures": [
+    "existing zero extra lead radius and all native pixel/common-radius thresholds remain; this repair does not fix product geometry"
+  ],
+  "local_diagnostic_failures": {
+    "first_unit_collection": "direct jsdom import unavailable at root; portable final unit uses existing Vitest jsdom environment",
+    "discovery": "unbuilt electronics then identity distributions; SDK/electronics built2fresh tasks but identity build chain intentionally stopped",
+    "first_lint": "browser callback globals missing lint annotation; fixed declarations and Node console import"
+  },
+  "logs": {
+    "asa-901-contracts.txt": {
+      "sha256": "e9dc51e065efcebb662847b4fc4a0fe7650eb638bf0a39056303cff9bc78c186",
+      "bytes": 1138
+    },
+    "asa-901-contracts-unit.txt": {
+      "sha256": "e68805b9459631eafd686aabebe9afe618ebda0e341e9a1666c985475703c9f0",
+      "bytes": 345
+    },
+    "asa-901-native-proof-final.txt": {
+      "sha256": "73bca0458ac9f3e2ca7a5e3d325a2f027d967dbd700c02ea9c1d68f49c5e601f",
+      "bytes": 157
+    },
+    "asa-901-docguard.txt": {
+      "sha256": "56aeff5e924d67700d0586c171d4d3ff4a50f75a99482a4399ad673c5a73456d",
+      "bytes": 21102
+    },
+    "asa-901-electronics-build.txt": {
+      "sha256": "22d3aa2ec78fac8a4ef255b3ff3a96f3f6f9203554466f6ad6d63331def1007e",
+      "bytes": 477
+    },
+    "asa-901-discovery.txt": {
+      "sha256": "98c23daf8b43589c4bd510cb91ed9a2e66401e2eca5c1b3afb420e1c028460f6",
+      "bytes": 1737
+    },
+    "asa-901-discovery2.txt": {
+      "sha256": "28d29e127b836931caf13133ad79fe2e35919ccb23ba4e83b6e291e63e2f90a2",
+      "bytes": 3491
+    },
+    "asa-901-lint-final.txt": {
+      "sha256": "8c5721e3c95209f372777015ddfb7ff487d32cb26755c6ef125ee4f4a9a6e8ec",
+      "bytes": 435
+    },
+    "asa-901-lint-final2.txt": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    }
+  }
+}
