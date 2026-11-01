@@ -1,44 +1,14 @@
 import type * as ScratchBlocks from 'scratch-blocks';
 
-export const ARDUINO_DIGITAL_PIN_OPTIONS = [
-  ...Array.from({ length: 14 }, (_, pin) => [String(pin), String(pin)]),
-  ...Array.from({ length: 6 }, (_, pin) => [`A${pin}`, `A${pin}`]),
-];
-export const ARDUINO_PWM_PIN_OPTIONS = ['3', '5', '6', '9', '10', '11'].map((pin) => [pin, pin]);
-export const ARDUINO_ANALOG_PIN_OPTIONS = Array.from({ length: 6 }, (_, pin) => [
-  `A${pin}`,
-  `A${pin}`,
-]);
-
-export type ArduinoPinReporter = 'asa_pin' | 'asa_pwm_pin' | 'asa_analog_pin';
-export const ARDUINO_PIN_REPORTERS = new Set(['asa_pin', 'asa_pwm_pin', 'asa_analog_pin']);
-export const ARDUINO_PIN_INPUTS: Readonly<
-  Record<string, Readonly<Record<string, ArduinoPinReporter>>>
-> = {
-  asa_digital_write: { PIN: 'asa_pin' },
-  asa_analog_write: { PIN: 'asa_pwm_pin' },
-  asa_servo_write: { PIN: 'asa_pin' },
-  asa_tone: { PIN: 'asa_pin' },
-  asa_play_note: { PIN: 'asa_pin' },
-  asa_no_tone: { PIN: 'asa_pin' },
-  asa_rgb_write: { R_PIN: 'asa_pwm_pin', G_PIN: 'asa_pwm_pin', B_PIN: 'asa_pwm_pin' },
-  asa_lcd_setup: {
-    RS: 'asa_pin',
-    E: 'asa_pin',
-    D4: 'asa_pin',
-    D5: 'asa_pin',
-    D6: 'asa_pin',
-    D7: 'asa_pin',
-  },
-  asa_neopixel_setup: { PIN: 'asa_pin' },
-  asa_digital_read: { PIN: 'asa_pin' },
-  asa_analog_read: { PIN: 'asa_analog_pin' },
-  asa_ultrasonic: { TRIG: 'asa_pin', ECHO: 'asa_pin' },
-  asa_pulse_in: { PIN: 'asa_pin' },
-  asa_temperature: { PIN: 'asa_analog_pin' },
-  asa_servo_read: { PIN: 'asa_pin' },
-  asa_ir_read: { PIN: 'asa_pin' },
-};
+import { ARDUINO_PIN_REPORTERS } from './arduino-block-schema';
+export {
+  ARDUINO_DIGITAL_PIN_OPTIONS,
+  ARDUINO_PWM_PIN_OPTIONS,
+  ARDUINO_ANALOG_PIN_OPTIONS,
+  ARDUINO_PIN_INPUTS,
+  ARDUINO_PIN_REPORTERS,
+  type ArduinoPinReporter,
+} from './arduino-block-schema';
 
 /** A dropdown shadow and a plain number are static; any other reporter is
  * evaluated when its command executes. Old direct field callers remain readable. */

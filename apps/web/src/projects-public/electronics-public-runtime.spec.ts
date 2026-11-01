@@ -155,3 +155,28 @@ describe('bounded public electronics host', () => {
     });
   });
 });
+it('keeps the published block graph out of simulation inputs without changing the source', () => {
+  const source = artifact();
+  const blocks = JSON.stringify({ blocks: { languageVersion: 0, blocks: [{ type: 'asa_loop' }] } });
+  const component = source.components[1]!;
+  const withBlocks = {
+    ...source,
+    components: [
+      source.components[0]!,
+      {
+        ...component,
+        stateProperties: {
+          ...component.stateProperties,
+          arduinoCodeMode: 'blocks',
+          arduinoBlocks: blocks,
+        },
+      },
+    ],
+  } as ElectronicsSimulationArtifact;
+  const document = publicSimulationDocument(withBlocks);
+  expect(document.components[1]!.stateProperties).not.toHaveProperty('arduinoBlocks');
+  expect(document.components[1]!.stateProperties?.arduinoSource).toBe(
+    component.stateProperties?.arduinoSource,
+  );
+  expect(withBlocks.components[1]!.stateProperties?.arduinoBlocks).toBe(blocks);
+});

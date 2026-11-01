@@ -800,6 +800,7 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
   });
   const code = await createClassWithStudents(page, 'Класс Главной', [
     { label: 'Лена Главная', handle: 'home-lena' },
+    { label: 'Борис проверяющий с длинным именем ученика', handle: 'queue-beta' },
   ]);
   const classId = page.url().split('/classrooms/')[1]!.split('?')[0]!;
   await openAssignments(page);
@@ -950,22 +951,26 @@ async function exerciseExactReviewStream(
   identity: SeededTeacher,
 ) {
   await owner.setViewportSize({ width: 1440, height: 900 });
-  await owner.goto('/#/classrooms/' + classId);
-  await owner
-    .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Ученики', exact: true })
-    .click();
-  await owner.getByRole('button', { name: 'Добавить ученика', exact: true }).click();
-  const add = owner.getByRole('dialog');
   const betaLabel = 'Борис проверяющий с длинным именем ученика';
-  await add.getByLabel('Имя в списке класса').fill(betaLabel);
-  await add.getByRole('button', { name: 'Добавить', exact: true }).click();
-  await expect(add).toBeHidden();
-  const betaRow = owner.getByRole('row').filter({ hasText: betaLabel });
-  await betaRow.locator('.classroom-login-handle').click();
-  keys.set('queue-beta', (await betaRow.locator('.classroom-login-handle').innerText()).trim());
   const beta = await learnerAssignments(browser, joinCode, 'queue-beta');
-  const betaWork = beta.page.getByTestId('seat-assignment-row').filter({ hasText: title });
+  const betaWork = beta.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: title });
+  await expect(betaWork).toBeVisible();
+  expect(
+    (
+      await admin.query(
+        `SELECT part.id FROM activity_participations part
+    JOIN activity_runs run ON run.id=part.activity_run_id
+    JOIN learner_identity_links link ON link.learner_identity_id=part.learner_identity_id AND link.status='active'
+    JOIN classroom_student_seats seat ON seat.id=link.seat_id
+    WHERE run.source_classroom_assignment_id=$1 AND run.classroom_id=$2
+      AND seat.display_label=$3 AND part.status IN ('assigned','active')`,
+        [assignmentId, classId, betaLabel],
+      )
+    ).rows,
+  ).toHaveLength(1);
   await betaWork.getByRole('button', { name: 'Открыть', exact: true }).click();
   await editRealProject(beta.page, 'three-d');
   await beta.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
@@ -1064,7 +1069,8 @@ async function exerciseExactReviewStream(
     .getByRole('link', { name: 'Задания', exact: true })
     .click();
   await lena
-    .getByTestId('seat-assignment-row')
+    .getByTestId('seat-assignments')
+    .locator('li')
     .filter({ hasText: title })
     .getByRole('button', { name: 'Открыть работу', exact: true })
     .click();

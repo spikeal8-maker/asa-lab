@@ -16062,6 +16062,49 @@ parallel_lanes:
       observed_at: '2026-10-30T08:13:33Z'
       observation_note: Fresh fetch main before edits; remote main equals clean controller HEAD. General in_progress not claimed PASS. BEFORE16fixtures6actualmounts all overwrite old source and XML; product unchanged. Repair selected before864.
 
+  - id: electronics-realtime-compute-cause
+    parent_lane: electronics
+    worktree_id: electronics-realtime-compute-cause
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
+    task:
+      id: TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001
+      issue: 539
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: analysis/inventory
+      risk: medium
+      semantic_change: 'no'
+      checkpoint: owner_selected_short_frozen_input_compute_measurement
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
+      scope: Read-only short TEMP-only replay and CPU attribution of exact saved no-delay and independent-millis requests; no product/test/clock/solver edits or runtime acceptance.
+      owner_authorization: Owner requests fixing25 remaining Electronics failures easiest first plus completing8 unfinished; prepare measured timing cause while independently reviewed caption waits for isolated CI.
+      preservation: Keep selected682 private harness and all foreign work unchanged; no server, Docker, live DB, new dependencies, full-suite rerun or thresholds change.
+      next_action: One new bounded executor verifies selected task then replays saved actual requests for at most2minutes; report hot functions, owned-path activation, full-response fingerprints and minimal separate repair scope; STOP.
+
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
+      head_sha: null
+      main:
+        branch: main
+        sha: eacb9fa9a1e6bfacd22d10c16ae017a5d551ef6f
+      observed_at: '2026-11-01T22:29:00Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Read-only cause measurement selected separately; caption candidate waits for original browser and General evidence; no runtime source authorization.
+
   - id: electronics-emergency-toolbar
     parent_lane: electronics
     worktree_id: electronics-emergency-toolbar
@@ -16073,11 +16116,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: done
+      status: in_progress
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: source_review_evidence_done_a94_General41038088189_all4SUCCESS
+      checkpoint: owner_selected_strict_denied_storage_caption_repair
       accepted_candidate_sha: a94eba7bf3bf8c4623184996c022f907d0972509
       integrated_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
       composition_review: APPROVE_169candidate_and29foreign_blobs_preserved
@@ -16095,7 +16138,12 @@ parallel_lanes:
       rejected_candidate_sha: 66146712f2ea9f099f5109b49153948a72b5a286
       initial_rejected_review_result: REQUEST_CHANGES_actual_pausing320_toolstrip16_516_below44
       candidate_gate: canonical2565tests71freshNx_all8capsPASS_no_integration
-      repair_scope: CSS_and_toolbar_only_short_pausing_display_label_SimulationSpeedControl_no_timing_logic
+      repair_scope: Restore truthful visible emergency-copy caption in native toolbar across all original E01 widths and states; CSS only unless a proved cause requires separately selected scope.
+      current_owner_request: Repair remaining25 Electronics failures easiest first and complete8 unfinished cases; publish verified slices to main without server or foreign changes.
+      current_slice_baseline: 2a28f40dcd048fac1ce303bd207699c64199b041
+      current_slice_evidence: Strict41345471963 E01 denied-local-storage fails captionVisible after emergency JSON equality passed; actual CSS sets emergency button font-size0 and inserts JSON pseudo-label.
+      current_slice_next_action: Bounded author proves actual native caption and selects minimal CSS fix; retain full E01 oracle, all persistence semantics and responsive actions; fresh independent review and focused CI before integration.
+      programme_remaining: Other24 known failures and8 unfinished scenarios remain open; toolbar overlaps next, timing requires separately selected cause-based repair.
       owner_acceptance: pending
       execution_role: bounded_css_executor_then_fresh_independent_review
       context_hints:
