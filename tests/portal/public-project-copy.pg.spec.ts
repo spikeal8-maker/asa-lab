@@ -233,6 +233,15 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
           ])
         ).rows[0].n,
       );
+    const publicCount = async () => {
+      const result = await inject(app, {
+        method: 'GET',
+        url: `/api/public-projects/${source.publication.publicationId}`,
+      });
+      expect(result.statusCode).toBe(200);
+      return result.json().publication.copyCount;
+    };
+    expect(await publicCount()).toBe(0);
     const initial = await count();
     const key = randomUUID();
     // Both requests start before awaiting either result; no retry or timing sleep.
@@ -243,6 +252,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     expect(bodies.filter((body) => body.created === true)).toHaveLength(1);
     expect(bodies.filter((body) => body.created === false)).toHaveLength(1);
     expect(await count()).toBe(initial + 1);
+    expect(await publicCount()).toBe(1);
     const id = bodies[0].projectId as string;
     expect(id).not.toBe(source.id);
     expect(bodies[0].moduleKey).toBe('three-d');
@@ -303,6 +313,100 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
     expect(await frozen(source.id)).toEqual(versions);
     expect((await copy(source, key, { title: 'Different fingerprint' })).statusCode).toBe(409);
     expect(await count()).toBe(initial + 1);
+    expect(await publicCount()).toBe(1);
+  });
+
+  it('retains durable aggregate after trash/deletion, rolls back failed inserts and hides private receipts', async () => {
+    const source = await fixture();
+    const response = await copy(source);
+    expect(response.statusCode).toBe(200);
+    const destination = response.json().projectId as string;
+    const total = async () =>
+      Number(
+        (
+          await runtime.query('SELECT public.publication_copy_count($1) n', [
+            source.publication.publicationId,
+          ])
+        ).rows[0].n,
+      );
+    expect(await total()).toBe(1);
+    for (const sql of [
+      'SELECT * FROM public.publication_copy_events',
+      `INSERT INTO public.publication_copy_events VALUES('${randomUUID()}','${randomUUID()}',now())`,
+      'DELETE FROM public.publication_copy_events',
+      'UPDATE public.publication_copy_events SET created_at=now()',
+      'SELECT public.record_publication_copy_created()',
+    ]) {
+      await expect(runtime.query(sql)).rejects.toMatchObject({ code: '42501' });
+    }
+    const transaction = await admin.connect();
+    try {
+      await transaction.query('BEGIN');
+      await transaction.query(
+        `INSERT INTO projects(id,tenant_id,project_scope,module_key,title,
+        created_by,owner_principal_id,copied_from_project_id,copied_from_author,copied_from_title,
+        copied_at,copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license,license)
+        SELECT $2,tenant_id,project_scope,module_key,title,created_by,owner_principal_id,
+        copied_from_project_id,copied_from_author,copied_from_title,copied_at,
+        copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license,license
+        FROM projects WHERE id=$1`,
+        [destination, randomUUID()],
+      );
+      expect(
+        Number(
+          (
+            await transaction.query('SELECT public.publication_copy_count($1) n', [
+              source.publication.publicationId,
+            ])
+          ).rows[0].n,
+        ),
+      ).toBe(2);
+      expect(await total()).toBe(1);
+      await transaction.query('ROLLBACK');
+    } finally {
+      await transaction.query('ROLLBACK');
+      transaction.release();
+    }
+    expect(await total()).toBe(1);
+    const trashed = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${destination}/status`,
+      cookies: source.reader,
+      payload: { status: 'trashed' },
+    });
+    expect(trashed.statusCode).toBe(201);
+    expect(await total()).toBe(1);
+    // Synthetic fixture purge respects the existing restrictive Draft FK.
+    await admin.query('DELETE FROM project_drafts WHERE project_id=$1', [destination]);
+    await admin.query('DELETE FROM projects WHERE id=$1', [destination]);
+    expect(await total()).toBe(1);
+    await admin.query(
+      "UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE id=$1",
+      [source.publication.publicationId],
+    );
+    expect(await total()).toBe(0);
+    expect(
+      (
+        await inject(app, {
+          method: 'GET',
+          url: `/api/public-projects/${source.publication.publicationId}`,
+        })
+      ).statusCode,
+    ).toBe(404);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int n FROM publication_copy_events WHERE publication_id=$1',
+          [source.publication.publicationId],
+        )
+      ).rows[0].n,
+    ).toBe(1);
+    expect(
+      Number(
+        (await runtime.query('SELECT public.publication_copy_count($1) n', [randomUUID()])).rows[0]
+          .n,
+      ),
+    ).toBe(0);
   });
 
   it('requires login, idempotency key and a strict request body without creating Projects', async () => {

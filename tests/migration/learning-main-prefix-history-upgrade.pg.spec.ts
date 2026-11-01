@@ -309,6 +309,16 @@ const upgradeArtifacts = [
     '0286_ai_search_retrieval_settings.sql',
     '4f66457fc0e91c134dd93d280ba22f58af0c97eaa54ac00e0d38ddec39482c6f',
   ],
+  [
+    '0287',
+    '0287_publication_copy_counts.sql',
+    'ed604dbc0034caac069c261457bfb699f5e1c8cd06b1b20d7c7910af4b96718b',
+  ],
+  [
+    '0288',
+    '0288_learning_course_academic_result_access.sql',
+    '73c0aad46e2767de51a270e48e15f184dfe7fe43a8ad47992be6ac878ee1b6f4',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

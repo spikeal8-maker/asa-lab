@@ -543,6 +543,18 @@ export interface ClassroomCourseRunLesson {
   canonicalCounts: null | CanonicalLearningCounts;
 }
 
+export interface CourseUsageRun {
+  id: string;
+  classroomId: string;
+  classroomTitle: string;
+  classroomStatus: 'active' | 'archived';
+  courseVersionId: string;
+  versionNumber: number;
+  title: string;
+  status: 'open' | 'closed';
+  audienceType: 'whole_class' | 'named_learners' | null;
+}
+
 export interface ClassroomCourseRun {
   id: string;
   courseId: string;
@@ -565,6 +577,8 @@ export interface ClassroomCourseRun {
 }
 
 export interface CourseActivityOccurrence {
+  /** Exact assignment applicability. Missing on historic responses. */
+  requirement?: 'required' | 'excused' | 'not_assigned' | 'unknown';
   blockId: string;
   activityRunId: string;
   classroomAssignmentId: string;
@@ -2687,6 +2701,8 @@ export const api = {
     call<{ items: ClassroomCourseRun[] }>(
       `/api/classrooms/${encodeURIComponent(classroomId)}/course-runs`,
     ),
+  courseUsage: (courseId: string) =>
+    call<{ items: CourseUsageRun[] }>(`/api/courses/${encodeURIComponent(courseId)}/usage`),
   assignCourseToClassroom: (
     classroomId: string,
     courseId: string,

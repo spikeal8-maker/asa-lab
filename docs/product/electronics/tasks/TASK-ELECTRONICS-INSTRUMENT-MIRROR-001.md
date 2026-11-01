@@ -12,6 +12,43 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected product AFTER — 1 November 2026
+
+This selection supersedes earlier test-only write bounds below. Those sections
+remain historical explanations. This is a necessary dependency of the owner's
+full issue836 browser qualification and earlier mirror-to-main instruction.
+
+Exactb4c723b30abc5fa8e77b162fc27ccca59c2793f8, strict41094573695, independently
+qualifies BEFORE_READY:16 complete journeys,784 readings with588 expected glyph
+axis failures;1536 endpoints and all window/center checks pass.32 PUT200 have
+exact CAS/document/reopen equality;496 trusted deliveries, healthy collectors
+and both closed contexts are proven.32 final/reopened PNGs verified. The overall
+workflow was cancelled and is not full acceptance. Preserve all old failure flags.
+
+Implement only individual-readout counterreflection: ordinary rotation, per-text
+own center, windows, actual signed values/modes, controls, wires, terminals and
+owner SVGs stay intact. Share a per-text style for the existing meter text and
+seven generated PSU/generator/scope texts. No group/screen/trace or always-horizontal
+transform. Mirror flags use canonical strict boolean semantics.
+
+Product paths: ProductionComponentVisual.tsx, production-asset-contracts.ts and
+workbench-presentation.spec.ts. Compose reviewed877D clipping/native-hit support
+with current836 leaves without restoring old whole files. Preserve instruments,
+annotations, sevenseg inspector, immediate burnout and SPST defaults. Prepared836
+source51e4 and901 source2d03 remain separately reviewed dependencies.
+
+Freeze full b4 simulation spec byte-for-byte: blob
+a3d5830c0b637e165cc60c8a43126e8f2ae8718f; SHA256
+09a2dc77dd8a6497c703f1d2cda9f374688e27023746c4fba49b6925170f12e1.
+Only the canonical generated browser hash may accompany this test dependency.
+
+No owner assets, solver, clock, API, waveform, workflow, dependencies, limits,
+retries or deadlines change. Check fixed caps and hygiene; meaningful per-text,
+strict-boolean/preservation tests, full Web once and fresh independent review
+precede one combined strict run. All16 AFTER journeys must complete with zero
+glyph-axis failures and unchanged native/document/CAS/reopen/geometry/browser
+checks. This waives no E11, timing or other issue836 qualification failure.
+
 ## Selected test-only paint-order oracle repair — 30 October 2026
 
 Strict41080294495 exact3a9b3e1d97c370e650d8a895e488897c2a455d07 reached Save and

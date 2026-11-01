@@ -84,6 +84,21 @@ function reply() {
 }
 
 describe('Public Projects anonymous projection', () => {
+  it('projects only the real numeric successful-copy aggregate on list and detail', async () => {
+    const { publicApi, query } = setup([
+      { ...row, copy_count: '12', private_destination_id: 'secret-copy' },
+    ]);
+    const list = await publicApi.list();
+    const detail = await publicApi.detail(PUBLICATION);
+    expect(list.items[0].copyCount).toBe(12);
+    expect(detail.publication.copyCount).toBe(12);
+    expect(JSON.stringify([list, detail])).not.toContain('secret-copy');
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('public.publication_copy_count(entry.publication_id)'),
+      expect.any(Array),
+    );
+  });
+
   it.each(['electronics', 'three-d'])(
     'advertises copy for public-domain %s only',
     async (moduleKey) => {

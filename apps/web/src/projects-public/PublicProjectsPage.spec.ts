@@ -25,6 +25,7 @@ const work: PublicProject = {
   featured: true,
   pinned: true,
   likeCount: 7,
+  copyCount: 3,
   publishedAt: '2026-10-30T00:00:00Z',
   preview: null,
   capabilities: { viewer: 'static', canCopy: false, downloadFormats: [] },
@@ -98,4 +99,34 @@ it('keeps immutable card navigation, actual likes and editorial metadata without
   expect(host.textContent).not.toMatch(/просмотров|комментариев|ремиксов/);
   await act(async () => card.click());
   expect(onOpen).toHaveBeenCalledWith('published');
+});
+
+it('places identity and real likes on the preview, with a separate title overlay', async () => {
+  await render({ kind: 'public-projects' });
+  const cover = host.querySelector('.public-project-card-cover')!;
+  expect(cover.querySelector('.public-project-author')?.textContent).toBe(work.authorLabel);
+  expect(cover.querySelector('.public-project-avatar')?.getAttribute('aria-hidden')).toBe('true');
+  expect(cover.querySelector('.public-project-card-identity')?.getAttribute('title')).toBe(
+    work.authorLabel,
+  );
+  expect(cover.querySelector('[aria-label="7 нравится"]')).not.toBeNull();
+  expect(cover.querySelector('[aria-label="3 добавлений в свои проекты"]')).not.toBeNull();
+  expect(cover.querySelector('time')?.getAttribute('datetime')).toBe(work.publishedAt);
+  const footer = host.querySelector('.public-project-card-body')!;
+  expect(footer.children).toHaveLength(1);
+  expect(footer.querySelector('h2')?.getAttribute('title')).toBe(work.title);
+  expect(footer.querySelector('.public-project-author, time')).toBeNull();
+  expect(host.textContent).not.toMatch(/скачиваний|загрузок/);
+});
+
+it('does not fabricate a count when an older server omits copy statistics', async () => {
+  const legacy = { ...work };
+  Reflect.deleteProperty(legacy, 'copyCount');
+  vi.mocked(publicProjectsApi.list).mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [legacy], nextOffset: null },
+  });
+  await render({ kind: 'public-projects' });
+  expect(host.querySelector('[title="Добавили к себе"]')).toBeNull();
 });
