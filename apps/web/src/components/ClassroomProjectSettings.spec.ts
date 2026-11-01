@@ -101,7 +101,9 @@ describe('Classroom project permissions', () => {
     });
     await render('class-a', 'seat-a');
     const selects = host.querySelectorAll('select');
-    expect(selects).toHaveLength(2);
+    expect(selects).toHaveLength(3);
+    // An old API without comments must not make the new permission editable.
+    expect(selects[2]!.disabled).toBe(true);
     await act(async () => {
       selects[0]!.value = 'allow';
       selects[0]!.dispatchEvent(new Event('change', { bubbles: true }));
@@ -130,5 +132,62 @@ describe('Classroom project permissions', () => {
     expect(host.querySelector('[role="status"]')?.textContent).toBe(
       'Разрешения проектов сохранены.',
     );
+  });
+  it('saves class comment permission independently and supports a learner override', async () => {
+    vi.mocked(call).mockResolvedValueOnce({
+      ...defaults,
+      data: { ...defaults.data, comments: false },
+    });
+    await render();
+    await click(host.querySelectorAll('input')[2]!);
+    vi.mocked(call).mockResolvedValueOnce({
+      ...defaults,
+      data: { ...defaults.data, comments: true, version: 1 },
+    });
+    await click(
+      [...host.querySelectorAll('button')].find((b) => b.textContent === 'Сохранить разрешения')!,
+    );
+    expect(JSON.parse(vi.mocked(call).mock.calls.at(-1)![1]!.body as string)).toEqual({
+      publish: false,
+      download: false,
+      comments: true,
+      expectedVersion: 0,
+    });
+    vi.mocked(call).mockResolvedValueOnce({
+      ...defaults,
+      data: {
+        ...defaults.data,
+        comments: false,
+        publishOverride: 'inherit',
+        downloadOverride: 'inherit',
+        commentsOverride: 'inherit',
+      },
+    });
+    await render('class-a', 'seat-a');
+    await act(async () => {
+      const select = host.querySelectorAll('select')[2]!;
+      select.value = 'allow';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    vi.mocked(call).mockResolvedValueOnce({
+      ...defaults,
+      data: {
+        ...defaults.data,
+        comments: true,
+        publishOverride: 'inherit',
+        downloadOverride: 'inherit',
+        commentsOverride: 'allow',
+        version: 1,
+      },
+    });
+    await click(
+      [...host.querySelectorAll('button')].find((b) => b.textContent === 'Сохранить разрешения')!,
+    );
+    expect(JSON.parse(vi.mocked(call).mock.calls.at(-1)![1]!.body as string)).toEqual({
+      publishOverride: 'inherit',
+      downloadOverride: 'inherit',
+      commentsOverride: 'allow',
+      expectedVersion: 0,
+    });
   });
 });

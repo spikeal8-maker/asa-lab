@@ -4,6 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PublicProjectPage } from './PublicProjectPage';
 import { publicProjectsApi, type PublicProject } from './api';
+vi.mock('./PublicationComments', () => ({
+  PublicationComments: () => createElement('section', { 'data-testid': 'publication-comments' }),
+}));
 
 const publication: PublicProject = {
   publicationId: 'public-id',
@@ -68,7 +71,11 @@ it('reads title, honest cover, real actions, then description and publication fa
   });
   await render();
   const article = container.querySelector('article')!;
-  expect([...article.children].map((element) => element.tagName)).toEqual(['HEADER', 'DIV']);
+  expect([...article.children].map((element) => element.tagName)).toEqual([
+    'HEADER',
+    'DIV',
+    'SECTION',
+  ]);
   expect(article.querySelector('aside')?.textContent).toContain('Автор');
   expect(container.querySelector('.public-project-title-toggle')).toBeNull();
   expect(article.querySelector('.public-project-info')).toBeNull();

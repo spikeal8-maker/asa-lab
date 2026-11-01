@@ -45,8 +45,8 @@ export class ProjectDistributionController {
         : checkBodyShape(
             body,
             seat
-              ? ['publishOverride', 'downloadOverride', 'expectedVersion']
-              : ['publish', 'download', 'expectedVersion'],
+              ? ['publishOverride', 'downloadOverride', 'commentsOverride', 'expectedVersion']
+              : ['publish', 'download', 'comments', 'expectedVersion'],
           );
     if (shape && !shape.ok) reject(400, 'invalid_policy');
     // An invited co-teacher may keep a different personal workspace active.

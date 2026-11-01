@@ -12,6 +12,7 @@ const browser = process.argv.includes('--browser');
 for (const path of browser
   ? [
       'e2e/publication-likes.spec.ts',
+      'e2e/publication-comments.spec.ts',
       'e2e/student-project-policy.spec.ts',
       'e2e/public-projects.spec.ts',
       'e2e/public-project-electronics-viewer.spec.ts',
@@ -23,6 +24,9 @@ for (const path of browser
     ]
   : [
       'tests/portal/publication-likes.pg.spec.ts',
+      'tests/portal/publication-comments.pg.spec.ts',
+      'apps/web/src/projects-public/PublicationComments.spec.ts',
+      'apps/web/src/admin/testing/publication-comments.spec.ts',
       'apps/api/src/publication-likes.controller.spec.ts',
       'apps/web/src/projects-public/PublicationLike.spec.ts',
       'apps/web/src/projects-public/PublicProjectsPage.spec.ts',
@@ -177,6 +181,7 @@ if (browser) {
     'playwright',
     'test',
     'e2e/publication-likes.spec.ts',
+    'e2e/publication-comments.spec.ts',
     'e2e/student-project-policy.spec.ts',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-electronics-viewer.spec.ts',
@@ -213,6 +218,7 @@ if (browser) {
     'node',
     '--allowSyntheticDefaultImports',
     'e2e/publication-likes.spec.ts',
+    'e2e/publication-comments.spec.ts',
     'e2e/student-project-policy.spec.ts',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-electronics-viewer.spec.ts',
@@ -230,6 +236,8 @@ if (browser) {
     'tests/portal/project-transactions.spec.ts',
     'tests/portal/project-publication-revisions.pg.spec.ts',
     'tests/portal/publication-likes.pg.spec.ts',
+    'tests/portal/publication-comments.pg.spec.ts',
+    'apps/web/src/admin/testing/publication-comments.spec.ts',
     'apps/api/src/publication-likes.controller.spec.ts',
     'apps/web/src/admin/testing/publication-reactions.spec.ts',
     'tests/portal/student-project-policy.pg.spec.ts',

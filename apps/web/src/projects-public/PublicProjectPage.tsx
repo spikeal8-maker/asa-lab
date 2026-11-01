@@ -1,3 +1,4 @@
+import { PublicationComments } from './PublicationComments';
 import { PublicationLike } from './PublicationLike';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
@@ -263,6 +264,11 @@ export function PublicProjectPage({
               </section>
             </aside>
           </div>
+          <PublicationComments
+            key={publication.publicationId}
+            publicationId={publication.publicationId}
+            revisionId={publication.revisionId}
+          />
         </article>
       )}
     </main>

@@ -439,3 +439,15 @@ all audience/moderation/rate-limit decisions, storage/API implementation or rele
 acceptance. Comments remain unavailable until the bounded comments task is selected
 and its prerequisites and server authorization are verified. No fake comment input
 or fabricated comment count may stand in for implementation.
+
+### Owner implementation request — 2026-11-01: complete discussion slice
+
+The owner subsequently selected real comments storage, independent class and
+learner permissions, author closing and admin moderation, with isolated verification
+and visual examples, explicitly without deploying the site. Selection is recorded
+as `TASK-PROJ-R8-04-COMMENTS-001` in the execution control plane. Personal Accounts
+may write, guests read, classroom participation defaults OFF and each Seat may
+inherit/allow/deny. Publication permission does not grant comment permission.
+Rating-based access remains deferred. Implementation, verification and rollout
+boundaries: `evidence/publication-comments-20261101.md`. This is not production
+deployment, owner acceptance or release certification.
