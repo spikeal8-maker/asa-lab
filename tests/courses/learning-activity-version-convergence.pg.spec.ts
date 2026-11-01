@@ -1434,20 +1434,68 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
         })
       ).result_code,
     ).toBe('ok');
-    for (const [actor, tenant, expected] of [
-      [peerPrincipalId, owner.tenantId, 'quiz_version_forbidden'],
-      [outsiderPrincipalId, owner.tenantId, 'tenant_forbidden'],
-      [outsiderPrincipalId, outsider.tenantId, 'quiz_version_forbidden'],
-    ])
+    const rowsBeforeDenials = (
+      await admin.query(
+        'SELECT count(*)::integer AS count FROM learning_activities WHERE tenant_id=ANY($1::uuid[])',
+        [[owner.tenantId, outsider.tenantId]],
+      )
+    ).rows[0].count;
+    const deniedCases = [
+      // Membership alone does not grant the peer content-author capability.
+      {
+        actor: peerPrincipalId,
+        tenant: owner.tenantId,
+        mayAuthor: false,
+        expected: 'tenant_forbidden',
+      },
+      {
+        actor: outsiderPrincipalId,
+        tenant: owner.tenantId,
+        mayAuthor: false,
+        expected: 'tenant_forbidden',
+      },
+      // This actor IS an author in its own tenant; the exact QuizVersion belongs
+      // to the owner tenant and must reach the distinct content-ownership check.
+      {
+        actor: outsiderPrincipalId,
+        tenant: outsider.tenantId,
+        mayAuthor: true,
+        expected: 'quiz_version_forbidden',
+      },
+    ];
+    for (const [index, { actor, tenant, mayAuthor, expected }] of deniedCases.entries()) {
+      expect(
+        (
+          await admin.query('SELECT learning_author_can_use_tenant($1,$2) AS allowed', [
+            actor,
+            tenant,
+          ])
+        ).rows[0].allowed,
+      ).toBe(mayAuthor);
       expect(
         (
           await admin.query(
-            `SELECT * FROM learning_activity_normalize_draft($1,$2,'quiz','No foreign content',NULL,
-        'graded',3,$3::jsonb,NULL,$4,NULL,NULL)`,
-            [actor, tenant, JSON.stringify(validOptional), quiz.quiz_version_id],
+            `SELECT * FROM learning_activity_create($1,$2,'school','private','quiz','No foreign content',NULL,
+          'graded',3,$3::jsonb,NULL,$4,NULL,NULL,$5)`,
+            [
+              actor,
+              tenant,
+              JSON.stringify(validOptional),
+              quiz.quiz_version_id,
+              'quiz:policy:denied:' + index,
+            ],
           )
-        ).rows[0].result_code,
-      ).toBe(expected);
+        ).rows[0],
+      ).toEqual({ result_code: expected, activity_id: null, draft_revision: null });
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::integer AS count FROM learning_activities WHERE tenant_id=ANY($1::uuid[])',
+          [[owner.tenantId, outsider.tenantId]],
+        )
+      ).rows[0].count,
+    ).toBe(rowsBeforeDenials);
   });
 
   it('enforces result modes, five-kind domain support, immutability and compatibility isolation', async () => {
