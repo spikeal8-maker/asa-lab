@@ -111,9 +111,57 @@
   margin-left: 0;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  max-height: none;
+  padding: 0;
+  color: var(--ai-text);
   border-radius: 18px;
   border-color: color-mix(in srgb, var(--color-brand, #0877b3) 18%, var(--ai-border));
   background: color-mix(in srgb, var(--color-brand, #0877b3) 4%, var(--ai-surface));
+}
+.asa-ai-layout .asa-ai-rich-text .asa-ai-code-block[data-expanded] {
+  position: fixed;
+  inset: 16px;
+  width: calc(100vw - 32px);
+  max-width: none;
+  height: calc(100dvh - 32px);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+.asa-ai-layout .asa-ai-code-block::backdrop {
+  background: #071b2e80;
+}
+.asa-ai-layout .asa-ai-code-body {
+  position: relative;
+  height: 340px;
+  min-height: 180px;
+  max-height: 75vh;
+  resize: vertical;
+  overflow: hidden;
+}
+.asa-ai-layout .asa-ai-code-body::after {
+  content: '';
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background: repeating-linear-gradient(135deg, transparent 0 3px, #0877b366 3px 5px);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.asa-ai-layout .asa-ai-code-block[data-expanded] .asa-ai-code-body {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  resize: none;
+}
+.asa-ai-layout .asa-ai-code-block[data-expanded] .asa-ai-code-body::after {
+  display: none;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-actions {
   padding: 6px 8px;
@@ -191,7 +239,9 @@
   color: #4ade80;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block pre {
-  max-height: 340px;
+  height: 100%;
+  max-height: none;
+  box-sizing: border-box;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -200,14 +250,14 @@
   border-top-color: color-mix(in srgb, var(--color-brand, #0877b3) 15%, transparent);
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block[data-expanded] pre {
-  max-height: 75vh;
+  max-height: none;
 }
 .asa-ai-layout .asa-ai-rich-text .asa-ai-code-block pre:focus-visible {
   outline: 2px solid var(--color-brand, #0877b3);
   outline-offset: -3px;
 }
 .asa-ai-layout .asa-ai-code-preview {
-  height: 340px;
+  height: 100%;
   overflow: auto;
   background: white;
   border-top: 1px solid var(--ai-border);
@@ -233,7 +283,7 @@
   width: 100%;
 }
 .asa-ai-layout .asa-ai-code-block[data-expanded] .asa-ai-code-preview {
-  height: 75vh;
+  height: 100%;
 }
 .asa-ai-layout .asa-ai-preview-notice {
   padding: 8px 16px;

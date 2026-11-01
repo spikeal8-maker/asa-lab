@@ -4,7 +4,9 @@ import {
   createContext,
   isValidElement,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -53,6 +55,21 @@ function CodePre({ children }: { children?: ReactNode }): JSX.Element {
 
 function CodeCard({ children, pending }: { children: ReactNode; pending: boolean }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
+  const card = useRef<HTMLDialogElement>(null);
+  const modal = useRef(false);
+  useEffect(() => {
+    const dialog = card.current;
+    if (!dialog) return;
+    if (expanded) {
+      if (dialog.open) dialog.close();
+      dialog.showModal();
+      modal.current = true;
+    } else {
+      if (modal.current) dialog.close();
+      modal.current = false;
+      dialog.open = true;
+    }
+  }, [expanded]);
   const [showPreview, setShowPreview] = useState(true);
   const [zoom, setZoom] = useState(0.5);
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
@@ -75,7 +92,19 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const previewVisible = Boolean(preview && showPreview);
   const scale = file.name.endsWith('.svg') ? 1 : zoom;
   return (
-    <div className="asa-ai-code-block" data-expanded={expanded || undefined}>
+    <dialog
+      ref={card}
+      open
+      className="asa-ai-code-block"
+      data-expanded={expanded || undefined}
+      role={expanded ? 'dialog' : 'region'}
+      aria-label="Код и предпросмотр"
+      aria-modal={expanded || undefined}
+      onCancel={(event) => {
+        event.preventDefault();
+        setExpanded(false);
+      }}
+    >
       <div className="asa-ai-code-actions">
         <span className="asa-ai-code-format">
           <AiChatIcon name="file" size={16} />
@@ -129,7 +158,7 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
               value={zoom}
               onChange={(event) => setZoom(Number(event.target.value))}
             >
-              {[0.5, 0.75, 1].map((value) => (
+              {[0.25, 0.5, 0.75, 1].map((value) => (
                 <option key={value} value={value}>
                   {value * 100}%
                 </option>
@@ -169,8 +198,8 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
         <button
           type="button"
           aria-expanded={expanded}
-          aria-label={expanded ? 'Свернуть код' : 'Развернуть код'}
-          data-ai-tooltip={expanded ? 'Свернуть код' : 'Развернуть код'}
+          aria-label={expanded ? 'Вернуть в чат' : 'Открыть на всё окно'}
+          data-ai-tooltip={expanded ? 'Вернуть в чат · Esc' : 'Открыть на всё окно'}
           onClick={() => setExpanded(!expanded)}
         >
           <svg
@@ -194,43 +223,45 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
           </svg>
         </button>
       </div>
-      {previewVisible && (
-        <div
-          className="asa-ai-code-preview"
-          data-device={file.name.endsWith('.html') ? device : 'svg'}
-          style={
-            {
-              '--code-preview-scale': scale,
-              '--code-device-width': device === 'phone' ? '390px' : '1024px',
-            } as React.CSSProperties
-          }
-        >
-          <div className="asa-ai-preview-stage">
-            <iframe
-              key={String(running) + ':' + runId}
-              title={'Предпросмотр ' + (file.name.endsWith('.svg') ? 'SVG' : 'HTML')}
-              sandbox={running && file.name.endsWith('.html') ? 'allow-scripts' : ''}
-              allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; payment 'none'; usb 'none'; fullscreen 'none'"
-              referrerPolicy="no-referrer"
-              srcDoc={preview!}
-            />
+      <div className="asa-ai-code-body" aria-label="Область кода и предпросмотра">
+        {previewVisible && (
+          <div
+            className="asa-ai-code-preview"
+            data-device={file.name.endsWith('.html') ? device : 'svg'}
+            style={
+              {
+                '--code-preview-scale': scale,
+                '--code-device-width': device === 'phone' ? '390px' : '1024px',
+              } as React.CSSProperties
+            }
+          >
+            <div className="asa-ai-preview-stage">
+              <iframe
+                key={String(running) + ':' + runId}
+                title={'Предпросмотр ' + (file.name.endsWith('.svg') ? 'SVG' : 'HTML')}
+                sandbox={running && file.name.endsWith('.html') ? 'allow-scripts' : ''}
+                allow="camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none'; payment 'none'; usb 'none'; fullscreen 'none'"
+                referrerPolicy="no-referrer"
+                srcDoc={preview!}
+              />
+            </div>
           </div>
-        </div>
-      )}
-      <pre
-        hidden={previewVisible}
-        tabIndex={0}
-        role="region"
-        aria-label={'Код: ' + (language || 'текст')}
-      >
-        {children}
-      </pre>
+        )}
+        <pre
+          hidden={previewVisible}
+          tabIndex={0}
+          role="region"
+          aria-label={'Код: ' + (language || 'текст')}
+        >
+          {children}
+        </pre>
+      </div>
       {previewable && !pending && !preview && (
         <p className="asa-ai-preview-notice">
           Предпросмотр недоступен для этого блока. Код можно скопировать или скачать.
         </p>
       )}
-    </div>
+    </dialog>
   );
 }
 
