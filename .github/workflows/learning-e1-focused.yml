@@ -115,6 +115,12 @@ jobs:
           ASA_BLOCKS_UPSTREAM_ORIGIN: http://127.0.0.1:4613
         shell: bash
         run: node tools/testing/learning-e1-browser.mjs
+      - name: Measure accumulated Learning origin queries in disposable database
+        if: always() && matrix.batch == 'second'
+        timeout-minutes: 3
+        env:
+          ASA_LEARNING_CAPACITY_DIAGNOSTICS: '1'
+        run: node tools/testing/learning-origin-capacity.mjs after-browser
       - name: Show isolated Scratch host logs
         if: always()
         run: docker logs asa-lab-scratch-editor-learning-e1 || true
@@ -130,6 +136,7 @@ jobs:
             e2e/artifacts/learning
             e2e/artifacts/courses
             reports/playwright
+            reports/learning-origin-capacity
           retention-days: 14
 
   learning-e1:
