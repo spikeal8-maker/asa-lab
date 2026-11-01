@@ -72,6 +72,43 @@ describe('exact public artifact service', () => {
       /WORKSPACE|arduinoWorkspace|arduinoSerial|arduinoBaud/,
     );
   });
+  it('publishes sanitized blocks only from the immutable sketch and never from supplied public fields', async () => {
+    const { pool, service, row } = setup();
+    Object.assign(row.document_json.components[0]!, {
+      kind: 'visual',
+      componentTypeId: 'arduino-uno',
+      stateProperties: {
+        arduinoCodeMode: 'blocks',
+        arduinoSource: 'void setup(){}void loop(){}',
+        arduinoWorkspace: JSON.stringify({
+          blocks: { blocks: [{ type: 'asa_loop', x: 20, y: 20 }] },
+          password: 'secret',
+        }),
+        arduinoBlocks: 'FORGED',
+        arduinoSerialOpen: true,
+      },
+    });
+    const artifact = await service.read(pool, publication, revision);
+    expect(artifact).toMatchObject({
+      schemaVersion: 3,
+      components: [
+        {
+          stateProperties: {
+            arduinoBlocks: JSON.stringify({
+              blocks: { languageVersion: 0, blocks: [{ type: 'asa_loop', x: 20, y: 20 }] },
+            }),
+          },
+        },
+      ],
+    });
+    expect(JSON.stringify(artifact)).not.toMatch(
+      /secret|password|FORGED|arduinoWorkspace|arduinoSerial/,
+    );
+    Object.assign(row.document_json.components[0]!.stateProperties, { arduinoCodeMode: 'text' });
+    expect(
+      JSON.stringify(await new PublicArtifactService(registry()).read(pool, publication, revision)),
+    ).not.toContain('arduinoBlocks');
+  });
   it('does not invent default Blink when only Blockly workspace is published', async () => {
     const { pool, service, row } = setup();
     Object.assign(row.document_json.components[0]!, {

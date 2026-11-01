@@ -27,6 +27,7 @@ import { noteAuthoritativeMutationSession } from './mutation-session-proof.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 import { PublicArtifactService } from './public-project-artifact.js';
 import { publicationError, throwPublicationError } from './public-projects.errors.js';
+import { sendPublicAvatar, type PublicAvatarSource } from './public-avatar.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LICENSES = new Set(['reserved', 'public-domain', 'cc-by', 'cc-by-sa', 'cc-by-nc']);
@@ -66,6 +67,7 @@ interface PublicProjectRow {
   license: string;
   module_key: string;
   author_label: string;
+  author_avatar_url?: string | null;
   published_at: Date | string;
   preview_content_type: string | null;
   preview_width: number | null;
@@ -90,6 +92,7 @@ function publicProject(row: PublicProjectRow, canCopy: boolean) {
     license: row.license,
     moduleKey: row.module_key,
     authorLabel: row.author_label,
+    authorAvatarUrl: row.author_avatar_url ?? null,
     featured: row.featured === true,
     pinned: row.pinned === true,
     likeCount: Number(row.like_count ?? 0),
@@ -266,6 +269,8 @@ export class PublicProjectsController {
     @Query('module') moduleKey?: string,
     @Query('offset') offset?: string,
     @Query('limit') limit?: string,
+    @Query('catalog') catalog?: string,
+    @Query('sort') sort?: string,
   ) {
     if (query !== undefined && (typeof query !== 'string' || query.length > 120)) {
       throw publicationError('validation_error', 'Поисковый запрос слишком длинный.', 400);
@@ -275,9 +280,27 @@ export class PublicProjectsController {
     }
     const skip = boundedInteger(offset, 0, 0, 1000000);
     const take = boundedInteger(limit, 24, 1, 48);
+    if (catalog !== undefined && catalog !== 'projects')
+      throw publicationError('validation_error', 'Некорректный каталог.', 400);
+    if (
+      sort !== undefined &&
+      (catalog !== 'projects' || !['newest', 'oldest', 'likes', 'copies'].includes(sort))
+    )
+      throw publicationError('validation_error', 'Некорректная сортировка.', 400);
+    const readFunction =
+      catalog === 'projects'
+        ? 'public.public_projects_catalog_read'
+        : 'public.public_projects_read';
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
-      [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
+      `SELECT entry.*, public.project_publication_author_avatar(entry.publication_id,false)->>'url' AS author_avatar_url, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM ${readFunction}($1, $2, $3, $4, $5${catalog === 'projects' ? ', $6' : ''}) entry`,
+      [
+        null,
+        query?.trim() || null,
+        moduleKey ?? null,
+        take + 1,
+        skip,
+        ...(catalog === 'projects' ? [sort ?? 'newest'] : []),
+      ],
     );
     const page = result.rows.slice(0, take);
     const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, page);
@@ -292,7 +315,7 @@ export class PublicProjectsController {
   async detail(@Param('publicationId') publicationId: string) {
     requireUuid(publicationId);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
+      "SELECT entry.*, public.project_publication_author_avatar(entry.publication_id,false)->>'url' AS author_avatar_url, public.publication_like_count(entry.publication_id) AS like_count, public.publication_copy_count(entry.publication_id) AS copy_count, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry",
       [publicationId, null, null, 1, 0],
     );
     const row = result.rows[0];
@@ -314,6 +337,16 @@ export class PublicProjectsController {
     return {
       artifact: await this.artifactService.read(requirePool(this.pool), publicationId, revisionId),
     };
+  }
+
+  @Get(':publicationId/author-avatar')
+  async authorAvatar(@Param('publicationId') id: string, @Res() reply: FastifyReply) {
+    requireUuid(id);
+    const result = await requirePool(this.pool).query<{ source: PublicAvatarSource | null }>(
+      'SELECT public.project_publication_author_avatar($1,true) AS source',
+      [id],
+    );
+    return sendPublicAvatar(reply, result.rows[0]?.source);
   }
 
   @Get(':publicationId/image')

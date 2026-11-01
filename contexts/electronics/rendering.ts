@@ -5,3 +5,5 @@ export {
   spdtConnections,
   type SpdtThrow,
 } from './domain/switch-topology.js';
+
+export { arduinoBlockSupport } from './domain/arduino-block-support.js';

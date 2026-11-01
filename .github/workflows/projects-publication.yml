@@ -12,6 +12,7 @@ on:
       - 'migrations/**'
       - 'tests/portal/**'
       - 'e2e/student-project-policy.spec.ts'
+      - 'e2e/publication-comments.spec.ts'
       - 'e2e/public-projects.spec.ts'
       - 'e2e/public-project-electronics-viewer.spec.ts'
       - 'e2e/public-project-electronics-player.spec.ts'
@@ -34,6 +35,7 @@ on:
       - 'migrations/**'
       - 'tests/portal/**'
       - 'e2e/student-project-policy.spec.ts'
+      - 'e2e/publication-comments.spec.ts'
       - 'e2e/public-projects.spec.ts'
       - 'e2e/public-project-electronics-viewer.spec.ts'
       - 'e2e/public-project-electronics-player.spec.ts'
@@ -129,6 +131,7 @@ jobs:
           name: public-projects-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             e2e/artifacts/publication-likes
+            e2e/artifacts/publication-comments
             e2e/artifacts/public-projects-copy
             e2e/artifacts/public-project-admin-moderation
             e2e/artifacts/public-projects

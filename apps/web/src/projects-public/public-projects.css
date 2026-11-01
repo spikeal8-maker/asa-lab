@@ -15,7 +15,7 @@
 }
 .public-projects h1 {
   margin: 0;
-  font-size: clamp(24px, 2.5vw, 32px);
+  font-size: clamp(18px, 2vw, 24px);
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
@@ -68,10 +68,10 @@
 .public-projects-search {
   display: flex;
   align-items: center;
-  flex: 0 1 360px;
+  flex: 0 1 240px;
   min-width: 0;
   width: 100%;
-  max-width: 400px;
+  max-width: 260px;
   overflow: hidden;
   border: 1px solid var(--asa-slate-300);
   border-radius: 12px;
@@ -114,17 +114,23 @@
   outline-offset: -4px;
 }
 .public-projects-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
   min-width: 0;
   margin-bottom: 16px;
 }
 .public-projects-categories {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   max-width: 100%;
   overflow-x: auto;
-  padding: 6px 6px 12px;
-  scrollbar-width: thin;
+  padding: 6px;
+  scrollbar-width: none;
   overscroll-behavior-x: contain;
 }
 .public-projects-category {
@@ -197,7 +203,23 @@
   font-size: 12px;
 }
 .public-projects-order {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0 0 0 auto;
   white-space: nowrap;
+}
+.public-projects-order select {
+  width: 148px;
+  max-width: 100%;
+  padding: 8px 26px 8px 10px;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 10px;
+  background: white;
+  color: var(--asa-slate-700);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 .public-projects-state {
   padding: 30px 18px;
@@ -220,8 +242,8 @@
 }
 .public-project-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(4px, 1vw, 16px);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -240,7 +262,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   height: 100%;
   color: inherit;
   text-decoration: none;
@@ -253,7 +275,7 @@
   aspect-ratio: 4 / 3;
   margin: 0;
   border-radius: 11px 11px 0 0;
-  background: var(--asa-slate-100);
+  background: #fff;
 }
 .publication-preview img {
   display: block;
@@ -295,25 +317,17 @@
   object-fit: contain;
 }
 .public-project-card-cover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    rgb(8 21 34 / 82%),
-    transparent 42%,
-    transparent 65%,
-    rgb(8 21 34 / 80%)
-  );
+  content: none;
+}
+.publication-preview[data-module='electronics'] {
+  background: #fff;
 }
 .public-project-card-topline,
 .public-project-card-date,
-.public-project-card-marks,
-.public-project-card-meta {
+.public-project-card-marks {
   position: absolute;
   z-index: 1;
-  color: white;
+  color: #23485f;
 }
 .public-project-card-topline {
   top: 9px;
@@ -331,6 +345,11 @@
   gap: 6px;
   min-width: 0;
 }
+.public-project-author-caption {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
 .public-project-avatar {
   display: grid;
   flex: 0 0 24px;
@@ -346,15 +365,19 @@
   text-shadow: none;
 }
 .public-project-card .public-project-author {
-  color: white;
+  color: #23485f;
   margin: 0;
   overflow: hidden;
+  display: block;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.2;
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
-  text-shadow: 0 1px 3px #081522;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
 }
 .public-project-card .public-project-card-topline > .publication-module {
   flex: 0 0 auto;
@@ -366,24 +389,31 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: white;
+  color: #23485f;
   font-size: 11px;
   font-weight: 500;
-  text-shadow: 0 1px 3px #081522;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
 }
 .public-project-card-date {
-  top: 39px;
-  left: 9px;
-  right: 9px;
-  width: fit-content;
-  max-width: calc(100% - 18px);
-  padding: 2px 5px;
+  top: 100%;
+  left: 0;
+  width: max-content;
+  padding: 2px 0;
   border-radius: 4px;
-  background: rgb(8 21 34 / 85%);
-  font-size: 10px;
+  background: transparent;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
+  font-size: 9px;
   line-height: 1.4;
   opacity: 0;
   pointer-events: none;
+}
+.public-project-card .public-project-card-topline > .publication-module[data-module='electronics'] {
+  color: #08755b;
+  font-weight: 600;
 }
 .public-project-card-link:is(:hover, :focus-visible) .public-project-card-date {
   opacity: 1;
@@ -399,38 +429,49 @@
 .public-project-card-marks > span {
   font-size: 9px;
   line-height: 1.3;
-  text-shadow: 0 1px 3px #081522;
+  color: #23485f;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
 }
 .public-project-card-body {
   position: absolute;
   z-index: 2;
-  bottom: 34px;
+  bottom: 9px;
   left: 9px;
   right: 9px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .public-project-card-body h2 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  flex: 1;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-width: 0;
   margin: 0;
-  color: white;
+  color: #23485f;
   font-size: 14px;
   line-height: 1.35;
   font-weight: 600;
-  overflow-wrap: anywhere;
-  text-shadow: 0 1px 3px #081522;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
 }
 .public-project-card-meta {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 12px;
-  bottom: 9px;
-  right: 9px;
+  gap: 8px;
+  color: #23485f;
+  white-space: nowrap;
   font-size: 12px;
   line-height: 1.4;
+  text-shadow:
+    0 1px 2px #fff,
+    0 0 3px #fff;
 }
 .public-project-card-meta > span {
   display: flex;
@@ -440,14 +481,10 @@
 }
 .public-project-card-meta svg {
   flex-shrink: 0;
+  filter: drop-shadow(0 0 2px #fff);
 }
 .public-project-card-meta svg[fill='currentColor'] {
-  color: #d9fb7a;
-}
-@media (hover: none) {
-  .public-project-card-date {
-    opacity: 1;
-  }
+  color: #c83d68;
 }
 .publication-module {
   display: inline-block;
@@ -758,6 +795,25 @@
   margin-left: auto;
   margin-right: auto;
 }
+/* Only the community catalog fills wide screens; other portal pages keep
+   their own reading widths and the existing sidebar offsets. */
+.portal-shell > .portal-content.public-projects {
+  width: calc(100% - 300px);
+  max-width: none;
+}
+.portal-shell:has(.portal-sidebar.collapsed) > .portal-content.public-projects {
+  width: calc(100% - 132px);
+}
+.portal-shell.public-projects-guest > .portal-content.public-projects {
+  width: calc(100% - 32px);
+}
+@media (max-width: 1023px) {
+  .portal-shell > .portal-content.public-projects,
+  .portal-shell:has(.portal-sidebar.collapsed) > .portal-content.public-projects {
+    width: calc(100% - 32px);
+    margin-inline: auto;
+  }
+}
 .portal-shell.public-projects-guest .portal-header {
   grid-template-areas: 'brand public account';
   grid-template-columns: minmax(44px, 220px) minmax(max-content, 1fr) max-content;
@@ -790,17 +846,6 @@
   padding: 8px 12px;
   text-decoration: none;
 }
-@media (min-width: 360px) {
-  .public-project-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 900px) {
-  .public-project-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
-}
 @media (min-width: 1024px) {
   .public-project-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -812,12 +857,45 @@
     grid-column: 1;
   }
 }
-@media (min-width: 1280px) {
-  .public-project-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
 @media (max-width: 600px) {
+  .public-projects-order select {
+    width: 132px;
+  }
+  .public-project-card-topline {
+    top: 4px;
+    left: 4px;
+    right: 4px;
+    gap: 2px;
+  }
+  .public-project-card-identity {
+    gap: 2px;
+  }
+  .public-project-card-body {
+    bottom: 4px;
+    left: 4px;
+    right: 4px;
+    gap: 3px;
+  }
+  .public-project-card-meta {
+    gap: 3px;
+    font-size: 8px;
+  }
+  .public-project-card-meta > span {
+    gap: 1px;
+  }
+  .public-project-card-meta svg {
+    width: 8px;
+    height: 8px;
+  }
+  .public-project-card .public-project-card-topline > .publication-module {
+    max-width: 30%;
+    font-size: 7px;
+  }
+  .public-project-card-date {
+    padding: 0;
+    white-space: nowrap;
+    font-size: 7px;
+  }
   .public-projects {
     padding-top: 18px;
   }
@@ -828,14 +906,14 @@
     margin-bottom: 12px;
   }
   .public-projects-heading .public-projects-search {
-    flex-basis: 100%;
-    max-width: none;
+    flex-basis: 240px;
+    max-width: 260px;
   }
   .public-projects-heading p {
     font-size: 13px;
   }
   .public-project-card-body h2 {
-    font-size: 12px;
+    font-size: 9px;
   }
   .publication-module {
     font-size: 11px;
@@ -1002,10 +1080,10 @@
   overflow: hidden;
   border: 1px solid #cddbd8;
   border-radius: 14px;
-  background: #f6faf8;
+  background: #fff;
 }
 .public-electronics-viewer:fullscreen {
-  background: #f6faf8;
+  background: #fff;
   width: 100%;
   height: 100%;
   overflow: auto;
@@ -1178,54 +1256,231 @@
   }
 }
 
-/* Compact publication workspace: native player first, readable notes alongside. */
+/* Detail: native working area and useful project information share the first screen. */
 .portal-shell.public-projects-guest > .public-project-detail,
 .public-project-detail {
-  max-width: 1180px;
+  max-width: 1200px;
   margin-inline: auto;
 }
-.public-project-detail .public-project-heading h1 {
-  font-size: clamp(20px, 2vw, 26px);
-  line-height: 1.25;
+.public-project-detail .public-project-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
 }
-.public-project-detail .public-project-badges {
-  gap: 6px 12px;
+.public-project-detail .public-project-heading {
+  padding: 0;
+  border: 0;
+}
+.public-project-detail-topline {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  min-width: 0;
+}
+.public-project-detail-topline > .public-project-back {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--asa-slate-700);
+}
+.public-project-detail-topline > .public-project-title-group {
+  flex: 1;
+  min-width: 0;
+}
+.public-project-detail .public-project-heading h1 {
+  margin: 0;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--asa-ink-900);
+}
+.public-project-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  align-items: start;
+  gap: 28px;
+  min-width: 0;
+}
+.public-project-stage-column,
+.public-project-sidebar {
+  min-width: 0;
+}
+.public-project-sidebar {
+  display: grid;
+  gap: 24px;
+}
+.public-project-stage-column .public-project-viewer {
+  overflow: hidden;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 12px;
+  background: white;
+}
+.public-project-stage-column
+  :is(.public-electronics-viewer, .public-scratch-player, .publication-preview.is-detail) {
+  border: 0;
+  border-radius: 0;
+}
+.public-project-stage-column .public-electronics-scene {
+  height: clamp(320px, 45vw, 520px);
+}
+.public-project-stage-column .public-scratch-player:not(:fullscreen) iframe {
+  height: auto;
+  aspect-ratio: 4 / 3;
+  min-height: 360px;
+}
+.public-project-authorline {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--asa-slate-200);
+}
+.public-project-author-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.public-project-detail-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #e5f1f5;
+  color: #245369;
   font-size: 12px;
+  font-weight: 700;
+}
+.public-project-author-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 .public-project-detail .public-project-detail-author {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.public-project-avatar img,
+.public-project-detail-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.public-project-author-text time {
+  font-size: 12px;
+  color: var(--asa-slate-700);
 }
 .public-project-detail .publication-module {
-  padding: 2px 5px;
-  font-size: 11px;
+  padding: 0;
+  background: none;
+  color: var(--asa-slate-700);
+  font-size: 12px;
 }
-.public-project-detail .public-project-commandbar {
-  padding-block: 4px;
+.public-project-detail .public-project-about {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  padding: 0;
   border: 0;
-  gap: 8px;
+  background: none;
 }
-.public-project-commandbar :is(.btn-primary, .btn-secondary) {
-  font-size: 13px;
-  padding: 8px 12px;
-}
-.public-project-commandbar .public-project-copy {
-  min-width: 0;
-  margin: 0;
-}
-.public-project-about {
+.public-project-description-block {
+  display: grid;
   gap: 12px;
+  min-width: 0;
+}
+.public-project-description-block:empty {
+  display: none;
+}
+.public-project-detail .public-project-about h2 {
+  font-size: 15px;
+}
+.public-project-detail .public-project-description {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--asa-slate-700);
+}
+.public-project-description.is-collapsed {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
+}
+.public-project-description-toggle {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--asa-cyan-700);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.public-project-detail .public-project-tags {
+  gap: 6px 10px;
+}
+.public-project-detail .public-project-tags li {
+  padding: 0;
+  border: 0;
+  font-size: 12px;
+  color: var(--asa-slate-700);
+}
+.public-project-detail .public-project-tags li::before {
+  content: '#';
 }
 .public-project-metadata {
+  min-width: 0;
   font-size: 12px;
   color: var(--asa-slate-700);
 }
 .public-project-metadata > summary {
-  cursor: pointer;
   padding-block: 12px;
+  cursor: pointer;
+  line-height: 1.6;
 }
 .public-project-metadata .public-project-facts {
   display: grid;
   gap: 12px;
+}
+.public-project-detail .public-project-commandbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px 16px;
+  padding-block: 12px;
+  border-top: 0;
+  border-bottom: 1px solid var(--asa-slate-200);
+}
+.public-project-commandbar :is(button, a) {
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.public-project-commandbar .public-project-actions {
+  gap: 12px;
+}
+.public-project-commandbar .publication-like-button {
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+}
+.public-project-commandbar .publication-share > .btn-secondary {
+  border-color: transparent;
+  background: none;
+}
+.public-project-detail-copies {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--asa-slate-700);
 }
 .public-scratch-tools {
   position: absolute;
@@ -1248,25 +1503,36 @@
   margin: 0;
   font-size: 12px;
 }
-@media (min-width: 900px) {
-  .public-project-detail .public-project-layout.has-description {
-    grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
-    column-gap: 24px;
+@media (max-width: 899px) {
+  .public-project-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
   }
-  .public-project-detail .has-description .public-project-heading {
-    grid-column: 1 / -1;
+  .public-project-sidebar {
+    gap: 18px;
   }
-  .public-project-detail .has-description .public-project-viewer {
-    grid-column: 1;
-    grid-row: 2;
+  .public-project-authorline {
+    padding-bottom: 16px;
   }
-  .public-project-detail .has-description .public-project-commandbar {
-    grid-column: 1;
-    grid-row: 3;
+}
+@media (max-width: 600px) {
+  .public-project-detail .public-project-layout {
+    gap: 12px;
   }
-  .public-project-detail .has-description .public-project-about {
-    grid-column: 2;
-    grid-row: 2 / 4;
+  .public-project-detail-topline {
+    gap: 12px;
+  }
+  .public-project-detail-topline > .public-project-back {
+    font-size: 12px;
+  }
+  .public-project-stage-column .public-electronics-scene {
+    height: 340px;
+  }
+  .public-project-stage-column .public-scratch-player:not(:fullscreen) iframe {
+    min-height: 290px;
+  }
+  .public-project-detail .public-project-commandbar {
+    gap: 4px 12px;
   }
 }
 
@@ -1318,12 +1584,1122 @@
     display: inline;
   }
   .public-project-card .public-project-author {
-    font-size: 11px;
+    font-size: 8px;
   }
   .public-project-avatar {
-    flex-basis: 20px;
-    width: 20px;
-    height: 20px;
-    font-size: 8px;
+    flex-basis: 12px;
+    width: 12px;
+    height: 12px;
+    font-size: 6px;
+  }
+}
+
+/* Publication feedback remains visible beside the title, above the working area. */
+.public-project-detail .public-project-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px 24px;
+}
+.public-project-detail .public-project-heading .public-project-commandbar {
+  border: 0;
+  padding: 0;
+  justify-content: flex-end;
+}
+.public-project-detail .public-project-heading .public-project-actions {
+  flex-wrap: wrap;
+}
+.public-electronics-viewer {
+  position: relative;
+}
+.public-electronics-viewer > .public-electronics-code {
+  position: absolute;
+  z-index: 3;
+  inset: 64px 0 0 auto;
+  width: min(400px, 100%);
+  overflow: auto;
+  border-left: 1px solid var(--asa-slate-200);
+  box-shadow: -8px 0 24px rgb(0 0 0 / 8%);
+}
+.public-electronics-code-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.public-electronics-code-heading button {
+  min-width: 44px;
+  background: white;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 8px;
+  font-size: 22px;
+  cursor: pointer;
+}
+.public-electronics-code p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 899px) {
+  .public-project-detail .public-project-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .public-project-detail .public-project-heading .public-project-commandbar {
+    justify-content: flex-start;
+  }
+  .public-electronics-viewer > .public-electronics-code {
+    inset-block-start: 110px;
+  }
+}
+.public-electronics-viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.public-electronics-tools {
+  grid-area: 1 / 1;
+}
+.public-electronics-scene {
+  grid-area: 2 / 1;
+}
+.public-electronics-hint {
+  grid-area: 3 / 1;
+}
+.public-electronics-viewer > .public-electronics-code {
+  position: relative;
+  inset: auto;
+  grid-area: 2 / 1 / 3 / 2;
+  justify-self: end;
+  align-self: stretch;
+  min-width: 0;
+  max-height: 560px;
+}
+.public-electronics-code pre {
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Distinct social and project actions: no underlined counters or login label. */
+.public-project-heading .public-project-commandbar .publication-like-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 76px;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid #e8dce2;
+  border-radius: 14px;
+  background: #fff;
+  color: #b83360;
+  font-size: 16px;
+  font-weight: 650;
+  text-decoration: none;
+}
+.public-project-heading .publication-like-button:hover {
+  background: #fff0f5;
+  border-color: #d58aa5;
+}
+.public-project-heading .publication-like-button[aria-pressed='true'] {
+  background: #ffe6ee;
+}
+.public-project-heading .public-project-detail-copies {
+  min-height: 44px;
+  padding: 8px 12px;
+  gap: 7px;
+  border: 1px solid #dbe4ec;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 14px;
+}
+.public-project-heading .publication-share > .publication-share-compact {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid #dbe4ec;
+  border-radius: 12px;
+  background: white;
+  color: #38556a;
+}
+.public-project-heading .public-project-copy > .btn-secondary {
+  border-radius: 12px;
+  border: 1px solid #08779b;
+  background: #08779b;
+  color: white;
+  padding: 10px 16px;
+  font-size: 14px;
+}
+.public-project-heading .public-project-actions {
+  gap: 8px;
+}
+.public-project-heading .publication-share {
+  position: relative;
+}
+.public-project-heading .publication-share > [role='status'],
+.public-project-heading .publication-share-address {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: 100%;
+  width: min(280px, calc(100vw - 40px));
+  padding: 12px;
+  background: white;
+  border: 1px solid #dbe4ec;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px #162f4320;
+}
+.public-project-heading .publication-share-address {
+  top: calc(100% + 60px);
+}
+.publication-sign-in {
+  width: min(380px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 30px;
+  border: 1px solid #dbe4ec;
+  border-radius: 20px;
+  color: #243e52;
+  box-shadow: 0 20px 80px #132c4430;
+}
+.publication-sign-in::backdrop {
+  background: #16304866;
+}
+.publication-sign-in > svg {
+  color: #b83360;
+  width: 36px;
+  height: 36px;
+}
+.publication-sign-in h2 {
+  margin: 16px 0 8px;
+  font-size: 23px;
+}
+.publication-sign-in p {
+  font-size: 15px;
+  line-height: 1.6;
+}
+.publication-sign-in > :is(a, button:not(.publication-sign-in-close)) {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  text-align: center;
+  min-height: 44px;
+}
+.publication-sign-in-close {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: #f1f5f8;
+  color: inherit;
+  font-size: 24px;
+  cursor: pointer;
+}
+.public-electronics-code {
+  font-family: inherit;
+}
+.public-electronics-code pre {
+  padding: 14px;
+  border-radius: 10px;
+  background: #f1f5f8;
+  color: #23435a;
+  line-height: 1.7;
+  font-size: 13px;
+}
+.public-electronics-code-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e9ef;
+}
+.public-electronics-code h3 {
+  font-size: 13px;
+  color: #617689;
+  font-weight: 500;
+}
+
+.public-electronics-viewer > .public-electronics-code {
+  width: min(440px, 100%);
+}
+.public-arduino-blocks {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dde6ef;
+  border-radius: 10px;
+  background: #f5f8fc;
+}
+.public-arduino-blocks[hidden] {
+  display: none;
+}
+.public-arduino-blocks .blocklySvg {
+  background: #f5f8fc;
+}
+.public-arduino-blocks .blocklyMainBackground {
+  stroke: none;
+}
+
+/* Compact viewing controls; secondary tools expand beneath the main row on phones. */
+.public-project-detail .public-electronics-tools {
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 4px 8px;
+  min-height: 42px;
+}
+.public-project-detail .public-electronics-tools > span {
+  flex: 1;
+  font-size: 12px;
+}
+.public-electronics-secondary-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.public-project-detail .public-electronics-tools button {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.public-project-detail .public-electronics-tools button:hover {
+  background: #edf3f6;
+}
+.public-project-detail .public-electronics-tools [data-testid='public-electronics-start'] {
+  background: #e5f3ee;
+  color: #176447;
+  font-weight: 600;
+}
+.public-project-detail .public-electronics-tools output {
+  width: 44px;
+  font-size: 11px;
+}
+.public-project-detail .public-electronics-more,
+.public-code-label-short {
+  display: none;
+}
+.public-project-detail .public-project-heading .public-project-commandbar .publication-like-button {
+  min-height: 40px;
+  min-width: 66px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.public-project-heading .publication-like-button svg {
+  width: 22px;
+  height: 22px;
+}
+.public-project-heading .public-project-detail-copies {
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.public-project-heading .publication-share > .publication-share-compact {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+}
+.public-project-detail .public-project-heading {
+  align-items: center;
+}
+@media (max-width: 1100px) {
+  .public-project-detail .public-project-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .public-project-detail .public-project-sidebar {
+    grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+    gap: 24px;
+  }
+  .public-project-detail .public-project-authorline {
+    border-bottom: 0;
+    padding: 0;
+  }
+}
+@media (max-width: 600px) {
+  .public-project-detail .public-project-heading {
+    gap: 8px;
+  }
+  .public-project-detail .public-project-detail-topline {
+    display: grid;
+    gap: 4px;
+  }
+  .public-project-detail .public-project-detail-topline > .public-project-back {
+    min-height: 28px;
+    font-size: 12px;
+  }
+  .public-project-detail .public-project-heading h1 {
+    font-size: 21px;
+    line-height: 1.3;
+  }
+  .public-project-detail .public-electronics-tools {
+    min-height: 48px;
+    padding: 2px 6px;
+    justify-content: flex-start;
+  }
+  .public-project-detail .public-electronics-tools button {
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+  .public-project-detail .public-electronics-more {
+    display: block;
+    margin-left: auto;
+    min-width: 44px;
+  }
+  .public-project-detail .public-electronics-secondary-tools {
+    display: none;
+  }
+  .public-project-detail .public-electronics-secondary-tools.is-open {
+    display: flex;
+    flex: 1 1 100%;
+    justify-content: space-between;
+    border-top: 1px solid #e2e9ee;
+  }
+  .public-electronics-secondary-tools button {
+    min-width: 38px;
+  }
+  .public-code-label-full {
+    display: none;
+  }
+  .public-code-label-short {
+    display: inline;
+  }
+  .public-project-detail .public-electronics-scene {
+    height: 290px;
+  }
+  .public-project-detail .public-project-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .public-project-detail .public-project-authorline {
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e2e9ee;
+  }
+  .public-electronics-viewer > .public-electronics-code {
+    width: 100%;
+    max-height: none;
+    padding: 12px;
+  }
+  .public-arduino-blocks {
+    height: 340px;
+  }
+  .public-project-detail .public-electronics-code-heading {
+    padding-bottom: 6px;
+  }
+  .public-project-detail .public-electronics-code-heading h2 {
+    font-size: 14px;
+  }
+  .public-electronics-code h3 {
+    margin-block: 8px;
+  }
+  .public-electronics-code-heading button {
+    width: 36px;
+    min-width: 36px;
+    min-height: 44px;
+    border: 0;
+  }
+  .public-project-detail
+    .public-project-heading
+    .public-project-commandbar
+    .publication-like-button {
+    min-height: 44px;
+  }
+  .public-project-heading .publication-share > .publication-share-compact {
+    min-height: 44px;
+    height: 44px;
+    width: 44px;
+  }
+  .public-project-heading .public-project-detail-copies {
+    min-height: 44px;
+  }
+}
+/* Match the native Scratch stage ratio plus its own 44px controls. */
+.public-project-stage-column .public-project-viewer {
+  container-type: inline-size;
+}
+.public-project-stage-column .public-scratch-player:not(:fullscreen) iframe {
+  min-height: 0;
+  height: calc(75cqw + 44px);
+  aspect-ratio: auto;
+}
+
+.publication-comments {
+  width: min(884px, 100%);
+  border-top: 1px solid #dce5ed;
+  padding-top: 24px;
+  margin-top: 8px;
+  min-width: 0;
+}
+.publication-comments-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.publication-comments-heading h2 {
+  font-size: 20px;
+  margin: 0;
+}
+.publication-comments-switch {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-block: 12px;
+  font-size: 14px;
+}
+.publication-comments-switch input {
+  min-height: 0;
+  width: 18px;
+  height: 18px;
+}
+.publication-comment-form label,
+.publication-comment-report label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  color: #42576a;
+}
+.publication-comment-form textarea,
+.publication-comment-report textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #cddbe6;
+  border-radius: 12px;
+  font: inherit;
+  resize: vertical;
+  min-height: 90px;
+}
+.publication-comment-form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+}
+.publication-comment-form-footer small {
+  color: #6d7e8b;
+}
+.publication-comment-form-footer button {
+  min-height: 40px;
+  padding: 8px 18px;
+}
+.publication-comment-list {
+  display: grid;
+  gap: 18px;
+  margin-top: 24px;
+}
+.publication-comment-thread {
+  min-width: 0;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4ebf0;
+}
+.publication-comment header,
+.admin-publication-comment header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  font-size: 14px;
+}
+.publication-comment header strong,
+.admin-publication-comment header strong {
+  overflow-wrap: anywhere;
+}
+.publication-comment time,
+.admin-publication-comment time {
+  color: #6d7e8b;
+  font-size: 12px;
+}
+.publication-comment-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.65;
+  margin-block: 10px;
+}
+.publication-comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+.publication-comment-actions button,
+.publication-comment-link {
+  border: 0;
+  background: transparent;
+  padding: 6px 0;
+  min-height: 36px;
+  color: #39667f;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.publication-comment-actions button:disabled,
+.publication-comment-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.publication-comment-tombstone,
+.publication-comments-access,
+.publication-comments-empty {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #6d7e8b;
+}
+.publication-comment-replies {
+  margin-top: 12px;
+  margin-left: 22px;
+  padding-left: 18px;
+  border-left: 2px solid #e0eaf0;
+  display: grid;
+  gap: 16px;
+}
+.publication-comment-report {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.publication-comment-reply-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block: 8px;
+  font-size: 13px;
+}
+.publication-comment-reply-target button {
+  background: none;
+  border: 0;
+  color: #39667f;
+  min-height: 40px;
+}
+@media (max-width: 600px) {
+  .publication-comments {
+    padding-top: 18px;
+  }
+  .publication-comment-replies {
+    margin-left: 6px;
+    padding-left: 12px;
+  }
+  .publication-comment-actions button,
+  .publication-comment-link {
+    min-height: 44px;
+  }
+  .publication-comments-heading h2 {
+    font-size: 18px;
+  }
+}
+/* Publication discussion: quiet cards, explicit primary reactions, contextual tools. */
+.publication-comments-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.publication-comments-tools select {
+  font: inherit;
+  font-size: 13px;
+  color: #486378;
+  background: #fff;
+  border: 1px solid #dce6ed;
+  border-radius: 10px;
+  padding: 9px 28px 9px 11px;
+  min-height: 40px;
+  max-width: 100%;
+}
+.publication-comment {
+  padding: 18px;
+  border: 1px solid #e1e9f0;
+  border-radius: 16px;
+  background: #fff;
+  min-width: 0;
+}
+.publication-comment.is-reply {
+  background: #f8fbfd;
+  border-color: #e9eff4;
+}
+.publication-comment.is-pinned {
+  border-color: #aacbdc;
+  background: #f4fbff;
+  box-shadow: 0 3px 14px #244c6810;
+}
+.publication-comment-thread {
+  border: 0;
+  padding: 0;
+}
+.publication-comment-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  background: #e7f0f5;
+  color: #38738c;
+  font-size: 13px;
+  font-weight: 700;
+}
+.publication-comment header {
+  gap: 8px;
+  align-items: center;
+}
+.publication-comment header time {
+  margin-left: auto;
+}
+.publication-comment-pin-label {
+  border-radius: 6px;
+  color: #366b82;
+  background: #deedf6;
+  font-size: 11px;
+  padding: 4px 7px;
+}
+.publication-comment-body {
+  margin-block: 13px;
+  line-height: 1.65;
+}
+.publication-comment-actions {
+  gap: 12px;
+}
+.publication-comment-actions .publication-comment-heart {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 48px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  color: #7a8697;
+}
+.publication-comment-actions .publication-comment-heart:hover {
+  background: #fff1f4;
+  color: #ce5274;
+}
+.publication-comment-actions .publication-comment-heart[aria-pressed='true'] {
+  color: #d2446d;
+  background: #fff0f5;
+}
+.publication-comment-actions .publication-comment-heart:disabled {
+  opacity: 0.45;
+}
+.publication-comment-menu {
+  position: relative;
+  margin-left: auto;
+}
+.publication-comment-menu summary {
+  cursor: pointer;
+  list-style: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  min-height: 36px;
+  font-weight: 700;
+  color: #6c8193;
+  border-radius: 9px;
+  font-size: 20px;
+}
+.publication-comment-menu summary::-webkit-details-marker {
+  display: none;
+}
+.publication-comment-menu summary:hover {
+  background: #edf3f8;
+}
+.publication-comment-menu[open] > div {
+  position: absolute;
+  z-index: 8;
+  right: 0;
+  top: 100%;
+  width: 168px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #dde7ee;
+  box-shadow: 0 10px 30px #19374c20;
+  border-radius: 12px;
+  display: grid;
+}
+.publication-comment-menu[open] > div button {
+  text-align: left;
+  padding: 9px 10px;
+  min-height: 40px;
+  border-radius: 7px;
+}
+.publication-comment-menu[open] > div button:hover {
+  background: #f1f6fa;
+}
+.publication-comment-replies {
+  border: 0;
+  margin: 10px 0 0 24px;
+  padding: 0;
+  gap: 10px;
+}
+.publication-comment-thread > .publication-comment-link {
+  margin-left: 18px;
+}
+.public-project-heading .public-project-commandbar .publication-like-button {
+  min-height: 44px;
+  min-width: 70px;
+  border-radius: 22px;
+  border-color: #e6e9ef;
+  color: #a95570;
+  box-shadow: 0 2px 6px #263c4910;
+  font-size: 14px;
+  transition:
+    background 0.16s,
+    color 0.16s,
+    border-color 0.16s;
+}
+.publication-like-button svg {
+  width: 23px;
+  height: 23px;
+}
+.public-project-heading .publication-like-button[aria-pressed='true'] {
+  color: #d43c68;
+  background: #fff0f5;
+  border-color: #f0b9ca;
+}
+.public-project-heading .publication-share > .publication-share-compact {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #61768a;
+}
+.public-project-heading .publication-share > .is-copied {
+  color: #158166;
+  background: #e7f7ef;
+  border-color: #b0deca;
+}
+.public-project-copy {
+  position: relative;
+}
+.public-project-copy > .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.publication-copy-plus {
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 400;
+}
+.publication-copy-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #ffffff60;
+  border-top-color: white;
+  border-radius: 50%;
+}
+.publication-copy-success > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #b5decc;
+  background: #eaf7f0;
+  color: #207455;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-height: 44px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+.publication-copy-check {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2a9369;
+  color: white;
+  font-size: 13px;
+}
+.publication-copy-receipt {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(270px, calc(100vw - 40px));
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #cee4d9;
+  border-radius: 13px;
+  padding: 14px;
+  z-index: 8;
+  box-shadow: 0 7px 25px #193b4b20;
+}
+.publication-copy-receipt strong {
+  display: block;
+  font-size: 13px;
+  color: #207455;
+}
+.publication-copy-receipt small {
+  display: block;
+  font-size: 12px;
+  color: #617b89;
+  line-height: 1.5;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .publication-like-button[aria-pressed='true'] svg,
+  .publication-comment-heart[aria-pressed='true'] svg {
+    animation: publication-heart-pop 0.28s ease-out;
+  }
+  .publication-share.is-copied svg,
+  .publication-share > .is-copied svg,
+  .publication-copy-check {
+    animation: publication-heart-pop 0.22s ease-out;
+  }
+  .publication-copy-spinner {
+    animation: publication-copy-spin 0.8s linear infinite;
+  }
+  @keyframes publication-heart-pop {
+    0% {
+      transform: scale(0.75);
+    }
+    65% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes publication-copy-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+@media (max-width: 600px) {
+  .publication-comments-heading {
+    align-items: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .publication-comments-tools {
+    gap: 12px;
+  }
+  .publication-comment {
+    padding: 14px;
+    border-radius: 13px;
+  }
+  .publication-comment header time {
+    flex-basis: calc(100% - 40px);
+    margin-left: 40px;
+    margin-top: -8px;
+  }
+  .publication-comment-pin-label {
+    margin-left: 40px;
+  }
+  .publication-comment-replies {
+    margin-left: 10px;
+  }
+  .publication-comment-menu summary {
+    min-height: 44px;
+    width: 44px;
+  }
+}
+.publication-comments-tools {
+  flex-wrap: nowrap;
+}
+.publication-comments-tools select {
+  width: auto;
+  flex: 0 1 auto;
+}
+.public-project-heading .publication-share > [role='status'].sr-only {
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  box-shadow: none;
+}
+/* Compact discussion: replies stay in their original thread, with one composer. */
+.publication-comment-avatar {
+  overflow: hidden;
+}
+.publication-comment-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.publication-comment {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+.publication-comment header {
+  gap: 5px 7px;
+  min-height: 26px;
+}
+.publication-comment-avatar {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  font-size: 11px;
+}
+.publication-comment header strong {
+  font-size: 13px;
+  line-height: 1.3;
+}
+.publication-comment header time {
+  margin-left: auto;
+  margin-top: 0;
+  flex-basis: auto;
+  font-size: 11px;
+}
+.publication-comment-pin-label {
+  margin-left: 0;
+  font-size: 10px;
+  padding: 2px 5px;
+}
+.publication-comment .publication-comment-body {
+  margin: 5px 0 1px 33px;
+  line-height: 1.45;
+  font-size: 13px;
+}
+.publication-comments .publication-comment-actions {
+  margin-left: 27px;
+  gap: 8px;
+}
+.publication-comments .publication-comment-actions button,
+.publication-comment-menu summary {
+  min-height: 30px;
+  padding-block: 3px;
+}
+.publication-comments .publication-comment-actions .publication-comment-reply-button {
+  font-weight: 600;
+  color: #39728c;
+  padding-inline: 7px;
+  border-radius: 7px;
+}
+.publication-comment-reply-button:hover {
+  background: #edf5fa;
+}
+.publication-comments .publication-comment-actions .publication-comment-heart {
+  padding: 3px 6px;
+  min-width: 40px;
+  gap: 5px;
+}
+.publication-comment-heart svg {
+  width: 17px;
+  height: 17px;
+}
+.publication-comment-menu summary {
+  width: 30px;
+}
+.publication-comment.is-reply {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.publication-comment-replies {
+  margin: 5px 0 0 33px;
+  padding-left: 8px;
+  border-left: 1px solid #dce6ee;
+  gap: 4px;
+}
+.publication-comment-thread > .publication-comment-link {
+  margin-left: 39px;
+  min-height: 28px;
+  padding-block: 2px;
+  font-size: 11px;
+}
+.publication-comment-list {
+  gap: 10px;
+  margin-top: 14px;
+}
+.publication-comment-form {
+  margin-block: 12px;
+}
+.publication-comment-compose-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.publication-comment-compose-row textarea {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  min-height: 40px;
+  max-height: 144px;
+  resize: none;
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 13px;
+  line-height: 20px;
+  box-sizing: border-box;
+}
+.publication-comments .publication-comment-compose-row > button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.publication-comment-length {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  margin-top: 4px;
+  color: #728394;
+}
+.publication-comment-form.is-inline-reply {
+  margin: 7px 0 8px 33px;
+}
+.publication-comment-reply-target {
+  margin: 0 0 3px;
+  font-size: 12px;
+}
+.publication-comment-reply-target button {
+  min-height: 28px;
+  padding-block: 0;
+  font-size: 12px;
+}
+.publication-comments > p[role='status'] {
+  margin-block: 6px;
+  font-size: 12px;
+  color: #348268;
+}
+@media (max-width: 600px) {
+  .publication-comment {
+    padding: 8px 10px;
+  }
+  .publication-comment header {
+    gap: 4px 6px;
+  }
+  .publication-comment header time {
+    margin-left: auto;
+    margin-top: 0;
+    flex-basis: auto;
+  }
+  .publication-comment .publication-comment-body {
+    margin-left: 32px;
+  }
+  .publication-comments .publication-comment-actions {
+    margin-left: 26px;
+  }
+  .publication-comments .publication-comment-actions button,
+  .publication-comment-menu summary {
+    min-height: 36px;
+  }
+  .publication-comment-menu summary {
+    width: 36px;
+  }
+  .publication-comment-replies {
+    margin-left: 20px;
+    padding-left: 4px;
+  }
+  .publication-comment-form.is-inline-reply {
+    margin-left: 20px;
   }
 }

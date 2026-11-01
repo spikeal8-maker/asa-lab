@@ -2,12 +2,14 @@ export const PUBLIC_PROJECT_MODULES = [
   { value: 'three-d', label: '3D-моделирование' },
   { value: 'electronics', label: 'Электроника' },
   { value: 'blocks', label: 'Блочное программирование' },
-  { value: 'chess', label: 'Шахматы' },
-  { value: 'checkers', label: 'Шашки' },
 ] as const;
 
 export function publicModuleName(key: string): string {
-  return PUBLIC_PROJECT_MODULES.find((entry) => entry.value === key)?.label ?? key;
+  return (
+    PUBLIC_PROJECT_MODULES.find((entry) => entry.value === key)?.label ??
+    ({ chess: 'Шахматы', checkers: 'Шашки' } as Record<string, string>)[key] ??
+    key
+  );
 }
 
 export const PUBLIC_PROJECT_LICENSES = [
