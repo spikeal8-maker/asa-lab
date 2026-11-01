@@ -147,6 +147,44 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 describe('committed piezo consumers without editor reconciliation', () => {
+  it('does not subscribe or traverse runtime results when the document has no sounder', async () => {
+    const subscribe = vi.spyOn(port, 'subscribe');
+    const componentsRead = vi.fn(() => []);
+    function SilentCircuit() {
+      usePiezoAudio({ ...schematic, components: [] }, port, true);
+      return null;
+    }
+    await act(async () => root.render(createElement(SilentCircuit)));
+    expect(subscribe).not.toHaveBeenCalled();
+    const next = observation();
+    Object.defineProperty(next.result, 'components', { get: componentsRead });
+    await act(async () => port.setObservation(next));
+    expect(componentsRead).not.toHaveBeenCalled();
+    expect(oscillators).toHaveLength(0);
+  });
+
+  it('does not rebuild audio result maps for non-committed optical events', async () => {
+    function AudioOnly() {
+      usePiezoAudio(schematic, port, true);
+      return null;
+    }
+    await act(async () => root.render(createElement(AudioOnly)));
+    const next = observation();
+    const components = next.result.components;
+    const reads = vi.fn(() => components);
+    Object.defineProperty(next.result, 'components', { get: reads });
+    await act(async () => port.setObservation(next));
+    const committedReads = reads.mock.calls.length;
+    expect(committedReads).toBeGreaterThan(0);
+    for (let i = 0; i < 20; i++) {
+      await act(async () => port.setPreparation({ token: String(i), assets: new Map() }));
+      await act(async () => port.setObservation(observation(440), true));
+    }
+    expect(reads).toHaveBeenCalledTimes(committedReads);
+    await act(async () => port.setObservation(null));
+    for (const oscillator of oscillators) expect(oscillator.stop).toHaveBeenCalledTimes(1);
+  });
+
   it('delivers asynchronous commits to both real visuals and audio with bounded voices and subscriptions', async () => {
     const subscribe = vi.spyOn(port, 'subscribe');
     await act(async () => root.render(createElement(Probe)));

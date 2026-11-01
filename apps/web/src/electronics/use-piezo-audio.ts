@@ -46,8 +46,21 @@ export function usePiezoAudio(
   useEffect(() => {
     // Subscribe at the committed-result seam: worker frames must not depend on
     // an unrelated editor render, or consume a proposed optical vector.
+    if (
+      !simulationRunning ||
+      !document?.components.some((component) => component.kind === 'piezo')
+    ) {
+      stopAllVoices();
+      return;
+    }
+    let previousResult: SolveResult | null | undefined;
+    let previousVisibility: DocumentVisibilityState | undefined;
     const update = () => {
-      const result = presentation.getSnapshot().committed?.result ?? null;
+      const result = presentation.getCommittedSnapshot()?.result ?? null;
+      const visibility = globalThis.document.visibilityState;
+      if (result === previousResult && visibility === previousVisibility) return;
+      previousResult = result;
+      previousVisibility = visibility;
       reconcilePiezoAudio(document, result, simulationRunning);
     };
     update();

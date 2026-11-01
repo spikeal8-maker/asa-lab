@@ -399,7 +399,17 @@ export function WorkbenchDiagnosticIndicators({
   controller: WorkbenchDiagnosticIndicatorsController;
   components: readonly SchematicComponent[];
 }): JSX.Element {
-  const c = useCommittedWorkbenchPresentation(controller);
+  const c = useCommittedWorkbenchPresentation(controller, (projection) =>
+    JSON.stringify([
+      [...projection.diagnosticsByComponent],
+      orderedComponents
+        .filter((component) => component.kind === 'rgb-led')
+        .map(
+          (component) =>
+            projection.runtimePresentationResultByComponent.get(component.id)?.presentationState,
+        ),
+    ]),
+  );
   const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
   return (
     <>
@@ -443,7 +453,15 @@ export function WorkbenchComponentBody({
   controller: WorkbenchComponentBodyController;
   component: SchematicComponent;
 }): JSX.Element | null {
-  const c = useCommittedWorkbenchPresentation(controller);
+  const c = useCommittedWorkbenchPresentation(controller, (projection) => {
+    const result = projection.runtimePresentationResultByComponent.get(component.id);
+    return JSON.stringify([
+      result?.presentationState,
+      result?.sourceOperatingMode,
+      projection.errorDiagnosticComponentIds.has(component.id),
+      (projection.diagnosticsByComponent.get(component.id) ?? []).map((item) => item.code),
+    ]);
+  });
   // This is the parent-render fallback. Live native/ordinary visual leaves own
   // their observation; do not re-read the parent's stale callback on every commit.
   const visualState = useMemo(

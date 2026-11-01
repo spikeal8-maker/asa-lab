@@ -56,17 +56,20 @@ export type CommittedPresentationController = Pick<
 
 export function useCommittedWorkbenchPresentation<T extends CommittedPresentationController>(
   controller: T,
+  select?: (projection: ReturnType<typeof projectResult>) => string,
 ): T {
-  const observation = useCommittedObservation(
-    controller.simulationRunning ? controller.nativeOpticalPresentation : null,
+  const presentation = controller.simulationRunning ? controller.nativeOpticalPresentation : null;
+  const getSnapshot = () => {
+    const result = presentation?.getCommittedSnapshot()?.result ?? null;
+    return select ? select(committedResultProjection(result)) : result;
+  };
+  useSyncExternalStore(presentation?.subscribe ?? idleSubscribe, getSnapshot, emptyObservation);
+  const projection = committedResultProjection(
+    presentation?.getCommittedSnapshot()?.result ?? null,
   );
-  const projection = committedResultProjection(observation?.result ?? null);
   return useMemo(
-    () =>
-      !controller.simulationRunning || !controller.nativeOpticalPresentation
-        ? controller
-        : { ...controller, ...projection },
-    [controller, projection],
+    () => (!presentation ? controller : { ...controller, ...projection }),
+    [controller, presentation, projection],
   );
 }
 

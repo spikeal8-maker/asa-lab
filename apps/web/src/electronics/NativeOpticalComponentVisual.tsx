@@ -106,8 +106,13 @@ export function ProductionComponentVisual(props: ComponentProps<typeof OwnerVisu
 /** Ordinary electrical visuals share the committed result, never a proposed optical frame. */
 function CommittedComponentVisual(props: ComponentProps<typeof OwnerVisual>) {
   const port = useContext(Context);
-  const observation = useCommittedObservation(props.simulationRunning ? port : null);
-  if (!port || !props.simulationRunning) return <OwnerVisual {...props} />;
+  // This existing asset has no runtime-result branch in OwnerVisual. Unknown
+  // assets keep the live subscription, including future dynamic components.
+  const passiveAsset = props.entry.key === 'resistor-axial';
+  const observation = useCommittedObservation(
+    props.simulationRunning && !passiveAsset ? port : null,
+  );
+  if (!port || !props.simulationRunning || passiveAsset) return <OwnerVisual {...props} />;
   const result = committedResultProjection(observation?.result ?? null).resultByComponent.get(
     props.component.id,
   );

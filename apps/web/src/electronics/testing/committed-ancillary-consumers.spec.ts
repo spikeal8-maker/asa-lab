@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { act, createElement } from 'react';
+import { act, createElement, Profiler } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -294,6 +294,77 @@ describe('committed ancillary result consumers', () => {
       schematic.components[0],
     );
     expect(controller.selectComponent).toHaveBeenCalledWith('led', true);
+  });
+
+  it('does not reconcile a passive resistor visual for committed electrical-only frames', async () => {
+    const passive = {
+      id: 'passive',
+      kind: 'resistor' as const,
+      componentTypeId: 'resistor-axial',
+      value: 220,
+      position: { x: 0, y: 0 },
+    };
+    const entry = catalogEntry(passive)!;
+    const renders = vi.fn();
+    await act(async () =>
+      root.render(
+        createElement(
+          NativeOpticalProvider,
+          { port },
+          createElement(
+            'svg',
+            null,
+            createElement(
+              Profiler,
+              { id: 'passive', onRender: renders },
+              createElement(ProductionComponentVisual, {
+                entry,
+                component: passive,
+                width: 80,
+                height: 40,
+                visualState: 'default',
+                simulationRunning: true,
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+    const initial = renders.mock.calls.length;
+    for (let i = 0; i < 20; i++) await act(async () => port.setObservation(observation(false)));
+    expect(renders).toHaveBeenCalledTimes(initial);
+  });
+
+  it('does not rebuild component body JSX for unchanged body metadata across numeric commits', async () => {
+    const reads = vi.fn(() => 0);
+    controller = { ...controller, componentLedBrightness: reads };
+    await act(async () => root.render(createElement(Probe)));
+    await act(async () => port.setObservation(observation(false)));
+    const initialReads = reads.mock.calls.length;
+    for (let i = 0; i < 20; i++) {
+      const next = observation(false);
+      await act(async () =>
+        port.setObservation({
+          ...next,
+          result: {
+            ...next.result,
+            components: next.result.components.map((item) => ({ ...item, current: i / 100 })),
+          },
+          frame: { ...next.frame, token: String(i), atMicroseconds: i * 25_000 },
+        }),
+      );
+    }
+    expect(reads).toHaveBeenCalledTimes(initialReads);
+    await act(async () => port.setObservation(observation(true)));
+    expect(
+      host
+        .querySelector('[data-testid="schematic-component"]')
+        ?.getAttribute('data-presentation-state'),
+    ).toBe('failed');
+    expect(host.querySelector('[data-testid="led-burnout-explosion"]')).not.toBeNull();
+    expect(
+      host.querySelector('[data-testid="schematic-component"]')?.getAttribute('data-diagnostics'),
+    ).toBe('led_burnout');
   });
 
   it('updates real ancestor diagnostics, visible explosion, inspector measurements and ordinary visuals without a parent render', async () => {
