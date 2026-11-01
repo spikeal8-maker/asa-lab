@@ -37,6 +37,11 @@ try {
       ['seat-list', 'SELECT context,evidence FROM public.learning_origin_learner_list($1,NULL)', [candidate.seatId], true],
       ['account-list', 'SELECT context,evidence FROM public.learning_origin_learner_list(NULL,$1)', [candidate.accountId], true],
     ];
+    // The first observed browser failure is a new learner with no own origin:
+    // measure that empty list too, rather than only an already-started project.
+    const newest=(await client.query(`SELECT id FROM public.classroom_student_seats
+      WHERE status='active' ORDER BY created_at DESC LIMIT 1`)).rows[0];
+    if (newest) cases.push(['newest-seat-list','SELECT context,evidence FROM public.learning_origin_learner_list($1,NULL)',[newest.id],true]);
     for (const name of ['learning_linked_project_access','learning_origin_work_context_for_project']) {
       const body = (await client.query(`SELECT prosrc,proargnames FROM pg_proc
         WHERE oid=('public.' || $1 || '(uuid,uuid)')::regprocedure`, [name])).rows[0];
