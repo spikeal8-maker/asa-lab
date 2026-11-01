@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement, useLayoutEffect, type ComponentProps } from 'react';
+import { act, createElement, StrictMode, useLayoutEffect, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlocksEditor } from '../BlocksEditor';
@@ -132,6 +132,7 @@ let container: HTMLDivElement | null = null;
 async function renderEditor(
   overrides: Partial<ComponentProps<typeof BlocksEditor>> = {},
   onLayout?: (iframe: HTMLIFrameElement) => void,
+  strictMode = false,
 ): Promise<HTMLIFrameElement> {
   container = document.createElement('div');
   document.body.append(container);
@@ -156,7 +157,8 @@ async function renderEditor(
     return editor;
   }
   await act(async () => {
-    root?.render(onLayout ? createElement(CommitProbe) : editor);
+    const rendered = onLayout ? createElement(CommitProbe) : editor;
+    root?.render(strictMode ? createElement(StrictMode, null, rendered) : rendered);
     await flushAsync();
   });
   const iframe = container.querySelector('iframe');
@@ -198,16 +200,76 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
-  it('bootstraps when iframe load completes during commit before passive effects', async () => {
+  it('starts cached runtime navigation only after DOM insertion and identity layout', async () => {
     const fetchMock = vi.fn<typeof fetch>(
       async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
     );
     vi.stubGlobal('fetch', fetchMock);
+    const appendChild = Node.prototype.appendChild;
+    const srcSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src')!.set!;
+    let loaded = false;
+    let ancestorLayoutComplete = false;
+    let navigatedDuringInsertion = false;
     let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    vi.spyOn(Node.prototype, 'appendChild').mockImplementation(function <T extends Node>(
+      this: Node,
+      child: T,
+    ): T {
+      const result = appendChild.call(this, child) as T;
+      const frame =
+        child instanceof HTMLIFrameElement
+          ? child
+          : child instanceof Element
+            ? child.querySelector('iframe')
+            : null;
+      if (!loaded && frame?.isConnected) {
+        loaded = true;
+        navigatedDuringInsertion = frame.hasAttribute('src');
+        frame.dispatchEvent(new Event('load'));
+      }
+      return result;
+    });
+    vi.spyOn(HTMLIFrameElement.prototype, 'src', 'set').mockImplementation(function (
+      this: HTMLIFrameElement,
+      value: string,
+    ) {
+      expect(ancestorLayoutComplete).toBe(true);
+      srcSetter.call(this, value);
+      postMessage = spyOnPostMessage(this);
+      // A cached real navigation may finish synchronously from the setter.
+      this.dispatchEvent(new Event('load'));
+    });
+    const iframe = await renderEditor({}, () => {
+      expect(loaded).toBe(true);
+      ancestorLayoutComplete = true;
+    });
+    expect(loaded).toBe(true);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/blocks/runtime-session')),
+    ).toHaveLength(1);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(navigatedDuringInsertion).toBe(false);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(
+      container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
+    ).toBe('ready');
+  });
+
+  it('ignores the initial blank load before passive effects and bootstraps the real runtime', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
+    vi.stubGlobal('fetch', fetchMock);
     const iframe = await renderEditor({}, (frame) => {
-      postMessage = spyOnPostMessage(frame);
+      expect(frame.hasAttribute('src')).toBe(false);
       frame.dispatchEvent(new Event('load'));
     });
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/blocks/runtime-session')),
+    ).toHaveLength(0);
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
     const grants = fetchMock.mock.calls.filter(([url]) =>
       String(url).endsWith('/blocks/runtime-session'),
     );
@@ -218,6 +280,42 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(
       container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
     ).toBe('ready');
+  });
+
+  it('reuses one real navigation through StrictMode replay and ignores load after disposal', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const srcSetter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src')!.set!;
+    let navigations = 0;
+    let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    vi.spyOn(HTMLIFrameElement.prototype, 'src', 'set').mockImplementation(function (
+      this: HTMLIFrameElement,
+      value: string,
+    ) {
+      navigations += 1;
+      srcSetter.call(this, value);
+      postMessage = spyOnPostMessage(this);
+      this.dispatchEvent(new Event('load'));
+    });
+    const iframe = await renderEditor({}, undefined, true);
+    expect(navigations).toBe(1);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(
+      container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
+    ).toBe('ready');
+    await act(async () => root?.unmount());
+    root = null;
+    const grantsBefore = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/blocks/runtime-session'),
+    ).length;
+    await fireLoad(iframe);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/blocks/runtime-session')),
+    ).toHaveLength(grantsBefore);
   });
 
   it('binds activity after ancestor identity layout even when frame load arrives during commit', async () => {
@@ -233,13 +331,13 @@ describe('BlocksEditor runtime session bootstrap', () => {
         return telemetryResponse(input, options) ?? jsonResponse(session());
       }),
     );
-    let postMessage!: ReturnType<typeof spyOnPostMessage>;
     const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR }, (frame) => {
       // React runs descendant layout effects before this ancestor identity proof.
       setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
-      postMessage = spyOnPostMessage(frame);
       frame.dispatchEvent(new Event('load'));
     });
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
     expect(initCalls(postMessage)).toHaveLength(1);
     const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
