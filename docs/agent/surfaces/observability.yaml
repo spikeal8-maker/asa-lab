@@ -10,6 +10,8 @@ surfaces:
         - apps/api/src/required-log-coverage.ts
         - apps/api/src/admin-logs.service.spec.ts
         - apps/api/src/admin-logs.worker.spec.ts
+        - tools/deployment/operational.py
+        - tools/deployment/test_operational.py
         - apps/web/src/admin/AdminLogsPage.tsx
         - docs/deployment/ADMIN_LOGS.md
         - docs/agent/contracts/observability.yaml

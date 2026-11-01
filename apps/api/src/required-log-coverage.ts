@@ -59,6 +59,7 @@ const BASE = [
   'metrics',
   'docker-lifecycle',
   'operations:updates',
+  'operations:backup',
   ...['api', 'web', 'scratch', 'postgres', 'minio'].map((id) => `${id}:recent`),
   ...Object.keys(databaseContract.sources).map((id) => `database-events:${id}`),
 ];

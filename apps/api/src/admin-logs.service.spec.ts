@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { mkdtemp, mkdir, readFile, rm, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import databaseContract from './database-diagnostic-contract.json';
 import { ApplicationLogStore } from './application-log-store.js';
 import { readLogCatalog, verifyNativeLogIntegrity, type LogCatalog } from './admin-logs.worker.js';
@@ -288,6 +289,7 @@ function fixture() {
     'metrics',
     'docker-lifecycle',
     'operations:updates',
+    'operations:backup',
     ...['api', 'web', 'scratch', 'postgres', 'minio'].map((id) => `${id}:recent`),
     ...Object.keys(databaseContract.sources).map((id) => `database-events:${id}`),
     'linux:journal',
@@ -350,6 +352,87 @@ function host(catalog: ReturnType<typeof fixture>) {
 const healthyNative = { state: 'ok' as const, reason: 'fixture_verified' };
 
 describe('finite required connected-source coverage', () => {
+  it.each(['unconfigured', 'fresh', 'stale', 'invalid'])(
+    'reads the real Python publisher contract with %s backup evidence',
+    async (mode) => {
+      const root = await mkdtemp(join(tmpdir(), 'asa-publisher-contract-'));
+      try {
+        // Core adapters are represented by controlled healthy source observations.
+        // Operational receipt parsing, source states, declaration and catalog
+        // publication use their real Python implementation. Only the privileged
+        // external-file read is replaced, so this runs on Windows without root.
+        const script = `
+import datetime as dt
+import json
+import os
+from pathlib import Path
+import sys
+from unittest.mock import patch
+sys.path.insert(0, str(Path.cwd() / 'tools'))
+from collect_logs import Collector, DATABASE_DIAGNOSTICS, normalize, now
+from deployment import operational as op
+root, mode = Path(sys.argv[1]), sys.argv[2]
+settings = {} if mode == 'unconfigured' else {'backupSuccessReceipt': str(root / 'receipt.json')}
+config = {'operationalSources': settings}
+c = Collector(root, config)
+try:
+    op.append_operation(root, {'version': 1, 'operation': 'updates', 'status': 'succeeded',
+        'producer': 'manager', 'trigger': 'manual', 'at': now()})
+    op.operational_events(c, normalize, settings)
+    if mode != 'unconfigured':
+        completed = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2 if mode == 'stale' else 0)
+        receipt = {'format': 'asa-backup-success-v1', 'status': 'succeeded',
+            'completedAt': completed.isoformat(), 'archiveSha256': 'a' * 64,
+            'archiveBytes': 123, 'trigger': 'manual'}
+        if mode == 'invalid': receipt['archiveSha256'] = 'invalid'
+        with patch.object(op, 'private_file', return_value=json.dumps(receipt).encode()):
+            op.backup_event(c, normalize, settings)
+    policy = op.required_sources(config, DATABASE_DIAGNOSTICS['sources'], 'windows' if os.name == 'nt' else 'linux')
+    for rule in policy['sources']:
+        if not rule['source'].startswith('operations:'):
+            c.status(rule['source'], 'ok' if rule['applicable'] else 'unavailable',
+                'Controlled core adapter observation', now() if rule['requireThrough'] else None)
+    c.publish()
+finally:
+    c.db.close()
+`;
+        execFileSync(
+          process.platform === 'win32' ? 'python' : 'python3',
+          ['-c', script, root, mode],
+          {
+            timeout: 15000,
+            stdio: 'pipe',
+          },
+        );
+        const catalog = (await readLogCatalog(join(root, '.asa', 'diagnostics', 'store')))!;
+        const coverage = hostRequiredCoverage(catalog, {
+          state: 'ok',
+          checkedAt: new Date().toISOString(),
+        });
+        expect(
+          catalog.requiredSources?.sources.find((row) => row.source === 'operations:backup'),
+        ).toMatchObject({ applicable: true, requireThrough: false });
+        const backup = coverage.sources.find((row) => row.source === 'operations:backup');
+        expect(
+          coverage.sources.some((row) => row.reason === 'required_policy_source_missing'),
+        ).toBe(false);
+        expect(catalog.sources.find((row) => row.source === 'operations:backup')?.state).toBe(
+          mode === 'fresh' ? 'ok' : mode === 'invalid' ? 'error' : 'pending',
+        );
+        expect(backup).toMatchObject({
+          state: mode === 'fresh' ? 'ok' : 'incomplete',
+          reason:
+            mode === 'fresh' ? 'verified' : mode === 'invalid' ? 'source_error' : 'source_pending',
+        });
+        expect(combineRequiredCoverage(coverage, healthyNative).state).toBe(
+          mode === 'fresh' ? 'ok' : 'incomplete',
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+    20000,
+  );
   it('requires the complete configured set and native proof while keeping global-history limitations', () => {
     const coverage = host(fixture());
     expect(coverage.state).toBe('ok');

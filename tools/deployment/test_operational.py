@@ -235,6 +235,22 @@ class OperationalTests(unittest.TestCase):
         self.assertEqual(result['auditMaxAgeSeconds'],900)
         self.assertTrue(all(type(r['maxAgeSeconds']) is int and type(r['requireThrough']) is bool for r in result['sources']))
 
+    def test_unconfigured_backup_remains_declared_and_pending_until_a_verified_outcome(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c = Collector(Path(temp), {})
+            try:
+                op.operational_events(c, normalize, {})
+                c.publish()
+                catalog = json.loads((c.store/'catalog.json').read_text())
+                rule = next(row for row in catalog['requiredSources']['sources'] if row['source'] == 'operations:backup')
+                source = next(row for row in catalog['sources'] if row['source'] == 'operations:backup')
+                self.assertTrue(rule['applicable'])
+                self.assertFalse(rule['requireThrough'])
+                self.assertEqual(source['state'], 'pending')
+                self.assertIsNone(source['lastCollectedAt'])
+            finally:
+                c.db.close()
+
     def test_ai_rows_are_closed_before_sql_stdout_and_reconciled_changes_do_not_expose_native_keys(self):
         with tempfile.TemporaryDirectory() as temp:
             c=Collector(Path(temp),{}); c.postgres='synthetic'
