@@ -54,6 +54,7 @@ export function ElectronicsPublicationScene({
   const [runtime, setRuntime] = useState<PublicElectronicsRuntime | null>(null);
   const [message, setMessage] = useState('');
   const [codeOpen, setCodeOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const programs =
     artifact.schemaVersion === 3
       ? artifact.components.filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
@@ -182,61 +183,86 @@ export function ElectronicsPublicationScene({
             >
               {runtime ? 'Стоп' : 'Начать'}
             </button>
-            <button
-              type="button"
-              data-testid="public-electronics-reset"
-              onClick={() => {
-                stop();
-                setInputs(new Map());
-                setMessage('');
-              }}
-            >
-              Сброс
-            </button>
           </>
         ) : null}
         {programs.length ? (
-          <button type="button" aria-expanded={codeOpen} onClick={() => setCodeOpen(!codeOpen)}>
-            Код Arduino
+          <button
+            type="button"
+            aria-label="Код Arduino"
+            title="Код Arduino"
+            aria-expanded={codeOpen}
+            onClick={() => setCodeOpen(!codeOpen)}
+          >
+            <span className="public-code-label-full">Код Arduino</span>
+            <span className="public-code-label-short" aria-hidden="true">
+              Код
+            </span>
           </button>
         ) : null}
         <button
           type="button"
-          data-testid="public-electronics-zoom-out"
-          aria-label="Уменьшить схему"
-          onClick={() => zoom(1.25)}
+          className="public-electronics-more"
+          aria-label="Инструменты просмотра"
+          title="Инструменты просмотра"
+          aria-expanded={toolsOpen}
+          onClick={() => setToolsOpen((v) => !v)}
         >
-          −
+          •••
         </button>
-        <output aria-label="Масштаб">{Math.round((scene.fit.width / view.width) * 100)}%</output>
-        <button
-          type="button"
-          data-testid="public-electronics-zoom-in"
-          aria-label="Увеличить схему"
-          onClick={() => zoom(0.8)}
-        >
-          +
-        </button>
-        <button
-          type="button"
-          data-testid="public-electronics-fit"
-          onClick={() => setView(scene.fit)}
-        >
-          Вписать
-        </button>
-        <button
-          type="button"
-          aria-label="На весь экран"
-          onClick={() => {
-            void (
-              document.fullscreenElement
-                ? document.exitFullscreen()
-                : section.current?.requestFullscreen()
-            )?.catch(() => setMessage('Полноэкранный режим недоступен.'));
-          }}
-        >
-          ⛶
-        </button>
+        <div className={`public-electronics-secondary-tools${toolsOpen ? ' is-open' : ''}`}>
+          <button
+            type="button"
+            data-testid="public-electronics-reset"
+            aria-label="Сброс"
+            title="Сброс"
+            onClick={() => {
+              stop();
+              setInputs(new Map());
+              setMessage('');
+            }}
+          >
+            ↺
+          </button>{' '}
+          <button
+            type="button"
+            data-testid="public-electronics-zoom-out"
+            aria-label="Уменьшить схему"
+            onClick={() => zoom(1.25)}
+          >
+            −
+          </button>
+          <output aria-label="Масштаб">{Math.round((scene.fit.width / view.width) * 100)}%</output>
+          <button
+            type="button"
+            data-testid="public-electronics-zoom-in"
+            aria-label="Увеличить схему"
+            onClick={() => zoom(0.8)}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            data-testid="public-electronics-fit"
+            aria-label="Вписать схему"
+            title="Вписать схему"
+            onClick={() => setView(scene.fit)}
+          >
+            ⊡
+          </button>
+          <button
+            type="button"
+            aria-label="На весь экран"
+            onClick={() => {
+              void (
+                document.fullscreenElement
+                  ? document.exitFullscreen()
+                  : section.current?.requestFullscreen()
+              )?.catch(() => setMessage('Полноэкранный режим недоступен.'));
+            }}
+          >
+            ⛶
+          </button>{' '}
+        </div>
       </div>
       {message ? (
         <p role="status" className="public-electronics-hint">

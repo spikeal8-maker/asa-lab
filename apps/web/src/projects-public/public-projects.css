@@ -1752,3 +1752,193 @@
 .public-arduino-blocks .blocklyMainBackground {
   stroke: none;
 }
+
+/* Compact viewing controls; secondary tools expand beneath the main row on phones. */
+.public-project-detail .public-electronics-tools {
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 4px 8px;
+  min-height: 42px;
+}
+.public-project-detail .public-electronics-tools > span {
+  flex: 1;
+  font-size: 12px;
+}
+.public-electronics-secondary-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.public-project-detail .public-electronics-tools button {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.3;
+}
+.public-project-detail .public-electronics-tools button:hover {
+  background: #edf3f6;
+}
+.public-project-detail .public-electronics-tools [data-testid='public-electronics-start'] {
+  background: #e5f3ee;
+  color: #176447;
+  font-weight: 600;
+}
+.public-project-detail .public-electronics-tools output {
+  width: 44px;
+  font-size: 11px;
+}
+.public-project-detail .public-electronics-more,
+.public-code-label-short {
+  display: none;
+}
+.public-project-detail .public-project-heading .public-project-commandbar .publication-like-button {
+  min-height: 40px;
+  min-width: 66px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+.public-project-heading .publication-like-button svg {
+  width: 22px;
+  height: 22px;
+}
+.public-project-heading .public-project-detail-copies {
+  min-height: 40px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+.public-project-heading .publication-share > .publication-share-compact {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+}
+.public-project-detail .public-project-heading {
+  align-items: center;
+}
+@media (max-width: 1100px) {
+  .public-project-detail .public-project-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .public-project-detail .public-project-sidebar {
+    grid-template-columns: minmax(180px, 1fr) minmax(0, 2fr);
+    gap: 24px;
+  }
+  .public-project-detail .public-project-authorline {
+    border-bottom: 0;
+    padding: 0;
+  }
+}
+@media (max-width: 600px) {
+  .public-project-detail .public-project-heading {
+    gap: 8px;
+  }
+  .public-project-detail .public-project-detail-topline {
+    display: grid;
+    gap: 4px;
+  }
+  .public-project-detail .public-project-detail-topline > .public-project-back {
+    min-height: 28px;
+    font-size: 12px;
+  }
+  .public-project-detail .public-project-heading h1 {
+    font-size: 21px;
+    line-height: 1.3;
+  }
+  .public-project-detail .public-electronics-tools {
+    min-height: 48px;
+    padding: 2px 6px;
+    justify-content: flex-start;
+  }
+  .public-project-detail .public-electronics-tools button {
+    min-height: 44px;
+    padding: 6px 10px;
+  }
+  .public-project-detail .public-electronics-more {
+    display: block;
+    margin-left: auto;
+    min-width: 44px;
+  }
+  .public-project-detail .public-electronics-secondary-tools {
+    display: none;
+  }
+  .public-project-detail .public-electronics-secondary-tools.is-open {
+    display: flex;
+    flex: 1 1 100%;
+    justify-content: space-between;
+    border-top: 1px solid #e2e9ee;
+  }
+  .public-electronics-secondary-tools button {
+    min-width: 38px;
+  }
+  .public-code-label-full {
+    display: none;
+  }
+  .public-code-label-short {
+    display: inline;
+  }
+  .public-project-detail .public-electronics-scene {
+    height: 290px;
+  }
+  .public-project-detail .public-project-sidebar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .public-project-detail .public-project-authorline {
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e2e9ee;
+  }
+  .public-electronics-viewer > .public-electronics-code {
+    width: 100%;
+    max-height: none;
+    padding: 12px;
+  }
+  .public-arduino-blocks {
+    height: 340px;
+  }
+  .public-project-detail .public-electronics-code-heading {
+    padding-bottom: 6px;
+  }
+  .public-project-detail .public-electronics-code-heading h2 {
+    font-size: 14px;
+  }
+  .public-electronics-code h3 {
+    margin-block: 8px;
+  }
+  .public-electronics-code-heading button {
+    width: 36px;
+    min-width: 36px;
+    min-height: 44px;
+    border: 0;
+  }
+  .public-project-detail
+    .public-project-heading
+    .public-project-commandbar
+    .publication-like-button {
+    min-height: 44px;
+  }
+  .public-project-heading .publication-share > .publication-share-compact {
+    min-height: 44px;
+    height: 44px;
+    width: 44px;
+  }
+  .public-project-heading .public-project-detail-copies {
+    min-height: 44px;
+  }
+}
+/* Match the native Scratch stage ratio plus its own 44px controls. */
+.public-project-stage-column .public-project-viewer {
+  container-type: inline-size;
+}
+.public-project-stage-column .public-scratch-player:not(:fullscreen) iframe {
+  min-height: 0;
+  height: calc(75cqw + 44px);
+  aspect-ratio: auto;
+}

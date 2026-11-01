@@ -421,3 +421,21 @@ Scratch asset-copy и физический экспорт этим решени�
 версии не переписываются ради исправления текущего публичного представления.
 Решение заменяет прежнее условие публичности этого поля в публикациях Account,
 но не разрешает обходить видимость проектов или раскрывать школьные сведения.
+
+### Owner clarification — 2026-11-01: learner comment eligibility
+
+The owner explicitly requested a comments section beneath public publications and
+clarified that learner participation requires configured permission, or eventually
+an approved rating threshold. Comment permission is separate from publication
+permission: permission to publish does not automatically permit comments. Class
+and individual learner controls are required. Guest access is read-only. Existing
+proposal allows the publication owner to close discussion and platform moderation
+to manage comments; exact enforcement must be implemented server-side.
+
+Rating-based eligibility is deferred until a rating formula/threshold policy is
+approved and real rating data exists; do not invent scores or silently grant access.
+This clarification resolves the learner default direction, not R8-04 activation,
+all audience/moderation/rate-limit decisions, storage/API implementation or release
+acceptance. Comments remain unavailable until the bounded comments task is selected
+and its prerequisites and server authorization are verified. No fake comment input
+or fabricated comment count may stand in for implementation.

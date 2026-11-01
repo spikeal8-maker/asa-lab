@@ -55,8 +55,17 @@ export function PublicArduinoBlocks({ value }: { readonly value: string }): JSX.
         b.setDeletable(false);
       });
       const current = workspace;
+      let previousWidth = 0;
       const resize = () => {
         ScratchBlocks.svgResize(current);
+        if (element.clientWidth > 0 && previousWidth !== element.clientWidth) {
+          previousWidth = element.clientWidth;
+          const bounds = current.getBlocksBoundingBox();
+          const width = bounds.right - bounds.left;
+          if (width > 0)
+            current.setScale(Math.max(0.45, Math.min(0.7, (previousWidth - 52) / width)));
+          current.scrollCenter();
+        }
       };
       observer = new ResizeObserver(resize);
       observer.observe(element);
