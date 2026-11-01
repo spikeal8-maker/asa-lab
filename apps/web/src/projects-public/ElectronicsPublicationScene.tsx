@@ -49,6 +49,11 @@ export function ElectronicsPublicationScene({
 }): JSX.Element {
   const [runtime, setRuntime] = useState<PublicElectronicsRuntime | null>(null);
   const [message, setMessage] = useState('');
+  const [codeOpen, setCodeOpen] = useState(false);
+  const programs =
+    artifact.schemaVersion === 3
+      ? artifact.components.filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
+      : [];
   const [inputs, setInputs] = useState<ReadonlyMap<string, SchematicComponent>>(new Map());
   const idlePort = useMemo(() => new NativeOpticalPresentation(), []);
   const section = useRef<HTMLElement>(null);
@@ -185,6 +190,11 @@ export function ElectronicsPublicationScene({
               Сброс
             </button>
           </>
+        ) : null}
+        {programs.length ? (
+          <button type="button" aria-expanded={codeOpen} onClick={() => setCodeOpen(!codeOpen)}>
+            Код Arduino
+          </button>
         ) : null}
         <button
           type="button"
@@ -416,21 +426,29 @@ export function ElectronicsPublicationScene({
         {artifact.schemaVersion === 2 ? 'Для этой версии доступен только просмотр. ' : ''}
         Перетаскивайте схему · Масштаб + / − · Home — вписать
       </p>
-      {artifact.schemaVersion === 3 &&
-      artifact.components.some((c) => typeof c.stateProperties?.arduinoSource === 'string') ? (
-        <details className="public-electronics-code">
-          <summary>Код Arduino</summary>
-          {artifact.components
-            .filter((c) => typeof c.stateProperties?.arduinoSource === 'string')
-            .map((c) => (
-              <div key={c.id}>
-                <h3>{c.name ?? 'Arduino'}</h3>
-                <pre>
-                  <code>{String(c.stateProperties?.arduinoSource)}</code>
-                </pre>
-              </div>
-            ))}
-        </details>
+      {codeOpen ? (
+        <aside className="public-electronics-code" aria-label="Код Arduino">
+          <div className="public-electronics-code-heading">
+            <h2>Код Arduino</h2>
+            <button type="button" onClick={() => setCodeOpen(false)} aria-label="Закрыть код">
+              ×
+            </button>
+          </div>
+          {programs.map((c) => (
+            <div key={c.id}>
+              <h3>{c.name ?? 'Arduino'}</h3>
+              {c.stateProperties?.arduinoCodeMode !== 'text' ? (
+                <p>
+                  Программа создана блоками. В этой публикации доступен только сгенерированный
+                  текст; структура блоков пока не передаётся.
+                </p>
+              ) : null}
+              <pre>
+                <code>{String(c.stateProperties?.arduinoSource)}</code>
+              </pre>
+            </div>
+          ))}
+        </aside>
       ) : null}
     </section>
   );

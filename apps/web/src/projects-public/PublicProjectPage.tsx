@@ -130,6 +130,40 @@ export function PublicProjectPage({
               </PortalLink>
               <PublicProjectTitle key={publication.revisionId} title={publication.title} />
             </div>
+            <div className="public-project-commandbar" aria-label="Действия с проектом">
+              <CopyPublicProject key={publication.revisionId} publication={publication} />
+              <div className="public-project-actions">
+                <PublicationLike
+                  key={publication.revisionId}
+                  publication={publication}
+                  authenticated={authenticated}
+                />
+                {typeof publication.copyCount === 'number' ? (
+                  <span
+                    className="public-project-detail-copies"
+                    title="Добавили к себе"
+                    aria-label={`Добавили к себе: ${publication.copyCount}`}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 24 24"
+                      width="16"
+                      height="16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                    >
+                      <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
+                    </svg>
+                    {publication.copyCount}
+                  </span>
+                ) : null}
+                <SharePublicationLink
+                  key={publication.publicationId}
+                  publicationId={publication.publicationId}
+                />
+              </div>
+            </div>{' '}
           </header>
           <div className="public-project-workspace">
             <div className="public-project-stage-column">
@@ -140,40 +174,6 @@ export function PublicProjectPage({
                   onUnavailable={unavailable}
                 />
               </section>
-              <div className="public-project-commandbar" aria-label="Действия с проектом">
-                <CopyPublicProject key={publication.revisionId} publication={publication} />
-                <div className="public-project-actions">
-                  <PublicationLike
-                    key={publication.revisionId}
-                    publication={publication}
-                    authenticated={authenticated}
-                  />
-                  {typeof publication.copyCount === 'number' ? (
-                    <span
-                      className="public-project-detail-copies"
-                      title="Добавили к себе"
-                      aria-label={`Добавили к себе: ${publication.copyCount}`}
-                    >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 24 24"
-                        width="16"
-                        height="16"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      >
-                        <path d="M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4" />
-                      </svg>
-                      {publication.copyCount}
-                    </span>
-                  ) : null}
-                  <SharePublicationLink
-                    key={publication.publicationId}
-                    publicationId={publication.publicationId}
-                  />
-                </div>
-              </div>
             </div>
             <aside className="public-project-sidebar" aria-label="Об авторе и проекте">
               <div className="public-project-authorline">

@@ -301,10 +301,10 @@
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgb(8 21 34 / 82%),
-    transparent 42%,
-    transparent 65%,
-    rgb(8 21 34 / 80%)
+    rgb(8 21 34 / 55%),
+    transparent 20%,
+    transparent 80%,
+    rgb(8 21 34 / 60%)
   );
 }
 .public-project-card-topline,
@@ -1505,4 +1505,88 @@
     height: 20px;
     font-size: 8px;
   }
+}
+
+/* Publication feedback remains visible beside the title, above the working area. */
+.public-project-detail .public-project-heading {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px 24px;
+}
+.public-project-detail .public-project-heading .public-project-commandbar {
+  border: 0;
+  padding: 0;
+  justify-content: flex-end;
+}
+.public-project-detail .public-project-heading .public-project-actions {
+  flex-wrap: wrap;
+}
+.public-electronics-viewer {
+  position: relative;
+}
+.public-electronics-viewer > .public-electronics-code {
+  position: absolute;
+  z-index: 3;
+  inset: 64px 0 0 auto;
+  width: min(400px, 100%);
+  overflow: auto;
+  border-left: 1px solid var(--asa-slate-200);
+  box-shadow: -8px 0 24px rgb(0 0 0 / 8%);
+}
+.public-electronics-code-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.public-electronics-code-heading button {
+  min-width: 44px;
+  background: white;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 8px;
+  font-size: 22px;
+  cursor: pointer;
+}
+.public-electronics-code p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 899px) {
+  .public-project-detail .public-project-heading {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+  .public-project-detail .public-project-heading .public-project-commandbar {
+    justify-content: flex-start;
+  }
+  .public-electronics-viewer > .public-electronics-code {
+    inset-block-start: 110px;
+  }
+}
+.public-electronics-viewer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+.public-electronics-tools {
+  grid-area: 1 / 1;
+}
+.public-electronics-scene {
+  grid-area: 2 / 1;
+}
+.public-electronics-hint {
+  grid-area: 3 / 1;
+}
+.public-electronics-viewer > .public-electronics-code {
+  position: relative;
+  inset: auto;
+  grid-area: 2 / 1 / 4 / 2;
+  justify-self: end;
+  align-self: stretch;
+  min-width: 0;
+  max-height: 560px;
+}
+.public-electronics-code pre {
+  width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

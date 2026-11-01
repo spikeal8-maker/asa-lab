@@ -67,3 +67,23 @@ owner acceptance of the visual is still required before treating it as accepted.
 POST_STEP_REVIEW: L0_LOCAL_UI. Functional native playback demonstrated; visual
 candidate shown for owner review. No permissions/identity/domain mutations changed.
 UNVERIFIED: embedded-browser fullscreen; complete repository/CI release acceptance.
+
+## Owner refinement: visible feedback and code panel
+
+Likes/copy count moved into the top heading (desktop right, mobile above viewer).
+Catalog gradient narrowed to the image edges and lightened. Existing single-like
+policy preserved; no unimplemented dislike/emotion controls added.
+Arduino code moved to a closable right-side panel within the viewer; grid placement
+keeps it below the full toolbar even when toolbar wraps. For blocks mode an honest
+notice explains that only generated source is currently published. Actual block
+workspace remains explicitly excluded by the current public artifact contract;
+proper read-only block publication is NOT implemented in this layout slice.
+The Scratch polygon is the original test program SVG asset, not a malformed flag.
+Blank catalog images are the test fixture snapshots; no production preview-loss
+claim or fix is inferred from these synthetic images.
+
+Checks:18 focused page/scene tests PASS; web typecheck/ESLint PASS. Four viewport
+checks no page overflow;320 code panel starts exactly at toolbar bottom404px.
+Evidence: code-drawer.png and code-drawer-320.png in the same local evidence folder.
+Still a visual candidate; no deployment/Main integration. Blocks representation
+and replacement of blank test fixture snapshots remain unfinished.
