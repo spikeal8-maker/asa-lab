@@ -6,7 +6,113 @@ import {
   SEAT_COURSE_LESSON_LIST_SQL,
 } from '../../apps/api/src/course-lesson-list-queries';
 import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
+import { COURSE_USAGE_SQL } from '../../apps/api/src/course-usage-query';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+
+// Uses the same runtime-role query as GET /courses/:courseId/usage. Fixture
+// creation is not the action under acceptance: this read must stay scoped.
+it('course author Usage preserves exact pins and excludes inaccessible and revoked classes', async () => {
+  const { courseId, sectionId } = await newCourse('Usage read scope');
+  expect((await app.query(COURSE_USAGE_SQL, [principalId, accountId, courseId])).rows).toEqual([
+    expect.objectContaining({ run_id: null }),
+  ]);
+  await admin.query(
+    "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Usage theory',NULL,$4::jsonb,'material',NULL,15,NULL)",
+    [
+      principalId,
+      courseId,
+      sectionId,
+      JSON.stringify([{ id: 'usage-text', type: 'paragraph', text: 'Pinned material' }]),
+    ],
+  );
+  async function publishUsage() {
+    const revision = (
+      await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])
+    ).rows[0].draft_revision;
+    const published = await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      `usage:publish:${++sequence}`,
+    ]);
+    expect(published.rows[0].result_code).toBe('ok');
+    return published.rows[0];
+  }
+  const firstVersion = await publishUsage();
+  const first = await classroomWithSeat();
+  const second = await classroomWithSeat();
+  const excluded = await classroomWithSeat();
+  const firstRun = await assignCourseRun(
+    courseId,
+    first.classroom,
+    first.seat,
+    `usage:first:${++sequence}`,
+  );
+  const excludedRun = await assignCourseRun(
+    courseId,
+    excluded.classroom,
+    excluded.seat,
+    `usage:excluded:${++sequence}`,
+  );
+  expect(firstRun.result_code).toBe('ok');
+  expect(excludedRun.result_code).toBe('ok');
+  // A later draft/publication must never update the first run's pin.
+  await admin.query("SELECT course_section_save($1,$2,$3,'Usage next version',NULL)", [
+    principalId,
+    courseId,
+    sectionId,
+  ]);
+  const secondVersion = await publishUsage();
+  const secondRun = (
+    await inTenant(author, (client) =>
+      client.query(
+        "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,2,'whole_class',NULL,$4)",
+        [principalId, second.classroom, courseId, `usage:second:${++sequence}`],
+      ),
+    )
+  ).rows[0];
+  expect(secondRun.result_code).toBe('ok');
+  await admin.query('DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2', [
+    excluded.classroom,
+    accountId,
+  ]);
+  const visible = (await app.query(COURSE_USAGE_SQL, [principalId, accountId, courseId])).rows;
+  expect(visible).toHaveLength(2);
+  expect(visible).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        run_id: firstRun.run_id,
+        course_version_id: firstVersion.version_id,
+        version_number: 1,
+        audience_type: 'named_learners',
+      }),
+      expect.objectContaining({
+        run_id: secondRun.run_id,
+        course_version_id: secondVersion.version_id,
+        version_number: 2,
+        audience_type: 'whole_class',
+      }),
+    ]),
+  );
+  expect(JSON.stringify(visible)).not.toContain(excluded.classroom);
+  const outsiderIdentity = await identityFor(outsider);
+  expect(
+    (
+      await app.query(COURSE_USAGE_SQL, [
+        outsiderIdentity.principal_id,
+        outsiderIdentity.account_id,
+        courseId,
+      ])
+    ).rows,
+  ).toEqual([]);
+  await admin.query('DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2', [
+    first.classroom,
+    accountId,
+  ]);
+  expect((await app.query(COURSE_USAGE_SQL, [principalId, accountId, courseId])).rows).toEqual([
+    expect.objectContaining({ run_id: secondRun.run_id }),
+  ]);
+}, 30_000);
 
 let admin: pg.Pool;
 let app: pg.Pool;

@@ -4619,7 +4619,124 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
   await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
 
+  // Usage is a read over this real delivery, not a separate progress store.
+  const usagePath = `/api/courses/${courseId}/usage`;
+  const usageRead = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === usagePath,
+  );
+  await openCourseActions(page);
+  await editor.getByRole('button', { name: 'Использование', exact: true }).click();
+  const usage = editor.getByRole('region', { name: 'Использование курса', exact: true });
+  const usageResponse = await usageRead;
+  expect(usageResponse.status()).toBe(200);
+  expect(await usageResponse.json()).toEqual({
+    items: [
+      {
+        id: originalReceipt.runId,
+        classroomId,
+        classroomTitle: classTitle,
+        classroomStatus: 'active',
+        courseVersionId: expect.any(String),
+        versionNumber: 1,
+        title: courseTitle,
+        status: 'open',
+        audienceType: 'whole_class',
+      },
+    ],
+  });
+  const authorIdentity = (
+    await admin.query(
+      'SELECT account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [teacher.tenantId, teacher.teacherId],
+    )
+  ).rows[0];
+  const membership = (
+    await admin.query(
+      'DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2 RETURNING *',
+      [classroomId, authorIdentity.account_id],
+    )
+  ).rows[0];
+  expect(membership).toBeTruthy();
+  try {
+    const revokedUsage = await page.request.get(usagePath);
+    expect(revokedUsage.status()).toBe(200);
+    expect(await revokedUsage.json()).toEqual({ items: [] });
+  } finally {
+    await admin.query(
+      'INSERT INTO classroom_memberships SELECT * FROM jsonb_populate_record(NULL::classroom_memberships,$1::jsonb)',
+      [JSON.stringify(membership)],
+    );
+  }
+  const foreignAuthor = await seedTeacher(admin, 'usage-foreign-course');
+  const foreignIdentity = (
+    await admin.query(
+      'SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [foreignAuthor.tenantId, foreignAuthor.teacherId],
+    )
+  ).rows[0];
+  const foreignCourseId = (
+    await admin.query(
+      "SELECT course_save($1,NULL,'Foreign private course',NULL,NULL,'private') AS id",
+      [foreignIdentity.principal_id],
+    )
+  ).rows[0].id;
+  const foreignUsage = await page.request.get(`/api/courses/${foreignCourseId}/usage`);
+  expect(foreignUsage.status()).toBe(404);
+  expect(await foreignUsage.json()).toEqual({
+    error: { code: 'not_found', message: 'Курс не найден.' },
+  });
+  await expect(usage).toContainText(classTitle);
+  await expect(usage).toContainText('Версия 1');
+  await expect(usage).toContainText('Весь класс');
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await usage.scrollIntoViewIfNeeded();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    const bounds = await usage.getByRole('link', { name: 'Открыть обучение класса' }).boundingBox();
+    expect(bounds!.height).toBeGreaterThanOrEqual(44);
+    await page.screenshot({ path: `${evidenceDir}/course-usage-${width}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await usage.getByRole('button', { name: 'Закрыть использование' }).click();
+  await openCourseStructure(page);
+  await editor.locator('.course-lesson-link').filter({ hasText: lessonTitle }).click();
+  const draftText = editor.getByLabel('Текст блока', { exact: true });
+  await draftText.fill(lessonText + ' Несохранённое дополнение автора.');
+  await openCourseActions(page);
+  await editor.getByRole('button', { name: 'Использование', exact: true }).click();
+  await expect(usage.getByRole('link', { name: 'Открыть обучение класса' })).toBeVisible();
+  const authorUrl = page.url();
+  await usage.getByRole('link', { name: 'Открыть обучение класса' }).click();
+  await expect(page).toHaveURL(authorUrl);
+  await expect(draftText).toHaveValue(lessonText + ' Несохранённое дополнение автора.');
+  await expect(editor.getByRole('alert')).toContainText('Сначала сохраните изменения урока');
+  await draftText.fill(lessonText);
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок сохранён.',
+  );
+  await usage.getByRole('link', { name: 'Открыть обучение класса' }).click();
+  await expect(page).toHaveURL(
+    new URL(`/#/classrooms/${classroomId}?courseRun=${originalReceipt.runId}`, page.url()).href,
+  );
+  await expect(
+    page
+      .getByTestId('classroom-course-run')
+      .getByRole('heading', { name: courseTitle, exact: true }),
+  ).toBeVisible();
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .getByRole('button')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(editor).toBeVisible();
+
   const learner = await learnerAssignments(browser, joinCode, 'fix08-learner-' + suffix);
+  expect((await learner.page.request.get(usagePath)).status()).toBe(401);
   const learnerFailures = collectBrowserFailures(learner.page, {
     allowAdminAccessProbe: true,
   });

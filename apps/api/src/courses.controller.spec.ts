@@ -56,10 +56,71 @@ function controller(
     query,
     connect: vi.fn(async () => ({ query, release: vi.fn() })),
   } as unknown as pg.Pool;
-  return { value: new CoursesController(activeContext, accounts, pool), query };
+  return { value: new CoursesController(activeContext, accounts, pool), query, accounts };
 }
 
 describe('structured course prepublication diagnostics', () => {
+  it('reads usage through the actor-scoped readers and returns only delivery metadata', async () => {
+    const target = controller([
+      {
+        run_id: RUN_ID,
+        classroom_id: CLASSROOM_ID,
+        classroom_title: 'Class A',
+        classroom_status: 'active',
+        course_version_id: VERSION_ID,
+        version_number: '2',
+        run_title: 'Pinned v2',
+        run_status: 'closed',
+        audience_type: 'named_learners',
+        members: [{ label: 'must not leave server' }],
+        submitted_count: 42,
+      },
+    ]);
+    await expect(target.value.usage(request(), COURSE_ID)).resolves.toEqual({
+      items: [
+        {
+          id: RUN_ID,
+          classroomId: CLASSROOM_ID,
+          classroomTitle: 'Class A',
+          classroomStatus: 'active',
+          courseVersionId: VERSION_ID,
+          versionNumber: 2,
+          title: 'Pinned v2',
+          status: 'closed',
+          audienceType: 'named_learners',
+        },
+      ],
+    });
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('course_library_list_v3($1)'),
+      ['principal-id', 'account-id', COURSE_ID],
+    );
+    expect(target.query.mock.calls[0]?.[0]).toContain(
+      'classroom_course_runs_for_teacher_v2($2,classroom.id)',
+    );
+  });
+
+  it('distinguishes unused owned courses from inaccessible IDs without exposing counts', async () => {
+    const authorOnly = controller([{ run_id: null }]);
+    vi.mocked(authorOnly.accounts.capabilities).mockResolvedValue([
+      { capability: 'creator', state: 'verified' },
+    ] as Awaited<ReturnType<AccountDirectoryPort['capabilities']>>);
+    await expect(authorOnly.value.usage(request(), COURSE_ID)).resolves.toEqual({ items: [] });
+    expect(authorOnly.query).toHaveBeenCalledWith(expect.any(String), [
+      'principal-id',
+      null,
+      COURSE_ID,
+    ]);
+    await expect(controller([]).value.usage(request(), COURSE_ID)).rejects.toMatchObject({
+      status: 404,
+    });
+    const target = controller();
+    await expect(target.value.usage(request(), 'not-a-uuid')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(target.query).not.toHaveBeenCalled();
+  });
+
   it('returns the exact second block and field without another read or parsing the display path', async () => {
     const target = controller([
       {
