@@ -14,6 +14,7 @@ describe('independent subject routes', () => {
       'home',
       'play',
       'online',
+      'network',
       'puzzles',
       'learning',
       'bots',

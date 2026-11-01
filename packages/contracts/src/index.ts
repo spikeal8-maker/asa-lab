@@ -92,3 +92,12 @@ export type { AiImageStoredSize } from './ai-image-generation.js';
 
 export { AI_IMAGE_RECIPES } from './ai-image-generation.js';
 export type { AiImageRecipe } from './ai-image-generation.js';
+
+export type {
+  ChessNetworkScope,
+  ChessNetworkPolicy,
+  ChessNetworkAccess,
+  ChessNetworkInvite,
+  ChessNetworkMatch,
+  ChessNetworkAction,
+} from './chess-network.js';

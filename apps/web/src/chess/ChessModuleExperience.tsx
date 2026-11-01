@@ -3,6 +3,9 @@ import type { PublicUser } from '../api';
 import { ChessEditor } from './ChessEditor';
 import { ChessHome } from './ChessHome';
 import { ChessOnlineLobby } from './ChessOnlineLobby';
+import { ChessNetworkLobby } from './ChessNetworkLobby';
+import { gameAccessApi, gameAccessMessage } from '../games/game-access-api';
+import { startLivePoll } from './live-poll';
 import { ChessPuzzleTrainer } from './ChessPuzzleTrainer';
 import { ChessReviewPage } from './ChessReviewPage';
 import {
@@ -51,6 +54,38 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
     };
   }, [props.projectId]);
 
+  const [seatAllowed, setSeatAllowed] = useState<boolean | null>(props.seatLearner ? null : true);
+  const [seatNotice, setSeatNotice] = useState('Проверяем доступ к играм…');
+  const [admissionAttempt, setAdmissionAttempt] = useState(0);
+  useEffect(() => {
+    if (!props.seatLearner) {
+      setSeatAllowed(true);
+      return;
+    }
+    const stop = startLivePoll(
+      async (isCurrent) => {
+        const result = await gameAccessApi.read('chess');
+        if (!isCurrent()) return;
+        setSeatAllowed(result.ok && result.data.granted);
+        setSeatNotice(
+          result.ok
+            ? gameAccessMessage(result.data)
+            : 'Не удалось проверить доступ. Повторите проверку или войдите в класс заново.',
+        );
+      },
+      2000,
+      () => {
+        setSeatAllowed(false);
+        setSeatNotice('Не удалось проверить доступ к играм.');
+      },
+    );
+    const focus = () => setAdmissionAttempt((value) => value + 1);
+    window.addEventListener('focus', focus);
+    return () => {
+      stop();
+      window.removeEventListener('focus', focus);
+    };
+  }, [props.seatLearner, admissionAttempt]);
   const navigate = useCallback(
     (page: ChessPage, panelTab: ChessPanelTab = 'game'): void => {
       const next = { page, panelTab } satisfies ChessRouteState;
@@ -61,12 +96,32 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
     [props.projectId],
   );
 
+  if (props.seatLearner && seatAllowed !== true) {
+    return (
+      <main className="page-center">
+        <section className="login-card" role="status">
+          <h1>{seatAllowed === null ? 'Проверяем доступ к играм' : 'Игры недоступны'}</h1>
+          <p>{seatNotice}</p>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setAdmissionAttempt((value) => value + 1)}
+          >
+            Проверить доступ
+          </button>
+          <button type="button" className="btn-secondary" onClick={props.onBack}>
+            К играм
+          </button>
+        </section>
+      </main>
+    );
+  }
   if (route.page === 'home') {
     return (
       <ChessHome
         {...props}
         onOpenBoard={() => navigate('play')}
-        onOpenOnline={() => navigate('online')}
+        onOpenOnline={() => navigate('network')}
         onOpenTraining={() => navigate('puzzles')}
         onOpenLearning={() => navigate('learning')}
         onOpenReview={() => navigate('review')}
@@ -95,6 +150,11 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
         onExit={props.onBack}
         onBackToProject={() => navigate('home')}
       />
+    );
+  }
+  if (route.page === 'network') {
+    return (
+      <ChessNetworkLobby user={props.user} onExit={props.onBack} onHome={() => navigate('home')} />
     );
   }
   if (route.page === 'online') {

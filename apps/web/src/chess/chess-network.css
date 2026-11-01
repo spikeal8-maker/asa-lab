@@ -1,0 +1,87 @@
+.asa-network-lobby {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: 24px;
+}
+.asa-network-lobby .asa-online-card {
+  min-height: 0;
+}
+.asa-network-lobby label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.asa-network-lobby input,
+.asa-network-lobby select {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #aebec9;
+  border-radius: 7px;
+  padding: 8px;
+  font: inherit;
+  color: #173d50;
+  background: white;
+}
+.asa-network-code {
+  display: block;
+  overflow-wrap: anywhere;
+  font:
+    750 20px/1.5 ui-monospace,
+    monospace;
+  user-select: all;
+  padding: 12px;
+  border-radius: 8px;
+  background: #edf5ed;
+}
+.asa-network-notice {
+  margin: 0;
+  color: #466273;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.asa-network-history {
+  grid-column: 1/-1;
+}
+.asa-network-history button {
+  text-align: left;
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+.asa-network-history button span {
+  font-size: 12px;
+  font-weight: 500;
+}
+.asa-network-promotion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 2px solid #769656;
+  border-radius: 8px;
+  background: white;
+}
+.asa-network-promotion button {
+  padding: 10px;
+  min-height: 40px;
+  border: 1px solid #cbdbe3;
+  border-radius: 6px;
+  background: #f5fafc;
+  color: #173d50;
+  font: inherit;
+  cursor: pointer;
+}
+@media (max-width: 650px) {
+  .asa-network-lobby {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px;
+    gap: 12px;
+  }
+}

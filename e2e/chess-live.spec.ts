@@ -59,6 +59,9 @@ async function createChessProject(page: Page, title: string): Promise<void> {
   await openChessGame(page, title);
   await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
   await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+  // Preserve the original rated/tenant-scoped compatibility journey explicitly.
+  // The primary Home entry now opens the platform casual Games vertical.
+  await page.goto(page.url().replace(/\/network$/, '/online'));
   await expect(page.getByRole('heading', { name: 'Онлайн-шахматы' })).toBeAttached();
   await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeVisible();
 }

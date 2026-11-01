@@ -11,10 +11,10 @@
   --chess-ink-soft: #294d68;
   --chess-cyan: #0a91b6;
   --chess-cyan-strong: #067999;
-  --chess-light-square: #e8f2e6;
-  --chess-dark-square: #4f8b73;
+  --chess-light-square: #eeeed2;
+  --chess-dark-square: #769656;
   --chess-last: #f3d35d;
-  --chess-select: #0fb7d8;
+  --chess-select: #baca44;
   --chess-panel: #ffffff;
   --chess-bg: #e9eef2;
   --chess-line: #c6d1d9;
@@ -306,7 +306,7 @@
   border-radius: 7px;
   border: 1px solid #6e7d87;
   background: #202a31;
-  min-height: 300px;
+  min-height: 0;
 }
 
 .asa-chess-eval-black {
@@ -404,18 +404,31 @@
 .asa-chess-piece-glyph {
   display: block;
   width: 100%;
-  height: 100%;
+  height: 0;
   font-family: 'ASA Chess Symbols';
   font-size: clamp(24px, 6.8vw, 73px);
   font-size: 9.5cqi;
-  line-height: 10.15cqi;
+  line-height: 0;
   text-align: center;
   font-synthesis: none;
   text-rendering: geometricPrecision;
-  transform: translateY(-0.08cqi);
+  /* Noto Symbols 2 v25: font ascent/descent = 1.069/.630em.
+     Center the ink, rather than the font's asymmetric line box:
+     offset = (ink ascent - ink descent - 1.069 + .630) / 2. */
+  --chess-ink-offset: 0.139875em;
+  transform: translateY(var(--chess-ink-offset));
   transform-origin: center;
   transition: transform 100ms ease;
   filter: drop-shadow(0 2px 1px rgba(15, 30, 39, 0.26));
+}
+
+.asa-chess-piece[data-piece-type='bishop'] .asa-chess-piece-glyph {
+  --chess-ink-offset: 0.12425em;
+}
+
+.asa-chess-piece[data-piece-type='knight'] .asa-chess-piece-glyph,
+.asa-chess-piece[data-piece-type='pawn'] .asa-chess-piece-glyph {
+  --chess-ink-offset: 0.1633125em;
 }
 
 .asa-chess-piece.white {
@@ -431,7 +444,7 @@
 
 .asa-chess-square:hover .asa-chess-piece-glyph,
 .asa-chess-square:focus-visible .asa-chess-piece-glyph {
-  transform: translateY(-0.08cqi) scale(1.04);
+  transform: translateY(var(--chess-ink-offset)) scale(1.04);
 }
 
 .asa-chess-coordinate {
@@ -1265,5 +1278,22 @@
   .asa-chess-eval-black,
   .asa-chess-eval-white {
     transition: none;
+  }
+}
+
+/* Keep the board and both player clocks in view on desktop and short laptops. */
+@media (min-width: 861px) {
+  .asa-chess-board-row {
+    width: min(100%, 790px, calc(100dvh - 280px));
+  }
+
+  .asa-chess-board-column > .asa-chess-player,
+  .asa-chess-board-column > .asa-chess-board-actions {
+    width: min(100%, 760px, calc(100dvh - 280px));
+  }
+
+  .asa-chess-board-column {
+    align-content: start;
+    grid-template-rows: auto auto auto auto;
   }
 }
