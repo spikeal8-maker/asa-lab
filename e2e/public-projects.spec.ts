@@ -12,6 +12,50 @@ import { loginWithOrganization } from './organization-login';
 const EVIDENCE = 'e2e/artifacts/public-projects';
 const WIDTHS = [320, 360, 390, 430, 768, 1024, 1440] as const;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
+test('preview cards have no vignette or added strips and electronics uses a white background', async ({
+  page,
+}) => {
+  await page.goto('/#/explore');
+  await register(page, 'Автор проверки превью');
+  const title = 'Без виньетки ' + randomUUID().slice(0, 8);
+  const image = await raster(page, 'Preview');
+  const projectId = await createProject(page, title, image);
+  try {
+    const published = await publish(page, projectId);
+    const data = await publication(page, published.publicationId);
+    const original = await imageHash(page, data.preview.url);
+    await page.goto('/#/explore');
+    await page.getByRole('searchbox').fill(title);
+    await page.getByRole('button', { name: 'Найти', exact: true }).click();
+    const card = page.getByTestId('public-project-card').filter({ hasText: title });
+    await expect(card).toBeVisible();
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expectNoOverflow(page);
+      const styles = await card.evaluate((el) => ({
+        vignette: getComputedStyle(el.querySelector('.public-project-card-cover')!, '::after')
+          .content,
+        background: getComputedStyle(el.querySelector('.publication-preview')!).backgroundColor,
+        strip: getComputedStyle(el.querySelector('.public-project-card-body')!).backgroundColor,
+        fit: getComputedStyle(el.querySelector('.publication-preview img')!).objectFit,
+        filter: getComputedStyle(el.querySelector('.publication-preview img')!).filter,
+      }));
+      expect(styles).toEqual({
+        vignette: 'none',
+        background: 'rgb(255, 255, 255)',
+        strip: 'rgba(0, 0, 0, 0)',
+        fit: 'contain',
+        filter: 'none',
+      });
+      await card.screenshot({ path: `${EVIDENCE}/no-vignette-${width}.png` });
+    }
+    expect(await imageHash(page, data.preview.url)).toBe(original);
+  } finally {
+    await page.request.delete(`/api/projects/${projectId}/publication`, {
+      headers: { origin: origin(page) },
+    });
+  }
+});
 let admin: pg.Pool;
 
 interface Publication {

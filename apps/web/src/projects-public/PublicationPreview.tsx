@@ -11,7 +11,10 @@ export function PublicationPreview({
   const [failed, setFailed] = useState(false);
   const preview = publication.preview;
   return (
-    <div className={`publication-preview${detail ? ' is-detail' : ''}`}>
+    <div
+      className={`publication-preview${detail ? ' is-detail' : ''}`}
+      data-module={publication.moduleKey}
+    >
       {preview && !failed ? (
         <img
           data-testid={detail ? 'public-project-preview' : 'public-project-card-preview'}
