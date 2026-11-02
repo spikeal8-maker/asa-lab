@@ -26,7 +26,7 @@ KIND = 'verified-successor-v1'
 DOMAIN = b'asa-retired-successor-v1\0'
 PATTERN = re.compile(r'seg-(\d{16})-(\d{16})\.jsonl(?:\.gz)?$')
 INDEX = 'sqlite-backup/' + hashlib.sha256(b'diagnostics/private/index.sqlite').hexdigest() + '.sqlite'
-GUARD_SHA256 = '5dd13624af168db3a3d1eb14eb0e9762506eb626dcccd102fe858dd266542e1e'  # Server-setings6b0eb3d, LF-normalized reviewed artifact.
+GUARD_SHA256 = 'c82a304985a775a14861c8f76f40816487e15b51fbb51be82f1d7864bb2c1335'  # Server-setings c3a362f32f8f5efdf63257517a28b8f8f1bf1791, LF-normalized reviewed artifact.
 
 
 class RecoveryBlocked(RuntimeError): pass

@@ -64,16 +64,31 @@ backup access. Ordinary retirement grace/catalog protection/retention continue u
 Stage this exact reviewed helper as trusted root-owned code, not from the mutable
 old installation. Run with isolated/no-bytecode Python (`-I -B`); other CLI launches
 are rejected before imports/data access. Also stage the separately reviewed
-Server-setings artifact at commit `6b0eb3d56acd829dc14891924cc63ff5bb163d73`,
+Server-setings artifact at commit `c3a362f32f8f5efdf63257517a28b8f8f1bf1791`,
 `scripts/diagnostic_forensic_snapshot.py`, LF SHA256
-`5dd13624af168db3a3d1eb14eb0e9762506eb626dcccd102fe858dd266542e1e`.
+`c82a304985a775a14861c8f76f40816487e15b51fbb51be82f1d7864bb2c1335`.
 The incident helper validates that exact hash and root-controlled path before
 executing its read-only identity/manager/path guards.
 
-That guard supports only the reviewed dfee four-source and3e five-source runner
-contracts; unknown revisions do not fall back. This does not promise arbitrary
-future-release compatibility. Current metadata/HMAC checks operate without old
-application code execution. Source approvals are not runtime acceptance.
+This guard preserves the reviewed legacy dfee four-source and3e five-source
+runner contracts. It additionally recognizes only two complete materializations
+of the preventive five-source runtime from app commit
+`6a98bddd8953eff732ec7d2cbb3de8cdec8abdee`:
+
+- Raw Git LF bundle: `b5d79dbc1c97bf4d94226b4c2c06eac4795c7366ae1a9b17add83a46c0790731`.
+- Canonical checkout with the `.gitattributes` PowerShell CRLF rule:
+  `9ab3c329ec7f6a532ff8c4d3f47a036430f038716de7dc575e8df96d003ee74a`.
+
+Each profile pins every file's raw length and SHA256 as well as the aggregate
+scriptDigest. No mixed profiles, shifted file boundaries, arbitrary newline
+normalization or digest fallback are allowed. A merge/doc/helper-only revision
+may differ from6a98 only if registration and all five actual runtime files satisfy
+that exact closed profile plus canonical owner/root/project/unit constraints.
+This repin changes no preventive runtime bytes and promises no arbitrary future
+release compatibility. Metadata/HMAC verification executes no installed old code.
+The exact guard passed29 Linux synthetic tests with no skips (operator operation
+32974a9574f4436caceb1a9936d52192); this component proof is not whole CI, live
+compatibility acceptance or permission to apply recovery.
 
 ```sh
 sudo python3 -I -B /root/approved/retired_successor_recovery.py \
@@ -100,15 +115,36 @@ IDs, event bodies, key, configuration or raw SQLite/host error text.
    events row, original receipt, retirement marker, catalog/error and source file
    before/after. Only retired metadata and the separately typed ledger may change.
    Test tampering/partial match and precommit faults: all must leave state unchanged.
-5. Cold-reopen the clone with the reviewed fixed collector and perform full retained
-   history verification. Existing catalog/source/audit gaps remain visible until
-   independently verified. This source change has NOT performed that real-copy
-   rehearsal and does not authorize resume/update by itself.
+5. Cold-reopen the clone and invoke reviewed fixed-runtime retained-history
+   validation methods on an in-memory SQLite backup, without constructor/cycle/
+   publish or collection. Existing catalog/source/audit gaps remain visible until
+   independently verified; this is not full collector startup or healthy coverage.
+
+Historical operator evidence: the reviewed infra PR62 harness at
+`0a7dd4abbe8bfd0f1d8bcccfc1c4558dc252435e` used app6a98 and the former pinned6b0
+guard for an actual isolated clone rehearsal:31 files/607 records/1 successor,
+all156886 index rows (150787 published,6099 unpublished),854 active and535 retired
+segments, and three negative challenges passed; original/live bytes were unchanged.
+See [the exact operator receipt](https://github.com/spikeal8-maker/Server-setings/pull/62#issuecomment-6590126719).
+That historical result remains valid for those exact artifacts. It does not prove
+this new helper's operator execution, live application or full collector startup.
 
 ## Apply metadata only, after review and successful rehearsal
 
-The release/controller must have the fixed collector/runtime and rollback ordering
-ready. Explicit operator quiescence is required. The helper never stops, starts,
+The preferred supported order is **immutable fixed-runtime update first**, then
+explicit quiescence of that fixed runner, metadata repair, and controller-approved
+resume of only the fixed runtime. The normal updater has no collector hold flag;
+do not assume it leaves the runner paused. It may start the fixed runner with the
+existing debt/error still visible. Verify the installed exact five-source profile,
+canonical registration and preservation of the existing USER owner UID/GID, then
+explicitly quiesce that own fixed runner before APPLY. Do not hand-edit registration/
+digests, invent a hold option or fabricate a unit. If update, identity or quiescence
+verification fails, STOP; do not repair under an unrecognized runtime or resume
+old dfee code. Have the immutable release and rollback ordering ready beforehand.
+Recovery-first is not established as safe: the former guard recognized only
+dfee/3e, and metadata repair would not install the preventive fix.
+
+Explicit operator quiescence is required. The helper never stops, starts,
 enables, restarts or resets any service/manager. It verifies the canonical registered
 owner/unit/user bus and holds the existing collector lock. A private forensic copy
 must already exist; this helper does not create or overwrite one.
@@ -128,10 +164,12 @@ application is idempotent and still revalidates the authority.
 
 The helper does NOT clear `retired:segments`, source errors or catalog, change
 original sequence/ID mappings, create original receipts, GC files or claim health.
-The old dfee collector must NOT resume after metadata repair until the preventive
-fix is installed through the separately reviewed fixed release/source-runtime
-procedure. Resume, whole-app update, rollback and visible coverage qualification
-are controller steps, not commands implemented here.
+The old dfee collector must NOT resume after metadata repair. A failed/ambiguous
+repair is a controller STOP with preserved debt/evidence, not permission to resume
+old code or clear errors. After successful repair, verify the same fixed runtime
+identity before controlled resume and separately qualify actual startup/coverage.
+Resume, whole-app update, rollback and visible coverage qualification are controller
+steps, not commands implemented here.
 
 Tests: `python -m unittest discover -s tools -p 'test_retired*.py' -v`.
 The existing explicit `tools/test_collect_logs.py` CI entrypoint includes these
