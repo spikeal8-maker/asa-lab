@@ -1,3 +1,5 @@
+import { aiTextFixture } from './ai-text-history.contract';
+import { fixtureGenerationSql } from './ai-model-policy.fixture';
 import { publishFixtureModels } from './ai-model-policy.fixture';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
@@ -60,9 +62,9 @@ it('requires platform admin and applies CAS, exact replay and rejection of misma
   const admin = await identity(true),
     stranger = await identity();
   const service = new AiToolPolicyService(pool);
-  expect((await service.admin(admin)).policy.configurationVersion).toBe(1);
+  expect((await service.admin(admin)).policy.configurationVersion).toBe(2);
   const dto = await new AiChatService(pool).toolPolicyAdmin(admin);
-  expect(dto).toMatchObject({ schemaVersion: 1, configurationVersion: 1 });
+  expect(dto).toMatchObject({ schemaVersion: 1, configurationVersion: 2 });
   expect(dto.tools.map((item) => item.id)).toEqual(TOOL_IDS);
   expect(
     dto.tools.every(
@@ -74,23 +76,23 @@ it('requires platform admin and applies CAS, exact replay and rejection of misma
   const requestId = randomUUID();
   const input = {
     schemaVersion: 1,
-    expectedConfigurationVersion: 1,
+    expectedConfigurationVersion: 2,
     requestId,
     tools: rules(false),
   };
-  expect((await service.save(admin, input)).configurationVersion).toBe(2);
-  expect((await service.save(admin, input)).configurationVersion).toBe(2);
+  expect((await service.save(admin, input)).configurationVersion).toBe(3);
+  expect((await service.save(admin, input)).configurationVersion).toBe(3);
   expect(
     (
       await service.save(admin, {
         ...input,
-        expectedConfigurationVersion: 2,
+        expectedConfigurationVersion: 3,
         requestId: randomUUID(),
         tools: rules(true),
       })
     ).configurationVersion,
-  ).toBe(3);
-  expect((await service.save(admin, input)).configurationVersion).toBe(2);
+  ).toBe(4);
+  expect((await service.save(admin, input)).configurationVersion).toBe(3);
   await expect(service.save(admin, { ...input, tools: rules(true) })).rejects.toMatchObject({
     code: 'ai_tool_policy_invalid',
   });
@@ -98,7 +100,7 @@ it('requires platform admin and applies CAS, exact replay and rejection of misma
     code: 'ai_tool_policy_changed',
   });
   await expect(
-    service.save(stranger, { ...input, requestId: randomUUID(), expectedConfigurationVersion: 3 }),
+    service.save(stranger, { ...input, requestId: randomUUID(), expectedConfigurationVersion: 4 }),
   ).rejects.toMatchObject({ code: '42501' });
 });
 
@@ -189,4 +191,59 @@ it('freezes the admitted parent policy and blocks disabled manual web lookup bef
     (await policy.snapshot(owner, thread.id, request)).tools.every((item) => !item.enabled),
   ).toBe(true);
   expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+
+it('checks every tool against owner scope, frozen denial and current policy before execution', async () => {
+  const admin = await identity(true);
+  const policy = new AiToolPolicyService(pool);
+  const save = async (tools: ReturnType<typeof rules>) =>
+    policy.save(admin, {
+      schemaVersion: 1,
+      expectedConfigurationVersion: (await policy.admin(admin)).policy.configurationVersion,
+      requestId: randomUUID(),
+      tools,
+    });
+  await save(rules(true));
+  const f = await aiTextFixture(client() as unknown as pg.Pool, pool);
+  const owner = f.owner.principal_id,
+    thread = f.thread.id,
+    request = randomUUID();
+  await pool.query(fixtureGenerationSql, [
+    owner,
+    thread,
+    request,
+    'Tool boundary fixture',
+    await f.version(),
+  ]);
+  const frozen = await policy.snapshot(owner, thread, request);
+  expect(frozen.tools.map((item) => item.id)).toEqual(TOOL_IDS);
+  for (const id of TOOL_IDS) {
+    expect(await policy.allowed(owner, thread, request, id)).toBe(true);
+    await save(rules(true).map((item) => ({ ...item, enabled: item.id !== id })));
+    expect(await policy.allowed(owner, thread, request, id)).toBe(false);
+    if (id === 'read_working_file')
+      expect(await policy.allowed(owner, thread, request, 'edit_working_file')).toBe(false);
+    await expect(policy.assertAllowed(owner, thread, request, id)).rejects.toMatchObject({
+      code: 'ai_tool_disabled',
+    });
+    // A previously frozen allow is not authority to bypass a new denial.
+    expect(
+      (await policy.snapshot(owner, thread, request)).tools.find((item) => item.id === id)?.enabled,
+    ).toBe(true);
+    await save(rules(true));
+  }
+  await expect(
+    policy.allowed(await identity(), thread, request, 'read_working_file'),
+  ).rejects.toMatchObject({ code: '42501' });
+  await expect(
+    policy.allowed(owner, randomUUID(), request, 'edit_working_file'),
+  ).rejects.toMatchObject({ code: '42501' });
+  await expect(
+    policy.allowed(owner, thread, randomUUID(), 'create_working_file'),
+  ).rejects.toMatchObject({ code: '42501' });
+  await db.query(
+    "UPDATE ai_tool_policy_snapshots SET policy=jsonb_set(policy,'{tools}',$1::jsonb) WHERE owner_principal_id=$2 AND request_id=$3",
+    [JSON.stringify(rules(false)), owner, request],
+  );
+  for (const id of TOOL_IDS) expect(await policy.allowed(owner, thread, request, id)).toBe(false);
 });

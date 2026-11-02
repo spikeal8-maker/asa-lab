@@ -400,6 +400,19 @@ export function AdminAiGenerationPolicy({
             : 'Настройки моделей'
       }
     >
+      {section === 'settings' ? (
+        <button
+          type="button"
+          className="asa-ai-tools-refresh"
+          onClick={() =>
+            document
+              .getElementById('ai-tool-policies-title')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        >
+          К инструментам помощника
+        </button>
+      ) : null}
       {loading ? <p role="status">Загружаем настройки ответов…</p> : null}
       {error ? (
         <div role="alert" className="asa-cloud-error">
@@ -773,7 +786,8 @@ export function AdminAiGenerationPolicy({
           </div>
         </form>
       ) : null}
-      {section === 'prompt' ? <AdminAiToolPolicies onAccessDenied={onAccessDenied} /> : null}
+
+      {section === 'settings' ? <AdminAiToolPolicies onAccessDenied={onAccessDenied} /> : null}
       {config && section === 'prompt' ? <AiPromptGuide variables={config.variables} /> : null}
     </section>
   );

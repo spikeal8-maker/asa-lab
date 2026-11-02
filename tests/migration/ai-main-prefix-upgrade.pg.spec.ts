@@ -79,6 +79,7 @@ const expectedPending = [
   '0298', // Exact owner-bound generated-image HTML binding.
   '0299', // Selected Polza token budget catalog before publication.
   '0300', // Unreleased durable image queue follows every published canonical migration.
+  '0301', // Independent eight-tool controls, preserving legacy snapshots.
 ];
 
 interface Identity {

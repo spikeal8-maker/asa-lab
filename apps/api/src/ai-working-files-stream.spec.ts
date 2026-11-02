@@ -1,3 +1,4 @@
+import { AI_TOOL_IDS } from '@asa-lab/contracts';
 import {
   TOOL_PROVIDERS,
   TOOL_TEST_ROOT,
@@ -17,6 +18,20 @@ it.each(TOOL_PROVIDERS)(
     const thread = '22222222-2222-4222-8222-222222222222';
     const request = '33333333-3333-4333-8333-333333333333';
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      if (sql.includes("to_regprocedure('public.ai_tool_policy_permit"))
+        return { rows: [{ ready: true }] };
+      if (sql.includes('SELECT ai_tool_policy_permit')) return { rows: [{ value: true }] };
+      if (sql.includes('ai_tool_policy_snapshot'))
+        return {
+          rows: [
+            {
+              value: {
+                revision: 1,
+                tools: AI_TOOL_IDS.map((id) => ({ id, enabled: true, instructions: '' })),
+              },
+            },
+          ],
+        };
       const journal = aiUsageQueryFixture(sql);
       if (journal) return journal;
       if (sql.includes('ai_runtime_config'))

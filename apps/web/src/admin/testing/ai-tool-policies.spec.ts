@@ -1,3 +1,4 @@
+import { AI_TOOL_IDS, AI_TOOL_LABELS } from '@asa-lab/contracts';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -55,6 +56,17 @@ const tools = [
     resultDescription: 'Изображение',
     hardLimits: ['Лимит размера'],
   },
+  ...AI_TOOL_IDS.slice(4).map((id) => ({
+    id,
+    label: AI_TOOL_LABELS[id],
+    enabled: true,
+    instructions: '',
+    available: true,
+    reason: null,
+    parameters: ['name'],
+    resultDescription: 'Owned resource',
+    hardLimits: ['Owner scope'],
+  })),
 ] as const;
 const fixture = (configurationVersion = 3) => ({ schemaVersion: 1, configurationVersion, tools });
 let root: Root;
@@ -105,7 +117,7 @@ it('loads actual server state and presents immutable limits alongside editable c
   expect(card('Погода').textContent).toContain('Когда пользователь спрашивает прогноз');
   expect(card('Погода').textContent).toContain('Только проверенные данные');
   expect(card('Поиск изображений').textContent).toContain('Локальная Ollama');
-  expect(card('Поиск изображений').querySelector('input')!.disabled).toBe(true);
+  expect(card('Поиск изображений').querySelector('input')!.disabled).toBe(false);
   expect(card('Видео — скоро').querySelector('input')).toBeNull();
 });
 
@@ -131,7 +143,7 @@ it('saves every tool separately from global prompt with revision and request ID'
     schemaVersion: 1,
     expectedConfigurationVersion: 3,
   });
-  expect(JSON.parse(String(write[1]?.body)).tools).toHaveLength(4);
+  expect(JSON.parse(String(write[1]?.body)).tools).toHaveLength(8);
   expect(JSON.parse(String(write[1]?.body)).tools[0]).toEqual({
     id: 'weather',
     enabled: false,

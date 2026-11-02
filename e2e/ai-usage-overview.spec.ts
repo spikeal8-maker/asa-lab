@@ -5,6 +5,76 @@ import { expect, test, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool } from './seed';
 import { openAiUsageNativeZoom } from './ai-usage-native-zoom';
+import { AI_TOOL_IDS, AI_TOOL_LABELS } from '@asa-lab/contracts';
+
+test('eight tool switches persist through real API and reload on desktop and mobile', async ({
+  page,
+}) => {
+  const db = e2eAdminPool();
+  try {
+    await registerAdministrator(page, db);
+    const endpoint = '/api/admin/v1/ai/tool-policy';
+    const before = await (await page.request.get(endpoint)).json();
+    expect(before.tools.map((item: { id: string }) => item.id)).toEqual(AI_TOOL_IDS);
+    await page.goto('/#/admin/ai?section=settings');
+    const section = page.getByRole('region', { name: 'Инструменты помощника' });
+    await expect(section).toBeVisible();
+    for (const id of AI_TOOL_IDS) {
+      const card = section.getByRole('article', { name: AI_TOOL_LABELS[id], exact: true });
+      await card
+        .getByRole('checkbox')
+        .setChecked(!before.tools.find((item: { id: string }) => item.id === id).enabled);
+    }
+    await section.getByRole('button', { name: 'Сохранить инструменты', exact: true }).click();
+    await expect(
+      section.getByText('Настройки инструментов сохранены.', { exact: true }),
+    ).toBeVisible();
+    const saved = await (await page.request.get(endpoint)).json();
+    expect(saved.configurationVersion).toBe(before.configurationVersion + 1);
+    for (const id of AI_TOOL_IDS)
+      expect(saved.tools.find((item: { id: string }) => item.id === id).enabled).toBe(
+        !before.tools.find((item: { id: string }) => item.id === id).enabled,
+      );
+    await page.reload();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize(viewportFor(width));
+      for (const colorScheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
+        for (const id of AI_TOOL_IDS) {
+          const checkbox = section
+            .getByRole('article', { name: AI_TOOL_LABELS[id], exact: true })
+            .getByRole('checkbox');
+          await expect(checkbox).toBeEnabled();
+          await expect(checkbox).toBeChecked({
+            checked: saved.tools.find((item: { id: string }) => item.id === id).enabled,
+          });
+        }
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+        ).toBe(true);
+        await section.screenshot({
+          path: test.info().outputPath(`eight-tools-${width}-${colorScheme}.png`),
+        });
+      }
+    }
+    const restored = await page.request.put(endpoint, {
+      headers: { origin: ORIGIN },
+      data: {
+        schemaVersion: 1,
+        expectedConfigurationVersion: saved.configurationVersion,
+        requestId: randomUUID(),
+        tools: before.tools.map((item: { id: string; enabled: boolean; instructions: string }) => ({
+          id: item.id,
+          enabled: item.enabled,
+          instructions: item.instructions,
+        })),
+      },
+    });
+    expect(restored.ok()).toBe(true);
+  } finally {
+    await db.end();
+  }
+});
 
 const ORIGIN = 'http://127.0.0.1:4612';
 const ENDPOINT = '/api/admin/v1/ai/usage-overview';

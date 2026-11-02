@@ -1,15 +1,11 @@
+import { AI_TOOL_IDS, AI_TOOL_LABELS, type AiToolId } from '@asa-lab/contracts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import './ai-tool-policies.css';
 
-const TOOL_LABELS = {
-  weather: 'Погода',
-  web_search: 'Интернет-поиск',
-  image_search: 'Поиск изображений',
-  generate_image: 'Генерация изображений',
-} as const;
-type ToolId = keyof typeof TOOL_LABELS;
-const TOOL_IDS = Object.keys(TOOL_LABELS) as ToolId[];
+const TOOL_LABELS = AI_TOOL_LABELS;
+type ToolId = AiToolId;
+const TOOL_IDS = AI_TOOL_IDS;
 const ENDPOINT = '/api/admin/v1/ai/tool-policy';
 
 interface ToolPolicy {
@@ -161,6 +157,7 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
 
   const invalid = edits.some((tool) => tool.instructions.length > 3000);
   const changed = configuration !== null && !sameEdits(edits, editable(configuration));
+  const writable = configuration !== null && configuration.configurationVersion > 0;
 
   function update(id: ToolId, field: 'enabled' | 'instructions', value: boolean | string) {
     setEdits((previous) =>
@@ -262,9 +259,8 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
       <div className="asa-ai-tools-heading">
         <h2 id="ai-tool-policies-title">Инструменты помощника</h2>
         <p>
-          Настройки управляют native-вызовами локальной модели и ручной генерацией изображений.
-          Явные режимы поиска и погоды подготавливают данные до ответа модели; технические
-          ограничения и правила безопасности действуют всегда.
+          Разрешения действуют для подключённых моделей и проверяются сервером перед вызовом.
+          Включение инструмента не заменяет настройку подключения и проверку прав пользователя.
         </p>
         {configuration ? (
           <button
@@ -313,63 +309,68 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
                   <div className="asa-ai-tool-card-title">
                     <h3>{TOOL_LABELS[id]}</h3>
                     <span
-                      className={tool.available ? 'asa-ai-tool-status ready' : 'asa-ai-tool-status'}
+                      className={tool.enabled ? 'asa-ai-tool-status ready' : 'asa-ai-tool-status'}
                     >
-                      {tool.available ? (tool.enabled ? 'Доступен' : 'Выключен') : 'Недоступен'}
+                      {tool.enabled ? 'Включён' : 'Выключен'}
                     </span>
                   </div>
                   <p className="asa-ai-tool-reason">
                     {tool.available
-                      ? 'Подключение готово.'
+                      ? 'Подключение настроено. Фактическая доступность проверяется при выполнении.'
                       : tool.reason || 'Причина недоступности не указана сервером.'}
                   </p>
                   <label className="asa-ai-tool-toggle">
                     <input
                       type="checkbox"
                       checked={edit.enabled}
-                      disabled={busy || (!tool.available && !edit.enabled)}
+                      disabled={busy || !writable}
                       onChange={(event) => update(id, 'enabled', event.target.checked)}
                     />{' '}
                     Включить инструмент
                   </label>
-                  <dl>
-                    <dt>Когда используется</dt>
-                    <dd>{tool.usageDescription || 'Сервер не указал условия использования.'}</dd>
-                    <dt>Параметры запроса</dt>
-                    <dd>
-                      {tool.parameters.length
-                        ? tool.parameters.join(' · ')
-                        : 'Параметры не указаны сервером.'}
-                    </dd>
-                    <dt>Результат</dt>
-                    <dd>{tool.resultDescription || 'Описание результата не указано сервером.'}</dd>
-                    <dt>Неизменяемые ограничения</dt>
-                    <dd>
-                      {tool.hardLimits.length ? (
-                        <ul>
-                          {tool.hardLimits.map((limit) => (
-                            <li key={limit}>{limit}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        'Ограничения не указаны сервером.'
-                      )}
-                    </dd>
-                  </dl>
-                  <label className="asa-ai-tool-instructions">
-                    Дополнительные инструкции
-                    <textarea
-                      value={edit.instructions}
-                      maxLength={3000}
-                      disabled={busy}
-                      onChange={(event) => update(id, 'instructions', event.target.value)}
-                      aria-label={'Дополнительные инструкции: ' + TOOL_LABELS[id]}
-                    />
-                    <small>
-                      {edit.instructions.length} / 3000 символов. Инструкции не могут отменить
-                      ограничения и фильтры.
-                    </small>
-                  </label>
+                  <details>
+                    <summary>Описание и инструкции</summary>
+                    <dl>
+                      <dt>Когда используется</dt>
+                      <dd>{tool.usageDescription || 'Сервер не указал условия использования.'}</dd>
+                      <dt>Параметры запроса</dt>
+                      <dd>
+                        {tool.parameters.length
+                          ? tool.parameters.join(' · ')
+                          : 'Параметры не указаны сервером.'}
+                      </dd>
+                      <dt>Результат</dt>
+                      <dd>
+                        {tool.resultDescription || 'Описание результата не указано сервером.'}
+                      </dd>
+                      <dt>Неизменяемые ограничения</dt>
+                      <dd>
+                        {tool.hardLimits.length ? (
+                          <ul>
+                            {tool.hardLimits.map((limit) => (
+                              <li key={limit}>{limit}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          'Ограничения не указаны сервером.'
+                        )}
+                      </dd>
+                    </dl>
+                    <label className="asa-ai-tool-instructions">
+                      Дополнительные инструкции
+                      <textarea
+                        value={edit.instructions}
+                        maxLength={3000}
+                        disabled={busy || !writable}
+                        onChange={(event) => update(id, 'instructions', event.target.value)}
+                        aria-label={'Дополнительные инструкции: ' + TOOL_LABELS[id]}
+                      />
+                      <small>
+                        {edit.instructions.length} / 3000 символов. Инструкции не могут отменить
+                        ограничения и фильтры.
+                      </small>
+                    </label>
+                  </details>
                 </article>
               );
             })}
@@ -382,10 +383,16 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
             </article>
           </div>
           <div className="asa-ai-tools-actions">
+            {!writable ? (
+              <span role="status">
+                Настройки инструментов ещё не установлены. Сохранение недоступно.
+              </span>
+            ) : null}
+            {changed ? <span role="status">Есть несохранённые изменения.</span> : null}
             <button
               type="submit"
               className="asa-cloud-apply"
-              disabled={busy || loading || invalid || conflict || !changed}
+              disabled={busy || loading || invalid || conflict || !changed || !writable}
             >
               {busy ? 'Сохраняем…' : 'Сохранить инструменты'}
             </button>
