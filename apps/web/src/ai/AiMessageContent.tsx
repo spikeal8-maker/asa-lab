@@ -62,7 +62,7 @@ const CodeHeaderContext = createContext<ContentProps['codeHeader']>(undefined);
 const CodeImagesContext = createContext<{
   evidence: readonly unknown[];
   seatId?: string | undefined;
-  generatedAssets?: GeneratedPreviewAssets;
+  generatedAssets?: GeneratedPreviewAssets | undefined;
 }>({ evidence: [] });
 // Stable renderer identity keeps a running app alive when the surrounding chat
 // rerenders (typing, focus, provider status). Inline component functions remount it.
