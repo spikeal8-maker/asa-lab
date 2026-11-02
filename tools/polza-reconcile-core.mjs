@@ -157,6 +157,10 @@ export function inspectPolzaState(state, model) {
 
 /** Leave other selected models untouched. No implicit reset of owner policies. */
 export function selectedModelIds(catalog, model) {
+  requireValid(
+    !catalog.items.some((item) => item.selected === true && (!item.active || item.kind !== 'chat')),
+    'EXISTING_SELECTION_INCOMPATIBLE',
+  );
   const kept = catalog.items
     .filter((item) => item.selected === true && item.active === true && item.kind === 'chat')
     .map((item) => item.id);
