@@ -410,7 +410,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (packet.message?.tool_calls !== undefined) {
       if (
         !Array.isArray(packet.message.tool_calls) ||
-        rawCalls.length + packet.message.tool_calls.length > 1
+        rawCalls.length + packet.message.tool_calls.length > 4
       )
         throw new OllamaError(
           'ai_tool_call_invalid',
@@ -475,7 +475,12 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (!done || lengthLimited)
       throw new OllamaError('ai_tool_call_invalid', 503, 'Вызов инструмента не завершён.');
     try {
-      toolCalls = parseNativeToolCalls(rawCalls, args.tools ?? []);
+      // Qwen may announce several image searches in separate stream frames.
+      // Validate every call, but never admit a batch containing mutations. The
+      // executor performs one search and explicitly declines the extra queries.
+      toolCalls = rawCalls.flatMap((call) => parseNativeToolCalls([call], args.tools ?? []));
+      if (toolCalls.length > 1 && toolCalls.some((call) => call.name !== 'image_search'))
+        throw new Error('AI_TOOL_CALL_INVALID');
     } catch {
       throw new OllamaError(
         'ai_tool_call_invalid',

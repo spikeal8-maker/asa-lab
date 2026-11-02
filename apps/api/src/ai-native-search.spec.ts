@@ -34,6 +34,8 @@ function fixture(
   chooseRead = false,
   provider: ToolProvider = 'ollama',
   imageReady = true,
+  createAfterSearch = false,
+  multipleSearch = false,
 ) {
   let admitted = false;
   let answer: string | null = null;
@@ -212,6 +214,13 @@ function fixture(
                               : { query: toolQuery },
                     },
                   },
+                  ...(multipleSearch
+                    ? [
+                        {
+                          function: { name: 'image_search', arguments: { query: 'Другие котики' } },
+                        },
+                      ]
+                    : []),
                 ],
               },
               done: true,
@@ -219,29 +228,63 @@ function fixture(
               eval_count: 2,
               model: 'fixture:8b',
             }
-          : round === 2 && chooseRead
+          : round === 2 && createAfterSearch
             ? {
                 message: {
-                  tool_calls: [{ function: { name: 'read_page', arguments: { sourceIds: [1] } } }],
+                  tool_calls: [
+                    {
+                      function: {
+                        name: 'create_working_file',
+                        arguments: {
+                          name: 'cats.html',
+                          content: '<h1>Котики</h1><img src="https://images.example.org/cat.jpg">',
+                        },
+                      },
+                    },
+                  ],
                 },
                 done: true,
                 prompt_eval_count: 20,
                 eval_count: 5,
                 model: 'fixture:8b',
               }
-            : {
-                message: { content: 'Ответ по источнику' },
-                done: true,
-                prompt_eval_count: 20,
-                eval_count: 5,
-                model: 'fixture:8b',
-              };
+            : round === 2 && chooseRead
+              ? {
+                  message: {
+                    tool_calls: [
+                      { function: { name: 'read_page', arguments: { sourceIds: [1] } } },
+                    ],
+                  },
+                  done: true,
+                  prompt_eval_count: 20,
+                  eval_count: 5,
+                  model: 'fixture:8b',
+                }
+              : {
+                  message: { content: 'Ответ по источнику' },
+                  done: true,
+                  prompt_eval_count: 20,
+                  eval_count: 5,
+                  model: 'fixture:8b',
+                };
       return toolProviderResponse(provider, packet);
     }
     if (address.includes('/search?'))
       return new Response(
         JSON.stringify({
-          results: [{ title: 'Источник', url: 'https://example.org/news', content: 'Факт' }],
+          results: [
+            {
+              title: 'Источник',
+              url: 'https://example.org/news',
+              content: 'Факт',
+              ...(createAfterSearch
+                ? {
+                    thumbnail_src: 'https://tse1.mm.bing.net/th?id=cat',
+                    img_src: 'https://images.example.org/cat.jpg',
+                  }
+                : {}),
+            },
+          ],
         }),
       );
     throw new Error('Unexpected network request: ' + address);
@@ -287,6 +330,61 @@ function fixture(
 }
 
 describe('native local internet tools', () => {
+  it.each(TOOL_PROVIDERS)(
+    'searches images then durably creates an artifact through %s with one search and explicit deferred queries',
+    async (provider) => {
+      const f = fixture(
+        'auto',
+        'image_search',
+        'Котики',
+        [],
+        'complete',
+        true,
+        'Создай сайт про котиков с картинками',
+        false,
+        provider,
+        true,
+        true,
+        provider === 'ollama',
+      );
+      vi.spyOn(f.service.workingFiles, 'ready').mockResolvedValue(true);
+      vi.spyOn(f.service.workingFiles, 'list').mockResolvedValue([]);
+      const write = vi.spyOn(f.service.workingFiles, 'write').mockResolvedValue({
+        id: 'file',
+        name: 'cats.html',
+        version: 1,
+        content: '',
+        anchorRequestId: REQUEST,
+        sourceMessageId: null,
+        sourceBlock: null,
+        updatedAt: '',
+      });
+      await f.send();
+      expect(write).toHaveBeenCalledOnce();
+      expect(write.mock.calls[0]?.slice(0, 5)).toEqual([
+        OWNER,
+        THREAD,
+        'cats.html',
+        0,
+        '<h1>Котики</h1><img src="https://images.example.org/cat.jpg">',
+      ]);
+      expect(f.requests.filter((r) => r.url.includes('/search?'))).toHaveLength(1);
+      const generations = f.requests.filter((r) => isToolModelUrl(r.url));
+      expect(generations).toHaveLength(3);
+      expect(JSON.stringify(generations[1]?.body)).toContain('create_working_file');
+      expect(JSON.stringify(generations[1]?.body)).toContain('https://images.example.org/cat.jpg');
+      if (provider === 'ollama')
+        expect(JSON.stringify(generations[1]?.body)).toContain('one_search_per_request');
+      expect(JSON.stringify(generations[2]?.body)).toContain('previewUpdated');
+      const usage = f.calls.find((r) => r.sql.includes('ai_usage_finish'));
+      expect(usage?.params).toContain(50);
+      expect(usage?.params).toContain(12);
+      const count = f.fetchImpl.mock.calls.length;
+      await f.send();
+      expect(f.fetchImpl.mock.calls).toHaveLength(count);
+      expect(write).toHaveBeenCalledOnce();
+    },
+  );
   it('admits once, calls web search once, persists evidence, follows up once and replays without network', async () => {
     const f = fixture('auto');
     const first = await f.send();

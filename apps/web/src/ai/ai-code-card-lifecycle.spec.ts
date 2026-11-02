@@ -3,6 +3,86 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { AiMessageContent } from './AiMessageContent';
+import { fetchWithSessionRefresh } from '../session-fetch';
+
+vi.mock('../session-fetch', () => ({ fetchWithSessionRefresh: vi.fn() }));
+
+it('clears and aborts artifact image bytes on a scope change and ignores late completion', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const path =
+    '/api/ai/threads/11111111-1111-4111-8111-111111111111/web-search/22222222-2222-4222-8222-222222222222/images/1';
+  const url = 'https://images.example.org/cat.jpg';
+  const evidence = {
+    schemaVersion: 1,
+    provider: 'searxng',
+    mode: 'images',
+    status: 'ready',
+    query: 'cats',
+    retrievedAt: '2026-11-02T00:00:00Z',
+    sources: [],
+    images: [
+      {
+        id: 1,
+        title: 'Cat',
+        thumbnailUrl: path,
+        sourceUrl: 'https://example.org/cat',
+        originalUrl: url,
+      },
+    ],
+  };
+  const pending: ((response: Response) => void)[] = [];
+  vi.mocked(fetchWithSessionRefresh).mockImplementation(
+    () => new Promise((resolve) => pending.push(resolve)),
+  );
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const content = '```html\n<img src="' + url + '">\n```';
+  const image = () =>
+    new Response(Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]), {
+      headers: { 'content-type': 'image/png' },
+    });
+  try {
+    await act(async () =>
+      root.render(
+        createElement(AiMessageContent, { content, webSearch: evidence, seatId: 'seat-a' }),
+      ),
+    );
+    const firstSignal = vi.mocked(fetchWithSessionRefresh).mock.calls.at(-1)?.[1]?.signal;
+    await act(async () =>
+      root.render(
+        createElement(AiMessageContent, { content, webSearch: evidence, seatId: 'seat-b' }),
+      ),
+    );
+    expect(firstSignal?.aborted).toBe(true);
+    await act(async () => {
+      pending[0]!(image());
+    });
+    expect(host.querySelector('iframe')?.getAttribute('srcdoc')).not.toContain('data:image/png');
+    await act(async () => {
+      pending[1]!(image());
+    });
+    expect(host.querySelector('iframe')?.getAttribute('srcdoc')).toContain('data:image/png');
+    const count = vi.mocked(fetchWithSessionRefresh).mock.calls.length;
+    await act(async () =>
+      root.render(
+        createElement(AiMessageContent, { content, webSearch: evidence, seatId: 'seat-b' }),
+      ),
+    );
+    expect(vi.mocked(fetchWithSessionRefresh)).toHaveBeenCalledTimes(count);
+    await act(async () =>
+      root.render(
+        createElement(AiMessageContent, { content, webSearch: undefined, seatId: 'seat-b' }),
+      ),
+    );
+    expect(host.querySelector('iframe')?.getAttribute('srcdoc')).not.toContain('data:image/png');
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+    vi.mocked(fetchWithSessionRefresh).mockReset();
+  }
+});
 
 it('waits for complete code, then fits the available width without reloading the running frame', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);

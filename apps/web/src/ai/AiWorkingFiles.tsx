@@ -30,7 +30,7 @@ export function AiWorkingFiles({
   refreshKey: string;
   busy: boolean;
   onSources: (files: WorkingFileInfo[]) => void;
-  messages: readonly { id: string; requestId: string; role: string }[];
+  messages: readonly { id: string; requestId: string; role: string; webSearch?: unknown }[];
   targets: Readonly<Record<string, HTMLElement>>;
   latestRequestId: string | undefined;
 }): JSX.Element | null {
@@ -149,6 +149,11 @@ export function AiWorkingFiles({
     <section className="chat-working-files" aria-label="Рабочие файлы чата">
       <AiMessageContent
         key={file.id}
+        seatId={seatId}
+        previewEvidence={[
+          ...messages.map((message) => message.webSearch),
+          anchor?.webSearch,
+        ].filter(Boolean)}
         content={fence + language + '\n' + (file.content ?? '') + '\n' + fence}
         codeHeader={{
           name: file.name,

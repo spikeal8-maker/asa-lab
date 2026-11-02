@@ -20,6 +20,7 @@ import 'katex/dist/katex.min.css';
 import './ai-text-complete.css';
 import { codeDownloadFormat, downloadBlob } from './ai-download';
 import { readWebEvidence } from './ai-web-evidence';
+import { usePreviewImages } from './ai-preview-images';
 
 function flattenText(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -45,10 +46,16 @@ interface ContentProps {
   readonly content: string;
   readonly pending?: boolean;
   readonly webSearch?: unknown;
+  readonly previewEvidence?: readonly unknown[];
+  readonly seatId?: string | undefined;
 }
 
 const CodePendingContext = createContext(false);
 const CodeHeaderContext = createContext<ContentProps['codeHeader']>(undefined);
+const CodeImagesContext = createContext<{
+  evidence: readonly unknown[];
+  seatId?: string | undefined;
+}>({ evidence: [] });
 // Stable renderer identity keeps a running app alive when the surrounding chat
 // rerenders (typing, focus, provider status). Inline component functions remount it.
 function CodePre({ children }: { children?: ReactNode }): JSX.Element {
@@ -97,6 +104,12 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
   const file = { ...format, name: header?.name ?? format.name };
   const previewable = file.name.endsWith('.html') || file.name.endsWith('.svg');
   const running = !pending && file.name.endsWith('.html');
+  const imageContext = useContext(CodeImagesContext);
+  const images = usePreviewImages(
+    pending || !previewable ? '' : code,
+    imageContext.evidence,
+    imageContext.seatId,
+  );
   const preview = useMemo(
     () =>
       previewable && !pending
@@ -104,9 +117,10 @@ function CodeCard({ children, pending }: { children: ReactNode; pending: boolean
             code,
             running && file.name.endsWith('.html'),
             file.name.endsWith('.svg'),
+            images,
           )
         : null,
-    [code, pending, previewable, running, file.name],
+    [code, pending, previewable, running, file.name, images],
   );
   const previewVisible = Boolean(preview && showPreview);
   useEffect(() => {
@@ -342,6 +356,8 @@ export function AiMessageContent({
   webSearch,
   codeHeader,
   hideCodeBlocks,
+  previewEvidence,
+  seatId,
 }: ContentProps): JSX.Element {
   const evidence = readWebEvidence(webSearch);
   let blockIndex = 0;
@@ -355,59 +371,63 @@ export function AiMessageContent({
       <ContentBoundary content={content}>
         <CodePendingContext.Provider value={pending}>
           <CodeHeaderContext.Provider value={codeHeader}>
-            <ReactMarkdown
-              skipHtml
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[
-                [
-                  rehypeKatex,
-                  {
-                    trust: false,
-                    maxExpand: 1000,
-                    maxSize: 8,
-                    strict: 'ignore',
-                    output: 'htmlAndMathml',
-                  },
-                ],
-              ]}
-              components={{
-                a: ({ href, children }) => {
-                  const safe = safeLink(href);
-                  const number = flattenText(children).replace(/^\[|\]$/g, '');
-                  const cited = evidence?.sources.find(
-                    (source) => String(source.id) === number && safe?.href === source.url,
-                  );
-                  return safe ? (
-                    <a
-                      href={safe.href}
-                      target={safe.external ? '_blank' : undefined}
-                      rel={safe.external ? 'noreferrer noopener' : undefined}
-                      className={cited ? 'asa-ai-citation' : undefined}
-                      aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
-                      title={cited?.hostname}
-                    >
-                      {children}
-                    </a>
-                  ) : (
-                    <span>{children}</span>
-                  );
-                },
-                pre: CodePre,
-                table: ({ children }) => (
-                  <div
-                    className="asa-ai-table-scroll"
-                    role="region"
-                    aria-label="Таблица ответа"
-                    tabIndex={0}
-                  >
-                    <table>{children}</table>
-                  </div>
-                ),
-                img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
-              }}
+            <CodeImagesContext.Provider
+              value={{ evidence: previewEvidence ?? [webSearch], seatId }}
             >
-              {visibleContent}
-            </ReactMarkdown>
+              <ReactMarkdown
+                skipHtml
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[
+                  [
+                    rehypeKatex,
+                    {
+                      trust: false,
+                      maxExpand: 1000,
+                      maxSize: 8,
+                      strict: 'ignore',
+                      output: 'htmlAndMathml',
+                    },
+                  ],
+                ]}
+                components={{
+                  a: ({ href, children }) => {
+                    const safe = safeLink(href);
+                    const number = flattenText(children).replace(/^\[|\]$/g, '');
+                    const cited = evidence?.sources.find(
+                      (source) => String(source.id) === number && safe?.href === source.url,
+                    );
+                    return safe ? (
+                      <a
+                        href={safe.href}
+                        target={safe.external ? '_blank' : undefined}
+                        rel={safe.external ? 'noreferrer noopener' : undefined}
+                        className={cited ? 'asa-ai-citation' : undefined}
+                        aria-label={cited ? 'Источник ' + cited.id + ': ' + cited.title : undefined}
+                        title={cited?.hostname}
+                      >
+                        {children}
+                      </a>
+                    ) : (
+                      <span>{children}</span>
+                    );
+                  },
+                  pre: CodePre,
+                  table: ({ children }) => (
+                    <div
+                      className="asa-ai-table-scroll"
+                      role="region"
+                      aria-label="Таблица ответа"
+                      tabIndex={0}
+                    >
+                      <table>{children}</table>
+                    </div>
+                  ),
+                  img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
+                }}
+              >
+                {visibleContent}
+              </ReactMarkdown>
+            </CodeImagesContext.Provider>
           </CodeHeaderContext.Provider>
         </CodePendingContext.Provider>
       </ContentBoundary>

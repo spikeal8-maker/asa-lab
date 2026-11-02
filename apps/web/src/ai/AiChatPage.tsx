@@ -1988,6 +1988,7 @@ export function AiChatPage({
                                 )
                                 .map((f) => f.sourceBlock!)}
                               webSearch={message.webSearch}
+                              seatId={seatId}
                             />
                           ) : null}
                           <AiWebEvidence

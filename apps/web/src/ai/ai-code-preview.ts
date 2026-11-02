@@ -1,4 +1,5 @@
 import { parse, type DefaultTreeAdapterMap } from 'parse5';
+import type { PreviewImages } from './ai-preview-images';
 
 // Parse as data, never through a live DOM. Only this reconstructed static
 // subset enters an opaque-origin iframe, with an additional restrictive CSP.
@@ -40,9 +41,11 @@ export function codePreviewDocument(
   code: string,
   interactive = false,
   fitSvg = false,
+  images: PreviewImages = new Map(),
 ): string | null {
   if (code.length > 200_000) return null;
   let nodes = 0;
+  let imageBytes = 0;
   let svgRoot: DefaultTreeAdapterMap['element'] | undefined;
   function render(node: DefaultTreeAdapterMap['node'], depth: number): string {
     if (++nodes > 10_000 || depth > 64) throw new Error('preview_limit');
@@ -50,6 +53,23 @@ export function codePreviewDocument(
     if (!('tagName' in node))
       return 'childNodes' in node ? node.childNodes.map((n) => render(n, depth + 1)).join('') : '';
     const tag = node.tagName.toLowerCase();
+    if (tag === 'img') {
+      const source = node.attrs.find((a) => a.name === 'src' && !a.namespace)?.value;
+      const data = source && images.get(source);
+      if (!data || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(data)) return '';
+      imageBytes += data.length;
+      // Bound repeated references before building srcdoc, not just distinct assets.
+      if (imageBytes > 6 * 1024 * 1024) throw new Error('preview_image_limit');
+      const attrs = node.attrs
+        .filter(
+          (a) =>
+            !a.namespace &&
+            ['alt', 'class', 'id', 'style', 'width', 'height', 'title'].includes(a.name),
+        )
+        .map((a) => ` ${a.name}="${escape(a.value)}"`)
+        .join('');
+      return `<img src="${data}"${attrs}>`;
+    }
     if (!TAGS.has(tag) && tag !== 'canvas' && !(interactive && tag === 'script')) return '';
     // Outer document is always ours; no generated metadata, base, frames,
     // foreignObject, scripts, resource elements or event attributes survive.
@@ -128,7 +148,7 @@ export function codePreviewDocument(
       interactive = false;
     }
     const body = render(svgRoot ?? parsed, 0);
-    const policy = `default-src 'none'; script-src ${interactive ? "'unsafe-inline'" : "'none'"}; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'`;
+    const policy = `default-src 'none'; script-src ${interactive ? "'unsafe-inline'" : "'none'"}; style-src 'unsafe-inline'; img-src ${imageBytes ? 'data:' : "'none'"}; font-src 'none'; connect-src 'none'; frame-src 'none'; object-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'`;
     const doc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html{background:white;color:#172b3a;font-family:Arial,sans-serif;scrollbar-width:thin;scrollbar-color:#9ab5c866 transparent}body{margin:0}${fitSvg ? 'html,body{height:100%;overflow:hidden}' : ''}svg{max-width:100%;height:auto}</style>${interactive ? RUN_STORAGE : ''}</head><body>${body}</body></html>`;
     if (!interactive) return doc;
     // The trusted containing document owns frame-src 'none': srcdoc is allowed,
