@@ -1,0 +1,230 @@
+{
+  "description": "Documentation-only state machines; transitions do not implement admission, persistence or replay. Reconciling observes the SAME job, never resubmits it.",
+  "operation": {
+    "accepted": [
+      "planning",
+      "cancel_requested",
+      "failed"
+    ],
+    "planning": [
+      "executing",
+      "responding",
+      "cancel_requested",
+      "failed"
+    ],
+    "executing": [
+      "planning",
+      "responding",
+      "cancel_requested",
+      "reconciling",
+      "succeeded",
+      "partial",
+      "failed"
+    ],
+    "responding": [
+      "planning",
+      "executing",
+      "succeeded",
+      "partial",
+      "failed",
+      "cancel_requested"
+    ],
+    "cancel_requested": [
+      "cancelled",
+      "partial",
+      "reconciling"
+    ],
+    "reconciling": [
+      "executing",
+      "responding",
+      "succeeded",
+      "partial",
+      "failed",
+      "cancelled",
+      "unknown_outcome"
+    ],
+    "unknown_outcome": [
+      "reconciling",
+      "cancel_requested"
+    ],
+    "succeeded": [],
+    "partial": [],
+    "failed": [],
+    "cancelled": []
+  },
+  "tool": {
+    "proposed": [
+      "admitted",
+      "invalid_arguments",
+      "denied",
+      "unavailable",
+      "rate_limited",
+      "cancelled"
+    ],
+    "admitted": [
+      "queued",
+      "running",
+      "cancelled"
+    ],
+    "queued": [
+      "running",
+      "cancelled",
+      "unknown_outcome",
+      "unavailable"
+    ],
+    "running": [
+      "succeeded",
+      "partial",
+      "empty",
+      "invalid_arguments",
+      "unavailable",
+      "rate_limited",
+      "conflict",
+      "unknown_outcome",
+      "cancelled"
+    ],
+    "unknown_outcome": [
+      "reconciling"
+    ],
+    "reconciling": [
+      "running",
+      "succeeded",
+      "partial",
+      "cancelled",
+      "unavailable",
+      "unknown_outcome"
+    ],
+    "succeeded": [],
+    "partial": [],
+    "empty": [],
+    "invalid_arguments": [],
+    "denied": [],
+    "unavailable": [],
+    "rate_limited": [],
+    "conflict": [],
+    "cancelled": []
+  },
+  "examples": [
+    {
+      "name": "website_with_search",
+      "machine": "operation",
+      "states": [
+        "accepted",
+        "planning",
+        "executing",
+        "responding",
+        "succeeded"
+      ],
+      "valid": true
+    },
+    {
+      "name": "late_receipt_same_job",
+      "machine": "operation",
+      "states": [
+        "accepted",
+        "planning",
+        "executing",
+        "reconciling",
+        "unknown_outcome",
+        "reconciling",
+        "responding",
+        "succeeded"
+      ],
+      "valid": true
+    },
+    {
+      "name": "cancel_and_confirm",
+      "machine": "operation",
+      "states": [
+        "accepted",
+        "planning",
+        "executing",
+        "cancel_requested",
+        "reconciling",
+        "cancelled"
+      ],
+      "valid": true
+    },
+    {
+      "name": "file_conflict_is_partial_result",
+      "machine": "operation",
+      "states": [
+        "accepted",
+        "planning",
+        "executing",
+        "responding",
+        "partial"
+      ],
+      "valid": true
+    },
+    {
+      "name": "image_unknown_then_observed",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "queued",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "succeeded"
+      ],
+      "valid": true
+    },
+    {
+      "name": "policy_denies_before_execution",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "denied"
+      ],
+      "valid": true
+    },
+    {
+      "name": "terminal_operation_cannot_restart",
+      "machine": "operation",
+      "states": [
+        "accepted",
+        "planning",
+        "responding",
+        "succeeded",
+        "executing"
+      ],
+      "valid": false
+    },
+    {
+      "name": "unknown_tool_action_cannot_resubmit",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "running"
+      ],
+      "valid": false
+    },
+    {
+      "name": "denied_cannot_execute",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "denied",
+        "running"
+      ],
+      "valid": false
+    },
+    {
+      "name": "cancel_is_not_unconfirmed_success",
+      "machine": "operation",
+      "states": [
+        "accepted",
+        "planning",
+        "executing",
+        "cancel_requested",
+        "succeeded"
+      ],
+      "valid": false
+    }
+  ]
+}
