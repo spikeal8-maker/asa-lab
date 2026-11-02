@@ -1,4 +1,6 @@
 import { activeArduinoGraph } from './arduino-pin-inputs';
+import { ARDUINO_DIGITAL_PIN_OPTIONS } from './arduino-block-schema';
+import { arduinoPinSetup } from './arduino-output-pins';
 import {
   ARDUINO_SCRATCH_THEME,
   ARDUINO_WORKSPACE_PLUGINS,
@@ -16,6 +18,7 @@ import {
   type PointerEvent,
   type CSSProperties,
   type ReactNode,
+  type MutableRefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import * as ScratchBlocks from 'scratch-blocks';
@@ -366,6 +369,24 @@ const MODE_LABELS: Record<ArduinoCodeMode, string> = {
   text: 'Текст',
 };
 
+function withSavedArduinoWorkspace<T>(
+  json: string,
+  read: (workspace: ScratchBlocks.Workspace) => T,
+): T {
+  registerArduinoBlocks();
+  const workspace = new ScratchBlocks.Workspace();
+  try {
+    ScratchBlocks.serialization.workspaces.load(
+      migrateLegacyArduinoWorkspaceState(JSON.parse(json)),
+      workspace,
+    );
+    applyArduinoBlockDefaults(workspace);
+    return read(workspace);
+  } finally {
+    workspace.dispose();
+  }
+}
+
 function isArduino(component: SchematicComponent): boolean {
   return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
 }
@@ -410,14 +431,23 @@ function ChevronDown(): JSX.Element {
   );
 }
 
+type ArduinoWorkspaceHandle = {
+  readonly workspace: ScratchBlocks.Workspace;
+  flushPendingPublication: () => void;
+};
+
 export function ScratchWorkspace({
   initialWorkspace,
+  inputPins,
+  programWorkspaceRef,
   category,
   flyoutWidth,
   paletteScale,
   onChange,
 }: {
   initialWorkspace: string;
+  inputPins: readonly string[];
+  programWorkspaceRef: MutableRefObject<ArduinoWorkspaceHandle | null>;
   category: ArduinoBlockCategory;
   flyoutWidth: number;
   paletteScale: number;
@@ -429,6 +459,7 @@ export function ScratchWorkspace({
   const flyoutWidthRef = useRef(flyoutWidth);
   const paletteScaleRef = useRef(paletteScale);
   const categoryRef = useRef(category);
+  const inputPinsRef = useRef(inputPins);
   const refreshToolboxRef = useRef<(() => void) | null>(null);
   const timerRef = useRef<number | null>(null);
   const variablePromptCallbackRef = useRef<ArduinoVariablePromptCallback | null>(null);
@@ -438,6 +469,7 @@ export function ScratchWorkspace({
   flyoutWidthRef.current = flyoutWidth;
   paletteScaleRef.current = paletteScale;
   categoryRef.current = category;
+  inputPinsRef.current = inputPins;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -487,6 +519,14 @@ export function ScratchWorkspace({
     }
     configureArduinoPaletteScroll(workspace);
     workspaceRef.current = workspace;
+    programWorkspaceRef.current = {
+      workspace,
+      flushPendingPublication: () => {
+        if (timerRef.current !== null) window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+        publish();
+      },
+    };
     document.documentElement.classList.add('arduino-block-editor-active');
 
     const refreshToolbox = (): void => {
@@ -630,9 +670,13 @@ export function ScratchWorkspace({
       }
     };
     const publish = (): void => {
+      timerRef.current = null;
       updateBlockActivity();
       const state = ScratchBlocks.serialization.workspaces.save(workspace);
-      changeRef.current(JSON.stringify(state), generateArduinoCode(workspace));
+      changeRef.current(
+        JSON.stringify(state),
+        generateArduinoCode(workspace, inputPinsRef.current),
+      );
     };
     publish();
     const listener = (event: ScratchBlocks.Events.Abstract): void => {
@@ -674,6 +718,7 @@ export function ScratchWorkspace({
       for (const [svg, opacity] of originalBlockOpacity) svg.style.opacity = opacity;
       workspace.dispose();
       workspaceRef.current = null;
+      programWorkspaceRef.current = null;
       refreshToolboxRef.current = null;
       document.documentElement.classList.remove('arduino-block-editor-active');
       variablePromptCallbackRef.current = null;
@@ -1185,6 +1230,7 @@ export function ArduinoCodePanel({
     readArduinoProgramState(selectedBoard?.stateProperties),
   );
   const programRef = useRef(program);
+  const programWorkspaceRef = useRef<ArduinoWorkspaceHandle | null>(null);
   const sourceCursorRef = useRef(program.source.length);
   const [category, setCategory] = useState<ArduinoBlockCategory>('output');
   const [fontSize, setFontSize] = useState(initialArduinoFontSize);
@@ -1195,6 +1241,12 @@ export function ArduinoCodePanel({
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
   const modeMenuRef = useRef<HTMLDetailsElement>(null);
+  const inputSettingsButtonRef = useRef<HTMLButtonElement>(null);
+  const [inputSettings, setInputSettings] = useState<{
+    pins: readonly string[];
+    inferred: ReadonlySet<string>;
+    unresolved: boolean;
+  } | null>(null);
 
   const activateBoard = useCallback((board: SchematicComponent): void => {
     const nextProgram = readArduinoProgramState(board.stateProperties);
@@ -1203,6 +1255,7 @@ export function ArduinoCodePanel({
     setProgram(nextProgram);
     setBoardId(board.id);
     setPendingMode(null);
+    setInputSettings(null);
     setDiagnosticsOpen(analyseArduinoSourceSupport(nextProgram.source).length > 0);
   }, []);
 
@@ -1215,6 +1268,16 @@ export function ArduinoCodePanel({
   useEffect(() => {
     if (preferredBoard?.id && preferredBoard.id !== boardId) activateBoard(preferredBoard);
   }, [activateBoard, boardId, preferredBoard]);
+
+  // External document changes (including Undo/Redo) restore the per-board
+  // settings/source pair without reloading the live block workspace.
+  useEffect(() => {
+    if (!selectedBoard || selectedBoard.id !== boardId) return;
+    const next = readArduinoProgramState(selectedBoard.stateProperties);
+    if (JSON.stringify(next) === JSON.stringify(programRef.current)) return;
+    programRef.current = next;
+    setProgram(next);
+  }, [boardId, selectedBoard]);
 
   useEffect(() => {
     localStorage.setItem(ARDUINO_FLYOUT_STORAGE_KEY, String(preferredFlyoutWidth));
@@ -1246,15 +1309,65 @@ export function ArduinoCodePanel({
       arduinoSource: next.source,
       arduinoSerialOpen: next.serialOpen,
       arduinoBaudRate: next.baudRate,
+      ...(next.inputPins.length > 0 || selectedBoard.stateProperties?.['arduinoInputPins']
+        ? { arduinoInputPins: next.inputPins }
+        : {}),
     };
     c.updateArduinoProgram(selectedBoard.id, properties);
   }
 
   function updateProgram(patch: Partial<ArduinoProgramState>): void {
-    const next = { ...programRef.current, ...patch };
+    // A pending block edit is its own Undo step; commit it before the atomic
+    // input-settings/source change, so Undo does not leave stale live blocks.
+    if (patch.inputPins && programRef.current.mode !== 'text') {
+      programWorkspaceRef.current?.flushPendingPublication();
+    }
+    let next = { ...programRef.current, ...patch };
+    if (patch.inputPins && next.mode !== 'text') {
+      const handle = programWorkspaceRef.current;
+      const live = handle?.workspace;
+      if (live) {
+        next = {
+          ...next,
+          workspaceJson: JSON.stringify(ScratchBlocks.serialization.workspaces.save(live)),
+          source: generateArduinoCode(live, next.inputPins),
+        };
+      } else if (next.workspaceJson) {
+        next = {
+          ...next,
+          source: withSavedArduinoWorkspace(next.workspaceJson, (workspace) =>
+            generateArduinoCode(workspace, next.inputPins),
+          ),
+        };
+      }
+    }
     programRef.current = next;
     setProgram(next);
     persist(next);
+  }
+
+  function closeInputSettings(): void {
+    setInputSettings(null);
+    modeMenuRef.current?.setAttribute('open', '');
+    inputSettingsButtonRef.current?.focus();
+  }
+
+  function openInputSettings(): void {
+    const current = programRef.current;
+    const live = programWorkspaceRef.current?.workspace;
+    const roles = live
+      ? arduinoPinSetup(activeArduinoGraph(live).blocks)
+      : current.mode !== 'text' && current.workspaceJson
+        ? withSavedArduinoWorkspace(current.workspaceJson, (workspace) =>
+            arduinoPinSetup(activeArduinoGraph(workspace).blocks),
+          )
+        : arduinoPinSetup([]);
+    setInputSettings({
+      pins: [...arduinoPinSetup([], current.inputPins).inputs],
+      inferred: roles.inputs,
+      unresolved: roles.unresolvedInputs.length > 0,
+    });
+    modeMenuRef.current?.removeAttribute('open');
   }
 
   function chooseMode(mode: ArduinoCodeMode): void {
@@ -1381,6 +1494,9 @@ export function ArduinoCodePanel({
                 {MODE_LABELS[mode]}
               </button>
             ))}
+            <button type="button" ref={inputSettingsButtonRef} onClick={openInputSettings}>
+              Настройки Arduino
+            </button>
           </div>
         </details>
         {program.mode !== 'blocks' ? (
@@ -1491,6 +1607,8 @@ export function ArduinoCodePanel({
             <ScratchWorkspace
               key={selectedBoard.id}
               initialWorkspace={program.workspaceJson}
+              inputPins={program.inputPins}
+              programWorkspaceRef={programWorkspaceRef}
               category={category}
               flyoutWidth={flyoutWidth}
               paletteScale={effectivePaletteScale}
@@ -1568,6 +1686,107 @@ export function ArduinoCodePanel({
         onOpenChange={(serialOpen) => updateProgram({ serialOpen })}
         onSend={c.sendArduinoSerialRx}
       />
+      {inputSettings ? (
+        <div className="arduino-confirm-backdrop" role="presentation">
+          <section
+            className="arduino-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Настройки Arduino"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                closeInputSettings();
+              }
+              if (event.key !== 'Tab') return;
+              const controls = [
+                ...event.currentTarget.querySelectorAll<HTMLElement>(
+                  'button, input:not(:disabled)',
+                ),
+              ];
+              const first = controls[0],
+                last = controls[controls.length - 1];
+              if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last?.focus();
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first?.focus();
+              }
+            }}
+          >
+            <header>
+              <strong>Настройки Arduino</strong>
+              <button
+                type="button"
+                autoFocus
+                aria-label="Закрыть настройки Arduino"
+                onClick={closeInputSettings}
+              >
+                ×
+              </button>
+            </header>
+            <p>
+              Входные порты (INPUT). Для вычисляемых входов выберите все порты, которые может
+              прочитать программа. Остальные GPIO в блоках настраиваются как OUTPUT.
+            </p>
+            {inputSettings.unresolved ? (
+              <p>В программе есть вычисляемые входные порты: укажите их в списке.</p>
+            ) : null}
+            {program.mode === 'text' ? (
+              <p>Настройки применяются к блокам. Текстовый код не изменится.</p>
+            ) : null}
+            <fieldset className="arduino-input-pins">
+              <legend>Входные порты</legend>
+              {ARDUINO_DIGITAL_PIN_OPTIONS.map(([, pin]) => {
+                const inferred = inputSettings.inferred.has(pin!);
+                return (
+                  <label
+                    key={pin}
+                    title={
+                      inferred
+                        ? 'Вход определяется блоками или Serial'
+                        : 'Дополнительный входной порт'
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={`Входной порт ${pin}`}
+                      checked={inferred || inputSettings.pins.includes(pin!)}
+                      disabled={inferred}
+                      onChange={(event) =>
+                        setInputSettings({
+                          ...inputSettings,
+                          pins: event.target.checked
+                            ? [...inputSettings.pins, pin!]
+                            : inputSettings.pins.filter((p) => p !== pin),
+                        })
+                      }
+                    />
+                    {pin}
+                    {inferred ? ' (авто)' : ''}
+                  </label>
+                );
+              })}
+            </fieldset>
+            <footer>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  updateProgram({ inputPins: inputSettings.pins });
+                  closeInputSettings();
+                }}
+              >
+                Применить
+              </button>
+              <button type="button" onClick={closeInputSettings}>
+                Отмена
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
       {pendingMode ? (
         <div className="arduino-confirm-backdrop" role="presentation">
           <section

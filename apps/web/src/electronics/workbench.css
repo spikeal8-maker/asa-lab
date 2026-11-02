@@ -3693,6 +3693,29 @@ html.arduino-drawer-resizing * {
   background: #eaf4fa;
   color: #087fb2;
 }
+.arduino-input-pins {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px;
+  padding: 12px;
+}
+.arduino-confirm-dialog:has(.arduino-input-pins) {
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+}
+.arduino-confirm-dialog:has(.arduino-input-pins) > p {
+  padding: 10px 16px;
+}
+.arduino-input-pins label {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 12px;
+}
+.arduino-input-pins input {
+  margin: 0;
+}
 .arduino-square-button {
   display: flex;
   width: 42px;
