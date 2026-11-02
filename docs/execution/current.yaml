@@ -9267,30 +9267,29 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: visible_course_task_creation_selected
+      checkpoint: preview_telemetry_baseline_repair_selected
       selected_slice:
-        id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+        id: LRN-PREVIEW-TELEMETRY-BASELINE-949
+        issue: 949
         status: in_progress
-        owner_authorization: Owner resumed development on 2026-11-02 and explicitly prioritised visible buttons for creating tasks inside courses over further invisible backend work.
-        scope: Reuse the canonical authored activity editor from the course practice picker; create, save, publish and select the exact new practice without losing the course lesson draft. No new academic runtime or migration.
+        kind: repair
+        owner_authorization: Owner commissioned Courses completion and resumed visible task authoring on 2026-11-02; controller selects the separate prerequisite baseline repair under AGENTS section 2.1, not scope expansion in PR943.
+        scope: Correct the existing preview test classifier to exempt only exact same-origin POST diagnostics quality receipt telemetry alongside its existing analytics quality receipt exemption.
         expected_write_paths:
-        - apps/web/src/components/CanonicalPracticePicker.tsx
-        - apps/web/src/pages/AuthoredMaterialsPage.tsx
-        - apps/web/src/components/CoursesPanel.tsx
-        - apps/web/src/learning/testing/course-visible-authoring.spec.ts
-        - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
-        - apps/web/src/components/courses-panel.css
-        - e2e/learning-course-01.spec.ts
-        - apps/web/src/components/LessonBlockEditor.tsx
+        - e2e/learning-author-preview.spec.ts
         acceptance:
-        - A visible create-task action opens the existing canonical editor within the course workflow.
-        - Saving and publication use existing server commands; only a confirmed published supported project version can be inserted.
-        - Closing, error, busy and dirty navigation preserve or guard both author and lesson drafts.
-        - Exact saved lesson content survives reopening; no fake Quiz support or unsupported task types advertised.
-        - Focused mounted interaction checks and required Learning browser evidence distinguish implementation from installed owner acceptance.
-        preserved_work: Draft PR918,923,927,928,939 remain preserved; no merge, migration renumbering or foreign WIP edits in this slice.
-        previous_wait_resolution: Owner explicitly changed order; fresh remote main dfee5badd299d318a8e51ff0cbf88e9656333a5d observed with successful General workflow. Root ClassroomPage and classroom E2E/CSS WIP preserved. This slice avoids those paths and all migration fixtures; no migration allocation applies.
-        historical_checkpoint: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6582162186
+        - Preserve all academic API mutation detection, exact historical preview, delayed-response assertions and all existing test identities.
+        - No broad diagnostics exemption, runtime changes, retry/timeout changes or permission changes.
+        - Independent source review and exact-head registered Learning evidence before integration.
+        held_visible_candidate:
+          pr: 943
+          branch: codex/courses-inline-task-creation-20261102
+          head: c96dea558255c5e55e476a6f83610b2283fd5970
+          state: source_preserved_mobile_repair_awaits_review_and_browser
+          previous_reviewed_sha: ba4b69df9d144619bd6415fa94d496f740c797d4
+          evidence: https://github.com/spikeal8-maker/asa-lab/pull/943
+        baseline_evidence: Exact ba4 Learning41487357777 first125422087914 captured POST diagnostics/quality schemaVersion2 client-diagnostics delivery counters only; unchanged preview assertion classified it as an academic mutation. Actual trace reviewed independently; separate category C Issue949.
+        next_action: Finish the one-file baseline repair separately, then recover actual remote state and restore visible-task candidate verification. This is not full Courses, Quiz or deployment acceptance.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
