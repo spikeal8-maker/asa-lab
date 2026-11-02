@@ -365,12 +365,29 @@ class ReleaseTests(unittest.TestCase):
             assert_ci(release())
 
     def test_publication_gate_executes_the_same_full_general_verifier(self):
-        import yaml
-        workflow = yaml.safe_load((Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text())
-        steps = workflow["jobs"]["gate"]["steps"]
-        self.assertEqual(steps[0]["with"]["ref"], "${{ github.event.workflow_run.head_sha || github.sha }}")
-        self.assertFalse(steps[0]["with"]["persist-credentials"])
-        script = next(step["run"] for step in steps if step.get("id") == "source").split("python - <<'PY'\n")[1].rsplit("\nPY", 1)[0]
+        # This single reviewed heredoc is tested in stdlib-only deployment CI.
+        # Exact layout bounds deliberately reject drift instead of parsing YAML.
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/portable-release.yml").read_text()
+        start, end = "\n  gate:\n", "\n  build:\n"
+        self.assertEqual(workflow.count(start), 1)
+        self.assertEqual(workflow.count(end), 1)
+        self.assertLess(workflow.index(start), workflow.index(end))
+        gate = workflow.split(start, 1)[1].split(end, 1)[0]
+        source_marker = "      - id: source\n"
+        checkout = ("    steps:\n      - uses: actions/checkout@v4\n        with:\n"
+                    "          ref: ${{ github.event.workflow_run.head_sha || github.sha }}\n"
+                    "          persist-credentials: false\n")
+        self.assertEqual(gate.count(checkout + source_marker), 1)
+        self.assertEqual(gate.count(source_marker), 1)
+        source = gate.split(source_marker, 1)[1]
+        opening, closing = "        run: |\n          python - <<'PY'\n", "\n          PY"
+        self.assertEqual(source.count(opening), 1)
+        body = source.split(opening, 1)[1]
+        self.assertEqual(body.count(closing), 1)
+        body, tail = body.split(closing, 1)
+        self.assertEqual(tail, "")
+        self.assertTrue(body and all(line.startswith(" " * 10) for line in body.splitlines()))
+        script = "\n".join(line[10:] for line in body.splitlines())
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "output"
             with patch.dict(os.environ, {"REVISION": "a" * 40, "GITHUB_OUTPUT": str(output)}), \
