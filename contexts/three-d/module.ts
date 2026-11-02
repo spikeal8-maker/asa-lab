@@ -134,7 +134,9 @@ function analyse(document: ThreeDDocument): ThreeDAnalysisSummary {
   };
 }
 
-export const THREE_D_MODULE = defineModule<ThreeDDocument, ThreeDAnalysisSummary>(
+// Construction only returns metadata/provider; importing geometry must not retain
+// this unused registration and the SDK's authoring dependency chunks.
+export const THREE_D_MODULE = /* @__PURE__ */ defineModule<ThreeDDocument, ThreeDAnalysisSummary>(
   THREE_D_MANIFEST,
   {
     createEmptyProject: createEmptyThreeDDocument,
