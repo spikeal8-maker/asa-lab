@@ -860,6 +860,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         (row) => row.version === '0227',
       )!.applied_at;
       const cloudProviderAppliedAt = ledgerAfter.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = ledgerAfter.find((row) => row.version === '0297')!.applied_at;
       const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       expect(configAfter).toEqual({
@@ -907,6 +908,17 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           api_key_auth_tag: null,
           key_fingerprint: null,
           updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: 1,
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
 

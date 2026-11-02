@@ -910,6 +910,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         (row) => row.version === '0227',
       )!.applied_at;
       const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = afterLedger.find((row) => row.version === '0297')!.applied_at;
       const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(migratedConfig).toEqual({
         ...config,
@@ -957,6 +958,17 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           api_key_auth_tag: null,
           key_fingerprint: null,
           updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: '1',
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
       expect(
