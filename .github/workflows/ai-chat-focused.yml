@@ -24,6 +24,9 @@ name: ASA AI Chat Focused
       - 'apps/web/src/components/ClassroomAiAccess.tsx'
       - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
+      - 'apps/web/public/vite-preload-recovery.js'
+      - 'apps/web/src/styles.css'
+      - 'tools/test-web-release-update.mjs'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/AiAdminWorkspace.tsx'
       - 'apps/web/src/admin/AdminAiUsageOverview.tsx'
@@ -70,6 +73,9 @@ name: ASA AI Chat Focused
       - 'apps/web/src/components/ClassroomAiAccess.tsx'
       - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
+      - 'apps/web/public/vite-preload-recovery.js'
+      - 'apps/web/src/styles.css'
+      - 'tools/test-web-release-update.mjs'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/AiAdminWorkspace.tsx'
       - 'apps/web/src/admin/AdminAiUsageOverview.tsx'
@@ -136,6 +142,8 @@ jobs:
           ASA_DOCUMENT_PYTHON="$RUNNER_TEMP/asa-document-python/bin/python" node tools/smoke-ai-built-document-reader.mjs
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
+      - name: Release update notification and safe reload regression
+        run: node --test tools/test-web-release-update.mjs
       - name: No unformatted files
         run: |
           pnpm exec prettier --check apps/api/src/ai-* apps/api/src/ai-attachments apps/api/src/app.factory.ts apps/api/src/abuse-protection.ts apps/api/src/abuse-protection.spec.ts apps/api/src/seat-context.ts apps/api/src/account-verification.guard* apps/web/src/components/ClassroomAiAccess.tsx apps/web/src/components/classroom-ai-access.css apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts tests/ai-attachments package.json
