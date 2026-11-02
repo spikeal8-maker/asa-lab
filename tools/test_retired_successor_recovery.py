@@ -5,13 +5,14 @@ import gzip
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
-from retired_successor_recovery import analyze, apply_metadata, verify_retirement_authority, RecoveryBlocked, encoded, sha
+from retired_successor_recovery import analyze, apply_metadata, verify_retirement_authority, RecoveryBlocked, encoded, sha, SQLiteSidecars
 
 
 MANIFEST = 'f'*64
@@ -175,6 +176,21 @@ class SuccessorTests(unittest.TestCase):
             apply_metadata(self.db,self.reader,expected,MANIFEST)
         self.assertEqual(self.rows('state'),before)
 
+    def test_sidecar_callback_blocks_before_begin_or_rolls_back_precommit(self):
+        for reject_at in (1, 2):
+            with self.subTest(reject_at=reject_at):
+                expected=self.plan();before=self.rows('state');calls=[]
+                def check():
+                    calls.append(1)
+                    if len(calls)==reject_at:raise RecoveryBlocked('SQLITE_SIDECAR_REPLACED')
+                self.reader.before_commit=check
+                with self.assertRaisesRegex(RecoveryBlocked,'SQLITE_SIDECAR_REPLACED'):
+                    apply_metadata(self.db,self.reader,expected,MANIFEST)
+                self.assertFalse(self.db.in_transaction)
+                self.assertEqual(self.rows('state'),before)
+                self.assertEqual(len(calls),reject_at)
+        del self.reader.before_commit
+
     def test_state_trigger_cannot_mutate_events_or_clear_error_during_apply(self):
         expected=self.plan();before_events=self.rows('events');before_state=self.rows('state')
         self.db.execute("CREATE TRIGGER malicious_state AFTER INSERT ON state BEGIN DELETE FROM events; END")
@@ -267,3 +283,76 @@ class SuccessorTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+@unittest.skipUnless(os.name == 'posix', 'Linux dirfd/no-follow sidecar contract')
+class SQLiteSidecarTests(unittest.TestCase):
+    def setUp(self):
+        previous_umask = os.umask(0o077); self.addCleanup(os.umask, previous_umask)
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name); self.root.chmod(0o700)
+        self.parent = os.open(self.root, os.O_RDONLY|os.O_DIRECTORY)
+        self.addCleanup(os.close, self.parent)
+        self.foreign = self.root/'foreign-preserved.bin'
+        self.foreign.write_bytes(b'preserved forensic bytes'*300); self.foreign.chmod(0o600)
+
+    def test_aliases_rejected_before_sqlite_open_without_foreign_mutation(self):
+        for suffix in ('-wal', '-shm', '-journal'):
+            for link in ('hard', 'symbolic'):
+                with self.subTest(suffix=suffix, link=link):
+                    target = self.root/('index.sqlite'+suffix)
+                    if link == 'hard': os.link(self.foreign, target)
+                    else: target.symlink_to(self.foreign)
+                    before = self.foreign.read_bytes()
+                    with self.assertRaisesRegex(RecoveryBlocked, 'SQLITE_SIDECAR_UNSAFE'):
+                        with contextlib.closing(SQLiteSidecars(self.parent, os.getuid())):
+                            self.fail('unsafe sidecar reached writable SQLite open')
+                    self.assertEqual(self.foreign.read_bytes(), before)
+                    target.unlink()
+
+    def test_replacement_aliases_fail_before_transaction_and_preserve_foreign(self):
+        for suffix in ('-wal', '-shm', '-journal'):
+            for link in ('hard', 'symbolic'):
+                with self.subTest(suffix=suffix, link=link):
+                    target = self.root/('index.sqlite'+suffix)
+                    target.write_bytes(b'original'); target.chmod(0o600)
+                    with contextlib.closing(SQLiteSidecars(self.parent, os.getuid())) as guard:
+                        target.unlink()
+                        if link == 'hard': os.link(self.foreign, target)
+                        else: target.symlink_to(self.foreign)
+                        before = self.foreign.read_bytes()
+                        with self.assertRaises(RecoveryBlocked): guard.check()
+                        self.assertEqual(self.foreign.read_bytes(), before)
+                    target.unlink()
+
+    def test_regular_replacement_disappearance_owner_and_permissions_deny(self):
+        target = self.root/'index.sqlite-wal'
+        target.write_bytes(b'old'); target.chmod(0o600)
+        with contextlib.closing(SQLiteSidecars(self.parent, os.getuid())) as guard:
+            target.unlink()
+            with self.assertRaisesRegex(RecoveryBlocked, 'DISAPPEARED'): guard.check()
+            target.write_bytes(b'new'); target.chmod(0o600)
+            with self.assertRaisesRegex(RecoveryBlocked, 'REPLACED'): guard.check()
+        with self.assertRaisesRegex(RecoveryBlocked, 'UNSAFE'):
+            SQLiteSidecars(self.parent, os.getuid()+1)
+        target.chmod(0o640)
+        with self.assertRaisesRegex(RecoveryBlocked, 'UNSAFE'):
+            SQLiteSidecars(self.parent, os.getuid())
+        target.unlink(); target.mkdir()
+        with self.assertRaisesRegex(RecoveryBlocked, 'UNSAFE'):
+            SQLiteSidecars(self.parent, os.getuid())
+
+    def test_valid_sqlite_wal_lifecycle_and_precommit_checks(self):
+        path = self.root/'index.sqlite'
+        with contextlib.closing(SQLiteSidecars(self.parent, os.getuid())) as guard:
+            with contextlib.closing(sqlite3.connect(path)) as db:
+                db.execute('PRAGMA journal_mode=WAL')
+                # Same private umask used by the owner-UID CLI writer.
+                for suffix in ('-wal', '-shm'):
+                    sidecar = Path(str(path)+suffix)
+                    if sidecar.exists(): sidecar.chmod(0o600)
+                guard.check()
+                db.execute('CREATE TABLE proof(value)')
+                guard.check(); db.commit()
+                guard.check()
+        self.assertEqual(self.foreign.read_bytes(), b'preserved forensic bytes'*300)

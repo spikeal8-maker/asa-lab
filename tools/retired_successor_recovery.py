@@ -175,10 +175,50 @@ def analyze(db, reader, manifest_sha, targets=None):
                 fingerprint=sha(encoded(proposals)), keySha256=sha(key))
 
 
+class SQLiteSidecars:
+    """Pin every existing sidecar before SQLite can write; reject unsafe aliases."""
+    def __init__(self, parent, uid):
+        self.parent = parent; self.uid = uid; self.identities = {}; self.pins = []
+        try: self.check()
+        except BaseException:
+            self.close(); raise
+
+    def check(self):
+        for suffix in ('-wal', '-shm', '-journal'):
+            name = 'index.sqlite'+suffix
+            try:
+                fd = os.open(name, os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK, dir_fd=self.parent)
+            except FileNotFoundError:
+                need(name not in self.identities, 'SQLITE_SIDECAR_DISAPPEARED')
+                continue
+            except OSError:
+                raise RecoveryBlocked('SQLITE_SIDECAR_UNSAFE') from None
+            try:
+                info = os.fstat(fd)
+                need(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and
+                     info.st_uid == self.uid and not info.st_mode & 0o077,
+                     'SQLITE_SIDECAR_UNSAFE')
+                identity = (info.st_dev, info.st_ino)
+                need(name not in self.identities or self.identities[name] == identity,
+                     'SQLITE_SIDECAR_REPLACED')
+                current = os.stat(name, dir_fd=self.parent, follow_symlinks=False)
+                need((current.st_dev,current.st_ino) == identity and stat.S_ISREG(current.st_mode),
+                     'SQLITE_SIDECAR_REPLACED')
+                if name not in self.identities:
+                    self.identities[name] = identity; self.pins.append(fd); fd = None
+            finally:
+                if fd is not None: os.close(fd)
+
+    def close(self):
+        for fd in self.pins: os.close(fd)
+        self.pins.clear()
+
+
 def apply_metadata(db, reader, expected, manifest_sha):
     """One SQLite transaction; never changes events/original receipts/catalog/errors/retired set."""
     need(not db.in_transaction, 'TRANSACTION_ALREADY_OPEN')
     need(callable(getattr(reader, 'revalidate', None)), 'REVALIDATION_READER_REQUIRED')
+    if hasattr(reader, 'before_commit'): reader.before_commit()
     db.execute('BEGIN IMMEDIATE')
     try:
         schema_guard(db, writing=True)
@@ -321,8 +361,9 @@ def main(argv=None):
                                     parent = os.open('private', os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW, dir_fd=diagnostics)
                                 finally: os.close(diagnostics)
                                 try:
-                                    with contextlib.closing(sqlite3.connect('file:/proc/self/fd/'+str(parent)+'/index.sqlite?mode=rw', uri=True, timeout=10)) as db:
+                                    with contextlib.closing(SQLiteSidecars(parent, identity['uid'])) as sidecars, contextlib.closing(sqlite3.connect('file:/proc/self/fd/'+str(parent)+'/index.sqlite?mode=rw', uri=True, timeout=10)) as db:
                                         def check_index():
+                                            sidecars.check()
                                             current = os.stat('index.sqlite', dir_fd=parent, follow_symlinks=False)
                                             need(stat.S_ISREG(current.st_mode) and (current.st_dev,current.st_ino) == (info.st_dev,info.st_ino), 'INDEX_REPLACED')
                                         check_index()
