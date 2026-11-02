@@ -1,3 +1,4 @@
+import { prePolzaPool } from './testing/ai-pre-polza-pool.fixture';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
@@ -198,7 +199,7 @@ describe('catalog/config API boundaries', () => {
       });
       let saved = false;
       const fetchImpl = vi.fn<typeof fetch>();
-      const service = new AiChatService({ query } as unknown as pg.Pool, {
+      const service = new AiChatService(prePolzaPool(query), {
         encryptionKey: '4c'.repeat(32),
         fetchImpl,
       });
@@ -359,7 +360,7 @@ describe('catalog/config API boundaries', () => {
       .mockResolvedValueOnce({ rows: [row(after)] })
       .mockResolvedValueOnce({ rows: [] });
     const fetchImpl = vi.fn<typeof fetch>();
-    const service = new AiChatService({ query } as unknown as pg.Pool, {
+    const service = new AiChatService(prePolzaPool(query), {
       encryptionKey: '4c'.repeat(32),
       fetchImpl,
     });
@@ -390,7 +391,7 @@ describe('catalog/config API boundaries', () => {
   it('rejects stale configuration before encryption, SQL writes or provider work', async () => {
     const query = vi.fn(async () => ({ rows: [row(aiAdminFixture({ configurationVersion: 4 }))] }));
     const fetchImpl = vi.fn<typeof fetch>();
-    const service = new AiChatService({ query } as unknown as pg.Pool, { fetchImpl });
+    const service = new AiChatService(prePolzaPool(query), { fetchImpl });
     await expect(
       service.saveAdminConfig(
         PRINCIPAL,
@@ -416,7 +417,7 @@ describe('catalog/config API boundaries', () => {
       .mockResolvedValueOnce({ rows: [{ ai_admin_set_provider_config: 2 }] })
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture({ configurationVersion: 3 }))] })
       .mockResolvedValueOnce({ rows: [] });
-    const service = new AiChatService({ query } as unknown as pg.Pool);
+    const service = new AiChatService(prePolzaPool(query));
     await expect(
       service.saveAdminConfig(
         PRINCIPAL,
@@ -432,7 +433,7 @@ describe('catalog/config API boundaries', () => {
       .mockResolvedValueOnce({ rows: [row(aiAdminFixture())] })
       .mockResolvedValueOnce({ rows: [] })
       .mockRejectedValueOnce(new Error('AI_CONFIG_CHANGED'));
-    const service = new AiChatService({ query } as unknown as pg.Pool);
+    const service = new AiChatService(prePolzaPool(query));
     await expect(
       service.saveAdminConfig(
         PRINCIPAL,
@@ -477,7 +478,7 @@ describe('catalog/config API boundaries', () => {
         ],
       }));
       const fetchImpl = vi.fn<typeof fetch>();
-      const service = new AiChatService({ query } as unknown as pg.Pool, {
+      const service = new AiChatService(prePolzaPool(query), {
         encryptionKey: '4c'.repeat(32),
         fetchImpl,
       });

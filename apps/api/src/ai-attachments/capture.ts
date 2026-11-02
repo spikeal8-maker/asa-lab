@@ -1,3 +1,4 @@
+import { readDocument, DOCUMENT_TYPES } from './document-reader.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, unlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -108,7 +109,10 @@ export async function captureAiAttachment(
         400,
         'Размер или SHA-256 файла не совпадает с описанием загрузки.',
       );
-    const validated = validateAiAttachment(await readFile(path, { signal }), record.fileName);
+    const capturedBytes = await readFile(path, { signal });
+    const validated = Object.hasOwn(DOCUMENT_TYPES, file.extension)
+      ? await readDocument(capturedBytes, file.extension, signal)
+      : validateAiAttachment(capturedBytes, record.fileName);
     if (
       validated.kind !== record.kind ||
       validated.mediaType !== record.mediaType ||

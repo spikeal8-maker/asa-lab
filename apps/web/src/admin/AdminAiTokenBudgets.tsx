@@ -39,10 +39,12 @@ export function AdminAiTokenBudgets({
   onAccessDenied,
   eligibleModels,
   onDirtyChange,
+  refreshKey = 0,
 }: {
   readonly onAccessDenied: () => void;
   readonly eligibleModels?: readonly string[];
   readonly onDirtyChange?: (dirty: boolean) => void;
+  readonly refreshKey?: number;
 }) {
   const [config, setConfig] = useState<AiTokenBudgetAdmin | null>(null);
   const [draft, setDraft] = useState<readonly AiTokenBudgetLimit[]>([]);
@@ -70,6 +72,7 @@ export function AdminAiTokenBudgets({
     pending.current = null;
   }
   useEffect(() => {
+    if (dirty) return;
     let active = true;
     void call<AiTokenBudgetAdmin>('/api/admin/v1/ai/token-budgets')
       .then((reply) => {
@@ -85,7 +88,7 @@ export function AdminAiTokenBudgets({
     return () => {
       active = false;
     };
-  }, []);
+  }, [refreshKey, dirty]);
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!config || busy) return;

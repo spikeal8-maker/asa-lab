@@ -72,6 +72,12 @@ const expectedPending = [
   '0291', // Guarded Account/Seat comment avatars.
   '0292', // Publication author avatars and projects-only catalog projection.
   '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+  '0294', // Accepted additive games-network schema in Main.
+  '0295', // Bounded document extraction with private originals.
+  '0296', // Private working files and immutable revisions.
+  '0297', // Polza text provider and bounded model catalogue.
+  '0298', // Exact owner-bound generated-image HTML binding.
+  '0299', // Selected Polza token budget catalog before publication.
 ];
 
 interface Identity {
@@ -855,6 +861,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         (row) => row.version === '0227',
       )!.applied_at;
       const cloudProviderAppliedAt = ledgerAfter.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = ledgerAfter.find((row) => row.version === '0297')!.applied_at;
       const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       expect(configAfter).toEqual({
@@ -902,6 +909,17 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
           api_key_auth_tag: null,
           key_fingerprint: null,
           updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: 1,
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
 
