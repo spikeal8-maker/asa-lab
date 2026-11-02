@@ -1,5 +1,13 @@
 import { writeFileSync } from 'node:fs';
-import { devices, expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import {
+  devices,
+  expect,
+  test,
+  type CDPSession,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 import type { SchematicDocument } from '../apps/web/src/api';
 import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
 import { loginWithOrganization } from './organization-login';
@@ -152,18 +160,40 @@ async function committed(page: Page, project: string) {
   }, project);
 }
 
-async function nativeDrag(page: Page, points: { x: number; y: number }[][]) {
-  const session = await page.context().newCDPSession(page);
-  try {
-    for (let i = 0; i < points.length; i++)
-      await session.send('Input.dispatchTouchEvent', {
-        type: i === 0 ? 'touchStart' : 'touchMove',
-        touchPoints: points[i]!.map((point, id) => ({ id: id + 1, ...point })),
-      });
-    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  } finally {
-    await session.detach();
+const nativeTouchSessions = new WeakMap<Page, Promise<CDPSession>>();
+const touchIdentity = (page: Page) =>
+  page.evaluate(() => ({
+    coarse: matchMedia('(pointer: coarse)').matches,
+    hasTouch: 'ontouchstart' in window,
+    maxTouchPoints: navigator.maxTouchPoints,
+    userAgent: navigator.userAgent,
+  }));
+async function nativeDrag(
+  page: Page,
+  points: { x: number; y: number }[][],
+  record: (receipt: unknown) => void,
+) {
+  const before = await touchIdentity(page);
+  record({ phase: 'before', identity: before });
+  expect(before.coarse && before.hasTouch && before.maxTouchPoints > 0).toBe(true);
+  let sessionPromise = nativeTouchSessions.get(page);
+  if (!sessionPromise) {
+    sessionPromise = page.context().newCDPSession(page);
+    nativeTouchSessions.set(page, sessionPromise);
   }
+  // CI measured coarse:true before the old helper and false after its detach
+  // boundary. Keep one input session until context close, without media overrides.
+  const session = await sessionPromise;
+  for (let i = 0; i < points.length; i++)
+    await session.send('Input.dispatchTouchEvent', {
+      type: i === 0 ? 'touchStart' : 'touchMove',
+      touchPoints: points[i]!.map((point, id) => ({ id: id + 1, ...point })),
+    });
+  await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const after = await touchIdentity(page);
+  record({ phase: 'after', identity: after });
+  expect(after).toEqual(before);
+  expect(after.coarse && after.hasTouch && after.maxTouchPoints > 0).toBe(true);
 }
 
 async function geometry(page: Page) {
@@ -252,31 +282,73 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
     const locator = target.locator(
       `[data-testid="schematic-component"][data-component-id="${id}"] > .workbench-part`,
     );
-    if (phone) return locator.tap();
     const before = (await committed(target, project)).document;
     const ownership = () =>
-      locator.evaluate((node) => {
+      locator.evaluate(async (node, id) => {
         const rect = node.getBoundingClientRect();
-        const x = rect.x + rect.width / 2,
+        let x = rect.x + rect.width / 2,
           y = rect.y + rect.height / 2;
+        let alpha: number | null = null;
+        let href: string | null = null;
+        // The measured LED bbox center is between its leads. The visible dome
+        // is at (.5,.25) in the active owner image; verify its actual alpha.
+        if (id === 'led') {
+          const image = node.querySelector<SVGImageElement>(
+            '.workbench-led-asset[data-led-asset-active="true"],.workbench-led-asset:not([data-led-asset-active])',
+          );
+          if (!image) throw new Error('Active LED owner image missing');
+          href = image.href.baseVal;
+          const bitmap = new Image();
+          bitmap.src = href;
+          await bitmap.decode();
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.naturalWidth;
+          canvas.height = bitmap.naturalHeight;
+          const context = canvas.getContext('2d')!;
+          context.drawImage(bitmap, 0, 0);
+          alpha = context.getImageData(
+            Math.floor(canvas.width * 0.5),
+            Math.floor(canvas.height * 0.25),
+            1,
+            1,
+          ).data[3]!;
+          const body = image.getBoundingClientRect();
+          x = body.x + body.width * 0.5;
+          y = body.y + body.height * 0.25;
+        }
         const hit = document.elementFromPoint(x, y);
+        const canvas = node.closest('.workbench-canvas');
+        const gridFallback =
+          !!hit && (hit === canvas || hit.classList.contains('workbench-grid-hit'));
+        const terminal = !!hit?.closest('[data-terminal-id],[data-terminal-component-id]');
         return {
           x,
           y,
           width: rect.width,
           height: rect.height,
-          owned: !!hit && node.contains(hit),
+          alpha,
+          href,
+          gridFallback,
+          terminal,
+          owned:
+            !terminal &&
+            !!hit &&
+            (id !== 'led' || (alpha ?? 0) >= 16) &&
+            (node.contains(hit) || (id === 'led' && gridFallback)),
           inspector: !!hit?.closest('.workbench-inspector'),
           hit: hit?.outerHTML.slice(0, 250) ?? null,
         };
-      });
+      }, id);
     await expect(locator).toBeVisible();
+    await expect(
+      target.locator(`[data-testid="schematic-component"][data-component-id="${id}"]`),
+    ).toHaveAttribute('data-hit-mask-status', 'ready');
     let center = await ownership();
     selectionNavigation.push({ phase, id, before: center });
     write();
     // The retained inspector can cover another part's center. Navigate through
     // the existing desktop zoom control; never move the fixture or force a hit.
-    for (let step = 0; step < 3 && !center.owned && center.inspector; step++) {
+    for (let step = 0; step < 3 && !phone && !center.owned && center.inspector; step++) {
       const canvas = target.locator('.workbench-canvas');
       const viewBox = await canvas.getAttribute('viewBox');
       await target.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
@@ -300,7 +372,47 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
     selectionNavigation.push({ phase, id, ready: center });
     write();
     expect((await committed(target, project)).document).toEqual(before);
-    await locator.click();
+    if (phone) await target.touchscreen.tap(center.x, center.y);
+    else await target.mouse.click(center.x, center.y);
+    await expect.poll(async () => (await committed(target, project)).selected?.id).toBe(id);
+    expect((await committed(target, project)).document).toEqual(before);
+  };
+  const exposeField = async (target: Page, locator: Locator, phase: string) => {
+    await locator.scrollIntoViewIfNeeded();
+    const observation = await locator.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const clip = { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
+      for (let owner = node.parentElement; owner; owner = owner.parentElement) {
+        const style = getComputedStyle(owner),
+          bounds = owner.getBoundingClientRect();
+        if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+          clip.left = Math.max(clip.left, bounds.left + owner.clientLeft);
+          clip.right = Math.min(clip.right, bounds.left + owner.clientLeft + owner.clientWidth);
+        }
+        if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+          clip.top = Math.max(clip.top, bounds.top + owner.clientTop);
+          clip.bottom = Math.min(clip.bottom, bounds.top + owner.clientTop + owner.clientHeight);
+        }
+      }
+      const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return {
+        bounds: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+        clip,
+        fits:
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.left >= clip.left - 1 &&
+          rect.right <= clip.right + 1 &&
+          rect.top >= clip.top - 1 &&
+          rect.bottom <= clip.bottom + 1,
+        nativeHit: !!hit && node.contains(hit),
+        hit: hit?.outerHTML.slice(0, 250) ?? null,
+      };
+    });
+    checkpoints.push({ name: phase, field: observation });
+    write();
+    expect(observation.fits, JSON.stringify(observation)).toBe(true);
+    expect(observation.nativeHit, JSON.stringify(observation)).toBe(true);
   };
   const server = async () => {
     const response = await page.context().request.get(`/api/projects/${project}`);
@@ -508,6 +620,10 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       await nativeDrag(
         page,
         Array.from({ length: 9 }, (_, i) => [{ x, y: box.y + box.height * (0.85 - i * 0.075) }]),
+        (receipt) => {
+          checkpoints.push({ name: 'native-scroll-touch-identity', receipt });
+          write();
+        },
       );
       const afterNativeScroll = await geometry(page);
       const nativeScrollEvents = await page.evaluate(
@@ -531,7 +647,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       ).toBe(true);
       if (beforeNativeScroll.scrollHeight > beforeNativeScroll.clientHeight)
         expect(afterNativeScroll.scrollTop).toBeGreaterThan(beforeNativeScroll.scrollTop);
-      await value.scrollIntoViewIfNeeded();
+      await exposeField(page, value, 'internal-scrolled-field-hit');
       await expect(value).toBeInViewport({ ratio: 1 });
       const scrolled = await checkpoint('internal-scrolled-field', initial);
       if (scrolled.scrollHeight > scrolled.clientHeight)
@@ -552,7 +668,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       await expect(inspector).toBeVisible();
       await activate(page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }));
     }
-    await value.scrollIntoViewIfNeeded();
+    await exposeField(page, value, 'edit-field-hit');
     await activate(value);
     journal['editIntentAt'] = Date.now();
     write();
@@ -588,14 +704,14 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       await activate(disclosure);
       await expect(value).toBeHidden();
       await activate(disclosure);
-      await value.scrollIntoViewIfNeeded();
+      await exposeField(page, value, 'invalid-field-hit');
       await value.fill('');
       await value.press('Escape');
       await expect(disclosure).toBeFocused();
       await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
       await checkpoint('invalid-escape-fold', expected);
       await activate(disclosure);
-      await value.scrollIntoViewIfNeeded();
+      await exposeField(page, value, 'pending-field-hit');
       await value.fill('681');
       await activate(disclosure);
       await checkpoint('valid-pending-fold', {
@@ -622,7 +738,10 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
         { x: center.x - 24 - i * 1.5 + i, y: center.y + i * 0.5 },
         { x: center.x + 24 + i * 1.5 + i, y: center.y + i * 0.5 },
       ]);
-      await nativeDrag(page, frames);
+      await nativeDrag(page, frames, (receipt) => {
+        checkpoints.push({ name: 'native-pinch-touch-identity', receipt });
+        write();
+      });
       await expect.poll(async () => (await geometry(page)).viewBox).not.toBe(before.viewBox);
       const after = await checkpoint('native-pinch-pan', expected);
       journal['gesture'] = { before, after, frames };
@@ -657,7 +776,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       await selectPart(page, 'resistor', 'after-background-gesture');
       await selected();
       await activate(disclosure);
-      await value.scrollIntoViewIfNeeded();
+      await exposeField(page, value, 'post-pinch-field-hit');
       await expect(value).toHaveValue('680');
       await activate(disclosure);
     }
@@ -734,7 +853,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       const reopenedValue = reopened
         .locator('.workbench-inspector .workbench-value-field input')
         .first();
-      await reopenedValue.scrollIntoViewIfNeeded();
+      await exposeField(reopened, reopenedValue, 'reopened-field-hit');
       await expect(reopenedValue).toHaveValue('680');
       expect((await committed(reopened, project)).selected).toEqual(
         expected.components.find((p) => p.id === 'resistor'),
