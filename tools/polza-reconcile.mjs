@@ -77,10 +77,7 @@ async function main() {
           enabled: runtime.enabled,
           transcriptionEnabled: runtime.transcription_enabled,
           keyConfigured: typeof runtime.api_key_ciphertext === 'string',
-          encryptionReady: credentialDecryptable(
-            runtime,
-            process.env.ASA_SETTINGS_ENCRYPTION_KEY,
-          ),
+          encryptionReady: credentialDecryptable(runtime, process.env.ASA_SETTINGS_ENCRYPTION_KEY),
         },
         catalog: catalogResult.rows[0]?.value,
         policy: policyResult.rows[0]?.value,
@@ -111,10 +108,11 @@ async function main() {
         await service.selectModels(actor, { ids, version });
       },
       allow: async (payload) => {
-        await pool.query(
-          'SELECT public.ai_generation_policy_set($1::uuid, $2::jsonb, $3::uuid)',
-          [actor, JSON.stringify(payload), randomUUID()],
-        );
+        await pool.query('SELECT public.ai_generation_policy_set($1::uuid, $2::jsonb, $3::uuid)', [
+          actor,
+          JSON.stringify(payload),
+          randomUUID(),
+        ]);
       },
       enableStt: async () => {
         const current = await service.admin(actor);
@@ -131,7 +129,9 @@ async function main() {
     };
 
     const result = await reconcilePolza(options, operations);
-    console.log('POLZA_RECONCILED ' + JSON.stringify(summary(options.model, result.report, result.changes)));
+    console.log(
+      'POLZA_RECONCILED ' + JSON.stringify(summary(options.model, result.report, result.changes)),
+    );
   } finally {
     await pool.end();
   }
