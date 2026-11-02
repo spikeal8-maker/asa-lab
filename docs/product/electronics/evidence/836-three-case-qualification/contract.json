@@ -5,7 +5,7 @@
   "workflow": ".github/workflows/electronics-ui-679-557.yml",
   "runner": "tools/run-electronics-836-runtime-three.mjs",
   "runnerSha256": "9ee77a186b8ccb9c6c55cb418aa87c1f3b377ac6e0d510afe2a3ab66492dc9bd",
-  "workflowSha256": "91ae639b4d3bb644ce11f3665ee43b18d87d3d0d1a852604ff7aa4d6a5d17f30",
+  "workflowSha256": "27eb555a404353deb6c6fa89f63c4d168aa73efcde825417d97f89596ab5b5d2",
   "cases": [
     {
       "file": "electronics-selection-outline.spec.ts",

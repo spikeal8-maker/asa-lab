@@ -148,14 +148,14 @@ jobs:
       - name: Verify closed subset and exact three-case source before Docker
         run: python3 tools/electronics_836_three_source.py --source
 
+      - name: Configure exact three-case schema from verified source receipt
+        if: ${{ inputs.evidence_subset == '836-runtime-three-v1' }}
+        run: python3 tools/electronics_836_three_source.py --expected-schema >> "$GITHUB_ENV"
+
       - name: Prepare writable evidence directories
         run: |
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
-
-      - name: Configure exact three-case schema from verified source receipt
-        if: ${{ inputs.evidence_subset == '836-runtime-three-v1' }}
-        run: python3 tools/electronics_836_three_source.py --expected-schema >> "$GITHUB_ENV"
 
       - name: Prepare and verify image-only PostgreSQL transport
         # The existing transport pair is unchanged. Only the new subset needs

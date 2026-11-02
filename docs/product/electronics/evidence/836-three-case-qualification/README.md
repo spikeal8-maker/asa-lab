@@ -63,6 +63,13 @@ directory writable by container UID1000 when the host runner has another UID.
 The POSIX regression proves denial before that step and actual child-UID writing
 after it, using disposable temporary files only on isolated GitHub Linux runners.
 It is explicitly skipped on Windows; no WSL, local engine or server is started.
+The schema export immediately follows source verification, **before** permissions
+preparation. With Linux core.filemode=true, recursive chmod marks the tracked
+reports/docker-{backup-restore,health,persistence}.json files executable. No clean
+source verification is moved after that intentional preparation or relaxed to allow
+dirty tracked files. A real-Git Linux temporary fixture exercises the complete
+source→export→prepare prefix, rejects the old source→prepare→export sequence, and
+still rejects source tampering before export; it is skipped on Windows.
 
 The unchanged image guard verifies original Node/Caddy/PostgreSQL identities,
 the Compose image-only overlay and exact API/Web revision labels. Its actual
@@ -107,6 +114,10 @@ missing expected-schema environment assignment: the canonical API returns null
 synchronization when expectedSchemaVersion is absent. Its isolated Linux cross-UID
 permissions regression passed. Neither that result nor this source repair is native
 three-case acceptance; the new exact-SHA diagnostic run remains controller-selected.
+The later c46 diagnostic run41541581358 also executed zero native cases: schema
+export failed before Docker because preparation had already changed tracked report
+file modes. This ordering repair retains strict source checks; its actual Linux
+prefix regression and next native attempt remain CI/controller evidence.
 This source slice does not classify all remaining26 full-suite failures as
 unrelated, lift blocker836, or authorize VM100 production update. The exact native
 three-case receipts must be independently reviewed; broader relevant failures and

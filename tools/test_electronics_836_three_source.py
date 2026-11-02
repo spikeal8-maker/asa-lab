@@ -1,6 +1,8 @@
 """Offline actual Git/ZIP/PNG fixtures; no Docker, providers or browser jobs."""
 from copy import deepcopy
+import contextlib
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -69,6 +71,68 @@ class SourceContracts(unittest.TestCase):
         self.assertLess(workflow.index('- name: Verify closed subset and exact three-case source before Docker'),
                         workflow.index('- name: Prepare writable evidence directories'))
         self.assertIn('mkdir -p e2e/artifacts/electronics-simulation reports\n          chmod -R 0777 e2e/artifacts reports\n', workflow)
+        self.assertLess(workflow.index('- name: Verify closed subset and exact three-case source before Docker'),
+                        workflow.index('- name: Configure exact three-case schema from verified source receipt'))
+        self.assertLess(workflow.index('- name: Configure exact three-case schema from verified source receipt'),
+                        workflow.index('- name: Prepare writable evidence directories'))
+        self.assertLess(workflow.index('- name: Prepare writable evidence directories'),
+                        workflow.index('- name: Prepare and verify image-only PostgreSQL transport'))
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Actual Linux Git executable-bit and chmod prefix semantics')
+    def test_real_git_filemode_prefix_exports_before_chmod_and_still_denies_tamper(self):
+        workflow = (ROOT/contract.WORKFLOW).read_text(encoding='utf-8')
+        steps = [('- name: Verify closed subset and exact three-case source before Docker', 'source'),
+                 ('- name: Configure exact three-case schema from verified source receipt', 'schema'),
+                 ('- name: Prepare writable evidence directories', 'prepare')]
+        actual_order = [action for _, action in sorted((workflow.index(name), action) for name, action in steps)]
+        self.assertEqual(actual_order, ['source', 'schema', 'prepare'])
+        prepare = 'mkdir -p e2e/artifacts/electronics-simulation reports\nchmod -R 0777 e2e/artifacts reports\n'
+        self.assertIn(prepare.replace('\n', '\n          ').rstrip(), workflow)
+        with tempfile.TemporaryDirectory(prefix='asa836-git-prefix-') as folder:
+            parent = Path(folder).resolve()
+            self.assertTrue(parent.is_relative_to(Path(tempfile.gettempdir()).resolve()))
+            def fixture(name):
+                root = parent/name;root.mkdir()
+                def git(*args):
+                    return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.PIPE).decode().strip()
+                git('init', '-q');git('config', 'user.name', 'Offline fixture');git('config', 'user.email', 'fixture@example.invalid')
+                git('config', 'commit.gpgsign', 'false');git('config', 'core.autocrlf', 'false');git('config', 'core.filemode', 'true')
+                (root/'.git/no-hooks').mkdir();git('config', 'core.hooksPath', str(root/'.git/no-hooks'))
+                put(root, 'migrations/0300_fixture.sql', '-- synthetic metadata only\n')
+                for path in ['docs/product/electronics/evidence/ci-image-transport-545-receipt.json', 'docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json']:
+                    put(root, path, (ROOT/path).read_bytes())
+                for report in ('docker-backup-restore.json', 'docker-health.json', 'docker-persistence.json'):
+                    put(root, 'reports/'+report, '{}\n').chmod(0o644)
+                put(root, 'product.txt', 'preserved\n');git('add', '.');git('commit', '-qm', 'baseline')
+                base = git('rev-parse', 'HEAD')
+                for path in contract.PATHS:put(root, path, (ROOT/path).read_bytes())
+                declaration = json.loads((root/contract.CONTRACT).read_text());declaration['candidate'] = base
+                put(root, contract.CONTRACT, json.dumps(declaration));git('add', '.');git('commit', '-qm', 'reviewed CI delta')
+                revision = git('rev-parse', 'HEAD')
+                env = {**ENV, 'GITHUB_SHA': revision, 'ASA_ELECTRONICS_EXPECTED_SHA': revision}
+                def run(action):
+                    if action == 'prepare':
+                        subprocess.run(['/bin/bash', '-e', '-c', prepare], cwd=root, check=True, capture_output=True, timeout=10)
+                        return ''
+                    with patch.object(contract, 'BASE', base), patch.object(contract, '__file__', str(root/'tools/electronics_836_three_source.py')), \
+                         patch.dict(os.environ, env, clear=True), patch.object(sys, 'argv', ['guard', '--source' if action == 'source' else '--expected-schema']), \
+                         contextlib.redirect_stdout(io.StringIO()) as output:
+                        contract.main()
+                    return output.getvalue()
+                return root, git, run
+            old, git, run = fixture('old-order')
+            run('source');run('prepare')
+            self.assertIn('mode change 100644 => 100755 reports/docker-health.json', git('diff', '--summary'))
+            with self.assertRaisesRegex(ValueError, 'source must be clean'):run('schema')
+            root, git, run = fixture('actual-prefix')
+            export = ''
+            for action in actual_order:export += run(action)
+            self.assertEqual(export, 'ASA_EXPECTED_SCHEMA_VERSION=300\n')
+            self.assertEqual((root/contract.DIRECTORY).stat().st_mode & 0o777, 0o777)
+            self.assertIn('mode change 100644 => 100755 reports/docker-health.json', git('diff', '--summary'))
+            root, git, run = fixture('source-tamper')
+            run('source');put(root, 'product.txt', 'foreign tamper\n')
+            with self.assertRaisesRegex(ValueError, 'source must be clean'):run('schema')
 
     @unittest.skipUnless(sys.platform.startswith('linux') and os.environ.get('GITHUB_ACTIONS') == 'true',
                          'Actual differing-UID permission proof requires isolated GitHub Linux')

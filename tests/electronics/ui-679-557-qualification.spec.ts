@@ -258,6 +258,12 @@ describe('additive workflow retains existing execution protections', () => {
     expect(actual.steps.findIndex((step) => step.name === additions[1])).toBeLessThan(
       actual.steps.findIndex((step) => step.run?.includes('docker compose')),
     );
+    expect(actual.steps.findIndex((step) => step.name === additions[0])).toBeLessThan(
+      actual.steps.findIndex((step) => step.name === additions[1]),
+    );
+    expect(actual.steps.findIndex((step) => step.name === additions[1])).toBeLessThan(
+      actual.steps.findIndex((step) => step.name === 'Prepare writable evidence directories'),
+    );
     expect(
       parse(readFileSync('compose.yaml', 'utf8')).services.api.environment
         .ASA_EXPECTED_SCHEMA_VERSION,
