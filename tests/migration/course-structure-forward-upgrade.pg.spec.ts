@@ -158,6 +158,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0286', // Bounded search retrieval settings.
         '0287', // Durable successful-publication-copy aggregate.
         '0288', // Separate authorization for published Course academic results.
+        '0289', // Publication discussions and independent learner permission.
+        '0290', // Comment likes, pinning and ordering.
+        '0291', // Guarded Account/Seat comment avatars.
+        '0292', // Public author avatars and projects-only catalog projection.
+        '0293', // Catalog sorting before pagination.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -475,6 +480,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0286', // Bounded search retrieval settings.
           '0287', // Durable successful-publication-copy aggregate.
           '0288', // Exact academic-result authorization independent of Project files.
+          '0289', // Publication discussions and independent learner permission.
+          '0290', // Comment likes, pinning and ordering.
+          '0291', // Guarded Account/Seat comment avatars.
+          '0292', // Public author avatars and projects-only catalog projection.
+          '0293', // Catalog sorting before pagination.
         ]);
         expect(
           await applyIsolatedTestPlan(
