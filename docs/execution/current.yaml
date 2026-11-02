@@ -16178,6 +16178,7 @@ parallel_lanes:
       - apps/web/src/electronics/arduino-program-state.ts
       - apps/web/src/electronics/testing/arduino-program-state.spec.ts
       - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
+      - e2e/electronics-block-pin-setup.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
     task:
       id: TASK-ELECTRONICS-BLOCK-PIN-SETUP-001
@@ -16189,13 +16190,13 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: urgent_setup_modes_and_explicit_arduino_input_settings_selected
+      checkpoint: source2b2ff317_independent_review_pass_full_browser_acceptance_selected
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
       scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
       owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
-      next_action: New bounded executor implements setup-only all-output-except-input policy, simple computed commands, atomic per-board input settings and actual owner example proof; independent final-source review and isolated browser evidence.
+      next_action: Source2b2ff317 independently approved with102tests and author105tests. New bounded test author adds actual desktop/mobile owner-project settings and Save-reopen journey; keep reviewed production source unchanged. Canonical CI and actual browser evidence remain required.
     gates:
       focused:
         workflow: Electronics M1 Focused Gate
