@@ -66,7 +66,7 @@ test('private history loads the 26th real durable match after reload', async ({
     // Teacher is not a participant and cannot see pupils' private history.
     expect((await (await page.request.get('/api/games/chess/history')).json()).matches).toEqual([]);
     await openChessGame(a.page, 'История из 26 реальных партий');
-    await a.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await a.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await a.page.reload();
     const history = a.page
       .getByRole('heading', { name: 'Мои сетевые партии', exact: true })
@@ -242,7 +242,7 @@ test('failed optional network chunk stays local until explicit user reload resto
       },
       { times: 1 },
     );
-    await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await expect(
       page.getByText('Не удалось загрузить сетевые шахматы. Повторная загрузка обновит страницу.', {
         exact: true,
@@ -316,7 +316,7 @@ test('stalled optional network chunk reaches a finite local deadline and explici
       },
       { times: 1 },
     );
-    await page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await expect.poll(() => Boolean(heldRoute)).toBe(true);
     await expect(page.getByText('Загружаем сетевые шахматы…', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Главная', exact: true })).toBeEnabled();
@@ -508,9 +508,9 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
     }
     await page.setViewportSize({ width: 1440, height: 900 });
     await openChessGame(a.page, 'Реальная сетевая партия — белые');
-    await a.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await a.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await openChessGame(b.page, 'Реальная сетевая партия — чёрные');
-    await b.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+    await b.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     await a.page.getByLabel('Ваш цвет', { exact: true }).selectOption('white');
     await a.page.getByRole('button', { name: 'Создать приглашение', exact: true }).click();
     const code = (await a.page.getByLabel('Ваш код приглашения').innerText()).trim();
@@ -725,7 +725,7 @@ test('two pupils finish white and black checkmates with personal outcomes on des
       learner.page.on('pageerror', (error) => errors.push(error.message));
       await learner.page.setViewportSize({ width: 390, height: 900 });
       await openChessGame(learner.page, 'Партия до мата');
-      await learner.page.getByRole('button', { name: 'Онлайн', exact: true }).click();
+      await learner.page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
     }
     async function readMatch(view: Page, id: string) {
       const response = await view.request.get(`/api/games/chess/matches/${id}`);

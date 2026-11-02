@@ -107,6 +107,20 @@ async function fixture(page: Page, failList = false) {
           : createInitialCheckersProjectDocument();
       return json(route, { project, created: true }, 201);
     }
+    const save = /^\/api\/projects\/([^/]+)\/draft$/.exec(path);
+    if (save && method === 'PUT') {
+      const input = route.request().postDataJSON() as { document: unknown; baseRevision: number };
+      documents[save[1]!] = input.document;
+      return json(route, {
+        draft: {
+          projectId: save[1],
+          document: input.document,
+          revision: input.baseRevision + 1,
+          updatedAt: null,
+        },
+        result: null,
+      });
+    }
     const open = /^\/api\/projects\/([^/]+)$/.exec(path);
     if (open) {
       const project = saves.find((item) => item.id === open[1]);
@@ -125,7 +139,7 @@ async function fixture(page: Page, failList = false) {
     if (path.startsWith('/api/analytics/')) return json(route, { accepted: true });
     return json(route, { items: [], total: 0 });
   });
-  return { saves, errors, creations: () => creations };
+  return { saves, documents, errors, creations: () => creations };
 }
 
 test('Games has two large cards and games disappear from project shelves and creation', async ({
@@ -163,9 +177,10 @@ test('Games has two large cards and games disappear from project shelves and cre
     .locator('.portal-nav-item')
     .filter({ hasText: /^Мои проекты$/ })
     .click();
+  await expect(page.locator('main.project-hub')).toBeVisible();
   await expect(page.locator('.project-card:not(.is-new)')).toHaveCount(0);
-  await expect(page.locator('main')).not.toContainText('Шахматы');
-  await expect(page.locator('main')).not.toContainText('Шашки');
+  await expect(page.locator('main.project-hub')).not.toContainText('Шахматы');
+  await expect(page.locator('main.project-hub')).not.toContainText('Шашки');
   await page
     .locator('.portal-nav-item')
     .filter({ hasText: /^Главная$/ })
@@ -183,9 +198,9 @@ test('both games launch, reload and return to Games without duplicate saves', as
   const state = await fixture(page);
   await page.goto('/#/games');
   await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Вернуться к играм', exact: true }).click();
   await expect(page).toHaveURL(/#\/games$/);
   await page.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
@@ -204,10 +219,10 @@ test('first launch creates one save and subsequent launch resumes it', async ({ 
   state.saves.splice(0);
   await page.goto('/#/games');
   await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Вернуться к играм', exact: true }).click();
   await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
-  await expect(page.getByRole('navigation', { name: 'Меню ASA Chess' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Шахматы', exact: true })).toBeVisible();
   expect(state.creations()).toBe(1);
   expect(state.errors).toEqual([]);
 });
@@ -253,7 +268,7 @@ test('Chess uses the shared profile header and square board at every layout size
   await page.goto('/#/games');
   await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
   await expect(page.getByTestId('asa-chess-home-position')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Открыть доску', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Открыть доску', exact: true })).toHaveCount(0);
   mkdirSync('reports/games/chess-redesign', { recursive: true });
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -264,6 +279,13 @@ test('Chess uses the shared profile header and square board at every layout size
     await expect(
       page.getByRole('button', { name: 'Вернуться к играм', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.asa-chess-home-shell .editor-header')).toHaveCount(0);
+    await expect(page.locator('.asa-chess-home-shell nav')).toHaveCount(0);
+    const start = await page
+      .getByRole('button', { name: 'Играть с компьютером', exact: true })
+      .boundingBox();
+    expect(start!.y).toBeLessThan(160);
+    expect(start!.y + start!.height).toBeLessThan(260);
     const board = page.getByTestId('asa-chess-home-position');
     const bounds = await board.boundingBox();
     expect(Math.abs(bounds!.width - bounds!.height)).toBeLessThan(1);
@@ -292,7 +314,8 @@ test('Chess uses the shared profile header and square board at every layout size
   await expect(page.locator('.asa-chess-portal-content')).toHaveAttribute('inert', '');
   await page.keyboard.press('Escape');
   await expect(page.locator('.asa-chess-portal-content')).not.toHaveAttribute('inert');
-  await page.getByRole('button', { name: 'Боты', exact: true }).click();
+  await page.getByRole('button', { name: 'Играть с компьютером', exact: true }).click();
+  await page.getByText('Выбрать бота', { exact: true }).click();
   for (const level of ['Начальный', 'Средний', 'Продвинутый']) {
     const choice = page.getByRole('button', { name: new RegExp(level) });
     await choice.click();
@@ -304,5 +327,116 @@ test('Chess uses the shared profile header and square board at every layout size
     await expect(selected.locator('..')).toHaveClass('selected');
   }
   await page.screenshot({ path: 'reports/games/chess-redesign/bots-320.png', fullPage: true });
+  expect(state.errors).toEqual([]);
+});
+
+test('Chess entry buttons start the selected mode and preserve it after reload', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Открыть доску', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Двое на одном устройстве', exact: true }).click();
+  await expect(page).toHaveURL(/\/local$/);
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Двое на одном устройстве', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Сложность бота' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Начать партию', exact: true }).click();
+  await expect(page).toHaveURL(/\/play\/game$/);
+  expect(state.documents['old-chess']).toMatchObject({ mode: 'local', result: '*' });
+  const board = page.getByTestId('asa-chess-board');
+  for (const square of ['e2', 'e4', 'e7', 'e5'])
+    await board.locator(`[data-square="${square}"]`).click();
+  await expect
+    .poll(() => (state.documents['old-chess'] as { moves: unknown[] }).moves.length)
+    .toBe(2);
+
+  await page.getByRole('button', { name: 'Главная', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Продолжить партию', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Играть с компьютером', exact: true }).click();
+  await page.getByRole('button', { name: /Начальный/ }).click();
+  await page.getByRole('button', { name: 'Начать партию', exact: true }).click();
+  await expect(page).toHaveURL(/\/play\/game$/);
+  expect(state.documents['old-chess']).toMatchObject({ mode: 'computer', bot: { level: 1 } });
+  await page.getByTestId('asa-chess-board').locator('[data-square="e2"]').click();
+  await page.getByTestId('asa-chess-board').locator('[data-square="e4"]').click();
+  await expect
+    .poll(() => (state.documents['old-chess'] as { moves: unknown[] }).moves.length, {
+      timeout: 15000,
+    })
+    .toBe(2);
+
+  await page.reload();
+  await expect(page.getByTestId('asa-chess-board')).toBeVisible();
+  await expect(page.getByLabel('Профиль соперника')).toContainText('Росток ASA');
+  expect(state.errors).toEqual([]);
+});
+
+test('personal network entry has platform opponents without a school selector', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.setViewportSize({ width: 390, height: 900 });
+  let scopes = ['platform'];
+  let createdScope = '';
+  await page.route('**/api/games/chess/access', (route) =>
+    route.fulfill({
+      json: {
+        player: { playerId: 'personal-player', displayAlias: 'Игрок' },
+        allowed: true,
+        reason: 'allowed',
+        scopes,
+      },
+    }),
+  );
+  await page.route('**/api/games/chess/history*', (route) =>
+    route.fulfill({ json: { matches: [], invites: [], nextCursor: null } }),
+  );
+  await page.route('**/api/games/chess/invites', (route) => {
+    const input = route.request().postDataJSON();
+    createdScope = input.scope;
+    return route.fulfill({
+      json: {
+        invite: {
+          id: 'invite',
+          code: 'PLATFORM1234',
+          scope: input.scope,
+          status: 'open',
+          version: 1,
+          initialMs: input.initialMs,
+          incrementMs: input.incrementMs,
+          expiresAt: Date.now() + 60000,
+          colorPreference: input.colorPreference,
+          matchId: null,
+        },
+        replayed: false,
+      },
+    });
+  });
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
+  await page.getByRole('button', { name: 'Играть с человеком', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Создать приглашение', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByRole('combobox', { name: 'Круг соперников для партии' })).toHaveCount(0);
+  await expect(page.getByText('Соперники: Вся платформа', { exact: true })).toBeVisible();
+  await expect(page.locator('.asa-network-shell .editor-header')).toHaveCount(0);
+  await page.screenshot({
+    path: 'reports/games/chess-redesign/network-personal-390.png',
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Создать приглашение', exact: true }).click();
+  expect(createdScope).toBe('platform');
+  await expect(page.locator('.asa-network-code')).toContainText('PLATFORM1234');
+  scopes = ['classroom', 'school'];
+  await page.reload();
+  await expect(page.getByRole('combobox', { name: 'Круг соперников для партии' })).toBeVisible();
+  await expect(
+    page.getByRole('combobox', { name: 'Круг соперников для партии' }).locator('option'),
+  ).toHaveText(['Мой класс', 'Моя школа']);
   expect(state.errors).toEqual([]);
 });
