@@ -17,8 +17,12 @@ admits only this additional workflow/browser pair after those checks. R4 and UI6
 workflows, image receipts, overlays and strict full-suite requirements remain
 unchanged. No environment spoof or alternate transport proof is used.
 
-After independent exact-SHA review, dispatch `e11-stopped-fit-390.yml` on the
-published candidate branch. Only `workflow_dispatch` can run its browser job.
+After independent exact-SHA review, the controller must first confirm that this
+workflow is registered on the default branch: [GitHub requires that for manual
+dispatch](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+That source-only activation is separate from this Draft PR and is not performed
+by the author. Then dispatch `e11-stopped-fit-390.yml` on the reviewed candidate
+branch, not an arbitrary Main product revision. Only `workflow_dispatch` can run its browser job.
 The job uses Ubuntu24.04, frozen Node/pnpm/Python dependencies, the existing
 original Node/Caddy/frontend/PostgreSQL identities and an isolated disposable
 Compose project. It applies normal migrations and verifies image layers, build
