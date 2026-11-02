@@ -168,6 +168,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0296', // Private working files and immutable revisions.
         '0297', // Polza text provider and bounded model catalogue.
         '0298', // Exact owner-bound generated-image HTML binding.
+        '0299', // Selected Polza token budget catalog before publication.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -495,6 +496,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0296', // Private working files and immutable revisions.
           '0297', // Polza text provider and bounded model catalogue.
           '0298', // Exact owner-bound generated-image HTML binding.
+          '0299', // Selected Polza token budget catalog before publication.
         ]);
         expect(
           await applyIsolatedTestPlan(

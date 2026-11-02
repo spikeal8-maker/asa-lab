@@ -55,11 +55,13 @@ export function AdminAiGenerationPolicy({
   provider,
   onDirtyChange,
   onEligibleModels,
+  onCatalogSaved,
 }: {
   readonly section: 'prompt' | 'settings' | 'connections';
   readonly provider?: string;
   readonly onDirtyChange?: (dirty: boolean) => void;
   readonly onEligibleModels?: (ids: readonly string[]) => void;
+  readonly onCatalogSaved?: () => void;
   readonly onAccessDenied: () => void;
 }) {
   const [config, setConfig] = useState<AiGenerationPolicy | null>(null);
@@ -226,6 +228,7 @@ export function AdminAiGenerationPolicy({
         apply(reply.data);
         attempt.current = null;
         setNotice('Настройки сохранены. Запрос к модели не выполнялся.');
+        onCatalogSaved?.();
       } else setError('Сервер вернул несовместимые настройки. Загрузите актуальную версию.');
     } catch {
       setError(
@@ -354,6 +357,7 @@ export function AdminAiGenerationPolicy({
       });
       if (reply.ok && policyShape(reply.data)) {
         const data = reply.data;
+        onCatalogSaved?.();
         if (config && data.configurationVersion !== config.configurationVersion) {
           setConflict(true);
           setError(

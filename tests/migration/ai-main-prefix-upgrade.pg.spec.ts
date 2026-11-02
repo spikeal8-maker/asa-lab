@@ -77,6 +77,7 @@ const expectedPending = [
   '0296', // Private working files and immutable revisions.
   '0297', // Polza text provider and bounded model catalogue.
   '0298', // Exact owner-bound generated-image HTML binding.
+  '0299', // Selected Polza token budget catalog before publication.
 ];
 
 interface Identity {

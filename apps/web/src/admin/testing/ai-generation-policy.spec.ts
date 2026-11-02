@@ -433,3 +433,38 @@ it('omits models unselected by Cloud keys without losing a hidden stored default
   expect(host.textContent).toContain('Выберите разрешённую подключённую модель');
   expect(writes()).toHaveLength(0);
 });
+
+it('notifies budget catalog only after confirmed policy save and catalog refresh', async () => {
+  const changed = vi.fn();
+  vi.mocked(call).mockImplementation(async (_url, init) => ({
+    ok: true,
+    status: 200,
+    data: generationPolicyFixture({ configurationVersion: init?.method === 'PUT' ? 4 : 3 }),
+  }));
+  await act(async () =>
+    root.render(
+      createElement(AdminAiGenerationPolicy, {
+        section: 'prompt',
+        onAccessDenied: denied,
+        onCatalogSaved: changed,
+      }),
+    ),
+  );
+  expect(changed).not.toHaveBeenCalled();
+  await text('New prompt');
+  await submit();
+  expect(changed).toHaveBeenCalledTimes(1);
+  await act(async () =>
+    root.render(
+      createElement(AdminAiGenerationPolicy, {
+        section: 'settings',
+        onAccessDenied: denied,
+        onCatalogSaved: changed,
+      }),
+    ),
+  );
+  expect(
+    vi.mocked(call).mock.calls.filter(([, init]) => init?.method === 'POST').length,
+  ).toBeGreaterThan(0);
+  expect(changed.mock.calls.length).toBeGreaterThan(1);
+});
