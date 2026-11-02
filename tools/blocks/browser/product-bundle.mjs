@@ -11,6 +11,30 @@ export function productBundle() {
     publicDir: false,
     logLevel: 'error',
     esbuild: { jsx: 'automatic' },
+    // Match the product's pure 3D subpath boundary. The test bundle does not
+    // load the web Vite config; workspace dist files are CommonJS, not ESM.
+    resolve: {
+      alias: [
+        {
+          find: '@asa-lab/contracts',
+          replacement: fileURLToPath(
+            new URL('../../../packages/contracts/src/index.ts', import.meta.url),
+          ),
+        },
+        {
+          find: '@asa-lab/three-d/document',
+          replacement: fileURLToPath(
+            new URL('../../../contexts/three-d/domain/document.ts', import.meta.url),
+          ),
+        },
+        {
+          find: '@asa-lab/three-d/operations',
+          replacement: fileURLToPath(
+            new URL('../../../contexts/three-d/domain/operations.ts', import.meta.url),
+          ),
+        },
+      ],
+    },
     define: {
       __ASA_BLOCKS_PREVIEW__: 'false',
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(runtimeUrl),
@@ -29,7 +53,21 @@ export function productBundle() {
       .map((file) => file.source)
       .join('\n');
     if (!js || !css) throw new Error('Shipping BlocksEditor fixture build incomplete');
-    return { js, css };
+    // Shared project previews now introduce real lazy chunks. Serve the emitted
+    // graph as well as its entry, rather than returning imports to missing URLs.
+    const files = output.map((file) => [
+      `/${file.fileName}`,
+      {
+        type:
+          file.type === 'chunk' || file.fileName.endsWith('.js')
+            ? 'text/javascript'
+            : file.fileName.endsWith('.css')
+              ? 'text/css'
+              : 'application/octet-stream',
+        body: file.type === 'chunk' ? file.code : file.source,
+      },
+    ]);
+    return { js, css, files };
   });
   return pending;
 }
@@ -41,6 +79,7 @@ export async function productFiles() {
   );
   const avatarDataUrl = `data:image/webp;base64,${avatarBytes.toString('base64')}`;
   const files = new Map([
+    ...bundle.files,
     [
       '/product',
       {

@@ -158,3 +158,33 @@ it('edits the visible model by identity while retaining a hidden first model and
     ],
   });
 });
+
+it('reloads catalog budgets after settings save and defers refresh while a limit draft is dirty', async () => {
+  let data = config;
+  vi.mocked(call).mockImplementation(async () => ({ ok: true, status: 200, data }));
+  const render = async (refreshKey: number) =>
+    act(async () =>
+      root.render(createElement(AdminAiTokenBudgets, { onAccessDenied: vi.fn(), refreshKey })),
+    );
+  await render(0);
+  data = {
+    ...config,
+    models: [
+      ...config.models,
+      { ...config.models[0]!, model: 'polza/new-chat', globalLimit: '77' },
+    ],
+  };
+  await render(1);
+  expect(
+    host.querySelector<HTMLInputElement>('[aria-label="Общий лимит polza/new-chat"]')?.value,
+  ).toBe('77');
+  const input = host.querySelector<HTMLInputElement>('[aria-label="Общий лимит polza/new-chat"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '88');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const reads = vi.mocked(call).mock.calls.length;
+  await render(2);
+  expect(vi.mocked(call)).toHaveBeenCalledTimes(reads);
+  expect(input.value).toBe('88');
+});

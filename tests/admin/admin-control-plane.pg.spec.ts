@@ -677,7 +677,7 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
         auditEvents24h: expect.any(Number),
       },
     });
-    // This exact public migration identifier contains "token" but is not a credential.
+    // These exact public migration identifiers contain "token" but are not credentials.
     // Keep scanning every field and every other value, including migration metadata.
     const migration = body['migration'] as Record<string, unknown>;
     const publicMetadataBody = {
@@ -685,7 +685,8 @@ describe('Administrative Control Plane PostgreSQL isolation', () => {
       migration: {
         ...migration,
         name:
-          migration['name'] === 'ai_monthly_token_budgets'
+          migration['name'] === 'ai_monthly_token_budgets' ||
+          migration['name'] === 'ai_polza_token_budget_catalog'
             ? '[public migration name]'
             : migration['name'],
       },

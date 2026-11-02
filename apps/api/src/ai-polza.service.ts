@@ -1,3 +1,4 @@
+import { discoverPolzaModels, readPolzaCatalog } from './ai-polza-catalog.js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { inspectPolzaAudioSeconds } from './ai-polza-audio.js';
@@ -22,6 +23,8 @@ export interface PolzaAdminConfig {
   enabled: boolean;
   transcriptionEnabled: boolean;
   dailySecondsLimit: number;
+  paidOperationsPerHour?: number;
+  textConfigurationVersion?: number;
   globalDailySecondsLimit: number;
   maxAudioSeconds: number;
   apiKeyConfigured: boolean;
@@ -206,6 +209,12 @@ export class AiPolzaService {
         throw new AiPolzaError('ai_stt_limit', 429, 'Дневной лимит распознавания исчерпан.');
       if (message.includes('AI_STT_DISABLED'))
         throw new AiPolzaError('ai_stt_disabled', 503, 'Транскрибация отключена администратором.');
+      if (message.includes('AI_MODEL_UNAVAILABLE'))
+        throw new AiPolzaError(
+          'ai_polza_model_unavailable',
+          400,
+          'Выберите доступную текстовую модель из каталога Polza.',
+        );
       if (message.includes('AI_POLZA_INVALID') || message.includes('AI_KEY_REQUIRED'))
         throw new AiPolzaError('ai_polza_invalid', 400, 'Проверьте ключ и настройки подключения.');
       throw problem;
@@ -284,6 +293,8 @@ export class AiPolzaService {
       maxAudioSeconds,
       apiKey,
       clearApiKey,
+      paidOperationsPerHour,
+      textConfigurationVersion,
     } = body;
     if (
       !Number.isSafeInteger(configurationVersion) ||
@@ -300,6 +311,12 @@ export class AiPolzaService {
       !Number.isSafeInteger(maxAudioSeconds) ||
       Number(maxAudioSeconds) < 5 ||
       Number(maxAudioSeconds) > 30 ||
+      (paidOperationsPerHour !== undefined &&
+        (!Number.isSafeInteger(paidOperationsPerHour) ||
+          Number(paidOperationsPerHour) < 0 ||
+          Number(paidOperationsPerHour) > 10000 ||
+          !Number.isSafeInteger(textConfigurationVersion) ||
+          Number(textConfigurationVersion) < 1)) ||
       (apiKey !== undefined &&
         (typeof apiKey !== 'string' || !/^pza_[A-Za-z0-9_-]{8,2040}$/.test(apiKey))) ||
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
@@ -322,12 +339,70 @@ export class AiPolzaService {
         dailySecondsLimit,
         globalDailySecondsLimit,
         maxAudioSeconds,
+        ...(paidOperationsPerHour !== undefined
+          ? { paidOperationsPerHour, textConfigurationVersion }
+          : {}),
         requestId: randomUUID(),
         action: clearApiKey ? 'clear' : apiKey ? 'replace' : 'keep',
         ...encrypted,
       }),
     ]);
     return this.admin(actor);
+  }
+
+  async catalog(actor: string) {
+    await this.admin(actor);
+    try {
+      return await readPolzaCatalog(this.pool);
+    } catch {
+      throw new AiPolzaError(
+        'ai_polza_catalog_unavailable',
+        503,
+        'Каталог Polza ещё не установлен.',
+      );
+    }
+  }
+  async refreshCatalog(actor: string) {
+    await this.admin(actor);
+    const state = await this.runtime();
+    let models;
+    try {
+      models = await discoverPolzaModels(this.decrypt(state), this.fetchImpl);
+    } catch {
+      throw new AiPolzaError(
+        'ai_polza_catalog_unavailable',
+        503,
+        'Не удалось обновить каталог. Проверьте ключ и доступность Polza.',
+      );
+    }
+    await this.sqlValue('SELECT ai_polza_catalog_apply($1,$2,$3::jsonb) AS value', [
+      actor,
+      state.revision,
+      JSON.stringify(models),
+    ]);
+    return this.catalog(actor);
+  }
+  async selectModels(actor: string, raw: unknown) {
+    await this.admin(actor);
+    const v = textRecord(raw);
+    if (
+      Object.keys(v).sort().join(',') !== 'ids,version' ||
+      !Number.isSafeInteger(v.version) ||
+      Number(v.version) < 1 ||
+      !Array.isArray(v.ids) ||
+      v.ids.length > 1200 ||
+      new Set(v.ids).size !== v.ids.length ||
+      v.ids.some(
+        (id) => typeof id !== 'string' || !/^polza\/[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,119}$/.test(id),
+      )
+    )
+      throw new AiPolzaError('ai_polza_invalid', 400, 'Выберите модели из актуального каталога.');
+    await this.sqlValue('SELECT ai_polza_models_select($1,$2,$3::jsonb) AS value', [
+      actor,
+      v.version,
+      JSON.stringify(v.ids),
+    ]);
+    return this.catalog(actor);
   }
 
   async check(actor: string): Promise<{ ready: true; latencyMs: number; checkedAt: string }> {

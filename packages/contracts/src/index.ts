@@ -99,5 +99,24 @@ export type { AiImageStoredSize } from './ai-image-generation.js';
 
 export { AI_IMAGE_RECIPES } from './ai-image-generation.js';
 export type { AiImageRecipe } from './ai-image-generation.js';
+export {
+  AI_TEXT_UNAVAILABLE,
+  AI_IMAGE_UNAVAILABLE,
+  AI_SEARCH_UNAVAILABLE,
+  aiPublicErrorMessage,
+  AI_CHAT_TOOLS,
+  AI_TOOL_ACTIVITY_LABELS,
+  isAiToolActivity,
+} from './ai-chat-feedback.js';
+export type { AiChatTool, AiToolActivity } from './ai-chat-feedback.js';
 
 export { publicArduinoBlocks } from './public-arduino-blocks.js';
+
+export type {
+  ChessNetworkScope,
+  ChessNetworkPolicy,
+  ChessNetworkAccess,
+  ChessNetworkInvite,
+  ChessNetworkMatch,
+  ChessNetworkAction,
+} from './chess-network.js';

@@ -11,6 +11,8 @@ import { EditorHeader } from '../components/editor-chrome/EditorHeader';
 import { ChessBoard } from './ChessBoard';
 import { chessAvatarText } from './ChessEditorHeader';
 import { buildChessHomeSummary } from './chess-home-ui';
+import { chessNetworkApi } from './chess-network-api';
+import { startLivePoll } from './live-poll';
 import './chess-home.css';
 
 interface ChessHomeProps {
@@ -27,6 +29,7 @@ interface ChessHomeProps {
 }
 
 interface ChessHomeNavigationProps {
+  readonly networkAllowed: boolean;
   readonly seatLearner?: boolean;
   readonly user: PublicUser;
   readonly onBack: () => void;
@@ -93,7 +96,7 @@ function ChessHomeNavigation(props: ChessHomeNavigationProps): JSX.Element {
       </div>
       <nav aria-label="Меню ASA Chess">
         {items
-          .filter((item) => !props.seatLearner || item.label !== 'Онлайн')
+          .filter((item) => props.networkAllowed || item.label !== 'Онлайн')
           .map((item) => (
             <button
               key={item.label}
@@ -136,6 +139,19 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
   const [document, setDocument] = useState<ChessDocument | null>(null);
   const [position, setPosition] = useState<ChessPosition | null>(null);
   const [notice, setNotice] = useState('');
+  const [networkAllowed, setNetworkAllowed] = useState(false);
+  useEffect(
+    () =>
+      startLivePoll(
+        async (isCurrent) => {
+          const result = await chessNetworkApi.access();
+          if (isCurrent()) setNetworkAllowed(result.ok && result.data.allowed);
+        },
+        5000,
+        () => setNetworkAllowed(false),
+      ),
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -212,7 +228,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
       />
 
       <div className="asa-chess-home-body">
-        <ChessHomeNavigation {...props} />
+        <ChessHomeNavigation {...props} networkAllowed={networkAllowed} />
         <section className="asa-chess-home-content" aria-labelledby="asa-chess-home-title">
           <header className="asa-chess-home-welcome">
             <div>
@@ -243,7 +259,7 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
                   <button type="button" className="is-primary" onClick={props.onOpenBoard}>
                     <span aria-hidden="true">♞</span> Продолжить на доске
                   </button>
-                  {!props.seatLearner && (
+                  {networkAllowed && (
                     <button type="button" onClick={props.onOpenOnline}>
                       Играть онлайн
                     </button>
