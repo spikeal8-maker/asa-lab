@@ -444,3 +444,62 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     expect(pool.query).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('exact teacher review queue projection', () => {
+  it('keeps direct and course sibling workflow attempts separate and fails closed on duplicate evidence', async () => {
+    const runA = '70000000-0000-4000-8000-000000000071';
+    const runB = '70000000-0000-4000-8000-000000000072';
+    const row = (run: string, kind: string, attempt: unknown) => ({
+      detail: { seatId: base.seatId, activityRunId: run, assignmentId: base.classroomAssignmentId },
+      evidence: {
+        ...base,
+        kind,
+        learnerId: '20000000-0000-4000-8000-000000000071',
+        identityResolution: 'learner_identity',
+        activityRunId: run,
+        participation: { applicable: true, status: 'active', excused: false },
+        legacyWork: null,
+        attempt,
+      },
+    });
+    const a = row(runA, 'direct_project', null);
+    const b = row(runB, 'course_project', {
+      id: '80000000-0000-4000-8000-000000000072',
+      attemptNumber: 1,
+      state: 'submitted',
+      reviewDecision: null,
+      startedAt: '2026-10-27T09:00:00Z',
+      submittedAt: '2026-10-27T09:10:00Z',
+      lateState: 'on_time',
+    });
+    const query = vi.fn().mockResolvedValue({ rows: [a, b] });
+    const service = new LearningCanonicalProjectionService({ query } as unknown as pg.Pool, {});
+    const result = await service.forTeacherReviewQueue(
+      'actor',
+      base.classroomId,
+      base.classroomAssignmentId,
+    );
+    expect(
+      result.projections.get(canonicalCourseParticipationKey(base.seatId, runA))?.state,
+    ).toMatchObject({ workflowState: 'not_started', provenance: { workflowAttemptId: null } });
+    expect(
+      result.projections.get(canonicalCourseParticipationKey(base.seatId, runB))?.state,
+    ).toMatchObject({
+      workflowState: 'submitted',
+      provenance: {
+        workflowAttemptId: b.evidence.attempt && (b.evidence.attempt as { id: string }).id,
+      },
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query).toHaveBeenCalledWith(
+      'SELECT detail,evidence FROM learning_teacher_review_queue($1,$2,$3)',
+      ['actor', base.classroomId, base.classroomAssignmentId],
+    );
+    query.mockResolvedValue({ rows: [a, a, b] });
+    expect(
+      (
+        await service.forTeacherReviewQueue('actor', base.classroomId, base.classroomAssignmentId)
+      ).projections.get(canonicalCourseParticipationKey(base.seatId, runA)),
+    ).toBeNull();
+  });
+});

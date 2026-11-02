@@ -395,6 +395,7 @@ function BatchDialog({
 
 type ClassroomPageProps = {
   classroomId: string;
+  onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
   /** Opens straight into one learner: how a teacher returns from their work. */
   openSeatId?: string;
   onBack: () => void;
@@ -410,6 +411,7 @@ export function ClassroomPage(props: ClassroomPageProps): JSX.Element {
 
 function ClassroomPageContent({
   classroomId,
+  onRegisterLeaveGuard,
   openSeatId,
   onBack,
   onOpenProject,
@@ -431,6 +433,24 @@ function ClassroomPageContent({
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const reviewBlocked = useRef(false);
+  const registerReviewBlocked = useCallback((blocked: boolean) => {
+    reviewBlocked.current = blocked;
+  }, []);
+  const mayLeaveReview = useCallback(() => {
+    if (!reviewBlocked.current) return true;
+    setActionError('Сначала подтвердите проверку или очистите несохранённое решение.');
+    return false;
+  }, []);
+  useEffect(() => {
+    onRegisterLeaveGuard?.(mayLeaveReview);
+    return () => onRegisterLeaveGuard?.(null);
+  }, [onRegisterLeaveGuard, mayLeaveReview]);
+  const selectClassroomTab = (next: ClassroomTab) => {
+    if (next !== tab && !mayLeaveReview()) return;
+    setTab(next);
+  };
+
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // null = closed; [] = all active learners; non-empty = selected learner cards.
@@ -696,7 +716,13 @@ function ClassroomPageContent({
         id="main-content"
         className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
       >
-        <button type="button" className="btn-ghost" onClick={onBack}>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => {
+            if (mayLeaveReview()) onBack();
+          }}
+        >
           ← Мои классы
         </button>
         <div className="portal-empty" role="alert">
@@ -744,6 +770,7 @@ function ClassroomPageContent({
           openStudent,
         );
   function openStudentProfile(seatId: string): void {
+    if (!mayLeaveReview()) return;
     // Any previously revealed credentials must not remain in the hidden
     // classroom subtree while the teacher is looking at one learner.
     maskCodes();
@@ -774,7 +801,13 @@ function ClassroomPageContent({
           строки одна над другой, и две из них ничего не решали. */}
         <header className="classroom-head classroom-head-compact">
           <div className="teacher-class-identity">
-            <button type="button" className="classroom-back" onClick={onBack}>
+            <button
+              type="button"
+              className="classroom-back"
+              onClick={() => {
+                if (mayLeaveReview()) onBack();
+              }}
+            >
               ← Мои классы
             </button>
             <div className="classroom-head-title">
@@ -870,7 +903,7 @@ function ClassroomPageContent({
               value={tab}
               onChange={(event) => {
                 const item = TABS.find((entry) => entry.id === event.currentTarget.value);
-                if (item) setTab(item.id);
+                if (item) selectClassroomTab(item.id);
               }}
             >
               {TABS.map((item) => (
@@ -887,7 +920,7 @@ function ClassroomPageContent({
                 type="button"
                 className={tab === item.id ? 'active' : undefined}
                 aria-current={tab === item.id ? 'page' : undefined}
-                onClick={() => setTab(item.id)}
+                onClick={() => selectClassroomTab(item.id)}
               >
                 {item.label}
               </button>
@@ -1454,7 +1487,11 @@ function ClassroomPageContent({
           />
         ) : null}
         {tab === 'gradebook' ? (
-          <ClassroomGradebook classroomId={classroomId} onOpenStudent={openStudentProfile} />
+          <ClassroomGradebook
+            classroomId={classroomId}
+            onOpenStudent={openStudentProfile}
+            onNavigationBlocked={registerReviewBlocked}
+          />
         ) : null}
         {tab === 'moderation' ? <ClassroomStudentHistory classroomId={classroomId} /> : null}
         {tab === 'teachers' ? (

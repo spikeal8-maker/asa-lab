@@ -5,12 +5,16 @@ export function useLearningDestination() {
   const [query, setQuery] = useState(() => window.location.hash.split('?')[1] ?? '');
   useEffect(() => {
     const sync = () => setQuery(window.location.hash.split('?')[1] ?? '');
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
+    // Raw hash/popstate events precede the portal's leave decision. Only its
+    // accepted-route protocol may change focus or unmount a guarded review.
+    window.addEventListener('settings-route', sync);
+    return () => window.removeEventListener('settings-route', sync);
   }, []);
   const params = new URLSearchParams(query);
   return {
     assignment: params.get('assignment'),
+    reviewRun: params.get('activityRun'),
+    reviewStream: params.get('review') === 'stream',
     seat: params.get('learner'),
     attempt: params.get('attempt'),
     courseRun: params.get('courseRun'),

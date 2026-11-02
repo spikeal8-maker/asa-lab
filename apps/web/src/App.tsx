@@ -292,7 +292,9 @@ export function App(): JSX.Element {
     learningLeaveGuard.current = guard;
   }, []);
   const mayLeaveLearning = useCallback(
-    () => viewRef.current.kind !== 'challenges' || (learningLeaveGuard.current?.() ?? true),
+    () =>
+      !['challenges', 'classroom'].includes(viewRef.current.kind) ||
+      (learningLeaveGuard.current?.() ?? true),
     [],
   );
   const [pendingTeacherInvite, setPendingTeacherInvite] = useState<string | null>(() => {
@@ -359,11 +361,14 @@ export function App(): JSX.Element {
     if (current !== href) pushSettingsAwareLocation(href);
     acceptedLocation.current = window.location.href;
     acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
+    window.dispatchEvent(new Event('settings-route'));
   }, []);
   const setView = useCallback(
     (next: CreatorPortalView) =>
       requestPortalNavigation(
-        () => next.kind === 'challenges' || mayLeaveLearning(),
+        () =>
+          (next.kind === 'challenges' && viewRef.current.kind === 'challenges') ||
+          mayLeaveLearning(),
         () => applyView(next),
       ),
     [applyView, mayLeaveLearning],
@@ -1353,6 +1358,7 @@ export function App(): JSX.Element {
                 {view.kind === 'classroom' && canManageClasses ? (
                   <ClassroomPage
                     classroomId={view.classroomId}
+                    onRegisterLeaveGuard={registerLearningLeaveGuard}
                     onBack={() => setView({ kind: 'classrooms' })}
                     onOpenProjects={(classroomTitle) =>
                       setView({

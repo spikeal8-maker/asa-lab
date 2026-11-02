@@ -257,3 +257,139 @@ describe('learning assessments API', () => {
     expect(target.query).not.toHaveBeenCalled();
   });
 });
+
+describe('exact review queue pages', () => {
+  function rows(count: number) {
+    return Array.from({ length: count }, (_, index) => {
+      const seatId = '50000000-0000-4000-8000-' + String(index + 1).padStart(12, '0');
+      return {
+        detail: {
+          seatId,
+          displayLabel: 'Ученик ' + index,
+          assignmentId: ATTEMPT_ID,
+          activityRunId: RUN_A,
+          activityVersionId: RUN_B,
+          title: 'Одинаковая практика',
+          originLabel: 'Курс / Урок / Блок 1',
+          originAvailable: true,
+          createdAt: '2026-10-01T10:00:00Z',
+        },
+        evidence: {
+          tenantId: CLASSROOM_ID,
+          schoolId: CLASSROOM_ID,
+          classroomId: CLASSROOM_ID,
+          classroomAssignmentId: ATTEMPT_ID,
+          kind: 'course_project',
+          dueAt: null,
+          assignmentStatus: 'open',
+          seatId,
+          accountId: null,
+          principalId: null,
+          learnerId: seatId,
+          identityResolution: 'learner_identity',
+          seatStatus: 'active',
+          classroomAccess: 'active',
+          legacyWork: null,
+          courseProgressPresent: false,
+          activityRunId: RUN_A,
+          participation: { applicable: true, status: 'active', excused: false },
+          attempt: {
+            id: seatId,
+            attemptNumber: 1,
+            state: 'submitted',
+            reviewDecision: null as string | null,
+            startedAt: '2026-10-01T10:00:00Z',
+            submittedAt: '2026-10-01T10:01:00Z',
+            lateState: 'on_time',
+          },
+          selectedAttemptExists: false,
+          resultSelectionSource: 'canonical',
+          selectedAttemptId: null,
+          selectedRevision: null,
+          selectedResult: null,
+          selectionConflict: null,
+          validUnselectedResultCount: 0,
+          compatibilityGradingUnknown: false,
+          reusableAuthoredContent: true,
+        },
+      };
+    });
+  }
+  it('continues beyond30 and reverses pages without skipping the learner removed from a state filter', async () => {
+    const values = rows(35),
+      target = controller(values);
+    const first = await target.value.reviewQueue(
+      request(),
+      CLASSROOM_ID,
+      ATTEMPT_ID,
+      RUN_A,
+      'waiting_review',
+    );
+    expect(first.items).toHaveLength(20);
+    expect(first.total).toBe(35);
+    const anchor = first.items.at(-1)!.seatId;
+    values[19]!.evidence.attempt.state = 'closed';
+    values[19]!.evidence.attempt.reviewDecision = 'accepted';
+    const second = await target.value.reviewQueue(
+      request(),
+      CLASSROOM_ID,
+      ATTEMPT_ID,
+      RUN_A,
+      'waiting_review',
+      anchor,
+    );
+    expect(second.items).toHaveLength(15);
+    expect(second.items[0]!.seatId).toBe(values[20]!.detail.seatId);
+    expect(second.nextCursor).toBeNull();
+    const previous = await target.value.reviewQueue(
+      request(),
+      CLASSROOM_ID,
+      ATTEMPT_ID,
+      RUN_A,
+      'waiting_review',
+      undefined,
+      '20',
+      second.previousCursor!,
+    );
+    expect(previous.items).toHaveLength(19);
+    expect(previous.items.at(-1)!.seatId).toBe(values[18]!.detail.seatId);
+    const completed = await target.value.reviewQueue(
+      request(),
+      CLASSROOM_ID,
+      ATTEMPT_ID,
+      RUN_A,
+      'completed',
+    );
+    expect(completed.items[0]!.canonicalState?.selectedResult).toBeNull();
+    expect(completed.items[0]!.state).toBe('completed');
+  });
+  it('rejects foreign exact runs and invalid filters/page discriminators without weakening the existing SQL scope', async () => {
+    const target = controller(rows(1));
+    await expect(
+      target.value.reviewQueue(request(), CLASSROOM_ID, ATTEMPT_ID, RUN_B),
+    ).rejects.toMatchObject({ status: 404 });
+    for (const invalid of ['', null, [], {}, 'invalid']) {
+      await expect(
+        target.value.reviewQueue(request(), CLASSROOM_ID, ATTEMPT_ID, invalid),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    await expect(
+      target.value.reviewQueue(request(), CLASSROOM_ID, ATTEMPT_ID, RUN_A, 'unknown'),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      target.value.reviewQueue(request(), CLASSROOM_ID, ATTEMPT_ID, RUN_A, 'all', undefined, '51'),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      target.value.reviewQueue(
+        request(),
+        CLASSROOM_ID,
+        ATTEMPT_ID,
+        RUN_A,
+        'all',
+        RUN_A,
+        '20',
+        RUN_B,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+  });
+});

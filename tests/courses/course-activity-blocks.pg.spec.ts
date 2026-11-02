@@ -186,6 +186,48 @@ async function inTenant<T>(
   }
 }
 
+async function teacherQueue(
+  classroom: string,
+  assignment: string,
+  run?: string,
+  options: {
+    educator?: SeededTeacher;
+    state?: string;
+    after?: string;
+    before?: string;
+    pageSize?: string;
+    focus?: string;
+  } = {},
+) {
+  const educator = options.educator ?? author;
+  const identity = await identityFor(educator);
+  return inTenant(educator, (client) =>
+    new LearningAssessmentsController(
+      {
+        resolve: async () => ({
+          accountId: identity.account_id,
+          principalId: identity.principal_id,
+        }),
+      } as unknown as ActiveContextUseCase,
+      {
+        capabilities: async () => [{ capability: 'educator', state: 'verified' }],
+      } as unknown as AccountDirectoryPort,
+      client as unknown as pg.Pool,
+      {} as ModuleRegistry,
+    ).reviewQueue(
+      { cookies: { asa_session: 'isolated-review-queue' } } as unknown as FastifyRequest,
+      classroom,
+      assignment,
+      run,
+      options.state ?? 'all',
+      options.after,
+      options.pageSize ?? '20',
+      options.before,
+      options.focus,
+    ),
+  );
+}
+
 async function publishActivity(
   teacher: SeededTeacher,
   ownerPrincipalId: string,
@@ -2041,6 +2083,25 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       expect(publishedResult.rows).toHaveLength(1);
     };
     await accept(first.id);
+    const contrastA = await teacherQueue(classroom, first.source_classroom_assignment_id, first.id);
+    const contrastB = await teacherQueue(
+      classroom,
+      first.source_classroom_assignment_id,
+      sibling.activity_run_id,
+    );
+    expect(contrastA.items[0]).toMatchObject({
+      state: 'completed',
+      canonicalState: { selectedResult: { completionValue: true } },
+    });
+    expect(contrastA.items[0]!.workflowAttemptId).toBeTruthy();
+    // A sibling with no Attempt must not borrow the accepted attempt/work on the same handout.
+    expect(contrastB.items[0]).toMatchObject({
+      state: 'not_started',
+      workflowAttemptId: null,
+      canonicalState: { selectedResult: null },
+    });
+    expect(contrastA.practices.map((item) => item.originLabel)).toHaveLength(2);
+    expect(new Set(contrastA.practices.map((item) => item.originLabel)).size).toBe(2);
     const threeDPending = (
       await admin.query(
         `INSERT INTO learning_attempts
@@ -2057,6 +2118,15 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       )
     ).rows[0] as { id: string };
     expect(threeDPending.id).toBeTruthy();
+    expect(
+      (await teacherQueue(classroom, first.source_classroom_assignment_id, sibling.activity_run_id))
+        .items[0],
+    ).toMatchObject({
+      state: 'submitted',
+      workflowAttemptId: threeDPending.id,
+      canonicalState: { selectedResult: null },
+    });
+
     const half = await inspect(2, 1, 0, false);
     expect(half[0]?.canonicalState?.selectedResult?.completionValue).toBe(true);
     expect(half[1]?.canonicalState?.selectedResult ?? null).toBeNull();
@@ -2208,6 +2278,132 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     await expect(readReview(first.id, classroom, seat, outsider)).rejects.toMatchObject({
       status: 404,
     });
+
+    // Real runtime-role reads remain read-only and exact-class authorized.
+    const academicCounts = async () =>
+      (
+        await admin.query(
+          `SELECT jsonb_build_object(
+      'attempts',(SELECT count(*) FROM learning_attempts WHERE classroom_id=$1),
+      'results',(SELECT count(*) FROM assessment_results r JOIN learning_attempts a ON a.id=r.attempt_id WHERE a.classroom_id=$1),
+      'submissions',(SELECT count(*) FROM learning_submissions s JOIN learning_attempts a ON a.id=s.attempt_id WHERE a.classroom_id=$1)) AS value`,
+          [classroom],
+        )
+      ).rows[0].value;
+    const beforeQueue = await academicCounts();
+    const exactQueue = await teacherQueue(
+      classroom,
+      first.source_classroom_assignment_id,
+      first.id,
+    );
+    expect(exactQueue.items[0]!.workflowAttemptId).toBe(
+      expectedAttempts.find((row) => row.activity_run_id === first.id)!.attempt_id,
+    );
+    expect(exactQueue.items[0]!.assignmentTitle).toBeTruthy();
+    await expect(
+      teacherQueue(classroom, first.source_classroom_assignment_id, randomUUID()),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      teacherQueue(foreign.classroom, first.source_classroom_assignment_id, first.id),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      teacherQueue(classroom, first.source_classroom_assignment_id, first.id, {
+        focus: foreign.seat,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      teacherQueue(classroom, first.source_classroom_assignment_id, first.id, {
+        educator: outsider,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(await academicCounts()).toEqual(beforeQueue);
+
+    // Verified re-entry: current Seat resolves the same logical learner; immutable
+    // old Attempt.seat_id is retained and must not erase its workflow/evidence.
+    const alias = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+      (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
+      VALUES($1,$2,'Re-entry learner',$3,$3,true,'active',$4) RETURNING id`,
+        [author.tenantId, classroom, 'queue-reentry-' + ++sequence, author.teacherId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE seat_id=$1`,
+      [seat],
+    );
+    await admin.query(
+      `INSERT INTO learner_identity_links(id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+      VALUES(gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [author.tenantId, author.schoolId, first.learner_identity_id, alias],
+    );
+    expect(
+      (await teacherQueue(classroom, first.source_classroom_assignment_id, first.id)).items.find(
+        (row) => row.seatId === alias,
+      ),
+    ).toMatchObject({
+      state: 'completed',
+      workflowAttemptId: expectedAttempts.find((row) => row.activity_run_id === first.id)!
+        .attempt_id,
+    });
+    expect(
+      (
+        await admin.query('SELECT seat_id FROM learning_attempts WHERE id=$1', [
+          expectedAttempts.find((row) => row.activity_run_id === first.id)!.attempt_id,
+        ])
+      ).rows[0].seat_id,
+    ).toBe(seat);
+
+    const extra = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+      (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
+      SELECT $1,$2,'Queue learner '||n,$3||n,$3||n,true,'active',$4 FROM generate_series(1,31) n RETURNING id`,
+        [author.tenantId, classroom, 'queue-many-' + ++sequence + '-', author.teacherId],
+      )
+    ).rows;
+    for (const row of extra) {
+      const learner = (
+        await admin.query('SELECT learning_audience_ensure_seat_identity($1) AS id', [row.id])
+      ).rows[0].id;
+      await inTenant(author, async (client) => {
+        const enrollment = (
+          await client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+            principalId,
+            assigned.run_id,
+            learner,
+          ])
+        ).rows[0];
+        expect(enrollment.result_code).toBe('ok');
+        expect(
+          (
+            await client.query('SELECT * FROM activity_participation_assign($1,$2,$3,$4)', [
+              principalId,
+              first.id,
+              learner,
+              enrollment.enrollment_id,
+            ])
+          ).rows[0].result_code,
+        ).toBe('ok');
+      });
+    }
+    const firstPage = await teacherQueue(classroom, first.source_classroom_assignment_id, first.id);
+    const secondPage = await teacherQueue(
+      classroom,
+      first.source_classroom_assignment_id,
+      first.id,
+      { after: firstPage.nextCursor! },
+    );
+    expect(firstPage.items).toHaveLength(20);
+    expect(firstPage.total).toBeGreaterThan(30);
+    expect(secondPage.items.length).toBeGreaterThan(10);
+    expect(new Set([...firstPage.items, ...secondPage.items].map((row) => row.seatId)).size).toBe(
+      firstPage.total,
+    );
+    const back = await teacherQueue(classroom, first.source_classroom_assignment_id, first.id, {
+      before: secondPage.previousCursor!,
+    });
+    expect(back.items.map((row) => row.seatId)).toEqual(firstPage.items.map((row) => row.seatId));
   }, 45_000);
 
   // This real PostgreSQL integration scenario performs multiple independent

@@ -27,7 +27,7 @@ beforeEach(() => {
 });
 
 function historyFixture(
-  route: 'challenges' | 'account' = 'challenges',
+  route: 'challenges' | 'classroom' | 'account' = 'challenges',
   routes = ['help', route, 'account'],
 ) {
   const entries = routes.map((hash, index) => ({
@@ -69,7 +69,10 @@ function historyFixture(
       back: () => go(-1),
       forward: () => go(1),
     },
-    dispatchEvent: vi.fn(),
+    dispatchEvent: vi.fn((event: Event) => {
+      // The existing App listener accepts approved in-place route normalization.
+      if (event.type === 'settings-route') guard.accept();
+    }),
   });
   const accepted = { location: { current: entries[1]!.href }, index: { current: 1 } };
   const editor = {
@@ -100,6 +103,100 @@ function historyFixture(
 }
 
 describe('combined portal navigation approval', () => {
+  it('accepts clean same-entry classroom focus replacement and protects that normalized entry on native exits', () => {
+    const f = historyFixture('classroom');
+    const originalEntries = f.entries.length;
+    const normalized = window.location.href + '?review=stream&learner=exact-seat';
+    window.history.replaceState(window.history.state, '', normalized);
+    window.dispatchEvent(new Event('settings-route'));
+    f.sync();
+    f.flush();
+    expect(f.accepted.location.current).toBe(normalized);
+    expect(f.accepted.index.current).toBe(1);
+    expect(f.go).not.toHaveBeenCalled();
+    expect(f.pushes).not.toHaveBeenCalled();
+    expect(f.apply).not.toHaveBeenCalled();
+    expect(f.mayLeave).not.toHaveBeenCalled();
+    expect(f.entries).toHaveLength(originalEntries);
+    const unchanged = structuredClone(f.editor);
+    f.mayLeave.mockReturnValue(false);
+    f.go(-1);
+    f.flush();
+    expect(window.location.href).toBe(normalized);
+    expect(f.editor).toEqual(unchanged);
+    expect(f.apply).not.toHaveBeenCalled();
+    f.pushes({ asaRouteIndex: 1 }, '', '#/help');
+    f.sync();
+    f.flush();
+    expect(window.location.href).toBe(normalized);
+    expect(f.accepted.location.current).toBe(normalized);
+    expect(f.editor).toEqual(unchanged);
+    expect(f.apply).not.toHaveBeenCalled();
+    expect(f.mayLeave).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['dirty feedback', -1],
+    ['dirty feedback', 1],
+    ['uncertain receipt', -1],
+    ['uncertain receipt', 1],
+  ] as const)(
+    'retains classroom %s through native traversal %i until confirmed',
+    (state, direction) => {
+      const f = historyFixture('classroom');
+      f.editor.draft = state;
+      const unchanged = structuredClone(f.editor);
+      f.mayLeave.mockImplementation(() => {
+        expect(window.location.href).toBe(f.accepted.location.current);
+        expect(f.apply).not.toHaveBeenCalled();
+        return false;
+      });
+      f.go(direction);
+      f.flush();
+      expect(f.mayLeave).toHaveBeenCalledOnce();
+      expect(f.editor).toEqual(unchanged);
+      expect(window.history.state.asaRouteIndex).toBe(1);
+      expect(f.entries).toHaveLength(3);
+      expect(f.pushes).not.toHaveBeenCalled();
+      expect(settings.requests).toBe(0);
+      f.mayLeave.mockReturnValue(true);
+      f.go(direction);
+      f.flush();
+      expect(f.apply).toHaveBeenCalledOnce();
+      expect(f.mayLeave).toHaveBeenCalledTimes(2);
+      expect(f.accepted.index.current).toBe(1 + direction);
+      expect(f.editor.frozen).toEqual(unchanged.frozen);
+    },
+  );
+
+  it('restores a manual classroom hash edit before asking the review guard', () => {
+    const f = historyFixture('classroom');
+    f.mayLeave.mockReturnValue(false);
+    const unchanged = structuredClone(f.editor);
+    // Native hash changes can copy the current entry state rather than increment its index.
+    f.pushes({ asaRouteIndex: 1 }, '', '#/help');
+    f.sync();
+    f.flush();
+    expect(f.mayLeave).toHaveBeenCalledOnce();
+    expect(f.apply).not.toHaveBeenCalled();
+    expect(window.location.href).toBe(f.accepted.location.current);
+    expect(f.editor).toEqual(unchanged);
+    expect(settings.requests).toBe(0);
+    expect(f.entries).toHaveLength(3);
+  });
+
+  it('keeps clean non-Learning history navigation immediate without invoking the review guard', () => {
+    const f = historyFixture('account');
+    f.mayLeave.mockReturnValue(false);
+    f.go(-1);
+    f.flush();
+    expect(f.apply).toHaveBeenCalledOnce();
+    expect(f.editor.route).toBe('help');
+    expect(f.mayLeave).not.toHaveBeenCalled();
+    expect(settings.requests).toBe(0);
+    expect(f.pushes).not.toHaveBeenCalled();
+  });
+
   it.each(['dirty draft', 'frozen assignment', 'pending copy'])(
     'retains %s when Learning declines a click',
     () => {
