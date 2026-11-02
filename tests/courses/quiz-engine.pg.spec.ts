@@ -80,11 +80,78 @@ describe('versioned quiz engine', () => {
     );
     expect(quiz.rows[0]).toMatchObject({ result_code: 'ok', total_points: 3 });
 
+    const legacyBefore = (
+      await admin.query(
+        `SELECT to_jsonb(quiz) AS quiz, to_jsonb(version) AS version
+         FROM quiz_versions quiz JOIN learning_activity_versions version
+           ON version.id=quiz.learning_activity_version_id WHERE quiz.id=$1`,
+        [quiz.rows[0].quiz_version_id],
+      )
+    ).rows[0];
+    const canonicalPolicies = {
+      attemptPolicy: { maxAttempts: 5, timeLimitMinutes: 45 },
+      resultSelectionPolicy: { mode: 'best' },
+      completionPolicy: { mode: 'submission' },
+      latePolicy: { mode: 'block_at_due' },
+      assessmentPolicy: { mode: 'automatic', passThresholdBasisPoints: 9500 },
+      feedbackReleasePolicy: { mode: 'after_close' },
+    };
+    const canonical = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create($1,$2,'school','private','quiz',
+        'Same content with independent policies','Policy proof','graded',3,$3::jsonb,
+        NULL,$4,NULL,NULL,'quiz:engine:canonical:0001')`,
+        [
+          principalId,
+          teacher.tenantId,
+          JSON.stringify(canonicalPolicies),
+          quiz.rows[0].quiz_version_id,
+        ],
+      )
+    ).rows[0];
+    expect(canonical.result_code).toBe('ok');
+    const canonicalVersion = (
+      await admin.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
+        principalId,
+        teacher.tenantId,
+        canonical.activity_id,
+        'quiz:engine:publish:0001',
+      ])
+    ).rows[0];
+    expect(canonicalVersion.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT policy_snapshot FROM learning_activity_versions WHERE id=$1', [
+          canonicalVersion.activity_version_id,
+        ])
+      ).rows[0].policy_snapshot,
+    ).toEqual(canonicalPolicies);
+    expect(
+      (
+        await admin.query(
+          `SELECT to_jsonb(quiz) AS quiz, to_jsonb(version) AS version
+         FROM quiz_versions quiz JOIN learning_activity_versions version
+           ON version.id=quiz.learning_activity_version_id WHERE quiz.id=$1`,
+          [quiz.rows[0].quiz_version_id],
+        )
+      ).rows[0],
+    ).toEqual(legacyBefore);
+
     const assigned = await admin.query(
       `SELECT * FROM classroom_quiz_assign($1, $2, $3, $4, NULL)`,
       [accountId, principalId, classroomId, quiz.rows[0].quiz_version_id],
     );
     expect(assigned.rows[0]).toMatchObject({ result_code: 'ok', reused: false });
+    // Legacy assignment still pins the legacy LAV and its original one-attempt,
+    // immediate-feedback, 6000-threshold policy, not the independent wrapper.
+    expect(
+      (
+        await admin.query(
+          'SELECT learning_activity_version_id FROM classroom_activity_versions WHERE classroom_assignment_id=$1',
+          [assigned.rows[0].classroom_assignment_id],
+        )
+      ).rows[0].learning_activity_version_id,
+    ).toBe(quiz.rows[0].learning_activity_version_id);
     const assignmentId = assigned.rows[0].classroom_assignment_id as string;
 
     const visible = await admin.query(`SELECT * FROM quiz_assignments_for_seat($1)`, [seatId]);

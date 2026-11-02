@@ -80,6 +80,8 @@ const expectedPending = [
   '0299', // Selected Polza token budget catalog before publication.
   '0300', // Unreleased durable image queue follows every published canonical migration.
   '0301', // Written Course responses reuse the canonical academic chain.
+  '0302', // Canonical Quiz ActivityVersion policy authority; legacy snapshots unchanged.
+  '0303', // Exact Quiz Start and answer state; historical rows remain unchanged.
 ];
 
 interface Identity {
