@@ -72,6 +72,8 @@ function AiAdminWorkspaceSession({
   const [connectionDirty, setConnectionDirty] = useState(false);
   const [policyDirty, setPolicyDirty] = useState(false);
   const [budgetDirty, setBudgetDirty] = useState(false);
+  const [budgetRevision, setBudgetRevision] = useState(0);
+  const refreshBudgets = useCallback(() => setBudgetRevision((value) => value + 1), []);
   const [eligibleModels, setEligibleModels] = useState<readonly string[]>([]);
   function navigate(value: AiAdminNavigation) {
     if (value.section === navigation.section && value.provider === navigation.provider) return;
@@ -281,6 +283,7 @@ function AiAdminWorkspaceSession({
               onAccessDenied={onAccessDenied}
               onDirtyChange={setPolicyDirty}
               onEligibleModels={setEligibleModels}
+              onCatalogSaved={refreshBudgets}
             />
           ) : null}
         </section>
@@ -302,6 +305,7 @@ function AiAdminWorkspaceSession({
               onAccessDenied={onAccessDenied}
               eligibleModels={eligibleModels}
               onDirtyChange={setBudgetDirty}
+              refreshKey={budgetRevision}
             />
           ) : null}
         </div>

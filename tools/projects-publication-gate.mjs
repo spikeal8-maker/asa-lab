@@ -177,10 +177,14 @@ if (browser) {
     }
   }
   verifyBuiltRevision();
-  run([
-    'exec',
-    'playwright',
-    'test',
+  // Each suite owns a fresh isolated API process via Playwright webServer.
+  // Sharing one process accumulates unrelated signup/login rate windows across
+  // suites. Keep real limits and all scenarios; do not spoof addresses or retry 429.
+  if (process.env.ASA_E2E_EXTERNAL === 'true') {
+    console.error('BLOCKED: publication acceptance requires an owned isolated API per suite');
+    process.exit(78);
+  }
+  const suites = [
     'e2e/publication-likes.spec.ts',
     'e2e/publication-comments.spec.ts',
     'e2e/student-project-policy.spec.ts',
@@ -191,10 +195,17 @@ if (browser) {
     'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
     'e2e/project-hub.spec.ts',
-    '--workers=1',
-    '--reporter=list',
-    '--output=reports/playwright/projects-publication',
-  ]);
+  ];
+  for (const suite of suites)
+    run([
+      'exec',
+      'playwright',
+      'test',
+      suite,
+      '--workers=1',
+      '--reporter=list',
+      `--output=reports/playwright/projects-publication/${suite.split('/').at(-1).replace('.spec.ts', '')}`,
+    ]);
 } else {
   run(['exec', 'node', '--test', 'tools/public-electronics-emitted-graph.test.mjs']);
   run(['db:migrate:check']);

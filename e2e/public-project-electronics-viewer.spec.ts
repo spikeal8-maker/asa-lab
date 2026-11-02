@@ -301,12 +301,20 @@ test('editor-created immutable Electronics publication is a real inert responsiv
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
         .toBe(true);
       const viewer = await guest.getByTestId('public-electronics-viewer').boundingBox();
-      const sideBySide = await guest
-        .getByTestId('public-project-detail')
-        .evaluate((element) => element.classList.contains('has-description'));
-      expect(viewer!.width).toBeGreaterThan(
-        width >= 900 && sideBySide ? Math.min(width, 1180) * 0.5 : Math.min(width, 1180) * 0.8,
-      );
+      const workspace = (await guest.locator('.public-project-workspace').boundingBox())!;
+      const stage = (await guest.locator('.public-project-stage-column').boundingBox())!;
+      const sidebar = (await guest.locator('.public-project-sidebar').boundingBox())!;
+      // The viewer fills its actual grid slot. The current layout has a 288px
+      // sidebar above 1100px, rather than the removed `has-description` flag.
+      expect(viewer!.width).toBeGreaterThanOrEqual(stage.width - 2);
+      expect(viewer!.x + viewer!.width).toBeLessThanOrEqual(stage.x + stage.width + 1);
+      if (width > 1100) {
+        expect(sidebar.x).toBeGreaterThanOrEqual(stage.x + stage.width);
+        expect(stage.width).toBeGreaterThanOrEqual(workspace.width - sidebar.width - 30);
+      } else {
+        expect(stage.width).toBeGreaterThanOrEqual(workspace.width - 1);
+        expect(sidebar.y).toBeGreaterThanOrEqual(stage.y + stage.height);
+      }
       if ([320, 390, 1440].includes(width)) await capture(guest, `normal-${width}`);
     }
     const fitted = await scene.getAttribute('viewBox');

@@ -5,7 +5,7 @@ import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { AiAccessService } from './ai-access.service';
 import { AiChatController } from './ai-chat.controller';
-import type { AiChatService } from './ai-chat.service';
+import { AiServiceError, type AiChatService } from './ai-chat.service';
 import type { SeatContextUseCase } from './seat-context';
 
 const ACCOUNT = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -111,6 +111,11 @@ const operations = [
         expect.any(AbortSignal),
         'gpt-6-luna',
         SOURCE,
+        [],
+        undefined,
+        undefined,
+        undefined,
+        expect.any(Function),
       ),
   },
 ];
@@ -224,6 +229,8 @@ describe('explicit internet options preserve service argument positions', () => 
       [],
       'web',
       undefined,
+      undefined,
+      expect.any(Function),
     );
   });
 });
@@ -250,6 +257,53 @@ it.each([512, 768, 1024, 1280, 1536, 720, 864])(
       undefined,
       undefined,
       { mode: 'auto', size },
+      expect.any(Function),
     );
   },
 );
+
+it.each([
+  'ai_provider_authentication_failed',
+  'ai_provider_insufficient_balance',
+  'ai_provider_rate_limit',
+  'ai_provider_timeout',
+  'ai_ollama_unreachable',
+  'ai_tool_call_invalid',
+])('keeps diagnostics out of public SSE and JSON failures: %s', async (code) => {
+  const f = fixture();
+  const error = new AiServiceError(code, 503, 'SECRET provider account balance and API-key');
+  f.ai.sendStream.mockRejectedValueOnce(error);
+  await f.controller.sendStream(f.request(), f.reply as unknown as FastifyReply, THREAD, {
+    message: 'test',
+    requestId: REQUEST,
+  });
+  const stream = f.reply.raw.write.mock.calls.flat().join('');
+  expect(stream).toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(stream).toContain(code);
+  expect(stream).not.toContain('SECRET');
+  f.ai.send.mockRejectedValueOnce(error);
+  const failure = await f.controller
+    .send(f.request(), THREAD, { message: 'test', requestId: REQUEST })
+    .catch((e) => e);
+  expect(failure.getResponse()).toMatchObject({
+    error: { code, message: 'Извините, текстовая модель сейчас недоступна.' },
+  });
+});
+it('streams only server tool activity beside the existing text events', async () => {
+  const f = fixture();
+  f.ai.sendStream.mockImplementationOnce(async (...args: unknown[]) => {
+    (args[12] as (value: unknown) => void)({ tool: 'read_page', state: 'running' });
+    (args[4] as (value: string) => void)('Answer');
+    (args[12] as (value: unknown) => void)({ tool: 'read_page', state: 'complete' });
+    return { messages: [], replayed: false, stopped: false };
+  });
+  await f.controller.sendStream(f.request(), f.reply as unknown as FastifyReply, THREAD, {
+    message: 'test',
+    requestId: REQUEST,
+  });
+  const stream = f.reply.raw.write.mock.calls.flat().join('');
+  expect(stream).toContain('event: activity');
+  expect(stream).toContain('"tool":"read_page"');
+  expect(stream).toContain('event: delta');
+  expect(stream).toContain('event: done');
+});

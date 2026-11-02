@@ -3,7 +3,7 @@ import { PGlite } from '@electric-sql/pglite';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
-import { budgetFixture } from './ai-token-budgets.fixture';
+import { budgetFixture, unpublishedPolzaBudgetFixture } from './ai-token-budgets.fixture';
 import { aiClassFixture } from './ai-student-access.contract';
 import { AiAccessService } from '../../apps/api/src/ai-access.service';
 let db: PGlite;
@@ -232,7 +232,6 @@ it('separates Account and Seat budgets and retains teacher denial independently'
 });
 it('shares one budget hold across native rounds, settles the total once and finishes even after caps are lowered during dispatch', async () => {
   let rounds = 0;
-  let f: Awaited<ReturnType<typeof budgetFixture>>;
   const fetcher = vi.fn<typeof fetch>(async (url, options) => {
     if (String(url).endsWith('/api/show'))
       return new Response(JSON.stringify({ capabilities: ['completion', 'tools'] }));
@@ -267,7 +266,7 @@ it('shares one budget hold across native rounds, settles the total once and fini
       }) + '\n',
     );
   });
-  f = await budgetFixture(admin, runtime, fetcher);
+  const f = await budgetFixture(admin, runtime, fetcher);
   await admin.query('UPDATE ai_web_search_settings SET enabled=true WHERE singleton_key');
   await f.limits(null, '1');
   const thread = await f.service.createThread(f.owner),
@@ -319,4 +318,9 @@ it('pins late settlement to the admission month and treats unmapped historical u
   await f.limits('100000', null);
   expect((await f.store.own(f.owner)).models[0]).toMatchObject({ reason: 'ai_budget_pending' });
   await expect(f.begin(f.owner, thread.id, randomUUID())).rejects.toThrow('AI_BUDGET_PENDING');
+});
+
+it('configures a selected Polza monthly budget before publishing it to users', async () => {
+  const f = await budgetFixture(admin, runtime, upstream);
+  await unpublishedPolzaBudgetFixture(admin, runtime, f.actor, f.owner);
 });

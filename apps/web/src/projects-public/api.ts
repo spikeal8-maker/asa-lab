@@ -111,7 +111,7 @@ export const publicProjectsApi = {
       return {
         ok: false,
         status: 502,
-        error: { code: 'invalid_public_artifact', message: 'Некорректный формат схемы' },
+        error: { code: 'invalid_public_artifact', message: 'Некорректный формат просмотра' },
       };
     return { ok: true, status: result.status, data: { artifact: validated.artifact } };
   },

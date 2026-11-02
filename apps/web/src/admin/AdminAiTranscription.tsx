@@ -1,3 +1,4 @@
+import { AdminAiSpeechTest } from './AdminAiSpeechTest';
 import { useEffect, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { isPolzaConfig, type AiPolzaAdminConfig } from './ai-polza-admin';
@@ -217,6 +218,12 @@ export function AdminAiTranscription({
             </p>
           </details>
         </form>
+      ) : null}
+      {config ? (
+        <AdminAiSpeechTest
+          enabled={config.enabled && config.transcriptionEnabled && config.apiKeyConfigured}
+          maxSeconds={config.maxAudioSeconds}
+        />
       ) : null}
     </section>
   );

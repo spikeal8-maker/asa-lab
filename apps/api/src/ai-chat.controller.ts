@@ -1,4 +1,6 @@
+import { aiPublicErrorMessage, AI_TEXT_UNAVAILABLE } from '@asa-lab/contracts';
 import { isAiImageSize } from '@asa-lab/contracts';
+import { WorkingFileError, validFileName } from './ai-working-files.js';
 import type { AiWebSearchMode } from '@asa-lab/contracts';
 import { AiPolicyError } from './ai-generation-policy.js';
 import { AiToolPolicyError } from './ai-tool-policy.js';
@@ -37,7 +39,10 @@ import { TOKENS } from './tokens.js';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function reject(code: string, message: string, status: number): never {
-  throw new HttpException({ error: { code, message } }, status);
+  throw new HttpException(
+    { error: { code, message: aiPublicErrorMessage(code, message) } },
+    status,
+  );
 }
 
 @Controller('api/ai')
@@ -96,11 +101,13 @@ export class AiChatController {
         problem instanceof AiServiceError ||
         problem instanceof AiWebSearchError ||
         problem instanceof AiPolicyError ||
-        problem instanceof AiToolPolicyError
+        problem instanceof AiToolPolicyError ||
+        problem instanceof WorkingFileError
       ) {
         return reject(problem.code, problem.message, problem.status);
       }
-      throw problem;
+      if (problem instanceof HttpException) throw problem;
+      return reject('ai_provider_unavailable', AI_TEXT_UNAVAILABLE, 503);
     }
   }
 
@@ -302,6 +309,76 @@ export class AiChatController {
     this.requireSameOrigin(request);
     const account = await this.requireOwner(request);
     return this.safe(() => this.ai.createThread(account.principalId));
+  }
+
+  @Get('threads/:threadId/working-files')
+  @Header('Cache-Control', 'private, no-store')
+  async workingFiles(@Req() request: FastifyRequest, @Param('threadId') raw: string) {
+    const owner = await this.requireOwner(request);
+    return this.safe(async () => ({
+      items: await this.ai.workingFiles.list(owner.principalId, this.threadId(raw)),
+    }));
+  }
+
+  @Get('threads/:threadId/working-files/:name')
+  @Header('Cache-Control', 'private, no-store')
+  async workingFile(
+    @Req() request: FastifyRequest,
+    @Param('threadId') raw: string,
+    @Param('name') name: string,
+    @Query('version') version?: string,
+  ) {
+    const owner = await this.requireOwner(request);
+    if (
+      !validFileName(name) ||
+      (version !== undefined &&
+        (!/^\d{1,3}$/.test(version) || Number(version) < 1 || Number(version) > 100))
+    )
+      return reject('ai_file_invalid', 'Неверный файл или версия.', 400);
+    return this.safe(() =>
+      this.ai.workingFiles.read(
+        owner.principalId,
+        this.threadId(raw),
+        name,
+        version === undefined ? undefined : Number(version),
+      ),
+    );
+  }
+
+  @Post('threads/:threadId/working-files/:name/restore')
+  @Header('Cache-Control', 'private, no-store')
+  async restoreWorkingFile(
+    @Req() request: FastifyRequest,
+    @Param('threadId') raw: string,
+    @Param('name') name: string,
+    @Body() body: Record<string, unknown>,
+  ) {
+    this.requireSameOrigin(request);
+    const owner = await this.requireOwner(request);
+    if (
+      !validFileName(name) ||
+      !body ||
+      Object.keys(body).sort().join(',') !== 'expectedVersion,operationId,version' ||
+      !Number.isSafeInteger(body.version) ||
+      Number(body.version) < 1 ||
+      Number(body.version) > 100 ||
+      !Number.isSafeInteger(body.expectedVersion) ||
+      Number(body.expectedVersion) < 1 ||
+      Number(body.expectedVersion) > 100 ||
+      typeof body.operationId !== 'string' ||
+      !UUID.test(body.operationId)
+    )
+      return reject('ai_file_invalid', 'Неверный файл или версия.', 400);
+    return this.safe(() =>
+      this.ai.workingFiles.restore(
+        owner.principalId,
+        this.threadId(raw),
+        name,
+        Number(body.version),
+        Number(body.expectedVersion),
+        String(body.operationId),
+      ),
+    );
   }
 
   @Get('threads/:threadId/messages')
@@ -522,16 +599,11 @@ export class AiChatController {
         canceled.signal,
         model,
         sourceId,
-        ...((nativeImage !== undefined || webSearchMode !== undefined || weatherCity !== undefined
-          ? ([attachmentIds, webSearchMode, weatherCity] as const)
-          : attachmentIds.length
-            ? ([attachmentIds] as const)
-            : []) as [
-          attachmentIds?: readonly string[],
-          webSearchMode?: AiWebSearchMode,
-          weatherCity?: string,
-        ]),
-        ...(nativeImage === undefined ? [] : [nativeImage]),
+        attachmentIds,
+        webSearchMode,
+        weatherCity,
+        nativeImage,
+        (activity) => event('activity', activity),
       );
       // Completion acknowledges this operation, not a replacement history page.
       event('done', {
@@ -549,7 +621,7 @@ export class AiChatController {
         problem instanceof AiServiceError || problem instanceof AiWebSearchError
           ? problem.message
           : 'Не удалось получить ответ модели. Сообщение сохранено.';
-      event('error', { code, message });
+      event('error', { code, message: aiPublicErrorMessage(code, message) });
     } finally {
       reply.raw.end();
     }

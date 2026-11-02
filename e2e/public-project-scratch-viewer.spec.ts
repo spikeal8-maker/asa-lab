@@ -245,18 +245,24 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       const pageLayout = await guest.getByTestId('public-project-detail').evaluate((article) => {
         const player = article.querySelector('.public-project-viewer')!.getBoundingClientRect();
         const notes = article.querySelector('.public-project-about')!.getBoundingClientRect();
+        const sidebar = article.querySelector('.public-project-sidebar')!.getBoundingClientRect();
         return {
           playerRight: player.right,
           playerBottom: player.bottom,
           playerTop: player.top,
           notesLeft: notes.left,
           notesTop: notes.top,
+          sidebarLeft: sidebar.left,
+          sidebarTop: sidebar.top,
         };
       });
-      if (width >= 900) {
-        expect(pageLayout.playerRight).toBeLessThanOrEqual(pageLayout.notesLeft);
-        expect(Math.abs(pageLayout.playerTop - pageLayout.notesTop)).toBeLessThan(2);
-      } else expect(pageLayout.playerBottom).toBeLessThan(pageLayout.notesTop);
+      if (width > 1100) {
+        // The sidebar is aligned with the player; author information precedes
+        // the description inside it. Description text need not start at its top.
+        expect(pageLayout.playerRight).toBeLessThanOrEqual(pageLayout.sidebarLeft);
+        expect(Math.abs(pageLayout.playerTop - pageLayout.sidebarTop)).toBeLessThan(2);
+        expect(pageLayout.notesTop).toBeGreaterThanOrEqual(pageLayout.sidebarTop);
+      } else expect(pageLayout.playerBottom).toBeLessThan(pageLayout.sidebarTop);
       await expect(
         guest.getByRole('button', { name: 'Обновить публикацию', exact: true }),
       ).toHaveCount(0);

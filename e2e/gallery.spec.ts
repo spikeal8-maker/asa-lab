@@ -12,7 +12,13 @@ test('legacy Gallery entry opens the canonical anonymous Public Projects catalog
 }) => {
   await page.goto('/#/gallery');
   await expect(page).toHaveURL(/#\/explore$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Проекты', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'Идеи, схемы и программы сообщества ASA Lab',
+      exact: true,
+    }),
+  ).toBeVisible();
   await expect(page.getByRole('searchbox')).toBeVisible();
   await expect(page.getByTestId('gallery')).toHaveCount(0);
 });

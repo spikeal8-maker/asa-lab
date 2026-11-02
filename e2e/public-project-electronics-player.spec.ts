@@ -580,9 +580,37 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
           changedPixels: changedNativePixels(low.png, high.png),
         });
         await guest.getByText('Код Arduino', { exact: true }).click();
-        await expect(guest.locator('.public-electronics-code code')).toHaveText(
-          String(draft.document.components[0]!.stateProperties?.arduinoSource),
-        );
+        if (mode === 'blocks') {
+          const blocks = guest.getByTestId('public-arduino-blocks');
+          await expect(blocks).toBeVisible();
+          await expect(blocks.locator('svg.blocklySvg')).toBeVisible();
+          await expect
+            .poll(() => blocks.locator('.blocklyBlockCanvas .blocklyPath').count())
+            .toBeGreaterThan(0);
+          const publishedWorkspace = JSON.parse(
+            String(draft.document.components[0]!.stateProperties?.arduinoWorkspace),
+          ) as { blocks: { blocks: { id: string }[] } };
+          expect(publishedWorkspace.blocks.blocks.length).toBeGreaterThan(0);
+          for (const block of publishedWorkspace.blocks.blocks) {
+            await expect
+              .poll(async () =>
+                blocks
+                  .locator('.blocklyBlockCanvas g[data-id]')
+                  .evaluateAll(
+                    (elements, id) =>
+                      elements.some((element) => element.getAttribute('data-id') === id),
+                    block.id,
+                  ),
+              )
+              .toBe(true);
+          }
+          await expect(guest.locator('.public-electronics-code code')).toHaveCount(0);
+          await expect(blocks.locator('.blocklyToolbox, .blocklyFlyout')).toHaveCount(0);
+        } else {
+          await expect(guest.locator('.public-electronics-code code')).toHaveText(
+            String(draft.document.components[0]!.stateProperties?.arduinoSource),
+          );
+        }
       }
       for (const width of [320, 390, 1024, 1440]) {
         await guest.setViewportSize({ width, height: 900 });

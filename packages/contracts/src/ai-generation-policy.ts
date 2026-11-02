@@ -30,7 +30,7 @@ export interface AiCatalogObservation {
 }
 export interface AiGenerationModel {
   readonly id: string;
-  readonly provider: 'openai' | 'deepseek' | 'ollama-cloud' | 'ollama';
+  readonly provider: 'openai' | 'deepseek' | 'ollama-cloud' | 'ollama' | 'polza';
   readonly label: string;
   readonly ready: boolean;
   readonly selectable: boolean;
@@ -38,6 +38,7 @@ export interface AiGenerationModel {
   readonly eligible?: boolean;
   /** Selected by at least one enabled configured Cloud key, independent of temporary availability. */
   readonly connectionSelected?: boolean;
+  readonly inputModalities?: readonly string[];
   readonly order?: number;
   readonly adapterCompatible?: boolean;
   readonly unavailableReason?: string | null;

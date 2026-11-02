@@ -1,3 +1,4 @@
+import type { PolzaCatalog } from './ai-polza-catalog.js';
 import type { AiOllamaCloudModel, AiCatalogObservation } from '@asa-lab/contracts';
 import { AI_MAX_OUTPUT_TOKENS } from './ai-generation-limits.js';
 /** Server-owned text model catalog. The browser consumes this metadata, never an allowlist.
@@ -78,7 +79,7 @@ const MODELS = [
   },
 ] as const;
 
-export type AiProvider = (typeof MODELS)[number]['provider'];
+export type AiProvider = (typeof MODELS)[number]['provider'] | 'polza';
 export type AiModel = (typeof MODELS)[number]['id'] | (string & {});
 
 /** Populated only from the private, server-owned SQL catalogue. Never from browser JSON. */
@@ -139,6 +140,38 @@ export function installOllamaCloudCatalog(
   cloudRevision = checkedAt;
   cloudAvailable = availableModels === null ? null : new Set(availableModels);
 }
+let polzaReady = false;
+let polzaModels: {
+  id: string;
+  upstream: string;
+  provider: 'polza';
+  label: string;
+  vision: boolean;
+  tools: boolean;
+  maxOutputTokens: number;
+  active: boolean;
+  selected: boolean;
+  shutdownDate: null;
+  reasoning: null;
+}[] = [];
+export function installPolzaModelCatalog(value: PolzaCatalog): void {
+  polzaReady = true;
+  polzaModels = value.items
+    .filter((m) => m.kind === 'chat')
+    .map((m) => ({
+      ...m,
+      provider: 'polza',
+      active: m.active && value.credentialCurrent,
+      shutdownDate: null,
+      reasoning: null,
+    }));
+}
+export function supportsAiTools(provider: unknown, model: unknown): boolean {
+  return provider !== 'polza' || polzaModels.some((m) => m.id === model && m.tools);
+}
+export function isPolzaModelSelected(id: string): boolean {
+  return polzaModels.some((m) => m.id === id && m.active && m.selected);
+}
 let observations: readonly AiCatalogObservation[] = [];
 export function installProviderObservations(value: readonly AiCatalogObservation[]): void {
   observations = value;
@@ -149,10 +182,11 @@ function observedAvailable(provider: string, id: string): boolean {
   return !observation?.checkedAt || observation.models.some((m) => m.id === id && m.active);
 }
 function modelEntries() {
-  return [...MODELS.filter((m) => m.provider !== 'ollama-cloud'), ...cloudModels];
+  return [...MODELS.filter((m) => m.provider !== 'ollama-cloud'), ...cloudModels, ...polzaModels];
 }
 
 const PROVIDERS = [
+  { id: 'polza', label: 'Polza AI', defaultModel: 'polza/unconfigured' },
   { id: 'openai', label: 'OpenAI (GPT)', defaultModel: 'gpt-6-luna' },
   { id: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-flash' },
   { id: 'ollama-cloud', label: 'Ollama Cloud', defaultModel: 'gemma4:31b' },
@@ -207,10 +241,16 @@ export function isKnownOllamaCloudModel(provider: unknown, model: unknown): bool
   return provider === 'ollama-cloud' && cloudModels.some((m) => m.id === model);
 }
 
+export function isKnownAdmittedModel(provider: unknown, model: unknown): boolean {
+  return (
+    isKnownOllamaCloudModel(provider, model) ||
+    (provider === 'polza' && polzaModels.some((m) => m.id === model))
+  );
+}
 export function getAiModelCatalog(now = Date.now()) {
   return {
     revision: cloudRevision ? '2026-10-19+cloud:' + cloudRevision : '2026-10-19',
-    providers: PROVIDERS.map((p) =>
+    providers: PROVIDERS.filter((p) => p.id !== 'polza' || polzaReady).map((p) =>
       p.id === 'ollama-cloud'
         ? {
             ...p,
@@ -233,7 +273,8 @@ export function getAiModelCatalog(now = Date.now()) {
         shutdownDate: model.shutdownDate,
         selectable:
           isAiModel(model.id, now) &&
-          (model.provider !== 'ollama-cloud' || isOllamaCloudModelAvailable(model.id)),
+          (model.provider !== 'ollama-cloud' || isOllamaCloudModelAvailable(model.id)) &&
+          (model.provider !== 'polza' || isPolzaModelSelected(model.id)),
         lifecycle:
           model.shutdownDate === null
             ? ('active' as const)
@@ -339,13 +380,18 @@ export function buildAiTextRequest(
         url:
           provider === 'ollama-cloud'
             ? 'https://ollama.com/v1/chat/completions'
-            : 'https://api.deepseek.com/chat/completions',
+            : provider === 'polza'
+              ? 'https://polza.ai/api/v1/chat/completions'
+              : 'https://api.deepseek.com/chat/completions',
         body: {
           ...(stream ? { stream_options: { include_usage: true } } : {}),
           model:
-            provider === 'ollama-cloud' && 'upstream' in descriptor ? descriptor.upstream : model,
+            (provider === 'ollama-cloud' || provider === 'polza') && 'upstream' in descriptor
+              ? descriptor.upstream
+              : model,
           messages: [{ role: 'system', content: instructions }, ...multimodal],
-          max_tokens: AI_MAX_OUTPUT_TOKENS,
+          max_tokens:
+            'maxOutputTokens' in descriptor ? descriptor.maxOutputTokens : AI_MAX_OUTPUT_TOKENS,
           ...(provider === 'deepseek' ? { thinking: { type: 'disabled' } } : {}),
           stream,
         },

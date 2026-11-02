@@ -1,10 +1,52 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test as base, type Page, type BrowserContext } from '@playwright/test';
 import { e2eAdminPool } from './seed';
 const EVIDENCE = 'e2e/artifacts/publication-likes';
 const headers = (page: Page) => ({ origin: new URL(page.url()).origin });
+type State = Awaited<ReturnType<BrowserContext['storageState']>>;
+const test = base.extend<object, { actors: { authorId: string; author: State; moderator: State } }>(
+  {
+    actors: [
+      async ({ browser }, use, workerInfo) => {
+        const baseURL = workerInfo.project.use.baseURL;
+        if (
+          !baseURL ||
+          !['127.0.0.1', 'localhost'].includes(new URL(baseURL).hostname) ||
+          !process.env.TEST_DATABASE_URL ||
+          !new URL(process.env.TEST_DATABASE_URL).pathname.endsWith('_test')
+        )
+          throw Error('Isolated publication-likes runtime required');
+        const contexts = await Promise.all([
+          browser.newContext({ baseURL }),
+          browser.newContext({ baseURL }),
+        ]);
+        const db = e2eAdminPool();
+        try {
+          const [author, moderator] = await Promise.all(contexts.map((c) => c.newPage()));
+          const authorId = await register(author, 'Автор без собственного лайка');
+          const adminId = await register(moderator, 'Администратор реакций');
+          await db.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
+            adminId,
+          ]);
+          await db.query(
+            "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'platform_admin','verified','publication-likes-test','migration')",
+            [adminId],
+          );
+          // Reuse real server-issued identities; each scenario still gets separate
+          // browser contexts and projects. No IP spoofing or rate-limit bypass.
+          const states = await Promise.all(contexts.map((c) => c.storageState()));
+          await use({ authorId, author: states[0], moderator: states[1] });
+        } finally {
+          await Promise.all(contexts.map((c) => c.close()));
+          await db.end();
+        }
+      },
+      { scope: 'worker' },
+    ],
+  },
+);
 async function register(page: Page, label: string) {
   await page.goto('/#/explore');
   const id = randomUUID().replaceAll('-', '');
@@ -64,26 +106,30 @@ for (const { width, seat } of [
 ]) {
   test(`${seat ? 'Seat' : 'Account'} likes persist and admin controls work at ${width}px`, async ({
     browser,
+    actors,
   }) => {
     const db = e2eAdminPool();
     const contexts = await Promise.all(
-      [1440, width, 1440].map((w) => browser.newContext({ viewport: { width: w, height: 1000 } })),
+      [1440, width, 1440].map((w, index) =>
+        browser.newContext({
+          viewport: { width: w, height: 1000 },
+          storageState:
+            index === 0
+              ? actors.author
+              : index === 2
+                ? actors.moderator
+                : { cookies: [], origins: [] },
+        }),
+      ),
     );
     const [author, reader, moderator] = await Promise.all(contexts.map((c) => c.newPage()));
+    await Promise.all([author, reader, moderator].map((page) => page.goto('/#/explore')));
     let source: string | undefined;
     try {
       mkdirSync(EVIDENCE, { recursive: true });
       const build = JSON.parse(readFileSync('apps/web/dist/build-metadata.json', 'utf8'));
       expect(build.revision).toBe(process.env.ASA_BUILD_REVISION);
-      const authorId = await register(author, 'Автор без собственного лайка');
-      const adminId = await register(moderator, 'Администратор реакций');
-      await db.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
-        adminId,
-      ]);
-      await db.query(
-        "INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by) VALUES($1,'platform_admin','verified','publication-likes-test','migration')",
-        [adminId],
-      );
+      const authorId = actors.authorId;
       if (seat) await pupil(moderator, reader);
       else await register(reader, 'Читатель публикации');
       const created = await author.request.post('/api/projects', {

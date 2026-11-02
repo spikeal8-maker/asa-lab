@@ -5059,183 +5059,218 @@ for (const { mode, segment, widths } of compactControlSegments) {
       mode: 'text' | 'blocks-text' | 'blocks' = 'text',
       expectedSource = source,
     ) {
-      const observation = await page.evaluate((phase) => {
-        const bounds = (rect: DOMRect) => ({
-          left: rect.left,
-          top: rect.top,
-          right: rect.right,
-          bottom: rect.bottom,
-          width: rect.width,
-          height: rect.height,
-        });
-        const nativeMenu = document.querySelector(
-          '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
-        );
-        function inspect(element: Element) {
-          const rect = element.getBoundingClientRect();
-          const style = getComputedStyle(element);
-          const textRects: ReturnType<typeof bounds>[] = [];
-          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-          while (!(element instanceof HTMLSelectElement) && walker.nextNode()) {
-            if (!walker.currentNode.textContent?.trim()) continue;
-            const range = document.createRange();
-            range.selectNodeContents(walker.currentNode);
-            textRects.push(...Array.from(range.getClientRects(), bounds));
-          }
-          const clips = [];
-          for (let parent = element.parentElement; parent; parent = parent.parentElement) {
-            const css = getComputedStyle(parent);
-            if (
-              ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowX) ||
-              ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowY)
-            ) {
-              const box = parent.getBoundingClientRect();
-              clips.push({
-                selector: `${parent.tagName}.${parent.className}`,
-                overflowX: css.overflowX,
-                overflowY: css.overflowY,
-                left: box.left + parent.clientLeft,
-                top: box.top + parent.clientTop,
-                right: box.left + parent.clientLeft + parent.clientWidth,
-                bottom: box.top + parent.clientTop + parent.clientHeight,
+      const { observeActualIntersections } =
+        await import('../tests/electronics/actual-intersections');
+      // This union includes every control inspected below, including hidden popup controls.
+      const intersectionSelector = [
+        '.workbench-pill.simulate',
+        '.workbench-toolbar-group > button',
+        '.workbench-toolbar-group > strong',
+        '.workbench-toolbar-group > details > summary',
+        '.arduino-code-toolbar > details > summary',
+        '.arduino-code-toolbar > button',
+        '.arduino-code-toolbar > select',
+        '.arduino-code-toolbar .arduino-font-size-select > select',
+        '.workbench-simulation-time',
+        '[aria-label="Цвет провода: Фиолетовый"]',
+      ].join(', ');
+      const intersectionCapture = await page.evaluateHandle(
+        observeActualIntersections,
+        intersectionSelector,
+      );
+      const observation = await page
+        .evaluate(
+          ({ capture, phase }) =>
+            capture.read((intersectionTargets, intersections) => {
+              const bounds = (rect: DOMRect) => ({
+                left: rect.left,
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                width: rect.width,
+                height: rect.height,
               });
-            }
-          }
-          const points = [
-            [rect.left + 3, rect.top + 3],
-            [rect.right - 3, rect.top + 3],
-            [rect.left + 3, rect.bottom - 3],
-            [rect.right - 3, rect.bottom - 3],
-            [rect.left + rect.width / 2, rect.top + rect.height / 2],
-          ].map(([x, y]) => {
-            const hit = document.elementFromPoint(x!, y!);
-            const hitAncestry = [];
-            for (let ancestor = hit; ancestor; ancestor = ancestor.parentElement) {
-              hitAncestry.push({
-                selector: `${ancestor.tagName}.${ancestor.className}`,
-                role: ancestor.getAttribute('role'),
-                ariaLabel: ancestor.getAttribute('aria-label'),
-              });
-            }
-            return {
-              x,
-              y,
-              owned: hit !== null && (hit === element || element.contains(hit)),
-              hit: hit ? `${hit.tagName}.${hit.className}` : null,
-              hitAncestry,
-              ownedByOpenNativeMenu:
-                nativeMenu !== null &&
-                hit !== null &&
-                hit.closest('.workbench-wire-color-menu') === nativeMenu,
-            };
-          });
-          const selectedText =
-            element instanceof HTMLSelectElement
-              ? (element.selectedOptions[0]?.textContent ?? '')
-              : null;
-          const context = document.createElement('canvas').getContext('2d')!;
-          context.font = style.font;
-          return {
-            selector: `${element.tagName}.${element.className}`,
-            text: element.textContent?.trim(),
-            ariaLabel: element.getAttribute('aria-label'),
-            rect: bounds(rect),
-            fontSize: style.fontSize,
-            disabled: element instanceof HTMLButtonElement && element.disabled,
-            iconRects: Array.from(element.querySelectorAll(':scope > svg'), (icon) =>
-              bounds(icon.getBoundingClientRect()),
-            ),
-            textRects,
-            clips,
-            points,
-            selectedText,
-            selectedTextWidth:
-              selectedText === null ? null : context.measureText(selectedText).width,
-            contentWidth:
-              element.clientWidth -
-              Number.parseFloat(style.paddingLeft) -
-              Number.parseFloat(style.paddingRight),
-          };
-        }
-        const primary = document.querySelector('.workbench-pill.simulate')!;
-        const panel = document.querySelector('.arduino-code-panel')!;
-        const toolbar = document.querySelector('.workbench-toolbar')!;
-        const codeToolbar = document.querySelector('.arduino-code-toolbar')!;
-        return {
-          phase,
-          view: toolbar.className,
-          viewport: {
-            width: innerWidth,
-            height: innerHeight,
-            pageWidth: document.documentElement.scrollWidth,
-            clientWidth: document.documentElement.clientWidth,
-          },
-          primary: inspect(primary),
-          headerGroups: Array.from(
-            toolbar.querySelectorAll('.workbench-toolbar-group'),
-            (group) => {
-              const style = getComputedStyle(group);
-              return {
-                selector: `${group.tagName}.${group.className}`,
-                rect: bounds(group.getBoundingClientRect()),
-                paddingLeft: style.paddingLeft,
-                paddingRight: style.paddingRight,
-                gap: style.gap,
-              };
-            },
-          ),
-          headerControls: Array.from(
-            toolbar.querySelectorAll(
-              '.workbench-toolbar-group > button, .workbench-toolbar-group > strong, .workbench-toolbar-group > details > summary',
-            ),
-          )
-            .filter((control) => {
-              const rect = control.getBoundingClientRect();
-              return (
-                rect.width > 0 &&
-                rect.height > 0 &&
-                getComputedStyle(control).visibility === 'visible'
+              const nativeMenu = document.querySelector(
+                '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
               );
-            })
-            .map(inspect),
-          fixtureBlockIds: Array.from(
-            document.querySelectorAll(
-              '[data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="setup-532"], [data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="loop-532"]',
-            ),
-            (block) => block.getAttribute('data-id'),
-          ).sort(),
-          codeControls: Array.from(
-            codeToolbar.querySelectorAll(
-              ':scope > details > summary, :scope > button, :scope > select, .arduino-font-size-select > select',
-            ),
-            inspect,
-          ),
-          clock: document.querySelector('.workbench-simulation-time')
-            ? inspect(document.querySelector('.workbench-simulation-time')!)
-            : null,
-          toolbar: bounds(toolbar.getBoundingClientRect()),
-          main: bounds(document.querySelector('.workbench-main')!.getBoundingClientRect()),
-          drawer: bounds(panel.getBoundingClientRect()),
-          codeToolbar: bounds(codeToolbar.getBoundingClientRect()),
-          nativeWireMenu: document.querySelector('.workbench-wire-color-menu')
-            ? {
-                open: document.querySelector('.workbench-wire-color')!.hasAttribute('open'),
-                toolbarZIndex: getComputedStyle(toolbar).zIndex,
-                rect: bounds(
-                  document.querySelector('.workbench-wire-color-menu')!.getBoundingClientRect(),
-                ),
-                purple: inspect(document.querySelector('[aria-label="Цвет провода: Фиолетовый"]')!),
+              function inspect(element: Element) {
+                const intersection = intersections[intersectionTargets.indexOf(element)];
+                if (!intersection) throw new Error('Missing actual control intersection');
+                const rect = element.getBoundingClientRect();
+                const style = getComputedStyle(element);
+                const textRects: ReturnType<typeof bounds>[] = [];
+                const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+                while (!(element instanceof HTMLSelectElement) && walker.nextNode()) {
+                  if (!walker.currentNode.textContent?.trim()) continue;
+                  const range = document.createRange();
+                  range.selectNodeContents(walker.currentNode);
+                  textRects.push(...Array.from(range.getClientRects(), bounds));
+                }
+                const clips = [];
+                for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                  const css = getComputedStyle(parent);
+                  if (
+                    ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowX) ||
+                    ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowY)
+                  ) {
+                    const box = parent.getBoundingClientRect();
+                    clips.push({
+                      selector: `${parent.tagName}.${parent.className}`,
+                      overflowX: css.overflowX,
+                      overflowY: css.overflowY,
+                      left: box.left + parent.clientLeft,
+                      top: box.top + parent.clientTop,
+                      right: box.left + parent.clientLeft + parent.clientWidth,
+                      bottom: box.top + parent.clientTop + parent.clientHeight,
+                    });
+                  }
+                }
+                const points = [
+                  [rect.left + 3, rect.top + 3],
+                  [rect.right - 3, rect.top + 3],
+                  [rect.left + 3, rect.bottom - 3],
+                  [rect.right - 3, rect.bottom - 3],
+                  [rect.left + rect.width / 2, rect.top + rect.height / 2],
+                ].map(([x, y]) => {
+                  const hit = document.elementFromPoint(x!, y!);
+                  const hitAncestry = [];
+                  for (let ancestor = hit; ancestor; ancestor = ancestor.parentElement) {
+                    hitAncestry.push({
+                      selector: `${ancestor.tagName}.${ancestor.className}`,
+                      role: ancestor.getAttribute('role'),
+                      ariaLabel: ancestor.getAttribute('aria-label'),
+                    });
+                  }
+                  return {
+                    x,
+                    y,
+                    owned: hit !== null && (hit === element || element.contains(hit)),
+                    hit: hit ? `${hit.tagName}.${hit.className}` : null,
+                    hitAncestry,
+                    ownedByOpenNativeMenu:
+                      nativeMenu !== null &&
+                      hit !== null &&
+                      hit.closest('.workbench-wire-color-menu') === nativeMenu,
+                  };
+                });
+                const selectedText =
+                  element instanceof HTMLSelectElement
+                    ? (element.selectedOptions[0]?.textContent ?? '')
+                    : null;
+                const context = document.createElement('canvas').getContext('2d')!;
+                context.font = style.font;
+                return {
+                  selector: `${element.tagName}.${element.className}`,
+                  text: element.textContent?.trim(),
+                  ariaLabel: element.getAttribute('aria-label'),
+                  rect: bounds(rect),
+                  fontSize: style.fontSize,
+                  disabled: element instanceof HTMLButtonElement && element.disabled,
+                  iconRects: Array.from(element.querySelectorAll(':scope > svg'), (icon) =>
+                    bounds(icon.getBoundingClientRect()),
+                  ),
+                  textRects,
+                  clips,
+                  intersection,
+                  points,
+                  selectedText,
+                  selectedTextWidth:
+                    selectedText === null ? null : context.measureText(selectedText).width,
+                  contentWidth:
+                    element.clientWidth -
+                    Number.parseFloat(style.paddingLeft) -
+                    Number.parseFloat(style.paddingRight),
+                };
               }
-            : null,
-          codeBody: bounds(document.querySelector('.arduino-code-body')!.getBoundingClientRect()),
-          source:
-            document.querySelector<HTMLTextAreaElement>(
-              '[aria-label="Код Arduino C++"], [aria-label="Сгенерированный код Arduino"]',
-            )?.value ?? null,
-          codeMode: codeToolbar.className,
-          componentCount: document.querySelectorAll('[data-testid="schematic-component"]').length,
-        };
-      }, phase);
+              const primary = document.querySelector('.workbench-pill.simulate')!;
+              const panel = document.querySelector('.arduino-code-panel')!;
+              const toolbar = document.querySelector('.workbench-toolbar')!;
+              const codeToolbar = document.querySelector('.arduino-code-toolbar')!;
+              return {
+                phase,
+                view: toolbar.className,
+                viewport: {
+                  width: innerWidth,
+                  height: innerHeight,
+                  pageWidth: document.documentElement.scrollWidth,
+                  clientWidth: document.documentElement.clientWidth,
+                },
+                primary: inspect(primary),
+                headerGroups: Array.from(
+                  toolbar.querySelectorAll('.workbench-toolbar-group'),
+                  (group) => {
+                    const style = getComputedStyle(group);
+                    return {
+                      selector: `${group.tagName}.${group.className}`,
+                      rect: bounds(group.getBoundingClientRect()),
+                      paddingLeft: style.paddingLeft,
+                      paddingRight: style.paddingRight,
+                      gap: style.gap,
+                    };
+                  },
+                ),
+                headerControls: Array.from(
+                  toolbar.querySelectorAll(
+                    '.workbench-toolbar-group > button, .workbench-toolbar-group > strong, .workbench-toolbar-group > details > summary',
+                  ),
+                )
+                  .filter((control) => {
+                    const rect = control.getBoundingClientRect();
+                    return (
+                      rect.width > 0 &&
+                      rect.height > 0 &&
+                      getComputedStyle(control).visibility === 'visible'
+                    );
+                  })
+                  .map(inspect),
+                fixtureBlockIds: Array.from(
+                  document.querySelectorAll(
+                    '[data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="setup-532"], [data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="loop-532"]',
+                  ),
+                  (block) => block.getAttribute('data-id'),
+                ).sort(),
+                codeControls: Array.from(
+                  codeToolbar.querySelectorAll(
+                    ':scope > details > summary, :scope > button, :scope > select, .arduino-font-size-select > select',
+                  ),
+                  inspect,
+                ),
+                clock: document.querySelector('.workbench-simulation-time')
+                  ? inspect(document.querySelector('.workbench-simulation-time')!)
+                  : null,
+                toolbar: bounds(toolbar.getBoundingClientRect()),
+                main: bounds(document.querySelector('.workbench-main')!.getBoundingClientRect()),
+                drawer: bounds(panel.getBoundingClientRect()),
+                codeToolbar: bounds(codeToolbar.getBoundingClientRect()),
+                nativeWireMenu: document.querySelector('.workbench-wire-color-menu')
+                  ? {
+                      open: document.querySelector('.workbench-wire-color')!.hasAttribute('open'),
+                      toolbarZIndex: getComputedStyle(toolbar).zIndex,
+                      rect: bounds(
+                        document
+                          .querySelector('.workbench-wire-color-menu')!
+                          .getBoundingClientRect(),
+                      ),
+                      purple: inspect(
+                        document.querySelector('[aria-label="Цвет провода: Фиолетовый"]')!,
+                      ),
+                    }
+                  : null,
+                codeBody: bounds(
+                  document.querySelector('.arduino-code-body')!.getBoundingClientRect(),
+                ),
+                source:
+                  document.querySelector<HTMLTextAreaElement>(
+                    '[aria-label="Код Arduino C++"], [aria-label="Сгенерированный код Arduino"]',
+                  )?.value ?? null,
+                codeMode: codeToolbar.className,
+                componentCount: document.querySelectorAll('[data-testid="schematic-component"]')
+                  .length,
+              };
+            }),
+          { capture: intersectionCapture, phase },
+        )
+        .finally(() => intersectionCapture.dispose());
       observations.push(observation);
       writeFileSync(
         resolve(evidenceDir, 'geometry.json'),
@@ -5281,16 +5316,12 @@ for (const { mode, segment, widths } of compactControlSegments) {
             );
           }),
         ).toBe(true);
-        for (const clip of control.clips) {
-          if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowX)) {
-            expect(control.rect.left).toBeGreaterThanOrEqual(clip.left - 1);
-            expect(control.rect.right).toBeLessThanOrEqual(clip.right + 1);
-          }
-          if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowY)) {
-            expect(control.rect.top).toBeGreaterThanOrEqual(clip.top - 1);
-            expect(control.rect.bottom).toBeLessThanOrEqual(clip.bottom + 1);
-          }
-        }
+        // The browser resolves real clipping, including fixed containing blocks.
+        // Overflow ancestors above remain diagnostic; they are not all actual clips.
+        expect(control.rect.left).toBeGreaterThanOrEqual(control.intersection.left - 1);
+        expect(control.rect.right).toBeLessThanOrEqual(control.intersection.right + 1);
+        expect(control.rect.top).toBeGreaterThanOrEqual(control.intersection.top - 1);
+        expect(control.rect.bottom).toBeLessThanOrEqual(control.intersection.bottom + 1);
         for (const text of control.textRects) {
           expect(text.left).toBeGreaterThanOrEqual(control.rect.left - 1);
           expect(text.right).toBeLessThanOrEqual(control.rect.right + 1);
