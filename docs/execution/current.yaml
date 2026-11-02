@@ -5211,51 +5211,25 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
-      issue: 569
+      id: TASK-ELECTRONICS-GOVERNANCE-014
+      issue: 929
       branch: main
       base_branch: main
       pr: null
       status: done
-      checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
-      kind: repair
+      kind: maintenance
+      checkpoint: accepted_static_split_routes_repaired_114_regressions_PASS
       owner_acceptance: pending
-      programme_issue: 452
-      owner_problem: E01 verify all four approved saving and server-request points
-        together; publish missing truthful indicator only after permitted review
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/arduino-peripherals.yaml
         - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto
-        main containing570 and571; verify all four points on one exact candidate.
-        Preserve existing local protection and all suspended work.
-      baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
-      preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
-      technical_acceptance: accepted_exact_main_general_and_new_independent_review
-      publication_authorization: owner_explicit_all_four_points_in_main;
-        development_publication_only_after_new_independent_functional_verification
-      school_actions: deferred_by_owner_no_installation_actions
-      deployment: not_run
-      database_actions: none
-      next_action: STOP all four approved saving points technically accepted; no next
-        task selected;566 and programme452 remain open; no deployment or owner
-        acceptance
-      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
-      independent_review: approved
-      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
-      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
-      exact_main_general_run: 38626738375
-      exact_main_general_conclusion: success
-      source_focused_run: 38623487785
-      source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
-      source_directed_browser_cases: 3
-      point3_verification: PRESERVED_PASS immediate synchronous local draft/readback;
-        held remote reply retains pupil166.7; no new storage repair
-      resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
-      historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records
-        supersede their historical pending/blocked snapshots
+        - docs/product/electronics/evidence/hygiene-baseline.yaml
+      scope: Documentation-only existing Electronics source-route and stale-large-source repair after accepted6e0; no product source, thresholds or foreign-state changes.
+      owner_authorization: Owner asks to repair Electronics errors and publish verified source while preserving foreign changes; current accepted static block split invalidates four routing checks.
+      next_action: STOP; documentation-only baseline repaired. Resume independently checked caption integration and separately selected desktop layout task.
+      routing_result: PASS_30components167cards_114regressiontests_control_plane_require_github_PASS
+      actual_arduino_blocks_bytes: 34881
+      self_review: PASS_documentation_only_all_accepted_product_blobs_and_limits_unchanged
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
@@ -6915,6 +6889,51 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      task:
+        id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+        issue: 569
+        branch: main
+        base_branch: main
+        pr: null
+        status: done
+        checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 verify all four approved saving and server-request points together; publish missing truthful
+          indicator only after permitted review
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY transfer preserved569 indicator and compatible tests onto main containing570 and571; verify
+          all four points on one exact candidate. Preserve existing local protection and all suspended work.
+        baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
+        preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+        technical_acceptance: accepted_exact_main_general_and_new_independent_review
+        publication_authorization: owner_explicit_all_four_points_in_main; development_publication_only_after_new_independent_functional_verification
+        school_actions: deferred_by_owner_no_installation_actions
+        deployment: not_run
+        database_actions: none
+        next_action: STOP all four approved saving points technically accepted; no next task selected;566 and programme452
+          remain open; no deployment or owner acceptance
+        accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+        independent_review: approved
+        independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+        independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+        exact_main_general_run: 38626738375
+        exact_main_general_conclusion: success
+        source_focused_run: 38623487785
+        source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+        source_directed_browser_cases: 3
+        point3_verification: PRESERVED_PASS immediate synchronous local draft/readback; held remote reply retains pupil166.7;
+          no new storage repair
+        resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
+        historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records supersede their historical
+          pending/blocked snapshots
     - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
       issue: 466
       status: suspended_owner_direct_field_priority
@@ -8192,27 +8211,27 @@ parallel_lanes:
       deployment: not_run
       evidence: docs/product/projects/evidence/public-author-name-20261030-acceptance.md
     task:
-      id: TASK-PROJ-R8-04-COMMENTS-001
+      id: TASK-PROJ-R7-04A-3D-001
       issue: 211
       branch: main
       base_branch: main
       status: in_progress
-      checkpoint: owner_requested_complete_comments
+      checkpoint: owner_requested_3d_public_view_and_on_demand_previews
       kind: implementation
       risk: high
       semantic_change: 'yes'
       owner_acceptance: pending
       owner_authorization: >-
-        Owner explicitly requests real publication comments storage, class and individual
-        learner permissions, owner discussion close and admin moderation, with isolated
-        tests and native UI examples. Guest read only; personal Accounts may write;
-        StudentSeat requires independent class/seat permission default off. Publication
-        permission never implies comment permission. Rating-based access deferred until
-        approved real scoring policy. Bounded replies, own delete, owner hide and admin
-        moderation/report audit use existing identity and moderation foundations.
-        No production deployment, production DB writes or fake discussion UI.
+        Owner explicitly requests 3D publication, confirms interactive rotation and zoom,
+        and requests genuine pointer-driven 3D previews in public catalog, Creator Home
+        and My Projects. Reuse canonical geometry without editor mutation services.
+        Public viewers read only the exact immutable published revision; private cards
+        use existing authenticated project reads. On-demand previews retain static
+        fallback and at most one active hover WebGL runtime. Add genuine isolated
+        examples and verify desktop/mobile, resource cleanup and no mutation requests.
+        No production deployment or production database writes.
       context_hints:
-      - docs/product/projects/tasks/PROJ-R8-04.md
+      - docs/product/projects/tasks/PROJ-R7-04A-3D.md
       - docs/product/projects/DECISION_LEDGER.md
       - docs/agent/contracts/identity.yaml
     integration_dependencies:
@@ -16073,18 +16092,21 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: analysis/inventory
       risk: medium
       semantic_change: 'no'
-      checkpoint: owner_selected_short_frozen_input_compute_measurement
+      checkpoint: short_actual_replay_complete_interpreter_and_host_yield_measured
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-REALTIME-COMPUTE-CAUSE-001.md
       scope: Read-only short TEMP-only replay and CPU attribution of exact saved no-delay and independent-millis requests; no product/test/clock/solver edits or runtime acceptance.
       owner_authorization: Owner requests fixing25 remaining Electronics failures easiest first plus completing8 unfinished; prepare measured timing cause while independently reviewed caption waits for isolated CI.
       preservation: Keep selected682 private harness and all foreign work unchanged; no server, Docker, live DB, new dependencies, full-suite rerun or thresholds change.
-      next_action: One new bounded executor verifies selected task then replays saved actual requests for at most2minutes; report hot functions, owned-path activation, full-response fingerprints and minimal separate repair scope; STOP.
+      next_action: STOP; read-only evidence complete, no runtime repair authorized by this card. Select a separate bounded product repair after simple desktop packing.
+      analysis_report: docs/product/electronics/evidence/realtime-compute-cause-20261102/REPORT.md
+      analysis_result: 16complete_states_equal_saved_originals_and_complete_response_repeats_equal_except_computeMs_owned_and_prepared_paths_active
+      measured_cause: Interpreter is dominant sampled inner function; host setTimeout yields also add substantial wall time. Cloning is not measured dominant. Windows Node attribution is not browser runtime acceptance.
 
     gates:
       focused:
@@ -16105,6 +16127,88 @@ parallel_lanes:
       observed_at: '2026-11-01T22:29:00Z'
       observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Read-only cause measurement selected separately; caption candidate waits for original browser and General evidence; no runtime source authorization.
 
+  - id: electronics-compact-toolbar-hit
+    parent_lane: electronics
+    worktree_id: electronics-compact-toolbar-hit
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
+    task:
+      id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+      issue: 532
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: owner_selected_four_native_toolbar_hit_failures
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
+      repair_scope: CSS-only desktop toolbar packing and strengthened existing native oracle; preserve all original four Code journeys and all mobile/emergency-caption behavior.
+      owner_authorization: Repair remaining Electronics failures easiest first; no server or foreign changes. Desktop-only authorship starts after this selection is published; inherit independently reviewed8080 caption source while its separate General finishes, without concurrent edits to the mobile caption.
+      next_action: One bounded author preserves accepted main, reproduces original1374/1181 clock/tool overlap in actual Header, fixes desktop packing, verifies native controls and original four Code journeys; new independent review and exact CI before integration.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6d5c2e9c68e8c1b3f2284455b3d5458043b723ed
+      head_sha: null
+      main:
+        branch: main
+        sha: 6d5c2e9c68e8c1b3f2284455b3d5458043b723ed
+      observed_at: '2026-11-01T22:45:00Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Desktop-only author may inherit reviewed8080 caption while its independent General finishes; mobile caption and runtime remain unchanged. No server or foreign code scope.
+
+  - id: electronics-host-yield-diagnosis
+    parent_lane: electronics
+    worktree_id: electronics-host-yield-diagnosis
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
+    task:
+      id: TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001
+      issue: 934
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: analysis/inventory
+      risk: high
+      semantic_change: 'no'
+      checkpoint: selected_browser_only_host_yield_cause_measurement
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
+      scope: TEMP-only real Chromium Worker measurement on frozen actual no-delay and millis requests; compare unchanged baseline, timer instrumentation and experimental MessageChannel yield. No repository runtime edits or acceptance.
+      owner_authorization: Owner requests fixing remaining20 Electronics timing failures after simple toolbar fixes; measure independent Worker cause while reviewed desktop candidate waits for CI.
+      next_action: One bounded measurement executor validates selection, measures actual waits/compute and complete response parity with a short cancellation probe, reports observed cause and limitations; new independent actual review; STOP before production repair.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
+      head_sha: null
+      main:
+        branch: main
+        sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
+      observed_at: '2026-11-02T00:20:23Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Browser measurement grants no repository runtime mutation, realtime acceptance or deployment.
+
   - id: electronics-emergency-toolbar
     parent_lane: electronics
     worktree_id: electronics-emergency-toolbar
@@ -16116,11 +16220,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: medium
       semantic_change: 'no'
-      checkpoint: owner_selected_strict_denied_storage_caption_repair
+      checkpoint: caption_fixed_original_E01_and8_placement_pass_source_integrated
       accepted_candidate_sha: a94eba7bf3bf8c4623184996c022f907d0972509
       integrated_sha: 62ca03bb55f82539286ebff35705ccf76b33c11b
       composition_review: APPROVE_169candidate_and29foreign_blobs_preserved
@@ -16142,8 +16246,15 @@ parallel_lanes:
       current_owner_request: Repair remaining25 Electronics failures easiest first and complete8 unfinished cases; publish verified slices to main without server or foreign changes.
       current_slice_baseline: 2a28f40dcd048fac1ce303bd207699c64199b041
       current_slice_evidence: Strict41345471963 E01 denied-local-storage fails captionVisible after emergency JSON equality passed; actual CSS sets emergency button font-size0 and inserts JSON pseudo-label.
-      current_slice_next_action: Bounded author proves actual native caption and selects minimal CSS fix; retain full E01 oracle, all persistence semantics and responsive actions; fresh independent review and focused CI before integration.
-      programme_remaining: Other24 known failures and8 unfinished scenarios remain open; toolbar overlaps next, timing requires separately selected cause-based repair.
+      current_slice_next_action: STOP; caption source reviewed and tested. Continue separately selected desktop packing slice; remaining20 timing failures require separately selected cause-based repair.
+      caption_source_sha: 8080c1e4343e41be1ea13ab9eababc7c011df117
+      caption_general_run: 41357921928
+      caption_general_conclusion: SUCCESS_all_four_jobs_exact8080
+      caption_actual_run: 41356571160
+      caption_actual_conclusion: original_E01_and_exact8_unfinished_9PASS_retry0_ACTUAL_TARGET_PASS
+      caption_native: author432_states2928_actions_independent30_states228_actions_both_production_stylesheets
+      caption_report: docs/product/electronics/evidence/emergency-caption-868-20261102/README.md
+      programme_remaining: Four desktop toolbar hit failures and20 timing failures remain open; all8 formerly unfinished placement cases now completed and independently verified PASS.
       owner_acceptance: pending
       execution_role: bounded_css_executor_then_fresh_independent_review
       context_hints:

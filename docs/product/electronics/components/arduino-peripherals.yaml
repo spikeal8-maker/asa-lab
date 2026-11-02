@@ -61,6 +61,7 @@ components:
     - docs/product/electronics/README.md#15-arduino-и-программирование
     sources:
     - contexts/electronics/domain/arduino-capabilities.ts
+    - contexts/electronics/domain/arduino-block-support.ts
     tests:
     - contexts/electronics/testing/arduino-capabilities.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts

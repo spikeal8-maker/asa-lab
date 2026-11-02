@@ -30,6 +30,14 @@ const sharedAliases = [
     replacement: fileURLToPath(new URL('./contexts/electronics/index.ts', import.meta.url)),
   },
   {
+    find: '@asa-lab/three-d/document',
+    replacement: fileURLToPath(new URL('./contexts/three-d/domain/document.ts', import.meta.url)),
+  },
+  {
+    find: '@asa-lab/three-d/operations',
+    replacement: fileURLToPath(new URL('./contexts/three-d/domain/operations.ts', import.meta.url)),
+  },
+  {
     find: '@asa-lab/three-d',
     replacement: fileURLToPath(new URL('./contexts/three-d/index.ts', import.meta.url)),
   },

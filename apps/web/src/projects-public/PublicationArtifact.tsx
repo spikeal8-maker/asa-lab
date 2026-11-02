@@ -1,5 +1,9 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
-import type { ElectronicsDisplayArtifact, ElectronicsSimulationArtifact } from '@asa-lab/contracts';
+import type {
+  ElectronicsDisplayArtifact,
+  ElectronicsSimulationArtifact,
+  PublicThreeDArtifact,
+} from '@asa-lab/contracts';
 import { publicProjectsApi, type PublicProject } from './api';
 import { PublicationPreview } from './PublicationPreview';
 
@@ -10,6 +14,9 @@ const Scene = lazy(() =>
 );
 const ScratchPlayer = lazy(() =>
   import('./PublicScratchPlayer').then((module) => ({ default: module.PublicScratchPlayer })),
+);
+const ThreeDViewer = lazy(() =>
+  import('./PublicThreeDViewer').then((m) => ({ default: m.PublicThreeDViewer })),
 );
 class SceneBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -31,13 +38,13 @@ export function PublicationArtifact({
   readonly onUnavailable: () => void;
 }): JSX.Element {
   const [artifact, setArtifact] = useState<
-    ElectronicsDisplayArtifact | ElectronicsSimulationArtifact | null
+    ElectronicsDisplayArtifact | ElectronicsSimulationArtifact | PublicThreeDArtifact | null
   >(null);
   const [state, setState] = useState<'loading' | 'fallback' | 'error'>('loading');
   useEffect(() => {
     setArtifact(null);
     setState('loading');
-    if (publication.moduleKey !== 'electronics') {
+    if (!['electronics', 'three-d'].includes(publication.moduleKey)) {
       setState('fallback');
       return;
     }
@@ -65,9 +72,16 @@ export function PublicationArtifact({
           return;
         }
         if (
+          value.schemaVersion === 4 &&
+          value.viewerFamily === 'three-d' &&
+          publication.moduleKey === 'three-d'
+        ) {
+          setArtifact(value);
+        } else if (
           (value.schemaVersion === 2 || value.schemaVersion === 3) &&
           (value.status === 'display' || value.status === 'simulation') &&
-          value.viewerFamily === 'electronics'
+          value.viewerFamily === 'electronics' &&
+          publication.moduleKey === 'electronics'
         ) {
           const library = await import('../electronics/production-manifest-adapter');
           if (!active) return;
@@ -111,6 +125,18 @@ export function PublicationArtifact({
         </Suspense>
       </SceneBoundary>
     );
+  if (artifact?.schemaVersion === 4)
+    return (
+      <SceneBoundary fallback={fallback}>
+        <Suspense fallback={fallback}>
+          <ThreeDViewer
+            key={`${artifact.provenance.publicationId}:${artifact.provenance.revisionNumber}`}
+            artifact={artifact}
+            fallback={fallback}
+          />
+        </Suspense>
+      </SceneBoundary>
+    );
   if (artifact)
     return (
       <SceneBoundary fallback={fallback}>
@@ -131,14 +157,14 @@ export function PublicationArtifact({
   if (state === 'loading')
     return (
       <p className="public-artifact-state" data-testid="public-artifact-loading" role="status">
-        Загружаем схему…
+        {publication.moduleKey === 'three-d' ? 'Загружаем модель…' : 'Загружаем схему…'}
       </p>
     );
   return (
     <>
       {state === 'error' ? (
         <p data-testid="public-artifact-error" role="status">
-          Схема не загрузилась. Обновите страницу, чтобы повторить.
+          Просмотр не загрузился. Обновите страницу, чтобы повторить.
         </p>
       ) : null}
       {fallback}

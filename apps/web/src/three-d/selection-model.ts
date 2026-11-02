@@ -1,4 +1,5 @@
-import { selectionBounds, type ThreeDDocument, type ThreeDNode } from '@asa-lab/three-d';
+import type { ThreeDDocument, ThreeDNode } from '@asa-lab/three-d';
+import { selectionBounds } from '@asa-lab/three-d/operations';
 import type { DirectManipulationCommit } from './viewport/DirectManipulator';
 import { dimensionMatrix, transformOperand } from './viewport/result-transform';
 
