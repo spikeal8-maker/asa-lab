@@ -236,7 +236,7 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       await expect(frame.getByRole('button', { name: 'Stop project', exact: true })).toBeVisible();
     };
     const layoutEvidence = [];
-    for (const width of [1440, 1120, 1101, 1100, 1024, 390, 320]) {
+    for (const width of [1440, 1120, 1101, 1100, 1024, 1023, 390, 320]) {
       await guest.setViewportSize({ width, height: 900 });
       await expect
         .poll(() => guest.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
@@ -283,10 +283,15 @@ test('published Scratch uses the real pinned player for guest and Seat, executes
       } else {
         expect(pageLayout.player.bottom).toBeLessThan(pageLayout.sidebar.top);
         expect(pageLayout.player.width).toBeGreaterThan(width * 0.8);
-        if (width > 600) {
+        // The existing min-width:1024px about rule pins it to column one,
+        // below the author, even inside the <=1100px two-column sidebar.
+        if (width > 600 && width < 1024) {
           expect(pageLayout.author.right).toBeLessThanOrEqual(pageLayout.notes.left);
           expect(Math.abs(pageLayout.author.top - pageLayout.notes.top)).toBeLessThan(2);
-        } else expect(pageLayout.author.bottom).toBeLessThan(pageLayout.notes.top);
+        } else {
+          expect(pageLayout.author.bottom).toBeLessThan(pageLayout.notes.top);
+          expect(Math.abs(pageLayout.author.left - pageLayout.notes.left)).toBeLessThan(2);
+        }
       }
       await expect(
         guest.getByRole('button', { name: 'Обновить публикацию', exact: true }),
