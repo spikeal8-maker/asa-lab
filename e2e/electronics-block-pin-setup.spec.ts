@@ -413,11 +413,21 @@ async function boardIsolation(page: Page, info: TestInfo) {
     )
     .toBe(true);
   expect(await programGeometry()).toEqual(beforeCenter);
-  await activate(edited);
-  const field = page.locator('input.blocklyHtmlInput');
-  await expect(field).toBeVisible();
-  await field.fill('native settings edit committed');
-  await field.press('Enter');
+  if (touchPages.has(page)) {
+    // Pinned Blockly uses the browser's native prompt for mobile text fields.
+    const edit = page.waitForEvent('dialog').then(async (dialog) => {
+      expect(dialog.type()).toBe('prompt');
+      expect(dialog.defaultValue()).toBe('native settings edit');
+      await dialog.accept('native settings edit committed');
+    });
+    await Promise.all([edit, activate(edited)]);
+  } else {
+    await activate(edited);
+    const field = page.locator('input.blocklyHtmlInput');
+    await expect(field).toBeVisible();
+    await field.fill('native settings edit committed');
+    await field.press('Enter');
+  }
   // Open settings immediately after a genuine Blockly field event. No fake DOM
   // input or workspace API substitutes for the pending native edit.
   dialog = await settings(page);
