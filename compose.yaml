@@ -1,7 +1,7 @@
 name: ${COMPOSE_PROJECT_NAME:-asa-lab}
 
 # Applies only to this installation's owned containers, never the Docker daemon.
-x-asa-container-logging: &asa-container-logging
+x-asa-container-logging:
   driver: json-file
   options:
     max-size: '10m'
@@ -9,7 +9,11 @@ x-asa-container-logging: &asa-container-logging
 
 services:
   postgres:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     image: postgres:17.7-bookworm
     # Lock waits are useful; SQL text, bind values and error context are not logs.
     command:
@@ -55,7 +59,11 @@ services:
       - ALL
 
   migration:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     build:
       context: .
       dockerfile: Dockerfile.api
@@ -90,7 +98,11 @@ services:
       - ALL
 
   minio:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     build:
       context: .
       dockerfile: infra/minio/Dockerfile
@@ -119,7 +131,11 @@ services:
       - ALL
 
   minio-init:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     image: ${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}
     user: '1000:1000'
     restart: 'no'
@@ -150,7 +166,11 @@ services:
       - ALL
 
   api:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     build:
       context: .
       dockerfile: Dockerfile.api
@@ -225,7 +245,11 @@ services:
   # Private metasearch component. Only the authenticated API exposes results.
   # Search failure must not prevent ordinary chat or the rest of ASA from booting.
   search:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     build:
       context: .
       dockerfile: infra/search/Dockerfile
@@ -266,7 +290,11 @@ services:
       - ALL
 
   web:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     build:
       context: .
       dockerfile: Dockerfile.web
@@ -301,7 +329,11 @@ services:
       - ALL
 
   scratch:
-    logging: *asa-container-logging
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '5'
     build:
       context: .
       dockerfile: infra/scratch-editor/Dockerfile

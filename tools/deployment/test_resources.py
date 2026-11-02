@@ -4,7 +4,6 @@ import contextlib
 import io
 import json
 import os
-import re
 from pathlib import Path
 import subprocess
 import sys
@@ -17,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment import resources
 from deployment.contracts import Blocked
 from deployment.system import Installation
+from test_ci_image_transport import parse_yaml
 
 
 class ResourceTests(unittest.TestCase):
@@ -105,16 +105,18 @@ class ResourceTests(unittest.TestCase):
             self.assertIn(f'{key}: ${{{key}:-{default}}}', compose)
 
     def test_owned_container_log_defaults_are_explicit_and_scoped(self):
-        compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text()
-        self.assertIn("x-asa-container-logging: &asa-container-logging\n  driver: json-file\n  options:\n    max-size: '10m'\n    max-file: '5'\n", compose)
-        consumers = re.findall(r'^  ([a-z][a-z-]*):\n    logging: \*asa-container-logging$', compose, re.M)
-        self.assertCountEqual(consumers, ('postgres', 'migration', 'minio', 'minio-init',
-                                         'api', 'search', 'web', 'scratch'))
-        self.assertEqual(compose.count('    logging:'), 8)
+        compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text(encoding='utf-8')
+        # Exercise the same duplicate-key/zero-alias parser as CI before Docker.
+        services = parse_yaml(compose)['services']
+        owned = ('postgres', 'migration', 'minio', 'minio-init', 'api', 'search', 'web', 'scratch')
+        consumers = {name: service['logging'] for name, service in services.items() if 'logging' in service}
+        self.assertEqual(consumers, {name: {
+            'driver': 'json-file', 'options': {'max-size': '10m', 'max-file': '5'}
+        } for name in owned})
 
     @unittest.skipUnless(os.environ.get('ASA_TEST_DOCKER_COMPOSE') == '1', 'Resolved Compose contract runs in Linux CI')
     def test_resolved_profiles_keep_all_eight_owned_log_budgets(self):
-        # Resolve real anchors, interpolation, profiles and overlay merges.
+        # Resolve real interpolation, profiles and overlay merges.
         # This read-only command creates no containers, images or volumes.
         root = Path(__file__).resolve().parents[2]
         owned = ('postgres', 'migration', 'minio', 'minio-init', 'api', 'search', 'web', 'scratch')
