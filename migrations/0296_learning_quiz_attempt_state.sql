@@ -213,11 +213,16 @@ BEGIN
    ON q.tenant_id=mapped.tenant_id AND q.id=mapped.question_version_id
  WHERE mapped.tenant_id=(v_scope->>'tenantId')::uuid AND mapped.quiz_version_id=(v_scope->>'quizVersionId')::uuid;
  IF v_questions IS NULL THEN RETURN QUERY SELECT 'not_available'::varchar,NULL::jsonb,false; RETURN; END IF;
- -- Siblings share the compatibility handout/Seat number space, but never its
- -- budget. Serialize only that allocator in addition to the exact part lock.
+ -- Preserve the compatibility handout/Seat allocator without reusing a
+ -- number from this participation after Seat replacement. The exact part lock
+ -- and shared handout/Seat lock protect both maxima; neither defines the budget.
  PERFORM pg_advisory_xact_lock(hashtextextended((v_scope->>'assignmentId')||':'||(v_scope->>'seatId'),0));
- SELECT COALESCE(max(a.attempt_number),0)::bigint+1 INTO v_next_number FROM public.learning_attempts a
- WHERE a.classroom_assignment_id=(v_scope->>'assignmentId')::uuid AND a.seat_id=(v_scope->>'seatId')::uuid;
+ SELECT GREATEST(
+   (SELECT COALESCE(max(a.attempt_number),0) FROM public.learning_attempts a
+     WHERE a.classroom_assignment_id=(v_scope->>'assignmentId')::uuid AND a.seat_id=(v_scope->>'seatId')::uuid),
+   (SELECT COALESCE(max(a.attempt_number),0) FROM public.learning_attempts a
+     WHERE a.activity_participation_id=p_part)
+ )::bigint+1 INTO v_next_number;
  IF v_next_number>2147483647 THEN
    RETURN QUERY SELECT 'attempt_limit'::varchar,NULL::jsonb,false; RETURN; END IF;
  v_number:=v_next_number::integer;

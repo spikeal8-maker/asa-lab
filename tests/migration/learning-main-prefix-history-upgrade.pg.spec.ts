@@ -352,7 +352,7 @@ const upgradeArtifacts = [
   [
     '0296',
     '0296_learning_quiz_attempt_state.sql',
-    '1a3d54bd6b5bf8883053cc9f76bf45ff6099edcf67e2622b0153e7982fb11892',
+    '5e403c898d14656a35a8d52cc8b9c47357de0b8c1ef5e5072affc2c93bcb5421',
   ],
 ] as const;
 

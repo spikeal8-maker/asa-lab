@@ -575,7 +575,7 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
     expect((await start(anotherClass.student.principal, anotherClass.part)).result_code).toBe('ok');
     expect((await start(f.student.principal, anotherClass.part)).result_code).toBe('forbidden');
   });
-  it('increments the canonical ordinal after Seat replacement even when compatibility numbering restarts', async () => {
+  it('preserves canonical ordinal, physical uniqueness and budget after Seat replacement', async () => {
     const f = await fixture({ attempts: 2 });
     const first = await start(f.student.principal, f.part, 'q2:ordinal:first');
     expect(first.attempt.attemptNumber).toBe(1);
@@ -597,7 +597,7 @@ describe('Q2a exact canonical Quiz answer persistence', () => {
           second.attempt.attemptId,
         ])
       ).rows[0].attempt_number,
-    ).toBe(1);
+    ).toBe(2);
     expect(
       (await start(replacement.principal, f.part, 'q2:ordinal:first')).attempt.attemptNumber,
     ).toBe(1);
