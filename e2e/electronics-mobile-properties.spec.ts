@@ -279,6 +279,93 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
   const activate = async (locator: Locator) => (phone ? locator.tap() : locator.click());
   const selectionNavigation: unknown[] = [];
   journal['selectionNavigation'] = selectionNavigation;
+  const stableLayout = async (target: Page, phase: string, id: string | null = null) => {
+    const samples: unknown[] = [];
+    try {
+      await expect
+        .poll(async () => {
+          const sample = await target.evaluate(async (id) => {
+            const stage = document.querySelector('.workbench-stage')!;
+            const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas')!;
+            const part = id
+              ? document.querySelector<SVGGElement>(
+                  `[data-testid="schematic-component"][data-component-id="${CSS.escape(id)}"] > .workbench-part`,
+                )
+              : null;
+            const rect = (node: Element | null) => {
+              if (!node) return null;
+              const r = node.getBoundingClientRect();
+              return { x: r.x, y: r.y, width: r.width, height: r.height };
+            };
+            const read = () => {
+              const m = part?.getScreenCTM();
+              return {
+                stage: rect(stage),
+                main: rect(stage.parentElement),
+                canvas: rect(canvas),
+                viewBox: canvas.getAttribute('viewBox'),
+                target: rect(part),
+                targetMatrix: m ? [m.a, m.b, m.c, m.d, m.e, m.f] : null,
+              };
+            };
+            const frames = [];
+            for (let i = 0; i < 3; i++) {
+              await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+              frames.push(read());
+            }
+            const geometryProperties = new Set([
+              'left',
+              'right',
+              'top',
+              'bottom',
+              'inset',
+              'width',
+              'height',
+              'transform',
+              'flex-basis',
+            ]);
+            const transitions = [...new Set([stage, stage.parentElement, canvas, part])]
+              .filter((node): node is Element => !!node)
+              .flatMap((node) =>
+                node
+                  .getAnimations()
+                  .filter(
+                    (animation) =>
+                      animation instanceof CSSTransition &&
+                      geometryProperties.has(animation.transitionProperty) &&
+                      (animation.pending || animation.playState === 'running'),
+                  )
+                  .map((animation) => ({
+                    property: (animation as CSSTransition).transitionProperty,
+                    state: animation.playState,
+                    pending: animation.pending,
+                  })),
+              );
+            return {
+              frames,
+              transitions,
+              stable:
+                transitions.length === 0 &&
+                frames.every((frame) => JSON.stringify(frame) === JSON.stringify(frames[0])),
+            };
+          }, id);
+          samples.push(sample);
+          return sample.stable;
+        })
+        .toBe(true);
+    } finally {
+      checkpoints.push({ name: phase, layoutStability: samples });
+      write();
+    }
+  };
+  const fitProject = async (target: Page, phase: string) => {
+    // fitScene reads the live stage rect; the library's right transition must
+    // finish before this native Fit action, not merely before the next click.
+    await stableLayout(target, `${phase}-before-fit`);
+    const fit = target.getByRole('button', { name: 'Подогнать проект', exact: true });
+    if (phone) await fit.tap();
+    else await fit.click();
+  };
   const selectPart = async (target: Page, id: string, phase: string) => {
     const locator = target.locator(
       `[data-testid="schematic-component"][data-component-id="${id}"] > .workbench-part`,
@@ -364,6 +451,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
     await expect(
       target.locator(`[data-testid="schematic-component"][data-component-id="${id}"]`),
     ).toHaveAttribute('data-hit-mask-status', 'ready');
+    await stableLayout(target, `${phase}-before-target`, id);
     let center = await ownership();
     selectionNavigation.push({ phase, id, before: center });
     write();
@@ -384,17 +472,20 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       });
       write();
     }
+    expect((await committed(target, project)).document).toEqual(before);
+    await stableLayout(target, `${phase}-before-native-click`, id);
     await expect
       .poll(async () => {
         center = await ownership();
         return center.owned;
       })
       .toBe(true);
-    selectionNavigation.push({ phase, id, ready: center });
-    write();
-    expect((await committed(target, project)).document).toEqual(before);
+    // Keep the fresh point guard adjacent to native input: no full-document
+    // read or journal serialization may let a moving target escape these coords.
     if (phone) await target.touchscreen.tap(center.x, center.y);
     else await target.mouse.click(center.x, center.y);
+    selectionNavigation.push({ phase, id, ready: center });
+    write();
     await expect.poll(async () => (await committed(target, project)).selected?.id).toBe(id);
     expect((await committed(target, project)).document).toEqual(before);
   };
@@ -574,7 +665,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
     await expect.poll(async () => (await committed(page, project)).document).toEqual(initial);
     const library = page.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
     if (await library.isVisible()) await activate(library);
-    await activate(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
+    await fitProject(page, 'initial');
     await selectPart(page, 'resistor', 'initial');
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения', exact: true });
     const disclosure = inspector.locator('.workbench-properties-disclosure');
@@ -793,7 +884,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       // Background first touch follows the existing empty-canvas deselection
       // path. Record it, then use native Fit/reselection of the same model.
       journal['selectionAfterBackgroundGesture'] = (await committed(page, project)).selection;
-      await activate(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
+      await fitProject(page, 'post-pinch');
       await selectPart(page, 'resistor', 'after-background-gesture');
       await selected();
       await activate(disclosure);
@@ -860,8 +951,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
         exact: true,
       });
       if (await closeLibrary.isVisible()) await (phone ? closeLibrary.tap() : closeLibrary.click());
-      const fit = reopened.getByRole('button', { name: 'Подогнать проект', exact: true });
-      await (phone ? fit.tap() : fit.click());
+      await fitProject(reopened, 'fresh-reopen');
       await selectPart(reopened, 'resistor', 'fresh-reopen');
       if (phone) {
         const open = reopened.getByRole('button', {
