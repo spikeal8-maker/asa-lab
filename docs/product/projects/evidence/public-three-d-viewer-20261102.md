@@ -99,3 +99,24 @@ side effects in the public viewer. The emitted-graph guard was not weakened.
 
 Owner visual acceptance remains pending. Cloud CI and working-site deployment
 are separate from these completed local checks.
+
+## Owner follow-up: model-only white snapshots
+
+The owner observed that static previews still included the editor's tinted grid.
+Native `captureFrame` now temporarily hides all non-model/non-light scene helpers
+(workplane, ruler, selection handles and placement ghost), renders on white without
+fog, and restores every prior visibility/background/fog/camera value in `finally`.
+Read-only live rendering also uses white without fog. The editable document and its
+grid settings do not change. Card labels stay outside the moving preview layer.
+
+Focused verification: real-editor publication/hover browser regression PASS;
+snapshot corner pixels are white and the persisted editor grid remains enabled.
+Web typecheck and changed-source lint PASS. Four synthetic local examples were
+recaptured/republished through the existing editor/publication UI; no production
+data or existing immutable revision was rewritten. Home, My Projects and public
+catalog checks confirm fixed caption/author bounds during rotation and no desktop/
+390px overflow. Evidence: `three-d-clean-home-static-1440.png` and
+`three-d-clean-explore-390.png` in the same screenshot directory.
+
+New captures use this treatment automatically. Existing saved/publication images
+remain historical images until a normal recapture/explicit publication update.

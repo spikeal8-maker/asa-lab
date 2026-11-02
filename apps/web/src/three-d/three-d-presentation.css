@@ -43,7 +43,7 @@
   overflow: hidden;
   border: 1px solid var(--asa-slate-200);
   border-radius: 12px;
-  background: #fafafa;
+  background: #fff;
 }
 .public-three-d-tools {
   display: flex;

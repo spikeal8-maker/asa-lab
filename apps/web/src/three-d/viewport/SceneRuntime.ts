@@ -200,8 +200,8 @@ export class SceneRuntime {
     this.onCameraChange = callbacks.onCameraChange;
     this.onGeometryStateChange = callbacks.onGeometryStateChange;
     this.container.dataset['geometryWorkerState'] = 'idle';
-    this.scene.background = new THREE.Color('#fafafa');
-    this.scene.fog = new THREE.Fog('#fafafa', 560, 980);
+    this.scene.background = new THREE.Color(readOnly ? '#ffffff' : '#fafafa');
+    this.scene.fog = readOnly ? null : new THREE.Fog('#fafafa', 560, 980);
     this.camera = new THREE.PerspectiveCamera(HOME_CAMERA_FOV, 1, 0.5, 2400);
     this.camera.position.copy(HOME_CAMERA_POSITION);
 
@@ -1011,11 +1011,28 @@ export class SceneRuntime {
     if (this.manipulator.isDragging() || this.touchNavigation.isActive()) return null;
     const position = this.camera.position.clone();
     const target = this.orbit.target.clone();
+    const background = this.scene.background;
+    const fog = this.scene.fog;
+    const models = new Set<THREE.Object3D>([
+      this.booleanRoot,
+      ...[...this.entries.values()].map((entry) => entry.object),
+    ]);
+    const helpers = this.scene.children
+      .filter((child) => !models.has(child) && !(child instanceof THREE.Light))
+      .map((object) => ({ object, visible: object.visible }));
     try {
+      // A card presents the model, without the editor's workplane, ruler,
+      // selection handles or placement ghost. Restore the workspace afterwards.
+      for (const { object } of helpers) object.visible = false;
+      this.scene.background = new THREE.Color('#ffffff');
+      this.scene.fog = null;
       this.fitToScene();
       this.orbit.update();
       this.renderer.render(this.scene, this.camera);
     } finally {
+      for (const { object, visible } of helpers) object.visible = visible;
+      this.scene.background = background;
+      this.scene.fog = fog;
       this.camera.position.copy(position);
       this.orbit.target.copy(target);
       this.orbit.update();

@@ -542,6 +542,33 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   await ok(snapshot);
   const snapshotBytes = await snapshot.body();
   expect(snapshotBytes.length).toBeGreaterThan(1000);
+  // Native card captures exclude the workplane/selection helpers on a white
+  // background; the live authoring document must still keep its grid enabled.
+  const snapshotCorners = await page.evaluate(async (url) => {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    return [
+      [3, 3],
+      [canvas.width - 4, 3],
+      [3, canvas.height - 4],
+      [canvas.width - 4, canvas.height - 4],
+    ].map(([x, y]) => [...context.getImageData(x!, y!, 1, 1).data]);
+  }, `/api/projects/${projectId}/snapshot`);
+  expect(
+    snapshotCorners.every(
+      (rgba) => rgba.slice(0, 3).every((value) => value >= 250) && rgba[3] === 255,
+    ),
+  ).toBe(true);
+  expect(
+    (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft.document.grid
+      .visible,
+  ).toBe(true);
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
