@@ -648,7 +648,45 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
             blocks.locator('.blocklyToolboxDiv, .blocklyFlyout, .blocklyTrash'),
           ).toHaveCount(0);
           const displayedFields = await blocks.locator('.blocklyFieldText').allTextContents();
-          await blocks.locator('.blocklyInputField .blocklyFieldText').first().dblclick();
+          const numberBlock = blocks.locator('.blocklyBlock.asa_number').first();
+          const numberField = numberBlock.locator('.blocklyInputField .blocklyFieldText').first();
+          const numberFace = numberBlock.locator(':scope > .blocklyPath');
+          await expect(numberField).toBeVisible();
+          const fieldBox = await numberField.boundingBox();
+          const faceBox = await numberFace.boundingBox();
+          expect(fieldBox).not.toBeNull();
+          expect(faceBox).not.toBeNull();
+          const pointerPosition = {
+            x: fieldBox!.x + fieldBox!.width / 2 - faceBox!.x,
+            y: fieldBox!.y + fieldBox!.height / 2 - faceBox!.y,
+          };
+          await numberFace.evaluate((face) => {
+            const observed = face as SVGElement & {
+              __readonlyPointerProof?: { trusted: boolean; detail: number };
+            };
+            observed.addEventListener(
+              'dblclick',
+              (event) => {
+                observed.__readonlyPointerProof = {
+                  trusted: event.isTrusted,
+                  detail: (event as MouseEvent).detail,
+                };
+              },
+              { once: true },
+            );
+          });
+          // Read-only numeric text is not a pointer target: its own block face
+          // receives the gesture. Keep normal actionability at the field centre.
+          await numberFace.dblclick({ position: pointerPosition });
+          const pointerAttempt = await numberFace.evaluate(
+            (face) =>
+              (
+                face as SVGElement & {
+                  __readonlyPointerProof?: { trusted: boolean; detail: number };
+                }
+              ).__readonlyPointerProof,
+          );
+          expect(pointerAttempt).toEqual({ trusted: true, detail: 2 });
           await expect(
             guest.locator(
               '.blocklyWidgetDiv input:visible, .blocklyTextInputBubble textarea:visible, .blocklyDropDownDiv:visible',
@@ -662,6 +700,7 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
           phases.push({
             readonlyProgram: immutable,
             displayedFields,
+            pointerAttempt,
             publicGraphSha256: createHash('sha256').update(publicGraph).digest('hex'),
           });
         } else {
