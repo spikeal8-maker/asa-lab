@@ -59,35 +59,6 @@
   display: grid;
   gap: 12px;
 }
-@media (prefers-color-scheme: dark) {
-  .asa-ai-tools {
-    border-color: var(--border, #3a3a3d);
-  }
-  .asa-ai-tool-card {
-    background: var(--surface, #202123);
-    border-color: var(--border, #3a3a3d);
-    color: var(--text, #f5f5f5);
-  }
-  .asa-ai-tools-heading p,
-  .asa-ai-tool-reason,
-  .asa-ai-tool-card dd,
-  .asa-ai-tool-instructions small {
-    color: var(--muted, #b2b2b5);
-  }
-  .asa-ai-tool-status {
-    background: #30343a;
-    color: #c7d2df;
-  }
-  .asa-ai-tool-status.ready {
-    background: #183d31;
-    color: #9cdec3;
-  }
-  .asa-ai-tool-instructions textarea {
-    background: var(--bg, #161618);
-    color: var(--text, #f5f5f5);
-    border-color: var(--border, #3a3a3d);
-  }
-}
 .asa-ai-tool-card-title {
   display: flex;
   align-items: start;
@@ -195,5 +166,35 @@
   }
   .asa-ai-tools-actions .asa-cloud-apply {
     width: 100%;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .asa-ai-tools {
+    border-color: var(--border, #3a3a3d);
+  }
+  .asa-ai-tool-card {
+    background: var(--surface, #202123);
+    border-color: var(--border, #3a3a3d);
+    color: var(--text, #f5f5f5);
+  }
+  .asa-ai-tools-heading p,
+  .asa-ai-tool-reason,
+  .asa-ai-tool-card dd,
+  .asa-ai-tool-instructions small {
+    color: var(--muted, #b2b2b5);
+  }
+  .asa-ai-tool-status {
+    background: #30343a;
+    color: #c7d2df;
+  }
+  .asa-ai-tool-status.ready {
+    background: #183d31;
+    color: #9cdec3;
+  }
+  .asa-ai-tool-instructions textarea {
+    background: var(--bg, #161618);
+    color: var(--text, #f5f5f5);
+    border-color: var(--border, #3a3a3d);
   }
 }
