@@ -9267,6 +9267,8 @@ parallel_lanes:
         - apps/web/src/learning/testing/course-visible-authoring.spec.ts
         - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
         - apps/web/src/components/courses-panel.css
+        - e2e/learning-course-01.spec.ts
+        - apps/web/src/components/LessonBlockEditor.tsx
         acceptance:
         - A visible create-task action opens the existing canonical editor within the course workflow.
         - Saving and publication use existing server commands; only a confirmed published supported project version can be inserted.
