@@ -8,6 +8,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -38,19 +40,65 @@ def fingerprint(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()
 
 
-def source_binding(root: Path, snapshot: dict[str, Any]) -> str:
+def source_binding(root: Path, snapshot: dict[str, Any], protected_paths=()) -> str:
     paths = {record[key] for record in snapshot['changes'] for key in ('path', 'previous_path') if record.get(key)}
     paths.update((*agent_context.TEST_CATALOGS, 'package.json', 'docs/execution/current.yaml',
                   'docs/agent/document-registry.yaml'))
+    paths.update(protected_paths)
     for directory in ('docs/agent/contracts', 'docs/agent/surfaces'):
         paths.update(str(path.relative_to(root)).replace('\\', '/') for path in (root / directory).glob('*.yaml'))
     sources = {}
     for path in sorted(paths):
-        target = root / devex_plan.path_value(path)
-        if target.is_symlink():
-            raise ValueError(f'source symlink cannot be verified: {path}')
+        relative = devex_plan.path_value(path)
+        target = root / relative
+        cursor = root
+        for part in Path(relative).parts:
+            cursor /= part
+            if cursor.is_symlink() or (cursor.exists() and getattr(cursor.lstat(), 'st_file_attributes', 0)
+                                       & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)):
+                raise ValueError(f'source symlink/junction cannot be verified: {path}')
         sources[path] = hashlib.sha256(target.read_bytes()).hexdigest() if target.is_file() else 'MISSING'
     return fingerprint({'git': snapshot, 'sources': sources})
+
+
+def local_profile(root: Path, snapshot: dict[str, Any], catalog: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """A separate LOCAL proof; never rewrite the conservative canonical plan."""
+    helper = root / 'tools/devex-local-ui.mjs'
+    if not helper.is_file():
+        return {'eligible': False, 'fallback_reason': 'local profile helper unavailable'}
+    node = shutil.which('node')
+    if not node:
+        return {'eligible': False, 'fallback_reason': 'local profile Node unavailable'}
+    try:
+        completed = subprocess.run([node, str(helper), '--prove', snapshot['merge_base']], cwd=root,
+                                   check=True, capture_output=True, text=True, encoding='utf-8', timeout=60)
+        proof = json.loads(completed.stdout)
+        if proof.get('eligible') is not True:
+            return {'eligible': False, 'fallback_reason': str(proof.get('fallback_reason', 'unsupported local effect'))}
+        surface = next((s for s in agent_context._surface_index(root) if s['id'] == proof.get('surface_id')), None)
+        metadata = (surface or {}).get('local_profile') or {}
+        expected = ['TST-COLLECT-PICKER-FORMAT-001', 'TST-COLLECT-PICKER-LINT-001', 'TST-COLLECT-PICKER-UNIT-001']
+        if (metadata != {'id': 'collect-picker-presentation-v1', 'version': 1,
+                         'test_family': 'apps/web/src/components/CollectPicker', 'test_ids': expected}
+                or proof.get('profile_id') != metadata['id'] or proof.get('version') != 1
+                or proof.get('test_ids') != expected or not set(expected).issubset(surface.get('tests') or [])
+                or proof.get('local_effect_class') not in {'NONE', 'L0_LOCAL_UI', 'L1_UI_BEHAVIOR'}
+                or not isinstance(proof.get('protected_paths'), list) or not proof['protected_paths']):
+            raise ValueError('profile does not match the canonical Surface Map contract')
+        for test_id, mode in zip(expected, ('--format', '--lint', '--components')):
+            test = catalog.get(test_id) or {}
+            if test.get('command') != f'node tools/devex-local-ui.mjs {mode}' or (test.get('local_check') or {}).get('eligible') is not True:
+                raise ValueError(f'profile catalog command is missing or changed: {test_id}')
+        if proof.get('ci_test_files'):
+            test = catalog.get('TST-COLLECT-PICKER-BROWSER-001') or {}
+            if (proof.get('ci_test_files') != ['e2e/project-collections-baseline.spec.ts']
+                    or proof.get('ci_test_ids') != ['TST-COLLECT-PICKER-BROWSER-001']
+                    or test.get('command') != 'pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/project-collections-baseline.spec.ts'
+                    or (test.get('local_check') or {}).get('eligible') is not False):
+                raise ValueError('browser baseline requires its fixed isolated-CI catalog check')
+        return proof
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
+        return {'eligible': False, 'fallback_reason': f'local proof unavailable: {exc}'}
 
 
 def affected_lanes(root: Path, paths: list[str]) -> list[str]:
@@ -60,7 +108,14 @@ def affected_lanes(root: Path, paths: list[str]) -> list[str]:
         mapped = set((surface.get('implementation') or {}).get('files') or [])
         mapped.update(path for control in surface.get('controls') or [] if isinstance(control, dict)
                       for path in control.get('files') or [])
-        if mapped.intersection(paths):
+        # Additive tests inherit the existing mapped surface/lane. This is local
+        # verification routing only; B still reports unmapped files as unknown.
+        profile = surface.get('local_profile') or {}
+        family_hit = (profile.get('id') == 'collect-picker-presentation-v1'
+                      and profile.get('test_family') == 'apps/web/src/components/CollectPicker'
+                      and any(re.fullmatch(r'apps/web/src/components/CollectPicker(?:\.[A-Za-z0-9][A-Za-z0-9-]*)?\.spec\.ts', path)
+                              for path in paths))
+        if mapped.intersection(paths) or family_hit:
             contexts.add(surface['context'])
     registry = agent_context.load_registry(root)
     lanes = {agent_context._execution_lane_for_context(registry, context) for context in contexts}
@@ -108,7 +163,7 @@ def verify_preflight(root: Path, snapshot: dict[str, Any], paths: list[str]) -> 
 
 
 def run_checks(root: Path, plan: dict[str, Any], catalog: dict[str, dict[str, Any]],
-               task_id: str, unchanged, *, jobs: int = 2) -> list[dict[str, Any]]:
+               task_id: str, unchanged, *, jobs: int = 2, selected_ids: list[str] | None = None) -> list[dict[str, Any]]:
     errors: list[str] = []
     validate_test_catalog.validate_local_checks(list(catalog.values()), errors)
     if errors:
@@ -121,7 +176,9 @@ def run_checks(root: Path, plan: dict[str, Any], catalog: dict[str, dict[str, An
         if test is None or test.get('command') != record.get('command'):
             raise ValueError(f'catalog command changed or missing: {test_id}')
         metadata = test.get('local_check') or {}
-        if metadata.get('eligible') is True:
+        if selected_ids is not None and test_id not in selected_ids:
+            record['reason'] = 'deferred to mandatory unchanged CI; local effect proof does not waive this check'
+        elif metadata.get('eligible') is True:
             pending[test_id] = test
         else:
             record['reason'] = metadata.get('reason', record['reason'])
@@ -171,6 +228,8 @@ def check(root: Path, base: str, *, full: bool = False, jobs: int = 2) -> dict[s
     started = time.monotonic()
     report: dict[str, Any] = {'run_id': str(uuid.uuid4()), 'mode': 'LOCAL_CHANGED', 'status': 'BLOCKED',
                               'local_status': 'NOT_RUN', 'full_ci': 'NOT_RUN', 'checks': [],
+                              'ci_status': 'CI_PENDING', 'release_status': 'RELEASE_NOT_READY', 'release_ready': False,
+                              'integration_ready': False,
                               'storage': {'status': 'not_saved'}, 'reasons': [], 'preflight_passed': False}
     invocation = os.environ.get('ASA_DEV_CHECK_RUN_ID')
     if invocation:
@@ -186,10 +245,11 @@ def check(root: Path, base: str, *, full: bool = False, jobs: int = 2) -> dict[s
         if not report['preflight']['verification_allowed']:
             raise ValueError('preflight blocks verification; no dependency analysis, tests or report writes allowed')
         report['preflight_passed'] = True
-        binding = source_binding(root, snapshot)
+        protected_paths = []
+        binding = source_binding(root, snapshot, protected_paths)
         report['source_binding'] = binding
         def unchanged() -> bool:
-            return source_binding(root, devex_plan.snapshot(root, base)) == binding
+            return source_binding(root, devex_plan.snapshot(root, base), protected_paths) == binding
         if full:
             raise ValueError('--full requires the existing isolated CI repository/browser/data gates; local runtime is never started')
         dependency = devex_plan.dependencies(root)
@@ -210,20 +270,53 @@ def check(root: Path, base: str, *, full: bool = False, jobs: int = 2) -> dict[s
         if not unchanged():
             raise ValueError('source changed during preflight/planning')
         catalog = catalog_at_source(root)
+        proof = local_profile(root, snapshot, catalog)
+        report['local_profile'] = proof
+        selected_ids = proof.get('test_ids') if proof.get('eligible') else None
+        execution_plan = plan
+        if selected_ids is not None:
+            protected_paths = proof['protected_paths']
+            # Rebind the proof's unchanged production/test inputs as well as the
+            # original changed source. Keep the canonical B plan byte-equivalent.
+            initial = source_binding(root, snapshot)
+            if initial != binding:
+                raise ValueError('source changed during local effect proof')
+            digest = hashlib.sha256()
+            for path in protected_paths:
+                digest.update(devex_plan.path_value(path).encode('utf-8') + b'\0')
+                digest.update((root / path).read_bytes() + b'\0')
+            if digest.hexdigest() != proof.get('source_digest'):
+                raise ValueError('protected source changed during local effect proof')
+            binding = source_binding(root, snapshot, protected_paths)
+            report['source_binding'] = binding
+            report['local_effect_class'] = proof['local_effect_class']
+            report['ci_only_files'] = [{'path': path, 'state': 'CI_NOT_RUN', 'test_id': 'TST-COLLECT-PICKER-BROWSER-001'}
+                                       for path in proof.get('ci_test_files', [])]
+            checks = {item['id']: item for item in plan['checks']}
+            for test_id in [*selected_ids, *proof.get('ci_test_ids', [])]:
+                checks.setdefault(test_id, {'id': test_id, 'command': catalog[test_id]['command'], 'state': 'NOT_RUN',
+                                            'reasons': ['versioned LOCAL effect proof; canonical CI obligations retained']})
+            execution_plan = {**plan, 'checks': list(checks.values())}
+        else:
+            report['local_effect_class'] = None
         task_id = ((report['preflight'].get('task') or {}).get('id') or 'TASK-DEVEX-ENGINE-001')
-        results = run_checks(root, plan, catalog, task_id, unchanged, jobs=jobs)
+        report['local_selected_ids'] = selected_ids if selected_ids is not None else [item['id'] for item in execution_plan['checks']
+                                        if (catalog.get(item['id'], {}).get('local_check') or {}).get('eligible') is True]
+        results = run_checks(root, execution_plan, catalog, task_id, unchanged, jobs=jobs, selected_ids=selected_ids)
         report['checks'] = results
         states = [result['state'] for result in results]
-        report['local_status'] = ('FAIL' if 'FAIL' in states else 'BLOCKED' if 'BLOCKED' in states
-                                  else 'PASS' if 'PASS' in states else 'NOT_RUN')
+        local_states = [item['state'] for item in results if item['id'] in report['local_selected_ids']]
+        report['local_status'] = ('FAIL' if 'FAIL' in states else 'PASS' if local_states and all(state == 'PASS' for state in local_states)
+                                  else 'BLOCKED' if local_states else 'NOT_RUN')
         report['reasons'].extend(plan.get('unknown') or [])
         if any(state == 'NOT_RUN' for state in states):
             report['reasons'].append('mandatory checks remain NOT_RUN; local subset does not replace full CI')
         if not unchanged():
             report['reasons'].append('source changed during tests; results do not qualify current source')
-            report['local_status'] = 'BLOCKED'
-        report['status'] = ('FAIL' if 'FAIL' in states else 'BLOCKED' if report['reasons'] or not states
-                             or report['local_status'] != 'PASS' else 'PASS')
+            if report['local_status'] != 'FAIL':
+                report['local_status'] = 'BLOCKED'
+        report['deferred_mandatory_ids'] = [item['id'] for item in results if item['state'] == 'NOT_RUN']
+        report['status'] = 'FAIL' if 'FAIL' in states else 'LOCAL_PASS' if report['local_status'] == 'PASS' else 'BLOCKED'
     except (ValueError, OSError, subprocess.SubprocessError, SystemExit) as exc:
         report['reasons'].append(str(exc))
         if any(item['state'] == 'FAIL' for item in report['checks']):
@@ -287,7 +380,8 @@ def save_report(root: Path, report: dict[str, Any], relative: str) -> None:
 
 def render(report: dict[str, Any]) -> str:
     lines = [f'DEV CHECK {report["status"]} run={report["run_id"]}',
-             f'Local subset: {report["local_status"]}; full CI: {report["full_ci"]}; {report["duration_s"]}s']
+             f'Local selected checks: {report["local_status"]}; {report["ci_status"]}; {report["release_status"]}; {report["duration_s"]}s',
+             'Exit 0 qualifies selected local checks only; integration/release authorization is not granted.']
     preflight = report.get('preflight') or {}
     if preflight:
         lines.append(f'Preflight: {preflight.get("mode")}; remote={(preflight.get("remote_refresh") or {}).get("status")}; '
@@ -295,9 +389,15 @@ def render(report: dict[str, Any]) -> str:
         if not preflight.get('verification_allowed'):
             lines.append(f'Safe action: {preflight.get("safe_action", "Resolve preflight blockers before verification.")}')
     if report.get('plan'):
-        lines.append(f'Risk: {report["plan"]["change_class"]}; coverage: {report["coverage_status"]}')
+        lines.append(f'Canonical CI risk: {report["plan"]["change_class"]}; coverage: {report["coverage_status"]}; '
+                     f'unknowns: {len(report["plan"].get("unknown") or [])}; local effect: {report.get("local_effect_class")}')
+    profile = report.get('local_profile') or {}
+    lines.append(f'Local profile: {profile.get("profile_id") if profile.get("eligible") else "broad fallback"}; '
+                 f'{profile.get("fallback_reason", "canonical CI remains mandatory")}')
     for item in report['checks']:
         lines.append(f'  {item["id"]}: {item["state"]} {item.get("reason", "")}')
+    for item in report.get('ci_only_files', []):
+        lines.append(f'  {item["path"]}: CI_NOT_RUN; mandatory isolated browser CI')
     lines.extend(f'  Reason: {reason}' for reason in report['reasons'][:5])
     if len(report['reasons']) > 5:
         lines.append(f'  {len(report["reasons"]) - 5} more reasons; --json emits every reason on stdout.')
@@ -318,7 +418,7 @@ def main() -> int:
     report = check(ROOT, args.base, full=args.full, jobs=args.jobs)
     save_report(ROOT, report, args.output or f'.asa/devex/check-{report["run_id"]}.json')
     print(json.dumps(report, ensure_ascii=False, indent=2) if args.json else render(report))
-    return 0 if report['status'] == 'PASS' else 1 if report['status'] == 'FAIL' else BLOCKED
+    return 0 if report['status'] == 'LOCAL_PASS' else 1 if report['status'] == 'FAIL' else BLOCKED
 
 
 if __name__ == '__main__':
