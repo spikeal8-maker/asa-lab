@@ -9314,6 +9314,7 @@ parallel_lanes:
         - apps/web/src/components/SeatCourses.tsx
         - apps/web/src/components/ClassroomGradebook.tsx
         - apps/web/src/components/EssayResponseEditor.tsx
+        - apps/web/src/components/LessonBlockEditor.tsx
         - apps/web/src/components/courses-panel.css
         - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
         - apps/web/src/learning/testing/authored-assignment-list.spec.ts
@@ -9328,6 +9329,10 @@ parallel_lanes:
         - apps/api/src/courses.controller.ts
         - apps/api/src/courses.controller.spec.ts
         - apps/api/src/app.module.ts
+        - apps/api/src/account-verification.guard.ts
+        - apps/api/src/account-verification.guard.spec.ts
+        - apps/api/src/classroom-join.controller.ts
+        - apps/api/src/classroom-join.controller.spec.ts
         - contexts/learning/domain/canonical-learning-state.ts
         - contexts/learning/testing/canonical-learning-state.spec.ts
         - contexts/learning/index.ts
@@ -9351,8 +9356,8 @@ parallel_lanes:
         - Actual author-to-learner-to-teacher browser evidence at 320,390,1024,1440 verifies compact actions, long Russian content, reload, review and journal; focused and repository gates plus independent final source and visual reviews are required.
         dependencies: Compact PR960 final source f3e736b9 is frozen with independent source approval but final browser and repository checks pending. A separate executor may implement only non-overlapping server/domain/PG work while this validation completes. Do not edit the compact author UI or integrate the essay candidate until that dependency is accepted and integrated; then perform one controlled convergence before UI changes. This is not a compact acceptance or release claim.
         migration_allocation: Published frontier is0300 at main3b542f32f. Fresh99-worktree audit found AI and Chess private0301 files, so0302 is provisional for isolated development only, not an exclusive reservation. Preserve both foreign0301 files; recheck final frontier and resolve the dependency before source integration. Never publish or deploy an out-of-order migration history.
-        audit_evidence: Fresh99-worktree audit found no dirty API/domain/learning runtime paths. Preserve historic Oct4 format-only overlapping snapshots unchanged. Chess has separate dirty package.json and untracked0301; package.json is excluded here. Put new HTTP regressions under tests/courses already selected by the existing focused command, without weakening tests or changing the foreign package draft.
-        constraints: No existing published SQL changes, tenant or RLS model changes, protected data edits, dependency/workflow/timeout/retry changes, new service, local test stack, owner runtime, backup or deployment actions. Manual remains teacher observation; unsupported Quiz/file options cannot publish fake working activities. Preserve owner ClassroomPage and related E2E/CSS WIP.
+        audit_evidence: Fresh99-worktree audit found no dirty API/domain/learning runtime paths. Follow-up101-worktree audits found no dirty Account verification guard/spec, ClassroomJoin controller/spec, LessonBlockEditor or canonical state; these necessary typed delivery and Seat admission dependencies are included explicitly. Preserve historic Oct4 format-only overlapping snapshots unchanged. Chess has separate dirty package.json and untracked0301; package.json is excluded here. Put new HTTP regressions under tests/courses already selected by the existing focused command, without weakening tests or changing the foreign package draft.
+        constraints: Essay uses the canonical mixed-lesson activity block; retain project-only defaults for legacy assignment lessons and picker callers. Extend only the exact StudentSeat route allowlist with negative Account and suspended Seat tests; do not bypass unverified Account protections. No existing published SQL changes, tenant or RLS model changes, protected data edits, dependency/workflow/timeout/retry changes, new service, local test stack, owner runtime, backup or deployment actions. Manual remains teacher observation; unsupported Quiz/file options cannot publish fake working activities. Preserve owner ClassroomPage and related E2E/CSS WIP.
         programme_next: After verified essay integration continue preserved Quiz policy and attempt foundations, all eight normative question types, exact finalization and manual-mixed review, then real bounded immutable learner file upload and download. Preserve existing project journeys. The commissioned result is all four working types through the journal; a single integrated slice does not finish the programme or provide owner acceptance.
       pending_validation_slice:
         id: LRN-E1-COMPACT-AUTHORING
