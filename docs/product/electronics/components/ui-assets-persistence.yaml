@@ -72,6 +72,7 @@ components:
     - apps/web/src/electronics/component-hit-testing.ts
     - apps/web/src/electronics/production-asset-contracts.ts
     - apps/web/src/electronics/workbench.css
+    - apps/web/src/electronics/workbench-mobile-properties.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
     - apps/web/src/electronics/testing/workbench-annotations.spec.ts
