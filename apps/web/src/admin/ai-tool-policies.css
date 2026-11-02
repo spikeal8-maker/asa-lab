@@ -185,3 +185,7 @@
   padding-left: 18px;
   margin: 2px 0;
 }
+
+.asa-ai-tools [hidden] {
+  display: none !important;
+}

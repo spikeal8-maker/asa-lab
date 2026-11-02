@@ -1,7 +1,6 @@
 import { InfoHint } from '../components/InfoHint';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AiPromptGuide } from './AiPromptGuide';
-import { AdminAiToolPolicies } from './AdminAiToolPolicies';
 import type { AiGenerationPolicy, AiGenerationPolicyUpdate } from '@asa-lab/contracts';
 import { call } from './admin-api';
 import './ai-generation-policy.css';
@@ -544,17 +543,9 @@ export function AdminAiGenerationPolicy({
                   <p>Выберите модели подключения. Показ пользователям задаётся в Настройках.</p>
                 )}
                 {section === 'settings' ? (
-                  <button
-                    type="button"
-                    className="asa-ai-tools-refresh"
-                    onClick={() =>
-                      document
-                        .getElementById('ai-tool-policies-title')
-                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    }
-                  >
-                    К инструментам помощника
-                  </button>
+                  <a className="asa-ai-tools-refresh" href="#/admin/ai?section=tools">
+                    Настроить инструменты
+                  </a>
                 ) : null}
               </div>
               {section !== 'connections' ? (
@@ -795,7 +786,6 @@ export function AdminAiGenerationPolicy({
         </form>
       ) : null}
 
-      {section === 'settings' ? <AdminAiToolPolicies onAccessDenied={onAccessDenied} /> : null}
       {config && section === 'prompt' ? <AiPromptGuide variables={config.variables} /> : null}
     </section>
   );

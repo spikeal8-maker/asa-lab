@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { AI_TOOL_IDS, AI_TOOL_LABELS } from '@asa-lab/contracts';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
 
@@ -12,6 +13,9 @@ async function adminFixture(page: Page) {
     weatherConfigured: true,
     weatherEnabled: true,
     operationsPerHour: 100,
+    resultsLimit: 8,
+    pagesLimit: 2,
+    pageCharLimit: 4500,
     configurationVersion: 2,
     allowedDomains: [] as string[],
     blockedDomains: [] as string[],
@@ -155,6 +159,23 @@ async function adminFixture(page: Page) {
         revision: 1,
         updatedAt: null,
       });
+    if (path === '/api/admin/v1/ai/tool-policy')
+      return json({
+        schemaVersion: 1,
+        configurationVersion: 1,
+        tools: AI_TOOL_IDS.map((id) => ({
+          id,
+          label: AI_TOOL_LABELS[id],
+          enabled: true,
+          instructions: '',
+          available: true,
+          reason: null,
+          parameters: ['query'],
+          usageDescription: 'По запросу пользователя',
+          resultDescription: 'Проверенный результат',
+          hardLimits: ['Проверка доступа на сервере'],
+        })),
+      });
     if (path === '/api/admin/v1/ai/images')
       return json({
         configurationVersion: 1,
@@ -227,11 +248,27 @@ async function normalView(page: Page) {
 }
 
 async function noOverflow(page: Page) {
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
-    ),
-  ).toBe(true);
+  const overflow = await page.evaluate(() => {
+    const width = document.documentElement.clientWidth;
+    return {
+      fits: document.documentElement.scrollWidth <= width + 1,
+      offenders: [...document.querySelectorAll<HTMLElement>('main *')]
+        .filter((element) => {
+          const box = element.getBoundingClientRect();
+          return (
+            box.width > 0 && box.right > width + 1 && getComputedStyle(element).position !== 'fixed'
+          );
+        })
+        .slice(0, 12)
+        .map((element) => ({
+          tag: element.tagName,
+          class: element.className,
+          label: element.getAttribute('aria-label'),
+          right: element.getBoundingClientRect().right,
+        })),
+    };
+  });
+  expect(overflow.fits, JSON.stringify(overflow.offenders)).toBe(true);
 }
 
 for (const width of [1440, 1024, 390, 320]) {
@@ -246,7 +283,7 @@ for (const width of [1440, 1024, 390, 320]) {
       'Настройки',
       'Подключения',
       'Системный промпт',
-      'Интернет-поиск',
+      'Инструменты',
       'Изображения',
       'Видео',
       'Транскрибация',
@@ -360,13 +397,16 @@ for (const width of [1440, 1024, 390, 320]) {
     await noOverflow(page);
     await normalView(page);
     await page.screenshot({ path: testInfo.outputPath(`models-${width}.png`), fullPage: true });
-    await page.getByRole('tab', { name: 'Интернет-поиск' }).click();
+    await page
+      .getByRole('tablist', { name: 'Разделы ИИ' })
+      .getByRole('tab', { name: 'Инструменты', exact: true })
+      .click();
     await page.getByRole('textbox', { name: 'Разрешённые сайты' }).fill('example.org\nнаука.рф');
     await page.getByRole('textbox', { name: 'Исключённые сайты' }).fill('ads.example.org');
     await page
       .getByRole('textbox', { name: 'Инструкции для ответов с интернет-поиском' })
       .fill('Сравни первоисточники кратко и укажи ссылки.');
-    await page.getByRole('button', { name: 'Сохранить поиск', exact: true }).click();
+    await page.getByRole('button', { name: 'Сохранить параметры сети', exact: true }).click();
     await expect(
       page.getByText('Настройки сохранены. Поисковый запрос не выполнялся.'),
     ).toBeVisible();
@@ -381,6 +421,16 @@ for (const width of [1440, 1024, 390, 320]) {
       path: testInfo.outputPath(`search-policy-${width}.png`),
       fullPage: true,
     });
+    for (const id of AI_TOOL_IDS) {
+      await page
+        .getByRole('tablist', { name: 'Инструменты помощника' })
+        .getByRole('tab', { name: AI_TOOL_LABELS[id], exact: true })
+        .click();
+      await expect(
+        page.getByRole('article', { name: AI_TOOL_LABELS[id], exact: true }),
+      ).toBeVisible();
+      await noOverflow(page);
+    }
     await page.getByRole('tab', { name: 'Изображения', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Изображения', exact: true })).toBeVisible();
     await noOverflow(page);

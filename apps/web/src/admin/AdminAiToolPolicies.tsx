@@ -82,7 +82,15 @@ function sameEdits(left: readonly ToolEdit[], right: readonly ToolEdit[]): boole
   });
 }
 
-export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenied: () => void }) {
+export function AdminAiToolPolicies({
+  onAccessDenied,
+  selectedTool,
+  onDirtyChange,
+}: {
+  readonly onAccessDenied: () => void;
+  readonly selectedTool?: AiToolId;
+  readonly onDirtyChange?: (dirty: boolean) => void;
+}) {
   const [configuration, setConfiguration] = useState<ToolPolicyConfiguration | null>(null);
   const [edits, setEdits] = useState<ToolEdit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -255,10 +263,16 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
     }
   }
 
+  useEffect(() => {
+    onDirtyChange?.(changed);
+  }, [changed, onDirtyChange]);
+
   return (
     <section className="asa-ai-tools" aria-labelledby="ai-tool-policies-title">
       <div className="asa-ai-tools-heading">
-        <h2 id="ai-tool-policies-title">Инструменты помощника</h2>
+        <h2 id="ai-tool-policies-title">
+          {selectedTool ? 'Доступ и поведение' : 'Инструменты помощника'}
+        </h2>
         <InfoHint label="Как работают разрешения инструментов">
           <p>
             Разрешения действуют для подключённых моделей и проверяются сервером перед вызовом.
@@ -308,7 +322,12 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
               const tool = configuration.tools.find((item) => item.id === id)!;
               const edit = edits.find((item) => item.id === id)!;
               return (
-                <article className="asa-ai-tool-card" key={id} aria-label={TOOL_LABELS[id]}>
+                <article
+                  className="asa-ai-tool-card"
+                  key={id}
+                  aria-label={TOOL_LABELS[id]}
+                  hidden={selectedTool !== undefined && selectedTool !== id}
+                >
                   <div className="asa-ai-tool-card-title">
                     <label className="asa-ai-tool-toggle">
                       <input
@@ -371,8 +390,8 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
                       </dl>
                     </InfoHint>
                   </div>
-                  <details>
-                    <summary>Инструкции</summary>
+                  <details open={selectedTool !== undefined}>
+                    <summary>Инструкция для модели</summary>
 
                     <label className="asa-ai-tool-instructions">
                       Дополнительные инструкции
@@ -392,7 +411,11 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
                 </article>
               );
             })}
-            <article className="asa-ai-tool-card asa-ai-tool-future" aria-label="Видео — скоро">
+            <article
+              className="asa-ai-tool-card asa-ai-tool-future"
+              aria-label="Видео — скоро"
+              hidden={selectedTool !== undefined}
+            >
               <div className="asa-ai-tool-card-title">
                 <h3>Видео — скоро</h3>
                 <span className="asa-ai-tool-status">Недоступен</span>

@@ -5,7 +5,7 @@ import { AdminComfyUiPage } from './AdminComfyUiPage';
 import { AdminPolzaConnection } from './AdminPolzaConnection';
 import { AdminAiTranscription } from './AdminAiTranscription';
 import { AdminAiVideo } from './AdminAiVideo';
-import { AdminAiWebSearch } from './AdminAiWebSearch';
+import { AdminAiTools } from './AdminAiTools';
 import { AdminAiGenerationPolicy } from './AdminAiGenerationPolicy';
 import { AdminAiTokenBudgets } from './AdminAiTokenBudgets';
 import { AdminAiUsageOverview } from './AdminAiUsageOverview';
@@ -309,9 +309,9 @@ function AiAdminWorkspaceSession({
             />
           ) : null}
         </div>
-      ) : section === 'internet' ? (
-        <div id="ai-panel-internet" role="tabpanel" aria-labelledby="ai-tab-internet">
-          <AdminAiWebSearch onAccessDenied={onAccessDenied} />
+      ) : section === 'tools' ? (
+        <div id="ai-panel-tools" role="tabpanel" aria-labelledby="ai-tab-tools">
+          <AdminAiTools onAccessDenied={onAccessDenied} onDirtyChange={setPolicyDirty} />
         </div>
       ) : section === 'video' ? (
         <div

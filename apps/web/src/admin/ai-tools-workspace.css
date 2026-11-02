@@ -1,0 +1,120 @@
+.asa-ai-tools-workspace {
+  min-width: 0;
+  padding-top: 12px;
+}
+.asa-ai-tool-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border, #dce5ec);
+}
+.asa-ai-tool-tabs button {
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text, #17364c);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.asa-ai-tool-tabs button:hover {
+  background: var(--surface, #f1f7fc);
+}
+.asa-ai-tool-tabs button[aria-selected='true'] {
+  background: #e7f3fc;
+  color: #086b9e;
+}
+.asa-ai-tool-tabs button:focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
+}
+.asa-ai-tool-page-title {
+  margin: 16px 0 4px;
+  font-size: 18px;
+}
+.asa-ai-tools-workspace .asa-ai-tools {
+  margin: 0;
+  padding: 8px 0;
+  border-top: 0;
+}
+.asa-ai-tools-workspace .asa-ai-tool-card {
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+.asa-ai-tools-workspace .asa-ai-tool-card > details {
+  grid-column: 1 / -1;
+  padding: 0 0 8px;
+  background: transparent;
+}
+.asa-ai-tools-workspace .asa-ai-tool-instructions textarea {
+  min-height: 64px;
+}
+.asa-ai-tools-workspace [hidden] {
+  display: none !important;
+}
+.asa-ai-tool-footnote {
+  font-size: 12px;
+  color: var(--muted, #52697b);
+  line-height: 1.5;
+}
+.asa-ai-tools-workspace .asa-image-settings-panel {
+  margin: 12px 0;
+}
+@media (max-width: 600px) {
+  .asa-ai-tool-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .asa-ai-tool-tabs button {
+    flex: 0 0 auto;
+  }
+}
+
+/* A grid item must be allowed to shrink before its internal tab strip can scroll. */
+#ai-panel-tools {
+  min-width: 0;
+}
+.asa-ai-tools-workspace .asa-ai-web-admin {
+  padding: 12px 14px;
+  border: 0;
+  border-top: 1px solid var(--border, #dce5ec);
+  border-radius: 0;
+  background: transparent;
+}
+.asa-ai-tools-workspace .asa-cloud-field,
+.asa-ai-tools-workspace .asa-cloud-enabled,
+.asa-ai-tools-workspace .asa-cloud-consent,
+.asa-ai-tools-workspace .asa-ai-tool-instructions {
+  margin: 0;
+}
+.asa-ai-tools-workspace .asa-ai-web-admin .asa-cloud-field {
+  gap: 4px;
+}
+.asa-ai-tools-workspace .asa-ai-web-common .asa-cloud-field {
+  flex-wrap: wrap;
+}
+.asa-ai-tools-workspace .asa-ai-web-retrieval-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+.asa-ai-tools-workspace .asa-ai-web-retrieval input {
+  max-width: 160px;
+}
+.asa-ai-tools-workspace .asa-ai-tools-actions {
+  margin-bottom: 4px;
+}
+@media (max-width: 600px) {
+  .asa-ai-tool-tabs button {
+    min-height: 44px;
+  }
+  .asa-ai-tools-workspace .asa-ai-web-admin {
+    padding: 10px 0;
+  }
+  .asa-ai-tools-workspace .asa-ai-tool-card-title {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+  .asa-ai-tools-workspace .asa-ai-tool-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
