@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as S from 'scratch-blocks';
-import { advanceArduinoRuntime } from '../../../../../contexts/electronics/domain/arduino-program-runtime';
+import { parseElectronicsDocument, solveCircuit } from '@asa-lab/electronics';
 import {
   applyArduinoBlockDefaults,
   generateArduinoCode,
@@ -24,6 +24,7 @@ const owner = JSON.parse(
 ) as {
   arduinoBlocks: string;
   arduinoSource: string;
+  arduinoGeneratedSource: string;
 };
 
 let w: S.Workspace;
@@ -56,6 +57,33 @@ function source() {
 }
 function modes(source: string) {
   return [...source.matchAll(/pinMode\((\w+), (INPUT|OUTPUT)\);/g)].map((m) => [m[1], m[2]]);
+}
+function runtime(source: string) {
+  const parsed = parseElectronicsDocument({
+    schemaVersion: 2,
+    connections: [],
+    components: [
+      {
+        id: 'uno',
+        kind: 'visual',
+        componentTypeId: 'arduino-uno',
+        value: 5,
+        position: { x: 0, y: 0 },
+        pinIds: [
+          ...Array.from({ length: 14 }, (_, i) => `d${i}`),
+          ...Array.from({ length: 6 }, (_, i) => `a${i}`),
+          'power-5v',
+          'power-3v3',
+          'power-gnd-1',
+        ],
+        stateProperties: { arduinoSource: source },
+      },
+    ],
+  });
+  if (!parsed.ok) throw new Error(parsed.message);
+  const result = solveCircuit(parsed.document);
+  expect(result.solved, JSON.stringify(result.diagnostics)).toBe(true);
+  return result.controllerState!.boards[0]!.runtime;
 }
 function reading(type: string, pin: string) {
   const block = w.newBlock(type);
@@ -97,38 +125,16 @@ describe('generated Arduino setup pin roles', () => {
     );
     const loop = (s: string) => s.split('void loop()')[1]!.replace(/\s/g, '');
     expect(loop(generated)).toBe(loop(expanded));
-    const result = advanceArduinoRuntime(generated, {}, 22000);
-    const original = advanceArduinoRuntime(owner.arduinoSource, {}, 22000);
-    expect(result.diagnostics).toEqual([]);
-    expect(original.diagnostics).toEqual([]);
-    expect(result.loopActions.filter((a) => a.kind !== 'pin-mode')).toEqual(
-      original.loopActions.filter((a) => a.kind !== 'pin-mode'),
-    );
+    // The same immutable golden is executed by the core project's 22-second
+    // action oracle; this frontend test binds it to the actual generator bytes.
+    expect(generated).toBe(owner.arduinoGeneratedSource);
     const hash = (value: string) => createHash('sha256').update(value).digest('hex');
     expect(hash(owner.arduinoSource)).toBe(
       '943d712b0b4430dded820b43938f13d2b096c45ae63c7ef08e050fbcab5b4173',
     );
-    if (process.env['ASA_PIN_SETUP_RECEIPT'] === 'true') {
-      console.info(
-        JSON.stringify({
-          ownerSourceSha256: hash(owner.arduinoSource),
-          generatedSourceSha256: hash(generated),
-          modelTimeMs: 22000,
-          electricalActionsSha256: hash(
-            JSON.stringify(result.loopActions.filter((a) => a.kind !== 'pin-mode')),
-          ),
-          electricalActionCount: result.loopActions.filter((a) => a.kind !== 'pin-mode').length,
-          setupModes: modes(generated).length,
-          loopModes: modes(generated.split('void loop()')[1]!).length,
-        }),
-      );
-    }
-    const writtenPins = result.loopActions.filter((a) => a.kind === 'write').map((a) => a.terminal);
-    expect([...new Set(writtenPins)].sort()).toEqual(
-      Array.from({ length: 12 }, (_, i) => `d${i}`).sort(),
-    );
-    expect(Object.values(result.state.pinModes)).toEqual(Array(20).fill('OUTPUT'));
-    expect(Object.keys(result.state.outputVoltages).length).toBeGreaterThan(0);
+    const state = runtime(generated);
+    expect(Object.values(state.pinModes)).toEqual(Array(20).fill('OUTPUT'));
+    expect(Object.keys(state.outputVoltages).length).toBeGreaterThan(0);
     const serialized = JSON.stringify(S.serialization.workspaces.save(w));
     w.clear();
     S.serialization.workspaces.load(migrateLegacyArduinoWorkspaceState(JSON.parse(serialized)), w);
@@ -150,10 +156,9 @@ describe('generated Arduino setup pin roles', () => {
     expect(generated).toContain('pinMode(2, INPUT);');
     expect(generated).toContain('pinMode(A0, INPUT);');
     expect(generated).not.toContain('pinMode(14,');
-    const runtime = advanceArduinoRuntime(generated, { d2: 5, a0: 2.5 }, 0);
-    expect(runtime.diagnostics).toEqual([]);
-    expect(runtime.state.pinModes.d2).toBe('INPUT');
-    expect(runtime.state.pinModes.a0).toBe('INPUT_PULLUP');
+    const state = runtime(generated);
+    expect(state.pinModes.d2).toBe('INPUT');
+    expect(state.pinModes.a0).toBe('INPUT_PULLUP');
   });
 
   it.each(['0', '1', '2', '3', '4', '5', '14', '15', '16', '17', '18', '19'])(
@@ -219,9 +224,7 @@ describe('generated Arduino setup pin roles', () => {
     }
     const generated = source();
     expect(generated.match(/digitalWrite\(port, HIGH\);/g)).toHaveLength(2);
-    const runtime = advanceArduinoRuntime(generated, {}, 0);
-    expect(runtime.diagnostics).toEqual([]);
-    expect(runtime.state.outputVoltages).toMatchObject({ d13: 5, a5: 5 });
+    expect(runtime(generated).outputVoltages).toMatchObject({ d13: 5, a5: 5 });
   });
 
   it('covers RGB, PWM and tone branches without explicit per-command modes', () => {
