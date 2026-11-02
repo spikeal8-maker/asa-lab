@@ -434,6 +434,8 @@
     box-shadow: none;
     background: #fff;
     color: #000;
+    /* Paper uses stable, widely available metrics rather than the host UI font. */
+    font-family: Arial, sans-serif;
   }
   body.student-access-printing .student-access-card-copy {
     /* Intrinsic text rows cannot surrender the name's height to the code block. */
@@ -469,6 +471,8 @@
     font-size: 9pt;
   }
   body.student-access-printing .student-access-codes {
+    /* Class and pupil codes have different intrinsic widths; do not halve the row. */
+    grid-template-columns: max-content minmax(0, 1fr);
     gap: 1.5mm;
     padding-top: 0.15mm;
     border-top: 0.2mm solid #abb5be;
@@ -508,12 +512,22 @@
     line-height: 1.15;
     color: #333;
   }
-  body.student-access-printing .student-access-card.is-long-site .student-access-qr .class-qr {
-    width: 16mm;
-    height: 16mm;
+  body.student-access-printing .student-access-card.is-long-site {
+    /* Keep the scannable square; give the full host two lines beside long names. */
+    grid-template-columns: minmax(0, 1fr) 27mm;
+  }
+  body.student-access-printing .student-access-card.is-long-site .student-access-qr {
+    /* Use the column's reserved vertical padding, still inside the cut line. */
+    margin-block: -0.35mm;
+  }
+  body.student-access-printing .student-access-card.is-long-site .class-qr {
+    width: 21mm;
+    max-width: 21mm;
+    height: 21mm;
   }
   body.student-access-printing .student-access-card.is-long-site .student-access-site {
     font-size: 6pt;
+    word-break: break-all;
   }
   body.student-access-printing .student-access-instruction {
     display: none;

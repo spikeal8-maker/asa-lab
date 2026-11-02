@@ -538,6 +538,10 @@ surfaces:
     - apps/web/src/pages/ClassroomPage.tsx
     - apps/web/src/api.ts
     - apps/api/src/classrooms.controller.ts
+    - apps/web/src/components/StudentAccessCards.tsx
+    - apps/web/src/components/student-access.css
+    - e2e/student-access-cards.spec.ts
+    - e2e/classroom-owner-ui.spec.ts
   invariants:
   - IDA-AUTH-001
   - IDA-SEAT-001
@@ -546,7 +550,19 @@ surfaces:
   tests:
   - TST-ASA-ACCESS-A-CORE-001
   - TST-LRN-COURSE-E1-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
   controls:
+  - id: CTRL-CLASSROOM-PRINT-CARD-QR
+    label: Keep full printable access-card labels and independently scannable class-only QR inside A4 boxes
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/StudentAccessCards.tsx
+    - apps/web/src/components/student-access.css
+    - e2e/student-access-cards.spec.ts
+    - e2e/classroom-owner-ui.spec.ts
+    commands: []
+    invariants: [IDA-AUTH-001, IDA-CRED-001]
+    tests: [TST-ASA-ACCESS-A-CORE-001, TST-ASA-ACCESS-A-E2E-001]
   - id: CTRL-CLASSROOM-BATCH-SEATS
     label: Preview and issue StudentSeats in one idempotent batch
     change_class: L3_CRITICAL
