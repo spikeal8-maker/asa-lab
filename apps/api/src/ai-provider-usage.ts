@@ -11,14 +11,14 @@ export function providerTokenCount(value: unknown): number | null {
 
 export function providerModel(value: unknown): string | null {
   return typeof value === 'string' &&
-    /^[a-zA-Z0-9][a-zA-Z0-9._:/+-]{0,199}$/.test(value) &&
+    /^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]{0,199}$/.test(value) &&
     !value.includes('://')
     ? value
     : null;
 }
 
 export function providerUsage(
-  provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud',
+  provider: 'openai' | 'deepseek' | 'ollama' | 'ollama-cloud' | 'polza',
   payload: unknown,
 ): AiProviderUsage | undefined {
   if (!payload || typeof payload !== 'object') return undefined;

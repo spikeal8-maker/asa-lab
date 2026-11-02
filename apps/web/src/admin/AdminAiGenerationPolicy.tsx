@@ -8,6 +8,7 @@ import './ai-generation-policy.css';
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI' },
   { id: 'deepseek', label: 'DeepSeek' },
+  { id: 'polza', label: 'Polza AI' },
   { id: 'ollama-cloud', label: 'Ollama Cloud' },
   { id: 'ollama', label: 'Ollama · локально' },
 ] as const;
@@ -699,6 +700,16 @@ export function AdminAiGenerationPolicy({
                                 />
                                 <span>
                                   <strong>{model.label}</strong>
+                                  {model.inputModalities ? (
+                                    <span
+                                      className="asa-ai-model-vision"
+                                      title="Возможности выбранной модели по серверному каталогу API"
+                                    >
+                                      {model.inputModalities.includes('image')
+                                        ? 'Vision · читает изображения'
+                                        : 'Только текст'}
+                                    </span>
+                                  ) : null}
                                   {model.id !== model.label ? (
                                     <small title={model.id}>{model.id}</small>
                                   ) : null}

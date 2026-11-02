@@ -1665,6 +1665,48 @@
   margin: 18px 0;
   color: var(--ai-muted);
 }
+.asa-ai-layout .ai-activity:not(.ai-activity-image) {
+  padding-inline-start: 12px;
+}
+.asa-ai-layout .ai-activity-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.asa-ai-layout .ai-activity-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 22px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.asa-ai-layout .ai-activity-step-icon,
+.asa-ai-layout .ai-tool-complete {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.asa-ai-layout .ai-activity-step-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asa-ai-layout .ai-tool-spinner {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ai-tool-spin 0.8s linear infinite;
+}
+@keyframes ai-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .asa-ai-layout .ai-activity-caption {
   display: flex;
   align-items: center;
@@ -1691,18 +1733,55 @@
   animation-delay: 0.32s;
 }
 .asa-ai-layout .ai-activity-canvas {
-  width: min(100%, 340px);
-  aspect-ratio: 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  width: min(100%, 440px);
+  min-height: 160px;
   margin-bottom: 12px;
-  border-radius: 20px;
-  background: linear-gradient(
-    110deg,
-    color-mix(in srgb, var(--ai-text) 4%, transparent) 25%,
-    color-mix(in srgb, var(--ai-text) 10%, transparent) 45%,
-    color-mix(in srgb, var(--ai-text) 4%, transparent) 65%
-  );
-  background-size: 220% 100%;
-  animation: ai-image-shimmer 2.4s ease-in-out infinite;
+  border-radius: 24px;
+  background: color-mix(in srgb, #90d3f5 18%, var(--ai-panel));
+}
+.asa-ai-layout .ai-activity-orb {
+  position: absolute;
+  width: 80%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(24px);
+  opacity: 0.65;
+  background: radial-gradient(circle, #84cff3, transparent 70%);
+  animation: ai-image-float 7s ease-in-out infinite alternate;
+}
+.asa-ai-layout .ai-activity-orb-one {
+  top: -25%;
+  left: -15%;
+}
+.asa-ai-layout .ai-activity-orb-two {
+  bottom: -20%;
+  right: -15%;
+  background: radial-gradient(circle, #bba6f5, transparent 70%);
+  animation-delay: -3s;
+}
+.asa-ai-layout .ai-activity-orb-three {
+  top: 20%;
+  left: 30%;
+  background: radial-gradient(circle, #a9e9df, transparent 70%);
+  animation-delay: -5s;
+}
+.asa-ai-layout .ai-activity-image-icon {
+  position: relative;
+  color: var(--ai-text);
+  opacity: 0.6;
+}
+@keyframes ai-image-float {
+  from {
+    transform: translate(-10%, -5%) scale(0.9);
+  }
+  to {
+    transform: translate(20%, 15%) scale(1.15);
+  }
 }
 @keyframes ai-activity-pulse {
   0%,
@@ -1725,8 +1804,10 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .asa-ai-layout .ai-tool-spinner,
   .asa-ai-layout .ai-activity-dots i,
-  .asa-ai-layout .ai-activity-canvas {
+  .asa-ai-layout .ai-activity-canvas,
+  .asa-ai-layout .ai-activity-orb {
     animation: none;
   }
 }
@@ -1804,4 +1885,156 @@
   .ai-generated-image-actions
   button[data-copied='true'] {
   color: #4ade80;
+}
+
+.ai-private-image-viewer {
+  border: 0;
+  border-radius: 22px;
+  padding: 48px 12px 12px;
+  background: var(--ai-surface, #fff);
+  color: var(--ai-text, #111);
+  width: min(1100px, 94vw);
+  max-height: 94dvh;
+}
+.ai-private-image-viewer::backdrop {
+  background: rgb(0 0 0 / 75%);
+}
+.ai-private-image-viewer > img {
+  display: block;
+  width: 100%;
+  max-height: 80dvh;
+  object-fit: contain;
+}
+.ai-private-image-viewer > button {
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  border: 0;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  font-size: 26px;
+  cursor: pointer;
+}
+.ai-private-image-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: transparent;
+  cursor: zoom-in;
+  max-width: 100%;
+}
+.chat-saved-file.is-image {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  width: min(320px, 70vw);
+  max-width: 100%;
+  cursor: zoom-in;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.chat-saved-file.is-image > img {
+  width: 100%;
+  height: auto;
+  max-height: 340px;
+  object-fit: contain;
+  border-radius: 16px;
+}
+.ai-private-image-actions {
+  display: flex;
+  gap: 4px;
+  align-self: end;
+}
+.ai-private-image-actions > button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.ai-private-image-actions > button:hover {
+  background: rgb(128 128 128 / 12%);
+}
+
+.asa-ai-layout .chat-attached-history .chat-saved-file.is-image {
+  display: block;
+  padding: 0;
+  width: min(320px, 70vw);
+  border: 0;
+  background: transparent;
+}
+
+/* A private image occupies only its own aspect ratio; actions belong to that card. */
+.asa-ai-layout .chat-saved-image-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 100%;
+  margin-inline-start: auto;
+}
+.asa-ai-layout .chat-saved-document-group {
+  display: contents;
+}
+.asa-ai-layout .chat-attached-history .chat-saved-image-group .chat-saved-file.is-image {
+  display: block;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: calc(100% - 38px);
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  box-shadow: none;
+}
+.asa-ai-layout .chat-saved-image-group .chat-saved-file.is-image > img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 22px;
+  background: transparent;
+}
+.asa-ai-layout .chat-saved-image-group .chat-saved-file:not(:focus-visible) {
+  outline: none;
+}
+.asa-ai-layout .chat-saved-image-group .chat-saved-file:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+.asa-ai-layout .chat-saved-image-group .ai-private-image-actions {
+  flex: 0 0 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 2px;
+}
+.asa-ai-layout .chat-saved-image-group .ai-private-image-actions > button {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  border-radius: 50%;
+  background: transparent;
+}
+.asa-ai-layout .chat-saved-image-group .ai-private-image-actions > button:hover {
+  background: color-mix(in srgb, var(--ai-surface) 88%, var(--primary) 12%);
+}
+.asa-ai-layout .chat-user-bubble {
+  background: color-mix(in srgb, var(--ai-surface) 91%, var(--primary) 9%);
+}
+.asa-ai-layout[data-chat-theme='dark'] .chat-user-bubble {
+  background: color-mix(in srgb, var(--ai-surface) 78%, var(--primary) 22%);
+}
+.asa-ai-layout .ai-private-image-open,
+.asa-ai-layout .ai-private-image-open > img {
+  border-radius: 22px;
 }

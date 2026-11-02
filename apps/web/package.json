@@ -11,6 +11,7 @@
     "@asa-lab/three-d": "workspace:*",
     "docx": "9.14.0",
     "katex": "0.16.47",
+    "parse5": "7.3.0",
     "pdfmake": "0.3.13",
     "qrcode-generator": "^2.0.4",
     "react": "18.3.1",

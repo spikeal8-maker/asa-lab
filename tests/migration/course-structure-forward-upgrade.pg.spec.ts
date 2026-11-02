@@ -164,6 +164,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0292', // Public author avatars and projects-only catalog projection.
         '0293', // Catalog sorting before pagination.
         '0294', // Accepted additive games-network schema in Main.
+        '0295', // Bounded document extraction with private originals.
+        '0296', // Private working files and immutable revisions.
+        '0297', // Polza text provider and bounded model catalogue.
+        '0298', // Exact owner-bound generated-image HTML binding.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -487,6 +491,10 @@ describe('Course Builder structure forward upgrade', () => {
           '0292', // Public author avatars and projects-only catalog projection.
           '0293', // Catalog sorting before pagination.
           '0294', // Accepted additive games-network schema in Main.
+          '0295', // Bounded document extraction with private originals.
+          '0296', // Private working files and immutable revisions.
+          '0297', // Polza text provider and bounded model catalogue.
+          '0298', // Exact owner-bound generated-image HTML binding.
         ]);
         expect(
           await applyIsolatedTestPlan(

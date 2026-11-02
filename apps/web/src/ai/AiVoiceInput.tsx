@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { createPortal } from 'react-dom';
 import type { ApiResult } from '../api-call';
 import { newClientId } from '../client-id';
 import './ai-voice-input.css';
@@ -13,7 +14,10 @@ interface Transcript {
   readonly model: string;
 }
 type ScopedCall = <T>(path: string, init?: RequestInit) => Promise<ApiResult<T>>;
-type RecordingMode = 'idle' | 'confirm' | 'acquiring' | 'recording' | 'transcribing';
+export type AiVoiceMode = 'idle' | 'acquiring' | 'recording' | 'transcribing';
+export interface AiVoiceController {
+  send(): void;
+}
 
 function selectMime(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
@@ -27,25 +31,32 @@ export function AiVoiceInput({
   call,
   disabled,
   onTranscript,
+  target,
+  onModeChange,
+  controller,
 }: {
   readonly call: ScopedCall;
   readonly disabled: boolean;
-  readonly onTranscript: (text: string) => 'inserted' | 'overflow';
+  readonly onTranscript: (text: string, submit?: boolean) => 'inserted' | 'overflow';
+  readonly target?: HTMLElement | null;
+  readonly onModeChange?: (mode: AiVoiceMode) => void;
+  readonly controller?: Ref<AiVoiceController>;
 }) {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
-  const [mode, setMode] = useState<RecordingMode>('idle');
+  const [mode, setMode] = useState<AiVoiceMode>('idle');
   const [seconds, setSeconds] = useState(0);
+  const [levels, setLevels] = useState<number[]>(() => Array(40).fill(0));
   const [message, setMessage] = useState('');
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pending = useRef<AbortController | null>(null);
   const cancelled = useRef(false);
+  const submitTranscript = useRef(false);
   const acquisitionSerial = useRef(0);
   const acquiring = useRef(false);
   const mounted = useRef(true);
   const microphoneButton = useRef<HTMLButtonElement>(null);
-  const consentButton = useRef<HTMLButtonElement>(null);
   const callback = useRef(onTranscript);
   callback.current = onTranscript;
 
@@ -99,13 +110,64 @@ export function AiVoiceInput({
   }, [disabled]);
 
   useEffect(() => {
-    if (mode === 'confirm') consentButton.current?.focus();
-  }, [mode]);
-
-  useEffect(() => {
     if (mode !== 'recording') return;
     const clock = setInterval(() => setSeconds((value) => value + 1), 1000);
     return () => clearInterval(clock);
+  }, [mode]);
+
+  useEffect(() => {
+    onModeChange?.(mode);
+  }, [mode, onModeChange]);
+  useEffect(() => () => onModeChange?.('idle'), [onModeChange]);
+  useImperativeHandle(controller, () => ({ send: () => stop(true) }));
+
+  useEffect(() => {
+    if (mode !== 'recording' || !stream.current) return;
+    setLevels(Array(40).fill(0));
+    if (typeof AudioContext === 'undefined') return;
+    let context: AudioContext | undefined;
+    let source: MediaStreamAudioSourceNode | undefined;
+    let analyser: AnalyserNode | undefined;
+    let frame = 0;
+    let active = true;
+    let lastSample = -Infinity;
+    const history: number[] = Array(40).fill(0);
+    const cleanup = () => {
+      active = false;
+      cancelAnimationFrame(frame);
+      source?.disconnect();
+      analyser?.disconnect();
+      if (context && context.state !== 'closed') void context.close().catch(() => {});
+    };
+    try {
+      context = new AudioContext();
+      source = context.createMediaStreamSource(stream.current);
+      analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser); // Deliberately no speaker/destination connection.
+      void context.resume().catch(() => {});
+      const samples = new Uint8Array(analyser.fftSize);
+      const meter = analyser;
+      const sample = (time: number) => {
+        if (!active) return;
+        if (time - lastSample >= 50) {
+          lastSample = time;
+          meter.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (const value of samples) sum += ((value - 128) / 128) ** 2;
+          // Noise floor keeps silence flat. Every displayed height comes from captured audio.
+          const level = Math.min(1, Math.max(0, (Math.sqrt(sum / samples.length) - 0.006) * 9));
+          history.shift();
+          history.push(level);
+          setLevels([...history]);
+        }
+        frame = requestAnimationFrame(sample);
+      };
+      frame = requestAnimationFrame(sample);
+    } catch {
+      cleanup(); // Recording still works when a browser cannot provide a local level meter.
+    }
+    return cleanup;
   }, [mode]);
 
   function releaseOwned(media: MediaRecorder, ownedStream: MediaStream, serial: number) {
@@ -134,11 +196,17 @@ export function AiVoiceInput({
     currentStream?.getTracks().forEach((track) => track.stop());
     setMode('idle');
     setSeconds(0);
-    setMessage(mode === 'confirm' ? '' : 'Запись отменена');
-    if (mode === 'confirm') microphoneButton.current?.focus();
+    setMessage('');
+    microphoneButton.current?.focus();
   }
 
-  async function transcribe(blob: Blob, durationSeconds: number, mimeType: string, serial: number) {
+  async function transcribe(
+    blob: Blob,
+    durationSeconds: number,
+    mimeType: string,
+    serial: number,
+    submit: boolean,
+  ) {
     setMode('transcribing');
     if (!blob.size || blob.size > 512_000) {
       setMessage('Слишком большой аудиофайл. Запишите более короткий вопрос.');
@@ -154,7 +222,7 @@ export function AiVoiceInput({
         reader.readAsDataURL(blob);
       });
     } catch {
-      if (mounted.current) {
+      if (mounted.current && !cancelled.current && serial === acquisitionSerial.current) {
         setMessage('Не удалось прочитать запись.');
         setMode('idle');
       }
@@ -163,35 +231,47 @@ export function AiVoiceInput({
     if (cancelled.current || !mounted.current || serial !== acquisitionSerial.current) return;
     const controller = new AbortController();
     pending.current = controller;
-    const result = await call<Transcript>('/api/ai/stt/transcribe', {
-      method: 'POST',
-      signal: controller.signal,
-      body: JSON.stringify({
-        requestId: newClientId(),
-        audioBase64: dataUrl.slice(dataUrl.indexOf(',') + 1),
-        mimeType,
-        durationSeconds,
-      }),
-    });
-    if (!mounted.current || cancelled.current || serial !== acquisitionSerial.current) return;
-    pending.current = null;
-    setMode('idle');
-    if (result.ok && result.data.text) {
-      const placement = callback.current(result.data.text);
-      setMessage(
-        placement === 'overflow'
-          ? 'Расшифровка не поместилась в сообщение. Черновик сохранён; полный текст доступен ниже.'
-          : 'Текст добавлен в сообщение. Проверьте его перед отправкой.',
-      );
-      return;
+    try {
+      const result = await call<Transcript>('/api/ai/stt/transcribe', {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify({
+          requestId: newClientId(),
+          audioBase64: dataUrl.slice(dataUrl.indexOf(',') + 1),
+          mimeType,
+          durationSeconds,
+        }),
+      });
+      if (!mounted.current || cancelled.current || serial !== acquisitionSerial.current) return;
+      if (result.ok && result.data.text) {
+        const placement = callback.current(result.data.text, submit);
+        setMessage(
+          placement === 'overflow'
+            ? 'Расшифровка не поместилась в сообщение. Полный текст доступен ниже.'
+            : '',
+        );
+      } else {
+        setMessage(
+          result.ok
+            ? 'Речь не распознана. Попробуйте ещё раз.'
+            : 'Голосовой ввод сейчас недоступен.',
+        );
+      }
+    } catch {
+      if (mounted.current && !cancelled.current && serial === acquisitionSerial.current)
+        setMessage('Голосовой ввод сейчас недоступен.');
+    } finally {
+      if (mounted.current && !cancelled.current && serial === acquisitionSerial.current) {
+        pending.current = null;
+        setMode('idle');
+      }
     }
-    setMessage(result.ok ? 'Речь не распознана.' : result.error.message);
   }
 
   async function start() {
     if (
       acquiring.current ||
-      mode !== 'confirm' ||
+      mode !== 'idle' ||
       disabled ||
       !status?.enabled ||
       !navigator.mediaDevices?.getUserMedia
@@ -203,6 +283,7 @@ export function AiVoiceInput({
     acquiring.current = true;
     const serial = ++acquisitionSerial.current;
     cancelled.current = false;
+    submitTranscript.current = false;
     setMode('acquiring');
     setMessage('');
     let opened: MediaStream;
@@ -259,7 +340,8 @@ export function AiVoiceInput({
       const blob = new Blob(chunks, { type: mime });
       // Stop ONLY this recorder's own stream, never a newer recording's stream.
       releaseOwned(media, opened, serial);
-      if (valid) void transcribe(blob, elapsed, mime.split(';')[0]!, serial);
+      if (valid)
+        void transcribe(blob, elapsed, mime.split(';')[0]!, serial, submitTranscript.current);
     };
     media.onerror = () => {
       const current = serial === acquisitionSerial.current && mounted.current;
@@ -297,7 +379,9 @@ export function AiVoiceInput({
     }, status.maxAudioSeconds * 1000);
   }
 
-  function stop() {
+  function stop(submit = false) {
+    if (recorder.current?.state !== 'recording') return;
+    submitTranscript.current = submit;
     if (timeout.current) clearTimeout(timeout.current);
     timeout.current = null;
     if (recorder.current?.state === 'recording') recorder.current.stop();
@@ -312,29 +396,89 @@ export function AiVoiceInput({
   const label =
     mode === 'recording'
       ? 'Остановить запись и распознать'
-      : mode === 'confirm'
-        ? 'Подтверждение записи'
-        : mode === 'acquiring'
-          ? 'Запрашиваем доступ к микрофону'
-          : mode === 'transcribing'
-            ? 'Распознаём речь'
-            : available
-              ? 'Продиктовать сообщение'
-              : status?.enabled && typeof window !== 'undefined' && !window.isSecureContext
-                ? 'Для голосового ввода нужен HTTPS'
-                : status?.enabled
-                  ? 'Браузер не поддерживает голосовой ввод'
-                  : 'Голосовой ввод не подключён';
+      : mode === 'acquiring'
+        ? 'Подключаем микрофон'
+        : mode === 'transcribing'
+          ? 'Распознаём речь'
+          : available
+            ? 'Продиктовать сообщение'
+            : 'Голосовой ввод недоступен';
+  const elapsed = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2, '0');
+
+  const panel =
+    mode !== 'idle' || message ? (
+      <div
+        className="ai-voice-panel"
+        data-active={mode !== 'idle'}
+        role="status"
+        aria-live="polite"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && mode !== 'idle') {
+            event.preventDefault();
+            cancel();
+          }
+        }}
+      >
+        {mode === 'recording' ? (
+          <span className="ai-voice-wave" aria-hidden="true">
+            {levels.map((level, index) => (
+              <i key={index} style={{ height: `${3 + Math.round(level * 27)}px` }} />
+            ))}
+          </span>
+        ) : null}
+        <span className={mode === 'recording' ? 'sr-only' : 'ai-voice-caption'}>
+          {mode === 'recording'
+            ? 'Слушаю…'
+            : mode === 'acquiring'
+              ? 'Подключаю микрофон…'
+              : mode === 'transcribing'
+                ? 'Распознаю…'
+                : message}
+        </span>
+        {mode === 'recording' ? (
+          <time className="ai-voice-time" aria-hidden="true">
+            {elapsed}
+          </time>
+        ) : null}
+        <button
+          type="button"
+          onClick={mode !== 'idle' ? cancel : () => setMessage('')}
+          aria-label={mode !== 'idle' ? 'Отменить голосовой ввод' : 'Закрыть сообщение'}
+          data-ai-tooltip={mode !== 'idle' ? 'Отменить запись' : 'Закрыть'}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
+      </div>
+    ) : null;
 
   return (
-    <div className="ai-voice-control">
+    <div
+      className="ai-voice-control"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && mode !== 'idle') {
+          event.preventDefault();
+          cancel();
+        }
+      }}
+    >
       <button
         ref={microphoneButton}
         className={'chat-microphone' + (mode === 'recording' ? ' ai-voice-recording' : '')}
         type="button"
         aria-label={label}
         aria-pressed={mode === 'recording'}
-        title={label}
+        data-ai-tooltip={mode === 'idle' ? label : undefined}
         disabled={
           mode === 'transcribing' ||
           mode === 'acquiring' ||
@@ -342,12 +486,15 @@ export function AiVoiceInput({
         }
         onClick={() => {
           if (mode === 'recording') stop();
-          else if (mode === 'confirm') cancel();
-          else setMode('confirm');
+          else if (mode === 'idle') void start();
         }}
       >
-        {mode === 'transcribing' ? (
+        {mode === 'transcribing' || mode === 'acquiring' ? (
           <span className="ai-voice-spinner" aria-hidden="true" />
+        ) : mode === 'recording' ? (
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="6" width="12" height="12" rx="3" />
+          </svg>
         ) : (
           <svg
             width="19"
@@ -364,55 +511,7 @@ export function AiVoiceInput({
           </svg>
         )}
       </button>
-      {mode !== 'idle' || message ? (
-        <div
-          className="ai-voice-toast"
-          role={mode === 'confirm' ? 'dialog' : 'status'}
-          aria-label={mode === 'confirm' ? 'Подтверждение голосового ввода' : undefined}
-          aria-live="polite"
-        >
-          <span>
-            {mode === 'confirm'
-              ? 'Запись будет отправлена в Polza AI для распознавания. ASA Lab не сохраняет аудио.'
-              : mode === 'recording'
-                ? 'Запись ' + seconds + ' / ' + status?.maxAudioSeconds + ' сек'
-                : mode === 'acquiring'
-                  ? 'Ожидаем разрешения браузера на микрофон…'
-                  : mode === 'transcribing'
-                    ? 'Распознаём речь…'
-                    : message}
-          </span>
-          {mode === 'confirm' ? (
-            <>
-              <button
-                ref={consentButton}
-                type="button"
-                onClick={() => void start()}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                    event.preventDefault();
-                    cancel();
-                  }
-                }}
-                aria-label="Разрешить голосовой ввод"
-              >
-                Продолжить
-              </button>
-              <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">
-                Отмена
-              </button>
-            </>
-          ) : mode !== 'idle' ? (
-            <button type="button" onClick={cancel} aria-label="Отменить голосовой ввод">
-              Отмена
-            </button>
-          ) : (
-            <button type="button" onClick={() => setMessage('')} aria-label="Закрыть сообщение">
-              ×
-            </button>
-          )}
-        </div>
-      ) : null}
+      {panel && target ? createPortal(panel, target) : panel}
     </div>
   );
 }

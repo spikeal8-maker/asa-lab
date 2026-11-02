@@ -1,3 +1,9 @@
+import {
+  aiPublicErrorMessage,
+  AI_TEXT_UNAVAILABLE,
+  isAiToolActivity,
+  type AiToolActivity,
+} from '@asa-lab/contracts';
 import { fetchWithSessionRefresh } from '../session-fetch';
 import type { AiWebSearchMode, AiImageGenerationJob, AiImageSize } from '@asa-lab/contracts';
 
@@ -18,7 +24,7 @@ export class AiStreamClientError extends Error {
     readonly code: string,
     message: string,
   ) {
-    super(message);
+    super(aiPublicErrorMessage(code, message));
     this.name = 'AiStreamClientError';
   }
 }
@@ -34,6 +40,7 @@ export async function streamAiRequest<T>(
   attachmentIds: readonly string[] = [],
   webSearch?: { readonly mode: AiWebSearchMode; readonly weatherCity?: string },
   nativeImage?: { readonly mode: 'off' | 'auto'; readonly size: AiImageSize },
+  onActivity?: (activity: AiToolActivity) => void,
 ): Promise<AiStreamResponse<T>> {
   return streamCommand(
     threadId,
@@ -54,6 +61,7 @@ export async function streamAiRequest<T>(
     onDelta,
     signal,
     scopeHeaders,
+    onActivity,
   );
 }
 
@@ -66,6 +74,7 @@ export async function streamAiRegeneration<T>(
   signal: AbortSignal,
   model?: string,
   scopeHeaders: Record<string, string> = {},
+  onActivity?: (activity: AiToolActivity) => void,
 ): Promise<AiStreamResponse<T>> {
   return streamCommand(
     threadId,
@@ -74,6 +83,7 @@ export async function streamAiRegeneration<T>(
     onDelta,
     signal,
     scopeHeaders,
+    onActivity,
   );
 }
 
@@ -84,6 +94,7 @@ async function streamCommand<T>(
   onDelta: (piece: string) => void,
   signal: AbortSignal,
   scopeHeaders: Record<string, string>,
+  onActivity?: (activity: AiToolActivity) => void,
 ): Promise<AiStreamResponse<T>> {
   const response = await fetchWithSessionRefresh(
     '/api/ai/threads/' + encodeURIComponent(threadId) + '/' + operation + '/stream',
@@ -103,7 +114,14 @@ async function streamCommand<T>(
     }
     throw new AiStreamClientError(
       problem?.error?.code ?? 'ai_http_error',
-      problem?.error?.message ?? 'Не удалось отправить сообщение.',
+      aiPublicErrorMessage(
+        problem?.error?.code ?? '',
+        /^ai_(input|session|scope|access|attachment|thread|origin|json|request_id|vision|source)/.test(
+          problem?.error?.code ?? '',
+        )
+          ? problem?.error?.message
+          : AI_TEXT_UNAVAILABLE,
+      ),
     );
   }
   if (!response.headers.get('content-type')?.includes('text/event-stream') || !response.body) {
@@ -119,6 +137,7 @@ async function streamCommand<T>(
     }
   }
   function process(frame: string): void {
+    if (result || signal.aborted) return;
     const lines = frame.split(/\r?\n/);
     const kind = lines
       .find((line) => line.startsWith('event:'))
@@ -135,16 +154,33 @@ async function streamCommand<T>(
     } catch {
       throw new AiStreamClientError('ai_stream_invalid', 'Сервер прислал повреждённое событие.');
     }
-    if (kind === 'delta' && typeof (parsed as { text?: unknown }).text === 'string') {
+    if (kind === 'delta') {
+      if (
+        !parsed ||
+        typeof parsed !== 'object' ||
+        typeof (parsed as { text?: unknown }).text !== 'string'
+      )
+        throw new AiStreamClientError('ai_stream_invalid', AI_TEXT_UNAVAILABLE);
       onDelta((parsed as { text: string }).text);
+    } else if (kind === 'activity') {
+      if (isAiToolActivity(parsed)) onActivity?.(parsed);
     } else if (kind === 'done') {
-      result = parsed as AiStreamResponse<T>;
+      const value = parsed as Partial<AiStreamResponse<T>> | null;
+      if (
+        !value ||
+        !Array.isArray(value.messages) ||
+        typeof value.replayed !== 'boolean' ||
+        typeof value.stopped !== 'boolean'
+      )
+        throw new AiStreamClientError('ai_stream_invalid', AI_TEXT_UNAVAILABLE);
+      result = value as AiStreamResponse<T>;
     } else if (kind === 'error') {
-      const problem = parsed as { code?: string; message?: string };
-      throw new AiStreamClientError(
-        problem.code ?? 'ai_provider_error',
-        problem.message ?? 'Ответ модели прервался.',
-      );
+      const problem = parsed && typeof parsed === 'object' ? (parsed as { code?: unknown }) : {};
+      const code =
+        typeof problem.code === 'string' && problem.code.length <= 100
+          ? problem.code
+          : 'ai_provider_error';
+      throw new AiStreamClientError(code, aiPublicErrorMessage(code));
     }
   }
   try {
@@ -164,6 +200,7 @@ async function streamCommand<T>(
       checkSize(buffer.length);
     }
   } finally {
+    await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
   if (!result) {

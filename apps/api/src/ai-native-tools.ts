@@ -1,8 +1,16 @@
 import { aiImageSizeLabel, isAiImageSize, type AiImageRecipe } from '@asa-lab/contracts';
 import type { AiProviderUsage } from './ai-provider-usage.js';
+import { isFileTool, validateFileCall } from './ai-working-files.js';
 
 export type NativeToolName =
-  'generate_image' | 'web_search' | 'image_search' | 'weather' | 'read_page';
+  | 'generate_image'
+  | 'web_search'
+  | 'image_search'
+  | 'weather'
+  | 'read_page'
+  | 'create_working_file'
+  | 'read_working_file'
+  | 'edit_working_file';
 export interface NativeToolCall {
   readonly name: NativeToolName;
   readonly arguments: Readonly<Record<string, unknown>>;
@@ -20,6 +28,7 @@ export interface NativeToolResult {
   readonly content: string;
 }
 export function nativeTools(options: {
+  imageFileTarget?: boolean;
   imageSizes?: readonly number[];
   imageRecipe?: AiImageRecipe;
   search: boolean;
@@ -55,6 +64,22 @@ export function nativeTools(options: {
                 .join('; '),
             },
             model: { type: 'string', enum: [options.imageRecipe ?? 'flux2-klein-4b-v1'] },
+            ...(options.imageFileTarget
+              ? {
+                  target: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['name', 'expectedVersion', 'placeholder'],
+                    description:
+                      'Если изображение нужно вставить в сайт, СНАЧАЛА создай или прочитай и измени рабочий HTML: оставь ровно один ASA_GENERATED_IMAGE_PENDING в img src. Затем укажи имя и полученную версию. После готовности изображение будет вставлено автоматически. Не вызывай отдельную генерацию без target вместо выполнения просьбы о сайте.',
+                    properties: {
+                      name: { type: 'string', pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,90}\\.html$' },
+                      expectedVersion: { type: 'integer', minimum: 1, maximum: 99 },
+                      placeholder: { type: 'string', enum: ['ASA_GENERATED_IMAGE_PENDING'] },
+                    },
+                  },
+                }
+              : {}),
           },
         },
       },
@@ -155,6 +180,10 @@ export function parseNativeToolCalls(
     throw new Error('AI_TOOL_CALL_INVALID');
   const values = args as Record<string, unknown>;
   const keys = Object.keys(values).sort().join(',');
+  if (isFileTool(name)) {
+    if (!validateFileCall(name, values)) throw new Error('AI_TOOL_CALL_INVALID');
+    return [{ name: name as NativeToolName, arguments: values }];
+  }
   if (name === 'generate_image') {
     const sizes = (
       offered.find((tool) => tool.function.name === name)!.function.parameters.properties as {
@@ -162,7 +191,7 @@ export function parseNativeToolCalls(
       }
     ).size.enum;
     if (
-      keys !== 'model,prompt,size' ||
+      !['model,prompt,size', 'model,prompt,size,target'].includes(keys) ||
       !(
         offered.find((tool) => tool.function.name === 'generate_image')!.function.parameters
           .properties as { model: { enum: readonly unknown[] } }
@@ -175,6 +204,25 @@ export function parseNativeToolCalls(
       sizes.length !== 1
     )
       throw new Error('AI_TOOL_CALL_INVALID');
+    if (values.target !== undefined) {
+      const properties = offered.find((tool) => tool.function.name === name)!.function.parameters
+        .properties as Record<string, unknown>;
+      const target = values.target as Record<string, unknown> | null;
+      if (
+        !properties.target ||
+        !target ||
+        Array.isArray(target) ||
+        Object.keys(target).sort().join(',') !== 'expectedVersion,name,placeholder' ||
+        typeof target.name !== 'string' ||
+        !/^[A-Za-z0-9][A-Za-z0-9._-]{0,90}\.html$/.test(target.name) ||
+        target.name.includes('..') ||
+        !Number.isInteger(target.expectedVersion) ||
+        Number(target.expectedVersion) < 1 ||
+        Number(target.expectedVersion) > 99 ||
+        target.placeholder !== 'ASA_GENERATED_IMAGE_PENDING'
+      )
+        throw new Error('AI_TOOL_CALL_INVALID');
+    }
   } else if (name === 'read_page') {
     if (keys === 'url') {
       const property = (

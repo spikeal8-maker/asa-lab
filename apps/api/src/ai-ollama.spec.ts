@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { nativeTools } from './ai-native-tools';
 import {
   OllamaError,
   ollamaBaseUrl,
@@ -7,6 +8,42 @@ import {
   describeOllamaModel,
   streamOllamaText,
 } from './ai-ollama';
+
+it.each(['images', 'mixed', 'overflow', 'invalid'] as const)(
+  'bounds Qwen multi-frame tool announcements: %s',
+  async (mode) => {
+    const calls = Array.from({ length: mode === 'overflow' ? 5 : 2 }, (_, i) => ({
+      function: {
+        name: mode === 'mixed' && i ? 'web_search' : 'image_search',
+        arguments: mode === 'invalid' && i ? { query: 2 } : { query: 'cats ' + i },
+      },
+    }));
+    const task = streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'fixture:8b',
+      context: [],
+      instructions: '',
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      tools: nativeTools({ search: true, weather: false }),
+      fetchImpl: vi.fn(
+        async () =>
+          new Response(
+            calls.map((call) => JSON.stringify({ message: { tool_calls: [call] } })).join('\n') +
+              '\n' +
+              JSON.stringify({ done: true }) +
+              '\n',
+          ),
+      ),
+    });
+    if (mode === 'images')
+      expect((await task).toolCalls?.map((call) => call.arguments.query)).toEqual([
+        'cats 0',
+        'cats 1',
+      ]);
+    else await expect(task).rejects.toMatchObject({ code: 'ai_tool_call_invalid' });
+  },
+);
 
 describe('Ollama private network boundary', () => {
   it.each(['stop', 'length'])('preserves long code and honors done_reason=%s', async (reason) => {

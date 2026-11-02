@@ -134,3 +134,96 @@ describe('native AI SSE transport', () => {
     await expect(send()).rejects.toMatchObject({ code: 'ai_stream_interrupted' });
   });
 });
+
+it.each([
+  'ai_provider_authentication_failed',
+  'ai_provider_insufficient_balance',
+  'ai_provider_rate_limit',
+  'ai_provider_timeout',
+  'ai_ollama_unreachable',
+  'unknown_failure',
+])('never displays technical SSE error text for %s', async (code) => {
+  respond([frame('error', { code, message: 'SECRET credentials, upstream URL or balance' })]);
+  await expect(send()).rejects.toMatchObject({
+    code,
+    message: 'Извините, текстовая модель сейчас недоступна.',
+  });
+});
+it.each([401, 402, 403, 404, 422, 429, 500, 503, 504])(
+  'hides an upstream HTTP %s failure',
+  async (status) => {
+    vi.mocked(fetchWithSessionRefresh).mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: 'ai_provider_error', message: 'SECRET' } }), {
+        status,
+      }),
+    );
+    await expect(send()).rejects.toMatchObject({
+      message: 'Извините, текстовая модель сейчас недоступна.',
+    });
+  },
+);
+it('accepts closed activity events, ignores malformed and post-completion events, and keeps deltas', async () => {
+  const activity = vi.fn(),
+    delta = vi.fn();
+  respond([
+    frame('activity', { tool: 'web_search', state: 'running' }),
+    frame('activity', { tool: 'execute_shell', state: 'running' }),
+    frame('activity', { tool: 'read_page', state: 'running', url: 'SECRET' }),
+    frame('activity', { tool: 'web_search', state: 'complete' }),
+    frame('delta', { text: 'Hello' }),
+    frame('done', { messages: [], replayed: false, stopped: false }),
+    frame('activity', { tool: 'read_page', state: 'running' }),
+  ]);
+  await streamAiRequest(
+    'thread',
+    'query',
+    'request',
+    delta,
+    new AbortController().signal,
+    undefined,
+    {},
+    [],
+    undefined,
+    undefined,
+    activity,
+  );
+  expect(activity.mock.calls).toEqual([
+    [{ tool: 'web_search', state: 'running' }],
+    [{ tool: 'web_search', state: 'complete' }],
+  ]);
+  expect(delta).toHaveBeenCalledWith('Hello');
+});
+it('cancels the reader after a malformed event instead of leaving an upstream response running', async () => {
+  const cancel = vi.fn();
+  vi.mocked(fetchWithSessionRefresh).mockResolvedValueOnce(
+    new Response(
+      new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode('event: delta\ndata: broken\n\n'));
+        },
+        cancel,
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    ),
+  );
+  await expect(send()).rejects.toMatchObject({ code: 'ai_stream_invalid' });
+  expect(cancel).toHaveBeenCalledOnce();
+});
+it.each([null, {}, { messages: 'not-an-array', replayed: false, stopped: false }])(
+  'rejects malformed completion %j',
+  async (value) => {
+    respond([frame('done', value)]);
+    await expect(send()).rejects.toMatchObject({ code: 'ai_stream_invalid' });
+  },
+);
+
+it.each([null, 'text', [], { text: 42 }])(
+  'rejects an invalid delta %j without throwing a raw TypeError',
+  async (value) => {
+    respond([frame('delta', value)]);
+    await expect(send()).rejects.toMatchObject({
+      code: 'ai_stream_invalid',
+      message: 'Извините, текстовая модель сейчас недоступна.',
+    });
+  },
+);

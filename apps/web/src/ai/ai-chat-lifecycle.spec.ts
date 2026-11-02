@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { call, type ApiResult } from '../api-call';
 import { AiChatWorkspace } from './AiChatWorkspace';
+import { updateToolActivities } from './AiActivity';
 import { streamAiRequest } from './stream-ai-request';
 
 vi.mock('../api-call', () => ({ call: vi.fn() }));
@@ -50,6 +51,7 @@ function pendingCreation(webStatus?: unknown) {
       });
     }
     if (path === '/api/ai/threads' && init?.method === 'POST') return promise;
+    if (path === '/api/ai/threads/' + CREATED_THREAD + '/working-files') return ok({ items: [] });
     if (path === '/api/ai/threads/' + CREATED_THREAD + '/messages')
       return ok({ items: [], nextCursor: null });
     if (path === '/api/ai/threads') {
@@ -168,8 +170,10 @@ describe('first-send lifecycle', () => {
       await act(async () => completeCreation());
       expect(streamAiRequest).toHaveBeenCalledTimes(1);
       const first = vi.mocked(streamAiRequest).mock.calls[0]!;
-      expect(first).toHaveLength(7);
+      expect(first).toHaveLength(11);
       expect(composer().value).toBe('Первый вопрос');
+      expect(host.textContent).toContain('Извините, текстовая модель сейчас недоступна.');
+      expect(host.textContent).not.toContain('Uncertain provider result');
       await act(async () =>
         release({
           schemaVersion: 1,
@@ -182,7 +186,10 @@ describe('first-send lifecycle', () => {
       await submit('Первый вопрос');
       const retry = vi.mocked(streamAiRequest).mock.calls[1]!;
       expect(retry[2]).toBe(first[2]);
-      expect(retry).toHaveLength(7);
+      expect(retry.slice(7, 10)).toEqual(first.slice(7, 10));
+      expect(first.slice(7, 10)).toEqual([[], undefined, undefined]);
+      expect(first[10]).toEqual(expect.any(Function));
+      expect(retry).toHaveLength(11);
     },
   );
   it.each([
@@ -208,7 +215,7 @@ describe('first-send lifecycle', () => {
       await submit('Первый вопрос');
       await act(async () => completeCreation());
       expect(streamAiRequest).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(streamAiRequest).mock.calls[0]).toHaveLength(7);
+      expect(vi.mocked(streamAiRequest).mock.calls[0]).toHaveLength(11);
       expect(host.querySelector('[aria-label="Режим интернет-поиска"]')).toBeNull();
     },
   );
@@ -275,9 +282,300 @@ describe('first-send lifecycle', () => {
       expect.any(AbortSignal),
       'gpt-6-luna',
       {},
+      [],
+      undefined,
+      undefined,
+      expect.any(Function),
     );
     expect(creationCalls()).toHaveLength(1);
     expect(composer().value).toBe('');
     expect(composer().disabled).toBe(false);
   });
+});
+
+it('retains completed tool steps until the response finishes while keeping the composer editable', async () => {
+  let finish!: (value: { messages: never[]; replayed: boolean; stopped: boolean }) => void;
+  const waiting = new Promise<{ messages: never[]; replayed: boolean; stopped: boolean }>((r) => {
+    finish = r;
+  });
+  const completeCreation = pendingCreation();
+  vi.mocked(streamAiRequest).mockReturnValueOnce(waiting);
+  await mount();
+  await submit('Найди информацию');
+  await act(async () => completeCreation());
+  const args = vi.mocked(streamAiRequest).mock.calls[0]!;
+  await act(async () => args[10]?.({ tool: 'read_page', state: 'running' }));
+  expect(host.textContent).toContain('Читаю выбранные страницы');
+  expect(composer().disabled).toBe(false);
+  await act(async () => args[10]?.({ tool: 'read_page', state: 'complete' }));
+  expect(host.textContent).not.toContain('Читаю выбранные страницы');
+  expect(
+    host.querySelector('[data-tool="read_page"][data-state="complete"]')?.textContent,
+  ).toContain('Чтение страниц');
+  expect(host.textContent).toContain('Обдумываю ответ');
+  await act(async () => args[10]?.({ tool: 'image_search', state: 'running' }));
+  expect(host.querySelectorAll('.ai-activity-step')).toHaveLength(2);
+  expect(host.textContent).toContain('Ищу изображения');
+  expect(host.querySelector('[data-tool="read_page"][data-state="complete"]')).not.toBeNull();
+  expect(host.querySelector('.ai-tool-spinner')).not.toBeNull();
+  await act(async () => args[10]?.({ tool: 'image_search', state: 'complete' }));
+  expect(host.querySelector('.ai-tool-spinner')).toBeNull();
+  expect(host.querySelectorAll('.ai-tool-complete')).toHaveLength(2);
+  await act(async () => finish({ messages: [], replayed: false, stopped: false }));
+  expect(host.querySelector('.ai-activity')).toBeNull();
+});
+
+it('dismisses a model failure when the user edits without refreshing or automatically resending', async () => {
+  const complete = pendingCreation();
+  vi.mocked(streamAiRequest).mockRejectedValueOnce(new Error('private failure'));
+  await mount();
+  await submit('Вопрос');
+  await act(async () => complete());
+  expect(host.textContent).toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(host.textContent).not.toContain('Обновить переписку');
+  await enter('Исправленный вопрос');
+  expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(streamAiRequest).toHaveBeenCalledTimes(1);
+});
+it('dismisses a model failure immediately after choosing a different model without a new request', async () => {
+  const complete = pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation((path, init) =>
+    path === '/api/ai/status'
+      ? Promise.resolve(
+          ok({
+            enabled: true,
+            provider: 'openai',
+            model: 'gpt-6-luna',
+            availableModels: ['gpt-6-luna', 'deepseek-flash'],
+          }),
+        )
+      : original(path, init),
+  );
+  vi.mocked(streamAiRequest).mockRejectedValueOnce(new Error('private failure'));
+  await mount();
+  await submit('Вопрос');
+  await act(async () => complete());
+  expect(host.textContent).toContain('Извините, текстовая модель сейчас недоступна.');
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Модель ИИ"]')!.click());
+  const option = [...document.querySelectorAll<HTMLElement>('[role=option]')].find(
+    (n) => n.textContent?.trim() === 'deepseek-flash',
+  );
+  expect(option).toBeTruthy();
+  await act(async () => option!.click());
+  expect(host.textContent).not.toContain('Извините, текстовая модель сейчас недоступна.');
+  expect(host.querySelector('[aria-label="Модель ИИ"]')?.textContent).toContain('deepseek-flash');
+  expect(streamAiRequest).toHaveBeenCalledTimes(1);
+});
+
+it('shows image progress in an otherwise empty conversation, including recovery after reload', async () => {
+  const complete = pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  const request = '50000000-0000-4000-8000-000000000005';
+  const key = 'asa-ai-image:personal:' + CREATED_THREAD;
+  sessionStorage.setItem(key, request);
+  vi.mocked(call).mockImplementation((path, init) => {
+    if (path === '/api/ai/image-generation/status')
+      return Promise.resolve(
+        ok({ enabled: true, ready: true, sizes: [1024], dailyLimit: 10, remainingToday: 10 }),
+      );
+    if (path.includes('/image-generations/'))
+      return Promise.resolve(
+        ok({
+          threadId: CREATED_THREAD,
+          requestId: request,
+          state: 'running',
+          prompt: 'Синяя мастерская',
+          size: 1024,
+          recipe: 'flux2-klein-4b-v1',
+          cancelRequested: false,
+          errorCode: null,
+          image: null,
+          createdAt: '2026-11-02T00:00:00Z',
+        }),
+      );
+    return original(path, init);
+  });
+  try {
+    await mount();
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Создать новый диалог"]')!.click(),
+    );
+    await act(async () => complete());
+    expect(host.querySelector('.ai-activity-image')).not.toBeNull();
+    expect(host.querySelector('.ai-activity-canvas')).not.toBeNull();
+    expect(host.querySelector('.asa-ai-chat.is-empty')).toBeNull();
+    expect(host.textContent).toContain('Синяя мастерская');
+    expect(composer().disabled).toBe(false);
+    expect(streamAiRequest).not.toHaveBeenCalled();
+  } finally {
+    sessionStorage.removeItem(key);
+  }
+});
+
+it('keeps voice activity inside the composer and preserves the draft without sending it', async () => {
+  pendingCreation();
+  const original = vi.mocked(call).getMockImplementation()!;
+  vi.mocked(call).mockImplementation((path, init) =>
+    path === '/api/ai/stt/status'
+      ? Promise.resolve(ok({ enabled: true, model: 'fixture-stt', maxAudioSeconds: 20 }))
+      : original(path, init),
+  );
+  const stopTrack = vi.fn();
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: stopTrack }] })),
+    },
+  });
+  class Recording {
+    static isTypeSupported() {
+      return true;
+    }
+    state: RecordingState = 'inactive';
+    onstop: (() => void) | null = null;
+    start() {
+      this.state = 'recording';
+    }
+    stop() {
+      this.state = 'inactive';
+      this.onstop?.();
+    }
+  }
+  vi.stubGlobal('MediaRecorder', Recording);
+  await mount();
+  await enter('Неотправленный черновик');
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Продиктовать сообщение"]')!.click(),
+  );
+  expect(
+    host.querySelector('form.chat-composer .chat-voice-slot .ai-voice-panel[data-active="true"]'),
+  ).not.toBeNull();
+  expect(host.querySelector('.ai-voice-control .ai-voice-panel')).toBeNull();
+  expect(
+    host.querySelector<HTMLButtonElement>('[aria-label="Распознать и отправить"]')!.disabled,
+  ).toBe(false);
+  await act(async () =>
+    host
+      .querySelector('form.chat-composer')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  );
+  expect(creationCalls()).toHaveLength(0);
+  expect(streamAiRequest).not.toHaveBeenCalled();
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Отменить голосовой ввод"]')!.click(),
+  );
+  expect(composer().value).toBe('Неотправленный черновик');
+  expect(document.activeElement).toBe(composer());
+  expect(host.querySelector('.chat-voice-slot .ai-voice-panel')).toBeNull();
+  expect(
+    host.querySelector<HTMLButtonElement>('[aria-label="Отправить сообщение"]')!.disabled,
+  ).toBe(false);
+  expect(stopTrack).toHaveBeenCalled();
+});
+
+it('clears only the draft using the button beside the model picker', async () => {
+  pendingCreation();
+  await mount();
+  await enter('Набранный текст');
+  const titles = historyTitles();
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[aria-label="Очистить текст"]')!.click(),
+  );
+  expect(composer().value).toBe('');
+  expect(document.activeElement).toBe(composer());
+  expect(host.querySelector('[aria-label="Очистить текст"]')).toBeNull();
+  expect(historyTitles()).toEqual(titles);
+  expect(creationCalls()).toHaveLength(0);
+  expect(streamAiRequest).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  'voice arrow submits once only when the full transcript fits: overflow=%s',
+  async (overflow) => {
+    const complete = pendingCreation();
+    const original = vi.mocked(call).getMockImplementation()!;
+    const speech = overflow ? 'Р'.repeat(6000) : 'Голосовой вопрос';
+    vi.mocked(call).mockImplementation((path, init) =>
+      path === '/api/ai/stt/status'
+        ? Promise.resolve(ok({ enabled: true, model: 'fixture-stt', maxAudioSeconds: 20 }))
+        : path === '/api/ai/stt/transcribe'
+          ? Promise.resolve(ok({ text: speech, model: 'fixture-stt' }))
+          : original(path, init),
+    );
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn(async () => ({ getTracks: () => [{ stop: vi.fn() }] })),
+      },
+    });
+    class Recording {
+      static isTypeSupported() {
+        return true;
+      }
+      state: RecordingState = 'inactive';
+      onstop: (() => void) | null = null;
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      start() {
+        this.state = 'recording';
+      }
+      stop() {
+        if (this.state !== 'recording') return;
+        this.state = 'inactive';
+        this.ondataavailable?.({
+          data: new Blob([new Uint8Array([1, 2])], { type: 'audio/webm' }),
+        });
+        this.onstop?.();
+      }
+    }
+    class Reader {
+      result = 'data:audio/webm;base64,AQI=';
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsDataURL() {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal('MediaRecorder', Recording);
+    vi.stubGlobal('FileReader', Reader);
+    await mount();
+    await enter('До');
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Продиктовать сообщение"]')!.click(),
+    );
+    const arrow = host.querySelector<HTMLButtonElement>('[aria-label="Распознать и отправить"]')!;
+    expect(arrow.disabled).toBe(false);
+    await act(async () => {
+      arrow.click();
+      arrow.click();
+    });
+    expect(
+      vi.mocked(call).mock.calls.filter(([path]) => path === '/api/ai/stt/transcribe'),
+    ).toHaveLength(1);
+    if (overflow) {
+      expect(creationCalls()).toHaveLength(0);
+      expect(streamAiRequest).not.toHaveBeenCalled();
+      expect(composer().value).toBe('До');
+      expect(host.textContent).toContain('Расшифровка не поместилась');
+    } else {
+      expect(creationCalls()).toHaveLength(1);
+      await act(async () => complete());
+      expect(streamAiRequest).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(streamAiRequest).mock.calls[0]![1]).toBe('До Голосовой вопрос');
+    }
+  },
+);
+
+it('bounds the tool trace, ignores unknown completions and preserves genuine repeated calls', () => {
+  let trace: readonly import('@asa-lab/contracts').AiToolActivity[] = [];
+  expect(updateToolActivities(trace, { tool: 'image_search', state: 'complete' })).toBe(trace);
+  trace = updateToolActivities(trace, { tool: 'web_search', state: 'running' });
+  expect(updateToolActivities(trace, { tool: 'web_search', state: 'running' })).toBe(trace);
+  for (let i = 0; i < 20; i++) {
+    trace = updateToolActivities(trace, { tool: 'web_search', state: 'complete' });
+    trace = updateToolActivities(trace, { tool: 'web_search', state: 'running' });
+  }
+  expect(trace).toHaveLength(16);
+  expect(trace.at(-1)).toEqual({ tool: 'web_search', state: 'running' });
+  expect(trace.slice(0, -1).every((item) => item.state === 'complete')).toBe(true);
 });

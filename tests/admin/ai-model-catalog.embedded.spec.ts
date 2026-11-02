@@ -393,6 +393,7 @@ describe('0227 credential isolation and persistence guards', () => {
       { provider: 'deepseek', model: 'deepseek-flash', api_key_ciphertext: null },
       { provider: 'ollama-cloud', model: 'gemma4:31b', api_key_ciphertext: null },
       { provider: 'openai', model: 'gpt-6-luna', api_key_ciphertext: null },
+      { provider: 'polza', model: 'polza/unconfigured', api_key_ciphertext: null },
     ]);
   });
 
@@ -563,7 +564,7 @@ describe('0227 credential isolation and persistence guards', () => {
     ).toEqual(storedOpenai);
     expect(
       deepseek.providerConfigurations
-        .filter((slot) => slot.provider !== 'ollama-cloud')
+        .filter((slot) => slot.provider === 'openai' || slot.provider === 'deepseek')
         .every((slot) => slot.apiKeyConfigured),
     ).toBe(true);
     expect(

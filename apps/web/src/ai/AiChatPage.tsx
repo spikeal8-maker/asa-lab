@@ -1,3 +1,10 @@
+import {
+  AI_TEXT_UNAVAILABLE,
+  AI_IMAGE_UNAVAILABLE,
+  AI_SEARCH_UNAVAILABLE,
+  type AiToolActivity,
+} from '@asa-lab/contracts';
+import { prepareChatImage } from './prepare-image';
 import { aiImageDimensions, aiImageSizeLabel } from '@asa-lab/contracts';
 import {
   useEffect,
@@ -13,15 +20,16 @@ import {
 import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
 import { AiMessageContent } from './AiMessageContent';
+import { AiWorkingFiles, type WorkingFileInfo } from './AiWorkingFiles';
 import type { AiTokenBudgetsOwn } from '@asa-lab/contracts';
 import { AiChatIcon } from './AiChatIcon';
 import { AiCopyButton } from './AiCopyButton';
 import { imageModelLabel } from './image-model-label';
 import { AiImagePrompt } from './AiImagePrompt';
 import { AiChatTooltips } from './AiChatTooltips';
-import { AiActivity } from './AiActivity';
+import { AiActivity, updateToolActivities } from './AiActivity';
 import { AiCompactSelect } from './AiCompactSelect';
-import { AiVoiceInput } from './AiVoiceInput';
+import { AiVoiceInput, type AiVoiceController, type AiVoiceMode } from './AiVoiceInput';
 import { mergeVoiceTranscript } from './voice-transcript-draft';
 import {
   AiImageGeneration,
@@ -160,6 +168,17 @@ function searchExcerpt(preview: string, query: string): ReactNode {
   );
 }
 
+function WorkingFileAnchor({
+  id,
+  onTarget,
+}: {
+  id: string;
+  onTarget: (id: string, node: HTMLDivElement | null) => void;
+}): JSX.Element {
+  const ref = useCallback((node: HTMLDivElement | null) => onTarget(id, node), [id, onTarget]);
+  return <div ref={ref} className="chat-working-anchor" />;
+}
+
 export function AiChatPage({
   seatId,
   scopeControl,
@@ -231,12 +250,38 @@ export function AiChatPage({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [voiceTarget, setVoiceTarget] = useState<HTMLDivElement | null>(null);
+  const [voiceMode, setVoiceMode] = useState<AiVoiceMode>('idle');
+  const voiceBusy = voiceMode !== 'idle';
+  const voiceController = useRef<AiVoiceController | null>(null);
+  const queuedVoiceSubmission = useRef<{ text: string; version: number } | null>(null);
+  const wasVoiceBusy = useRef(false);
+  useEffect(() => {
+    if (wasVoiceBusy.current && !voiceBusy) composer.current?.focus();
+    wasVoiceBusy.current = voiceBusy;
+  }, [voiceBusy]);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
   const threadMutationBusy = useRef(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [currentThread, setCurrentThread] = useState<AiThread | null>(null);
   const currentArchived = useRef(false);
   const [messages, setMessages] = useState<readonly AiMessage[]>([]);
+  const [workingSources, setWorkingSources] = useState<WorkingFileInfo[]>([]);
+  const [workingTargets, setWorkingTargets] = useState<Record<string, HTMLElement>>({});
+  const registerWorkingTarget = useCallback((id: string, node: HTMLDivElement | null) => {
+    setWorkingTargets((previous) => {
+      if (previous[id] === node || (!node && !previous[id])) return previous;
+      const next = { ...previous };
+      if (node) next[id] = node;
+      else delete next[id];
+      return next;
+    });
+  }, []);
+  const receiveWorkingSources = useCallback(
+    (files: WorkingFileInfo[]) => setWorkingSources(files),
+    [],
+  );
+  useEffect(() => setWorkingSources([]), [currentId, seatId]);
   const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
@@ -244,6 +289,8 @@ export function AiChatPage({
   useEffect(() => setOverflowTranscript(null), [currentId, seatId]);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerMaximized, setComposerMaximized] = useState(false);
+  const [preparingImages, setPreparingImages] = useState(false);
+  const preparingImagesRef = useRef(false);
   const [attachments, setAttachments] = useState<readonly AiChatFileDraft[]>([]);
   const [historyAttachments, setHistoryAttachments] = useState<
     Record<string, readonly AiHistoryAttachment[]>
@@ -282,9 +329,18 @@ export function AiChatPage({
   const selectedHistoryReady = useRef(true);
   const [historyReady, setHistoryReady] = useState(true);
   const composerBusy = busy || imageUi.busy;
-  const interactionBusy = composerBusy || creatingChat || threadActionBusy;
+  const interactionBusy = composerBusy || creatingChat || threadActionBusy || preparingImages;
   const [loading, setLoading] = useState(true);
+  const [toolActivities, setToolActivities] = useState<readonly AiToolActivity[]>([]);
   const [error, setError] = useState<string | null>(null);
+  function dismissModelNotice() {
+    setError((value) =>
+      value && [AI_TEXT_UNAVAILABLE, AI_IMAGE_UNAVAILABLE, AI_SEARCH_UNAVAILABLE].includes(value)
+        ? null
+        : value,
+    );
+  }
+
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
@@ -317,6 +373,14 @@ export function AiChatPage({
   const historyPanel = useRef<HTMLDialogElement>(null);
   const historyToggle = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const queued = queuedVoiceSubmission.current;
+    if (voiceBusy || !queued) return;
+    queuedVoiceSubmission.current = null;
+    // Consume once, after React commits the recognized draft; never send into another conversation.
+    if (queued.version === selectedVersion.current && queued.text === draft)
+      composer.current?.form?.requestSubmit();
+  }, [draft, voiceBusy]);
   const restoreComposerFocus = useRef(false);
   useEffect(() => {
     if (!interactionBusy || !restoreComposerFocus.current) return;
@@ -405,25 +469,49 @@ export function AiChatPage({
     setAttachments([]);
   }
 
-  function addFiles(files: readonly File[]): void {
-    if (interactionBusy || requestBusy.current || currentArchived.current) {
+  async function addFiles(files: readonly File[]): Promise<void> {
+    if (
+      interactionBusy ||
+      preparingImagesRef.current ||
+      requestBusy.current ||
+      currentArchived.current
+    ) {
       setError('Дождитесь окончания ответа или остановите его перед добавлением файлов.');
       return;
     }
-    const selected = [...attachments.map((item) => item.file), ...files];
-    const issue = checkAiChatFiles(selected);
-    if (issue) {
-      setError(issue);
+    if (attachments.length + files.length > 4) {
+      setError('Можно прикрепить не более четырёх файлов.');
       return;
     }
-    const additions = files.map((file) => {
-      const image = /\.(png|jpe?g|webp)$/i.test(file.name);
-      const preview = image ? URL.createObjectURL(file) : null;
-      if (preview) previewUrls.current.add(preview);
-      return { uploadId: crypto.randomUUID(), file, preview };
-    });
-    setAttachments((current) => [...current, ...additions]);
-    setError(null);
+    const version = selectedVersion.current;
+    preparingImagesRef.current = true;
+    setPreparingImages(true);
+    try {
+      const prepared = [];
+      for (const file of files) prepared.push(await prepareChatImage(file));
+      if (version !== selectedVersion.current) return;
+      const issue = checkAiChatFiles([
+        ...attachments.map((item) => item.file),
+        ...prepared.map((item) => item.file),
+      ]);
+      if (issue) {
+        setError(issue);
+        return;
+      }
+      const additions = prepared.map(({ file, originalBytes, dimensions }) => {
+        const preview = /\.(png|jpe?g|webp)$/i.test(file.name) ? URL.createObjectURL(file) : null;
+        if (preview) previewUrls.current.add(preview);
+        return { uploadId: crypto.randomUUID(), file, preview, originalBytes, dimensions };
+      });
+      setAttachments((current) => [...current, ...additions]);
+      setError(null);
+    } catch (error) {
+      if (version === selectedVersion.current)
+        setError(error instanceof Error ? error.message : 'Не удалось обработать файлы.');
+    } finally {
+      preparingImagesRef.current = false;
+      setPreparingImages(false);
+    }
   }
 
   function removeFile(uploadId: string): void {
@@ -1005,6 +1093,7 @@ export function AiChatPage({
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (voiceBusy) return;
     const active = document.activeElement;
     const focusWasInComposer =
       active === composer.current || active?.classList.contains('chat-send-button') === true;
@@ -1072,6 +1161,7 @@ export function AiChatPage({
     setPendingMessage({ requestId, text });
     setStreamedText('');
     setBusy(true);
+    setToolActivities([]);
     setError(null);
     const version = ++selectedVersion.current;
     try {
@@ -1112,6 +1202,18 @@ export function AiChatPage({
           uploadIds.push(await uploadAiChatFile(file, seatId, controller.signal));
           if (version !== selectedVersion.current) return;
         }
+        if (uploadIds.length) {
+          setHistoryAttachments((current) => ({
+            ...current,
+            [requestId]: attachments.map((item, index) => ({
+              uploadId: uploadIds[index]!,
+              fileName: item.file.name,
+              sizeBytes: item.file.size,
+              mediaType: item.file.type || 'text/plain',
+              kind: item.preview ? 'image' : 'text',
+            })),
+          }));
+        }
         const result = await streamAiRequest<AiMessage>(
           id,
           text,
@@ -1122,17 +1224,13 @@ export function AiChatPage({
           controller.signal,
           selectedModel || status.model,
           aiScopeHeaders(seatId),
-          ...((frozenNativeImage
-            ? [uploadIds, frozenWebSearch, frozenNativeImage]
-            : frozenWebSearch
-              ? [uploadIds, frozenWebSearch]
-              : uploadIds.length
-                ? [uploadIds]
-                : []) as [
-            uploadIds?: readonly string[],
-            webSearch?: { mode: AiWebSearchMode },
-            nativeImage?: { mode: 'off' | 'auto'; size: AiImageSize },
-          ]),
+          uploadIds,
+          frozenWebSearch,
+          frozenNativeImage,
+          (activity) => {
+            if (version === selectedVersion.current)
+              setToolActivities((current) => updateToolActivities(current, activity));
+          },
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -1184,11 +1282,7 @@ export function AiChatPage({
           }
         }
         setDraft((value) => value || text);
-        setError(
-          problem instanceof Error
-            ? problem.message
-            : 'Не удалось завершить ответ. Проверьте историю диалога.',
-        );
+        setError(problem instanceof AiStreamClientError ? problem.message : AI_TEXT_UNAVAILABLE);
         const history = await call<AiPage<AiMessage>>(
           '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
         );
@@ -1217,6 +1311,7 @@ export function AiChatPage({
       setPendingMessage(null);
       setStreamedText('');
       setBusy(false);
+      setToolActivities([]);
     }
   }
 
@@ -1301,6 +1396,7 @@ export function AiChatPage({
     const version = ++selectedVersion.current;
     requestBusy.current = true;
     setBusy(true);
+    setToolActivities([]);
     setError(null);
     setPendingMessage(null);
     setStreamedText('');
@@ -1318,6 +1414,10 @@ export function AiChatPage({
         controller.signal,
         selectedModel || status.model,
         aiScopeHeaders(seatId),
+        (activity) => {
+          if (version === selectedVersion.current)
+            setToolActivities((current) => updateToolActivities(current, activity));
+        },
       );
       if (version !== selectedVersion.current) return;
       const acknowledged = result.messages.filter(
@@ -1340,22 +1440,19 @@ export function AiChatPage({
         await refreshAdmission();
         return;
       }
-      setError(
-        problem instanceof AiStreamClientError
-          ? problem.message
-          : 'Соединение прервалось. Проверьте сохранённый ответ.',
-      );
+      setError(problem instanceof AiStreamClientError ? problem.message : AI_TEXT_UNAVAILABLE);
       await readRegeneration(operation, version);
     } finally {
       activeStream.current = null;
       requestBusy.current = false;
       setBusy(false);
+      setToolActivities([]);
       setStreamedText('');
     }
     void refreshThreads();
   }
 
-  const empty = messages.length === 0 && pendingMessage === null && !streamedText;
+  const empty = messages.length === 0 && pendingMessage === null && !streamedText && !imageUi.busy;
   const currentTitle = currentThread?.title || 'Новый диалог';
   const archived = !!currentThread?.archivedAt;
   const visibleError = error ?? historyError;
@@ -1806,7 +1903,6 @@ export function AiChatPage({
                       </span>
                       {message.role === 'user' ? (
                         <>
-                          <div className="chat-user-bubble">{message.content}</div>
                           {historyAttachments[message.requestId]?.length ? (
                             <div className="chat-attached-history" aria-label="Вложения сообщения">
                               {historyAttachments[message.requestId]?.map((file) => (
@@ -1814,11 +1910,13 @@ export function AiChatPage({
                                   key={file.uploadId}
                                   file={file}
                                   seatId={seatId}
+                                  onUse={(file) => addFiles([file])}
                                   onDownload={() => void downloadAttachment(file)}
                                 />
                               ))}
                             </div>
                           ) : null}
+                          <div className="chat-user-bubble">{message.content}</div>
                           <div
                             className="chat-user-actions"
                             role="group"
@@ -1884,7 +1982,13 @@ export function AiChatPage({
                           {message.content !== 'Задание на создание изображения принято.' ? (
                             <AiMessageContent
                               content={message.content}
+                              hideCodeBlocks={workingSources
+                                .filter(
+                                  (f) => f.sourceMessageId === message.id && f.sourceBlock !== null,
+                                )
+                                .map((f) => f.sourceBlock!)}
                               webSearch={message.webSearch}
+                              seatId={seatId}
                             />
                           ) : null}
                           <AiWebEvidence
@@ -1940,6 +2044,7 @@ export function AiChatPage({
                           ) : null}
                         </div>
                       )}
+                      <WorkingFileAnchor id={message.id} onTarget={registerWorkingTarget} />
                     </article>
                   ))}
                   {pendingMessage &&
@@ -1949,6 +2054,16 @@ export function AiChatPage({
                   ) ? (
                     <article className="chat-turn chat-turn-user" data-testid="ai-pending-message">
                       <span className="chat-turn-label">Вы</span>
+                      <div className="chat-attached-history">
+                        {historyAttachments[pendingMessage.requestId]?.map((file) => (
+                          <SavedAttachmentCard
+                            key={file.uploadId}
+                            file={file}
+                            seatId={seatId}
+                            onDownload={() => void downloadAttachment(file)}
+                          />
+                        ))}
+                      </div>
                       <div className="chat-user-bubble">{pendingMessage.text}</div>
                     </article>
                   ) : null}
@@ -1977,14 +2092,41 @@ export function AiChatPage({
                       </div>
                     </article>
                   ) : null}
-                  {busy ? <AiActivity responding={Boolean(streamedText)} /> : null}
+                  {busy ? (
+                    <AiActivity responding={Boolean(streamedText)} activities={toolActivities} />
+                  ) : null}
                   {imageUi.busy && imageJob?.threadId === currentId && imageJob.prompt ? (
                     <AiImagePrompt
                       prompt={imageJob.prompt}
                       label={`Генерирую изображение${imageJob.size ? ` · ${aiImageDimensions(imageJob.size).width} × ${aiImageDimensions(imageJob.size).height}` : ''} · ${imageModelLabel(imageJob.recipe)}`}
                     />
                   ) : null}
-                  {imageUi.busy ? <AiActivity image /> : null}
+                  {currentId ? (
+                    <AiWorkingFiles
+                      key={currentId + ':' + (seatId ?? '')}
+                      threadId={currentId}
+                      seatId={seatId}
+                      refreshKey={
+                        messages.length +
+                        ':' +
+                        busy +
+                        ':' +
+                        imageJob?.requestId +
+                        ':' +
+                        imageJob?.state
+                      }
+                      busy={busy}
+                      onSources={receiveWorkingSources}
+                      messages={messages}
+                      targets={workingTargets}
+                      latestRequestId={
+                        pendingMessage?.requestId ??
+                        pendingRegeneration?.requestId ??
+                        messages.filter((m) => m.role === 'user').at(-1)?.requestId
+                      }
+                    />
+                  ) : null}
+                  {imageUi.busy ? <AiActivity image imageSize={imageJob?.size} /> : null}
                 </div>
               </div>
             </div>
@@ -2026,15 +2168,6 @@ export function AiChatPage({
                   {checkingResult ? 'Проверяем…' : 'Проверить сохранённый ответ'}
                 </button>
               ) : null}
-              {currentId && !interactionBusy ? (
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={() => void selectThread(currentId)}
-                >
-                  Обновить переписку
-                </button>
-              ) : null}
             </div>
           ) : null}
           <div className="chat-composer-dock">
@@ -2058,7 +2191,10 @@ export function AiChatPage({
                   addFiles(Array.from(event.dataTransfer.files));
                 }}
               >
-                {attachments.length ? (
+                {preparingImages ? (
+                  <p role="status">Подготавливаем изображения в браузере…</p>
+                ) : null}
+                {attachments.length && !busy ? (
                   <div className="chat-attachment-drafts" aria-label="Выбранные вложения">
                     {attachments.map((item) => (
                       <div
@@ -2066,7 +2202,7 @@ export function AiChatPage({
                         className={
                           'chat-attachment-chip ' + (item.preview ? 'is-image' : 'is-file')
                         }
-                        data-ai-tooltip={`${item.file.name} · ${attachmentSize(item.file.size)}`}
+                        data-ai-tooltip={`${item.file.name} · ${attachmentSize(item.file.size)}${item.originalBytes && item.originalBytes > item.file.size ? ` · до: ${attachmentSize(item.originalBytes)} → после: ${attachmentSize(item.file.size)}` : ''}${item.dimensions ? ' · ' + item.dimensions : ''}`}
                       >
                         {item.preview ? (
                           <AiAttachmentPreview src={item.preview} name={item.file.name} />
@@ -2081,7 +2217,9 @@ export function AiChatPage({
                           <small>
                             {(item.file.type || item.file.name.split('.').at(-1) || 'файл') +
                               ' · ' +
-                              attachmentSize(item.file.size)}
+                              (item.originalBytes && item.originalBytes > item.file.size
+                                ? `${attachmentSize(item.originalBytes)} → ${attachmentSize(item.file.size)}`
+                                : attachmentSize(item.file.size))}
                           </small>
                         </span>
                         <button
@@ -2139,11 +2277,15 @@ export function AiChatPage({
                     </button>
                   </div>
                 ) : null}
+                <div className="chat-voice-slot" ref={setVoiceTarget} />
                 <textarea
                   ref={composer}
                   value={draft}
                   maxLength={3000}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    setDraft(event.target.value);
+                    dismissModelNotice();
+                  }}
                   onPaste={(event) => {
                     const files = Array.from(event.clipboardData.files);
                     if (!files.length) return;
@@ -2265,7 +2407,7 @@ export function AiChatPage({
                           data-ai-tooltip={
                             webSearchStatus?.enabled && webSearchStatus.configured
                               ? 'Включить поиск с источниками'
-                              : 'Интернет-поиск не подключён администратором'
+                              : 'Интернет-поиск сейчас недоступен'
                           }
                           onClick={() => {
                             setWebSearchMode('web');
@@ -2328,7 +2470,7 @@ export function AiChatPage({
                           data-ai-tooltip={
                             imageStatus?.enabled && imageStatus.ready
                               ? 'Создать моделью FLUX.2 Klein 4B'
-                              : 'Локальная генерация недоступна или выключена администратором'
+                              : 'Генерация изображений сейчас недоступна'
                           }
                           onClick={() => {
                             setImageSelection('flux2-klein-4b-v1');
@@ -2387,7 +2529,10 @@ export function AiChatPage({
                                   ? status?.ollamaModel || 'Локальная модель'
                                   : selectedModel || status?.model))
                           }
-                          onChange={setSelectedModel}
+                          onChange={(model) => {
+                            setSelectedModel(model);
+                            dismissModelNotice();
+                          }}
                           disabled={interactionBusy || !status?.enabled}
                           options={[
                             ...(status &&
@@ -2395,7 +2540,7 @@ export function AiChatPage({
                               ? [
                                   {
                                     value: selectedModel || status.model,
-                                    label: 'Выбранная модель недоступна — выберите другую',
+                                    label: 'Выбранная модель сейчас недоступна',
                                     disabled: true,
                                   },
                                 ]
@@ -2433,9 +2578,43 @@ export function AiChatPage({
                         </span>
                       )}
                     </div>
+                    {draft && !voiceBusy ? (
+                      <button
+                        type="button"
+                        className="chat-clear-draft"
+                        aria-label="Очистить текст"
+                        data-ai-tooltip="Очистить текст"
+                        disabled={
+                          creatingChat || threadActionBusy || archived || schoolPolicyDenied
+                        }
+                        onClick={() => {
+                          queuedVoiceSubmission.current = null;
+                          setDraft('');
+                          setOverflowTranscript(null);
+                          dismissModelNotice();
+                          composer.current?.focus();
+                        }}
+                      >
+                        <svg
+                          width="17"
+                          height="17"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          aria-hidden="true"
+                        >
+                          <path d="m6 6 12 12M18 6 6 18" />
+                        </svg>
+                      </button>
+                    ) : null}
                     <AiVoiceInput
                       key={(seatId ?? 'personal') + ':' + (currentId ?? 'new')}
                       call={call}
+                      target={voiceTarget}
+                      onModeChange={setVoiceMode}
+                      controller={voiceController}
                       disabled={
                         interactionBusy ||
                         archived ||
@@ -2443,16 +2622,21 @@ export function AiChatPage({
                         imageMode ||
                         !historyReady
                       }
-                      onTranscript={(text) => {
+                      onTranscript={(text, submit) => {
                         const result = mergeVoiceTranscript(draft, text);
                         setDraft(result.draft);
                         setOverflowTranscript(result.overflow);
+                        if (submit && result.overflow === null)
+                          queuedVoiceSubmission.current = {
+                            text: result.draft,
+                            version: selectedVersion.current,
+                          };
                         composer.current?.focus();
                         return result.overflow === null ? 'inserted' : 'overflow';
                       }}
                     />
                     <button
-                      type={composerBusy ? 'button' : 'submit'}
+                      type={composerBusy || voiceBusy ? 'button' : 'submit'}
                       className="chat-send-button"
                       data-ai-tooltip={
                         !composerBusy && !imageMode && selectedBudget?.available === false
@@ -2462,27 +2646,34 @@ export function AiChatPage({
                           : undefined
                       }
                       disabled={
+                        (voiceBusy && voiceMode !== 'recording') ||
                         (imageUi.busy && !imageUi.canCancel) ||
                         (!composerBusy && imageMode && !imageUi.canSubmit) ||
                         (!composerBusy && !imageMode && selectedBudget?.available === false) ||
                         (!composerBusy && ((!status?.enabled && !imageMode) || archived)) ||
+                        preparingImages ||
                         creatingChat ||
                         threadActionBusy ||
-                        (!composerBusy && (!historyReady || !draft.trim()))
+                        (!composerBusy &&
+                          (!historyReady || (!draft.trim() && voiceMode !== 'recording')))
                       }
                       onClick={
-                        composerBusy
-                          ? () => void (busy ? stop() : imageController.current?.cancel())
-                          : undefined
+                        voiceMode === 'recording'
+                          ? () => voiceController.current?.send()
+                          : composerBusy
+                            ? () => void (busy ? stop() : imageController.current?.cancel())
+                            : undefined
                       }
                       aria-label={
-                        composerBusy
-                          ? busy
-                            ? 'Остановить генерацию'
-                            : 'Отменить задание'
-                          : imageMode
-                            ? 'Создать изображение'
-                            : 'Отправить сообщение'
+                        voiceMode === 'recording'
+                          ? 'Распознать и отправить'
+                          : composerBusy
+                            ? busy
+                              ? 'Остановить генерацию'
+                              : 'Отменить задание'
+                            : imageMode
+                              ? 'Создать изображение'
+                              : 'Отправить сообщение'
                       }
                     >
                       {composerBusy ? (

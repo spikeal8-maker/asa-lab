@@ -147,6 +147,13 @@ export function describeAiAttachmentFile(filename: string): AiAttachmentFileDesc
       maxBytes: AI_ATTACHMENT_IMAGE_MAX_BYTES,
     };
   }
+  const documents: Record<string, string> = {
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  };
+  if (Object.hasOwn(documents, extension))
+    return { kind: 'text', mediaType: documents[extension]!, extension, maxBytes: 8 * 1024 * 1024 };
   if (!TEXT_EXTENSIONS.has(extension)) fail('ai_attachment_format_unsupported', 415);
   return {
     kind: 'text',
@@ -625,6 +632,8 @@ export function validateAiAttachment(bytes: Uint8Array, filename: string): Valid
   const file = describeAiAttachmentFile(filename);
   if (bytes.byteLength === 0) fail('ai_attachment_empty');
   if (bytes.byteLength > file.maxBytes) fail('ai_attachment_too_large', 413);
+  if (['pdf', 'docx', 'xlsx'].includes(file.extension))
+    fail('ai_attachment_format_unsupported', 415);
   if (file.kind === 'text') {
     let text: string;
     try {

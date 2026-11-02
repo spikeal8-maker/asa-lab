@@ -96,3 +96,29 @@ it('advertises only the configured FP8 recipe and rejects an unoffered v1 graph 
   expect(parseNativeToolCalls(call(recipe), offered)[0]?.arguments.model).toBe(recipe);
   expect(() => parseNativeToolCalls(call('flux2-klein-4b-v1'), offered)).toThrow();
 });
+
+it('admits only a closed unique HTML target when the binding capability is offered', () => {
+  const args = {
+    prompt: 'Лес',
+    size: 768,
+    model: 'flux2-klein-4b-v1',
+    target: { name: 'index.html', expectedVersion: 1, placeholder: 'ASA_GENERATED_IMAGE_PENDING' },
+  };
+  const call = (a: unknown) => [{ function: { name: 'generate_image', arguments: a } }];
+  const old = nativeTools({ search: false, weather: false, imageSizes: [768] });
+  const offered = nativeTools({
+    search: false,
+    weather: false,
+    imageSizes: [768],
+    imageFileTarget: true,
+  });
+  expect(() => parseNativeToolCalls(call(args), old)).toThrow();
+  expect(parseNativeToolCalls(call(args), offered)[0]?.arguments.target).toEqual(args.target);
+  for (const target of [
+    { ...args.target, name: '../x.html' },
+    { ...args.target, expectedVersion: 100 },
+    { ...args.target, placeholder: 'other' },
+    { ...args.target, url: 'https://example.com' },
+  ])
+    expect(() => parseNativeToolCalls(call({ ...args, target }), offered)).toThrow();
+});

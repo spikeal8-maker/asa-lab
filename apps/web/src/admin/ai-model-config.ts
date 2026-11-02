@@ -1,4 +1,4 @@
-export type AiProvider = 'openai' | 'deepseek' | 'ollama-cloud';
+export type AiProvider = 'openai' | 'deepseek' | 'ollama-cloud' | 'polza';
 
 export interface AiModelOption {
   readonly id: string;
@@ -59,7 +59,9 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function provider(value: unknown): value is AiProvider {
-  return value === 'openai' || value === 'deepseek' || value === 'ollama-cloud';
+  return (
+    value === 'openai' || value === 'deepseek' || value === 'ollama-cloud' || value === 'polza'
+  );
 }
 
 function nullableText(value: unknown): boolean {
@@ -81,7 +83,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     !models.length ||
     models.length > 2400 ||
     !Array.isArray(providers) ||
-    ![2, 3].includes(providers.length) ||
+    ![2, 3, 4].includes(providers.length) ||
     !Array.isArray(slots) ||
     slots.length !== providers.length ||
     !record(features) ||
@@ -116,9 +118,11 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     return false;
   const hasModel = (id: unknown, owner: unknown): boolean =>
     models.some((model) => model.id === id && model.provider === owner);
+  const hasSlotModel = (id: unknown, owner: unknown): boolean =>
+    hasModel(id, owner) || (owner === 'polza' && id === 'polza/unconfigured');
   if (
     new Set(models.map((model) => model.id)).size !== models.length ||
-    ![2, 3].includes(providers.length) ||
+    ![2, 3, 4].includes(providers.length) ||
     !providers.some((item) => record(item) && item['id'] === 'openai') ||
     !providers.some((item) => record(item) && item['id'] === 'deepseek') ||
     new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !==
@@ -128,7 +132,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
         record(item) &&
         provider(item['id']) &&
         typeof item['label'] === 'string' &&
-        hasModel(item['defaultModel'], item['id']),
+        hasSlotModel(item['defaultModel'], item['id']),
     ) ||
     slots.length !== providers.length ||
     new Set(slots.map((item) => (record(item) ? item['provider'] : null))).size !==
@@ -137,7 +141,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
       (item) =>
         record(item) &&
         provider(item['provider']) &&
-        hasModel(item['model'], item['provider']) &&
+        hasSlotModel(item['model'], item['provider']) &&
         typeof item['enabled'] === 'boolean' &&
         Number.isSafeInteger(item['revision']) &&
         Number(item['revision']) > 0 &&

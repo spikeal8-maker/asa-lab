@@ -73,6 +73,10 @@ const expectedPending = [
   '0292', // Publication author avatars and projects-only catalog projection.
   '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
   '0294', // Accepted additive games-network schema in Main.
+  '0295', // Bounded document extraction with private originals.
+  '0296', // Private working files and immutable revisions.
+  '0297', // Polza text provider and bounded model catalogue.
+  '0298', // Exact owner-bound generated-image HTML binding.
 ];
 
 interface Identity {

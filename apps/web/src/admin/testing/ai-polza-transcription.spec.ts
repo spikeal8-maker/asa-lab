@@ -79,7 +79,8 @@ it('shows compact real credential controls and a separate STT budget, without sp
   expect(key).not.toBeNull();
   expect(key?.value).toBe('');
   expect(host.textContent).toContain('Текст');
-  expect(host.textContent).toContain('Адаптер планируется');
+  expect(host.textContent).toContain('Модели выбираются в каталоге ниже');
+  expect(host.textContent).not.toContain('Адаптер планируется');
   expect(host.querySelector<HTMLButtonElement>('.asa-polza-primary')?.disabled).toBe(true);
   expect(vi.mocked(call).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
 
