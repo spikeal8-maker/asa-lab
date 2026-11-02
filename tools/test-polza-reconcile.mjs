@@ -274,3 +274,10 @@ test('a selected inactive model is never silently cleared to select a new one', 
   assert.deepEqual(h.calls, ['read']);
   assert.equal(h.state.catalog.items[0].selected, true);
 });
+
+test('read-only preflight uses public catalog projections, never restricted SQL functions', () => {
+  const operator = readFileSync(new URL('./polza-reconcile.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(operator, /SELECT public\.ai_model_available/);
+  assert.match(operator, /public\.ai_polza_catalog_runtime\(\)/);
+  assert.match(operator, /catalog\?\.credentialCurrent === true/);
+});
