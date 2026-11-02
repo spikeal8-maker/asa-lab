@@ -15,7 +15,7 @@ ALTER TABLE public.learning_submissions
       AND jsonb_typeof(payload_manifest->'text') = 'string'
       AND length(payload_manifest->>'text') BETWEEN 1 AND 40000
       AND payload_manifest->>'textHash' = payload_digest
-      AND encode(public.digest(convert_to(payload_manifest->>'text','UTF8'),'sha256'),'hex') = payload_digest
+      AND encode(pg_catalog.sha256(convert_to(payload_manifest->>'text','UTF8')),'hex') = payload_digest
       AND CASE WHEN jsonb_typeof(payload_manifest->'draftRevision')='number'
         AND (payload_manifest->>'draftRevision') ~ '^[0-9]{1,10}$'
         THEN (payload_manifest->>'draftRevision')::bigint BETWEEN 0 AND 2147483646
@@ -51,6 +51,26 @@ CREATE POLICY tenant_isolation ON public.learning_essay_command_receipts
   USING (tenant_id = NULLIF(current_setting('app.tenant_id',true),'')::uuid)
   WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id',true),'')::uuid);
 REVOKE ALL ON public.learning_essay_drafts,public.learning_essay_command_receipts FROM PUBLIC,asalab_app;
+
+-- Metadata only: the existing Account/Seat occurrence readers remain authority.
+CREATE FUNCTION public.learning_course_activity_kind_for_viewer(p_actor uuid,p_run uuid)
+RETURNS varchar LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,pg_temp AS $$
+  SELECT version.canonical_kind::varchar
+    FROM public.activity_runs run
+    JOIN public.learning_activity_versions version
+      ON version.id=run.learning_activity_version_id AND version.tenant_id=run.tenant_id
+    JOIN public.principals actor ON actor.id=p_actor
+   WHERE run.id=p_run AND (
+     (actor.kind='account' AND EXISTS (
+       SELECT 1 FROM public.classroom_course_activity_occurrences_for_account(actor.account_id) occurrence
+        WHERE occurrence.activity_run_id=run.id))
+     OR (actor.kind='student_seat' AND EXISTS (
+       SELECT 1 FROM public.classroom_course_activity_occurrences_for_seat(actor.seat_id) occurrence
+        WHERE occurrence.activity_run_id=run.id)))
+$$;
+REVOKE ALL ON FUNCTION public.learning_course_activity_kind_for_viewer(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_course_activity_kind_for_viewer(uuid,uuid) TO asalab_app;
 
 -- Resolve today's exact school-scoped learner authority before any receipt,
 -- draft or frozen answer is read. Account status never gates a Seat principal.
@@ -227,7 +247,7 @@ BEGIN
   scope:=public.learning_essay_access(p_actor,p_run);
   IF scope IS NULL THEN RETURN jsonb_build_object('resultCode','forbidden'); END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_actor::text||':'||p_request,302));
-  fingerprint:=encode(public.digest(jsonb_build_array('start',p_run)::text,'sha256'),'hex');
+  fingerprint:=encode(pg_catalog.sha256(convert_to(jsonb_build_array('start',p_run)::text,'UTF8')),'hex');
   SELECT * INTO receipt FROM public.learning_essay_command_receipts
     WHERE actor_principal_id=p_actor AND request_id=p_request;
   IF receipt.request_digest IS NOT NULL THEN
@@ -286,7 +306,7 @@ BEGIN
   scope:=public.learning_essay_access(p_actor,p_run);
   IF scope IS NULL THEN RETURN jsonb_build_object('resultCode','forbidden'); END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_actor::text||':'||p_request,302));
-  fingerprint:=encode(public.digest(jsonb_build_array('save',p_run,p_attempt,p_expected,p_text)::text,'sha256'),'hex');
+  fingerprint:=encode(pg_catalog.sha256(convert_to(jsonb_build_array('save',p_run,p_attempt,p_expected,p_text)::text,'UTF8')),'hex');
   SELECT * INTO receipt FROM public.learning_essay_command_receipts
     WHERE actor_principal_id=p_actor AND request_id=p_request;
   IF receipt.request_digest IS NOT NULL THEN
@@ -322,7 +342,7 @@ BEGIN
   scope:=public.learning_essay_access(p_actor,p_run);
   IF scope IS NULL THEN RETURN jsonb_build_object('resultCode','forbidden'); END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended(p_actor::text||':'||p_request,302));
-  fingerprint:=encode(public.digest(jsonb_build_array('submit',p_run,p_attempt,p_expected)::text,'sha256'),'hex');
+  fingerprint:=encode(pg_catalog.sha256(convert_to(jsonb_build_array('submit',p_run,p_attempt,p_expected)::text,'UTF8')),'hex');
   SELECT * INTO receipt FROM public.learning_essay_command_receipts
     WHERE actor_principal_id=p_actor AND request_id=p_request;
   IF receipt.request_digest IS NOT NULL THEN
@@ -340,7 +360,7 @@ BEGIN
   IF draft.response_text ~ '^[[:space:]]*$' THEN RETURN jsonb_build_object('resultCode','response_required'); END IF;
   IF EXISTS(SELECT 1 FROM public.learning_submissions WHERE tenant_id=(scope->>'tenantId')::uuid
     AND client_request_id=p_request) THEN RETURN jsonb_build_object('resultCode','request_conflict'); END IF;
-  text_hash:=encode(public.digest(convert_to(draft.response_text,'UTF8'),'sha256'),'hex');
+  text_hash:=encode(pg_catalog.sha256(convert_to(draft.response_text,'UTF8')),'hex');
   late_state:=CASE WHEN (scope#>>'{effective,values,dueAt}')::timestamptz<now() THEN 'late' ELSE 'on_time' END;
   INSERT INTO public.learning_submissions(tenant_id,attempt_id,project_id,project_version_id,
     payload_manifest,payload_digest,client_request_id,late_state)
@@ -383,7 +403,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
   WHERE attempt.id=p_attempt AND attempt.classroom_id=p_class
     AND submission.payload_manifest->>'kind'='essay'
     AND jsonb_typeof(submission.payload_manifest->'text')='string'
-    AND submission.payload_digest=encode(public.digest(convert_to(submission.payload_manifest->>'text','UTF8'),'sha256'),'hex')
+    AND submission.payload_digest=encode(pg_catalog.sha256(convert_to(submission.payload_manifest->>'text','UTF8')),'hex')
     AND EXISTS(SELECT 1 FROM public.classroom_memberships membership
       WHERE membership.tenant_id=attempt.tenant_id AND membership.classroom_id=p_class
         AND membership.account_id=p_account AND membership.member_role IN ('owner','co_teacher'));
@@ -776,8 +796,8 @@ BEGIN
  OR length(COALESCE(p_feedback,''))>8000 OR length(COALESCE(p_reason,''))>1000 THEN
    RETURN QUERY SELECT 'invalid_review'::varchar,NULL::uuid,NULL::uuid,NULL::varchar,NULL::integer; RETURN;
  END IF;
- v_digest:=encode(public.digest(convert_to(jsonb_build_array(p_attempt_id,p_reviewer_principal_id,p_decision,
-   p_points,p_feedback,p_reason,p_expected_result_id)::text,'UTF8'),'sha256'),'hex');
+ v_digest:=encode(pg_catalog.sha256(convert_to(jsonb_build_array(p_attempt_id,p_reviewer_principal_id,p_decision,
+   p_points,p_feedback,p_reason,p_expected_result_id)::text,'UTF8')),'hex');
  PERFORM pg_advisory_xact_lock(hashtextextended(v_access.tenant_id::text||p_request_id,1112));
  SELECT * INTO v_retry FROM public.assessment_results WHERE tenant_id=v_access.tenant_id AND client_request_id=p_request_id;
  IF v_retry.id IS NOT NULL THEN

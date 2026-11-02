@@ -129,6 +129,17 @@ export function EssayResponseEditor({
   const leave = () => {
     if (operation.current) return false;
     const current = responseRef.current;
+    if (recoveryRef.current) {
+      if (
+        !window.confirm(
+          'Несохранённый текст предыдущего редактирования будет потерян. Выйти и удалить этот текст?',
+        )
+      )
+        return false;
+      localDrafts.delete(key(recoveryRef.current.attemptId));
+      recoveryRef.current = null;
+      setRecovery(null);
+    }
     if (!current?.attempt || textRef.current === current.attempt.text) return true;
     return window.confirm(
       'Ответ ещё не сохранён. Выйти из задания? Текст останется в этой учебной сессии.',

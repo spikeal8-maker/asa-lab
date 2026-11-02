@@ -1452,11 +1452,8 @@ export class ClassroomJoinController {
       this.canonical().forAccountCourseRuns(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
-                (SELECT typed_version.canonical_kind FROM learning_activity_versions typed_version
-                  WHERE typed_version.id=occurrence.learning_activity_version_id) AS activity_kind,
-                CASE WHEN EXISTS(SELECT 1 FROM learning_activity_versions essay_version
-                  WHERE essay_version.id=occurrence.learning_activity_version_id
-                    AND essay_version.canonical_kind='essay')
+                learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id) AS activity_kind,
+                CASE WHEN learning_course_activity_kind_for_viewer($2,occurrence.activity_run_id)='essay'
                   THEN learning_essay_attempt_read($2,occurrence.activity_run_id)
                   ELSE NULL END AS essay_context,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
@@ -1657,11 +1654,8 @@ export class ClassroomJoinController {
       this.canonical().forSeatCourseRuns(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
-                (SELECT typed_version.canonical_kind FROM learning_activity_versions typed_version
-                  WHERE typed_version.id=occurrence.learning_activity_version_id) AS activity_kind,
-                CASE WHEN EXISTS(SELECT 1 FROM learning_activity_versions essay_version
-                  WHERE essay_version.id=occurrence.learning_activity_version_id
-                    AND essay_version.canonical_kind='essay')
+                learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id) AS activity_kind,
+                CASE WHEN learning_course_activity_kind_for_viewer(principal_for_seat($1),occurrence.activity_run_id)='essay'
                   THEN learning_essay_attempt_read(principal_for_seat($1),occurrence.activity_run_id)
                   ELSE NULL END AS essay_context,
                 learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,

@@ -506,58 +506,84 @@ describe('compact written-response editor', () => {
     },
   );
 
-  it('recovers unsent text into a new returned attempt only after the learner explicitly chooses it', async () => {
-    server.attempt = { ...server.attempt!, revision: 1, text: 'Сданный ответ А' };
-    await mount();
-    await type('Несохранённый ответ Б');
-    await act(async () => root!.unmount());
-    root = null;
-    container.remove();
-    server = {
-      ...server,
-      canEdit: false,
-      canStart: true,
-      attempt: {
-        ...server.attempt!,
-        state: 'closed',
-        reviewDecision: 'changes_requested',
-        submissionId: '55555555-5555-4555-8555-555555555555',
-      },
-    };
-    await mount();
-    vi.mocked(api.startEssayLearning).mockImplementationOnce(async () => {
+  it.each([false, true])(
+    'requires a recovery choice after starting rework and before leaving (discard=%s)',
+    async (discard) => {
+      server.attempt = { ...server.attempt!, revision: 1, text: 'Сданный ответ А' };
+      await mount();
+      await type('Несохранённый ответ Б');
+      await act(async () => root!.unmount());
+      root = null;
+      container.remove();
       server = {
         ...server,
-        canEdit: true,
-        canStart: false,
+        canEdit: false,
+        canStart: true,
         attempt: {
           ...server.attempt!,
-          id: '88888888-8888-4888-8888-888888888888',
-          revision: 0,
-          number: 2,
-          state: 'in_progress',
-          revisionOfAttemptId: ATTEMPT,
-          submissionId: null,
-          reviewDecision: null,
+          state: 'closed',
+          reviewDecision: 'changes_requested',
+          submissionId: '55555555-5555-4555-8555-555555555555',
         },
       };
-      return ok(server);
-    });
-    await click('Начать доработку');
-    expect(field().value).toBe('Сданный ответ А');
-    const details = container.querySelector<HTMLDetailsElement>('.essay-response-recovery')!;
-    details.open = true;
-    await click('Использовать в новой попытке');
-    expect(field().value).toBe('Несохранённый ответ Б');
-    expect(api.saveEssayLearning).not.toHaveBeenCalled();
-    await click('Сохранить ответ');
-    expect(api.saveEssayLearning).toHaveBeenCalledWith(
-      RUN,
-      expect.objectContaining({
-        attemptId: '88888888-8888-4888-8888-888888888888',
-        expectedRevision: 0,
-        text: 'Несохранённый ответ Б',
-      }),
-    );
-  });
+      await mount();
+      vi.mocked(api.startEssayLearning).mockImplementationOnce(async () => {
+        server = {
+          ...server,
+          canEdit: true,
+          canStart: false,
+          attempt: {
+            ...server.attempt!,
+            id: '88888888-8888-4888-8888-888888888888',
+            revision: 0,
+            number: 2,
+            state: 'in_progress',
+            revisionOfAttemptId: ATTEMPT,
+            submissionId: null,
+            reviewDecision: null,
+          },
+        };
+        return ok(server);
+      });
+      await click('Начать доработку');
+      expect(field().value).toBe('Сданный ответ А');
+      expect(guard!()).toBe(false);
+      expect(window.confirm).toHaveBeenLastCalledWith(
+        'Несохранённый текст предыдущего редактирования будет потерян. Выйти и удалить этот текст?',
+      );
+      expect(
+        container.querySelector<HTMLTextAreaElement>(
+          '[aria-label="Локальный несохранённый текст"]',
+        )!.value,
+      ).toBe('Несохранённый ответ Б');
+      const unload = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(unload);
+      expect(unload.defaultPrevented).toBe(true);
+      if (discard) {
+        vi.mocked(window.confirm).mockReturnValueOnce(true);
+        await act(async () => expect(guard!()).toBe(true));
+        await act(async () => root!.unmount());
+        root = null;
+        container.remove();
+        await mount();
+        expect(field().value).toBe('Сданный ответ А');
+        expect(container.querySelector('[aria-label="Локальный несохранённый текст"]')).toBeNull();
+        return;
+      }
+      const details = container.querySelector<HTMLDetailsElement>('.essay-response-recovery')!;
+      details.open = true;
+      await click('Использовать в новой попытке');
+      expect(field().value).toBe('Несохранённый ответ Б');
+      expect(api.saveEssayLearning).not.toHaveBeenCalled();
+      await click('Сохранить ответ');
+      expect(api.saveEssayLearning).toHaveBeenCalledWith(
+        RUN,
+        expect.objectContaining({
+          attemptId: '88888888-8888-4888-8888-888888888888',
+          expectedRevision: 0,
+          text: 'Несохранённый ответ Б',
+        }),
+      );
+    },
+  );
 });

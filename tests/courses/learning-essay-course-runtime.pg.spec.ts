@@ -77,9 +77,7 @@ async function fixture(withMedia = false) {
         'Объясните своими словами.',
         JSON.stringify(policies),
         key('create'),
-        withMedia
-          ? JSON.stringify([{ type: 'file', name: 'Условия.pdf', contentHash: taskHash }])
-          : null,
+        null,
       ],
     );
     expect(activity.rows[0].result_code).toBe('ok');
@@ -386,6 +384,10 @@ describe('written-response exact Course academic chain', () => {
   it('enforces Seat/Account stable links, current access and teacher scope before every answer or receipt', async () => {
     const data = await fixture(true);
     const run = data.runs[0]!;
+    const kind = (actor: string) =>
+      app.query('SELECT learning_course_activity_kind_for_viewer($1,$2) AS kind', [actor, run.id]);
+    expect((await kind(data.seat.principal)).rows[0].kind).toBe('essay');
+    expect((await kind(randomUUID())).rows[0].kind).toBeNull();
     const first = await start(data.seat.principal, run.id);
     const saveRequest = key('private-save');
     await save(data.seat.principal, run.id, first.attempt!.id, 0, 'Личный ответ', saveRequest);
@@ -412,6 +414,7 @@ describe('written-response exact Course academic chain', () => {
       [accountId, first.participationId],
     );
     expect((await read(accountPrincipal, run.id)).attempt?.text).toBe('Личный ответ');
+    expect((await kind(accountPrincipal)).rows[0].kind).toBe('essay');
     const media = (actor: string) =>
       app.query("SELECT * FROM learning_essay_media_read($1,$2,'file',$3)", [
         actor,
