@@ -59,3 +59,18 @@ failures or successful gates. Course and AI-prefix upgrade fixtures now explicit
 admit that accepted additive migration; SQL and strict history comparisons remain
 unchanged. Only those upgrade suites need a repeat after this integration delta.
 No Chess product code, game behavior or permissions were edited by this repair.
+
+## Registration quota in the full browser suite
+
+The next completed publication run passed 29/30 scenarios; the remaining Seat-like
+scenario hit the real per-address registration budget (60/hour) during setup.
+The likes file now registers its author and moderator once per worker and reuses
+their genuine server-issued storage state in separate browser contexts. The Account
+reader is still registered normally; the Seat still joins its own classroom normally.
+This reduces setup registrations from five to three across the two scenarios.
+Each scenario retains its own publication, assertions and cleanup. No mocked session,
+IP spoofing, quota reset, limiter configuration change or skipped 429 assertion.
+
+Both real Account/Seat likes browser scenarios pass on desktop/mobile, along with
+source lint, formatting and TypeScript. Full-suite confirmation remains a separate
+GitHub run. Runtime and working-site deployment are unchanged.
