@@ -5059,7 +5059,26 @@ for (const { mode, segment, widths } of compactControlSegments) {
       mode: 'text' | 'blocks-text' | 'blocks' = 'text',
       expectedSource = source,
     ) {
-      const observation = await page.evaluate((phase) => {
+      const { observeActualIntersections } =
+        await import('../tests/electronics/actual-intersections');
+      // This union includes every control inspected below, including hidden popup controls.
+      const intersectionSelector = [
+        '.workbench-pill.simulate',
+        '.workbench-toolbar-group > button',
+        '.workbench-toolbar-group > strong',
+        '.workbench-toolbar-group > details > summary',
+        '.arduino-code-toolbar > details > summary',
+        '.arduino-code-toolbar > button',
+        '.arduino-code-toolbar > select',
+        '.arduino-code-toolbar .arduino-font-size-select > select',
+        '.workbench-simulation-time',
+        '[aria-label="Цвет провода: Фиолетовый"]',
+      ].join(', ');
+      const intersections = await page.evaluate(observeActualIntersections, intersectionSelector);
+      const intersectionCapture = { phase, intersections, intersectionSelector };
+      const observation = await page.evaluate((capture) => {
+        const { phase, intersections, intersectionSelector } = capture;
+        const intersectionTargets = Array.from(document.querySelectorAll(intersectionSelector));
         const bounds = (rect: DOMRect) => ({
           left: rect.left,
           top: rect.top,
@@ -5072,6 +5091,8 @@ for (const { mode, segment, widths } of compactControlSegments) {
           '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
         );
         function inspect(element: Element) {
+          const intersection = intersections[intersectionTargets.indexOf(element)];
+          if (!intersection) throw new Error('Missing actual control intersection');
           const rect = element.getBoundingClientRect();
           const style = getComputedStyle(element);
           const textRects: ReturnType<typeof bounds>[] = [];
@@ -5147,6 +5168,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
             ),
             textRects,
             clips,
+            intersection,
             points,
             selectedText,
             selectedTextWidth:
@@ -5235,7 +5257,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
           codeMode: codeToolbar.className,
           componentCount: document.querySelectorAll('[data-testid="schematic-component"]').length,
         };
-      }, phase);
+      }, intersectionCapture);
       observations.push(observation);
       writeFileSync(
         resolve(evidenceDir, 'geometry.json'),
@@ -5281,16 +5303,12 @@ for (const { mode, segment, widths } of compactControlSegments) {
             );
           }),
         ).toBe(true);
-        for (const clip of control.clips) {
-          if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowX)) {
-            expect(control.rect.left).toBeGreaterThanOrEqual(clip.left - 1);
-            expect(control.rect.right).toBeLessThanOrEqual(clip.right + 1);
-          }
-          if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowY)) {
-            expect(control.rect.top).toBeGreaterThanOrEqual(clip.top - 1);
-            expect(control.rect.bottom).toBeLessThanOrEqual(clip.bottom + 1);
-          }
-        }
+        // The browser resolves real clipping, including fixed containing blocks.
+        // Overflow ancestors above remain diagnostic; they are not all actual clips.
+        expect(control.rect.left).toBeGreaterThanOrEqual(control.intersection.left - 1);
+        expect(control.rect.right).toBeLessThanOrEqual(control.intersection.right + 1);
+        expect(control.rect.top).toBeGreaterThanOrEqual(control.intersection.top - 1);
+        expect(control.rect.bottom).toBeLessThanOrEqual(control.intersection.bottom + 1);
         for (const text of control.textRects) {
           expect(text.left).toBeGreaterThanOrEqual(control.rect.left - 1);
           expect(text.right).toBeLessThanOrEqual(control.rect.right + 1);
