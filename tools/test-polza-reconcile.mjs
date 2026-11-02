@@ -281,3 +281,14 @@ test('read-only preflight uses public catalog projections, never restricted SQL 
   assert.match(operator, /public\.ai_polza_catalog_runtime\(\)/);
   assert.match(operator, /catalog\?\.credentialCurrent === true/);
 });
+
+test('integrated release CI executes both stale-tab and Polza setup guards', () => {
+  const workflow = readFileSync(
+    new URL('../.github/workflows/ai-chat-focused.yml', import.meta.url),
+    'utf8',
+  );
+  assert.match(workflow, /run: node --test tools\/test-web-release-update\.mjs/);
+  assert.match(workflow, /run: node --test tools\/test-polza-reconcile\.mjs/);
+  assert.match(workflow, /'apps\/web\/public\/vite-preload-recovery\.js'/);
+  assert.match(workflow, /'tools\/polza-reconcile\*\.mjs'/);
+});
