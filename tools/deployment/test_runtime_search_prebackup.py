@@ -18,7 +18,7 @@ from deployment.system import Installation
 
 OLD = "a" * 40
 NEW = "b" * 40
-RELEASE = {"revision": NEW, "schema": 274, "images": {"search": "target-search-digest"}}
+RELEASE = {"format": "asa-deployment-v2", "revision": NEW, "schema": 274, "images": {"search": "target-search-digest"}}
 
 
 class Response(io.BytesIO):
@@ -93,6 +93,13 @@ class RuntimeSearchPrebackupTests(unittest.TestCase):
                 root = Path(directory)
                 factory, runtime, calls, urlopen = self.fixture(root, search=search)
                 selected = []
+                fetched = []
+
+                def fetched_target(release, *, install):
+                    self.assertIs(release, RELEASE)
+                    self.assertIsInstance(install, factory)
+                    self.assertEqual(install.root, root)
+                    fetched.append(install)
 
                 def validated_target(install, release):
                     self.assertEqual(install.process_env["ASA_SEARCH_IMAGE"], RELEASE["images"]["search"])
@@ -105,7 +112,7 @@ class RuntimeSearchPrebackupTests(unittest.TestCase):
                     "attest_editor_env": lambda *a, **k: None,
                     "discover_release": lambda: RELEASE,
                     "assert_ci": lambda *a: None,
-                    "fetch_images": lambda *a: None,
+                    "fetch_images": fetched_target,
                     "selected_source": lambda *a, **k: None,
                     "prepare_collector": lambda *a: {"readerGroupChanged": False},
                     "validate_resolved_images": validated_target,
@@ -122,6 +129,7 @@ class RuntimeSearchPrebackupTests(unittest.TestCase):
                     with self.assertRaises(Blocked) as problem:
                         asa_manager.update(factory(root))
                 self.assertEqual(problem.exception.code, "TEST_DUMP")
+                self.assertEqual(len(fetched), 1)
                 self.assertEqual(len(selected), 1)
                 self.assertEqual(selected[0].process_env["ASA_SEARCH_IMAGE"], RELEASE["images"]["search"])
                 self.assertIn(("start", "web", "api", "scratch", "minio"), calls)
