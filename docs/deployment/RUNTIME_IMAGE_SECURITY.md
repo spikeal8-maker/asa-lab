@@ -44,7 +44,9 @@ not an acceptance criterion for this new baseline.
 Existing general/electronics CI transports intentionally continue to use their
 previous immutable fixtures. Passing those jobs alone does **not** qualify the
 new runtime inputs. The `Runtime Image Security` workflow builds API/web with
-their new default inputs and pulls the exact candidate PostgreSQL digest.
+their new default inputs and pulls the exact candidate PostgreSQL digest. Its
+checkout, build revision and artifact identity all use the same PR head SHA (or
+the dispatch SHA), rather than labelling an implicit PR merge-tree as head code.
 
 ## Evidence and limitations
 

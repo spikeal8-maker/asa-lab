@@ -11,6 +11,13 @@ from runtime_image_baseline import BASELINE, runtime_defaults
 
 
 class RuntimeImageBaselineTests(unittest.TestCase):
+    def test_security_ci_builds_the_same_head_sha_it_labels_and_reports(self):
+        workflow = (ROOT / '.github/workflows/runtime-image-security.yml').read_text()
+        revision = '${{ github.event.pull_request.head.sha || github.sha }}'
+        self.assertIn('ref: ' + revision, workflow)
+        self.assertIn('REVISION: ' + revision, workflow)
+        self.assertIn('runtime-security-${{ matrix.service }}-' + revision, workflow)
+
     def test_docker_defaults_match_reviewed_immutable_images(self):
         defaults = runtime_defaults()
         for filename in ['Dockerfile.api', 'Dockerfile.web']:
