@@ -3115,13 +3115,11 @@ test('Written Course response: compact author, Seat and Account drafts, immutabl
     .getByLabel('Содержание', { exact: true })
     .fill('Сформулируйте вывод, объясните причину и проверьте аргументы.');
   await author.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
-  await author
-    .getByLabel('PDF файл задания')
-    .setInputFiles({
-      name: 'essay-instructions.pdf',
-      mimeType: 'application/pdf',
-      buffer: essayPdf,
-    });
+  await author.getByLabel('PDF файл задания').setInputFiles({
+    name: 'essay-instructions.pdf',
+    mimeType: 'application/pdf',
+    buffer: essayPdf,
+  });
   await expect(author.getByText('PDF добавлен в содержание задания.')).toBeVisible();
   await author.getByRole('button', { name: 'Настройки', exact: true }).click();
   const settings = author.getByRole('dialog', { name: 'Настройки', exact: true });
@@ -3284,7 +3282,27 @@ test('Written Course response: compact author, Seat and Account drafts, immutabl
   await review.getByLabel('Попытка', { exact: true }).selectOption(firstFrozen.attempt.id);
   await expect(review.getByTestId('submission-essay-text')).toHaveText(firstAnswer);
   await review.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
-  await page.screenshot({ path: `${evidenceDir}/essay-journal-accepted.png`, fullPage: false });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await seatCell.scrollIntoViewIfNeeded();
+    await expect(seatCell).toContainText('8/10');
+    const matrix = page.locator('.gradebook-matrix-scroll');
+    await expect(matrix).toBeVisible();
+    expect(
+      await matrix.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return box.left >= 0 && box.right <= innerWidth + 1;
+      }),
+    ).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/essay-journal-accepted-${width}.png`,
+      fullPage: false,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await learner.page.reload();
   await expect(responseEditor.getByRole('status')).toContainText('Ответ сдан');
   await learner.page.getByRole('button', { name: 'Отметить пройденным', exact: true }).click();

@@ -379,6 +379,11 @@ const upgradeArtifacts = [
     '0300_ai_image_durable_queue.sql',
     '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
   ],
+  [
+    '0302',
+    '0302_learning_essay_course_runtime.sql',
+    'fe7b8bfe5b178a2713e997cfabf17d017e032dbdf27899af4054b2aa6fa6a107',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;

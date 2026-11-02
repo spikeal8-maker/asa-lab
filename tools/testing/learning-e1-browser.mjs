@@ -434,7 +434,7 @@ function main() {
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
-    'Ordered declaration union must be all 18 course cases exactly once.',
+    'Ordered declaration union must be all 19 course cases exactly once.',
   );
   write(path.join(evidence, 'plan.json'), {
     playwright: '1.55.1',

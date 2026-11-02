@@ -417,7 +417,7 @@ export function visibilityLabel(value: string): string {
 export interface PublishedCoursePin {
   /** JSON pointer into this exact immutable outline, never a mutable root. */
   pointer: string;
-  pinKind: 'project' | 'manual';
+  pinKind: 'project' | 'essay' | 'manual';
   available: boolean;
   activityId: string | null;
   versionId: string | null;

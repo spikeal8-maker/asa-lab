@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type EssayLearningResponse } from '../../api';
 import { EssayResponseEditor } from '../../components/EssayResponseEditor';
+import { TaskBlocks } from '../../components/TaskBlocks';
 import { setTelemetryContext } from '../../telemetry-context';
 
 const RUN = '11111111-1111-4111-8111-111111111111';
@@ -335,5 +336,228 @@ describe('compact written-response editor', () => {
       await flush();
     });
     expect(field().value).toBe('Новый ученик');
+  });
+
+  it('recognizes a saved but lost acknowledgement after remount without inventing a text conflict', async () => {
+    await mount();
+    await type('Уже подтверждённый сервером ответ');
+    vi.mocked(api.saveEssayLearning).mockImplementationOnce(async (_run, input) => {
+      server.attempt = { ...server.attempt!, text: input.text, revision: 1 };
+      throw new Error('lost acknowledgement');
+    });
+    await click('Сохранить ответ');
+    await act(async () => root!.unmount());
+    root = null;
+    container.remove();
+    await mount();
+    expect(field().value).toBe('Уже подтверждённый сервером ответ');
+    expect(container.textContent).toContain('Ответ сохранён');
+    expect(container.textContent).not.toContain('Загрузить сохранённый ответ');
+    expect(button('Сдать ответ').disabled).toBe(false);
+  });
+
+  it('does not let an old learner acknowledgement unlock the new learner pending operation', async () => {
+    await mount();
+    await type('Старый ответ');
+    let oldFinish!: (value: ReturnType<typeof ok>) => void;
+    let newFinish!: (value: ReturnType<typeof ok>) => void;
+    vi.mocked(api.saveEssayLearning).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          oldFinish = resolve;
+        }),
+    );
+    await click('Сохранить ответ');
+    await act(async () => {
+      server.attempt = { ...server.attempt!, text: 'Новый ответ', revision: 4 };
+      setTelemetryContext(
+        {
+          kind: 'student',
+          seatId: 'a0000000-0000-4000-8000-000000000001',
+          classId: '60000000-0000-4000-8000-000000000001',
+        },
+        true,
+        'learning',
+      );
+      await flush();
+    });
+    await type('Текст нового ученика');
+    vi.mocked(api.saveEssayLearning).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          newFinish = resolve;
+        }),
+    );
+    await click('Сохранить ответ');
+    await act(async () => {
+      oldFinish(
+        ok({
+          ...server,
+          attempt: { ...server.attempt!, text: 'Старое подтверждение', revision: 1 },
+        }),
+      );
+      await flush();
+    });
+    expect(field().disabled).toBe(true);
+    expect(guard?.()).toBe(false);
+    expect(api.saveEssayLearning).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      newFinish(
+        ok({
+          ...server,
+          attempt: { ...server.attempt!, text: 'Текст нового ученика', revision: 5 },
+        }),
+      );
+      await flush();
+    });
+    expect(field().value).toBe('Текст нового ученика');
+    expect(field().disabled).toBe(false);
+  });
+
+  it('uses only the exact essay role and digest media URLs without broadening task resource origins', async () => {
+    await mount();
+    const hash = 'a'.repeat(64);
+    const image = `/api/learning/essay/runs/${RUN}/media/image/${hash}`;
+    const file = `/api/learning/essay/runs/${RUN}/media/file/${hash}`;
+    const fetch = vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false } as Response);
+    await act(async () =>
+      root!.render(
+        createElement(TaskBlocks, {
+          blocks: [
+            { type: 'image', alt: 'Условия', contentHash: hash, src: image },
+            { type: 'file', name: 'Условия.pdf', contentHash: hash, src: file },
+          ],
+        }),
+      ),
+    );
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(image);
+    await click('Скачать PDF');
+    expect(fetch).toHaveBeenCalledWith(file, { credentials: 'same-origin', cache: 'no-store' });
+    await act(async () =>
+      root!.render(
+        createElement(TaskBlocks, {
+          blocks: [
+            {
+              type: 'image',
+              alt: 'Условия',
+              contentHash: hash,
+              src: 'https://outside.test' + image,
+            },
+            { type: 'file', name: 'Условия.pdf', contentHash: hash, src: image },
+          ],
+        }),
+      ),
+    );
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(
+      `/api/assignments/task-images/${hash}`,
+    );
+    await click('Скачать PDF');
+    expect(fetch).toHaveBeenLastCalledWith(`/api/assignments/task-files/${hash}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+  });
+
+  it.each(['submitted', 'evaluating', 'closed'] as const)(
+    'shows frozen server text after another device moves the same revision to %s, preserving unsent text separately',
+    async (state) => {
+      server.attempt = { ...server.attempt!, revision: 1, text: 'Официально сохранённый ответ А' };
+      await mount();
+      await type('Несохранённый локальный ответ Б');
+      await act(async () => root!.unmount());
+      root = null;
+      container.remove();
+      server = {
+        ...server,
+        canEdit: false,
+        attempt: {
+          ...server.attempt!,
+          state,
+          submissionId: '55555555-5555-4555-8555-555555555555',
+          submittedAt: '2026-11-02T12:10:00.000Z',
+          digest: 'a'.repeat(64),
+          reviewDecision: state === 'closed' ? 'accepted' : null,
+        },
+      };
+      await mount();
+      expect(field().value).toBe('Официально сохранённый ответ А');
+      expect(field().disabled).toBe(true);
+      expect(
+        container.querySelector<HTMLTextAreaElement>('[aria-label="Локальный несохранённый текст"]')
+          ?.value,
+      ).toBe('Несохранённый локальный ответ Б');
+      expect(container.querySelector<HTMLDetailsElement>('.essay-response-recovery')?.open).toBe(
+        false,
+      );
+      expect(container.textContent).toContain('Этот текст не был сдан');
+      await act(async () => {
+        setTelemetryContext(
+          {
+            kind: 'student',
+            seatId: 'b0000000-0000-4000-8000-000000000001',
+            classId: '60000000-0000-4000-8000-000000000001',
+          },
+          true,
+          'learning',
+        );
+        await flush();
+      });
+      expect(container.querySelector('[aria-label="Локальный несохранённый текст"]')).toBeNull();
+    },
+  );
+
+  it('recovers unsent text into a new returned attempt only after the learner explicitly chooses it', async () => {
+    server.attempt = { ...server.attempt!, revision: 1, text: 'Сданный ответ А' };
+    await mount();
+    await type('Несохранённый ответ Б');
+    await act(async () => root!.unmount());
+    root = null;
+    container.remove();
+    server = {
+      ...server,
+      canEdit: false,
+      canStart: true,
+      attempt: {
+        ...server.attempt!,
+        state: 'closed',
+        reviewDecision: 'changes_requested',
+        submissionId: '55555555-5555-4555-8555-555555555555',
+      },
+    };
+    await mount();
+    vi.mocked(api.startEssayLearning).mockImplementationOnce(async () => {
+      server = {
+        ...server,
+        canEdit: true,
+        canStart: false,
+        attempt: {
+          ...server.attempt!,
+          id: '88888888-8888-4888-8888-888888888888',
+          revision: 0,
+          number: 2,
+          state: 'in_progress',
+          revisionOfAttemptId: ATTEMPT,
+          submissionId: null,
+          reviewDecision: null,
+        },
+      };
+      return ok(server);
+    });
+    await click('Начать доработку');
+    expect(field().value).toBe('Сданный ответ А');
+    const details = container.querySelector<HTMLDetailsElement>('.essay-response-recovery')!;
+    details.open = true;
+    await click('Использовать в новой попытке');
+    expect(field().value).toBe('Несохранённый ответ Б');
+    expect(api.saveEssayLearning).not.toHaveBeenCalled();
+    await click('Сохранить ответ');
+    expect(api.saveEssayLearning).toHaveBeenCalledWith(
+      RUN,
+      expect.objectContaining({
+        attemptId: '88888888-8888-4888-8888-888888888888',
+        expectedRevision: 0,
+        text: 'Несохранённый ответ Б',
+      }),
+    );
   });
 });

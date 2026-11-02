@@ -4,6 +4,7 @@ import { subscribeTelemetry, telemetryContext } from '../telemetry-context';
 import { GrowingTextarea } from './GrowingTextarea';
 
 type LocalDraft = { text: string; revision: number };
+type RecoveryDraft = LocalDraft & { attemptId: string };
 // Recovery of unsent text only. No browser persistence or academic state lives
 // here; a fresh authorized server read is required before using an entry.
 const localDrafts = new Map<string, LocalDraft>();
@@ -30,6 +31,9 @@ export function EssayResponseEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflict, setConflict] = useState<EssayLearningResponse | null>(null);
+  const [recovery, setRecovery] = useState<RecoveryDraft | null>(null);
+  const recoveryRef = useRef(recovery);
+  recoveryRef.current = recovery;
   const [retry, setRetry] = useState(0);
   const textRef = useRef(text);
   const responseRef = useRef(response);
@@ -69,7 +73,16 @@ export function EssayResponseEditor({
     value.activityRunId === activityRunId && value.activityVersionId === activityVersionId;
   function apply(value: EssayLearningResponse, restoreLocal = false) {
     if (!active() || !valid(value)) return;
-    const cached = restoreLocal && value.attempt ? localDrafts.get(key(value.attempt.id)) : null;
+    const recovered = restoreLocal && value.attempt ? localDrafts.get(key(value.attempt.id)) : null;
+    const differs = recovered && recovered.text !== value.attempt?.text;
+    const cached =
+      differs && value.canEdit && value.attempt?.state === 'in_progress' ? recovered : null;
+    if (restoreLocal) {
+      setRecovery(
+        differs && !cached && value.attempt ? { ...recovered, attemptId: value.attempt.id } : null,
+      );
+    }
+    if (recovered && !differs && value.attempt) localDrafts.delete(key(value.attempt.id));
     setResponse(value);
     responseRef.current = value;
     expectedRevision.current = cached?.revision ?? value.attempt?.revision ?? 0;
@@ -91,6 +104,7 @@ export function EssayResponseEditor({
     setResponse(null);
     responseRef.current = null;
     setText('');
+    setRecovery(null);
     textRef.current = '';
     requests.current.clear();
     setError(null);
@@ -125,7 +139,8 @@ export function EssayResponseEditor({
     const warn = (event: BeforeUnloadEvent) => {
       if (
         operation.current ||
-        (responseRef.current?.attempt && textRef.current !== responseRef.current.attempt.text)
+        (responseRef.current?.attempt && textRef.current !== responseRef.current.attempt.text) ||
+        recoveryRef.current !== null
       ) {
         event.preventDefault();
         event.returnValue = '';
@@ -358,6 +373,42 @@ export function EssayResponseEditor({
               </>
             ) : null}
           </div>
+          {recovery ? (
+            <details className="essay-response-recovery">
+              <summary>Несохранённый текст предыдущего редактирования</summary>
+              <p>
+                Этот текст не был сдан. Официальный ответ показан выше. Здесь текст можно выделить и
+                скопировать.
+              </p>
+              <GrowingTextarea
+                aria-label="Локальный несохранённый текст"
+                value={recovery.text}
+                readOnly
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  minHeight: '5rem',
+                  fontSize: '.875rem',
+                }}
+              />
+              {response.canEdit && response.attempt?.id !== recovery.attemptId ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setText(recovery.text);
+                    textRef.current = recovery.text;
+                    remember(recovery.text);
+                    localDrafts.delete(key(recovery.attemptId));
+                    setRecovery(null);
+                  }}
+                >
+                  Использовать в новой попытке
+                </button>
+              ) : null}
+            </details>
+          ) : null}
           {!response.canStart && !response.canEdit && !response.attempt?.submissionId ? (
             <p role="status">Редактирование пока недоступно.</p>
           ) : null}
