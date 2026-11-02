@@ -465,7 +465,16 @@ async function preservedData(pool: pg.Pool) {
       table === 'projects'
         ? [...copiedProjectOriginFields]
         : table === 'project_publication_state'
-          ? ['acquisition_allowed', 'acquisition_version', 'reactions_enabled', 'reactions_version']
+          ? [
+              'acquisition_allowed',
+              'acquisition_version',
+              'reactions_enabled',
+              'reactions_version',
+              'comments_admin_enabled',
+              'comments_enabled',
+              'comments_version',
+              'pinned_comment_id',
+            ]
           : [];
     result[table] = (
       await pool.query(
@@ -813,7 +822,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
       expect(
         (
           await pool.query(
-            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version FROM project_publication_state ORDER BY id',
+            'SELECT acquisition_allowed, acquisition_version, reactions_enabled, reactions_version, comments_admin_enabled, comments_enabled, comments_version, pinned_comment_id FROM project_publication_state ORDER BY id',
           )
         ).rows,
       ).toEqual(
@@ -822,6 +831,10 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           acquisition_version: 0,
           reactions_enabled: true,
           reactions_version: 0,
+          comments_admin_enabled: true,
+          comments_enabled: true,
+          comments_version: 0,
+          pinned_comment_id: null,
         })),
       );
       expect(await preservedData(pool)).toEqual(before);
