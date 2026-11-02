@@ -157,6 +157,13 @@ export class ChessNetworkController {
     const source = await this.source(request);
     return this.run(() => this.service!.access(source));
   }
+  @Post('notifications')
+  @Header('Cache-Control', 'private, no-store')
+  async notifications(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    const source = await this.source(request);
+    body(raw, []);
+    return this.run(() => this.service!.notifications(source));
+  }
   @Post('lobby')
   @Header('Cache-Control', 'private, no-store')
   async lobby(@Req() request: FastifyRequest, @Body() raw: unknown) {

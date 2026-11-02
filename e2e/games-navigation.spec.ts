@@ -83,6 +83,8 @@ async function fixture(page: Page, failList = false) {
       return json(route, { motion: 'system', sidebar: 'expanded', revision: 1 });
     if (/^\/api\/learning\/projects\/[^/]+\/context$/.test(path))
       return json(route, { state: 'not_learning', projectId: path.split('/')[4] });
+    if (path === '/api/games/chess/notifications')
+      return json(route, { playerId: 'fixture-player', incoming: [] });
     if (path === '/api/games/chess/lobby')
       return json(route, { players: [], incoming: [], outgoing: [], limit: 100 });
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
@@ -551,4 +553,63 @@ test('scoped online lobby renders avatars and delivers targeted challenges witho
   ).toBeVisible();
   await expect(page.locator('.asa-network-player-list')).toHaveCount(0);
   expect(state.errors).toEqual([]);
+});
+
+test('game invitations reach the shared navigation and game card, ping once and survive reload without replay', async ({
+  page,
+}) => {
+  test.setTimeout(45000);
+  await page.addInitScript(() => {
+    const original = AudioContext.prototype.createOscillator;
+    (window as unknown as { gamePings: number }).gamePings = 0;
+    AudioContext.prototype.createOscillator = function () {
+      (window as unknown as { gamePings: number }).gamePings++;
+      return original.call(this);
+    };
+  });
+  await fixture(page);
+  let incoming: { id: string; expiresAt: number }[] = [];
+  await page.route('**/api/games/chess/notifications', (route) =>
+    route.fulfill({ json: { playerId: 'notification-player', incoming } }),
+  );
+  await page.goto('/#/games');
+  await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeVisible();
+  await page.getByRole('heading', { name: 'Игры', exact: true }).click();
+  incoming = [{ id: 'new-real-invitation', expiresAt: Date.now() + 600000 }];
+  const card = page.getByRole('button', { name: 'Посмотреть приглашения: Шахматы', exact: true });
+  await expect(card).toContainText('Вас приглашают играть', { timeout: 12000 });
+  await expect(
+    page.getByRole('link', { name: 'Игры', exact: true }).locator('.game-invitation-badge'),
+  ).toHaveText('1');
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { gamePings: number }).gamePings))
+    .toBe(1);
+  mkdirSync('reports/games/chess-redesign', { recursive: true });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await expect(card.locator('.game-invitation-badge')).toHaveText('1');
+    if (width < 760)
+      await expect(
+        page
+          .getByRole('button', { name: 'Открыть меню', exact: true })
+          .locator('.game-invitation-badge'),
+      ).toHaveText('1');
+    await page.screenshot({
+      path: `reports/games/chess-redesign/invitation-notification-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.waitForTimeout(5500);
+  expect(await page.evaluate(() => (window as unknown as { gamePings: number }).gamePings)).toBe(1);
+  await page.reload();
+  await expect(card).toContainText('Вас приглашают играть', { timeout: 12000 });
+  await page.getByRole('heading', { name: 'Игры', exact: true }).click();
+  expect(await page.evaluate(() => (window as unknown as { gamePings: number }).gamePings)).toBe(0);
+  await card.click();
+  await expect(page).toHaveURL(/#\/chess\/old-chess\/network$/);
+  incoming = [];
+  await expect(page.locator('.portal-game-announcement')).toBeEmpty({ timeout: 12000 });
 });

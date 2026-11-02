@@ -558,7 +558,19 @@ test('real two-pupil Chess, teacher controls, reconnect/history and all opponent
       });
     }
     await a.page.setViewportSize({ width: 1440, height: 900 });
+    // Recipient can be elsewhere on the portal; the common header owns delivery.
+    await b.page.goto(`${origin}/#/games`);
     await peer.getByRole('button', { name: 'Пригласить играть', exact: true }).click();
+    const invitedGame = b.page.getByRole('button', {
+      name: 'Посмотреть приглашения: Шахматы',
+      exact: true,
+    });
+    await expect(invitedGame).toContainText('Вас приглашают играть', { timeout: 15000 });
+    await expect(
+      b.page.getByRole('link', { name: 'Игры', exact: true }).locator('.game-invitation-badge'),
+    ).toHaveText('1');
+    await invitedGame.click();
+
     const received = b.page.getByRole('region', { name: 'Входящие вызовы' });
     await expect(received.locator('img')).toBeVisible({ timeout: 15000 });
     await received.getByRole('button', { name: 'Принять вызов', exact: true }).click();

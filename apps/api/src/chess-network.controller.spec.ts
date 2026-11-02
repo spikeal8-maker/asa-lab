@@ -97,6 +97,27 @@ describe('Chess Games API trust boundary', () => {
       });
       expect(noKey.statusCode).toBe(400);
       expect(noKey.json().error.code).toBe('VALIDATION_FAILED');
+      const notifications = vi
+        .spyOn(ChessNetworkService.prototype, 'notifications')
+        .mockResolvedValue({ playerId: 'safe-player', incoming: [] });
+      try {
+        const forged = await adapter.getInstance().inject({
+          method: 'POST',
+          url: '/api/games/chess/notifications',
+          payload: { playerId: 'other' },
+        });
+        expect(forged.statusCode).toBe(400);
+        expect(notifications).not.toHaveBeenCalled();
+        const alerts = await adapter
+          .getInstance()
+          .inject({ method: 'POST', url: '/api/games/chess/notifications', payload: {} });
+        expect(alerts.statusCode).toBe(201);
+        expect(alerts.headers['cache-control']).toBe('private, no-store');
+        expect(alerts.json()).toEqual({ playerId: 'safe-player', incoming: [] });
+        expect(notifications).toHaveBeenCalledWith(expect.objectContaining({ kind: 'account' }));
+      } finally {
+        notifications.mockRestore();
+      }
       const avatar = vi.spyOn(ChessNetworkService.prototype, 'avatar');
       const lobby = vi.spyOn(ChessNetworkService.prototype, 'lobby');
       try {

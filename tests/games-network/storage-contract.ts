@@ -96,7 +96,7 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     const bid = (await f.service.access(b.source)).player.playerId;
     const cid = (await f.service.access(c.source)).player.playerId;
     await f.service.lobby(a.source, 'classroom');
-    await f.service.lobby(b.source, 'classroom');
+    await f.service.notifications(b.source);
     await f.service.lobby(c.source, 'classroom');
     await f.service.lobby(d.source, 'classroom');
     await foreign.service.lobby(outsider.source, 'classroom');
@@ -140,6 +140,10 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     const sent = await f.service.challenge(a.source, key, bid, input);
     expect((await f.service.challenge(a.source, key, bid, input)).invite?.id).toBe(sent.invite!.id);
     expect((await f.service.lobby(b.source, 'classroom')).incoming).toHaveLength(1);
+    expect((await f.service.notifications(b.source)).incoming.map((i) => i.id)).toEqual([
+      sent.invite!.id,
+    ]);
+    expect((await f.service.notifications(c.source)).incoming).toEqual([]);
     expect((await f.service.lobby(c.source, 'classroom')).incoming).toHaveLength(0);
     await expect(f.service.accept(c.source, randomUUID(), sent.invite!.code)).rejects.toMatchObject(
       { code: 'NOT_FOUND' },
@@ -151,6 +155,7 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     expect(
       (await f.service.decline(b.source, declined, sent.invite!.id, sent.invite!.version)).replayed,
     ).toBe(true);
+    expect((await f.service.notifications(b.source)).incoming).toEqual([]);
     const second = await f.service.challenge(a.source, randomUUID(), bid, input);
     const game = (await f.service.accept(b.source, randomUUID(), second.invite!.code)).match!;
     expect(game.status).toBe('active');
@@ -196,6 +201,7 @@ export function chessNetworkStorageContract(clients: () => { admin: NetworkSql; 
     await expect(f.service.lobby(a.source, 'classroom')).rejects.toMatchObject({
       code: 'POLICY_DENIED',
     });
+    expect((await f.service.notifications(b.source)).incoming).toEqual([]);
     await expect(f.service.avatar(c.source, bid, 'classroom')).rejects.toMatchObject({
       code: 'POLICY_DENIED',
     });

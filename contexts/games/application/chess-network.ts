@@ -105,6 +105,14 @@ export class ChessNetworkService {
       };
     });
   }
+  async notifications(
+    source: ChessNetworkSource,
+  ): Promise<{ playerId: string; incoming: { id: string; expiresAt: number }[] }> {
+    return this.repository.transaction(source, async (tx) => {
+      this.consumeRead(tx.actorId);
+      return tx.query('SELECT games.chess_notifications() data');
+    });
+  }
   async lobby(source: ChessNetworkSource, scope: ChessNetworkScope): Promise<ChessNetworkLobby> {
     if (!['classroom', 'school', 'platform'].includes(scope))
       throw new ChessNetworkError('INVALID_COMMAND', 'Некорректный круг соперников.', 400);

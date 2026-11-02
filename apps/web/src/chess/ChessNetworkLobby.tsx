@@ -852,12 +852,7 @@ export function ChessNetworkLobby({
                   <button
                     type="button"
                     className="primary-button"
-                    disabled={
-                      busy ||
-                      invite?.status === 'open' ||
-                      !access.scopes.includes(scope) ||
-                      lobby?.available === false
-                    }
+                    disabled={busy || invite?.status === 'open' || !access.scopes.includes(scope)}
                     onClick={() =>
                       void command(() =>
                         chessNetworkApi.create({
@@ -885,12 +880,7 @@ export function ChessNetworkLobby({
                   </label>
                   <button
                     type="button"
-                    disabled={
-                      busy ||
-                      code.length !== 24 ||
-                      invite?.status === 'open' ||
-                      lobby?.available === false
-                    }
+                    disabled={busy || code.length !== 24 || invite?.status === 'open'}
                     onClick={() => void command(() => chessNetworkApi.accept(code))}
                   >
                     Принять приглашение
