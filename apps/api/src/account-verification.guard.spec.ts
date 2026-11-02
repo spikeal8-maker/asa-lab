@@ -223,6 +223,10 @@ describe('central account verification API guard', () => {
     ['GET', '/api/learning/projects/:projectId/context'],
     ['POST', '/api/learning/projects/:projectId/submit'],
     ['POST', '/api/learning/work/runs/:activityRunId/start'],
+    ['GET', '/api/learning/essay/runs/:activityRunId'],
+    ['POST', '/api/learning/essay/runs/:activityRunId/start'],
+    ['PUT', '/api/learning/essay/runs/:activityRunId/draft'],
+    ['POST', '/api/learning/essay/runs/:activityRunId/submit'],
   ])('preserves the genuine Seat selected before Account by %s %s', async (method, route) => {
     const test = harness({
       cookie: 'valid-session',
@@ -241,6 +245,10 @@ describe('central account verification API guard', () => {
     ['GET', '/api/learning/projects/:projectId/context'],
     ['POST', '/api/learning/projects/:projectId/submit'],
     ['POST', '/api/learning/work/runs/:activityRunId/start'],
+    ['GET', '/api/learning/essay/runs/:activityRunId'],
+    ['POST', '/api/learning/essay/runs/:activityRunId/start'],
+    ['PUT', '/api/learning/essay/runs/:activityRunId/draft'],
+    ['POST', '/api/learning/essay/runs/:activityRunId/submit'],
   ])('does not accept a forged Seat cookie on %s %s', async (method, route) => {
     const test = harness({
       cookie: 'valid-session',
@@ -258,6 +266,24 @@ describe('central account verification API guard', () => {
       seatCookie: 'valid-seat',
       resolveSeat: true,
       route: '/api/projects',
+      failure: new Error('required'),
+    });
+    await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');
+    expect(test.seats.resolve).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['DELETE', '/api/learning/essay/runs/:activityRunId'],
+    ['POST', '/api/learning/essay/runs/:activityRunId/draft'],
+    ['PUT', '/api/learning/essay/runs/:activityRunId/submit'],
+    ['GET', '/api/learning/essay/runs/:activityRunId/teacher'],
+  ])('keeps the essay Seat exception exact for %s %s', async (method, route) => {
+    const test = harness({
+      cookie: 'valid-session',
+      seatCookie: 'valid-seat',
+      resolveSeat: true,
+      method,
+      route,
       failure: new Error('required'),
     });
     await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');

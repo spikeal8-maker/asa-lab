@@ -6122,6 +6122,114 @@ paths:
         '404': { description: Project origin is absent or inaccessible }
         '409': { description: Stale revision, duplicate request conflict or unavailable Attempt }
         '503': { description: Learning write dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: readEssayLearningAttempt
+      summary: Read the authorized learner's exact written-response Course activity and confirmed draft
+      description: Stable LearnerIdentity and current Seat or Account links are resolved before reading any answer. A Seat remains independent of a linked Account's status.
+      responses:
+        '200':
+          description: Confirmed text, exact attempt and current action availability
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid run ID }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/start:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: startEssayLearningAttempt
+      summary: Start or resume one project-free written-response attempt
+      description: Returns for revision create a new linked attempt and copy the previous text without changing frozen evidence. Retry authority is revalidated before reading a receipt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200':
+          description: Exact attempt started or resumed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid run or request ID }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '409': { description: Closed activity, attempt limit or request conflict }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/draft:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      operationId: saveEssayLearningDraft
+      summary: Save bounded plain text with optimistic revision and idempotency
+      description: A stale revision never overwrites confirmed text. The browser retains its local answer when a save conflicts or fails.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningEssaySaveRequest' }
+      responses:
+        '200':
+          description: Confirmed text and incremented revision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid attempt, revision, request ID or oversized text }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '409': { description: draft_revision_conflict, idempotency_conflict or unavailable attempt }
+        '503': { description: Learning dependency unavailable }
+  /api/learning/essay/runs/{activityRunId}/submit:
+    parameters:
+      - name: activityRunId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: submitEssayLearningAttempt
+      summary: Freeze the exact confirmed text revision into an immutable submission
+      description: The client cannot supply frozen text, grade or digest. Submission records the saved UTF-8 text and its server SHA-256; repeated requests preserve the same evidence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningEssaySubmitRequest' }
+      responses:
+        '200':
+          description: Submitted attempt with immutable text digest
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningEssayResponse' }
+        '400': { description: Invalid attempt, revision or request ID }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Exact activity or learner authority unavailable }
+        '409':
+          {
+            description: Empty response,
+            revision conflict,
+            request conflict or unavailable attempt,
+          }
+        '503': { description: Learning dependency unavailable }
   /api/learning/activities:
     get:
       operationId: listLearningActivities
@@ -7777,6 +7885,104 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    LearningEssaySubmitRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, attemptId, expectedRevision]
+      properties:
+        requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+        attemptId: { type: string, format: uuid }
+        expectedRevision: { type: integer, minimum: 0, maximum: 2147483646 }
+    LearningEssaySaveRequest:
+      type: object
+      additionalProperties: false
+      required: [requestId, attemptId, expectedRevision, text]
+      properties:
+        requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+        attemptId: { type: string, format: uuid }
+        expectedRevision: { type: integer, minimum: 0, maximum: 2147483646 }
+        text: { type: string, maxLength: 40000 }
+    LearningEssayResponse:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          activityRunId,
+          participationId,
+          activityVersionId,
+          title,
+          instructions,
+          goal,
+          blocks,
+          resultMode,
+          maxPoints,
+          canStart,
+          canEdit,
+          attempt,
+        ]
+      properties:
+        activityRunId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityVersionId: { type: string, format: uuid }
+        title: { type: string }
+        instructions: { type: [string, 'null'] }
+        goal: { type: [string, 'null'] }
+        blocks: { type: [array, 'null'], items: { type: object } }
+        resultMode: { type: string, enum: [ungraded, completion, graded] }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        canStart: { type: boolean }
+        canEdit: { type: boolean }
+        attempt:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required:
+                [
+                  id,
+                  number,
+                  state,
+                  revisionOfAttemptId,
+                  revision,
+                  text,
+                  savedAt,
+                  submittedAt,
+                  submissionId,
+                  digest,
+                  reviewDecision,
+                  feedback,
+                ]
+              properties:
+                id: { type: string, format: uuid }
+                number: { type: integer, minimum: 1 }
+                state:
+                  {
+                    type: string,
+                    enum: [in_progress, submitted, evaluating, closed, invalidated, expired],
+                  }
+                revisionOfAttemptId: { type: [string, 'null'], format: uuid }
+                revision: { type: integer, minimum: 0 }
+                text: { type: string, maxLength: 40000 }
+                savedAt: { type: string, format: date-time }
+                submittedAt: { type: [string, 'null'], format: date-time }
+                submissionId: { type: [string, 'null'], format: uuid }
+                digest: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$' }
+                reviewDecision:
+                  {
+                    type: [string, 'null'],
+                    enum: [accepted, changes_requested, incomplete, excused, null],
+                  }
+                feedback: { type: [string, 'null'] }
+    LearningEssayFrozenSubmission:
+      type: object
+      additionalProperties: false
+      required: [kind, submissionId, digest, text, sourceRevision]
+      properties:
+        kind: { const: essay }
+        submissionId: { type: string, format: uuid }
+        digest: { type: string, pattern: '^[a-f0-9]{64}$' }
+        text: { type: string, maxLength: 40000 }
+        sourceRevision: { type: integer, minimum: 0 }
     CrmDirectoryPage:
       type: object
       required: [items, matchedCount, analytics, asOf, next, studentCoverage]
@@ -9746,6 +9952,10 @@ components:
           },
       }
     LearningExactSubmission:
+      oneOf:
+        - $ref: '#/components/schemas/LearningProjectFrozenSubmission'
+        - $ref: '#/components/schemas/LearningEssayFrozenSubmission'
+    LearningProjectFrozenSubmission:
       {
         'type': 'object',
         'additionalProperties': false,
@@ -9761,6 +9971,7 @@ components:
           ],
         'properties':
           {
+            'kind': { 'const': 'project' },
             'submissionId': { 'type': 'string', 'format': 'uuid' },
             'projectVersionId': { 'type': 'string', 'format': 'uuid' },
             'digest': { 'type': 'string' },
