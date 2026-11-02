@@ -9116,6 +9116,26 @@ parallel_lanes:
   - id: learning
     worktree_id: learning-course-01
     accepted_slices:
+    - id: LRN-E1-COMPACT-AUTHORING
+      source_pr: 960
+      source_sha: f3e736b9ed52639132908d293f588759e516820a
+      integrated_sha: 3f6ae864746865d263eeaff9b7859f0ae4c5978b
+      integration_parent: 63b68fd7a44ed3bb2aa5d1fced75d8fbae28d3d2
+      status: technical_accepted
+      source_general_run: 41515306462
+      source_learning_run: 41515306629
+      source_account_run: 41515306616
+      source_public_run: 41515306747
+      independent_source_review: approved
+      independent_visual_review: approved
+      browser_cases_passed: 46
+      actual_images_reviewed: 20
+      visual_viewports: [1440, 1024, 390, 320]
+      qa_report_sha256: b5c7e0581353681631b6edb39202042a74d5264a081a13ce66bcd9ab77e6bc42
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/960
+      acceptance_limit: Compact task editor and saved Course journeys only; the four-kind programme continues. All ten source blobs match the reviewed candidate and only those ten paths changed from the actual integration parent.
+      owner_acceptance: pending
+      deployment: not_run
     - id: LRN-E1-AUTHOR-USAGE-001
       source_pr: 900
       source_sha: 64dfb57fe4c37c80524cf039cf74b5e668a6c891
@@ -9300,34 +9320,68 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: compact_authoring_owner_requirement_selected
+      checkpoint: essay_course_candidate_in_verification_compact_integrated
       selected_slice:
-        id: LRN-E1-COMPACT-AUTHORING
+        id: LRN-E1-ESSAY-COURSE-VERTICAL
         status: in_progress
-        kind: repair
-        owner_authorization: Owner explicitly requires compact, tidy Course authoring screens on 2026-11-02; all buttons together, no inflated panels or oversized text, usable on small screens. This follows the visible task creation already merged in PR943.
-        scope: Compact the canonical task authoring workspace and its inline Course entry. One coherent action toolbar, no duplicated heading/back controls, restrained typography and content-driven field heights. Reuse existing editor commands and guards.
+        kind: feature
+        owner_authorization: Owner explicitly orders real Quiz, written answers, files and project practices from compact authoring through Course issue, learner submission, review and journal on 2026-11-02. This bounded executor owns the complete essay vertical; controller continues the remaining kinds afterward.
+        scope: Explicit essay creation without project environment, immutable publication and exact Course pin, class delivery, authorized Account and Seat persisted text drafts, immutable idempotent submission, exact teacher text review and rework, existing canonical results and journal, and truthful Course completion. Reuse the existing compact editor and academic chain rather than introducing a parallel assessment engine.
         expected_write_paths:
+        - apps/web/src/api.ts
         - apps/web/src/pages/AuthoredMaterialsPage.tsx
         - apps/web/src/components/CanonicalPracticePicker.tsx
-        - apps/web/src/components/CourseEditorDialog.tsx
+        - apps/web/src/components/SeatCourses.tsx
+        - apps/web/src/components/ClassroomGradebook.tsx
+        - apps/web/src/components/EssayResponseEditor.tsx
+        - apps/web/src/components/LessonBlockEditor.tsx
+        - apps/web/src/components/TaskBlocks.tsx
         - apps/web/src/components/courses-panel.css
-        - apps/web/src/pages/assignment-library.css
         - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
         - apps/web/src/learning/testing/authored-assignment-list.spec.ts
-        - apps/web/src/learning/testing/authored-materials-goal.spec.ts
+        - apps/web/src/learning/testing/essay-response.spec.ts
+        - apps/api/src/learning-activities.controller.ts
+        - apps/api/src/learning-activities.controller.spec.ts
+        - apps/api/src/learning-essay-attempts.controller.ts
+        - apps/api/src/learning-assessments.controller.ts
+        - apps/api/src/learning-assessments.controller.spec.ts
+        - apps/api/src/learning-canonical-projection.service.ts
+        - apps/api/src/learning-canonical-projection.service.spec.ts
+        - apps/api/src/courses.controller.ts
+        - apps/api/src/courses.controller.spec.ts
+        - apps/api/src/app.module.ts
+        - apps/api/src/account-verification.guard.ts
+        - apps/api/src/account-verification.guard.spec.ts
+        - apps/api/src/classroom-join.controller.ts
+        - apps/api/src/classroom-join.controller.spec.ts
+        - contexts/learning/domain/canonical-learning-state.ts
+        - contexts/learning/testing/canonical-learning-state.spec.ts
+        - contexts/learning/index.ts
+        - migrations/0302_learning_essay_course_runtime.sql
+        - tests/courses/learning-essay-course-runtime.pg.spec.ts
+        - tests/courses/learning-essay-attempts.controller.spec.ts
+        - tests/courses/course-prepublication-diagnostics.pg.spec.ts
+        - tests/courses/course-prepublication-contract.spec.ts
+        - tests/courses/learning-activity-version-convergence.pg.spec.ts
         - e2e/learning-course-01.spec.ts
         - e2e/learning-author-preview.spec.ts
+        - e2e/learning-authoring-navigation.ts
+        - tools/testing/learning-e1-browser.mjs
+        - schemas/openapi.yaml
+        - docs/testing/test-catalog.yaml
         acceptance:
-        - One compact group of primary actions; no duplicate return controls or redundant oversized heading. Secondary actions remain accessible together with the editor actions.
-        - Compact normal typography and small initial fields; long Russian titles and body text stay fully accessible through content-driven growth or normal document scrolling, never clipping or overflow hiding.
-        - At 1440 and1024 the main action bar fits a compact row where possible; at390 and320 it wraps into a small number of readable rows without horizontal page/dialog overflow, squeezed text or lost controls.
-        - Saving, publication, exact-version insertion, dirty/busy guards, stale-session rejection, image/preview Escape and focus restoration remain intact.
-        - If shared authoring CSS or dialog primitives change, verify both inline Course and standalone/embedded bank consumers; preserve other Course dialog behavior by default.
-        - Real four-width compact editor and saved-course evidence plus focused/repository gates and independent final source/visual review; no new browser manifest identities or weakened assertions.
-        audit_evidence: Read-only98-worktree audit found only the historic Oct4 V-UX2A staged snapshot. Its overlapping AuthoredMaterialsPage, preview-test and list-test deltas have identical TypeScript ASTs; CSS differs only by an empty line. Its one Course-test helper change is already on current main. Preserve the entire old snapshot untouched; no unfinished product behavior is overwritten.
-        constraints: No API, migration, permissions, new academic runtime, workflow, dependency, timeout/retry or owner runtime changes. Preserve all accepted main content and the original owner ClassroomPage/E2E/CSS WIP.
-        programme_next: Continue Question bank and Quiz editor toward all eight normative question types after this compactness requirement. Preserved PR923/928 foundations and PR939 unfinished content WIP are reused after fresh main/migration reconciliation; no automatic old-branch merge or readiness claim.
+        - A teacher creates essay explicitly without a module in the same compact editor, publishes it and pins the exact version in a Course issued to a class.
+        - Account and Seat learners reopen confirmed text drafts; stale revisions conflict and cannot silently overwrite local text.
+        - Idempotent submit freezes server-confirmed text and digest. A later draft, correction or repeat submission never mutates earlier evidence.
+        - Teacher reads exact frozen text, accepts or requests revision; rework creates a linked attempt and preserves all prior submission and assessment history.
+        - Existing assessment authority and journal publish actual results; required Course completion follows exact selected accepted results rather than reading instructions.
+        - Actor, stable LearnerIdentity, class and tenant isolation fail closed; preserve existing independent Seat versus linked Account authority and all project protections.
+        - Actual author-to-learner-to-teacher browser evidence at 320,390,1024,1440 verifies compact actions, long Russian content, reload, review and journal; focused and repository gates plus independent final source and visual reviews are required.
+        dependencies: Compact PR960 source f3e736b9 passed independent source and visual review, all four source workflows and46 real browser journeys with20 reviewed images. It is integrated in main3f6ae864. Essay PR964 candidate4b0422d1 has converged with that main and its DevEx required-check baseline; isolated PostgreSQL and browser gates are pending. Verify the actual published migration frontier before source integration; do not chase later unrelated main commits without a direct invariant or platform requirement.
+        migration_allocation: Published frontier is0300 at main3b542f32f. Fresh99-worktree audit found AI and Chess private0301 files, so0302 is provisional for isolated development only, not an exclusive reservation. Preserve both foreign0301 files; recheck final frontier and resolve the dependency before source integration. Never publish or deploy an out-of-order migration history.
+        audit_evidence: Fresh99-worktree audit found no dirty API/domain/learning runtime paths. Additional101-worktree audits found no dirty TaskBlocks or Learning browser manifest. The historical Oct4 staged navigation helper only introduces assignment-list navigation already present in current main, which also has its later list assertion and explicit project-medium setup; retain that entire historic worktree and index unchanged. Follow-up101-worktree audits found no dirty Account verification guard/spec, ClassroomJoin controller/spec, LessonBlockEditor or canonical state; these necessary typed delivery and Seat admission dependencies are included explicitly. Preserve historic Oct4 format-only overlapping snapshots unchanged. Chess has separate dirty package.json and untracked0301; package.json is excluded here. Put new HTTP regressions under tests/courses already selected by the existing focused command, without weakening tests or changing the foreign package draft.
+        constraints: Register one dedicated real essay Course browser journey in the existing partition manifest, retaining original identities, assertions, existing timeouts and retries. The new complete journey may use the normal240-second Course-case budget; this does not extend an existing failing case or change workflow limits. Rename the mixed toolbox action to generic Assignment; adapt the helper legacy Practice argument to the exact new label, without permissive alternate locators. Teacher instruction media uses an exact essay Run and published version scoped readonly route with effective content-read authority and hash checks; extend TaskBlocks only for that exact route shape, never a broad API prefix. This does not implement learner file answers. Essay uses the canonical mixed-lesson activity block; retain project-only defaults for legacy assignment lessons and picker callers. Extend only the exact StudentSeat route allowlist with negative Account and suspended Seat tests; do not bypass unverified Account protections. No existing published SQL changes, tenant or RLS model changes, protected data edits, dependency/workflow/timeout/retry changes, new service, local test stack, owner runtime, backup or deployment actions. Manual remains teacher observation; unsupported Quiz/file options cannot publish fake working activities. Preserve owner ClassroomPage and related E2E/CSS WIP.
+        programme_next: After verified essay integration continue preserved Quiz policy and attempt foundations, all eight normative question types, exact finalization and manual-mixed review, then real bounded immutable learner file upload and download. Preserve existing project journeys. The commissioned result is all four working types through the journal; a single integrated slice does not finish the programme or provide owner acceptance.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:

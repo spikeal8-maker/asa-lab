@@ -3182,8 +3182,18 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).click();
   const inlineAuthor = page.getByRole('dialog', { name: 'Новое задание для урока', exact: true });
   await expect(inlineAuthor).toBeVisible();
+  await expect(inlineAuthor.locator('.course-dialog-header')).toHaveCount(0);
   await expect(
-    inlineAuthor.getByRole('button', { name: 'Опубликовать и добавить в урок', exact: true }),
+    inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Вернуться к уроку', exact: true }),
+  ).toBeFocused();
+  await expect(
+    inlineAuthor.getByRole('group', { name: 'Действия задания', exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    inlineAuthor.getByRole('button', { name: 'Добавить в урок', exact: true }),
   ).toBeDisabled();
   await inlineAuthor.getByLabel('Среда задания', { exact: true }).selectOption('electronics');
   await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
@@ -3206,7 +3216,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const action = inlineAuthor.getByRole('button', {
-      name: 'Опубликовать и добавить в урок',
+      name: 'Добавить в урок',
       exact: true,
     });
     await action.scrollIntoViewIfNeeded();
@@ -3214,12 +3224,26 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     const bounds = (await action.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).focus();
+    await expect
+      .poll(() =>
+        inlineAuthor.evaluate((element) => {
+          const title = element
+            .querySelector('[aria-label="Название задания"]')!
+            .getBoundingClientRect();
+          const toolbar = element
+            .querySelector('.assignment-document-topbar')!
+            .getBoundingClientRect();
+          return title.top - toolbar.bottom;
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
     const inlineLayout = await inlineAuthor.evaluate((element) => {
       const bounds = (selector: string) => {
         const node = element.querySelector(selector);
         if (!node) return null;
         const rect = node.getBoundingClientRect();
-        return { x: rect.x, right: rect.right, width: rect.width };
+        return { x: rect.x, right: rect.right, width: rect.width, height: rect.height };
       };
       const topbar = element.querySelector('.assignment-document-topbar');
       return {
@@ -3231,6 +3255,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
         topbarMarginInline: topbar ? getComputedStyle(topbar).marginInline : null,
       };
     });
+    expect(inlineLayout.topbar?.height, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      width < 761 ? 130 : 96,
+    );
     expect(inlineLayout.scrollWidth, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
       inlineLayout.clientWidth,
     );
@@ -3241,6 +3268,49 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
       path: `${evidenceDir}/course-inline-task-author-${width}.png`,
       fullPage: false,
     });
+    const longTitle =
+      'Исследование электрических цепей и проверка подробного проектного задания. '.repeat(3);
+    const longBody =
+      'Соберите цепь, проверьте каждое соединение и подробно опишите наблюдения.\n'.repeat(24);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(longTitle);
+    await inlineAuthor.getByLabel('Содержание', { exact: true }).fill(longBody);
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).focus();
+    await expect
+      .poll(() =>
+        inlineAuthor.evaluate((element) => {
+          const title = element
+            .querySelector('[aria-label="Название задания"]')!
+            .getBoundingClientRect();
+          const toolbar = element
+            .querySelector('.assignment-document-topbar')!
+            .getBoundingClientRect();
+          return title.top - toolbar.bottom;
+        }),
+      )
+      .toBeGreaterThanOrEqual(0);
+    for (const label of ['Название задания', 'Содержание']) {
+      await expect
+        .poll(() =>
+          inlineAuthor
+            .getByLabel(label, { exact: true })
+            .evaluate((field) => field.scrollHeight - field.clientHeight),
+        )
+        .toBeLessThanOrEqual(2);
+    }
+    expect(
+      await inlineAuthor
+        .getByLabel('Содержание', { exact: true })
+        .evaluate((field) => field.clientHeight),
+    ).toBeGreaterThan(200);
+    await inlineAuthor.evaluate((element) => element.scrollTo(0, 0));
+    await page.screenshot({
+      path: `${evidenceDir}/course-inline-task-author-long-${width}.png`,
+      fullPage: false,
+    });
+    await inlineAuthor.getByLabel('Название задания', { exact: true }).fill(electronicsTitle);
+    await inlineAuthor
+      .getByLabel('Содержание', { exact: true })
+      .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await inlineAuthor.getByRole('button', { name: 'Создать задание', exact: true }).click();
@@ -3269,9 +3339,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(inlinePreview).toBeHidden();
   await expect(inlineAuthor).toBeVisible();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
-  await inlineAuthor
-    .getByRole('button', { name: 'Опубликовать и добавить в урок', exact: true })
-    .click();
+  await inlineAuthor.getByRole('button', { name: 'Добавить в урок', exact: true }).click();
   await expect(inlineAuthor).toBeHidden();
   await expect(
     editor.getByRole('button', { name: 'Создать задание для урока', exact: true }).first(),
