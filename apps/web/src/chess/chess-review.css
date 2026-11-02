@@ -52,6 +52,8 @@
 }
 
 .asa-review-board-card {
+  width: 100%;
+  min-width: 0;
   position: sticky;
   top: 18px;
   display: grid;

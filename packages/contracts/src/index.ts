@@ -101,3 +101,12 @@ export { AI_IMAGE_RECIPES } from './ai-image-generation.js';
 export type { AiImageRecipe } from './ai-image-generation.js';
 
 export { publicArduinoBlocks } from './public-arduino-blocks.js';
+
+export type {
+  ChessNetworkScope,
+  ChessNetworkPolicy,
+  ChessNetworkAccess,
+  ChessNetworkInvite,
+  ChessNetworkMatch,
+  ChessNetworkAction,
+} from './chess-network.js';
