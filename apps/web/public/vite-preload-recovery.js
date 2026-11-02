@@ -18,9 +18,7 @@
   // Read the entry only after parsing completes; otherwise the monitor never starts.
   function beginReleaseMonitor() {
     const entryPattern = /^\/assets\/index-[\w-]+\.js$/;
-    const currentEntry = document
-      .querySelector('script[type="module"][src]')
-      ?.getAttribute('src');
+    const currentEntry = document.querySelector('script[type="module"][src]')?.getAttribute('src');
     if (!entryPattern.test(currentEntry ?? '')) return;
 
     const checkIntervalMs = 300_000;
