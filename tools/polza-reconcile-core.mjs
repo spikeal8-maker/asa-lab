@@ -1,3 +1,5 @@
+import { createDecipheriv } from 'node:crypto';
+
 /** Reconcile one Polza chat model without cloning another installation's secrets or data. */
 export const POLZA_MODEL_ID = /^polza\/[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,119}$/;
 const ACTOR_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -7,6 +9,49 @@ export class PolzaSetupError extends Error {
     super(code);
     this.name = 'PolzaSetupError';
     this.code = code;
+  }
+}
+
+/**
+ * An encrypted key copied from another host is not usable without its original
+ * encryption key. Verify authenticated decryption in memory, never print secrets.
+ */
+export function credentialDecryptable(runtime, rawKey) {
+  const value = String(rawKey ?? '').trim();
+  const key = /^[a-f0-9]{64}$/i.test(value)
+    ? Buffer.from(value, 'hex')
+    : /^[A-Za-z0-9_-]{43}$/.test(value)
+      ? Buffer.from(value, 'base64url')
+      : Buffer.alloc(0);
+  try {
+    if (
+      key.length !== 32 ||
+      !runtime ||
+      typeof runtime.api_key_ciphertext !== 'string' ||
+      typeof runtime.api_key_iv !== 'string' ||
+      typeof runtime.api_key_auth_tag !== 'string'
+    ) {
+      return false;
+    }
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      key,
+      Buffer.from(runtime.api_key_iv, 'base64url'),
+    );
+    decipher.setAuthTag(Buffer.from(runtime.api_key_auth_tag, 'base64url'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(runtime.api_key_ciphertext, 'base64url')),
+      decipher.final(),
+    ]);
+    try {
+      return /^pza_[A-Za-z0-9_-]{8,2040}$/.test(plaintext.toString('utf8'));
+    } finally {
+      plaintext.fill(0);
+    }
+  } catch {
+    return false;
+  } finally {
+    key.fill(0);
   }
 }
 
