@@ -169,6 +169,7 @@ async function nativeDrag(page: Page, points: { x: number; y: number }[][]) {
 async function geometry(page: Page) {
   return page.evaluate(() => {
     const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas')!;
+    const matrix = canvas.getScreenCTM();
     const panel = document.querySelector<HTMLElement>('.workbench-inspector');
     const rect = (node: Element) => {
       const b = node.getBoundingClientRect();
@@ -179,7 +180,9 @@ async function geometry(page: Page) {
       panel: rect(panel ?? canvas),
       inspectorPresent: !!panel,
       viewBox: canvas.getAttribute('viewBox'),
-      matrix: canvas.getScreenCTM()?.toString(),
+      matrix: matrix
+        ? { a: matrix.a, b: matrix.b, c: matrix.c, d: matrix.d, e: matrix.e, f: matrix.f }
+        : null,
       scrollTop: panel?.scrollTop ?? 0,
       scrollHeight: panel?.scrollHeight ?? 0,
       clientHeight: panel?.clientHeight ?? 0,
@@ -243,6 +246,62 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
   let project = '';
   let user = '';
   const activate = async (locator: Locator) => (phone ? locator.tap() : locator.click());
+  const selectionNavigation: unknown[] = [];
+  journal['selectionNavigation'] = selectionNavigation;
+  const selectPart = async (target: Page, id: string, phase: string) => {
+    const locator = target.locator(
+      `[data-testid="schematic-component"][data-component-id="${id}"] > .workbench-part`,
+    );
+    if (phone) return locator.tap();
+    const before = (await committed(target, project)).document;
+    const ownership = () =>
+      locator.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        const x = rect.x + rect.width / 2,
+          y = rect.y + rect.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return {
+          x,
+          y,
+          width: rect.width,
+          height: rect.height,
+          owned: !!hit && node.contains(hit),
+          inspector: !!hit?.closest('.workbench-inspector'),
+          hit: hit?.outerHTML.slice(0, 250) ?? null,
+        };
+      });
+    await expect(locator).toBeVisible();
+    let center = await ownership();
+    selectionNavigation.push({ phase, id, before: center });
+    write();
+    // The retained inspector can cover another part's center. Navigate through
+    // the existing desktop zoom control; never move the fixture or force a hit.
+    for (let step = 0; step < 3 && !center.owned && center.inspector; step++) {
+      const canvas = target.locator('.workbench-canvas');
+      const viewBox = await canvas.getAttribute('viewBox');
+      await target.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
+      await expect.poll(() => canvas.getAttribute('viewBox')).not.toBe(viewBox);
+      center = await ownership();
+      selectionNavigation.push({
+        phase,
+        id,
+        zoomOut: step + 1,
+        center,
+        viewBox: await canvas.getAttribute('viewBox'),
+      });
+      write();
+    }
+    await expect
+      .poll(async () => {
+        center = await ownership();
+        return center.owned;
+      })
+      .toBe(true);
+    selectionNavigation.push({ phase, id, ready: center });
+    write();
+    expect((await committed(target, project)).document).toEqual(before);
+    await locator.click();
+  };
   const server = async () => {
     const response = await page.context().request.get(`/api/projects/${project}`);
     const raw = await response.text();
@@ -383,11 +442,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
     const library = page.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
     if (await library.isVisible()) await activate(library);
     await activate(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
-    const part = (id: string) =>
-      page.locator(
-        `[data-testid="schematic-component"][data-component-id="${id}"] > .workbench-part`,
-      );
-    await activate(part('resistor'));
+    await selectPart(page, 'resistor', 'initial');
     const inspector = page.getByRole('complementary', { name: 'Параметры выделения', exact: true });
     const disclosure = inspector.locator('.workbench-properties-disclosure');
     const value = inspector.locator('.workbench-value-field input').first();
@@ -552,8 +607,8 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       await activate(page.getByRole('button', { name: 'Отменить (Ctrl+Z)', exact: true }));
       await checkpoint('undo-pending-fold', expected);
     }
-    await activate(part('led'));
-    await activate(part('resistor'));
+    await selectPart(page, 'led', 'switch-to-led');
+    await selectPart(page, 'resistor', 'reselect-resistor');
     await selected();
     if (phone) await expect(disclosure).toHaveAttribute('aria-expanded', 'false');
     await checkpoint('reselected', expected);
@@ -599,7 +654,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       // path. Record it, then use native Fit/reselection of the same model.
       journal['selectionAfterBackgroundGesture'] = (await committed(page, project)).selection;
       await activate(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
-      await activate(part('resistor'));
+      await selectPart(page, 'resistor', 'after-background-gesture');
       await selected();
       await activate(disclosure);
       await value.scrollIntoViewIfNeeded();
@@ -667,10 +722,7 @@ async function journey(page: Page, info: TestInfo, phone: boolean) {
       if (await closeLibrary.isVisible()) await (phone ? closeLibrary.tap() : closeLibrary.click());
       const fit = reopened.getByRole('button', { name: 'Подогнать проект', exact: true });
       await (phone ? fit.tap() : fit.click());
-      const resistor = reopened.locator(
-        '[data-testid="schematic-component"][data-component-id="resistor"] > .workbench-part',
-      );
-      await (phone ? resistor.tap() : resistor.click());
+      await selectPart(reopened, 'resistor', 'fresh-reopen');
       if (phone) {
         const open = reopened.getByRole('button', {
           name: 'Открыть параметры компонента',
