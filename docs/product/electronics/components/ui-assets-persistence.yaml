@@ -16,15 +16,20 @@ components:
     - apps/web/src/electronics/arduino-block-appearance.ts
     - apps/web/src/electronics/arduino-block-ui.ts
     - apps/web/src/electronics/arduino-pin-inputs.ts
+    - apps/web/src/electronics/arduino-output-pins.ts
+    - apps/web/src/electronics/arduino-program-state.ts
     tests:
     - apps/web/src/electronics/testing/arduino-block-messages.spec.ts
     - apps/web/src/electronics/testing/arduino-value-inputs.spec.ts
     - apps/web/src/electronics/testing/arduino-value-inputs.browser.mjs
     - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+    - apps/web/src/electronics/testing/arduino-output-pins.spec.ts
+    - apps/web/src/electronics/testing/arduino-program-state.spec.ts
     - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
     - apps/web/src/electronics/testing/arduino-inactive-blocks.browser.mjs
     - apps/web/src/electronics/testing/arduino-editor-ui.browser.mjs
     - e2e/electronics-interactions.spec.ts
+    - e2e/electronics-block-pin-setup.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
     symbols:
@@ -37,6 +42,7 @@ components:
     - arduinoBlockTooltip
     - literalArduinoPin
     - activeArduinoGraph
+    - arduinoPinSetup
     notes: Blockly message initialization and editor lifecycle; preserve generated code and saved workspace.
   electronics.ui.workbench:
     ownership: asa
@@ -83,6 +89,9 @@ components:
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-header-time.spec.ts
+    - apps/web/src/electronics/testing/toolbar-oracle.browser.mjs
+    - tests/electronics/actual-intersections.ts
+    - tests/electronics/actual-intersections.browser.mjs
     - apps/web/src/electronics/testing/emergency-toolbar.browser.mjs
     - apps/web/src/electronics/testing/simulation-speed-control.spec.ts
     - apps/web/src/electronics/testing/simulation-speed.browser.mjs

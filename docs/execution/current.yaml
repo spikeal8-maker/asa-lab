@@ -9201,6 +9201,39 @@ parallel_lanes:
       acceptance_limit: Exact authorized read prerequisite; client mock transport and restricted-PG controller, no new exact-query HTTP or raster claim. Unrelated-learner denials preserve existing stable learner alias semantics.
       owner_acceptance: pending
       deployment: not_run
+    - id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+      source_pr: 943
+      source_sha: c96dea558255c5e55e476a6f83610b2283fd5970
+      integrated_sha: ff27c2cdae7e35c47f39a2af0e415b7d16b2aaf6
+      status: technical_accepted
+      source_general_run: 41491774903
+      source_learning_run: 41491775038
+      source_account_run: 41491774993
+      source_public_run: 41491774907
+      independent_source_review: approved
+      integration_review_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      browser_cases_passed: 46
+      visual_viewports: [1440, 1024, 390, 320]
+      qa_report_sha256: 7ca839c530fc43e0118ae2928b1460a73b6b8de495d6f996e7346cec637a284d
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/943#issuecomment-6584236017
+      acceptance_limit: Exact inline project authoring and saved lesson; not complete Courses or Quiz. Owner subsequently requires a more compact authoring layout; that is the selected follow-up below.
+      owner_acceptance: pending
+      deployment: not_run
+    - id: LRN-PREVIEW-TELEMETRY-BASELINE-949
+      source_pr: 950
+      issue: 949
+      source_sha: e555f52dc607552bfc83b74dfdcc26ccbaa26f13
+      integrated_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      status: technical_accepted
+      source_general_run: 41492507572
+      source_learning_run: 41492507642
+      independent_source_review: approved
+      integration_review: approved
+      integration_parent: 553932661d76a57fcc6c4b69d1797c2bf95a9969
+      browser_cases_passed: 46
+      evidence: https://github.com/spikeal8-maker/asa-lab/pull/950#issuecomment-6583904170
+      acceptance_limit: Only exact same-origin diagnostics receipt exemption; every academic mutation assertion retained. Other accepted main changes between the two merges preserved; no new-main or installed acceptance inferred.
+      deployment: not_run
     owned_paths:
     - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
     - docs/product/ASA_LEARNING_TECHNICAL_SPEC.md
@@ -9267,29 +9300,34 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: preview_telemetry_baseline_repair_selected
+      checkpoint: compact_authoring_owner_requirement_selected
       selected_slice:
-        id: LRN-PREVIEW-TELEMETRY-BASELINE-949
-        issue: 949
+        id: LRN-E1-COMPACT-AUTHORING
         status: in_progress
         kind: repair
-        owner_authorization: Owner commissioned Courses completion and resumed visible task authoring on 2026-11-02; controller selects the separate prerequisite baseline repair under AGENTS section 2.1, not scope expansion in PR943.
-        scope: Correct the existing preview test classifier to exempt only exact same-origin POST diagnostics quality receipt telemetry alongside its existing analytics quality receipt exemption.
+        owner_authorization: Owner explicitly requires compact, tidy Course authoring screens on 2026-11-02; all buttons together, no inflated panels or oversized text, usable on small screens. This follows the visible task creation already merged in PR943.
+        scope: Compact the canonical task authoring workspace and its inline Course entry. One coherent action toolbar, no duplicated heading/back controls, restrained typography and content-driven field heights. Reuse existing editor commands and guards.
         expected_write_paths:
+        - apps/web/src/pages/AuthoredMaterialsPage.tsx
+        - apps/web/src/components/CanonicalPracticePicker.tsx
+        - apps/web/src/components/CourseEditorDialog.tsx
+        - apps/web/src/components/courses-panel.css
+        - apps/web/src/pages/assignment-library.css
+        - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
+        - apps/web/src/learning/testing/authored-assignment-list.spec.ts
+        - apps/web/src/learning/testing/authored-materials-goal.spec.ts
+        - e2e/learning-course-01.spec.ts
         - e2e/learning-author-preview.spec.ts
         acceptance:
-        - Preserve all academic API mutation detection, exact historical preview, delayed-response assertions and all existing test identities.
-        - No broad diagnostics exemption, runtime changes, retry/timeout changes or permission changes.
-        - Independent source review and exact-head registered Learning evidence before integration.
-        held_visible_candidate:
-          pr: 943
-          branch: codex/courses-inline-task-creation-20261102
-          head: c96dea558255c5e55e476a6f83610b2283fd5970
-          state: source_preserved_mobile_repair_awaits_review_and_browser
-          previous_reviewed_sha: ba4b69df9d144619bd6415fa94d496f740c797d4
-          evidence: https://github.com/spikeal8-maker/asa-lab/pull/943
-        baseline_evidence: Exact ba4 Learning41487357777 first125422087914 captured POST diagnostics/quality schemaVersion2 client-diagnostics delivery counters only; unchanged preview assertion classified it as an academic mutation. Actual trace reviewed independently; separate category C Issue949.
-        next_action: Finish the one-file baseline repair separately, then recover actual remote state and restore visible-task candidate verification. This is not full Courses, Quiz or deployment acceptance.
+        - One compact group of primary actions; no duplicate return controls or redundant oversized heading. Secondary actions remain accessible together with the editor actions.
+        - Compact normal typography and small initial fields; long Russian titles and body text stay fully accessible through content-driven growth or normal document scrolling, never clipping or overflow hiding.
+        - At 1440 and1024 the main action bar fits a compact row where possible; at390 and320 it wraps into a small number of readable rows without horizontal page/dialog overflow, squeezed text or lost controls.
+        - Saving, publication, exact-version insertion, dirty/busy guards, stale-session rejection, image/preview Escape and focus restoration remain intact.
+        - If shared authoring CSS or dialog primitives change, verify both inline Course and standalone/embedded bank consumers; preserve other Course dialog behavior by default.
+        - Real four-width compact editor and saved-course evidence plus focused/repository gates and independent final source/visual review; no new browser manifest identities or weakened assertions.
+        audit_evidence: Read-only98-worktree audit found only the historic Oct4 V-UX2A staged snapshot. Its overlapping AuthoredMaterialsPage, preview-test and list-test deltas have identical TypeScript ASTs; CSS differs only by an empty line. Its one Course-test helper change is already on current main. Preserve the entire old snapshot untouched; no unfinished product behavior is overwritten.
+        constraints: No API, migration, permissions, new academic runtime, workflow, dependency, timeout/retry or owner runtime changes. Preserve all accepted main content and the original owner ClassroomPage/E2E/CSS WIP.
+        programme_next: Owner explicitly commissioned the complete compact four-kind author-to-journal programme on 2026-11-02, including real Quiz, essay, file and project creation, exact Course delivery, persisted learner answers, immutable submissions, manual or supported automatic review and journal results on small screens. After this compact slice is integrated, select the real essay Course vertical, then recover Quiz foundations and finish all eight normative question types and finalization, then the bounded immutable learner file vertical. Project compatibility and manual teacher-observation semantics remain intact. Each vertical needs exact-SHA gates and independent review; source integration is not deployment or whole-programme acceptance. Reuse preserved PR923/928 and unfinished PR939 only after fresh main and published migration reconciliation; never merge colliding private migration numbers or claim enum-only support as a working format.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
