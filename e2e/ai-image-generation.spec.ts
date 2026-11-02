@@ -1,4 +1,8 @@
-import { AI_IMAGE_PRESETS } from '../packages/contracts/src/ai-image-generation';
+import {
+  AI_IMAGE_PRESETS,
+  type AiImageGenerationJob,
+  type AiImageJobState,
+} from '../packages/contracts/src/ai-image-generation';
 import { expect, test, type Page } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
@@ -23,9 +27,12 @@ async function imageFixture(page: Page) {
   const errors: string[] = [];
   const imagePosts: Record<string, unknown>[] = [];
   const imageReads: string[] = [];
+  const imageCancels: { method: string; path: string }[] = [];
   const threadId = '70000000-0000-4000-8000-000000000001';
   let requestId = '';
-  let state = 'admitted';
+  let state: AiImageJobState = 'admitted';
+  let acceptedPrompt = 'Птица на дереве';
+  let queuePaused = false;
   let uncertain = false;
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aMfoAAAAASUVORK5CYII=',
@@ -35,7 +42,7 @@ async function imageFixture(page: Page) {
     requestId,
     width: 512,
     height: 512,
-    mimeType: 'image/png',
+    mimeType: 'image/png' as const,
     sizeBytes: png.length,
     downloadUrl: '/ignore/untrusted-url',
   });
@@ -49,6 +56,17 @@ async function imageFixture(page: Page) {
     reason: null,
     recipe: 'flux2-klein-4b-v1',
   };
+  const receipt = (): AiImageGenerationJob => ({
+    threadId,
+    requestId,
+    state,
+    prompt: acceptedPrompt,
+    createdAt: '2026-10-26T00:00:00Z',
+    cancelRequested: state === 'cancelled',
+    queuePaused: state === 'admitted' && queuePaused,
+    errorCode: null,
+    image: state === 'complete' ? image() : null,
+  });
 
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
@@ -225,32 +243,18 @@ async function imageFixture(page: Page) {
       const body = request.postDataJSON();
       imagePosts.push(body);
       requestId = body.requestId;
+      acceptedPrompt = body.prompt;
       if (uncertain) return route.abort();
-      return json({
-        threadId,
-        requestId,
-        state,
-        prompt: body.prompt,
-        createdAt: '2026-10-26T00:00:00Z',
-        cancelRequested: false,
-        errorCode: null,
-        image: null,
-      });
+      return json(receipt());
     }
     if (path.includes('/image-generations/')) {
-      imageReads.push(path);
+      if (request.method() === 'GET') imageReads.push(path);
       if (path.endsWith('/image')) return route.fulfill({ contentType: 'image/png', body: png });
-      if (path.endsWith('/cancel')) state = 'cancelled';
-      return json({
-        threadId,
-        requestId,
-        state,
-        prompt: 'Птица на дереве',
-        createdAt: '2026-10-26T00:00:00Z',
-        cancelRequested: false,
-        errorCode: null,
-        image: state === 'complete' ? image() : null,
-      });
+      if (path.endsWith('/cancel')) {
+        imageCancels.push({ method: request.method(), path });
+        state = 'cancelled';
+      }
+      return json(receipt());
     }
     return json({ items: [], meta: { total: 0 } });
   });
@@ -259,6 +263,7 @@ async function imageFixture(page: Page) {
     errors,
     imagePosts,
     imageReads,
+    imageCancels,
     complete: () => {
       state = 'complete';
     },
@@ -268,11 +273,23 @@ async function imageFixture(page: Page) {
     uncertain: () => {
       uncertain = true;
     },
+    pauseQueue: (paused = true) => {
+      queuePaused = paused;
+    },
     threadId,
     conflict: () => {
       conflict = true;
     },
   };
+}
+
+const QUEUED = 'В очереди. Изображение начнёт создаваться, когда освободится видеокарта.';
+async function expectQueued(page: Page) {
+  const notice = page.getByRole('status').filter({ hasText: QUEUED });
+  await expect(notice).toBeVisible();
+  await expect(notice).toHaveText(QUEUED);
+  await expect(page.getByRole('button', { name: 'Отменить задание', exact: true })).toBeEnabled();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
 }
 
 async function noOverflow(page: Page) {
@@ -481,7 +498,7 @@ for (const width of [1440, 1024, 390, 320]) {
       await noOverflow(page);
       await page.screenshot({ path: testInfo.outputPath(`image-mode-${width}-${theme}.png`) });
       await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-      await expect(page.getByText('Задание принято…')).toBeVisible();
+      await expectQueued(page);
       expect(fixture.imagePosts).toHaveLength(1);
       fixture.complete();
       await expect(page.getByRole('img', { name: 'Созданное изображение' })).toBeVisible({
@@ -530,9 +547,10 @@ test('unknown image POST resumes with GET only after reload', async ({ page }) =
   if (await page.getByRole('button', { name: 'Открыть историю' }).isVisible())
     await page.getByRole('button', { name: 'Открыть историю' }).click();
   await page.getByRole('button', { name: 'Локальные изображения', exact: true }).click();
-  await expect(page.getByText('Задание принято…')).toBeVisible();
+  await expectQueued(page);
   expect(fixture.imagePosts).toHaveLength(1);
   expect(fixture.imageReads.length).toBeGreaterThan(0);
+  expect(fixture.imageCancels).toHaveLength(0);
 });
 test('an older image API leaves text tools intact and generation disabled', async ({ page }) => {
   await imageFixture(page);
@@ -552,11 +570,51 @@ test('a cancelled image job is never labelled complete', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   const mode = page.getByRole('region', { name: 'Создать изображение' });
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(page.getByText('Задание принято…')).toBeVisible();
+  await expectQueued(page);
   await mode.getByRole('button', { name: 'Отменить задание', exact: true }).click();
   await expect(page.getByText('Задание отменено.')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
   expect(fixture.imagePosts).toHaveLength(1);
+});
+
+test('a queued image clears its pause notice by GET and stays cancellable on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  const fixture = await imageFixture(page);
+  fixture.pauseQueue();
+  await page.goto('/#/ai');
+  await page.getByLabel('Инструменты чата').click();
+  await page.getByRole('button', { name: 'Изображение', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
+  const mode = page.getByRole('region', { name: 'Создать изображение' });
+  await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Очередь приостановлена' })).toHaveText(
+    'Очередь приостановлена: проверяем неопределённый результат генерации. Задание можно отменить.',
+  );
+  await expect(mode.getByRole('button', { name: 'Отменить задание', exact: true })).toBeEnabled();
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
+  await noOverflow(page);
+  expect(fixture.imagePosts).toHaveLength(1);
+  expect(fixture.imageCancels).toHaveLength(0);
+  const reads = fixture.imageReads.length;
+  fixture.pauseQueue(false);
+  await expectQueued(page);
+  expect(fixture.imageReads.length).toBeGreaterThan(reads);
+  expect(fixture.imagePosts).toHaveLength(1);
+  await mode.getByRole('button', { name: 'Отменить задание', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Задание отменено.' })).toHaveText(
+    'Задание отменено.',
+  );
+  expect(fixture.imageCancels).toEqual([
+    {
+      method: 'POST',
+      path: `/api/ai/threads/${fixture.threadId}/image-generations/${fixture.imagePosts[0]!.requestId}/cancel`,
+    },
+  ]);
+  expect(fixture.imagePosts).toHaveLength(1);
+  await expect(page.getByRole('img', { name: 'Созданное изображение' })).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
 });
 test('a confirmed rejected first image POST permits an explicit corrected request with a new UUID', async ({
   page,
@@ -585,7 +643,7 @@ test('a confirmed rejected first image POST permits an explicit corrected reques
   ).toBeEnabled();
   expect(fixture.imagePosts).toHaveLength(0);
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(page.getByText('Задание принято…')).toBeVisible();
+  await expectQueued(page);
   expect(attempted).toHaveLength(2);
   expect(attempted[1]!.requestId).not.toBe(attempted[0]!.requestId);
   expect(fixture.imagePosts).toHaveLength(1);
