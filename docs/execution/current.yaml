@@ -16183,13 +16183,16 @@ parallel_lanes:
       kind: analysis/inventory
       risk: high
       semantic_change: 'no'
-      checkpoint: selected_browser_only_host_yield_cause_measurement
+      checkpoint: initial_probe_semantic_parity_pass_performance_inconclusive_vite_graph_correction
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
       scope: TEMP-only real Chromium Worker measurement on frozen actual no-delay and millis requests; compare unchanged baseline, timer instrumentation and experimental MessageChannel yield. No repository runtime edits or acceptance.
       owner_authorization: Owner requests fixing remaining20 Electronics timing failures after simple toolbar fixes; measure independent Worker cause while reviewed desktop candidate waits for CI.
-      next_action: One bounded measurement executor validates selection, measures actual waits/compute and complete response parity with a short cancellation probe, reports observed cause and limitations; new independent actual review; STOP before production repair.
+      next_action: One corrected bounded TEMP-only probe must use actual canonical Vite Worker ES production build and full resolve aliases, retaining same8inputs3variants2passes. Audit emitted graph against Vite settings before execution; new independent actual review; no repository runtime implementation.
+      initial_probe_result: 48complete_responses_and_saved_states_match_cancellation8_7ms_no_stale300ms_but_44ignored_dist_modules901168bytes_and_unminified_IIFE_keepNames_make_production_perf_INCONCLUSIVE
+      initial_probe_evidence: OS_temp_asa_browser_yield_138859ec_report_receipt_manifest_independently_verified118files291source_entries
+      correction_boundary: Exactly one repeat for demonstrated build/provenance mismatch; no changed inputs, budgets, physical timing, deadlines or broader workload.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -16292,11 +16295,11 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: done
+      status: in_progress
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: source_review_evidence_done_a85_native16_canonical2565_71fresh
+      checkpoint: selected_fixed_menu_actual_intersection_oracle_repair
       accepted_candidate_sha: a85c5a2a68db9fe83755e2b0168aa7fadde69f74
       source_review_evidence: done
       independent_review: APPROVE_initial_header_only_not_full_journeys
@@ -16306,7 +16309,11 @@ parallel_lanes:
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-TOOLBAR-ORACLE-001.md
       owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
-      acceptance_boundary: Initial_header_oracle_only_not_four_complete_Code_Save_journeys
+      acceptance_boundary: Actual_clipping_measurement_only_all_original_95_phases_and_five_native_points_retained
+      current_repair_scope: Correct only the compact-case clipping collector/assertion to browser-computed actual intersections; preserve ancestor diagnostics, all bounds tolerances and genuine clipping/ownership tests. No product edits.
+      current_failure: Scoped41365631046 text-desktop-compact981-native-open falsely compares viewport-fixed purple bottom162 against uninvolved scroll-group bottom95 while all5nativepoints are owned.
+      current_evidence: Independent actual raw_PNG_and5_serverless_adversarial_cases_CONFIRM_ORACLE_FALSE_POSITIVE; both_fixed_menu_and_overflow_preexist_c353.
+      current_next_action: New bounded test-only executor preserves95originalphases/intents; one batched observer per capture, adversarial clipping and occlusion coverage, canonical browser-digest-only generation; new exact-source and actual review; STOP.
       deployment: prohibited_by_owner
       database_actions: none_live
     gates:
