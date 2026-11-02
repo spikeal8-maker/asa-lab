@@ -23,6 +23,40 @@ export async function observeActualIntersections(selector: string) {
     ),
   );
   const parents = ancestors.map((element) => element.parentElement);
+  // Clock telemetry is not presentation. Fail closed if CSS could consume it,
+  // including escaped selectors, attr() content, imports or unreadable sheets.
+  const telemetryIsStyleIndependent = () => {
+    const consumesTelemetry = (text: string) =>
+      text
+        .replace(
+          /\\([\da-f]{1,6})\s?|\\(.)/gi,
+          (_match, hex: string | undefined, literal: string) =>
+            hex ? String.fromCodePoint(parseInt(hex, 16) || 0xfffd) : literal,
+        )
+        .toLowerCase()
+        .includes('data-time-ms');
+    const visited = new Set<CSSStyleSheet>();
+    const inspect = (sheet: CSSStyleSheet): boolean => {
+      if (visited.has(sheet)) return true;
+      visited.add(sheet);
+      return Array.from(sheet.cssRules).every((rule) => {
+        return (
+          !consumesTelemetry(rule.cssText) &&
+          (!(rule instanceof CSSImportRule) ||
+            (rule.styleSheet !== null && inspect(rule.styleSheet)))
+        );
+      });
+    };
+    try {
+      return (
+        [...document.styleSheets, ...document.adoptedStyleSheets].every(inspect) &&
+        !ancestors.some((element) => consumesTelemetry(element.getAttribute('style') ?? ''))
+      );
+    } catch {
+      return false;
+    }
+  };
+  const telemetryIndependent = telemetryIsStyleIndependent();
   const snapshot = () =>
     JSON.stringify({
       viewport: [innerWidth, innerHeight, scrollX, scrollY],
@@ -40,7 +74,11 @@ export async function observeActualIntersections(selector: string) {
           element.clientHeight,
           element.scrollLeft,
           element.scrollTop,
-          Array.from(css, (property) => [property, css.getPropertyValue(property)]),
+          // The accepted infinite running pulse animates box-shadow only. It
+          // cannot alter clipping, layout, visibility, content or native hits.
+          Array.from(css)
+            .filter((property) => property !== 'box-shadow')
+            .map((property) => [property, css.getPropertyValue(property)]),
         ];
       }),
     });
@@ -58,9 +96,19 @@ export async function observeActualIntersections(selector: string) {
       throw new Error('Actual intersection capture changed');
   };
   // Detect even change-and-revert while the rendering observation is pending.
-  const relevant = (record: MutationRecord) =>
-    ancestors.includes(record.target as Element) ||
-    (record.target instanceof Element && record.target.closest('style, link') !== null);
+  const relevant = (record: MutationRecord) => {
+    if (
+      record.type === 'attributes' &&
+      record.attributeName === 'data-time-ms' &&
+      telemetryIndependent &&
+      telemetryIsStyleIndependent()
+    )
+      return false;
+    return (
+      ancestors.includes(record.target as Element) ||
+      (record.target instanceof Element && record.target.closest('style, link') !== null)
+    );
+  };
   let changed = false;
   const mutations = new MutationObserver((records) => {
     changed ||= records.some(relevant);
