@@ -170,9 +170,36 @@ class Fixture(unittest.TestCase):
             else:
                 self.assertEqual(ctypes.get_last_error(), 87, 'cannot verify exact owned child termination')
         else:
-            state = Path(f'/proc/{pid}/stat')
-            if state.exists():
-                self.assertEqual(state.read_text().split(') ', 1)[1].split()[0], 'Z')
+            self.assert_posix_descendant_terminated(pid)
+
+    def assert_posix_descendant_terminated(self, pid):
+        try:
+            state = Path(f'/proc/{pid}/stat').read_text()
+        except FileNotFoundError:
+            # A reaped child may disappear before or during the procfs read.
+            return
+        self.assertEqual(state.split(') ', 1)[1].split()[0], 'Z', 'owned child is still running')
+
+    def test_posix_descendant_disappearing_during_stat_read_is_terminated(self):
+        # Simulate the exact race: an existence probe would succeed, but the
+        # owned child's procfs entry is gone by the time read_text opens it.
+        with patch.object(Path, 'exists', return_value=True), \
+             patch.object(Path, 'read_text', side_effect=FileNotFoundError) as read:
+            self.assert_posix_descendant_terminated(12345)
+        read.assert_called_once_with()
+
+    def test_posix_descendant_state_remains_strict(self):
+        for state in ('S', 'R'):
+            with self.subTest(state=state), patch.object(Path, 'read_text', return_value=f'12345 (owned child) {state} 1'):
+                with self.assertRaises(AssertionError):
+                    self.assert_posix_descendant_terminated(12345)
+        with patch.object(Path, 'read_text', return_value='12345 (owned child) Z 1'):
+            self.assert_posix_descendant_terminated(12345)
+
+    def test_posix_descendant_stat_errors_remain_fail_closed(self):
+        with patch.object(Path, 'read_text', side_effect=PermissionError('cannot read exact owned child')):
+            with self.assertRaises(PermissionError):
+                self.assert_posix_descendant_terminated(12345)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows kill-on-close fallback')
     def test_job_termination_failure_still_closes_job_and_kills_descendant(self):
