@@ -17,6 +17,9 @@ test('eight tool switches persist through real API and reload on desktop and mob
     const before = await (await page.request.get(endpoint)).json();
     expect(before.tools.map((item: { id: string }) => item.id)).toEqual(AI_TOOL_IDS);
     await page.goto('/#/admin/ai?section=settings');
+    // Registration uses the real API. Reload after the hash navigation so the
+    // application resolves that new session instead of retaining its guest state.
+    await page.reload();
     const section = page.getByRole('region', { name: 'Инструменты помощника' });
     await expect(section).toBeVisible();
     for (const id of AI_TOOL_IDS) {
