@@ -16180,17 +16180,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: owner_selected_four_native_toolbar_hit_failures
+      checkpoint: source_f641_four_native_journeys_and_general_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_four_selected_actual_journeys
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-COMPACT-CONTROLS-001.md
       repair_scope: CSS-only desktop toolbar packing and strengthened existing native oracle; preserve all original four Code journeys and all mobile/emergency-caption behavior.
       owner_authorization: Repair remaining Electronics failures easiest first; no server or foreign changes. Desktop-only authorship starts after this selection is published; inherit independently reviewed8080 caption source while its separate General finishes, without concurrent edits to the mobile caption.
-      next_action: One bounded author preserves accepted main, reproduces original1374/1181 clock/tool overlap in actual Header, fixes desktop packing, verifies native controls and original four Code journeys; new independent review and exact CI before integration.
+      next_action: The original four desktop/blocks Code journeys pass with87 selected compact phases, complete captions, native hit ownership and whole intent receipts. Mobile emergency E01 also passes. Broader fifth text-mobile qualification remains in Task870; owner acceptance and deployment are separate.
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
@@ -16272,13 +16277,13 @@ parallel_lanes:
       kind: repair
       risk: medium
       semantic_change: 'yes'
-      checkpoint: independent_mobile_ui_candidate_selected_while944_ci_pending
+      checkpoint: cfa_product_general_pass_native_test04_browser_pending
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
       scope: Phone component properties collapsed square by default, compact expandable inspector, original property editing and native pinch preserved; hide phone zoom buttons. Desktop remains expanded. No physics or deployment changes.
       owner_authorization: Owner explicitly requests restoring phone component properties, compact collapse/expand, desktop immediate display and removal of phone zoom controls on2026-11-02.
-      next_action: New bounded executor may prepare isolated candidate while944/870 frozen CI runs; publish only after944 integration and fresh source/native review. No mutation of frozen candidate.
+      next_action: Product sourcecfa788a1 and General41524822203 are approved and green. Actual04a66 phone Save/history/fold and desktop full fresh reopen passed before strict test-oracle failures. Test-only source91f1d388 adds the documented foreground wire-hit path and exact structural JSON auditing; independent recipe review approves, actual three-case run41533814302 remains pending. Inspect evidence before any repair or new dispatch, then independent review and main integration after verified944.
       integration_order: Source preparation only in independent worktree; main integration follows verified944 pin initialization.
     gates:
       focused:
@@ -16318,17 +16323,22 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: source2b2ff317_independent_review_pass_full_browser_acceptance_selected
+      checkpoint: source_f641_general_and_seven_browser_verified_in_main
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
+      independent_review: APPROVE_final_source_and_actual_seven
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
+      browser_run: 41525333022
+      general_run: 41527917133
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
       scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
       owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
-      next_action: Source2b2ff317 independently approved with102tests and author105tests. New bounded test author adds actual desktop/mobile owner-project settings and Save-reopen journey; keep reviewed production source unchanged. Canonical CI and actual browser evidence remain required.
+      next_action: Verified source is integrated by the controller with original five scoped journeys and both owner settings journeys green. Owner acceptance and deployment remain separate; default-height mobile Reset and broader raw/empty/corrupt Task865 preservation are still open.
     gates:
       focused:
         workflow: Electronics M1 Focused Gate
@@ -16435,11 +16445,11 @@ parallel_lanes:
       kind: repair
       risk: low
       semantic_change: 'no'
-      checkpoint: selected_fixed_menu_actual_intersection_oracle_repair
-      accepted_candidate_sha: a85c5a2a68db9fe83755e2b0168aa7fadde69f74
+      checkpoint: four_compact_cases_87_phases_verified_remaining_mobile_case_pending
+      accepted_candidate_sha: f64141870b52458ad19b82b51582c47cb14460ea
       source_review_evidence: done
-      independent_review: APPROVE_initial_header_only_not_full_journeys
-      report: docs/product/electronics/evidence/toolbar-oracle-870/GATES.md
+      independent_review: APPROVE_source_and_four_selected_actual_journeys
+      report: docs/product/electronics/evidence/block-pin-setup-944-20261103/REPORT.md
       owner_acceptance: pending
       execution_role: bounded_test_executor_then_new_independent_review
       context_hints:
@@ -16447,9 +16457,9 @@ parallel_lanes:
       owner_authorization: Owner continues remainingprogramme simplest first; actual frozenCI proves first four header assertions stale after accepted text tool and one-row policy. Test-only alignment, no product or generic paused timedAPI repair.
       acceptance_boundary: Actual_clipping_measurement_only_all_original_95_phases_and_five_native_points_retained
       current_repair_scope: Correct only the compact-case clipping collector/assertion to browser-computed actual intersections; preserve ancestor diagnostics, all bounds tolerances and genuine clipping/ownership tests. No product edits.
-      current_failure: Scoped41365631046 text-desktop-compact981-native-open falsely compares viewport-fixed purple bottom162 against uninvolved scroll-group bottom95 while all5nativepoints are owned.
-      current_evidence: Independent actual raw_PNG_and5_serverless_adversarial_cases_CONFIRM_ORACLE_FALSE_POSITIVE; both_fixed_menu_and_overflow_preexist_c353.
-      current_next_action: New bounded test-only executor preserves95originalphases/intents; one batched observer per capture, adversarial clipping and occlusion coverage, canonical browser-digest-only generation; new exact-source and actual review; STOP.
+      current_failure: No failure remains in the four selected compact cases; the separate historical text-mobile case has not been rerun on this candidate.
+      current_evidence: Run41525333022 and independent actual review approve exactly87 selected compact phases, 1372 control observations and all native hit guards. Historical95 includes a fifth text-mobile case; current source also adds981-native-closed for96 total, so this is not full95 qualification.
+      current_next_action: Qualify the remaining nine historical text-mobile compact phases without modifying the preserved original cases, guards or production source. Keep this task in progress until that separate evidence and review exist.
       deployment: prohibited_by_owner
       database_actions: none_live
     gates:

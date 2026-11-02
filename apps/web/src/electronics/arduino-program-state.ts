@@ -6,6 +6,7 @@ export interface ArduinoProgramState {
   readonly source: string;
   readonly serialOpen: boolean;
   readonly baudRate: number;
+  readonly inputPins: readonly string[];
 }
 
 export const DEFAULT_ARDUINO_SOURCE = `// C++ code
@@ -45,5 +46,8 @@ export function readArduinoProgramState(
     source: typeof source === 'string' ? source : DEFAULT_ARDUINO_SOURCE,
     serialOpen: properties?.['arduinoSerialOpen'] === true,
     baudRate: typeof baud === 'number' && Number.isFinite(baud) ? baud : 9600,
+    inputPins: Array.isArray(properties?.['arduinoInputPins'])
+      ? properties['arduinoInputPins'].filter((pin): pin is string => typeof pin === 'string')
+      : [],
   };
 }
