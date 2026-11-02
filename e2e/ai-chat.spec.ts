@@ -886,7 +886,10 @@ test('AI pending and stopped replays keep request identity and state', async ({ 
   await composer.fill('Запрос без завершённого ответа');
   await send.click();
   await expect(composer).toBeEnabled();
-  await expect(page.locator('.asa-ai-error')).toContainText('Запрос уже был принят');
+  await expect(page.locator('.asa-ai-error')).toHaveText(
+    'Сообщение сохранено, но ответ пока не завершён. Повторная отправка этого сообщения не запустит модель заново. Можно отправить новое уточнение.',
+  );
+  await expect(page.locator('.asa-ai-error')).not.toContainText('Запрос уже был принят');
   await expect(composer).toHaveValue('Запрос без завершённого ответа');
   await expect(turns).toHaveCount(1);
   expect(fake.requests[1]).toBe(fake.requests[0]);
