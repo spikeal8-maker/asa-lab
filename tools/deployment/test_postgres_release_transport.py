@@ -7,9 +7,9 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from deployment.contracts import Blocked, LEGACY_SERVICES, REGISTRY, SERVICES, V3_SERVICES, validate_release
+from deployment.contracts import Blocked, LEGACY_SERVICES, LEGACY_POSTGRES_IMAGES, REGISTRY, SERVICES, V3_SERVICES, validate_release
+from deployment.release_channel import publication_channel
 from deployment.releases import apply_release_environment, assert_ci, validate_resolved_images
-from runtime_image_baseline import runtime_defaults
 
 
 def candidate(version):
@@ -20,10 +20,19 @@ def candidate(version):
 
 
 class PostgresReleaseTransportTests(unittest.TestCase):
+    def test_publication_stays_v2_and_rejects_unaccepted_v3_activation(self):
+        format_name, names = publication_channel()
+        self.assertEqual(format_name, 'asa-deployment-v2')
+        self.assertEqual(names, SERVICES)
+        self.assertNotIn('postgres', names)
+        with self.assertRaisesRegex(Blocked, 'v3 publication'):
+            publication_channel({'format': 'asa-release-channel-v1', 'manifestFormat': 'asa-deployment-v3',
+                                 'v3Activation': 'blocked_until_installed_bridge_acceptance'})
+
     def test_all_three_manifests_remain_valid_but_v3_requires_immutable_postgres(self):
         for version in (1, 2, 3):
             self.assertEqual(validate_release(candidate(version)), candidate(version))
-        for replacement in (None, 'postgres:17.11-bookworm', f'{REGISTRY}/postgres:latest', f'{REGISTRY}/api@sha256:' + 'b' * 64):
+        for replacement in (None, 'sha256:' + 'c' * 64, 'postgres:17.11-bookworm', f'{REGISTRY}/postgres:latest', f'{REGISTRY}/api@sha256:' + 'b' * 64):
             changed = candidate(3)
             if replacement is None:
                 del changed['images']['postgres']
@@ -38,7 +47,15 @@ class PostgresReleaseTransportTests(unittest.TestCase):
             release = candidate(version)
             apply_release_environment(install, release)
             self.assertEqual(install.process_env['ASA_POSTGRES_IMAGE'],
-                             release['images'].get('postgres', runtime_defaults()['postgres']))
+                             release['images']['postgres'] if version == 3 else LEGACY_POSTGRES_IMAGES[release['format']])
+
+    def test_legacy_selection_is_independent_of_current_candidate_baseline(self):
+        with patch('runtime_image_baseline.runtime_defaults', side_effect=AssertionError('must not select current baseline')):
+            for version in (1, 2):
+                install = MagicMock(process_env={})
+                apply_release_environment(install, candidate(version))
+                self.assertEqual(install.process_env['ASA_POSTGRES_IMAGE'],
+                                 'docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854')
 
     def test_v3_refuses_an_effective_compose_postgres_substitution(self):
         release = candidate(3)

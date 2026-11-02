@@ -1,0 +1,5 @@
+{
+  "format": "asa-release-channel-v1",
+  "manifestFormat": "asa-deployment-v2",
+  "v3Activation": "blocked_until_installed_bridge_acceptance"
+}

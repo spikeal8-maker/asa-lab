@@ -117,8 +117,10 @@ path, initialization and runtime user behavior. Only gosu is replaced and OS
 packages refreshed. `compose.yaml` builds that derivative for source installs;
 `ASA_POSTGRES_IMAGE` selects an immutable release image for managed installs.
 Manifest **v3** adds PostgreSQL to the five v2 components and records the actual
-GHCR digest. v1/v2 manifests remain valid and select the pinned official base
-instead of requiring a new local derivative. They do not retroactively gain
+GHCR digest. v1/v2 manifests remain valid and select their explicit historical **17.7**
+Docker Hub manifest digest from the 545 receipt, independently rechecked against
+its registry config (`PG_VERSION=17.7-3.pgdg12+1`). They never select the current
+17.11 candidate from `runtime_defaults()` or require a new local derivative. They do not retroactively gain
 this gosu fix. The release CI builds/publishes PostgreSQL alongside the other
 components and checks all v3 image digests after Compose resolves.
 
@@ -139,3 +141,23 @@ pushed only if the High/Critical fixable and OS-support checks succeed. Scan
 artifacts are retained on failure. The stable manifest is promoted only after
 all image builds/scans and the existing backup/restore smoke complete. This
 source candidate has not deployed any PostgreSQL or Caddy binary to a server.
+
+## Required staged manager bridge (v3 publication is not activated)
+
+Old installed managers reject an unknown v3 manifest before they can select and
+check out the new manager source. Reader backward compatibility alone does not
+solve that bootstrap boundary. This candidate therefore deliberately **continues
+publishing v2**, controlled by `infra/deployment/release-channel.json` and the
+fail-closed `publication_channel()` validator. Changing that file to v3 is
+rejected by this implementation. The bridge v2 release carries the new v3 reader
+but retains the historical v2 PostgreSQL selection. Its independently built,
+scanned PostgreSQL derivative may exist in GHCR, but is not yet selected by the
+stable v2 manifest. PostgreSQL CVE deployment closure is not claimed.
+
+The separate activation slice must first attest successful publication **and
+installation** of this v2 bridge on managed hosts (or provide a verified explicit
+bootstrap path for hosts that skipped it). Only then may it activate v3 manifests
+and their PostgreSQL derivative. Unknown legacy installations must fail closed;
+they must not silently receive today's PostgreSQL baseline or a raw image ID
+instead of an immutable manifest reference. This slice does not implement or
+claim that later activation/installation step.

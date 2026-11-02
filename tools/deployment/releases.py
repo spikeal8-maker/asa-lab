@@ -7,7 +7,7 @@ import tempfile
 import urllib.request
 import uuid
 
-from .contracts import REGISTRY, REPOSITORY, SERVICES, Blocked, attest_database_targets, attest_embedded_editor, require, validate_release
+from .contracts import REGISTRY, REPOSITORY, SERVICES, LEGACY_POSTGRES_IMAGES, Blocked, attest_database_targets, attest_embedded_editor, require, validate_release
 from .system import run
 
 
@@ -76,9 +76,8 @@ def apply_release_environment(install, release):
     install.process_env.update({"ASA_BUILD_REVISION": release["revision"], "ASA_EXPECTED_SCHEMA_VERSION": str(release["schema"])})
     if "postgres" not in release["images"]:
         # v1/v2 releases predate the managed PostgreSQL derivative. Preserve their
-        # official PostgreSQL selection instead of requiring a nonexistent local build.
-        from runtime_image_baseline import runtime_defaults
-        install.process_env["ASA_POSTGRES_IMAGE"] = runtime_defaults()["postgres"]
+        # original versioned PostgreSQL selection, never today's security candidate.
+        install.process_env["ASA_POSTGRES_IMAGE"] = LEGACY_POSTGRES_IMAGES[release["format"]]
     for service in release["images"]:
         install.process_env[f"ASA_{service.upper()}_IMAGE"] = release["images"][service]
 

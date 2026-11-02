@@ -17,6 +17,10 @@ REGISTRY = f"ghcr.io/{REPOSITORY}"
 LEGACY_SERVICES = ("api", "web", "scratch", "minio")
 SERVICES = (*LEGACY_SERVICES, "search")
 V3_SERVICES = (*SERVICES, "postgres")
+# Versioned compatibility input: the original 17.7 CI/release baseline, never
+# today's candidate. Historical primary/mirror identity is in the 545 receipt.
+LEGACY_POSTGRES_IMAGES = {version: "docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854"
+                          for version in ("asa-deployment-v1", "asa-deployment-v2")}
 MOSCOW = dt.timezone(dt.timedelta(hours=3))
 DEFAULT_WINDOW = {"weekday": 6, "start": "03:00", "end": "05:00", "utcOffsetMinutes": 180}
 
