@@ -83,10 +83,12 @@ async function fixture(
     [owner.tenantId, classroom, owner.teacherId, ownerAccount],
   );
   async function seat() {
+    // Keep the full UUID entropy within both varchar(32) login fields.
+    const loginHandle = randomUUID().replaceAll('-', '');
     const id = (
       await admin.query(
         "INSERT INTO classroom_student_seats(tenant_id,classroom_id,account_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by) VALUES($1,$2,$3,'Learner',$4,$4,true,'active',$5) RETURNING id",
-        [owner.tenantId, classroom, learnerAccount, 'q-' + randomUUID(), owner.teacherId],
+        [owner.tenantId, classroom, learnerAccount, loginHandle, owner.teacherId],
       )
     ).rows[0].id as string;
     const principal = (
