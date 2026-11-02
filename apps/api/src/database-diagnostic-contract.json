@@ -434,7 +434,7 @@
         },
         "generation_provider": {
           "type": "enum",
-          "values": ["ollama", "ollama-cloud", "comfyui", "openai", "deepseek"]
+          "values": ["ollama", "ollama-cloud", "comfyui", "openai", "deepseek", "polza"]
         },
         "generation_admitted_at": {
           "type": "timestamp"

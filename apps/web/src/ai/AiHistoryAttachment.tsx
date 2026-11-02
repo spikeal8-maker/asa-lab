@@ -1,3 +1,4 @@
+import { AiImageViewer } from './AiImageViewer';
 import { useEffect, useRef, useState } from 'react';
 import { AiChatIcon } from './AiChatIcon';
 import { aiScopeHeaders } from './ai-scope-api';
@@ -15,13 +16,17 @@ export function AiHistoryAttachment({
   file,
   seatId,
   onDownload,
+  onUse,
 }: {
   file: AiSavedAttachment;
   seatId?: string | undefined;
   onDownload: () => void;
+  onUse?: (file: File) => void;
 }): JSX.Element {
   const card = useRef<HTMLButtonElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const bytes = useRef<Blob | null>(null);
   const [failed, setFailed] = useState(false);
   const image = file.kind === 'image' && /^image\/(png|jpeg|webp)$/.test(file.mediaType);
 
@@ -45,6 +50,7 @@ export function AiHistoryAttachment({
         if (controller.signal.aborted) return;
         if (blob.type !== file.mediaType || blob.size !== file.sizeBytes)
           throw new Error('invalid preview');
+        bytes.current = blob;
         objectUrl = URL.createObjectURL(blob);
         setPreview(objectUrl);
       } catch {
@@ -67,6 +73,7 @@ export function AiHistoryAttachment({
     return () => {
       observer?.disconnect();
       controller.abort();
+      bytes.current = null;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [file.uploadId, file.mediaType, file.sizeBytes, image, seatId]);
@@ -82,28 +89,58 @@ export function AiHistoryAttachment({
       ? Math.max(1, Math.ceil(file.sizeBytes / 1024)) + ' КБ'
       : (file.sizeBytes / (1024 * 1024)).toFixed(1) + ' МБ';
   return (
-    <button
-      ref={card}
-      type="button"
-      className={'chat-saved-file' + (image ? ' is-image' : '')}
-      onClick={onDownload}
-      title={'Скачать: ' + name}
-      aria-label={'Скачать: ' + name}
-    >
-      {preview && !failed ? (
-        <img src={preview} alt={name} onError={() => setFailed(true)} />
-      ) : (
-        <span className="chat-saved-file-icon">
-          <AiChatIcon name={image ? 'image' : 'file'} size={26} />
+    <div className={image ? 'chat-saved-image-group' : 'chat-saved-document-group'}>
+      <button
+        ref={card}
+        type="button"
+        className={'chat-saved-file' + (image ? ' is-image' : '')}
+        onClick={() => (image && preview ? setExpanded(true) : onDownload())}
+        data-ai-tooltip={`${name} · ${size}`}
+        title={image ? `Открыть: ${name} · ${size}` : 'Скачать: ' + name}
+        aria-label={(image ? 'Открыть: ' : 'Скачать: ') + name}
+      >
+        {preview && !failed ? (
+          <img src={preview} alt={name} onError={() => setFailed(true)} />
+        ) : (
+          <span className="chat-saved-file-icon">
+            <AiChatIcon name={image ? 'image' : 'file'} size={26} />
+          </span>
+        )}
+        <span className={image ? 'sr-only' : 'chat-saved-file-info'}>
+          <span className="chat-saved-file-name">{name}</span>
+          <small>
+            {failed ? 'Миниатюра недоступна · ' : ''}
+            {type} · {size}
+          </small>
         </span>
-      )}
-      <span className="chat-saved-file-info">
-        <span className="chat-saved-file-name">{name}</span>
-        <small>
-          {failed ? 'Миниатюра недоступна · ' : ''}
-          {type} · {size}
-        </small>
-      </span>
-    </button>
+      </button>
+      {image && preview ? (
+        <span className="ai-private-image-actions">
+          <button
+            type="button"
+            data-ai-tooltip="Скачать изображение"
+            aria-label="Скачать изображение"
+            onClick={onDownload}
+          >
+            <AiChatIcon name="download" size={18} />
+          </button>
+          {onUse ? (
+            <button
+              type="button"
+              data-ai-tooltip="Использовать в чате"
+              aria-label="Использовать в чате"
+              onClick={() => {
+                if (bytes.current) onUse(new File([bytes.current], name, { type: file.mediaType }));
+              }}
+            >
+              <AiChatIcon name="attachment" size={18} />
+            </button>
+          ) : null}
+        </span>
+      ) : null}
+      {expanded && preview ? (
+        <AiImageViewer src={preview} name={name} onClose={() => setExpanded(false)} />
+      ) : null}
+    </div>
   );
 }

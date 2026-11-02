@@ -105,45 +105,48 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-it('requires an explicit confirmation before microphone capture', async () => {
+it('starts recording with one click and shows only compact voice activity', async () => {
   await render();
+  expect(acquire).not.toHaveBeenCalled();
   await act(async () => button('Продиктовать сообщение').click());
-  expect(acquire).not.toHaveBeenCalled();
-  expect(host.textContent).toContain('Polza AI');
-  expect(document.activeElement).toBe(button('Разрешить голосовой ввод'));
-  await act(async () => button('Отменить голосовой ввод').click());
-  expect(acquire).not.toHaveBeenCalled();
+  expect(acquire).toHaveBeenCalledTimes(1);
+  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(host.textContent).not.toMatch(/Polza|Продолжить|ASA Lab/);
+  expect(button('Остановить запись и распознать').hasAttribute('data-ai-tooltip')).toBe(false);
+  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(40);
+  expect(host.querySelector('time')?.textContent).toBe('0:00');
+  expect(button('Остановить запись и распознать').getAttribute('aria-pressed')).toBe('true');
   expect(requests.map((r) => r.path)).toEqual(['/api/ai/stt/status']);
 });
 
-it('Escape dismisses the external audio transfer consent without microphone access', async () => {
+it('Escape cancels recording without transmitting audio', async () => {
   await render();
   await act(async () => button('Продиктовать сообщение').click());
   await act(async () => {
-    button('Разрешить голосовой ввод').dispatchEvent(
+    button('Остановить запись и распознать').dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
     );
   });
-  expect(acquire).not.toHaveBeenCalled();
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(host.querySelector('.ai-voice-panel')).toBeNull();
+  expect(stopTrack).toHaveBeenCalled();
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
   expect(document.activeElement).toBe(button('Продиктовать сообщение'));
 });
 
-it('serializes double consent clicks and stops a late microphone stream after cancel', async () => {
+it('serializes double microphone clicks and stops a late microphone stream after cancel', async () => {
   let resolvePermission!: (value: MediaStream) => void;
   const permission = new Promise<MediaStream>((resolve) => {
     resolvePermission = resolve;
   });
   acquire.mockImplementationOnce(() => permission);
   await render();
-  await act(async () => button('Продиктовать сообщение').click());
-  const consent = button('Разрешить голосовой ввод');
+  const microphone = button('Продиктовать сообщение');
   await act(async () => {
-    consent.click();
-    consent.click();
+    microphone.click();
+    microphone.click();
   });
   expect(acquire).toHaveBeenCalledTimes(1);
-  expect(host.textContent).toContain('Ожидаем разрешения');
+  expect(host.textContent).toContain('Подключаю микрофон');
   await act(async () => button('Отменить голосовой ввод').click());
   expect(host.querySelector('[role="dialog"]')).toBeNull();
   const released = vi.fn();
@@ -164,10 +167,8 @@ it('ignores a stale first permission after a second recording is active', async 
   acquire.mockImplementationOnce(() => first);
   await render();
   await act(async () => button('Продиктовать сообщение').click());
-  await act(async () => button('Разрешить голосовой ввод').click());
   await act(async () => button('Отменить голосовой ввод').click());
   await act(async () => button('Продиктовать сообщение').click());
-  await act(async () => button('Разрешить голосовой ввод').click());
   expect(acquire).toHaveBeenCalledTimes(2);
   const stopStale = vi.fn();
   await act(async () => {
@@ -184,11 +185,10 @@ it('ignores a stale first permission after a second recording is active', async 
 it('stops and transcribes into a draft only, without sending a chat message', async () => {
   await render();
   await act(async () => button('Продиктовать сообщение').click());
-  await act(async () => button('Разрешить голосовой ввод').click());
   expect(acquire).toHaveBeenCalledOnce();
   expect(button('Остановить запись и распознать')).toBeDefined();
   await act(async () => button('Остановить запись и распознать').click());
-  await vi.waitFor(() => expect(transcript).toHaveBeenCalledWith(speechResponse));
+  await vi.waitFor(() => expect(transcript).toHaveBeenCalledWith(speechResponse, false));
   const dispatch = requests.find((r) => r.path === '/api/ai/stt/transcribe');
   expect(dispatch).toBeDefined();
   const body = JSON.parse(String(dispatch!.init?.body)) as {
@@ -217,7 +217,6 @@ it('reports a full transcript separately when the existing draft cannot fit it',
   });
   await render();
   await act(async () => button('Продиктовать сообщение').click());
-  await act(async () => button('Разрешить голосовой ввод').click());
   await act(async () => button('Остановить запись и распознать').click());
   await vi.waitFor(() => expect(host.textContent).toContain('Расшифровка не поместилась'));
   expect(draft).toBe('Unsent question');
@@ -228,9 +227,147 @@ it('reports a full transcript separately when the existing draft cannot fit it',
 it('cancels a recording without transmitting audio or adding text', async () => {
   await render();
   await act(async () => button('Продиктовать сообщение').click());
-  await act(async () => button('Разрешить голосовой ввод').click());
   await act(async () => button('Отменить голосовой ввод').click());
   expect(transcript).not.toHaveBeenCalled();
   expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
   expect(stopTrack).toHaveBeenCalled();
+});
+
+it('returns to idle with a simple notice when recognition rejects', async () => {
+  const failingCall = <T>(path: string, init?: RequestInit) =>
+    path === '/api/ai/stt/transcribe'
+      ? Promise.reject(new Error('private upstream diagnostics'))
+      : call<T>(path, init);
+  await act(async () =>
+    root.render(
+      createElement(AiVoiceInput, { call: failingCall, disabled: false, onTranscript: transcript }),
+    ),
+  );
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => button('Остановить запись и распознать').click());
+  await vi.waitFor(() => expect(host.textContent).toContain('Голосовой ввод сейчас недоступен.'));
+  expect(host.textContent).not.toContain('private upstream');
+  expect(button('Продиктовать сообщение').disabled).toBe(false);
+  expect(transcript).not.toHaveBeenCalled();
+});
+
+it('does not transmit audio when the component is removed during recording', async () => {
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => root.render(null));
+  expect(stopTrack).toHaveBeenCalled();
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
+  expect(transcript).not.toHaveBeenCalled();
+});
+
+it('ignores a late audio-read failure after cancel and a new recording', async () => {
+  let failRead!: () => void;
+  class DeferredReader {
+    onerror: (() => void) | null = null;
+    onload: (() => void) | null = null;
+    result = null;
+    readAsDataURL() {
+      failRead = () => this.onerror?.();
+    }
+  }
+  vi.stubGlobal('FileReader', DeferredReader);
+  await render();
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => button('Остановить запись и распознать').click());
+  expect(button('Распознаём речь')).toBeDefined();
+  await act(async () => button('Отменить голосовой ввод').click());
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => failRead());
+  expect(button('Остановить запись и распознать').getAttribute('aria-pressed')).toBe('true');
+  expect(host.querySelectorAll('.ai-voice-wave i')).toHaveLength(40);
+  expect(host.textContent).not.toContain('Не удалось прочитать');
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
+  expect(transcript).not.toHaveBeenCalled();
+});
+
+it('uses real microphone samples for bar heights and releases the meter on cancel', async () => {
+  let nextFrame!: FrameRequestCallback;
+  let amplitude = 0;
+  const disconnect = vi.fn();
+  const close = vi.fn(async () => {});
+  const connect = vi.fn();
+  const analyser = {
+    fftSize: 1024,
+    disconnect,
+    getByteTimeDomainData: (data: Uint8Array) => {
+      for (let i = 0; i < data.length; i++) data[i] = 128 + (i % 2 ? amplitude : -amplitude);
+    },
+  };
+  class MeterContext {
+    state = 'running';
+    createAnalyser() {
+      return analyser;
+    }
+    createMediaStreamSource() {
+      return { connect, disconnect };
+    }
+    resume = vi.fn(async () => {});
+    close = close;
+  }
+  vi.stubGlobal('AudioContext', MeterContext);
+  vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => {
+    nextFrame = frame;
+    return 1;
+  });
+  const cancelFrame = vi.fn();
+  vi.stubGlobal('cancelAnimationFrame', cancelFrame);
+  const slot = document.createElement('div');
+  document.body.append(slot);
+  const active = vi.fn();
+  await act(async () =>
+    root.render(
+      createElement(AiVoiceInput, {
+        call,
+        disabled: false,
+        onTranscript: transcript,
+        target: slot,
+        onModeChange: active,
+      }),
+    ),
+  );
+  await act(async () => button('Продиктовать сообщение').click());
+  expect(slot.querySelector('.ai-voice-panel')).not.toBeNull();
+  expect(active).toHaveBeenLastCalledWith('recording');
+  await act(async () => nextFrame(100));
+  expect(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height).toBe('3px');
+  amplitude = 24;
+  await act(async () => nextFrame(160));
+  expect(
+    parseFloat(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height),
+  ).toBeGreaterThan(20);
+  amplitude = 0;
+  await act(async () => nextFrame(220));
+  expect(slot.querySelector<HTMLElement>('.ai-voice-wave i:last-child')!.style.height).toBe('3px');
+  expect(connect).toHaveBeenCalledExactlyOnceWith(analyser);
+  await act(async () =>
+    slot.querySelector<HTMLButtonElement>('[aria-label="Отменить голосовой ввод"]')!.click(),
+  );
+  expect(active).toHaveBeenLastCalledWith('idle');
+  expect(close).toHaveBeenCalledOnce();
+  expect(cancelFrame).toHaveBeenCalled();
+  expect(disconnect).toHaveBeenCalledTimes(2);
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(0);
+  slot.remove();
+});
+
+it('distinguishes explicit send from stop and ignores repeated send clicks', async () => {
+  const controller = { current: null as import('./AiVoiceInput').AiVoiceController | null };
+  await act(async () =>
+    root.render(
+      createElement(AiVoiceInput, { call, disabled: false, onTranscript: transcript, controller }),
+    ),
+  );
+  await act(async () => button('Продиктовать сообщение').click());
+  await act(async () => {
+    controller.current!.send();
+    controller.current!.send();
+  });
+  await vi.waitFor(() => expect(transcript).toHaveBeenCalledWith(speechResponse, true));
+  expect(transcript).toHaveBeenCalledOnce();
+  expect(requests.filter((r) => r.path === '/api/ai/stt/transcribe')).toHaveLength(1);
 });

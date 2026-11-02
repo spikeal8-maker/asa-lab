@@ -7,7 +7,12 @@ import test from 'node:test';
 import { productAliases } from './product-aliases.mjs';
 
 test('fixture resolves both complete real pure 3D modules and leaves other imports alone', () => {
-  assert.equal(productAliases.length, 2);
+  assert.equal(productAliases.length, 3);
+  const contracts = productAliases.filter((alias) => alias.find.test('@asa-lab/contracts'));
+  assert.equal(contracts.length, 1);
+  assert.ok(
+    contracts[0].replacement.replaceAll('\\', '/').endsWith('/packages/contracts/src/index.ts'),
+  );
   for (const name of ['document', 'operations']) {
     const specifier = '@asa-lab/three-d/' + name;
     const aliases = productAliases.filter((alias) => alias.find.test(specifier));
@@ -24,6 +29,7 @@ test('fixture resolves both complete real pure 3D modules and leaves other impor
     '@asa-lab/three-d/document/extra',
     '@asa-lab/blocks',
     'scratch-vm',
+    '@asa-lab/contracts/private',
   ]) {
     assert.ok(productAliases.every((alias) => !alias.find.test(name)));
   }
@@ -32,7 +38,7 @@ test('fixture resolves both complete real pure 3D modules and leaves other impor
 });
 
 test('resolved sources retain the real parser, defaults, node creation and operations exports', () => {
-  const urls = productAliases.map((alias) => pathToFileURL(alias.replacement).href);
+  const urls = productAliases.slice(1).map((alias) => pathToFileURL(alias.replacement).href);
   const source = `
     import assert from 'node:assert/strict';
     const document = await import(${JSON.stringify(urls[0])});

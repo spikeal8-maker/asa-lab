@@ -5,6 +5,12 @@ import { URL, fileURLToPath } from 'node:url';
 // modules rather than asking Rollup to infer named exports from workspace CJS.
 export const productAliases = [
   {
+    find: /^@asa-lab\/contracts$/,
+    replacement: fileURLToPath(
+      new URL('../../../packages/contracts/src/index.ts', import.meta.url),
+    ),
+  },
+  {
     find: /^@asa-lab\/three-d\/document$/,
     replacement: fileURLToPath(
       new URL('../../../contexts/three-d/domain/document.ts', import.meta.url),

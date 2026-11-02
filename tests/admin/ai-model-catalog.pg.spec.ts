@@ -258,10 +258,10 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
     ).rejects.toMatchObject({ code: '42501' });
     const config = await serviceA.adminConfig(administrator);
     expect(
-      config.providerConfigurations
-        .filter((slot) => slot.provider !== 'ollama-cloud')
-        .every((slot) => slot.apiKeyConfigured),
-    ).toBe(true);
+      Object.fromEntries(
+        config.providerConfigurations.map((slot) => [slot.provider, slot.apiKeyConfigured]),
+      ),
+    ).toEqual({ openai: true, deepseek: true, 'ollama-cloud': false, polza: false });
     for (const slot of config.providerConfigurations) {
       expect(Object.keys(slot).sort()).toEqual([
         'apiKeyConfigured',

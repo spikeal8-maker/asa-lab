@@ -101,6 +101,12 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
 
 function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   const recordedOpen = useRef<string | null>(null);
+  const returnToRef = useRef(props.returnTo);
+  returnToRef.current = props.returnTo;
+  // A nested Chess URL reconstructs this navigation object without changing
+  // the admitted project or identity. Other destinations retain their behavior.
+  const returnToDependency =
+    props.moduleKey === 'chess' && props.returnTo.kind === 'games' ? 'chess-games' : props.returnTo;
   const [state, setState] = useState<HostState>(() =>
     props.moduleKey && !isGameModule(props.moduleKey)
       ? { kind: 'ready', moduleKey: props.moduleKey, projectTitle: null }
@@ -110,7 +116,11 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   useEffect(() => {
     let active = true;
     if (props.moduleKey && !isGameModule(props.moduleKey)) {
-      const canonicalHash = canonicalEditorHash(props.moduleKey, props.projectId, props.returnTo);
+      const canonicalHash = canonicalEditorHash(
+        props.moduleKey,
+        props.projectId,
+        returnToRef.current,
+      );
       if (canonicalHash && window.location.hash !== canonicalHash) {
         window.history.replaceState(null, '', canonicalHash);
       }
@@ -142,7 +152,7 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
       }
       const moduleKey = result.data.project.moduleKey;
       props.onModuleResolved?.(props.projectId, moduleKey);
-      const canonicalHash = canonicalEditorHash(moduleKey, props.projectId, props.returnTo);
+      const canonicalHash = canonicalEditorHash(moduleKey, props.projectId, returnToRef.current);
       if (canonicalHash && window.location.hash !== canonicalHash) {
         window.history.replaceState(null, '', canonicalHash);
       }
@@ -158,7 +168,7 @@ function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
     return () => {
       active = false;
     };
-  }, [props.moduleKey, props.onModuleResolved, props.projectId, props.returnTo]);
+  }, [props.moduleKey, props.onModuleResolved, props.projectId, returnToDependency]);
 
   useEffect(() => {
     if (state.kind === 'ready' && state.moduleKey === 'electronics')

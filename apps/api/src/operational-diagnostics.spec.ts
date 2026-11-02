@@ -15,6 +15,27 @@ const entry = (origin: string, value: unknown): LogEntry => ({
   origin,
   truncated: false,
 });
+it('retains the canonical Polza provider while rejecting arbitrary provider and private payload fields', () => {
+  for (const provider of ['polza', 'unreviewed-private-provider']) {
+    const result = projectDatabaseEntry(
+      entry('ai_usage_journal', {
+        generation_status: 'failed',
+        generation_provider: provider,
+        generation_error_code: 'ai_provider_authentication_failed',
+        requested_model: 'private-model',
+        prompt: 'private-prompt',
+        owner_principal_id: 'private-owner',
+      }),
+    );
+    expect(JSON.parse(result.message)).toEqual({
+      generation_status: 'failed',
+      generation_error_code: 'ai_provider_authentication_failed',
+      ...(provider === 'polza' ? { generation_provider: 'polza' } : {}),
+    });
+    expect(result.level).toBe('error');
+    expect(result.message).not.toContain('private');
+  }
+});
 it('exposes only recorded AI operational scalars and classifies async failures independently of HTTP polling', () => {
   const privateValue = 'synthetic-private-prompt-owner-workflow-key';
   const result = projectDatabaseEntry(

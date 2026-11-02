@@ -72,6 +72,25 @@ afterEach(() => {
 });
 
 describe('AI SSE lifetime while a provider is queued', () => {
+  it('keeps canonical tool activity and deltas on the heartbeating transport without another admission', async () => {
+    const f = fixture();
+    const finished = f.run();
+    await vi.advanceTimersByTimeAsync(15_000);
+    const activity = f.sendStream.mock.calls[0]![12]!;
+    activity({ tool: 'read_page', state: 'running' });
+    f.delta('Ответ');
+    activity({ tool: 'read_page', state: 'complete' });
+    f.complete(RESULT);
+    await finished;
+    const frames = f.raw.write.mock.calls.map(([frame]) => frame).join('');
+    expect(frames).toContain(': heartbeat\n\n');
+    expect(frames.match(/event: activity/g)).toHaveLength(2);
+    expect(frames).toContain('event: delta');
+    expect(frames).toContain('event: done');
+    expect(f.sendStream).toHaveBeenCalledTimes(1);
+    expect(f.raw.end).toHaveBeenCalledExactlyOnceWith();
+    f.expectClean();
+  });
   it('does not admit provider work when the response has already disconnected', async () => {
     const f = fixture();
     f.raw.destroyed = true;

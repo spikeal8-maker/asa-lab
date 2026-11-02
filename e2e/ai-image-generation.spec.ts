@@ -3,6 +3,7 @@ import {
   type AiImageGenerationJob,
   type AiImageJobState,
 } from '../packages/contracts/src/ai-image-generation';
+import { AI_IMAGE_UNAVAILABLE } from '../packages/contracts/src/ai-chat-feedback';
 import { expect, test, type Page } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 import { generationPolicyFixture } from '../apps/web/src/admin/testing/ai-generation-policy.fixture';
@@ -637,7 +638,8 @@ test('a confirmed rejected first image POST permits an explicit corrected reques
   const mode = page.getByRole('region', { name: 'Создать изображение' });
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Птица на дереве');
   await mode.getByRole('button', { name: 'Создать изображение', exact: true }).click();
-  await expect(mode.getByText('Размер больше не разрешён.', { exact: true })).toBeVisible();
+  await expect(mode.getByText(AI_IMAGE_UNAVAILABLE, { exact: true })).toBeVisible();
+  await expect(page.getByText('Размер больше не разрешён.', { exact: true })).toHaveCount(0);
   await expect(
     mode.getByRole('button', { name: 'Создать изображение', exact: true }),
   ).toBeEnabled();

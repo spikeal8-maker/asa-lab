@@ -7,7 +7,7 @@ remain separate evidence; an admission test is not that workload.
 
 ## Behaviour
 
-Migration `0294_ai_image_durable_queue.sql` separates persisted admission from
+Migration `0300_ai_image_durable_queue.sql` separates persisted admission from
 single-GPU execution. The persisted `admitted` state means **waiting in the queue**;
 the UI says so and permits cancellation. A job may start immediately when its
 owner is next and the GPU is free. Queued jobs survive API/worker restart.
@@ -82,7 +82,8 @@ its isolated PostgreSQL with synthetic credentials and runs this exact gate.
 
 The PostgreSQL suite applies the full history through schema 286, inserts a
 synthetic uncertain job, then upgrades through 287/288, the published canonical
-publication migrations 289–293 and queue 294, and proves the original
+publication migrations 289–293, canonical Chess/AI migrations 294–299 and queue
+300, and proves the original
 row/identity/recipe/digest survived and repeat migration is a no-op. It exercises
 100 pupils' simultaneous admissions, bounded global/owner queues, two independent
 backend connections with an observed database lock wait, fair scheduling,
@@ -91,8 +92,10 @@ recovery and denied foreign/private storage access. Existing embedded tests reta
 native-image, profile, immutable PUT and historical receipt coverage.
 
 The queue migration was renumbered before release or application to a live
-installation. Published publication migrations 289–293 retain their exact SQL;
-the queue SQL is byte-identical to its earlier unreleased 289 candidate. A database
+installation. All 293 published canonical migration files through 299 retain their
+exact Git blobs from `c3399eb42aeda9aff44db3ca0b21198d625297aa`;
+the queue SQL is byte-identical to its earlier unreleased 289/294 candidate
+(Git blob `6070299f2e209ff58913d5e4d355326bdc017e86`). A database
 that already applied that candidate in an isolated experiment must remain isolated
 and be recreated for this canonical test. No ledger rewrite, checksum bypass or
 out-of-order migration exemption is permitted. The forward-upgrade test preserves
@@ -103,3 +106,30 @@ then prove cleanup progresses during an active observation lease without a secon
 GPU dispatch or loss of any cleanup fence. No provider
 network/generation is used by these fixtures. A fresh installation obtains the same
 schema/policy from the versioned source; no machine address is embedded by the queue.
+
+## Canonical convergence qualification
+
+The school candidate `854b6b9766727cb6a20f795bc6f68ea40a363beb` converges once
+with frozen canonical `c3399eb42aeda9aff44db3ca0b21198d625297aa`. Queue300 is
+additive after canonical299; no installed ledger is renamed or rewritten. Existing
+isolated289/294 experiments remain separate from a fresh286-to300 qualification.
+
+Canonical0298 keeps its owner-bound HTML target, exact file version, unique
+placeholder and atomic completion trigger. The queue worker still owns dispatch;
+replaying the native target receipt must not issue a second ComfyUI POST or create
+another file version. A dedicated real-PostgreSQL test composes both behaviours
+with another waiting owner and the single GPU boundary; the existing embedded
+file-binding regressions retain conflict/cancellation/failure and privacy checks.
+
+Canonical AI activity events, document extraction and private working files remain
+alongside the school SSE flush/heartbeat/disconnect cleanup. The closed operational
+projection additionally recognizes the canonical `polza` provider, while rejecting
+unknown provider values and private prompt/model/owner fields. Canonical ThreeD
+cross-module tests reside in the ThreeD context rather than importing a subject
+module into contracts. Scratch fixtures preserve the complete emitted chunk graph
+and real source aliases; publication fixtures retain all ten isolated spec files.
+
+This source composition does not establish real PostgreSQL/browser/100-pupil
+success. Exact-SHA CI, independent review, a fresh isolated restore/upgrade and
+operator acceptance remain required. `ELECTRONICS-836-COMMITTED-RESULT-QUALIFICATION`
+continues to block production update and full-system stability claims.

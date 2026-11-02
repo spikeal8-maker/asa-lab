@@ -21,7 +21,7 @@ from deployment import operational as op
 from deployment import backup
 from deployment.system import Installation
 from deployment import collector as lifecycle
-from collect_logs import Collector, normalize, DATABASE_DIAGNOSTICS, now
+from collect_logs import Collector, normalize, DATABASE_DIAGNOSTICS, database_diagnostics, now
 
 SECRET = 'synthetic-private-prompt-key-url-path-user'
 
@@ -39,6 +39,14 @@ def sources(c):
 
 
 class OperationalTests(unittest.TestCase):
+    def test_canonical_polza_projection_keeps_only_closed_provider_and_error_scalars(self):
+        for provider in ('polza', SECRET):
+            row=database_diagnostics('ai_usage_journal',{'generation_status':'failed',
+                'generation_provider':provider,'generation_error_code':'ai_provider_authentication_failed',
+                'prompt':SECRET,'requested_model':SECRET,'owner_principal_id':SECRET})
+            self.assertEqual(row,{'generation_status':'failed','generation_error_code':'ai_provider_authentication_failed',
+                **({'generation_provider':'polza'} if provider=='polza' else {})})
+            self.assertNotIn(SECRET,json.dumps(row))
     def test_published_real_school_producer_receipts_normalize_and_collect_without_errors(self):
         contract=json.loads((Path(__file__).parent/'fixtures/school-backup-success.json').read_text())
         self.assertEqual(contract['contract'],'asa-school-verified-cloud-receipt-v1')

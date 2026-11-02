@@ -1,6 +1,6 @@
+import { prePolzaPool } from './testing/ai-pre-polza-pool.fixture';
 import { aiUsageQueryFixture } from './testing/ai-usage-query.fixture';
 import { createCipheriv } from 'node:crypto';
-import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 import { AiChatService } from './ai-chat.service';
 import { AiTextHistoryStore } from './ai-text-history';
@@ -78,7 +78,7 @@ function fixture() {
         'event: response.completed\ndata: {"type":"response.completed"}\n\n',
     );
   });
-  const service = new AiChatService({ query } as unknown as pg.Pool, {
+  const service = new AiChatService(prePolzaPool(query), {
     encryptionKey: ROOT,
     fetchImpl,
   });
@@ -253,7 +253,7 @@ describe('owner history projection', () => {
         cursor_at: '2026-10-19T10:00:00.123' + String(index).padStart(3, '0') + 'Z',
       })),
     }));
-    const store = new AiTextHistoryStore({ query } as unknown as pg.Pool);
+    const store = new AiTextHistoryStore(prePolzaPool(query));
     const cursor = { at: '2026-10-19T10:00:00.999123Z', id: THREAD };
     const result = await store.threads(OWNER, cursor, '%_literal', true);
     expect(query.mock.calls[0]).toEqual([

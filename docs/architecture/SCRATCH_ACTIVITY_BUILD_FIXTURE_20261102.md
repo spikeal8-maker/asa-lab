@@ -19,10 +19,12 @@ equivalent resolution. A new shipping ProjectPreview→ThreeDHoverPreview import
 therefore reached CommonJS dist outside Vite's default node_modules conversion.
 The lazy SceneRuntime also imports createThreeDNode from the same document API.
 
-The fixture now uses exact aliases to the complete real document.ts and
-operations.ts source modules. These are not per-symbol substitutes and do not
+Canonical convergence adds the contracts source entry and complete emitted lazy
+chunk graph from the accepted Main fixture repair. The fixture uses three exact
+aliases: the contracts entry and complete real document.ts and operations.ts
+source modules. These are not per-symbol substitutes and do not
 stub geometry, the editor, Scratch VM/vendor, saved source or telemetry. Exact
-matching leaves the3D package root, Scratch and all other imports untouched.
+matching leaves the3D package root, Scratch and unrelated imports untouched.
 The cumulative Scratch gate includes a small regression suite exercising source
 resolution and real parser/defaults/operation exports, including invalid input.
 Its checks use the owned sources and Node22 type stripping without installing

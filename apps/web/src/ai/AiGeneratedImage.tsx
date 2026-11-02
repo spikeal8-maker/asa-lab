@@ -1,3 +1,4 @@
+import { AiImageViewer } from './AiImageViewer';
 import { useEffect, useRef, useState } from 'react';
 import type { AiGeneratedImage as ImageReceipt } from '@asa-lab/contracts';
 import { readGeneratedImage } from './read-generated-image';
@@ -19,6 +20,7 @@ export function AiGeneratedImage({
   threadId: string;
   seatId?: string | undefined;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [url, setUrl] = useState('');
   const [prompt, setPrompt] = useState('');
   const [recipe, setRecipe] = useState<AiImageRecipe>();
@@ -112,7 +114,21 @@ export function AiGeneratedImage({
       ) : null}
       {url ? (
         <>
-          <img src={url} alt="Созданное изображение" />
+          <button
+            type="button"
+            className="ai-private-image-open"
+            aria-label="Увеличить созданное изображение"
+            onClick={() => setExpanded(true)}
+          >
+            <img src={url} alt="Созданное изображение" />
+          </button>
+          {expanded ? (
+            <AiImageViewer
+              src={url}
+              name="Созданное изображение"
+              onClose={() => setExpanded(false)}
+            />
+          ) : null}
           <figcaption className="ai-generated-image-footer">
             <span className="ai-generated-image-actions">
               <button

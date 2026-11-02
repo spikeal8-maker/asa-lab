@@ -20,6 +20,7 @@ const commands = [
     'vitest',
     'run',
     'tests/admin/ai-image-generation.embedded.spec.ts',
+    'tests/admin/ai-image-file-binding.embedded.spec.ts',
     'apps/api/src/ai-image.controller.spec.ts',
     'apps/api/src/ai-image-comfyui.spec.ts',
     'apps/api/src/ai-image-worker-diagnostics.spec.ts',

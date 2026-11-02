@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createThreeDNode, PRIMITIVE_KINDS } from '@asa-lab/three-d';
+import { createThreeDNode, PRIMITIVE_KINDS } from '../domain/document';
 import {
   PUBLIC_THREE_D_NODE_FIELDS,
   PUBLIC_THREE_D_PRIMITIVES,
   validatePublicThreeDArtifact,
-} from './public-three-d-artifact';
-import { validatePublicProjectDisplayArtifact } from './public-project-display-artifact';
+  validatePublicProjectDisplayArtifact,
+} from '@asa-lab/contracts';
+
+// Cross-module compatibility belongs to the 3D module: contracts must never
+// depend on a subject module, even when constructing test fixtures.
 
 function artifact(primitive: (typeof PRIMITIVE_KINDS)[number] = 'box') {
   const node = createThreeDNode(primitive, 'shape-1');

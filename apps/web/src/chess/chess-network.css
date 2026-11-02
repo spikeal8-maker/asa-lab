@@ -1,0 +1,141 @@
+.asa-network-lobby {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: 24px;
+}
+.asa-network-lobby .asa-online-card {
+  min-height: 0;
+}
+.asa-network-lobby label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.asa-network-lobby input,
+.asa-network-lobby select {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #aebec9;
+  border-radius: 7px;
+  padding: 8px;
+  font: inherit;
+  color: #173d50;
+  background: white;
+}
+.asa-network-code {
+  display: block;
+  overflow-wrap: anywhere;
+  font:
+    750 20px/1.5 ui-monospace,
+    monospace;
+  user-select: all;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--asa-chess-accent-soft, #e6f5fa);
+  color: var(--asa-chess-ink, #0b3558);
+}
+.asa-network-notice {
+  margin: 0;
+  color: #466273;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.asa-network-history {
+  grid-column: 1/-1;
+}
+.asa-network-history button {
+  text-align: left;
+  display: grid;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+.asa-network-history button span {
+  font-size: 12px;
+  font-weight: 500;
+}
+.asa-network-promotion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border: 2px solid var(--asa-chess-accent, #0a91b6);
+  border-radius: 8px;
+  background: white;
+}
+.asa-network-promotion button {
+  padding: 10px;
+  min-height: 40px;
+  border: 1px solid #cbdbe3;
+  border-radius: 6px;
+  background: #f5fafc;
+  color: #173d50;
+  font: inherit;
+  cursor: pointer;
+}
+
+.asa-network-result {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--asa-chess-ink, #0b3558);
+}
+.asa-network-result strong {
+  display: block;
+  font-size: clamp(17px, 1.8vw, 22px);
+  line-height: 1.3;
+}
+.asa-network-result span {
+  color: var(--asa-chess-text, #294d68);
+  line-height: 1.5;
+}
+.asa-network-result[data-outcome='win'] {
+  border-color: var(--asa-chess-accent, #0a91b6);
+  background: var(--asa-chess-accent-soft, #e6f5fa);
+  border-inline-start-width: 4px;
+}
+.asa-network-result[data-outcome='win'] strong::before {
+  content: '✓';
+  margin-inline-end: 8px;
+  color: var(--asa-chess-accent-strong, #067999);
+}
+.asa-network-result[data-outcome='loss'],
+.asa-network-result[data-outcome='aborted'],
+.asa-network-result[data-outcome='finished'] {
+  border-color: var(--asa-chess-border, #cbdbe3);
+  background: #f4f7f9;
+}
+.asa-network-result[data-outcome='draw'] {
+  border-color: #b9d9e2;
+  background: #f3f9fc;
+}
+.asa-network-result[data-victory-effect='active'] strong {
+  animation: asa-network-victory 900ms ease-out both;
+}
+@keyframes asa-network-victory {
+  from {
+    transform: translateY(5px);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asa-network-result[data-victory-effect='active'] strong {
+    animation: none;
+  }
+}
+@media (max-width: 650px) {
+  .asa-network-lobby {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 10px;
+    gap: 12px;
+  }
+}

@@ -47,7 +47,7 @@ tests:
     owner: ai-assistant
     artifacts: [vitest-report, postgresql-isolation-report]
   - id: TST-AI-SCHOOL-CANONICAL-MIGRATIONS-001
-    title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 294 with exact ledger and owned uncertain jobs intact
+    title: Canonical published migrations and byte-preserved unreleased queue upgrade school schema 286 through 300 with exact ledger and owned uncertain jobs intact
     suite: integration
     level: system
     phase_available: PHASE-12

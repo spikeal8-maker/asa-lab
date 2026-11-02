@@ -4,6 +4,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { applyPlan, planMigrations } from '../../tools/migrate.mjs';
 import { AiImageService } from '../../apps/api/src/ai-image.service';
 import type { ComfyImageRecovery, ComfyImageTransport } from '../../apps/api/src/ai-image-comfyui';
+import { WorkingFileStore } from '../../apps/api/src/ai-working-files';
+import { aiTextFixture } from './ai-text-history.contract';
+import { fixtureGenerationSql } from './ai-model-policy.fixture';
 
 let admin: pg.Pool, runtime: pg.Pool;
 let legacyBefore: unknown, legacyAfter: unknown;
@@ -16,7 +19,13 @@ const schoolPendingFiles = [
   '0291_publication_comment_avatars.sql',
   '0292_publication_author_catalog.sql',
   '0293_public_projects_catalog_sort.sql',
-  '0294_ai_image_durable_queue.sql',
+  '0294_games_chess_network.sql',
+  '0295_ai_document_inputs.sql',
+  '0296_ai_working_files.sql',
+  '0297_ai_polza_text_provider.sql',
+  '0298_ai_image_file_binding.sql',
+  '0299_ai_polza_token_budget_catalog.sql',
+  '0300_ai_image_durable_queue.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
@@ -26,7 +35,13 @@ const canonicalSqlDigests = {
   '0291': 'f90e4584f6055d0f0be89a04de826e14738cc83fb967b067bc50700e33aa98e7',
   '0292': 'fd615abbc8445fb3f5bfa4a5c6654127f59b2fd20449df533a64345ab946faaa',
   '0293': '31fde2d6f1f29ef4709ff5767426f5ef2cc802e41753cbe19983e4343fbe1891',
-  '0294': '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
+  '0294': '04bdaf9176c814494b4d136e228b3d2e83d033a371ee3a8c82dc1be9ac01f129',
+  '0295': '9ac5de8c47d85a11c2913308ec08a607b6bd70a09ab8601c955976b1251f620e',
+  '0296': '25c78c0b59acfe665b1d5f930f110198fc68b0f14904c724db0fe3f354ee50d3',
+  '0297': '0e0176431307c6d67751a601b292570c470fdd1a536535b8b4e737c33c3b77f0',
+  '0298': 'c42c970943bf6b89fcd341cd656bf1b36d1ed4114b27d72719c15ee5fe394a30',
+  '0299': '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
+  '0300': '0ea57787d707326f9222fb906bc7d826a91d417c3efdeeb6251c6a3156b6cd26',
 };
 const beginSql = 'SELECT ai_image_begin($1,$2,$3,$4,768,$5,42,$6,$7,$8) AS value';
 const transport = {
@@ -145,7 +160,7 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
       try {
         // Prove a forward upgrade from the actual school schema, not only an empty DB.
         const migrations = planMigrations('migrations');
-        expect(migrations.at(-1)?.version).toBe('0294');
+        expect(migrations.at(-1)?.version).toBe('0300');
         await applyPlan(
           client,
           migrations.filter((m: { version: string }) => m.version <= '0286'),
@@ -251,6 +266,107 @@ describe.skipIf(process.env.ASA_IMAGE_QUEUE_TEST !== '1')(
         (await admin.query("SELECT count(*)::int AS n FROM ai_image_jobs WHERE state='submitting'"))
           .rows[0].n,
       ).toBe(1);
+    }, 30000);
+
+    it('composes the canonical native HTML binding with the durable worker, single GPU and replay fence', async () => {
+      const f = await aiTextFixture(admin, runtime);
+      const ownerId = f.owner.principal_id,
+        threadId = f.thread.id,
+        parent = randomUUID();
+      await runtime.query(fixtureGenerationSql, [
+        ownerId,
+        threadId,
+        parent,
+        'Create an image for this HTML',
+        await f.version(),
+      ]);
+      await runtime.query('SELECT ai_tool_request_options($1,$2,$3,$4::jsonb,true)', [
+        ownerId,
+        threadId,
+        parent,
+        JSON.stringify({ nativeImage: { mode: 'auto', size: 768 } }),
+      ]);
+      await runtime.query('SELECT ai_tool_policy_snapshot($1,$2,$3)', [ownerId, threadId, parent]);
+      const store = new WorkingFileStore(runtime);
+      const content = '<html><img src="ASA_GENERATED_IMAGE_PENDING"></html>';
+      const file = await store.write(
+        ownerId,
+        threadId,
+        'index.html',
+        0,
+        content,
+        randomUUID(),
+        parent,
+        parent,
+        null,
+        null,
+        'Synthetic HTML',
+      );
+      const target = {
+        name: 'index.html',
+        expectedVersion: file.version,
+        placeholder: 'ASA_GENERATED_IMAGE_PENDING',
+      };
+      const s = service();
+      expect(await s.fileBindingReady()).toBe(true);
+      const create = () =>
+        s.createFromTool(
+          ownerId,
+          threadId,
+          parent,
+          'Synthetic image',
+          768,
+          new AbortController().signal,
+          'flux2-klein-4b-v1',
+          target,
+        );
+      const job = await create();
+      expect(job.state).toBe('admitted');
+      const quota = await f.ledgers();
+      expect((await create()).requestId).toBe(job.requestId);
+      expect(transport.dispatch).not.toHaveBeenCalled();
+      await s.sweep();
+      expect(transport.dispatch).toHaveBeenCalledTimes(1);
+      const waitingActor = await owner();
+      const waiting = await begin(waitingActor);
+      expect(await dispatch(waitingActor, waiting.request_id)).toBe(false);
+      await admin.query('UPDATE ai_image_jobs SET lease_until=NULL WHERE request_id=$1', [
+        job.requestId,
+      ]);
+      const claimed = await claim();
+      expect(claimed.request_id).toBe(job.requestId);
+      await admin.query(
+        "UPDATE ai_image_jobs SET state='storing',sha256=$2,size_bytes=10,put_started=true WHERE request_id=$1",
+        [job.requestId, 'a'.repeat(64)],
+      );
+      expect(
+        (
+          await runtime.query("SELECT ai_image_transition($1,$2,$3,'complete') AS value", [
+            ownerId,
+            job.requestId,
+            claimed.lease_id,
+          ])
+        ).rows[0].value,
+      ).toBe(true);
+      expect(await store.read(ownerId, threadId, 'index.html')).toMatchObject({
+        version: 2,
+        content: content.replace(
+          'ASA_GENERATED_IMAGE_PENDING',
+          `/api/ai/threads/${threadId}/image-generations/${job.requestId}/image`,
+        ),
+      });
+      expect((await create()).requestId).toBe(job.requestId);
+      await admin.query("UPDATE ai_image_jobs SET state='complete' WHERE request_id=$1", [
+        job.requestId,
+      ]);
+      expect((await store.read(ownerId, threadId, 'index.html')).version).toBe(2);
+      // A foreign manual GPU admission does not add paid text/model quota or replay this owner.
+      expect(await f.ledgers()).toEqual(quota);
+      expect(transport.dispatch).toHaveBeenCalledTimes(1);
+      expect(await dispatch(waitingActor, waiting.request_id)).toBe(true);
+      await expect(runtime.query('SELECT * FROM ai_image_file_bindings')).rejects.toThrow(
+        /permission denied/,
+      );
     }, 30000);
 
     it('enforces bounded owner/global queues, charges each receipt once and permits owner cancellation', async () => {
