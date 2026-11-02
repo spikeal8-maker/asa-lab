@@ -100,26 +100,32 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_c_changed_local_checks_selected
+      checkpoint: package_d_collect_picker_pilot_and_addressed_ci_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
         of ASA-DEVEX-ENGINE-001 packages A-G on 2026-10-30. No production, live database, local Docker runtime or
         host network operations. Docker/browser/data execution uses isolated CI only.
+        Owner confirms progression after C on 2026-11-02: separate LOCAL_PASS from CI_PENDING and RELEASE_NOT_READY,
+        prove bounded checks on real small UI changes, repair browser runner compatibility and measure edit-to-result,
+        CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ec0956bea68a6c592ab1e98388b1027ef3cc03f2
+      convergence_baseline_sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
       head_sha: null
-      observed_at: '2026-11-01T20:09:15Z'
+      observed_at: '2026-11-02T16:25:09Z'
       main:
         branch: main
-        sha: ec0956bea68a6c592ab1e98388b1027ef3cc03f2
+        sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
       observation_note: >-
-        Dated package B integration after independently reviewed source baae3ffd5f58f67cd0b9c114cdea61af1e9c6717
-        and exact General 41342442748 succeeded in all four jobs. Protected gate:code and the image guard are preserved;
-        D13 WIP was untouched. Select C: execute explicitly eligible local checks from live plans without waiving
-        pending mandatory CI. Fetch main before writes. Existing gates remain enabled. No deployment, speed gains
-        or owner acceptance claimed.
+        Dated C integration: PR 912 merged as 413590622e6c8638e06eb629b8bd8dd87558bcc2 after independent review
+        approved source 879184a5c68c165532153d546139b7050dc6b93d and General 41350335177 succeeded in all four jobs.
+        The real package.json handoff was resolved by its author; foreign checkouts and D13 WIP were untouched.
+        Select D: finish the bounded CollectPicker pilot with concrete registered browser spec, then implement
+        addressed CI alongside existing gates and compare old/new verification on the same source SHA. C is not reopened.
+        Product UI improvements require separate agreement and remain outside the main DevEx PR. Reuse PR 916 for Ubuntu
+        browser compatibility; do not duplicate it. Known contracts lint baseline repair is already accepted on main. Fetch main before writes. Canonical SHADOW risk and mandatory CI obligations
+        remain intact. No demonstrated UI speed gain, deployment or owner acceptance is claimed.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -131,8 +137,8 @@ parallel_lanes:
           - pnpm gate:repository
     programme:
       id: ASA-DEVEX-ENGINE-001
-      selected_slice: C
-      remaining_slices: [C, D, E, F, G]
+      selected_slice: D
+      remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -159,6 +165,13 @@ parallel_lanes:
           independent_review: approved
           evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6563214545
           shadow_control_report: docs/testing/evidence/devex-shadow-control-set-20261030.json
+        - id: C
+          source_sha: 879184a5c68c165532153d546139b7050dc6b93d
+          integrated_sha: 413590622e6c8638e06eb629b8bd8dd87558bcc2
+          pr: 912
+          exact_source_general_run: 41350335177
+          independent_review: approved
+          evidence: https://github.com/spikeal8-maker/asa-lab/issues/881#issuecomment-6564721821
   - id: deployment-runtime-search-prebackup
     worktree_id: deployment-runtime-search-prebackup-20261029
     owned_paths:
