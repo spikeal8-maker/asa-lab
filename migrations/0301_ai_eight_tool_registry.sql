@@ -65,25 +65,26 @@ END;$$;
 REVOKE ALL ON FUNCTION public.ai_working_file_write(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ai_working_file_write(uuid,uuid,text,integer,text,uuid,uuid,uuid,uuid,integer,text) TO asalab_app;
 
--- Check the current policy atomically with job admission, not at completion.
-CREATE OR REPLACE FUNCTION public.ai_tool_policy_image_admission_guard() RETURNS trigger
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE parent uuid;
-BEGIN
- SELECT parent_request_id INTO parent FROM public.ai_tool_image_receipts WHERE owner_principal_id=NEW.owner_principal_id AND thread_id=NEW.thread_id AND child_request_id=NEW.request_id;
- IF parent IS NOT NULL THEN
-  IF NOT public.ai_tool_policy_permit(NEW.owner_principal_id,NEW.thread_id,parent,'generate_image') THEN RAISE EXCEPTION 'AI_IMAGE_DISABLED' USING ERRCODE='42501'; END IF;
- ELSE
-  PERFORM 1 FROM public.ai_tool_policy_settings WHERE singleton_key FOR SHARE;
-  IF NOT EXISTS(SELECT 1 FROM public.ai_tool_policy_settings s,jsonb_array_elements(s.tools) x WHERE s.singleton_key AND x->>'id'='generate_image' AND x->>'enabled'='true') THEN RAISE EXCEPTION 'AI_IMAGE_DISABLED' USING ERRCODE='42501'; END IF;
- END IF;
- RETURN NEW;
-END;$$;
-CREATE FUNCTION public.ai_tool_policy_binding_admission_guard() RETURNS trigger
+-- The receipt is inserted before ai_chat_finish releases the parent lease.
+-- Hold the current settings share lock through the entire image admission.
+CREATE FUNCTION public.ai_tool_policy_native_image_guard() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
- IF NOT public.ai_tool_policy_permit(NEW.owner_principal_id,NEW.thread_id,NEW.parent_request_id,'edit_working_file') THEN RAISE EXCEPTION 'AI_FILE_DENIED' USING ERRCODE='42501'; END IF;
+ IF NOT public.ai_tool_policy_permit(NEW.owner_principal_id,NEW.thread_id,NEW.parent_request_id,'generate_image') THEN RAISE EXCEPTION 'AI_IMAGE_DISABLED' USING ERRCODE='42501'; END IF;
  RETURN NEW;
 END;$$;
-REVOKE ALL ON FUNCTION public.ai_tool_policy_binding_admission_guard() FROM PUBLIC,asalab_app;
-CREATE TRIGGER ai_tool_policy_binding_admission_guard BEFORE INSERT ON public.ai_image_file_bindings FOR EACH ROW EXECUTE FUNCTION public.ai_tool_policy_binding_admission_guard();
+REVOKE ALL ON FUNCTION public.ai_tool_policy_native_image_guard() FROM PUBLIC,asalab_app;
+CREATE TRIGGER ai_tool_policy_native_image_guard BEFORE INSERT ON public.ai_tool_image_receipts FOR EACH ROW EXECUTE FUNCTION public.ai_tool_policy_native_image_guard();
+
+-- Admit edits before image admission releases the text lease. Reconciliation of
+-- an existing immutable binding does not authorize a new operation.
+ALTER FUNCTION public.ai_tool_image_file_begin(uuid,uuid,uuid,uuid,varchar,integer,uuid,bigint,boolean,varchar,varchar,jsonb) RENAME TO ai_tool_image_file_begin_internal;
+REVOKE ALL ON FUNCTION public.ai_tool_image_file_begin_internal(uuid,uuid,uuid,uuid,varchar,integer,uuid,bigint,boolean,varchar,varchar,jsonb) FROM PUBLIC,asalab_app;
+CREATE FUNCTION public.ai_tool_image_file_begin(p_owner uuid,p_thread uuid,p_parent uuid,p_child uuid,p_prompt varchar,p_size integer,p_provider uuid,p_seed bigint,p_ready boolean,p_graph_digest varchar,p_recipe varchar,p_target jsonb)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM public.ai_image_file_bindings WHERE owner_principal_id=p_owner AND parent_request_id=p_parent) AND NOT public.ai_tool_policy_permit(p_owner,p_thread,p_parent,'edit_working_file') THEN RAISE EXCEPTION 'AI_FILE_DENIED' USING ERRCODE='42501'; END IF;
+ RETURN public.ai_tool_image_file_begin_internal(p_owner,p_thread,p_parent,p_child,p_prompt,p_size,p_provider,p_seed,p_ready,p_graph_digest,p_recipe,p_target);
+END;$$;
+REVOKE ALL ON FUNCTION public.ai_tool_image_file_begin(uuid,uuid,uuid,uuid,varchar,integer,uuid,bigint,boolean,varchar,varchar,jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ai_tool_image_file_begin(uuid,uuid,uuid,uuid,varchar,integer,uuid,bigint,boolean,varchar,varchar,jsonb) TO asalab_app;
