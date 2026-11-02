@@ -26,6 +26,7 @@ const schoolPendingFiles = [
   '0298_ai_image_file_binding.sql',
   '0299_ai_polza_token_budget_catalog.sql',
   '0300_ai_image_durable_queue.sql',
+  '0301_ai_eight_tool_registry.sql',
 ];
 // Published canonical SQL and the unchanged, renumbered unreleased queue SQL.
 // Normalize checkout line endings only; never permit an alternate DB checksum.
