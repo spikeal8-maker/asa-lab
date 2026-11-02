@@ -16,7 +16,11 @@ import { useElectronicsWorkbench } from '../use-electronics-workbench';
 import * as S from 'scratch-blocks';
 import { registerArduinoBlocks, generateArduinoCode } from '../arduino-blocks';
 
-const injected = vi.hoisted(() => ({ workspace: null as unknown, mounts: 0 }));
+const injected = vi.hoisted(() => ({
+  workspace: null as unknown,
+  mounts: 0,
+  savedGeometry: false,
+}));
 // Production emits these pinned media as files; Vitest otherwise inlines SVG.
 vi.mock('../../../node_modules/scratch-blocks/media/zoom-in.svg?url', () => ({
   default: 'http://localhost/assets/arduino-blockly/zoom-in.svg',
@@ -34,10 +38,10 @@ vi.mock('scratch-blocks', async (original) => {
       workspace.newBlock = (...args) =>
         Object.assign(create(...args), {
           getSvgRoot: () => null,
-          getRelativeToSurfaceXY: () => ({ x: 1000, y: 0 }),
+          ...(injected.savedGeometry ? {} : { getRelativeToSurfaceXY: () => ({ x: 1000, y: 0 }) }),
         });
       Object.assign(workspace, {
-        scale: 1,
+        scale: injected.savedGeometry ? 0.72 : 1,
         getFlyout: () => null,
         updateToolbox: () => undefined,
         registerButtonCallback: () => undefined,
@@ -226,6 +230,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   injected.workspace = null;
   injected.mounts = 0;
+  injected.savedGeometry = false;
 });
 
 describe('latest visible Arduino text is canonical before save or departure', () => {
@@ -395,6 +400,39 @@ function stubSvgSurface() {
 }
 
 describe('per-board Arduino input settings', () => {
+  it('preserves saved block coordinates inside the desktop flyout boundary through Apply and Save', async () => {
+    stubSvgSurface();
+    injected.savedGeometry = true;
+    const document = blockSettingsDocument();
+    const properties = document.components[0]!.stateProperties!;
+    const saved = {
+      blocks: {
+        languageVersion: 0,
+        blocks: [
+          { type: 'asa_setup', id: 'saved-setup', x: 365, y: 84 },
+          { type: 'asa_loop', id: 'saved-loop', x: 494, y: 120 },
+        ],
+      },
+    };
+    properties['arduinoWorkspace'] = JSON.stringify(saved);
+    await prepare(document);
+    const live = injected.workspace as S.Workspace;
+    expect(live.getTopBlocks(false)[0]!.getRelativeToSurfaceXY()).toMatchObject({ x: 365, y: 84 });
+    expect(S.serialization.workspaces.save(live)).toEqual(saved);
+    act(() => openInputSettings());
+    act(() => inputPort('A5').click());
+    act(() => clickButton('Применить'));
+    expect(
+      JSON.parse(
+        String(controller().document!.components[0]!.stateProperties!['arduinoWorkspace']),
+      ),
+    ).toEqual(saved);
+    await act(async () => controller().saveNow());
+    expect(
+      JSON.parse(String(stored.get('first')!.components[0]!.stateProperties!['arduinoWorkspace'])),
+    ).toEqual(saved);
+  });
+
   it('cancels drafts, restores focus, keeps text verbatim and saves independent board lists', async () => {
     await prepare();
     const before = controller().document;

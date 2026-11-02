@@ -469,6 +469,11 @@ for (const viewport of [
         expect(document.connections).toHaveLength(30);
         const id = await project(page, document);
         const originalBlocks = workspace(owner);
+        // Blockly 12 omits the legacy empty scalar type on serialization.
+        // Keep every other field, including saved block coordinates, exact.
+        for (const variable of originalBlocks.variables ?? []) {
+          if (variable.type === '') delete variable.type;
+        }
         let dialog = await settings(page);
         await settingsLayout(page, dialog, info);
         for (const pin of pins) {
