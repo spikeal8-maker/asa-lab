@@ -376,6 +376,30 @@ async function boardIsolation(page: Page, info: TestInfo) {
         })),
     );
   const beforeCenter = await programGeometry();
+  if (touchPages.has(page)) {
+    await activate(page.getByRole('button', { name: 'Развернуть код', exact: true }));
+    await expect(page.locator('.workbench-shell')).toHaveClass(/\bcode-expanded\b/);
+    await expect(
+      page.getByRole('button', { name: 'Код на половину экрана', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(blockWorkspace).toBeVisible();
+    await expect
+      .poll(() =>
+        blockWorkspace.locator('g.blocklyZoomReset').evaluate((element) => {
+          const bounds = element
+            .closest('[data-testid="arduino-block-workspace"]')!
+            .getBoundingClientRect();
+          const rect = element.getBoundingClientRect();
+          return (
+            rect.top >= bounds.top &&
+            rect.bottom <= bounds.bottom &&
+            rect.left >= bounds.left &&
+            rect.right <= bounds.right
+          );
+        }),
+      )
+      .toBe(true);
+  }
   // Use the pupil's native viewport control, preserving saved block coordinates.
   await activate(blockWorkspace.locator('g.blocklyZoomReset'));
   await expect
