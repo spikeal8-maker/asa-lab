@@ -2064,6 +2064,9 @@
         },
         {
           "$ref": "#/$defs/errorResult"
+        },
+        {
+          "$ref": "#/$defs/failedResult"
         }
       ]
     },
@@ -2204,7 +2207,8 @@
                     "conflict",
                     "unknown_outcome",
                     "cancelled",
-                    "reconciling"
+                    "reconciling",
+                    "failed"
                   ]
                 },
                 "stage": {
@@ -2218,8 +2222,61 @@
                     "verifying",
                     "finished"
                   ]
+                },
+                "failureConfirmation": {
+                  "$ref": "#/$defs/failureConfirmation"
                 }
-              }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "state": {
+                        "const": "failed"
+                      }
+                    }
+                  },
+                  "then": {
+                    "required": [
+                      "failureConfirmation"
+                    ],
+                    "properties": {
+                      "name": {
+                        "enum": [
+                          "generate_image",
+                          "create_working_file",
+                          "edit_working_file"
+                        ]
+                      }
+                    },
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "name": {
+                              "const": "generate_image"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "failureConfirmation": {
+                              "$ref": "#/$defs/jobFailureConfirmation"
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "failureConfirmation": {
+                              "$ref": "#/$defs/mutationFailureConfirmation"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
             },
             "executionSource": {
               "enum": [
@@ -2532,6 +2589,199 @@
           ]
         }
       }
+    },
+    "jobFailureConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "jobId",
+        "observedAt"
+      ],
+      "properties": {
+        "kind": {
+          "const": "job_terminal_failure"
+        },
+        "jobId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "mutationFailureConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "mutationId",
+        "observedAt"
+      ],
+      "properties": {
+        "kind": {
+          "const": "mutation_rolled_back"
+        },
+        "mutationId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "failureConfirmation": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/jobFailureConfirmation"
+        },
+        {
+          "$ref": "#/$defs/mutationFailureConfirmation"
+        }
+      ]
+    },
+    "failedResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "contractVersion",
+            "operationId",
+            "callId",
+            "name",
+            "state",
+            "data",
+            "executionSource"
+          ],
+          "properties": {
+            "kind": {
+              "const": "result"
+            },
+            "contractVersion": {
+              "const": 1
+            },
+            "operationId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "callId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "enum": [
+                "generate_image"
+              ]
+            },
+            "state": {
+              "const": "failed"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason",
+                "retryAdvice",
+                "confirmation"
+              ],
+              "properties": {
+                "reason": {
+                  "const": "EXECUTION_FAILED"
+                },
+                "retryAdvice": {
+                  "const": "none"
+                },
+                "confirmation": {
+                  "$ref": "#/$defs/jobFailureConfirmation"
+                }
+              }
+            },
+            "executionSource": {
+              "enum": [
+                "model_native",
+                "planner",
+                "user_action",
+                "job_completion",
+                "runtime",
+                "unknown"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "contractVersion",
+            "operationId",
+            "callId",
+            "name",
+            "state",
+            "data",
+            "executionSource"
+          ],
+          "properties": {
+            "kind": {
+              "const": "result"
+            },
+            "contractVersion": {
+              "const": 1
+            },
+            "operationId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "callId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "enum": [
+                "create_working_file",
+                "edit_working_file"
+              ]
+            },
+            "state": {
+              "const": "failed"
+            },
+            "data": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reason",
+                "retryAdvice",
+                "confirmation"
+              ],
+              "properties": {
+                "reason": {
+                  "const": "EXECUTION_FAILED"
+                },
+                "retryAdvice": {
+                  "const": "none"
+                },
+                "confirmation": {
+                  "$ref": "#/$defs/mutationFailureConfirmation"
+                }
+              }
+            },
+            "executionSource": {
+              "enum": [
+                "model_native",
+                "planner",
+                "user_action",
+                "job_completion",
+                "runtime",
+                "unknown"
+              ]
+            }
+          }
+        }
+      ]
     }
   }
 }

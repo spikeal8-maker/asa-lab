@@ -509,6 +509,105 @@
         "retryAdvice": "repair_arguments"
       },
       "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none",
+        "confirmation": {
+          "kind": "job_terminal_failure",
+          "jobId": "job-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-generate_image",
+        "name": "generate_image",
+        "state": "failed",
+        "stage": "finished",
+        "failureConfirmation": {
+          "kind": "job_terminal_failure",
+          "jobId": "job-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none",
+        "confirmation": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-edit_working_file",
+        "name": "edit_working_file",
+        "state": "failed",
+        "stage": "finished",
+        "failureConfirmation": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": 1,
+          "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "unknown"
     }
   ],
   "invalid": [
@@ -793,6 +892,165 @@
         "query": "cats"
       },
       "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-generate_image",
+      "name": "generate_image",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-generate_image",
+        "name": "generate_image",
+        "state": "failed",
+        "stage": "finished"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "2026-11-02T12:00:00Z",
+      "type": "tool.state.changed",
+      "data": {
+        "callId": "c-edit_working_file",
+        "name": "edit_working_file",
+        "state": "failed",
+        "stage": "finished"
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-edit_working_file",
+      "name": "web_search",
+      "state": "failed",
+      "data": {
+        "reason": "EXECUTION_FAILED",
+        "retryAdvice": "none",
+        "confirmation": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "executionSource": "runtime"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": "unknown",
+          "digest": "ec05d70c6f14f62ae7cdd7c32bd725fd9de394450416df0209965cc1ca314d83"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "result",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "state": "succeeded",
+      "data": {
+        "file": {
+          "fileId": "file-1",
+          "name": "cats.html",
+          "version": 1,
+          "digest": "unknown"
+        },
+        "content": "Cats",
+        "coverage": {
+          "complete": true,
+          "returnedCodeUnits": 4,
+          "omittedReason": null
+        }
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "event",
+      "contractVersion": 1,
+      "operationId": "op-example",
+      "sequence": 1,
+      "at": "unknown",
+      "type": "text.delta",
+      "data": {
+        "text": "Hello"
+      },
+      "executionSource": "model_native"
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-read_working_file",
+      "name": "read_working_file",
+      "arguments": {
+        "fileId": "file-1",
+        "version": 1
+      }
+    },
+    {
+      "kind": "call",
+      "contractVersion": 1,
+      "callId": "c-edit_working_file",
+      "name": "edit_working_file",
+      "arguments": {
+        "name": "cats.html",
+        "expectedVersion": 1,
+        "edits": [
+          {
+            "oldText": "Cats",
+            "newText": "Happy cats"
+          }
+        ],
+        "digest": "abc"
+      }
     }
   ]
 }

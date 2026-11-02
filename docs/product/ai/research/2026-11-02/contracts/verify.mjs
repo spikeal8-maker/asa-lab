@@ -9,6 +9,8 @@ const transitions = JSON.parse(readFileSync(new URL('./state-transitions.json', 
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
 const validate = ajv.compile(schema);
+const validateConfirmation = ajv.getSchema(`${schema.$id}#/$defs/failureConfirmation`);
+assert.ok(validateConfirmation);
 
 for (const [group, expected] of [
   ['valid', true],
@@ -45,9 +47,19 @@ for (const name of requiredTools) {
 
 for (const example of transitions.examples) {
   const machine = transitions[example.machine];
-  const accepted = example.states.every((state, index, states) =>
-    index === 0 ? Object.hasOwn(machine, state) : machine[states[index - 1]]?.includes(state),
-  );
+  const accepted = example.states.every((state, index, states) => {
+    if (index === 0) return Object.hasOwn(machine, state);
+    if (!machine[states[index - 1]]?.includes(state)) return false;
+    if (example.machine === 'tool' && state === 'failed') {
+      const confirmation = example.terminalEvidence?.[index];
+      return (
+        validateConfirmation(confirmation) &&
+        typeof example.effectRef === 'string' &&
+        (confirmation.jobId ?? confirmation.mutationId) === example.effectRef
+      );
+    }
+    return true;
+  });
   assert.equal(accepted, example.valid, example.name);
 }
 

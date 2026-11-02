@@ -81,7 +81,8 @@
       "rate_limited",
       "conflict",
       "unknown_outcome",
-      "cancelled"
+      "cancelled",
+      "failed"
     ],
     "unknown_outcome": [
       "reconciling"
@@ -91,8 +92,8 @@
       "succeeded",
       "partial",
       "cancelled",
-      "unavailable",
-      "unknown_outcome"
+      "unknown_outcome",
+      "failed"
     ],
     "succeeded": [],
     "partial": [],
@@ -102,7 +103,8 @@
     "unavailable": [],
     "rate_limited": [],
     "conflict": [],
-    "cancelled": []
+    "cancelled": [],
+    "failed": []
   },
   "examples": [
     {
@@ -225,6 +227,112 @@
         "succeeded"
       ],
       "valid": false
+    },
+    {
+      "name": "probe_failure_keeps_unknown",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "unknown_outcome"
+      ],
+      "valid": true
+    },
+    {
+      "name": "probe_unavailable_cannot_terminalize_mutation",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "unavailable"
+      ],
+      "valid": false
+    },
+    {
+      "name": "confirmed_job_failure",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "failed"
+      ],
+      "effectRef": "job-example",
+      "terminalEvidence": {
+        "5": {
+          "kind": "job_terminal_failure",
+          "jobId": "job-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "probe_error_is_not_confirmed_failure",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "failed"
+      ],
+      "effectRef": "job-example",
+      "valid": false
+    },
+    {
+      "name": "foreign_job_failure_cannot_close_this_job",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "failed"
+      ],
+      "effectRef": "job-example",
+      "terminalEvidence": {
+        "5": {
+          "kind": "job_terminal_failure",
+          "jobId": "other-job",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "confirmed_rollback",
+      "machine": "tool",
+      "states": [
+        "proposed",
+        "admitted",
+        "running",
+        "unknown_outcome",
+        "reconciling",
+        "failed"
+      ],
+      "effectRef": "mutation-example",
+      "terminalEvidence": {
+        "5": {
+          "kind": "mutation_rolled_back",
+          "mutationId": "mutation-example",
+          "observedAt": "2026-11-02T12:00:00Z"
+        }
+      },
+      "valid": true
     }
-  ]
+  ],
+  "guards": {
+    "tool:failed": "Every failed transition needs a matching authoritative failure confirmation for the SAME effect. Probe failure returns unknown_outcome, never unavailable/failed."
+  }
 }
