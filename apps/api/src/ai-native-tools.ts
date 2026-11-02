@@ -48,9 +48,11 @@ export function imageGenerationRequested(prompt: string): boolean {
 }
 
 export function imageGenerationForbidden(prompt: string): boolean {
-  return /не (?:генерируй|генерировать|создавай|рисуй)|без генерац|do not (?:generate|draw)|don['’]t (?:generate|draw)/iu.test(
-    prompt,
-  );
+  const russian =
+    /(?:не\s+(?:(?:нужно|надо|следует|стоит|можно|хочу|нужн[аоы])\s+)?(?:(?:использовать|используй|применять|применяй|делать|запускать|запускай|включать|включай)\s+)?(?:(?:мне|нам|тебе|вообще|сейчас|снова|ничего|новую|новой|новые|никакую|самостоятельно|дополнительно)\s+){0,4}(?:с?генер\p{L}*|созда\p{L}*|рис\p{L}*)|без\s+(?:(?:новой|любой|дополнительной|самостоятельной)\s+){0,3}генерац\p{L}*)/iu;
+  const english =
+    /(?:do\s+not|don['’]t|never|no\s+need\s+to|should\s+not|must\s+not)\s+(?:(?:please|ever|again|also|automatically|actually|try\s+to)\s+){0,4}(?:generat\w*|draw|create|use\s+(?:new\s+)?generation)|without\s+(?:(?:new|any|additional|image)\s+){0,3}generation/iu;
+  return russian.test(prompt) || english.test(prompt);
 }
 
 /** Read-only parallel announcements are executed serially by the shared server. */

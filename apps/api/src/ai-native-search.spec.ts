@@ -605,28 +605,39 @@ describe('native local internet tools', () => {
     },
   );
 
-  it('respects an explicit generation prohibition even after empty retrieval', async () => {
-    const f = fixture(
-      'auto',
-      'image_search',
-      '',
-      [],
-      'complete',
-      true,
-      'Найди изображения в интернете, не генерируй',
-      false,
-      'ollama',
-      true,
-      false,
-      false,
-      false,
-      'fallback-forbidden',
-    );
-    await f.send();
-    const model = f.requests.filter((r) => isToolModelUrl(r.url));
-    expect(toolNames(model[1]?.body)).not.toContain('generate_image');
-    expect(f.images.createFromTool).not.toHaveBeenCalled();
-  });
+  it.each([
+    'Найди изображения в интернете, не генерируй',
+    'Создай сайт с картинками без новой генерации',
+    'Создай сайт с картинками. Не надо использовать генерацию',
+    'Найди картинки, не нужно генерировать новые изображения',
+    'Создай картинку, не нужно генерировать',
+    "Find images, don't automatically generate them",
+  ])(
+    'respects an explicit generation prohibition even after empty retrieval: %s',
+    async (userPrompt) => {
+      const f = fixture(
+        'auto',
+        'image_search',
+        '',
+        [],
+        'complete',
+        true,
+        userPrompt,
+        false,
+        'ollama',
+        true,
+        false,
+        false,
+        false,
+        'fallback-forbidden',
+      );
+      await f.send();
+      const model = f.requests.filter((r) => isToolModelUrl(r.url));
+      expect(toolNames(model[0]?.body)).not.toContain('generate_image');
+      expect(toolNames(model[1]?.body)).not.toContain('generate_image');
+      expect(f.images.createFromTool).not.toHaveBeenCalled();
+    },
+  );
   it.each(TOOL_PROVIDERS)(
     'searches images then durably creates an artifact through %s with one search and explicit deferred queries',
     async (provider) => {

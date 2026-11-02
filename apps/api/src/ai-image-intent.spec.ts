@@ -1,5 +1,9 @@
 import { expect, it } from 'vitest';
-import { artifactMutationRequested, imageGenerationRequested } from './ai-native-tools';
+import {
+  artifactMutationRequested,
+  imageGenerationRequested,
+  imageGenerationForbidden,
+} from './ai-native-tools';
 
 it.each([
   'Создай мне сайт про котиков с картинками',
@@ -33,3 +37,19 @@ it('retains explanation responses without requiring a write', () =>
   expect(artifactMutationRequested('Объясни как работает этот сайт', true)).toBe(false));
 it('does not turn an unrelated arithmetic request into a file mutation', () =>
   expect(artifactMutationRequested('Добавь 2 к 3', true)).toBe(false));
+it.each([
+  'Создай картинку, не нужно генерировать',
+  'Создай сайт с картинками без новой генерации',
+  'Создай сайт с картинками. Не надо использовать генерацию',
+  'Не следует снова генерировать новые изображения',
+  'Не генерируй картинки',
+  "Create a picture, don't automatically generate it",
+  'Do not ever generate new images',
+  'Create a site without new image generation',
+])(
+  'vetoes clear generation prohibitions before acquisition and after failed search: %s',
+  (prompt) => {
+    expect(imageGenerationForbidden(prompt)).toBe(true);
+    expect(imageGenerationRequested(prompt)).toBe(false);
+  },
+);
