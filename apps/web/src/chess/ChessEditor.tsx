@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { PublicUser } from '../api';
 import { ChessBoard } from './ChessBoard';
 import { ChessEditorHeader } from './ChessEditorHeader';
+import { ChessSectionHeader } from './ChessSectionHeader';
 import type { ChessPanelTab } from './chess-navigation';
 import {
   PIECE_SYMBOL,
@@ -158,6 +159,9 @@ function NewGameSetup({
   const [playerColor, setPlayerColor] = useState<Color>('white');
   const [botProfileId, setBotProfileId] = useState('asa-bot-compass');
   const [timeIndex, setTimeIndex] = useState(2);
+  const [botDifficulty, setBotDifficulty] = useState<1 | 2 | 3>(
+    ASA_BOT_PROFILES.find((profile) => profile.id === 'asa-bot-compass')?.engine.level ?? 1,
+  );
   const preset = TIME_PRESETS[timeIndex] ?? TIME_PRESETS[2]!;
   const selectedProfile =
     ASA_BOT_PROFILES.find((profile) => profile.id === botProfileId) ?? ASA_BOT_PROFILES[0]!;
@@ -172,7 +176,7 @@ function NewGameSetup({
     >
       <div className="asa-chess-dialog-head">
         <div>
-          <span className="eyebrow">{embedded ? 'Независимая страница' : 'ASA Chess'}</span>
+          <span className="eyebrow">{embedded ? 'Игра с компьютером' : 'ASA Chess'}</span>
           <h2 id={titleId}>
             {embedded ? 'Выберите соперника и начните партию' : 'Новая партия или позиция'}
           </h2>
@@ -241,10 +245,29 @@ function NewGameSetup({
           </fieldset>
           <fieldset className="asa-chess-bot-profile-picker">
             <legend>Профиль соперника</legend>
+            <div className="asa-chess-difficulty" role="group" aria-label="Сложность бота">
+              {([1, 2, 3] as const).map((level) => (
+                <button
+                  type="button"
+                  key={level}
+                  aria-pressed={botDifficulty === level}
+                  className={botDifficulty === level ? 'selected' : ''}
+                  onClick={() => {
+                    setBotDifficulty(level);
+                    const profile = ASA_BOT_PROFILES.find((item) => item.engine.level === level);
+                    if (profile) setBotProfileId(profile.id);
+                  }}
+                >
+                  <strong>{['Начальный', 'Средний', 'Продвинутый'][level - 1]}</strong>
+                  <small>Уровень {level} из 3</small>
+                </button>
+              ))}
+            </div>
             <div className="asa-chess-bot-profile-grid">
               {ASA_BOT_PROFILES.map((profile) => (
                 <label
                   key={profile.id}
+                  hidden={profile.engine.level !== botDifficulty}
                   className={profile.id === selectedProfile.id ? 'selected' : ''}
                 >
                   <input
@@ -255,7 +278,7 @@ function NewGameSetup({
                     onChange={() => setBotProfileId(profile.id)}
                   />
                   <strong>{profile.displayName}</strong>
-                  <small>Движок {profile.engine.level}/3</small>
+                  <small>Сложность {profile.engine.level} из 3</small>
                 </label>
               ))}
             </div>
@@ -265,25 +288,28 @@ function NewGameSetup({
               <span>Выбранный соперник</span>
               <strong>{selectedProfile.displayName}</strong>
             </div>
-            <dl>
-              <div>
-                <dt>Уровень</dt>
-                <dd>{profileSummary.levelLabel}</dd>
-              </div>
-              <div>
-                <dt>Стиль (проект)</dt>
-                <dd>{profileSummary.styleLabel}</dd>
-              </div>
-              <div>
-                <dt>Помощь (не включена)</dt>
-                <dd>{profileSummary.assistanceLabel}</dd>
-              </div>
-              <div>
-                <dt>Вызов (не включён)</dt>
-                <dd>{profileSummary.challengeLabel}</dd>
-              </div>
-            </dl>
-            <p>{profileSummary.calibrationNote}</p>
+            <details>
+              <summary>Подробнее о сопернике</summary>
+              <dl>
+                <div>
+                  <dt>Уровень</dt>
+                  <dd>{profileSummary.levelLabel}</dd>
+                </div>
+                <div>
+                  <dt>Стиль (проект)</dt>
+                  <dd>{profileSummary.styleLabel}</dd>
+                </div>
+                <div>
+                  <dt>Помощь (не включена)</dt>
+                  <dd>{profileSummary.assistanceLabel}</dd>
+                </div>
+                <div>
+                  <dt>Вызов (не включён)</dt>
+                  <dd>{profileSummary.challengeLabel}</dd>
+                </div>
+              </dl>
+              <p>{profileSummary.calibrationNote}</p>
+            </details>
           </section>
         </div>
       )}
@@ -462,20 +488,12 @@ export function ChessEditor({
   if (setupPage) {
     return (
       <main className="asa-chess-shell asa-chess-bot-page">
-        <ChessEditorHeader
-          projectTitle={controller.projectTitle}
-          persistedProjectTitle={controller.project.title}
-          onProjectTitleChange={controller.setProjectTitle}
-          onProjectTitleCommit={controller.renameProject}
-          saveStatus={controller.saveStatus}
-          statusDetail="Выбор соперника"
-          busy={controller.busy}
-          onBack={onBack}
-          onHome={onHome}
-          onNewGame={() => undefined}
-          onCheckpoint={() => void controller.checkpoint()}
-          onSave={() => void controller.saveNow()}
-          userDisplayName={user.displayName}
+        <ChessSectionHeader
+          user={user}
+          title="Боты ASA Chess"
+          status={{ kind: 'saved', label: 'Выбор соперника' }}
+          onExit={onBack}
+          onHome={onHome ?? onBack}
         />
         <div className="asa-chess-bot-page-body">
           <header>

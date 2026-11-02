@@ -9267,30 +9267,29 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: visible_course_task_creation_selected
+      checkpoint: preview_telemetry_baseline_repair_selected
       selected_slice:
-        id: LRN-E1-VISIBLE-COURSE-TASK-CREATION
+        id: LRN-PREVIEW-TELEMETRY-BASELINE-949
+        issue: 949
         status: in_progress
-        owner_authorization: Owner resumed development on 2026-11-02 and explicitly prioritised visible buttons for creating tasks inside courses over further invisible backend work.
-        scope: Reuse the canonical authored activity editor from the course practice picker; create, save, publish and select the exact new practice without losing the course lesson draft. No new academic runtime or migration.
+        kind: repair
+        owner_authorization: Owner commissioned Courses completion and resumed visible task authoring on 2026-11-02; controller selects the separate prerequisite baseline repair under AGENTS section 2.1, not scope expansion in PR943.
+        scope: Correct the existing preview test classifier to exempt only exact same-origin POST diagnostics quality receipt telemetry alongside its existing analytics quality receipt exemption.
         expected_write_paths:
-        - apps/web/src/components/CanonicalPracticePicker.tsx
-        - apps/web/src/pages/AuthoredMaterialsPage.tsx
-        - apps/web/src/components/CoursesPanel.tsx
-        - apps/web/src/learning/testing/course-visible-authoring.spec.ts
-        - apps/web/src/learning/testing/course-inline-task-creation.spec.ts
-        - apps/web/src/components/courses-panel.css
-        - e2e/learning-course-01.spec.ts
-        - apps/web/src/components/LessonBlockEditor.tsx
+        - e2e/learning-author-preview.spec.ts
         acceptance:
-        - A visible create-task action opens the existing canonical editor within the course workflow.
-        - Saving and publication use existing server commands; only a confirmed published supported project version can be inserted.
-        - Closing, error, busy and dirty navigation preserve or guard both author and lesson drafts.
-        - Exact saved lesson content survives reopening; no fake Quiz support or unsupported task types advertised.
-        - Focused mounted interaction checks and required Learning browser evidence distinguish implementation from installed owner acceptance.
-        preserved_work: Draft PR918,923,927,928,939 remain preserved; no merge, migration renumbering or foreign WIP edits in this slice.
-        previous_wait_resolution: Owner explicitly changed order; fresh remote main dfee5badd299d318a8e51ff0cbf88e9656333a5d observed with successful General workflow. Root ClassroomPage and classroom E2E/CSS WIP preserved. This slice avoids those paths and all migration fixtures; no migration allocation applies.
-        historical_checkpoint: https://github.com/spikeal8-maker/asa-lab/issues/179#issuecomment-6582162186
+        - Preserve all academic API mutation detection, exact historical preview, delayed-response assertions and all existing test identities.
+        - No broad diagnostics exemption, runtime changes, retry/timeout changes or permission changes.
+        - Independent source review and exact-head registered Learning evidence before integration.
+        held_visible_candidate:
+          pr: 943
+          branch: codex/courses-inline-task-creation-20261102
+          head: c96dea558255c5e55e476a6f83610b2283fd5970
+          state: source_preserved_mobile_repair_awaits_review_and_browser
+          previous_reviewed_sha: ba4b69df9d144619bd6415fa94d496f740c797d4
+          evidence: https://github.com/spikeal8-maker/asa-lab/pull/943
+        baseline_evidence: Exact ba4 Learning41487357777 first125422087914 captured POST diagnostics/quality schemaVersion2 client-diagnostics delivery counters only; unchanged preview assertion classified it as an academic mutation. Actual trace reviewed independently; separate category C Issue949.
+        next_action: Finish the one-file baseline repair separately, then recover actual remote state and restore visible-task candidate verification. This is not full Courses, Quiz or deployment acceptance.
       owner_acceptance: pending
       owner_design_acceptance: accepted
       owner_source_integration_approval:
@@ -16132,17 +16131,19 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
+      status: done
       kind: analysis/inventory
       risk: high
       semantic_change: 'no'
-      checkpoint: initial_probe_semantic_parity_pass_performance_inconclusive_vite_graph_correction
+      checkpoint: canonical_vite_probe_reviewed_yields_not_material_no_runtime_change
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
       scope: TEMP-only real Chromium Worker measurement on frozen actual no-delay and millis requests; compare unchanged baseline, timer instrumentation and experimental MessageChannel yield. No repository runtime edits or acceptance.
       owner_authorization: Owner requests fixing remaining20 Electronics timing failures after simple toolbar fixes; measure independent Worker cause while reviewed desktop candidate waits for CI.
-      next_action: One corrected bounded TEMP-only probe must use actual canonical Vite Worker ES production build and full resolve aliases, retaining same8inputs3variants2passes. Audit emitted graph against Vite settings before execution; new independent actual review; no repository runtime implementation.
+      next_action: Diagnostic complete with independent DIAGNOSTIC_PASS_WITH_LIMITS. Resume existing application failure evidence before separately selecting a bounded runtime repair; no scheduler replacement or additional profiling is justified by this probe.
+      corrected_probe_evidence: docs/product/electronics/evidence/host-yield-diagnosis-934-20261102/review-receipt.json
+      corrected_probe_result: Canonical Vite ES Worker54sourceModules18artifacts verified;48completeResponsesAndSavedStatesEqual;nativeWait0to1_10msPerRequest_not_material;zeroTimingFailuresClosed_no_runtime_acceptance
       initial_probe_result: 48complete_responses_and_saved_states_match_cancellation8_7ms_no_stale300ms_but_44ignored_dist_modules901168bytes_and_unminified_IIFE_keepNames_make_production_perf_INCONCLUSIVE
       initial_probe_evidence: OS_temp_asa_browser_yield_138859ec_report_receipt_manifest_independently_verified118files291source_entries
       correction_boundary: Exactly one repeat for demonstrated build/provenance mismatch; no changed inputs, budgets, physical timing, deadlines or broader workload.
@@ -16164,6 +16165,98 @@ parallel_lanes:
         sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
       observed_at: '2026-11-02T00:20:23Z'
       observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Browser measurement grants no repository runtime mutation, realtime acceptance or deployment.
+
+  - id: electronics-mobile-properties
+    parent_lane: electronics
+    worktree_id: electronics-mobile-properties
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
+      - apps/web/src/electronics/mobile-inspector-disclosure.tsx
+    task:
+      id: TASK-ELECTRONICS-MOBILE-PROPERTIES-001
+      issue: 952
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: medium
+      semantic_change: 'yes'
+      checkpoint: independent_mobile_ui_candidate_selected_while944_ci_pending
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-PROPERTIES-001.md
+      scope: Phone component properties collapsed square by default, compact expandable inspector, original property editing and native pinch preserved; hide phone zoom buttons. Desktop remains expanded. No physics or deployment changes.
+      owner_authorization: Owner explicitly requests restoring phone component properties, compact collapse/expand, desktop immediate display and removal of phone zoom controls on2026-11-02.
+      next_action: New bounded executor may prepare isolated candidate while944/870 frozen CI runs; publish only after944 integration and fresh source/native review. No mutation of frozen candidate.
+      integration_order: Source preparation only in independent worktree; main integration follows verified944 pin initialization.
+    gates:
+      focused:
+        workflow: Electronics M1 Focused Gate
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      head_sha: null
+      main:
+        branch: main
+        sha: dfe1dd504d3db32c66077bba44d18855bb061712
+      observed_at: '2026-11-02T18:45:06Z'
+      observation_note: Observed snapshot only; fresh fetch main and inspect exact-SHA CI before new edits. General41500859121 was in_progress, not PASS. No source integration or deployment acceptance granted.
+
+  - id: electronics-block-pin-setup
+    parent_lane: electronics
+    worktree_id: electronics-block-pin-setup
+    owned_paths:
+      - apps/web/src/electronics/arduino-blocks.ts
+      - apps/web/src/electronics/arduino-output-pins.ts
+      - apps/web/src/electronics/testing/arduino-pin-inputs.spec.ts
+      - apps/web/src/electronics/testing/arduino-output-pins.spec.ts
+      - apps/web/src/electronics/arduino-program-state.ts
+      - apps/web/src/electronics/testing/arduino-program-state.spec.ts
+      - apps/web/src/electronics/testing/arduino-inactive-blocks.spec.ts
+      - e2e/electronics-block-pin-setup.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
+    task:
+      id: TASK-ELECTRONICS-BLOCK-PIN-SETUP-001
+      issue: 944
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: source2b2ff317_independent_review_pass_full_browser_acceptance_selected
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-BLOCK-PIN-SETUP-001.md
+      scope: Generated explicit pinMode in setup, simplified computed commands and legacy preservation. Owner explicitly chooses all canonical GPIO as OUTPUT except button/sensor input ports; no whole-program range analysis. Owner also approves a persisted per-board input-port list in Arduino settings for computed input numbers.
+      owner_authorization: Owner urgently requests computed pin initialization repair for public project7ad29bb5 on2026-11-02, then explicitly instructs configuring all ports as outputs except ports assigned as inputs for buttons. Owner subsequently approves an explicit input-port list in Arduino settings. No server or foreign changes.
+      next_action: Source2b2ff317 independently approved with102tests and author105tests. New bounded test author adds actual desktop/mobile owner-project settings and Save-reopen journey; keep reviewed production source unchanged. Canonical CI and actual browser evidence remain required.
+    gates:
+      focused:
+        workflow: Electronics M1 Focused Gate
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: eb696b485daf7b80376aa8bb7949eea83628c8b6
+      head_sha: null
+      main:
+        branch: main
+        sha: eb696b485daf7b80376aa8bb7949eea83628c8b6
+      observed_at: '2026-11-02T16:52:27Z'
+      observation_note: Observed snapshot only, not live status; fresh fetch main and inspect exact-SHA CI before new edits. No deployment or acceptance granted.
 
   - id: electronics-emergency-toolbar
     parent_lane: electronics

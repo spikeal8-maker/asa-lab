@@ -79,6 +79,10 @@ async function fixture(page: Page, failList = false) {
       return json(route, { linked: false, available: false, promptDue: false });
     if (path === '/api/admin/v1/me')
       return json(route, { error: { code: 'forbidden', message: 'forbidden' } }, 403);
+    if (path === '/api/account/presentation')
+      return json(route, { motion: 'system', sidebar: 'expanded', revision: 1 });
+    if (/^\/api\/learning\/projects\/[^/]+\/context$/.test(path))
+      return json(route, { state: 'not_learning', projectId: path.split('/')[4] });
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
     if (path === '/api/modules') return json(route, { items: modules });
     if (path === '/api/games/access')
@@ -239,5 +243,66 @@ test('an unavailable catalogue can be retried without a stuck loading screen', a
   await page.locator('.games-page').getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Играть: Шахматы', exact: true })).toBeEnabled();
   expect(state.creations()).toBe(0);
+  expect(state.errors).toEqual([]);
+});
+
+test('Chess uses the shared profile header and square board at every layout size', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/games');
+  await page.getByRole('button', { name: 'Играть: Шахматы', exact: true }).click();
+  await expect(page.getByTestId('asa-chess-home-position')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Открыть доску', exact: true })).toHaveCount(1);
+  mkdirSync('reports/games/chess-redesign', { recursive: true });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator('.portal-header .portal-user-avatar img')).toBeVisible();
+    await page.locator('.portal-account > summary').click();
+    await expect(page.getByLabel('Центр аккаунта', { exact: true })).toBeVisible();
+    await page.locator('.portal-account > summary').click();
+    await expect(
+      page.getByRole('button', { name: 'Вернуться к играм', exact: true }),
+    ).toBeVisible();
+    const board = page.getByTestId('asa-chess-home-position');
+    const bounds = await board.boundingBox();
+    expect(Math.abs(bounds!.width - bounds!.height)).toBeLessThan(1);
+    const square = await board
+      .locator('button')
+      .first()
+      .evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          width: rect.width,
+          height: rect.height,
+          radius: getComputedStyle(node).borderRadius,
+        };
+      });
+    expect(Math.abs(square.width - square.height)).toBeLessThan(1);
+    expect(square.radius).toBe('0px');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: `reports/games/chess-redesign/home-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+  await expect(page.locator('.asa-chess-portal-content')).toHaveAttribute('inert', '');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.asa-chess-portal-content')).not.toHaveAttribute('inert');
+  await page.getByRole('button', { name: 'Боты', exact: true }).click();
+  for (const level of ['Начальный', 'Средний', 'Продвинутый']) {
+    const choice = page.getByRole('button', { name: new RegExp(level) });
+    await choice.click();
+    await expect(choice).toHaveAttribute('aria-pressed', 'true');
+    const visibleProfiles = page.locator('.asa-chess-bot-profile-grid label:visible');
+    expect(await visibleProfiles.count()).toBeGreaterThan(0);
+    const selected = page.locator('input[name="asa-bot-profile"]:checked');
+    await expect(selected).toBeVisible();
+    await expect(selected.locator('..')).toHaveClass('selected');
+  }
+  await page.screenshot({ path: 'reports/games/chess-redesign/bots-320.png', fullPage: true });
   expect(state.errors).toEqual([]);
 });

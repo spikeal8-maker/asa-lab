@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { URL, fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { runtimeUrl } from './protocol.mjs';
+import { productAliases } from './product-aliases.mjs';
 
 let pending;
 export function productBundle() {
@@ -11,30 +12,7 @@ export function productBundle() {
     publicDir: false,
     logLevel: 'error',
     esbuild: { jsx: 'automatic' },
-    // Match the product's pure 3D subpath boundary. The test bundle does not
-    // load the web Vite config; workspace dist files are CommonJS, not ESM.
-    resolve: {
-      alias: [
-        {
-          find: '@asa-lab/contracts',
-          replacement: fileURLToPath(
-            new URL('../../../packages/contracts/src/index.ts', import.meta.url),
-          ),
-        },
-        {
-          find: '@asa-lab/three-d/document',
-          replacement: fileURLToPath(
-            new URL('../../../contexts/three-d/domain/document.ts', import.meta.url),
-          ),
-        },
-        {
-          find: '@asa-lab/three-d/operations',
-          replacement: fileURLToPath(
-            new URL('../../../contexts/three-d/domain/operations.ts', import.meta.url),
-          ),
-        },
-      ],
-    },
+    resolve: { alias: productAliases },
     define: {
       __ASA_BLOCKS_PREVIEW__: 'false',
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(runtimeUrl),

@@ -21,6 +21,26 @@ context_role_values:
   - review
 
 documents:
+  - id: ADMIN-LOGS-OPERATIONS
+    path: docs/deployment/ADMIN_LOGS.md
+    scope: observability
+    lanes: [observability]
+    kind: operations_contract
+    status: canonical
+    authority: host_collector_operational_and_security_contract
+    context_role: escalation
+    read_when: [collector_install, collector_reconcile, collector_permissions]
+
+  - id: OBSERVABILITY-DOMAIN-CONTRACT
+    path: docs/agent/contracts/observability.yaml
+    scope: observability
+    lanes: [observability]
+    kind: domain_contract
+    status: canonical
+    authority: observability_repair_and_portable_deployment_invariants
+    context_role: compact
+    read_when: [collector_implementation, collector_review]
+
   - id: AI-ASSISTANT-DOMAIN-CONTRACT
     path: docs/agent/contracts/ai-assistant.yaml
     scope: ai-assistant
