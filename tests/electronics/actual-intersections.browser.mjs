@@ -42,27 +42,33 @@ try {
     <div style="position:fixed;left:120px;top:410px;width:40px;height:28px;background:black"></div>
   `);
   // This is exactly the function used by the production journey, not a mirror.
-  const intersections = await page.evaluate(observeActualIntersections, 'button');
-  const controls = await page.locator('button').evaluateAll((elements) =>
-    elements.map((element) => {
-      const rect = element.getBoundingClientRect();
-      const points = [
-        [rect.left + 3, rect.top + 3],
-        [rect.right - 3, rect.top + 3],
-        [rect.left + 3, rect.bottom - 3],
-        [rect.right - 3, rect.bottom - 3],
-        [rect.left + rect.width / 2, rect.top + rect.height / 2],
-      ].map(([x, y]) => {
-        const hit = document.elementFromPoint(x, y);
-        return { x, y, owned: hit !== null && (hit === element || element.contains(hit)) };
-      });
-      return {
-        id: element.id,
-        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
-        points,
-      };
-    }),
+  const capture = await page.evaluateHandle(observeActualIntersections, 'button');
+  const { intersections, controls } = await page.evaluate(
+    (capture) =>
+      capture.read((elements, intersections) => ({
+        intersections,
+        controls: elements.map((element) => {
+          const rect = element.getBoundingClientRect();
+          const points = [
+            [rect.left + 3, rect.top + 3],
+            [rect.right - 3, rect.top + 3],
+            [rect.left + 3, rect.bottom - 3],
+            [rect.right - 3, rect.bottom - 3],
+            [rect.left + rect.width / 2, rect.top + rect.height / 2],
+          ].map(([x, y]) => {
+            const hit = document.elementFromPoint(x, y);
+            return { x, y, owned: hit !== null && (hit === element || element.contains(hit)) };
+          });
+          return {
+            id: element.id,
+            rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+            points,
+          };
+        }),
+      })),
+    capture,
   );
+  await capture.dispose();
   const expected = [
     { id: 'normal', fits: false, right: 100 },
     { id: 'fixed', fits: true, right: 160 },
@@ -111,8 +117,62 @@ try {
     page.evaluate(observeActualIntersections, '.missing'),
     /No intersection targets/,
   );
+  for (const mutation of ['shrink', 'replace', 'reorder']) {
+    await page.setContent(
+      '<style>body{margin:0}button{border:0;padding:0;width:40px;height:28px}</style><div id="clip" style="overflow:hidden;width:40px;height:28px"><button>A</button><button>B</button></div>',
+    );
+    const stale = await page.evaluateHandle(observeActualIntersections, 'button');
+    await page.locator('#clip').evaluate((clip, mutation) => {
+      if (mutation === 'shrink') clip.style.width = '38px';
+      else if (mutation === 'replace')
+        clip.firstElementChild.replaceWith(clip.firstElementChild.cloneNode(true));
+      else clip.append(clip.firstElementChild);
+    }, mutation);
+    if (mutation === 'shrink') {
+      const fresh = await page.evaluateHandle(observeActualIntersections, 'button');
+      const proof = await page.evaluate(
+        (capture) =>
+          capture.read((targets, intersections) => {
+            const target = targets[0];
+            const rect = target.getBoundingClientRect();
+            return {
+              width: rect.width,
+              clipWidth: intersections[0].width,
+              owned: [
+                [3, 3],
+                [37, 3],
+                [3, 25],
+                [37, 25],
+                [20, 14],
+              ].every(([x, y]) => {
+                const hit = document.elementFromPoint(x, y);
+                return hit === target || target.contains(hit);
+              }),
+            };
+          }),
+        fresh,
+      );
+      assert.deepEqual(proof, { width: 40, clipWidth: 38, owned: true });
+      await fresh.dispose();
+    }
+    await assert.rejects(
+      page.evaluate(
+        (capture) =>
+          capture.read((targets, intersections) =>
+            targets.map((target, index) => ({
+              rect: target.getBoundingClientRect().toJSON(),
+              intersection: intersections[index],
+            })),
+          ),
+        stale,
+      ),
+      /Actual intersection capture changed/,
+      mutation,
+    );
+    await stale.dispose();
+  }
   log(
-    'PASS: normal clip, fixed escape, transformed containing block, popup-local clip, viewport clip, occlusion; native five-point ownership retained',
+    'PASS: normal clip, fixed escape, transformed containing block, popup-local clip, viewport clip, occlusion; 2px ancestor shrink, replacement, reorder reject stale captures; native five-point ownership retained',
   );
 } finally {
   await browser?.close();
