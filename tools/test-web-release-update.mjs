@@ -148,7 +148,9 @@ function browser({ loading = false, entry = oldEntry, responseEntry = newEntry }
       offline = true;
     },
     click(buttonText) {
-      const actions = this.notice?.children.find((node) => node.className === 'asa-release-update-actions');
+      const actions = this.notice?.children.find(
+        (node) => node.className === 'asa-release-update-actions',
+      );
       const button = actions?.children.find((node) => node.textContent === buttonText);
       assert.ok(button, 'expected actionable release-notice button');
       button.listeners.click();
