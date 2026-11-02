@@ -36,18 +36,21 @@
 }
 .asa-ai-tools-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 .asa-ai-tool-card {
   display: grid;
-  align-content: start;
+  grid-template-columns: minmax(250px, 1fr) minmax(200px, 1.6fr) auto;
+  align-items: center;
   gap: 12px;
   min-width: 0;
-  padding: 17px;
-  border: 1px solid #d5e2eb;
-  border-radius: 11px;
-  background: #f9fcfe;
+  min-height: 54px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid #d5e2eb;
+  border-radius: 0;
+  background: transparent;
   overflow-wrap: anywhere;
 }
 .asa-ai-tool-card summary {
@@ -56,11 +59,13 @@
   color: var(--admin-blue, #12699c);
 }
 .asa-ai-tool-card details[open] {
+  grid-column: 1 / -1;
   display: grid;
   gap: 12px;
 }
 .asa-ai-tool-card-title {
-  display: flex;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: start;
   justify-content: space-between;
   flex-wrap: wrap;
@@ -68,7 +73,7 @@
 }
 .asa-ai-tool-card-title h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
 }
 .asa-ai-tool-status {
   padding: 3px 8px;
@@ -157,12 +162,14 @@
   outline: 2px solid #0877b3;
   outline-offset: 2px;
 }
-@media (max-width: 680px) {
+@media (max-width: 960px) {
   .asa-ai-tools-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .asa-ai-tool-card {
-    padding: 14px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 10px 0;
+    gap: 6px 12px;
   }
   .asa-ai-tools-actions .asa-cloud-apply {
     width: 100%;
@@ -174,7 +181,7 @@
     border-color: var(--border, #3a3a3d);
   }
   .asa-ai-tool-card {
-    background: var(--surface, #202123);
+    background: transparent;
     border-color: var(--border, #3a3a3d);
     color: var(--text, #f5f5f5);
   }
@@ -196,5 +203,52 @@
     background: var(--bg, #161618);
     color: var(--text, #f5f5f5);
     border-color: var(--border, #3a3a3d);
+  }
+}
+
+.asa-ai-tools-heading h2 {
+  scroll-margin-top: 80px;
+}
+.asa-ai-tool-toggle-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.asa-ai-tool-card > details {
+  min-width: 0;
+}
+.asa-ai-tool-card summary {
+  padding: 10px 0;
+  white-space: nowrap;
+}
+.asa-ai-tool-card details[open] {
+  padding: 8px 12px 12px;
+  background: var(--surface, #f3f9fd);
+  border-radius: 8px;
+}
+.asa-ai-tool-future {
+  grid-template-columns: minmax(250px, 1fr) minmax(200px, 1.6fr) auto;
+}
+.asa-ai-tool-future .asa-ai-tool-card-title {
+  display: flex;
+}
+@media (max-width: 960px) {
+  .asa-ai-tool-card-title {
+    grid-column: 1 / -1;
+  }
+  .asa-ai-tool-reason {
+    grid-column: 1;
+  }
+  .asa-ai-tool-card > details {
+    grid-column: 2;
+  }
+  .asa-ai-tool-card > details[open] {
+    grid-column: 1 / -1;
+  }
+  .asa-ai-tool-future {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

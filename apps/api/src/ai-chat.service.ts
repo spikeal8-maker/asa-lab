@@ -1,3 +1,4 @@
+import { toolUnavailableReason } from './ai-tool-readiness.js';
 import { isAiImageSize, type AiChatTool, type AiToolActivity } from '@asa-lab/contracts';
 import { reloadPolzaCatalog } from './ai-polza-catalog.js';
 import { supportsAiTools } from './ai-model-catalog.js';
@@ -430,11 +431,12 @@ export class AiChatService {
   async toolPolicyAdmin(actor: string, savedPolicy?: ToolPolicy) {
     const [{ ready, policy: current }, internet, local, models] = await Promise.all([
       this.toolPolicy.admin(actor),
-      this.web.status(),
+      this.web.admin(actor),
       this.ollamaRuntime(),
       this.status(),
     ]);
     const policy = savedPolicy ?? current;
+    let nativeReason: string | undefined;
     const localReady = local.enabled && !!local.model;
     let nativeReady = models.availableModels.some(
       (id) =>
@@ -446,56 +448,41 @@ export class AiChatService {
         nativeReady = (
           await describeOllamaModel(local.base_url, local.model, this.fetchImpl)
         ).includes('tools');
+        if (!nativeReady)
+          nativeReason = 'Выбранная модель Ollama не поддерживает вызов инструментов.';
       } catch {
         nativeReady = false;
+        nativeReason =
+          'Не удалось получить возможности модели Ollama — проверьте адрес и подключение.';
       }
     }
     const fileReady = ready && nativeReady && (await this.workingFiles.ready());
     const imageStatus = ready && nativeReady && this.images ? await this.images.admin(actor) : null;
-    const imageReady = !!(
-      nativeReady &&
-      imageStatus?.enabled &&
-      imageStatus.ready &&
-      (await this.images?.nativeSchemaReady())
-    );
+    const imageSchemaReady = !!(imageStatus && (await this.images?.nativeSchemaReady()));
     return {
       schemaVersion: 1 as const,
       configurationVersion: policy.configurationVersion,
       tools: TOOL_IDS.map((id) => {
         const setting = toolRule(policy, id);
-        const available =
-          ready &&
-          (id !== 'edit_working_file' || toolRule(policy, 'read_working_file').enabled) &&
-          (id.endsWith('_working_file')
-            ? fileReady
-            : id === 'generate_image'
-              ? imageReady
-              : nativeReady &&
-                internet.enabled &&
-                (id === 'read_page'
-                  ? internet.pageReadConfigured === true
-                  : id === 'weather'
-                    ? internet.weatherConfigured
-                    : internet.configured));
+        const reason = toolUnavailableReason(id, {
+          policyReady: ready,
+          nativeReady,
+          nativeReason,
+          internet,
+          fileReady,
+          readFilesEnabled: toolRule(policy, 'read_working_file').enabled,
+          imageEnabled: !!imageStatus?.enabled,
+          imageReady: !!imageStatus?.ready,
+          imageSchemaReady,
+          imageReason: imageStatus?.reason,
+        });
         return {
           ...toolMetadata[id],
           id,
           enabled: setting.enabled,
           instructions: setting.instructions,
-          available,
-          reason: available
-            ? null
-            : !ready
-              ? 'Политика инструментов ещё не установлена.'
-              : !nativeReady
-                ? 'Нет доступной модели с поддержкой инструментов.'
-                : id === 'edit_working_file' && !toolRule(policy, 'read_working_file').enabled
-                  ? 'Для редактирования нужно разрешить чтение рабочих файлов.'
-                  : id.endsWith('_working_file')
-                    ? 'Хранение рабочих файлов недоступно.'
-                    : id === 'generate_image'
-                      ? (imageStatus?.reason ?? 'Генерация изображений недоступна.')
-                      : 'Бесплатный источник поиска недоступен.',
+          available: reason === null,
+          reason,
         };
       }),
     };

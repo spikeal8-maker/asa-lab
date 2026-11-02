@@ -345,3 +345,52 @@
 .asa-settings-compact .asa-ai-policy-save-note {
   margin: 6px 0;
 }
+
+/* Settings are a single flat list; connection editors keep their own layout. */
+.asa-settings-compact .asa-ai-policy-models {
+  gap: 0;
+}
+.asa-settings-compact .asa-ai-policy-models > fieldset {
+  border: 0;
+  border-bottom: 1px solid var(--border, #dce5ec);
+  border-radius: 0;
+  padding: 8px 0;
+}
+.asa-settings-compact .asa-ai-policy-models legend {
+  padding: 0;
+  font-size: 13px;
+}
+.asa-settings-compact .asa-ai-policy-model-row {
+  min-height: 44px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+}
+.asa-settings-compact .asa-ai-policy-model > span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.asa-settings-compact .asa-ai-policy-model strong {
+  font-weight: 650;
+}
+.asa-settings-compact .asa-ai-reorder button {
+  border-color: transparent;
+  background: transparent;
+}
+.asa-settings-compact .asa-ai-reorder button:hover:not(:disabled) {
+  background: var(--surface, #edf7fc);
+  border-color: var(--border, #dce5ec);
+}
+@media (max-width: 600px) {
+  .asa-settings-compact .asa-ai-policy-model-row {
+    gap: 4px;
+  }
+  .asa-settings-compact .asa-ai-policy-model > span {
+    gap: 2px 8px;
+  }
+  .asa-settings-compact .asa-ai-policy-model small {
+    flex-basis: 100%;
+  }
+}

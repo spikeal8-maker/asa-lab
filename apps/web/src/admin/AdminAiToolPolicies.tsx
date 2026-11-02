@@ -307,6 +307,15 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
               return (
                 <article className="asa-ai-tool-card" key={id} aria-label={TOOL_LABELS[id]}>
                   <div className="asa-ai-tool-card-title">
+                    <label className="asa-ai-tool-toggle">
+                      <input
+                        type="checkbox"
+                        checked={edit.enabled}
+                        disabled={busy || !writable}
+                        onChange={(event) => update(id, 'enabled', event.target.checked)}
+                      />{' '}
+                      <span className="asa-ai-tool-toggle-text">Включить инструмент</span>
+                    </label>
                     <h3>{TOOL_LABELS[id]}</h3>
                     <span
                       className={tool.enabled ? 'asa-ai-tool-status ready' : 'asa-ai-tool-status'}
@@ -316,18 +325,9 @@ export function AdminAiToolPolicies({ onAccessDenied }: { readonly onAccessDenie
                   </div>
                   <p className="asa-ai-tool-reason">
                     {tool.available
-                      ? 'Подключение настроено. Фактическая доступность проверяется при выполнении.'
+                      ? 'Настроено · доступность проверяется при вызове.'
                       : tool.reason || 'Причина недоступности не указана сервером.'}
                   </p>
-                  <label className="asa-ai-tool-toggle">
-                    <input
-                      type="checkbox"
-                      checked={edit.enabled}
-                      disabled={busy || !writable}
-                      onChange={(event) => update(id, 'enabled', event.target.checked)}
-                    />{' '}
-                    Включить инструмент
-                  </label>
                   <details>
                     <summary>Описание и инструкции</summary>
                     <dl>
