@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { URL, fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { runtimeUrl } from './protocol.mjs';
+import { productAliases } from './product-aliases.mjs';
 
 let pending;
 export function productBundle() {
@@ -11,6 +12,7 @@ export function productBundle() {
     publicDir: false,
     logLevel: 'error',
     esbuild: { jsx: 'automatic' },
+    resolve: { alias: productAliases },
     define: {
       __ASA_BLOCKS_PREVIEW__: 'false',
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(runtimeUrl),
