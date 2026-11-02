@@ -274,7 +274,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_legacy_four_source_status_is_unavailable_and_doctor_check_continue(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root)
+            root=Path(directory).resolve();install=fixture(root)
             (root/'tools/deployment/operational.py').unlink()
             legacy=lifecycle.hashlib.sha256()
             for name in ('collect_logs.py','collect-windows-logs.ps1','resource_sampling.py','memory_sampling.py'):
@@ -302,19 +302,21 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_status_unreadable_source_is_closed_and_preserves_inputs(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root);target=root/'tools/deployment/operational.py'
-            original=Path.read_bytes
+            root=Path(directory).resolve();install=fixture(root);target=root/'tools/deployment/operational.py'
+            original=Path.read_bytes;denials=[]
             def denied(path):
-                if path==target:raise PermissionError('SYNTHETIC-PRIVATE-NEVER-OUTPUT')
+                if path.resolve()==target.resolve():
+                    denials.append(path);raise PermissionError('SYNTHETIC-PRIVATE-NEVER-OUTPUT')
                 return original(path)
             with patch.object(Path,'read_bytes',denied):result=lifecycle.status(install)
+            self.assertEqual(len(denials),1)
             self.assertEqual((result['state'],result['code'],result['reason']),
                              ('unavailable','COLLECTOR_SOURCE_CONTRACT','unreadable_input'))
             self.assertNotIn('SYNTHETIC',json.dumps(result));self.assertIsNone(result['scriptDigest'])
 
     def test_status_invalid_configuration_and_registration_never_look_running(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root)
+            root=Path(directory).resolve();install=fixture(root)
             for config in ({'version':2},{'project':'foreign'},{'intervalSeconds':True},['invalid']):
                 atomic_json(install.state/'log-collector.json',config)
                 before=(install.state/'log-collector.json').read_bytes()
@@ -330,7 +332,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_status_valid_full_source_retains_running_and_stale_semantics(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root)
+            root=Path(directory).resolve();install=fixture(root)
             atomic_json(install.state/'collector-runner.json',dict(root=str(root),project=install.project,mode='user'))
             process=dict(checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(root),project=install.project,
                          pid=123,nonce='a'*32,scriptDigest=lifecycle.digest(root))
@@ -343,9 +345,52 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
             atomic_json(install.state/'diagnostics/store/collector-process.json',process)
             self.assertEqual(lifecycle.status(install)['state'],'stale')
 
+    def test_status_invalid_heartbeat_timestamp_types_are_closed_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve();install=fixture(root)
+            atomic_json(install.state/'collector-runner.json',dict(root=str(install.root),project=install.project,mode='user'))
+            for value in (123,[],True,False,None,{}):
+                atomic_json(install.state/'diagnostics/store/collector-process.json',dict(
+                    checkedAt=value,root=str(install.root),project=install.project,pid=123,nonce='a'*32,
+                    scriptDigest=lifecycle.digest(install.root)))
+                before={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+                result=lifecycle.status(install)
+                self.assertEqual((result['state'],result['code'],result['reason']),
+                                 ('unavailable','COLLECTOR_STATUS_CONFIG','invalid_heartbeat_timestamp'))
+                self.assertIsNone(result['scriptDigest'])
+                self.assertEqual({str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()},before)
+
+    @unittest.skipUnless(os.name=='nt','Actual Windows short-path fixture')
+    def test_status_windows_short_path_fixture_uses_canonical_identity_and_denial_target(self):
+        import ctypes
+        with tempfile.TemporaryDirectory() as directory:
+            raw=Path(directory)/'Long Source Status Fixture';raw.mkdir()
+            buffer=ctypes.create_unicode_buffer(32768)
+            short_path=ctypes.windll.kernel32.GetShortPathNameW
+            short_path.argtypes=[ctypes.c_wchar_p,ctypes.c_wchar_p,ctypes.c_uint32]
+            short_path.restype=ctypes.c_uint32
+            length=short_path(str(raw),buffer,len(buffer))
+            self.assertGreater(length,0);self.assertLess(length,len(buffer))
+            alias=Path(buffer.value)
+            if str(alias)==str(raw):self.skipTest('8.3 aliases unavailable on this filesystem')
+            root=alias.resolve();install=fixture(root)
+            self.assertEqual(install.root,raw.resolve())
+            atomic_json(install.state/'collector-runner.json',dict(root=str(install.root),project=install.project,mode='user'))
+            atomic_json(install.state/'diagnostics/store/collector-process.json',dict(
+                checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(install.root),project=install.project,
+                pid=123,nonce='a'*32,scriptDigest=lifecycle.digest(install.root)))
+            self.assertEqual(lifecycle.status(install)['state'],'running')
+            target=(install.root/'tools/deployment/operational.py').resolve();original=Path.read_bytes;denials=[]
+            def denied(path):
+                if path.resolve()==target:
+                    denials.append(path);raise PermissionError('synthetic denial')
+                return original(path)
+            with patch.object(Path,'read_bytes',denied):result=lifecycle.status(install)
+            self.assertEqual(result['reason'],'unreadable_input');self.assertEqual(len(denials),1)
+
     def test_status_unsafe_input_paths_refused_without_reading_target(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root)
+            root=Path(directory).resolve();install=fixture(root)
             original=lifecycle.plain_paths
             def source_redirect(path,names):
                 if any(str(name).startswith('tools/') for name in names):raise ValueError('SYNTHETIC-FOREIGN-PATH')
@@ -358,7 +403,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_status_actual_hardlinked_source_and_config_are_unavailable(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root);target=root/'tools/deployment/operational.py'
+            root=Path(directory).resolve();install=fixture(root);target=root/'tools/deployment/operational.py'
             source=target.read_bytes();target.unlink()
             outside=root/'foreign-preserved';outside.write_bytes(source)
             os.link(outside,target)
@@ -374,7 +419,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
     @unittest.skipUnless(os.name!='nt','POSIX FIFO status input')
     def test_status_rejects_fifo_without_opening_or_blocking(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root);target=root/'tools/deployment/operational.py'
+            root=Path(directory).resolve();install=fixture(root);target=root/'tools/deployment/operational.py'
             target.unlink();os.mkfifo(target,0o600)
             self.assertEqual(lifecycle.status(install)['reason'],'unsafe_input_path')
             target.unlink();target.write_text('restored synthetic source',encoding='utf-8')
@@ -383,7 +428,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_status_observation_does_not_weaken_strict_prepare_or_reconcile(self):
         with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);install=fixture(root)
+            root=Path(directory).resolve();install=fixture(root)
             with patch.object(lifecycle,'_prepare_host',side_effect=Blocked('COLLECTOR_RUNNER_OWNER','foreign','stop')), \
                  patch.object(lifecycle,'native_application_logging') as native,self.assertRaises(Blocked) as denied:
                 lifecycle.prepare(install)
@@ -397,7 +442,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_status_and_manager_doctor_check_do_not_create_state(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); install = fixture(root)
+            root = Path(directory).resolve(); install = fixture(root)
             before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
             result = lifecycle.status(install)
             self.assertEqual(result['state'], 'unavailable')
@@ -436,7 +481,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_stale_or_future_or_foreign_process_never_counts_as_running(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); install = fixture(root)
+            root = Path(directory).resolve(); install = fixture(root)
             store = install.state / 'diagnostics/store'; store.mkdir(parents=True)
             identity = process_identity(root, install.project)
             for change in ({}, {'root': 'foreign'}, {'project': 'foreign'}, {'pid': -1}, {'nonce': 'not-a-nonce'}, {'checkedAt': '2099-01-01T00:00:00Z'}, {'checkedAt': '2000-01-01T00:00:00Z'}):
@@ -447,7 +492,7 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
 
     def test_restart_requires_new_nonce_and_failed_start_only_degrades_collector(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); install = fixture(root)
+            root = Path(directory).resolve(); install = fixture(root)
             (install.state / 'diagnostics/store').mkdir(parents=True)
             (install.state / 'diagnostics/private').mkdir()
             identity = process_identity(root, install.project); write_process_health(root, identity)

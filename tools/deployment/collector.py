@@ -683,6 +683,8 @@ def status(install):
     except ValueError:
         return unavailable('COLLECTOR_SOURCE_CONTRACT', 'unsafe_input_path')
     fresh = False
+    if 'checkedAt' in process and not isinstance(process['checkedAt'], str):
+        return unavailable('COLLECTOR_STATUS_CONFIG', 'invalid_heartbeat_timestamp')
     try:
         age = time.time() - dt.datetime.fromisoformat(process["checkedAt"].replace("Z", "+00:00")).timestamp()
         fresh = (0 <= age < 90 and process.get('root') == str(install.root) and process.get('project') == install.project

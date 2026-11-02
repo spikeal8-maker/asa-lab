@@ -341,6 +341,10 @@ digest и не объявляет legacy runtime проверенным или �
 raw текста, путей или секретов. Состояние приложения проверяется отдельно: такое
 предупреждение само по себе не обрывает остальные guards `doctor/check` и не
 означает здоровую log coverage или разрешение update.
+Неверный тип heartbeat `checkedAt` также даёт закрытый `unavailable`, а не исключение
+парсера. Проверка root/project остаётся точной по каноническому Installation.root;
+Windows 8.3 alias в тестах приводится к тому же canonical path, не принимается
+как альтернативная production identity.
 
 Этот compatibility path действует только при наблюдении. Алгоритм `digest`,
 ownership/identity/config проверки prepare/reconcile/install/update не ослаблены;
