@@ -69,3 +69,20 @@
     flex-basis: 100%;
   }
 }
+
+.classroom-network-settings {
+  margin: 16px 0 0;
+  padding: 12px;
+  min-width: 0;
+  border: 1px solid #cbdbe3;
+  border-radius: 10px;
+}
+.classroom-network-settings legend {
+  font-weight: 700;
+  padding: 0 6px;
+}
+.classroom-network-settings input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}

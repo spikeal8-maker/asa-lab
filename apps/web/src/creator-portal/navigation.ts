@@ -432,7 +432,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     };
   }
   const independentChessPage =
-    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|puzzles|learning|bots|review))?$/.exec(
+    /^\/chess\/([^/]+)(?:\/(?:home|play(?:\/(?:game|analysis|versions))?|online|network|puzzles|learning|bots|review))?$/.exec(
       path ?? '',
     );
   if (independentChessPage) {

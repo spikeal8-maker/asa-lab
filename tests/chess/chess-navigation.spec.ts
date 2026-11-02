@@ -5,7 +5,10 @@ import {
   type ChessPage,
   type ChessPanelTab,
 } from '../../apps/web/src/chess/chess-navigation';
-import { creatorViewFromHash } from '../../apps/web/src/creator-portal/navigation';
+import {
+  creatorViewFromHash,
+  creatorViewFromLocation,
+} from '../../apps/web/src/creator-portal/navigation';
 
 describe('independent subject routes', () => {
   it('gives every visible Chess page its own reloadable address', () => {
@@ -14,6 +17,7 @@ describe('independent subject routes', () => {
       'home',
       'play',
       'online',
+      'network',
       'puzzles',
       'learning',
       'bots',
@@ -24,8 +28,22 @@ describe('independent subject routes', () => {
     expect(new Set(addresses).size).toBe(pages.length);
     for (const [index, address] of addresses.entries()) {
       expect(chessRouteFromHash(address, projectId).page).toBe(pages[index]);
+      const editor = { kind: 'editor', projectId, moduleKey: 'chess', returnTo: { kind: 'games' } };
+      expect(creatorViewFromHash(address)).toEqual(editor);
+      expect(creatorViewFromLocation({ pathname: '/', search: '', hash: address })).toEqual(editor);
     }
   });
+
+  it.each(['network/extra', 'unknown', 'play/unknown', 'network-extra'])(
+    'keeps unsupported Chess route %s outside the global editor boundary',
+    (page) => {
+      const hash = `#/chess/chess-project-1/${page}`;
+      expect(creatorViewFromHash(hash)).toEqual({ kind: 'home' });
+      expect(creatorViewFromLocation({ pathname: '/', search: '', hash })).toEqual({
+        kind: 'home',
+      });
+    },
+  );
 
   it('keeps game, analysis and versions as independent board pages', () => {
     const projectId = 'chess-project-2';
