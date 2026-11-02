@@ -59,6 +59,37 @@ async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
   return decoded!.data;
 }
 
+async function assertPrintedQrRasterOffsets(qr: Locator, expectedUrl: string): Promise<void> {
+  const box = await qr.boundingBox();
+  expect(box, 'printed QR must have a rendered square').not.toBeNull();
+  const minimum = (20 * 96) / 25.4 - 0.1;
+  expect(
+    box!.width,
+    'long host must not shrink the printable QR below 20mm',
+  ).toBeGreaterThanOrEqual(minimum);
+  expect(box!.height).toBeGreaterThanOrEqual(minimum);
+  const original = await qr.evaluate((element) => (element as SVGElement).style.transform);
+  try {
+    // A4 millimetres land between CSS pixels. Real PNG/monochrome decoding must
+    // survive every quarter-pixel phase without changing the encoded square.
+    for (const x of [0, 0.25, 0.5, 0.75]) {
+      for (const y of [0, 0.25, 0.5, 0.75]) {
+        await qr.evaluate(
+          (element, offset) => {
+            (element as SVGElement).style.transform = `translate(${offset.x}px, ${offset.y}px)`;
+          },
+          { x, y },
+        );
+        expect(await decodeRenderedQr(qr)).toBe(expectedUrl);
+      }
+    }
+  } finally {
+    await qr.evaluate((element, transform) => {
+      (element as SVGElement).style.transform = transform;
+    }, original);
+  }
+}
+
 async function registerTeacher(page: Page): Promise<void> {
   const id = crypto.randomUUID().replaceAll('-', '');
   const response = await registerAccountSetup(
@@ -1241,6 +1272,13 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
       expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
         `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
       );
+      if (host.length > 22) {
+        await assertPrintedQrRasterOffsets(
+          printedAccount.getByTestId('class-join-qr'),
+          `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
+        );
+        await assertPrintedTextZones(page, 'mixed cards after long-host QR raster phases');
+      }
     }
     await page.pdf({
       path: `${evidence}/cards-mixed-long-labels-a4.pdf`,
