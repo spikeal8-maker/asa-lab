@@ -73,6 +73,30 @@
     white-space: normal;
     overflow-wrap: anywhere;
   }
+  /* Give captions and editors the full panel width, including short landscape.
+     The existing panel scrolls vertically instead of squeezing either column. */
+  .workbench-shell .workbench-inspector.component-selected .workbench-inspector-body > label,
+  .workbench-shell
+    .workbench-inspector.component-selected
+    .workbench-state-controls
+    label:not(.workbench-toggle-property) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .workbench-inspector.component-selected .workbench-inspector-body > label > span,
+  .workbench-inspector.component-selected .workbench-state-controls label > span {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+  .workbench-inspector.component-selected .workbench-value-field {
+    grid-template-columns: minmax(0, 1fr) 64px;
+    height: auto;
+  }
+  .workbench-inspector.component-selected .workbench-value-field .workbench-unit-select {
+    width: 100%;
+    min-width: 0;
+  }
   .workbench-inspector.component-selected input,
   .workbench-inspector.component-selected select {
     font-size: 16px;
