@@ -7,7 +7,7 @@ components:
     ownership: infrastructure
     purpose: 'Host/static delivery.'
     contracts:
-      - path: &scratch_host_contract docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
+      - path: &host docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Host layout'
     sources:
       - infra/scratch-editor/Dockerfile
@@ -37,7 +37,7 @@ components:
     ownership: upstream_patch
     purpose: 'ASA mark/UI.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'Branding'
     canonical_asset: apps/web/public/asa-lab-mark.svg
     sources:
@@ -56,7 +56,7 @@ components:
     ownership: upstream_config
     purpose: 'Native locale.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'Localization'
     sources:
       - path: infra/scratch-editor/host/editor.js
@@ -71,7 +71,7 @@ components:
     ownership: asa
     purpose: 'ASA chrome/theme.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'ASA theme boundary'
     sources: [infra/scratch-editor/host/host.css]
     tests: [e2e/blocks-host-controls.spec.ts]
@@ -84,7 +84,7 @@ components:
     ownership: cross_boundary
     purpose: 'Parent shell.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'ASA identity shell'
     sources:
       - { path: apps/web/src/blocks/BlocksEditor.tsx, symbols: [BlocksEditor] }
@@ -104,7 +104,7 @@ components:
     ownership: upstream_config
     purpose: 'Native File/Edit.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'Product controls'
     sources:
       - path: infra/scratch-editor/host/editor.js
@@ -119,7 +119,7 @@ components:
     ownership: upstream_config
     purpose: 'Native Extensions.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'Extensions'
     sources:
       - path: infra/scratch-editor/host/editor.js
@@ -134,7 +134,7 @@ components:
     ownership: asa
     purpose: 'Strict iframe protocol.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'Parent/iframe protocol'
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: 'Origin CORS CSP boundary'
@@ -164,7 +164,7 @@ components:
     ownership: asa
     purpose: 'ScratchStorage/GUIStorage fingerprint/no-op/replay adapter.'
     contracts:
-      - path: *scratch_host_contract
+      - path: *host
         section: 'Scratch storage adapter'
     sources:
       - path: infra/scratch-editor/host/storage.js
