@@ -1,6 +1,6 @@
 # Versioned local UI effect profiles
 
-Revision: 1.0
+Revision: 1.1
 
 ## 1. Authority and result boundaries
 
@@ -151,3 +151,49 @@ unconditional regression that fails before the feature and passes afterward.
 Actual L0/L1 changes require the UI layout contract, four viewports, browser
 evidence in isolated CI and measured edit-to-result/runner cost. No engine-only
 test establishes a speed gain, complete layout acceptance or owner acceptance.
+
+
+## 6. Scoped focused-CI applicability
+
+The separately reviewed CI applicability extension uses the existing v1 effect
+proof only for Account Confirmation, Learning E1 and Public Projects Publication.
+It does not alter the canonical SHADOW risk, unknowns, plan or deferred mandatory
+IDs. All four General jobs and `ASA / required` remain fully enforced. The
+source-bound local checks and concrete 16-case browser route remain separate
+verification obligations; applicability does not establish their success.
+
+Each focused workflow checks the exact event HEAD, comparable base and clean
+checkout before installing proof dependencies. Its cheap Git classification
+admits only the existing production paths and additive named component tests;
+path admission cannot skip a suite. Current proof, CI-contract, dependency,
+formatter and concrete browser controls must also match the event base. Unrelated
+execution-state updates may advance the base without invalidating these bindings.
+Only the existing AST/CSS proof of an actual L0/L1 effect, with its complete
+current source digest, can select `NOT_APPLICABLE`. Manual dispatch, unknown
+base, control drift, unsupported effects and every broader/security/infrastructure
+diff retain the original complete suite. Invalid source identity or malformed
+proof fails closed.
+
+Suite jobs depend on applicability before allocating their services or matrix.
+The applicability receipt records source/base, reason, digest, zero executed
+tests and `NOT_APPLICABLE` or `NOT_RUN`; it never reports a focused-test PASS.
+Native skipped suite jobs and a successful applicability workflow are not evidence
+that those tests ran. Integration and release flags remain false. Full-CI,
+independent-review and owner-acceptance requirements are not waived.
+
+Learning additionally requires both complete `first` and `second` partitions.
+Each existing matrix artifact carries a receipt written only after the real
+code/data and browser commands succeed on the event SHA. The final job requires
+native matrix success and both distinct exact-source, same-run receipts, with
+explicit attempt provenance. Missing, duplicated, stale, cancelled, failed or
+skipped applicable partitions cannot produce PASS. A successful exact-source
+N/A proof and an actually skipped whole matrix skip the final checker before
+allocating another runner; the applicability receipt alone records zero tests.
+Every uncertain or failed selection still reaches the strict final checker,
+which accepts only real complete partitions and never fabricates a test PASS
+for N/A. No partition artifacts are downloaded or accepted on the N/A route.
+
+This routing change requires its own exact-SHA CI and an actual UI trial before
+claiming runner savings. Existing same-source pilot measurements establish the
+bounded effect and retain the full General baseline; they do not establish a
+median, automatic release readiness or the new route's realized aggregate cost.

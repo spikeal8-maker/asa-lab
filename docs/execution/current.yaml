@@ -100,7 +100,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: package_d_collect_picker_pilot_and_addressed_ci_selected
+      checkpoint: package_d_parallel_ui_ci_measured
       owner_acceptance: pending
       owner_authorization: >-
         Owner authorizes bounded preflight repair and sequential implementation, testing and safe integration
@@ -111,21 +111,22 @@ parallel_lanes:
         CI run counts and allocated runner-minutes. Existing gates remain until equivalence is demonstrated.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+      convergence_baseline_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
       head_sha: null
-      observed_at: '2026-11-02T16:25:09Z'
+      observed_at: '2026-11-02T20:52:53Z'
       main:
         branch: main
-        sha: dfee5badd299d318a8e51ff0cbf88e9656333a5d
+        sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
       observation_note: >-
-        Dated C integration: PR 912 merged as 413590622e6c8638e06eb629b8bd8dd87558bcc2 after independent review
-        approved source 879184a5c68c165532153d546139b7050dc6b93d and General 41350335177 succeeded in all four jobs.
-        The real package.json handoff was resolved by its author; foreign checkouts and D13 WIP were untouched.
-        Select D: finish the bounded CollectPicker pilot with concrete registered browser spec, then implement
-        addressed CI alongside existing gates and compare old/new verification on the same source SHA. C is not reopened.
-        Product UI improvements require separate agreement and remain outside the main DevEx PR. Reuse PR 916 for Ubuntu
-        browser compatibility; do not duplicate it. Known contracts lint baseline repair is already accepted on main. Fetch main before writes. Canonical SHADOW risk and mandatory CI obligations
-        remain intact. No demonstrated UI speed gain, deployment or owner acceptance is claimed.
+        D partial delivered in PR 945: scoped CollectPicker checks, concrete sixteen-case browser shadow and
+        exact-source ASA / required aggregate. Source 6176394ff255e911ccb4e93788b9ea47e7c065ba passed all five
+        General jobs and independent critical review before integration. Real same-SHA L0/L1 pilots in Draft
+        PRs 948 and 956 passed scoped and full routes; those product changes remain unmerged. Single-pair
+        feedback gains are measured, while parallel mode increases runner cost and full General remains mandatory.
+        Canonical risk, unknowns and mandatory full General remain intact. Conditional General activation still
+        waits for tools/test_ci_image_transport.py release; owner declined handoff messages and foreign WIP operations.
+        PR 916 compatibility is inherited. Fetch main before writes. No D completion, release readiness,
+        deployment or owner acceptance.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -141,6 +142,15 @@ parallel_lanes:
       remaining_slices: [D, E, F, G]
       deployment_authorized: false
       working_database_actions_authorized: false
+      partial_slices:
+        - id: D-PARALLEL-UI-CI
+          source_sha: 6176394ff255e911ccb4e93788b9ea47e7c065ba
+          integrated_sha: 4be7dca052e3b02cfb11bb9ab15e86c565f4d553
+          pr: 945
+          exact_source_general_run: 41510340520
+          independent_review: approved
+          real_ui_pilot_prs: [948, 956]
+          source_general_jobs_passed: 5
       completed_slices:
         - id: PREFLIGHT
           source_sha: bbf6bb3223e1cbb9d4196741787b26e09eae7e34
