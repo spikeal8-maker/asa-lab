@@ -17,6 +17,11 @@ import re
 import shlex
 import subprocess
 
+from runtime_image_baseline import runtime_defaults
+
+# Resolve once before test harnesses mock filesystem overlay reads.
+RUNTIME_DEFAULTS = runtime_defaults()
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = ROOT / "docs/product/electronics/evidence/ci-image-transport-545-receipt.json"
@@ -472,8 +477,12 @@ def check_workflow(path, contract, receipt, general_node, electronics):
 def check_offline(receipt):
     check_identities(receipt)
     contract = receipt["semantic_contract"]
-    # Check only original image defaults, not entire Dockerfiles/Compose source.
-    for path, arguments in contract["dockerfile_defaults"].items():
+    # Historical transport identities remain immutable; production runtime pins
+    # advance only through the separately reviewed security baseline.
+    current = RUNTIME_DEFAULTS
+    defaults = {"Dockerfile.api": {"NODE_IMAGE": current["node"]},
+                "Dockerfile.web": {"NODE_IMAGE": current["node"], "CADDY_IMAGE": current["caddy"]}}
+    for path, arguments in defaults.items():
         text = read(path)
         require(re.search(r"^# syntax=docker/dockerfile:1\.7$", text, re.M),
                 "Original Dockerfile frontend changed: " + path)
@@ -481,7 +490,7 @@ def check_offline(receipt):
             values = re.findall(r"^ARG " + name + r"=([^\n]+)$", text, re.M)
             require(values == [expected], "Original image default changed: " + path + ":" + name)
     compose = parse_yaml(read("compose.yaml"))
-    require(compose["services"]["postgres"]["image"] == "postgres:17.7-bookworm",
+    require(compose["services"]["postgres"]["image"] == RUNTIME_DEFAULTS["postgres"],
             "Original PostgreSQL default changed")
     package = json.loads(read("package.json"))
     for name, expected in contract["gate_scripts"].items():
@@ -645,7 +654,7 @@ def check_models(receipt, general=False, electronics=False):
     original = docker_json([*base, "--profile", "test", "config", "--format", "json"])
     transported = docker_json([*base, *transport, "--profile", "test", "config", "--format", "json"])
     expected = receipt["images"]["postgres"]["reference"]
-    require(original["services"]["postgres"]["image"] == "postgres:17.7-bookworm",
+    require(original["services"]["postgres"]["image"] == RUNTIME_DEFAULTS["postgres"],
             "Original PostgreSQL default changed")
     require(transported["services"]["postgres"]["image"] == expected,
             "Composed PostgreSQL transport is not the pinned image")
@@ -795,7 +804,7 @@ def check_challenges(receipt):
     weakened_package["scripts"]["gate:data"] = "true"
     challenge("changed package gate definition", {"package.json": json.dumps(weakened_package)}, False)
     challenge("mutable production default", {"Dockerfile.web": source["Dockerfile.web"].replace(
-              "ARG CADDY_IMAGE=caddy:2.10.2-alpine", "ARG CADDY_IMAGE=caddy:latest")}, False)
+              "ARG CADDY_IMAGE=" + RUNTIME_DEFAULTS["caddy"], "ARG CADDY_IMAGE=caddy:latest")}, False)
     challenge("exact General data Node/PostgreSQL transport", {}, True)
     challenge("General original registry is no longer selected", {general: source[general].replace(
               build_args(effective), build_args(receipt))}, False)
@@ -897,7 +906,7 @@ def check_challenges(receipt):
             parent = parent[key]
         parent[path[-1]] = value
         challenge(name, {TRANSPORT: json.dumps(changed)}, False)
-    original = {"services": {"postgres": {"image": "postgres:17.7-bookworm"},
+    original = {"services": {"postgres": {"image": RUNTIME_DEFAULTS["postgres"]},
                              "test-runner": {"command": "pnpm gate:data"}}}
     for changed_service in (False, True):
         transported = deepcopy(original)
@@ -1125,7 +1134,7 @@ def check_electronics_challenges(receipt):
         runtime(name, lambda: prepare_electronics_postgres(effective), False, env, system, architecture)
     runtime("extra overlay setting", lambda: check_electronics_overlay(effective), False,
             overlay=general_overlay_text(effective) + "    privileged: true\n")
-    original_model = {"services": {"postgres": {"image": "postgres:17.7-bookworm"},
+    original_model = {"services": {"postgres": {"image": RUNTIME_DEFAULTS["postgres"]},
         "test-runner": {"command": "pnpm gate:electronics-m1:browser"}}}
     for drift in [False, True]:
         model = deepcopy(original_model)

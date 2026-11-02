@@ -1,0 +1,82 @@
+name: Runtime Image Security
+
+'on':
+  pull_request:
+    paths:
+      - Dockerfile.api
+      - Dockerfile.web
+      - compose.yaml
+      - infra/security-runtime-images.json
+      - tools/runtime_image_baseline.py
+      - tools/deployment/test_runtime_image_baseline.py
+      - .github/workflows/runtime-image-security.yml
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-image-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, web, postgres]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest discover -s tools/deployment -p test_runtime_image_baseline.py -v
+      - uses: docker/setup-buildx-action@v3
+      - name: Build exact candidate runtime defaults or pull pinned PostgreSQL
+        env:
+          SERVICE: ${{ matrix.service }}
+          REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ "$SERVICE" = postgres ]; then
+            image=$(python tools/runtime_image_baseline.py --image postgres)
+            docker pull "$image"
+            docker tag "$image" "asa-security:$SERVICE"
+          else
+            docker build --target runtime --build-arg "ASA_BUILD_REVISION=$REVISION" -f "Dockerfile.$SERVICE" -t "asa-security:$SERVICE" .
+          fi
+      - name: Verify actual supported runtime patch version
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          case "$SERVICE" in
+            api) test "$(docker run --rm --entrypoint node "asa-security:$SERVICE" --version)" = v22.23.4 ;;
+            web) docker run --rm --entrypoint /usr/bin/caddy "asa-security:$SERVICE" version | grep -E '^v2\.11\.7([[:space:]]|$)' ;;
+            postgres) test "$(docker run --rm --entrypoint postgres "asa-security:$SERVICE" --version | awk '{print $3}')" = 17.11 ;;
+          esac
+      - name: Install checksum-pinned official Trivy
+        run: |
+          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz -o "$RUNNER_TEMP/trivy.tar.gz"
+          printf '%s  %s\n' c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0 "$RUNNER_TEMP/trivy.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP" trivy
+      - name: Reject fixable High/Critical findings and unsupported OS
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          "$RUNNER_TEMP/trivy" image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --timeout 10m --format json --output "scan-$SERVICE.json" "asa-security:$SERVICE"
+          python - "$SERVICE" <<'PY'
+          import json, sys
+          document = json.load(open('scan-' + sys.argv[1] + '.json'))
+          operating_system = document.get('Metadata', {}).get('OS', {})
+          assert operating_system.get('Family') in ('debian', 'alpine'), 'OS detection is required; zero findings is not enough'
+          assert not operating_system.get('EOSL', False), 'Unsupported base OS is not a clean scan'
+          PY
+      - name: Retain scanner evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-security-${{ matrix.service }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: scan-${{ matrix.service }}.json
+          if-no-files-found: warn
+          retention-days: 14
