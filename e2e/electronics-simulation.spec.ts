@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
+import { observeActualIntersections } from '../tests/electronics/actual-intersections';
 import type { SchematicDocument } from '../apps/web/src/api';
 import {
   localProjectDraftFingerprint,
@@ -5059,8 +5060,6 @@ for (const { mode, segment, widths } of compactControlSegments) {
       mode: 'text' | 'blocks-text' | 'blocks' = 'text',
       expectedSource = source,
     ) {
-      const { observeActualIntersections } =
-        await import('../tests/electronics/actual-intersections');
       // This union includes every control inspected below, including hidden popup controls.
       const intersectionSelector = [
         '.workbench-pill.simulate',
