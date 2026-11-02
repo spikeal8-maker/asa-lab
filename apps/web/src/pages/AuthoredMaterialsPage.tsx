@@ -7,6 +7,7 @@ import {
   type Classroom,
   type ModuleSummary,
 } from '../api';
+import { GrowingTextarea } from '../components/GrowingTextarea';
 import { AssignmentView } from '../components/AssignmentView';
 import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
 
@@ -1217,7 +1218,9 @@ export function AuthoredMaterialsPage({
   if (embedded && screen === 'editor') {
     const moduleTitle =
       draft.moduleKey === null
-        ? 'Материал без среды'
+        ? courseCreation
+          ? 'Среда не выбрана'
+          : 'Материал без среды'
         : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
           draft.moduleKey);
     const attemptCount = Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1);
@@ -1233,7 +1236,7 @@ export function AuthoredMaterialsPage({
         : error
           ? 'Проверьте ошибку'
           : hasUnsavedEditorChanges
-            ? 'Есть несохранённые изменения'
+            ? 'Не сохранено'
             : opened
               ? 'Сохранено'
               : 'Новый черновик';
@@ -1261,24 +1264,21 @@ export function AuthoredMaterialsPage({
         >
           <CourseCreationFields active={!!courseCreation} busy={busy || courseOperationBusy}>
             <header className="assignment-document-topbar">
-              <button
-                type="button"
-                className="assignment-document-back"
-                disabled={busy}
-                onClick={returnToList}
+              <div
+                className="assignment-document-actions"
+                role="group"
+                aria-label="Действия задания"
               >
-                {courseCreation ? '← Вернуться к уроку' : '← Задания'}
-              </button>
-
-              <div className="assignment-document-save-state" aria-live="polite">
-                <span
-                  className={hasUnsavedEditorChanges ? 'is-dirty' : 'is-saved'}
-                  aria-hidden="true"
-                />
-                {saveState}
-              </div>
-
-              <div className="assignment-document-actions">
+                <button
+                  type="button"
+                  className="assignment-document-back"
+                  disabled={busy}
+                  aria-label={courseCreation ? 'Вернуться к уроку' : undefined}
+                  data-course-dialog-initial-focus={courseCreation ? '' : undefined}
+                  onClick={returnToList}
+                >
+                  {courseCreation ? '← К уроку' : '← Задания'}
+                </button>
                 <button
                   type="submit"
                   className="btn-secondary"
@@ -1311,8 +1311,47 @@ export function AuthoredMaterialsPage({
                   }
                   onClick={() => void (courseCreation ? publish(true) : openAssignFlow())}
                 >
-                  {courseCreation ? 'Опубликовать и добавить в урок' : 'Назначить'}
+                  {courseCreation ? 'Добавить в урок' : 'Назначить'}
                 </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setPanel('settings')}
+                >
+                  Настройки
+                </button>
+                {!courseCreation ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={
+                      busy ||
+                      !canPublish ||
+                      !draft.title.trim() ||
+                      (draft.resultMode === 'graded' && !draft.maxPoints)
+                    }
+                    onClick={() => void publish()}
+                  >
+                    Опубликовать
+                  </button>
+                ) : null}
+                {opened ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    aria-label="История версий"
+                    onClick={() => setPanel('history')}
+                  >
+                    Версии
+                  </button>
+                ) : null}
+                <span className="assignment-document-save-state" aria-live="polite">
+                  <span
+                    className={hasUnsavedEditorChanges ? 'is-dirty' : 'is-saved'}
+                    aria-hidden="true"
+                  />
+                  {saveState}
+                </span>
               </div>
             </header>
 
@@ -1329,7 +1368,7 @@ export function AuthoredMaterialsPage({
 
             <main className="assignment-document-canvas">
               {courseCreation ? (
-                <label className="teacher-field">
+                <label className="teacher-field assignment-document-environment">
                   <span>Среда задания</span>
                   <select
                     aria-label="Среда задания"
@@ -1348,19 +1387,15 @@ export function AuthoredMaterialsPage({
                       </option>
                     ))}
                   </select>
-                  <small>
-                    Задание сохранится в вашей библиотеке. Опубликованная версия будет добавлена в
-                    этот урок.
-                  </small>
+                  <small>Сохранится в библиотеке; в урок попадёт опубликованная версия.</small>
                 </label>
               ) : null}
               <label className="assignment-document-title-field">
                 <span className="sr-only">Название задания</span>
-                <textarea
+                <GrowingTextarea
                   aria-label="Название задания"
                   required
                   maxLength={255}
-                  rows={1}
                   placeholder="Название задания"
                   value={draft.title}
                   disabled={busy}
@@ -1386,10 +1421,9 @@ export function AuthoredMaterialsPage({
 
               <label className="assignment-document-body-field">
                 <span className="sr-only">Содержание</span>
-                <textarea
+                <GrowingTextarea
                   aria-label="Содержание"
                   maxLength={12000}
-                  rows={6}
                   placeholder="Опишите, что должен сделать ученик…"
                   value={draft.instructions ?? ''}
                   disabled={busy}
@@ -1435,28 +1469,8 @@ export function AuthoredMaterialsPage({
                   {attemptCount} попыт{attemptCount === 1 ? 'ка' : 'ки'}
                 </span>
                 <span>{resultTitle}</span>
-                <button type="button" onClick={() => setPanel('settings')}>
-                  Настройки
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    busy ||
-                    !canPublish ||
-                    !draft.title.trim() ||
-                    (draft.resultMode === 'graded' && !draft.maxPoints)
-                  }
-                  onClick={() => void publish()}
-                >
-                  Опубликовать
-                </button>
-                {opened ? (
-                  <button type="button" onClick={() => setPanel('history')}>
-                    История версий
-                  </button>
-                ) : null}
               </footer>
-              {draft.moduleKey === null ? (
+              {draft.moduleKey === null && !courseCreation ? (
                 <p className="assignment-document-hint">
                   {openedKind === 'manual'
                     ? 'Материал можно добавить в курс. Для отдельной практики создайте новое задание и выберите среду.'
