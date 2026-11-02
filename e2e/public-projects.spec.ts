@@ -310,7 +310,11 @@ async function openPublicationDialog(page: Page, title: string) {
 
 async function expectPublicImage(page: Page): Promise<void> {
   const image = page.getByTestId('public-project-preview');
-  await expect(image).toBeVisible();
+  const live = page.locator('.public-three-d-stage[data-ready="true"] canvas');
+  await expect
+    .poll(async () => (await live.isVisible()) || (await image.isVisible()), { timeout: 30000 })
+    .toBe(true);
+  if (await live.isVisible()) return;
   await expect
     .poll(() =>
       image.evaluate((element) => {
@@ -538,12 +542,45 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   await ok(snapshot);
   const snapshotBytes = await snapshot.body();
   expect(snapshotBytes.length).toBeGreaterThan(1000);
-  const sourceHash = createHash('sha256').update(snapshotBytes).digest('hex');
+  // Native card captures exclude the workplane/selection helpers on a white
+  // background; the live authoring document must still keep its grid enabled.
+  const snapshotCorners = await page.evaluate(async (url) => {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    return [
+      [3, 3],
+      [canvas.width - 4, 3],
+      [3, canvas.height - 4],
+      [canvas.width - 4, canvas.height - 4],
+    ].map(([x, y]) => [...context.getImageData(x!, y!, 1, 1).data]);
+  }, `/api/projects/${projectId}/snapshot`);
+  expect(
+    snapshotCorners.every(
+      (rgba) => rgba.slice(0, 3).every((value) => value >= 250) && rgba[3] === 255,
+    ),
+  ).toBe(true);
+  expect(
+    (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft.document.grid
+      .visible,
+  ).toBe(true);
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  const dialog = await openPublicationDialog(page, title);
+  await page.getByRole('button', { name: 'Публикация', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Публикация проекта', exact: true });
+  await expect(dialog).toBeVisible();
+  const publicationSnapshot = await page.request.get(`/api/projects/${projectId}/snapshot`);
+  await ok(publicationSnapshot);
+  const sourceHash = createHash('sha256')
+    .update(await publicationSnapshot.body())
+    .digest('hex');
   await dialog
     .getByLabel('Описание проекта')
     .fill('Параллелепипед создан в настоящем 3D редакторе. Превью сохранено самим редактором.');
@@ -559,10 +596,50 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   const guestContext = await browser.newContext();
   try {
     const guest = await guestContext.newPage();
+    const privateReads: string[] = [];
+    guest.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/api/projects/'))
+        privateReads.push(request.url());
+    });
     await guest.goto('/#/explore');
+    const publicCard = guest.getByTestId('public-project-card').filter({ hasText: title });
+    await expect(publicCard).toBeVisible();
+    await expect(guest.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await publicCard.hover();
+    await expect(publicCard.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+    const hoverCanvas = publicCard.locator('.three-d-hover-live canvas');
+    const hoverBefore = createHash('sha256')
+      .update(await hoverCanvas.screenshot())
+      .digest('hex');
+    const bounds = (await publicCard.boundingBox())!;
+    await guest.mouse.move(bounds.x + bounds.width * 0.85, bounds.y + bounds.height * 0.3);
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await hoverCanvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(hoverBefore);
+    await guest.mouse.move(0, 0);
+    await expect(guest.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    expect(privateReads).toEqual([]);
     await guest.getByRole('link', { name: `Открыть проект «${title}»` }).click();
     await expect(guest).toHaveURL(new RegExp(`#/public-projects/${publicationId}$`));
     await expect(guest.getByTestId('public-project-title')).toHaveText(title);
+    const liveModel = guest.getByTestId('public-three-d-viewer');
+    await expect(liveModel.locator('.public-three-d-stage')).toHaveAttribute('data-ready', 'true');
+    const canvas = liveModel.locator('canvas');
+    const cameraBefore = createHash('sha256')
+      .update(await canvas.screenshot())
+      .digest('hex');
+    await guest.getByRole('button', { name: 'Повернуть модель вправо', exact: true }).click();
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await canvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(cameraBefore);
     await expectPublicImage(guest);
     const dto = await publication(guest, publicationId);
     expect(dto.moduleKey).toBe('three-d');
@@ -592,6 +669,47 @@ test('real 3D editor creates the Project and its raster, then UI publication sho
   } finally {
     await guestContext.close();
   }
+  const before = (await (await page.request.get(`/api/projects/${projectId}`)).json()).draft;
+  const writes: string[] = [];
+  page.on('request', (request) => {
+    if (
+      ['PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      new URL(request.url()).pathname.startsWith('/api/projects/')
+    )
+      writes.push(request.url());
+  });
+  for (const route of ['home', 'projects']) {
+    await page.goto(`/#/${route}`);
+    const card = page.getByTestId('project-card').filter({ hasText: title });
+    await expect(card).toBeVisible();
+    await card.hover();
+    await expect(card.locator('.three-d-hover-live')).toHaveClass(/is-ready/);
+    const canvas = card.locator('.three-d-hover-live canvas');
+    const first = createHash('sha256')
+      .update(await canvas.screenshot())
+      .digest('hex');
+    const box = (await card.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.3);
+    await expect
+      .poll(async () =>
+        createHash('sha256')
+          .update(await canvas.screenshot())
+          .digest('hex'),
+      )
+      .not.toBe(first);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(1);
+    await page.mouse.move(0, 0);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await card.hover();
+    await page.waitForTimeout(250);
+    await expect(page.locator('.three-d-hover-live canvas')).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+  }
+  expect((await (await page.request.get(`/api/projects/${projectId}`)).json()).draft).toEqual(
+    before,
+  );
+  expect(writes).toEqual([]);
 });
 
 test('ordinary Account publishes in UI; anonymous V1 survives draft V2 until explicit update and revoke', async ({

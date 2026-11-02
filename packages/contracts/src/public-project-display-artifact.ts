@@ -1,4 +1,8 @@
 import { publicArduinoBlocks } from './public-arduino-blocks.js';
+import {
+  validatePublicThreeDArtifact,
+  type PublicThreeDArtifact,
+} from './public-three-d-artifact.js';
 import type { PublicArtifact, PublicArtifactProvenance } from './public-artifact.js';
 import { validatePublicArtifact } from './public-artifact.js';
 export type PublicDisplayComponentKind =
@@ -86,7 +90,10 @@ export interface ElectronicsSimulationArtifact extends Omit<
   readonly components: readonly PublicSimulationComponent[];
 }
 export type PublicProjectDisplayArtifact =
-  PublicArtifact | ElectronicsDisplayArtifact | ElectronicsSimulationArtifact;
+  | PublicArtifact
+  | ElectronicsDisplayArtifact
+  | ElectronicsSimulationArtifact
+  | PublicThreeDArtifact;
 /** Only canonical physical configuration and inert native presentation inputs. */
 export const PUBLIC_ELECTRONICS_PROPERTIES = Object.freeze([
   'mirrorX',
@@ -215,6 +222,12 @@ export function validatePublicProjectDisplayArtifact(
 ):
   | { readonly ok: true; readonly artifact: PublicProjectDisplayArtifact }
   | { readonly ok: false; readonly reason: 'invalid-public-artifact' } {
+  if (
+    input &&
+    typeof input === 'object' &&
+    Object.getOwnPropertyDescriptor(input, 'schemaVersion')?.value === 4
+  )
+    return validatePublicThreeDArtifact(input);
   const v1 = validatePublicArtifact(input);
   if (v1.ok) return v1;
   if (
