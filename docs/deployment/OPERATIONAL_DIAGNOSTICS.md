@@ -141,7 +141,7 @@ project, remote URL and restore-rehearsal object are dropped. `uploaded` or an
 unknown status is not verified success. No rewrite of the backup producer or
 extra download is required.
 
-## AI projection and remaining gap
+## AI projection and worker diagnostics
 
 AI jobs and usage have composite owner/request native keys used only in private
 hash deduplication. SQL selects a fixed diagnostic column list before subprocess
@@ -154,10 +154,13 @@ such as `image_state` and `generation_status` so ordinary HTTP200/provider sampl
 cannot be mistaken for database records.
 
 Stored image provider/storage/denial errors are visible independently of HTTP200
-job polling. Catch-all worker exceptions that only leave a lease to expire still
-have no durable cause code in the application: this read-only adapter cannot
-recover one. App worker instrumentation is a separate required slice; neither
-`requiredSources` nor this document claims those error reasons are complete.
+job polling. The composed application also emits native `ai_image_worker_failure`
+and `ai_image_worker_health` events for worker exception paths. They retain a
+closed stage/class/code and independent attempt UUID; lease tokens, raw exception
+messages/stacks, prompts, recipes and provider credentials are excluded. Repeated
+failures are bounded and suppression/delivery health remains visible. This native
+instrumentation and the read-only ledger projection are separate evidence paths;
+neither reconstructs absent remote GPU logs or guarantees complete history.
 
 ## Checks
 
