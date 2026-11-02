@@ -252,3 +252,9 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.asa-ai-tools .asa-ai-tool-toggle {
+  margin: 0;
+}
+.asa-ai-tool-card-title {
+  align-items: center;
+}

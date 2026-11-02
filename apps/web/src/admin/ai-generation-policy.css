@@ -394,3 +394,23 @@
     flex-basis: 100%;
   }
 }
+.asa-settings-compact .asa-ai-policy-model {
+  margin: 0;
+}
+.asa-settings-compact .asa-ai-policy-default {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  max-width: 680px;
+}
+.asa-settings-compact .asa-ai-policy-default select {
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .asa-settings-compact .asa-ai-policy-default {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
