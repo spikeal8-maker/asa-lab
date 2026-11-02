@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PNG } from 'pngjs';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { sealCompletedEvidence, type EvidenceStamp } from './electronics-selection-evidence';
+import { expect, test, type Page, type TestInfo, type Request } from '@playwright/test';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
 import { catalogEntry, renderedSize } from '../apps/web/src/electronics/component-catalog';
@@ -1077,6 +1078,47 @@ for (const width of [1440, 1024, 390, 320])
       let lastLocalStorage: Record<string, string | null> | undefined;
       let lastServer: unknown;
       let lastCheckpoint = 'setup';
+      let writeEpoch = 0;
+      const pendingWrites = new Set<Request>();
+      const onWrite = (request: Request) => {
+        if (
+          projectId &&
+          !['GET', 'HEAD', 'OPTIONS'].includes(request.method()) &&
+          new URL(request.url()).pathname.startsWith(`/api/projects/${projectId}`)
+        ) {
+          writeEpoch++;
+          pendingWrites.add(request);
+        }
+      };
+      const onWriteFinished = (request: Request) => {
+        pendingWrites.delete(request);
+      };
+      page.on('request', onWrite);
+      page.on('requestfinished', onWriteFinished);
+      page.on('requestfailed', onWriteFinished);
+      let completedExpectedDraft: { revision: number; document: SchematicDocument } | undefined;
+      let completedEvidence:
+        | ReturnType<
+            typeof sealCompletedEvidence<{
+              server: typeof lastServer;
+              observer: typeof lastObserver;
+              storage: typeof lastLocalStorage;
+            }>
+          >
+        | undefined;
+      function evidenceStamp(): EvidenceStamp {
+        return {
+          projectId,
+          checkpoint: lastCheckpoint,
+          pageIdentity: lifecycleIdentity(page),
+          pageUrl: page.url(),
+          revision: completedExpectedDraft!.revision,
+          writeEpoch,
+          pendingWrites: pendingWrites.size,
+          putCount: puts.length,
+          workerCount: workerRecordCount,
+        };
+      }
       let primaryFailure: string | undefined;
       let primaryError: { error: unknown } | undefined;
       let mandatoryEvidenceError: { error: unknown } | undefined;
@@ -1857,38 +1899,65 @@ for (const width of [1440, 1024, 390, 320])
           ),
         ).toBe(true);
         expect(puts).toHaveLength(1);
-        expect((await server(page, projectId)).draft).toEqual(saved.draft);
+        const finalReadEpoch = writeEpoch;
+        lastServer = await server(page, projectId);
+        expect((lastServer as Awaited<ReturnType<typeof server>>).draft).toEqual(saved.draft);
         failures.assertEmpty();
         await checkpoint('complete');
+        completedExpectedDraft = saved.draft;
+        if (writeEpoch === finalReadEpoch && pendingWrites.size === 0)
+          completedEvidence = sealCompletedEvidence(
+            evidenceStamp(),
+            lastServer as Awaited<ReturnType<typeof server>>,
+            saved.draft,
+            { server: lastServer, observer: lastObserver, storage: lastLocalStorage },
+          );
       } catch (error) {
         retainPrimary(error);
         throw error;
       } finally {
         // Node evidence is already available even when the page was closed by timeout.
         writeCleanupRaw(lastCheckpoint);
+        // Complete was freshly verified above. Reuse only that exact immutable
+        // receipt, while its observed mutation/journal identity still matches.
+        const reused = (capture: string) => {
+          const stamp = completedExpectedDraft ? evidenceStamp() : undefined;
+          const receipt =
+            completedEvidence && !page.isClosed() && stamp
+              ? completedEvidence.read(stamp)
+              : undefined;
+          if (receipt) output.push({ phase: 'completed-evidence-reuse', capture, stamp });
+          return receipt;
+        };
         for (const [name, capture] of [
           [
             'observer',
             async () => {
               if (page.isClosed()) throw new Error('Page closed');
-              lastObserver = await snapshot(page);
+              lastObserver = reused('observer')?.observer ?? (await snapshot(page));
             },
           ],
           [
             'server',
             async () => {
-              lastServer = await server(page, projectId);
+              lastServer = reused('server')?.server ?? (await server(page, projectId));
+              if (completedExpectedDraft)
+                expect((lastServer as Awaited<ReturnType<typeof server>>).draft).toEqual(
+                  completedExpectedDraft,
+                );
             },
           ],
           [
             'localStorage',
             async () => {
               if (page.isClosed()) throw new Error('Page closed');
-              lastLocalStorage = await page.evaluate(() =>
-                Object.fromEntries(
-                  Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]),
-                ),
-              );
+              lastLocalStorage =
+                reused('localStorage')?.storage ??
+                (await page.evaluate(() =>
+                  Object.fromEntries(
+                    Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]),
+                  ),
+                ));
             },
           ],
           [
@@ -1899,7 +1968,11 @@ for (const width of [1440, 1024, 390, 320])
             },
           ],
         ] as const) {
-          await supplemental(name, capture);
+          await supplemental(
+            name,
+            capture,
+            name === 'server' && completedExpectedDraft !== undefined,
+          );
           writeCleanupRaw(lastCheckpoint);
         }
         await supplemental(
@@ -1922,6 +1995,9 @@ for (const width of [1440, 1024, 390, 320])
           true,
         );
         writeCleanupRaw(lastCheckpoint);
+        page.off('request', onWrite);
+        page.off('requestfinished', onWriteFinished);
+        page.off('requestfailed', onWriteFinished);
       }
       requireMandatoryEvidence();
     });
