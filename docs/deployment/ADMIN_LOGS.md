@@ -332,6 +332,24 @@ host/source/native/audit доказательства дают `requiredCoverage
 подготавливают и сверяют сборщик своей канонической установки. Ручной второй шаг
 для обычного запуска больше не нужен. `doctor`, `check` и `log_collector.py status`
 только читают состояние: не создают `.env`, каталоги, задачи или службы.
+Если installed checkout старого выпуска не содержит один из пяти текущих digest
+inputs (например legacy dfee без `tools/deployment/operational.py`), read-only status
+возвращает `unavailable / COLLECTOR_SOURCE_CONTRACT`, `scriptDigest: null` и закрытую
+причину missing/unreadable/unsafe input. Он не вычисляет альтернативный четырёхфайловый
+digest и не объявляет legacy runtime проверенным или просто `stale`. Некорректные,
+недоступные или перенаправленные config/metadata дают `COLLECTOR_STATUS_CONFIG` без
+raw текста, путей или секретов. Состояние приложения проверяется отдельно: такое
+предупреждение само по себе не обрывает остальные guards `doctor/check` и не
+означает здоровую log coverage или разрешение update.
+
+Этот compatibility path действует только при наблюдении. Алгоритм `digest`,
+ownership/identity/config проверки prepare/reconcile/install/update не ослаблены;
+отсутствующие файлы не создаются и старый collector не запускается. Внешнему
+approved manager для read-only config validation дополнительно нужен собственный
+`tools/deployment/operational.py` из того же reviewed tooling closure; это не
+подстановка файла в installed checkout. Реальный bootstrap/OCI check требует
+отдельной проверки, а старый CLI без immutable selector по-прежнему не является
+поддерживаемым способом сохранить выбранный release.
 Прямой `docker compose up` сам по себе не устанавливает host runner.
 Для явного повторного согласования уже существующей установки доступна обёртка:
 

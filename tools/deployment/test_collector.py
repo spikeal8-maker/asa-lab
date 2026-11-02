@@ -9,6 +9,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 import unittest
+from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -270,6 +271,129 @@ with patch('subprocess.run', side_effect=FileNotFoundError('startup fixture exte
             self.assertNotEqual(before, lifecycle.digest(root))
             module.unlink()
             with self.assertRaises(FileNotFoundError): lifecycle.digest(root)
+
+    def test_legacy_four_source_status_is_unavailable_and_doctor_check_continue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root)
+            (root/'tools/deployment/operational.py').unlink()
+            legacy=lifecycle.hashlib.sha256()
+            for name in ('collect_logs.py','collect-windows-logs.ps1','resource_sampling.py','memory_sampling.py'):
+                legacy.update(name.encode());legacy.update((root/'tools'/name).read_bytes())
+            atomic_json(install.state/'collector-runner.json',dict(root=str(root),project=install.project,mode='user'))
+            atomic_json(install.state/'diagnostics/store/collector-process.json',dict(
+                checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(root),project=install.project,
+                pid=123,nonce='a'*32,scriptDigest=legacy.hexdigest()))
+            before={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            result=lifecycle.status(install)
+            self.assertEqual((result['state'],result['code'],result['reason']),
+                             ('unavailable','COLLECTOR_SOURCE_CONTRACT','missing_input'))
+            self.assertIsNone(result['scriptDigest'])
+            with self.assertRaises(FileNotFoundError):lifecycle.digest(root)
+            selected={'revision':'a'*40,'schema':203,'images':{}}
+            with patch.object(install,'identity',return_value={}),patch.object(install,'readiness',return_value={'revision':'a'*40,'schema':203}), \
+                 patch('asa_manager.run'),patch('asa_manager.check_resources'),patch('asa_manager.clean_checkout'), \
+                 patch('asa_manager.backup_directory'),patch('asa_manager.attest_editor_env'), \
+                 patch('asa_manager.discover_release',return_value=selected),patch('asa_manager.assert_ci') as ci:
+                asa_manager.doctor(install)
+                asa_manager.update(install,check=True)
+                ci.assert_called_once_with(selected)
+            after={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            self.assertEqual(after,before)
+
+    def test_status_unreadable_source_is_closed_and_preserves_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root);target=root/'tools/deployment/operational.py'
+            original=Path.read_bytes
+            def denied(path):
+                if path==target:raise PermissionError('SYNTHETIC-PRIVATE-NEVER-OUTPUT')
+                return original(path)
+            with patch.object(Path,'read_bytes',denied):result=lifecycle.status(install)
+            self.assertEqual((result['state'],result['code'],result['reason']),
+                             ('unavailable','COLLECTOR_SOURCE_CONTRACT','unreadable_input'))
+            self.assertNotIn('SYNTHETIC',json.dumps(result));self.assertIsNone(result['scriptDigest'])
+
+    def test_status_invalid_configuration_and_registration_never_look_running(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root)
+            for config in ({'version':2},{'project':'foreign'},{'intervalSeconds':True},['invalid']):
+                atomic_json(install.state/'log-collector.json',config)
+                before=(install.state/'log-collector.json').read_bytes()
+                result=lifecycle.status(install)
+                self.assertEqual((result['state'],result['code']),('unavailable','COLLECTOR_STATUS_CONFIG'))
+                self.assertEqual((install.state/'log-collector.json').read_bytes(),before)
+            atomic_json(install.state/'log-collector.json',{})
+            atomic_json(install.state/'collector-runner.json',dict(root='/foreign',project=install.project,mode='user'))
+            self.assertEqual(lifecycle.status(install)['code'],'COLLECTOR_STATUS_CONFIG')
+            (install.state/'collector-runner.json').write_text('SYNTHETIC-INVALID-JSON',encoding='utf-8')
+            result=lifecycle.status(install)
+            self.assertEqual(result['state'],'unavailable');self.assertNotIn('SYNTHETIC',json.dumps(result))
+
+    def test_status_valid_full_source_retains_running_and_stale_semantics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root)
+            atomic_json(install.state/'collector-runner.json',dict(root=str(root),project=install.project,mode='user'))
+            process=dict(checkedAt=dt.datetime.now(dt.timezone.utc).isoformat(),root=str(root),project=install.project,
+                         pid=123,nonce='a'*32,scriptDigest=lifecycle.digest(root))
+            atomic_json(install.state/'diagnostics/store/collector-process.json',process)
+            before={str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            result=lifecycle.status(install)
+            self.assertEqual(result['state'],'running');self.assertEqual(result['scriptDigest'],process['scriptDigest'])
+            self.assertEqual({str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()},before)
+            process['scriptDigest']='f'*64
+            atomic_json(install.state/'diagnostics/store/collector-process.json',process)
+            self.assertEqual(lifecycle.status(install)['state'],'stale')
+
+    def test_status_unsafe_input_paths_refused_without_reading_target(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root)
+            original=lifecycle.plain_paths
+            def source_redirect(path,names):
+                if any(str(name).startswith('tools/') for name in names):raise ValueError('SYNTHETIC-FOREIGN-PATH')
+                return original(path,names)
+            with patch.object(lifecycle,'plain_paths',side_effect=source_redirect):result=lifecycle.status(install)
+            self.assertEqual((result['state'],result['reason']),('unavailable','unsafe_input_path'))
+            self.assertNotIn('SYNTHETIC',json.dumps(result))
+            with patch.object(lifecycle,'safe_paths',side_effect=Blocked('COLLECTOR_PATH','foreign','stop')):
+                self.assertEqual(lifecycle.status(install)['code'],'COLLECTOR_STATUS_CONFIG')
+
+    def test_status_actual_hardlinked_source_and_config_are_unavailable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root);target=root/'tools/deployment/operational.py'
+            source=target.read_bytes();target.unlink()
+            outside=root/'foreign-preserved';outside.write_bytes(source)
+            os.link(outside,target)
+            self.assertEqual(lifecycle.status(install)['reason'],'unsafe_input_path')
+            self.assertEqual(outside.read_bytes(),source)
+            target.unlink();target.write_bytes(source)
+            outside_config=root/'foreign-config';outside_config.write_bytes(b'SYNTHETIC-PRIVATE-INVALID')
+            install.state.mkdir(exist_ok=True);os.link(outside_config,install.state/'log-collector.json')
+            result=lifecycle.status(install)
+            self.assertEqual(result['code'],'COLLECTOR_STATUS_CONFIG')
+            self.assertNotIn('SYNTHETIC',json.dumps(result));self.assertEqual(outside_config.read_bytes(),b'SYNTHETIC-PRIVATE-INVALID')
+
+    @unittest.skipUnless(os.name!='nt','POSIX FIFO status input')
+    def test_status_rejects_fifo_without_opening_or_blocking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root);target=root/'tools/deployment/operational.py'
+            target.unlink();os.mkfifo(target,0o600)
+            self.assertEqual(lifecycle.status(install)['reason'],'unsafe_input_path')
+            target.unlink();target.write_text('restored synthetic source',encoding='utf-8')
+            install.state.mkdir(exist_ok=True);os.mkfifo(install.state/'log-collector.json',0o600)
+            self.assertEqual(lifecycle.status(install)['code'],'COLLECTOR_STATUS_CONFIG')
+
+    def test_status_observation_does_not_weaken_strict_prepare_or_reconcile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);install=fixture(root)
+            with patch.object(lifecycle,'_prepare_host',side_effect=Blocked('COLLECTOR_RUNNER_OWNER','foreign','stop')), \
+                 patch.object(lifecycle,'native_application_logging') as native,self.assertRaises(Blocked) as denied:
+                lifecycle.prepare(install)
+            self.assertEqual(denied.exception.code,'COLLECTOR_RUNNER_OWNER');native.assert_not_called()
+            with patch.object(lifecycle,'runner_lock',return_value=nullcontext()), \
+                 patch.object(install,'identity'),patch.object(lifecycle,'finalize_permissions'), \
+                 patch.object(lifecycle,'reader_probe'),patch.object(lifecycle,'runner_identity',side_effect=Blocked('COLLECTOR_RUNNER_OWNER','foreign','stop')), \
+                 patch.object(lifecycle,'reconcile_runner') as start:
+                result=lifecycle.reconcile(install,wait_seconds=0)
+            self.assertEqual((result['state'],result['code']),('degraded','COLLECTOR_RUNNER_OWNER'));start.assert_not_called()
 
     def test_status_and_manager_doctor_check_do_not_create_state(self):
         with tempfile.TemporaryDirectory() as directory:
