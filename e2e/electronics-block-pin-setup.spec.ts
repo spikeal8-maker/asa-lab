@@ -359,7 +359,7 @@ async function boardIsolation(page: Page, info: TestInfo) {
   assertModes(await generated(page), ['2', 'A1']);
   const baseline = await save(page, id);
   const blockWorkspace = page.getByTestId('arduino-block-workspace');
-  const edited = blockWorkspace.locator('[data-id="settings-comment"] .blocklyEditableField');
+  const edited = blockWorkspace.locator('[data-id="settings-comment"] > .blocklyEditableField');
   await expect(edited).toHaveCount(1);
   await expect(edited).toBeVisible();
   const programGeometry = () =>
