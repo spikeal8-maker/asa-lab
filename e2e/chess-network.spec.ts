@@ -170,6 +170,9 @@ test('cold offline module and cached API lobby recover invitation and live game 
       );
       await page.screenshot({ path: `${evidence}/history-offline-${width}.png`, fullPage: true });
     }
+    // Restore the desktop viewport after mobile evidence: compact editor chrome
+    // intentionally hides the desktop Home navigation used by this recovery path.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.context().setOffline(false);
     await page.getByRole('button', { name: 'Повторить загрузку', exact: true }).click();
     await expect(page.getByLabel('Ваш код приглашения')).toHaveText(code);

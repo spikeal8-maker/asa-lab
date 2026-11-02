@@ -325,7 +325,10 @@ for (const width of [320, 390, 1024, 1440]) {
         imageReads += 1;
         return route.fulfill({ contentType: 'image/png', body: bytes });
       });
-      await page.goto('/#/ai');
+      // App readiness is asserted by the real controls below; unrelated lazy
+      // resources must not hold navigation's document `load` event hostage.
+      await page.goto('/#/ai', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('button', { name: 'Тёмная тема чата' })).toBeVisible();
       if (theme === 'dark') await page.getByRole('button', { name: 'Тёмная тема чата' }).click();
       if (width < 1120)
         await page.getByRole('button', { name: 'Открыть историю диалогов', exact: true }).click();
