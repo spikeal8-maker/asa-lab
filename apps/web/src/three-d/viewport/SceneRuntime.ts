@@ -9,7 +9,7 @@ import type {
   ThreeDNode,
   ThreeDTransform,
 } from '@asa-lab/three-d';
-import { createThreeDNode } from '@asa-lab/three-d';
+import { createThreeDNode } from '@asa-lab/three-d/document';
 import {
   DirectManipulator,
   type DirectManipulationCommit,

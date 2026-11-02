@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import { parseThreeDDocument, type ThreeDDocument } from '@asa-lab/three-d';
+import { parseThreeDDocument, type ThreeDDocument } from '@asa-lab/three-d/document';
 import type { ThreeDPresentationHandle } from './ThreeDPresentation';
 import { acquireHoverPreview } from './hover-preview-lease';
 import './three-d-presentation.css';

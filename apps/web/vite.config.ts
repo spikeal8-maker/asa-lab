@@ -235,6 +235,14 @@ export default defineConfig(({ command }) => {
           replacement: resolve(repositoryRoot, 'contexts/electronics/index.ts'),
         },
         {
+          find: '@asa-lab/three-d/document',
+          replacement: resolve(repositoryRoot, 'contexts/three-d/domain/document.ts'),
+        },
+        {
+          find: '@asa-lab/three-d/operations',
+          replacement: resolve(repositoryRoot, 'contexts/three-d/domain/operations.ts'),
+        },
+        {
           find: '@asa-lab/three-d',
           replacement: resolve(repositoryRoot, 'contexts/three-d/index.ts'),
         },

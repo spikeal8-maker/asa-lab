@@ -2,7 +2,7 @@ import {
   createEmptyThreeDDocument,
   parseThreeDDocument,
   type ThreeDDocument,
-} from '@asa-lab/three-d';
+} from '@asa-lab/three-d/document';
 import type { PublicThreeDArtifact } from '@asa-lab/contracts';
 
 export function publicThreeDDocument(artifact: PublicThreeDArtifact): ThreeDDocument {
