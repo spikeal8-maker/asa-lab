@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import {
   useCommittedWorkbenchPresentation,
   type WorkbenchInspectorController,
@@ -726,6 +726,9 @@ export function WorkbenchInspector({
   const c = useCommittedWorkbenchPresentation(controller);
   const [helpOpen, setHelpOpen] = useState(false);
   const [stateOpen, setStateOpen] = useState(false);
+  const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
+  const propertiesId = useId();
+  const propertiesDisclosureRef = useRef<HTMLButtonElement>(null);
   const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
     ? c.resultByComponent.get(c.selectedComponent.id)
@@ -829,6 +832,7 @@ export function WorkbenchInspector({
     : 0;
   useEffect(() => {
     setHelpSections(null);
+    setMobilePropertiesOpen(false);
   }, [c.selectedComponent?.id]);
   useEffect(() => {
     if (!helpOpen || !c.selectedComponent || !c.selectedEntry) return;
@@ -911,10 +915,44 @@ export function WorkbenchInspector({
       {c.selection && c.selection.kind !== 'annotation' ? (
         <aside
           className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
+            c.selectedComponent ? ' component-selected' : ''
+          }${
             selectedIsPotentiometer ? ' is-potentiometer' : ''
           }${c.libraryOpen ? '' : ' library-hidden'}`}
+          data-mobile-properties-open={mobilePropertiesOpen}
+          onKeyDown={(event) => {
+            const disclosure = propertiesDisclosureRef.current;
+            if (
+              event.key !== 'Escape' ||
+              !mobilePropertiesOpen ||
+              !disclosure ||
+              window.getComputedStyle(disclosure).display === 'none'
+            )
+              return;
+            event.preventDefault();
+            event.stopPropagation();
+            setMobilePropertiesOpen(false);
+            disclosure.focus();
+          }}
           aria-label={c.selectedWire ? 'Параметры выбранного провода' : 'Параметры выделения'}
         >
+          {c.selectedComponent ? (
+            <button
+              type="button"
+              ref={propertiesDisclosureRef}
+              className="workbench-properties-disclosure"
+              aria-label={
+                mobilePropertiesOpen
+                  ? 'Свернуть параметры компонента'
+                  : 'Открыть параметры компонента'
+              }
+              aria-expanded={mobilePropertiesOpen}
+              aria-controls={propertiesId}
+              onClick={() => setMobilePropertiesOpen((open) => !open)}
+            >
+              {mobilePropertiesOpen ? <CollapseIcon /> : <ExpandIcon />}
+            </button>
+          ) : null}
           {c.selectedWire ? null : (
             <div className="workbench-inspector-heading">
               <div>
@@ -982,7 +1020,11 @@ export function WorkbenchInspector({
           c.selectedEntry &&
           c.selection.kind === 'component' &&
           c.selection.ids.length === 1 ? (
-            <div className="workbench-inspector-body" data-testid="component-compact-properties">
+            <div
+              id={propertiesId}
+              className="workbench-inspector-body"
+              data-testid="component-compact-properties"
+            >
               {c.selectedFamily &&
               c.selectedFamily.variants.length > 1 &&
               (!selectedIsPotentiometer || stateOpen) ? (
