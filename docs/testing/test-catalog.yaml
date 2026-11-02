@@ -72,7 +72,7 @@ tests:
     level: system
     phase_available: PHASE-12
     required_for: []
-    command: pnpm test:learning-quiz-attempt-state
+    command: pnpm exec vitest run tests/courses/quiz-attempt-state.pg.spec.ts tests/courses/learning-quiz-attempts.controller.spec.ts apps/api/src/account-verification.guard.spec.ts
     timeout_seconds: 300
     owner: learning
     artifacts: [vitest-report, postgresql-isolation-report]

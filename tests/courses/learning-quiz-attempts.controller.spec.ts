@@ -7,9 +7,9 @@ import cookie from '@fastify/cookie';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
-import { SeatContextUseCase } from './seat-context.js';
-import { LearningQuizAttemptsController } from './learning-quiz-attempts.controller.js';
-import { TOKENS } from './tokens.js';
+import { SeatContextUseCase } from '../../apps/api/src/seat-context.js';
+import { LearningQuizAttemptsController } from '../../apps/api/src/learning-quiz-attempts.controller.js';
+import { TOKENS } from '../../apps/api/src/tokens.js';
 
 const id = '10000000-0000-4000-8000-000000000001';
 const request = {
