@@ -349,6 +349,31 @@ const upgradeArtifacts = [
     '0294_games_chess_network.sql',
     '04bdaf9176c814494b4d136e228b3d2e83d033a371ee3a8c82dc1be9ac01f129',
   ],
+  [
+    '0295',
+    '0295_ai_document_inputs.sql',
+    '9ac5de8c47d85a11c2913308ec08a607b6bd70a09ab8601c955976b1251f620e',
+  ],
+  [
+    '0296',
+    '0296_ai_working_files.sql',
+    '25c78c0b59acfe665b1d5f930f110198fc68b0f14904c724db0fe3f354ee50d3',
+  ],
+  [
+    '0297',
+    '0297_ai_polza_text_provider.sql',
+    '0e0176431307c6d67751a601b292570c470fdd1a536535b8b4e737c33c3b77f0',
+  ],
+  [
+    '0298',
+    '0298_ai_image_file_binding.sql',
+    'c42c970943bf6b89fcd341cd656bf1b36d1ed4114b27d72719c15ee5fe394a30',
+  ],
+  [
+    '0299',
+    '0299_ai_polza_token_budget_catalog.sql',
+    '12b080915d4808056f4ba5d9995631aa6c93f41d2c37c3b314621090400b1fac',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -890,6 +915,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         (row) => row.version === '0227',
       )!.applied_at;
       const cloudProviderAppliedAt = afterLedger.find((row) => row.version === '0252')!.applied_at;
+      const polzaProviderAppliedAt = afterLedger.find((row) => row.version === '0297')!.applied_at;
       const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(migratedConfig).toEqual({
         ...config,
@@ -937,6 +963,17 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           api_key_auth_tag: null,
           key_fingerprint: null,
           updated_at: providerCatalogAppliedAt,
+        },
+        {
+          provider: 'polza',
+          enabled: false,
+          revision: '1',
+          model: 'polza/unconfigured',
+          api_key_ciphertext: null,
+          api_key_iv: null,
+          api_key_auth_tag: null,
+          key_fingerprint: null,
+          updated_at: polzaProviderAppliedAt,
         },
       ]);
       expect(

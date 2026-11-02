@@ -3,9 +3,13 @@
  * Adapted from IZO_ASA/backend/app/integrations/ollama.py (main 51543df2).
  */
 import { isIP } from 'node:net';
+// One working-file call may contain 96k characters / 131072 UTF-8 bytes,
+// escaped up to six times in JSON. The independent file validator still owns
+// those content limits; this closed transport budget admits the valid envelope.
+const MAX_OLLAMA_EVENT_CHARS = 1024 * 1024;
 import { providerUsage, mergeProviderUsage, type AiProviderUsage } from './ai-provider-usage.js';
 import {
-  parseNativeToolCalls,
+  parseNativeToolBatch,
   type NativeToolCall,
   type NativeToolDefinition,
   type NativeToolResult,
@@ -353,23 +357,19 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
               ? { images: args.images }
               : {}),
           })),
-          ...(args.toolResults?.length
-            ? [
+          ...(args.toolResults ?? []).flatMap((result) => [
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
                 {
-                  role: 'assistant',
-                  content: '',
-                  tool_calls: args.toolResults.map((result) => ({
-                    type: 'function',
-                    function: { name: result.call.name, arguments: result.call.arguments },
-                  })),
+                  type: 'function',
+                  function: { name: result.call.name, arguments: result.call.arguments },
                 },
-                ...args.toolResults.map((result) => ({
-                  role: 'tool',
-                  tool_name: result.call.name,
-                  content: result.content,
-                })),
-              ]
-            : []),
+              ],
+            },
+            { role: 'tool', tool_name: result.call.name, content: result.content },
+          ]),
         ],
         ...(args.tools?.length ? { tools: args.tools } : {}),
         stream: true,
@@ -414,7 +414,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (packet.message?.tool_calls !== undefined) {
       if (
         !Array.isArray(packet.message.tool_calls) ||
-        rawCalls.length + packet.message.tool_calls.length > 1
+        rawCalls.length + packet.message.tool_calls.length > 4
       )
         throw new OllamaError(
           'ai_tool_call_invalid',
@@ -442,7 +442,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
       while (boundary >= 0) {
         // Bound each NDJSON event, not the entire HTTP chunk. One LAN read
         // can legitimately contain hundreds of short Ollama token events.
-        if (boundary > 16 * 1024)
+        if (boundary > MAX_OLLAMA_EVENT_CHARS)
           throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
         frame(buffer.slice(0, boundary).trimEnd());
         buffer = buffer.slice(boundary + 1);
@@ -451,7 +451,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
         if (done || signal.aborted) break;
         boundary = buffer.indexOf('\n');
       }
-      if (!done && buffer.length > 16 * 1024)
+      if (!done && buffer.length > MAX_OLLAMA_EVENT_CHARS)
         throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
     }
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
@@ -479,7 +479,7 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{
     if (!done || lengthLimited)
       throw new OllamaError('ai_tool_call_invalid', 503, 'Вызов инструмента не завершён.');
     try {
-      toolCalls = parseNativeToolCalls(rawCalls, args.tools ?? []);
+      toolCalls = parseNativeToolBatch(rawCalls, args.tools ?? []);
     } catch {
       throw new OllamaError(
         'ai_tool_call_invalid',

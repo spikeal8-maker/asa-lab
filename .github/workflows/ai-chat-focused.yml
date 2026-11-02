@@ -8,6 +8,11 @@ name: ASA AI Chat Focused
     paths:
       - 'apps/api/src/ai-*'
       - 'apps/api/src/ai-attachments/**'
+      - 'apps/api/project.json'
+      - 'Dockerfile.api'
+      - 'tools/copy-api-runtime-assets.mjs'
+      - 'tools/smoke-ai-built-document-reader.mjs'
+      - 'tools/ai-document-requirements.txt'
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/app.factory.ts'
       - 'apps/api/src/abuse-protection.ts'
@@ -49,6 +54,11 @@ name: ASA AI Chat Focused
     paths:
       - 'apps/api/src/ai-*'
       - 'apps/api/src/ai-attachments/**'
+      - 'apps/api/project.json'
+      - 'Dockerfile.api'
+      - 'tools/copy-api-runtime-assets.mjs'
+      - 'tools/smoke-ai-built-document-reader.mjs'
+      - 'tools/ai-document-requirements.txt'
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/app.factory.ts'
       - 'apps/api/src/abuse-protection.ts'
@@ -116,6 +126,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build AI unit API and identity dependencies
         run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Real PDF DOCX XLSX through the normal built API outside Docker
+        run: |
+          python -m venv "$RUNNER_TEMP/asa-document-python"
+          "$RUNNER_TEMP/asa-document-python/bin/python" -m pip install --disable-pip-version-check -r tools/ai-document-requirements.txt
+          ASA_DOCUMENT_PYTHON="$RUNNER_TEMP/asa-document-python/bin/python" node tools/smoke-ai-built-document-reader.mjs
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
       - name: No unformatted files
@@ -225,7 +243,7 @@ jobs:
 
   browser:
     name: AI desktop and mobile browser
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -256,7 +274,7 @@ jobs:
 
   usage-overview-browser:
     name: AI usage overview real API and built Web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     services:
       postgres:

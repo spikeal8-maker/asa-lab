@@ -221,6 +221,12 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         );
       if (/AI_(?:REQUEST_ID_REUSED|CONFIG_CHANGED)/.test(m))
         throw new AiImageError('ai_image_conflict', 409, 'Запрос или настройки уже изменились.');
+      if (/AI_IMAGE_FILE_TARGET_INVALID/.test(m))
+        throw new AiImageError(
+          'ai_image_file_target_invalid',
+          409,
+          'Сначала сохраните актуальный HTML с единственным местом для создаваемого изображения.',
+        );
       if (/AI_IMAGE_NOT_FOUND/.test(m))
         throw new AiImageError('ai_image_not_found', 404, 'Изображение не найдено.');
       if (/AI_IMAGE_INPUT_INVALID/.test(m))
@@ -383,6 +389,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
     size: AiImageSize,
     signal: AbortSignal,
     requestedRecipe?: AiImageRecipe,
+    target?: Readonly<{ name: string; expectedVersion: number; placeholder: string }>,
   ): Promise<AiImageGenerationJob> {
     const input = imageInput({ requestId: randomUUID(), prompt, size });
     if (signal.aborted) throw new AiImageError('ai_image_cancelled', 409, 'Запрос остановлен.');
@@ -399,7 +406,9 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
       recipe,
     );
     const j = await this.value<ImageJobRow>(
-      'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar) AS value',
+      target
+        ? 'SELECT ai_tool_image_file_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar,$12::jsonb) AS value'
+        : 'SELECT ai_tool_image_begin($1,$2,$3,$4,$5::varchar,$6::integer,$7,$8::bigint,$9::boolean,$10::varchar,$11::varchar) AS value',
       [
         owner,
         imageId(thread),
@@ -412,6 +421,7 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
         availability.ready,
         digest,
         recipe,
+        ...(target ? [JSON.stringify(target)] : []),
       ],
     );
     const cancel = () => {
@@ -429,6 +439,12 @@ export class AiImageService implements OnModuleInit, OnModuleDestroy {
   async nativeSchemaReady(): Promise<boolean> {
     const result = await this.pool.query<{ ready: boolean }>(
       "SELECT to_regprocedure('public.ai_tool_image_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying)') IS NOT NULL AND to_regprocedure('public.ai_tool_request_options(uuid,uuid,uuid,jsonb,boolean)') IS NOT NULL AS ready",
+    );
+    return result.rows[0]?.ready === true;
+  }
+  async fileBindingReady(): Promise<boolean> {
+    const result = await this.pool.query<{ ready: boolean }>(
+      "SELECT to_regprocedure('public.ai_tool_image_file_begin(uuid,uuid,uuid,uuid,character varying,integer,uuid,bigint,boolean,character varying,character varying,jsonb)') IS NOT NULL AS ready",
     );
     return result.rows[0]?.ready === true;
   }

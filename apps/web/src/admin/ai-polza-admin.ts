@@ -1,6 +1,8 @@
 export interface AiPolzaAdminConfig {
   readonly configurationVersion: number;
   readonly enabled: boolean;
+  readonly paidOperationsPerHour?: number;
+  readonly textConfigurationVersion?: number;
   readonly transcriptionEnabled: boolean;
   readonly dailySecondsLimit: number;
   readonly globalDailySecondsLimit: number;
