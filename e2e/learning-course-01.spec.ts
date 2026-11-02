@@ -3214,15 +3214,32 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     const bounds = (await action.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
-    expect(
-      await inlineAuthor.evaluate((element) => element.scrollWidth <= element.clientWidth),
-    ).toBe(true);
+    const inlineLayout = await inlineAuthor.evaluate((element) => {
+      const bounds = (selector: string) => {
+        const node = element.querySelector(selector);
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, right: rect.right, width: rect.width };
+      };
+      const topbar = element.querySelector('.assignment-document-topbar');
+      return {
+        viewportWidth: innerWidth,
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+        topbar: bounds('.assignment-document-topbar'),
+        saveState: bounds('.assignment-document-save-state'),
+        topbarMarginInline: topbar ? getComputedStyle(topbar).marginInline : null,
+      };
+    });
+    expect(inlineLayout.scrollWidth, JSON.stringify(inlineLayout)).toBeLessThanOrEqual(
+      inlineLayout.clientWidth,
+    );
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
     await page.screenshot({
       path: `${evidenceDir}/course-inline-task-author-${width}.png`,
-      fullPage: true,
+      fullPage: false,
     });
   }
   await page.setViewportSize({ width: 1440, height: 900 });

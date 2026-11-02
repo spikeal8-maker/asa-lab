@@ -2195,6 +2195,8 @@
 }
 @media (max-width: 760px) {
   .course-inline-task-dialog .assignment-document-topbar {
+    /* The standalone bank's negative margins assume surrounding page padding. */
+    margin-inline: 0;
     grid-template-columns: minmax(0, 1fr);
   }
   .course-inline-task-dialog .assignment-document-actions {
