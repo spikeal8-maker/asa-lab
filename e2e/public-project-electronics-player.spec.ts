@@ -89,6 +89,30 @@ const readProof = (page: Page) =>
   page.evaluate(() => (window as unknown as ProofWindow).__publicWorkerProof);
 const mark = (page: Page) => page.evaluate(() => performance.now());
 
+interface SavedProgramBlock {
+  id: string;
+  type: string;
+  inputs?: Record<string, { block?: SavedProgramBlock; shadow?: SavedProgramBlock }>;
+  next?: { block?: SavedProgramBlock; shadow?: SavedProgramBlock };
+}
+
+/** Real connected blocks; an overridden shadow is stored state, not a rendered node. */
+function renderedProgramBlocks(raw: string) {
+  const result: { id: string; type: string }[] = [];
+  const visit = (block: SavedProgramBlock) => {
+    expect(typeof block.id).toBe('string');
+    expect(block.id.length).toBeGreaterThan(0);
+    result.push({ id: block.id, type: block.type });
+    for (const connection of [...Object.values(block.inputs ?? {}), block.next]) {
+      const child = connection?.block ?? connection?.shadow;
+      if (child) visit(child);
+    }
+  };
+  const saved = JSON.parse(raw) as { blocks: { blocks: SavedProgramBlock[] } };
+  saved.blocks.blocks.forEach(visit);
+  return result.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
 /** Observe a fresh, same-generation solved phase around the real native PNG.
  * No clock/input/result is changed. Fast transitions are retried, never relabelled. */
 async function nativePhase(page: Page, label: string, high: boolean, since: number) {
@@ -580,9 +604,72 @@ for (const mode of ['passive', 'button', 'blink', 'blocks'] as const) {
           changedPixels: changedNativePixels(low.png, high.png),
         });
         await guest.getByText('Код Arduino', { exact: true }).click();
-        await expect(guest.locator('.public-electronics-code code')).toHaveText(
-          String(draft.document.components[0]!.stateProperties?.arduinoSource),
-        );
+        if (mode === 'blocks') {
+          const publicGraph = String(artifact.components[0].stateProperties.arduinoBlocks);
+          const expected = renderedProgramBlocks(
+            String(draft.document.components[0]!.stateProperties?.arduinoWorkspace),
+          );
+          expect(expected.length).toBeGreaterThan(0);
+          expect(new Set(expected.map((block) => block.id)).size).toBe(expected.length);
+          expect(renderedProgramBlocks(publicGraph)).toEqual(expected);
+          const blocks = guest.getByTestId('public-arduino-blocks');
+          await expect(blocks).toBeVisible();
+          await expect(blocks).toHaveAttribute(
+            'aria-label',
+            'Программа Arduino — блоки, только просмотр',
+          );
+          await expect(blocks.locator('svg.blocklySvg')).toBeVisible();
+          const readBlocks = () =>
+            blocks.locator('.blocklyBlock[data-id]').evaluateAll(
+              (nodes, program) =>
+                nodes
+                  .map((node) => {
+                    const id = node.getAttribute('data-id')!;
+                    const type = program.find((block) => block.id === id)?.type;
+                    return {
+                      id,
+                      type: type && node.classList.contains(type) ? type : null,
+                      editable: !node.classList.contains('blocklyNotEditable'),
+                      deletable: !node.classList.contains('blocklyNotDeletable'),
+                      movable: node.classList.contains('blocklyDraggable'),
+                    };
+                  })
+                  .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+              expected,
+            );
+          const immutable = expected.map((block) => ({
+            ...block,
+            editable: false,
+            deletable: false,
+            movable: false,
+          }));
+          await expect.poll(readBlocks).toEqual(immutable);
+          await expect(
+            blocks.locator('.blocklyToolboxDiv, .blocklyFlyout, .blocklyTrash'),
+          ).toHaveCount(0);
+          const displayedFields = await blocks.locator('.blocklyFieldText').allTextContents();
+          await blocks.locator('.blocklyInputField .blocklyFieldText').first().dblclick();
+          await expect(
+            guest.locator(
+              '.blocklyWidgetDiv input:visible, .blocklyTextInputBubble textarea:visible, .blocklyDropDownDiv:visible',
+            ),
+          ).toHaveCount(0);
+          expect(await readBlocks()).toEqual(immutable);
+          expect(await blocks.locator('.blocklyFieldText').allTextContents()).toEqual(
+            displayedFields,
+          );
+          await expect(guest.locator('.public-electronics-code code')).toHaveCount(0);
+          phases.push({
+            readonlyProgram: immutable,
+            displayedFields,
+            publicGraphSha256: createHash('sha256').update(publicGraph).digest('hex'),
+          });
+        } else {
+          await expect(guest.locator('.public-electronics-code code')).toHaveText(
+            String(draft.document.components[0]!.stateProperties?.arduinoSource),
+          );
+          await expect(guest.getByTestId('public-arduino-blocks')).toHaveCount(0);
+        }
       }
       for (const width of [320, 390, 1024, 1440]) {
         await guest.setViewportSize({ width, height: 900 });
