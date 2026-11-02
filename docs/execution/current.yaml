@@ -16168,6 +16168,47 @@ parallel_lanes:
       observed_at: '2026-11-01T22:45:00Z'
       observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Desktop-only author may inherit reviewed8080 caption while its independent General finishes; mobile caption and runtime remain unchanged. No server or foreign code scope.
 
+  - id: electronics-host-yield-diagnosis
+    parent_lane: electronics
+    worktree_id: electronics-host-yield-diagnosis
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
+    task:
+      id: TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001
+      issue: 934
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: analysis/inventory
+      risk: high
+      semantic_change: 'no'
+      checkpoint: selected_browser_only_host_yield_cause_measurement
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-HOST-YIELD-DIAGNOSIS-001.md
+      scope: TEMP-only real Chromium Worker measurement on frozen actual no-delay and millis requests; compare unchanged baseline, timer instrumentation and experimental MessageChannel yield. No repository runtime edits or acceptance.
+      owner_authorization: Owner requests fixing remaining20 Electronics timing failures after simple toolbar fixes; measure independent Worker cause while reviewed desktop candidate waits for CI.
+      next_action: One bounded measurement executor validates selection, measures actual waits/compute and complete response parity with a short cancellation probe, reports observed cause and limitations; new independent actual review; STOP before production repair.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
+      head_sha: null
+      main:
+        branch: main
+        sha: 60264f69e9abdfe97111bd4ec4e447c7a9cbd9a4
+      observed_at: '2026-11-02T00:20:23Z'
+      observation_note: Fresh fetch main before edits; recorded snapshot only, fetch main and inspect exact CI before new writes. Browser measurement grants no repository runtime mutation, realtime acceptance or deployment.
+
   - id: electronics-emergency-toolbar
     parent_lane: electronics
     worktree_id: electronics-emergency-toolbar
