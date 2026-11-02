@@ -69,3 +69,24 @@ No repository product/test edits, new dependencies, altered deadlines/assertions
 new physical timer, fake time/physics, server, Docker Desktop, live DB, owner assets
 or foreign work. All scripts and experimental bundles stay in OS-temp. STOP after
 one concise measured report; no automatic runtime implementation.
+
+## One corrected production-build probe
+
+Independent review found the first experiment semantically reproducible but
+performance-INCONCLUSIVE:44 ignored electronics/dist modules (901168 emitted
+bytes), unminified esbuild IIFE and keepNames differ from canonical Vite aliases,
+ES Worker format and production transformations. Its48 complete response/state
+equalities and cancellation observations remain limited diagnostic facts; they
+do not establish shipping performance or justify a runtime patch.
+
+Authorize exactly one corrected bounded experiment with the same8 actual inputs,
+3 variants and2 passes and90second execution cap. Use the actual accepted Vite
+production Worker pipeline/configuration and full source aliases, not a manually
+approximated engine-only alias. A temporary transport entry may cause Vite to emit
+the real Worker through its standard Worker plugin; all output stays in OS-temp.
+Record config/flags/graph before execution. Electronics and contracts aliases must
+resolve to their actual configured source locations; ignored generated duplicates
+contrary to those aliases mean STOP before measuring. Preserve untouched baseline,
+instrumented control and TEMP callback prototype, full parity and cancellation.
+No new workload, broad profile, repository product changes, server or installation.
+A fresh independent actual review follows the corrected source graph and output.
