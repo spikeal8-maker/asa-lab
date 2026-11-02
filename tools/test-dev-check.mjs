@@ -204,8 +204,11 @@ function proofFixture(t) {
   const baseline = `${PROFILE.test_family}.spec.ts`;
   write(baseline, fs.readFileSync(path.join(root, baseline)));
   write('.prettierrc.json', '{"singleQuote":true,"printWidth":100}');
+  // Match the repository contract even when the host's global Git config differs.
+  write('.gitattributes', '* text=auto eol=lf\n');
   const git = (...args) => execFileSync('git', args, { cwd: directory, windowsHide: true });
   git('init', '-q');
+  git('config', '--local', 'core.autocrlf', 'false');
   git('add', '.');
   git(
     '-c',
@@ -249,7 +252,9 @@ test('actual Git/source proof falls back on foreign paths, deletion, missing tes
     f.baseline,
     fs.readFileSync(path.join(root, f.baseline), 'utf8').replace(/\r?\n/g, '\r\n'),
   );
-  assert.equal((await prove(f.directory, f.base)).local_effect_class, 'L0_LOCAL_UI');
+  const eolProof = await prove(f.directory, f.base);
+  assert.equal(eolProof.eligible, true, eolProof.fallback_reason);
+  assert.equal(eolProof.local_effect_class, 'L0_LOCAL_UI');
   f.write('apps/web/src/api.ts', 'foreign change');
   assert.match(
     (await prove(f.directory, f.base)).fallback_reason,
