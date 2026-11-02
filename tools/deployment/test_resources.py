@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -16,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment import resources
 from deployment.contracts import Blocked
 from deployment.system import Installation
-from test_ci_image_transport import parse_yaml
 
 
 class ResourceTests(unittest.TestCase):
@@ -106,13 +106,15 @@ class ResourceTests(unittest.TestCase):
 
     def test_owned_container_log_defaults_are_explicit_and_scoped(self):
         compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text(encoding='utf-8')
-        # Exercise the same duplicate-key/zero-alias parser as CI before Docker.
-        services = parse_yaml(compose)['services']
+        # Keep this Python-only gate dependency-free. The Node-provisioned CI
+        # transport guard separately parses the full model with zero aliases.
         owned = ('postgres', 'migration', 'minio', 'minio-init', 'api', 'search', 'web', 'scratch')
-        consumers = {name: service['logging'] for name, service in services.items() if 'logging' in service}
-        self.assertEqual(consumers, {name: {
-            'driver': 'json-file', 'options': {'max-size': '10m', 'max-file': '5'}
-        } for name in owned})
+        logging = ("    logging:\n      driver: json-file\n      options:\n"
+                   "        max-size: '10m'\n        max-file: '5'\n")
+        consumers = re.findall(r'^  ([a-z][a-z-]*):\n' + re.escape(logging), compose, re.M)
+        self.assertCountEqual(consumers, owned)
+        self.assertEqual(len(re.findall(r'^\s+logging:', compose, re.M)), 8)
+        self.assertNotRegex(compose, r'(?m)^\s*(?:[\w.-]+:\s*)?[&*][A-Za-z0-9_-]+')
 
     @unittest.skipUnless(os.environ.get('ASA_TEST_DOCKER_COMPOSE') == '1', 'Resolved Compose contract runs in Linux CI')
     def test_resolved_profiles_keep_all_eight_owned_log_budgets(self):
