@@ -72,6 +72,7 @@ const expectedPending = [
   '0291', // Guarded Account/Seat comment avatars.
   '0292', // Publication author avatars and projects-only catalog projection.
   '0293', // Catalog sorting before pagination; older readers retain newest-first behavior.
+  '0294', // Accepted additive games-network schema in Main.
 ];
 
 interface Identity {

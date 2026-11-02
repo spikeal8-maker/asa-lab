@@ -50,3 +50,12 @@ installer, production configuration, deployment or working data changed.
 
 Logs remain outside Git in the local operations report directory under
 `release-repair-*`. Existing untracked screenshots/reports were preserved.
+
+## One final Main convergence
+
+Parallel Main commit `519d7cf2` retained this repair but cancelled the exact
+`51b09ccd` workflows and introduced migration 0294. Cancelled jobs are not product
+failures or successful gates. Course and AI-prefix upgrade fixtures now explicitly
+admit that accepted additive migration; SQL and strict history comparisons remain
+unchanged. Only those upgrade suites need a repeat after this integration delta.
+No Chess product code, game behavior or permissions were edited by this repair.

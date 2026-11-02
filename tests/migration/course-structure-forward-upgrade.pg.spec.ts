@@ -163,6 +163,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0291', // Guarded Account/Seat comment avatars.
         '0292', // Public author avatars and projects-only catalog projection.
         '0293', // Catalog sorting before pagination.
+        '0294', // Accepted additive games-network schema in Main.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -485,6 +486,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0291', // Guarded Account/Seat comment avatars.
           '0292', // Public author avatars and projects-only catalog projection.
           '0293', // Catalog sorting before pagination.
+          '0294', // Accepted additive games-network schema in Main.
         ]);
         expect(
           await applyIsolatedTestPlan(
