@@ -1,0 +1,43 @@
+name: Temporary prefix 467cf4fa proof
+on:
+  push:
+    branches: ['codex/validation-prefix-467cf4fa-20261102']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prefix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: asa_prefix_validation_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: prefix-ci-isolated-test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_prefix_validation_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      NODE_ENV: test
+      TEST_DATABASE_URL: postgresql://postgres:prefix-ci-isolated-test@127.0.0.1:5432/asa_prefix_validation_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx run identity:build --skip-nx-cache
+      - name: Four real PostgreSQL prefix cases
+        run: pnpm exec vitest run tests/migration/learning-main-prefix-history-upgrade.pg.spec.ts --maxWorkers=1
