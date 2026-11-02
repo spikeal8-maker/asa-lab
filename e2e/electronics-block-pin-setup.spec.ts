@@ -596,7 +596,7 @@ for (const viewport of [
         await activate(dialog.getByRole('button', { name: 'Отмена', exact: true }));
         await receipt(info, 'reopened', await serverDocument(page, id));
 
-        await activate(page.getByRole('button', { name: 'Закрыть панель кода', exact: true }));
+        await activate(page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }));
         await activate(page.getByRole('button', { name: 'Начать моделирование', exact: true }));
         const observations = () =>
           page.evaluate(
@@ -624,9 +624,17 @@ for (const viewport of [
         // Cross multiple phases of the actual owner effect sequence using committed
         // engine horizons. This is output evidence, never a wall-clock speed claim.
         await expect
-          .poll(async () => (await observations()).samples.some((s) => s.at >= 22_000_000), {
-            timeout: 120_000,
-          })
+          .poll(
+            () =>
+              page.evaluate(() =>
+                (
+                  window as Window & {
+                    pinSetupWorker?: { samples: Array<{ at: number }> };
+                  }
+                ).pinSetupWorker!.samples.some((s) => s.at >= 22_000_000),
+              ),
+            { timeout: 120_000 },
+          )
           .toBe(true);
         const worker = await observations();
         expect(worker.documents.some((d) => source(d) === source(expected))).toBe(true);
@@ -636,13 +644,28 @@ for (const viewport of [
         const samples = worker.samples.filter((s) => s.solved);
         expect(samples.length).toBeGreaterThan(2);
         expect(samples.every((s) => s.status !== 'fault' && s.diagnostics.length === 0)).toBe(true);
+        // Inspect the complete journal in JS; per-value Playwright assertions would
+        // create tens of thousands of reporter steps before the next native action.
+        const invalidElectricalValues: string[] = [];
+        for (const [sampleIndex, sample] of worker.samples.entries()) {
+          for (const component of sample.leds) {
+            const location = `sample ${sampleIndex} at ${sample.at}us component ${component.id}`;
+            if (!Number.isFinite(component.current))
+              invalidElectricalValues.push(`${location} current=${String(component.current)}`);
+            for (const [pin, voltage] of Object.entries(component.terminalVoltages)) {
+              if (!Number.isFinite(voltage))
+                invalidElectricalValues.push(
+                  `${location} terminalVoltages.${pin}=${String(voltage)}`,
+                );
+            }
+          }
+        }
+        expect(invalidElectricalValues).toEqual([]);
         const highPins = new Set<string>();
         for (const sample of samples) {
           for (const component of sample.leds) {
-            expect(Number.isFinite(component.current)).toBe(true);
             if (component.id !== ownerBoard.id) continue;
             for (const [pin, voltage] of Object.entries(component.terminalVoltages)) {
-              expect(Number.isFinite(voltage)).toBe(true);
               if (/^d(?:[0-9]|1[01])$/.test(pin) && voltage > 4) highPins.add(pin);
             }
           }
