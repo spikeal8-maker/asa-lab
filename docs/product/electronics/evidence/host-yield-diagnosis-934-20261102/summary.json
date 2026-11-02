@@ -1,0 +1,591 @@
+{
+  "summary": [
+    {
+      "variant": "production",
+      "label": "no-delay",
+      "n": 8,
+      "wall": {
+        "median": 17.699999928474426,
+        "range": [
+          3.3999998569488525,
+          35
+        ]
+      },
+      "compute": {
+        "median": 17.100000023841858,
+        "range": [
+          2.799999952316284,
+          34
+        ]
+      },
+      "waitMs": null,
+      "yieldCounts": null
+    },
+    {
+      "variant": "production",
+      "label": "millis",
+      "n": 8,
+      "wall": {
+        "median": 23.850000023841858,
+        "range": [
+          2.9000000953674316,
+          52
+        ]
+      },
+      "compute": {
+        "median": 23.449999928474426,
+        "range": [
+          2.700000047683716,
+          51.200000286102295
+        ]
+      },
+      "waitMs": null,
+      "yieldCounts": null
+    },
+    {
+      "variant": "native-timer",
+      "label": "no-delay",
+      "n": 8,
+      "wall": {
+        "median": 22.25,
+        "range": [
+          3.700000047683716,
+          43.299999952316284
+        ]
+      },
+      "compute": {
+        "median": 21.59999990463257,
+        "range": [
+          3,
+          42.30000042915344
+        ]
+      },
+      "waitMs": {
+        "median": 0.09999990463256836,
+        "range": [
+          0,
+          0.9000000953674316
+        ]
+      },
+      "yieldCounts": [
+        0,
+        1,
+        4,
+        3,
+        0,
+        0,
+        2,
+        2
+      ]
+    },
+    {
+      "variant": "native-timer",
+      "label": "millis",
+      "n": 8,
+      "wall": {
+        "median": 25.600000023841858,
+        "range": [
+          3.9000000953674316,
+          47.200000047683716
+        ]
+      },
+      "compute": {
+        "median": 25.049999952316284,
+        "range": [
+          3.5999999046325684,
+          45.50000023841858
+        ]
+      },
+      "waitMs": {
+        "median": 0.05000007152557373,
+        "range": [
+          0,
+          1.0999996662139893
+        ]
+      },
+      "yieldCounts": [
+        0,
+        1,
+        5,
+        4,
+        0,
+        0,
+        4,
+        4
+      ]
+    },
+    {
+      "variant": "message-channel",
+      "label": "no-delay",
+      "n": 8,
+      "wall": {
+        "median": 21.75,
+        "range": [
+          2.799999952316284,
+          51.60000014305115
+        ]
+      },
+      "compute": {
+        "median": 20.65000009536743,
+        "range": [
+          2.3999998569488525,
+          41.90000057220459
+        ]
+      },
+      "waitMs": {
+        "median": 0.3500000238418579,
+        "range": [
+          0,
+          9.09999966621399
+        ]
+      },
+      "yieldCounts": [
+        0,
+        1,
+        3,
+        4,
+        0,
+        0,
+        4,
+        2
+      ]
+    },
+    {
+      "variant": "message-channel",
+      "label": "millis",
+      "n": 8,
+      "wall": {
+        "median": 20.75,
+        "range": [
+          4.099999904632568,
+          41.5
+        ]
+      },
+      "compute": {
+        "median": 19.850000023841858,
+        "range": [
+          3.700000047683716,
+          39.80000019073486
+        ]
+      },
+      "waitMs": {
+        "median": 0.19999980926513672,
+        "range": [
+          0,
+          0.6999998092651367
+        ]
+      },
+      "yieldCounts": [
+        0,
+        0,
+        4,
+        4,
+        0,
+        0,
+        4,
+        3
+      ]
+    }
+  ],
+  "canonicalSourceParity": [
+    {
+      "path": "apps/web/src/electronics/simulation.worker.ts",
+      "sourceHash": "725aa159cbce3ece5bc9971396daff20ea1f844943ba1ad79b58a005bc823377",
+      "canonicalHash": "725aa159cbce3ece5bc9971396daff20ea1f844943ba1ad79b58a005bc823377",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-worker-evaluator.ts",
+      "sourceHash": "25ed6cc4a665982aa5de24d9518f181ee6dd3693dbcf29ab2be046e34b247a8d",
+      "canonicalHash": "25ed6cc4a665982aa5de24d9518f181ee6dd3693dbcf29ab2be046e34b247a8d",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-worker-protocol.ts",
+      "sourceHash": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14",
+      "canonicalHash": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/electronics/live-simulation.ts",
+      "sourceHash": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48",
+      "canonicalHash": "654493156576099dbeedd8d6eb697920b4830a9fd4a313d664c07fe8fe8eac48",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/engine.ts",
+      "sourceHash": "719f9e29000c80c6c5938f315b849ea95a4ff7d6d87059d56469e40ed44fb238",
+      "canonicalHash": "719f9e29000c80c6c5938f315b849ea95a4ff7d6d87059d56469e40ed44fb238",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/simulation.ts",
+      "sourceHash": "65de5b13e64ec79fc80baa7868746e334b8a3ef4720fa321010b62f7199d2857",
+      "canonicalHash": "65de5b13e64ec79fc80baa7868746e334b8a3ef4720fa321010b62f7199d2857",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/timed-state.ts",
+      "sourceHash": "68d8349382dcafec0c94a4d242700595842374e1f18cc1fb0f60a1dca479ea3b",
+      "canonicalHash": "68d8349382dcafec0c94a4d242700595842374e1f18cc1fb0f60a1dca479ea3b",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "sourceHash": "475e4f70e2718e7f0c2ab88700379b74321b7b9979d03d4287d1b0ba6e8bf10e",
+      "canonicalHash": "475e4f70e2718e7f0c2ab88700379b74321b7b9979d03d4287d1b0ba6e8bf10e",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/document.ts",
+      "sourceHash": "6d4b1cf8bb657cdf8fd471df831dd507baa50387078b0406b093130817c443ad",
+      "canonicalHash": "6d4b1cf8bb657cdf8fd471df831dd507baa50387078b0406b093130817c443ad",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/simulation.ts",
+      "sourceHash": "bf065d4a941aebd9662ded31217b5d33d5aae70903e8e7f508e2ecc264e8ffb6",
+      "canonicalHash": "bf065d4a941aebd9662ded31217b5d33d5aae70903e8e7f508e2ecc264e8ffb6",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/simulation-input-digest.ts",
+      "sourceHash": "0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e",
+      "canonicalHash": "0dde5919662fa2ed70d44880fdd9e4743b20d5fb4c21a01fe3aa2e98797faf4e",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/netlist.ts",
+      "sourceHash": "3fae82553d88ddbeb94e3a6c9227ced83dac6d6b96968287101978ae79584eb0",
+      "canonicalHash": "3fae82553d88ddbeb94e3a6c9227ced83dac6d6b96968287101978ae79584eb0",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/model-identity.ts",
+      "sourceHash": "6ee33dab7ef5eb24de30279021079596df9bdb786464fc575310a13c59684e81",
+      "canonicalHash": "6ee33dab7ef5eb24de30279021079596df9bdb786464fc575310a13c59684e81",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/piezo-audio-model.ts",
+      "sourceHash": "ff6319396cc03bbf06cdd8a9e7690eca0d82f25968d64584d15ee6769d3a58b4",
+      "canonicalHash": "ff6319396cc03bbf06cdd8a9e7690eca0d82f25968d64584d15ee6769d3a58b4",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/photoresistor-model.ts",
+      "sourceHash": "9d257b6b0d706ca25b5364df988ef91e33c1cb19f52a6a2e747a2c27109b461f",
+      "canonicalHash": "9d257b6b0d706ca25b5364df988ef91e33c1cb19f52a6a2e747a2c27109b461f",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/incandescent-lamp-model.ts",
+      "sourceHash": "e7cf58290182f7818687b9fd876364c6391e3c66dde4cf1df49e142c7a7eaf05",
+      "canonicalHash": "e7cf58290182f7818687b9fd876364c6391e3c66dde4cf1df49e142c7a7eaf05",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/switch-topology.ts",
+      "sourceHash": "743351f3313535559947500bf728c64d74aafe1e5d1b25273a8a0a61c843036b",
+      "canonicalHash": "743351f3313535559947500bf728c64d74aafe1e5d1b25273a8a0a61c843036b",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/brushed-motor-profiles.ts",
+      "sourceHash": "d39047ff800115bceff63d6ee8e94f34ddd02886c213d4f6ea1db5a1ece678bc",
+      "canonicalHash": "d39047ff800115bceff63d6ee8e94f34ddd02886c213d4f6ea1db5a1ece678bc",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/brushed-motor-transient-model.ts",
+      "sourceHash": "86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b",
+      "canonicalHash": "86570985c5b2bd352b06024748d8e1ee22d1fb58867d1e5e09b935685c00ef0b",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/canvas-annotations.ts",
+      "sourceHash": "e5abdce9b5ef65e695cefc39840dd85b7df182dede036ebb0d97afcc0a43b3a0",
+      "canonicalHash": "e5abdce9b5ef65e695cefc39840dd85b7df182dede036ebb0d97afcc0a43b3a0",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-model.ts",
+      "sourceHash": "2609d106f604030998bb5b9900d4e2996beb6b65a8346be0745dbf40b2771309",
+      "canonicalHash": "2609d106f604030998bb5b9900d4e2996beb6b65a8346be0745dbf40b2771309",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/tmp36-dc-model.ts",
+      "sourceHash": "4a2de745fa31d7965f4331af7cb6e67568550a5d62bab79b2eb3736ff75cbbb4",
+      "canonicalHash": "4a2de745fa31d7965f4331af7cb6e67568550a5d62bab79b2eb3736ff75cbbb4",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/soil-moisture-model.ts",
+      "sourceHash": "0273f1ec5d952bcce8a0776b06b2d6d17c46a3c2e1e8858946af209e82ecef93",
+      "canonicalHash": "0273f1ec5d952bcce8a0776b06b2d6d17c46a3c2e1e8858946af209e82ecef93",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/led-model.ts",
+      "sourceHash": "860891d535cdccde68f6f151738ab76a7f0b928f374dc2b083d4a6f2934a7af3",
+      "canonicalHash": "860891d535cdccde68f6f151738ab76a7f0b928f374dc2b083d4a6f2934a7af3",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/model-registry.ts",
+      "sourceHash": "ed2c4c69d3bd20f9d506a8ab36736aa18deecf0bbdc354e32b8a4319ae8d52d3",
+      "canonicalHash": "ed2c4c69d3bd20f9d506a8ab36736aa18deecf0bbdc354e32b8a4319ae8d52d3",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/nonlinear-dc-models.ts",
+      "sourceHash": "a9acbc7b564f7db8a41f4e1d73d948f7995ca59aef9179d778cf1ff581c731e3",
+      "canonicalHash": "a9acbc7b564f7db8a41f4e1d73d948f7995ca59aef9179d778cf1ff581c731e3",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/solver.ts",
+      "sourceHash": "c7e7cb855c14bf13a02226f343a2a5ff1c97d46b2073b369a993e20995c83f75",
+      "canonicalHash": "c7e7cb855c14bf13a02226f343a2a5ff1c97d46b2073b369a993e20995c83f75",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/capacitor-transient-model.ts",
+      "sourceHash": "735e907c37e8fbb19edd0cd1ba65cf3e32110da47fc729240e7beb12b4fe2329",
+      "canonicalHash": "735e907c37e8fbb19edd0cd1ba65cf3e32110da47fc729240e7beb12b4fe2329",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/regulated-power-supply-model.ts",
+      "sourceHash": "0721b935ab2f55cde0c1057c75c5540f196fb48b2e673c92ce59ebc9bfbcda00",
+      "canonicalHash": "0721b935ab2f55cde0c1057c75c5540f196fb48b2e673c92ce59ebc9bfbcda00",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-program-runtime.ts",
+      "sourceHash": "0048ecfde40be4b00569badae34d3c1e5e0d2287051664ee8f10f193e9bdd8e3",
+      "canonicalHash": "0048ecfde40be4b00569badae34d3c1e5e0d2287051664ee8f10f193e9bdd8e3",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-capabilities.ts",
+      "sourceHash": "34cd4bc2f13eb3a2df1d19c2e5d3eb2e61d536de291548d7b48e87d9c216066f",
+      "canonicalHash": "34cd4bc2f13eb3a2df1d19c2e5d3eb2e61d536de291548d7b48e87d9c216066f",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-adc-observation.ts",
+      "sourceHash": "c7481b5a9e86295e6d745f3addf56184fe123a1ecec6917af87f7cb9141e801c",
+      "canonicalHash": "c7481b5a9e86295e6d745f3addf56184fe123a1ecec6917af87f7cb9141e801c",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-serial-runtime.ts",
+      "sourceHash": "51667aed3794ba5466d8e9a6cf2e821502b7e983ae9eab25f2a7f05b9709dcdf",
+      "canonicalHash": "51667aed3794ba5466d8e9a6cf2e821502b7e983ae9eab25f2a7f05b9709dcdf",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-servo-runtime.ts",
+      "sourceHash": "72b474371d5ddd40957ad99fdb0a2beb7a24c4d580b0f488f1d53870dba27db0",
+      "canonicalHash": "72b474371d5ddd40957ad99fdb0a2beb7a24c4d580b0f488f1d53870dba27db0",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-waveform-runtime.ts",
+      "sourceHash": "8ec020f9b1dbd8eb24d94e397ccdd50953be96e7ba43b7883592ad09ada40ae0",
+      "canonicalHash": "8ec020f9b1dbd8eb24d94e397ccdd50953be96e7ba43b7883592ad09ada40ae0",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-values.ts",
+      "sourceHash": "a6524621d99a99802e990ff28f26bce151d4e824e063a843af06fa0e6357dcff",
+      "canonicalHash": "a6524621d99a99802e990ff28f26bce151d4e824e063a843af06fa0e6357dcff",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/linear-dc-models.ts",
+      "sourceHash": "0bfb88477ea5039d8bca559497e2de2d276e1afc5678b0aad39b3ab2ddc89708",
+      "canonicalHash": "0bfb88477ea5039d8bca559497e2de2d276e1afc5678b0aad39b3ab2ddc89708",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/npn-dc-model.ts",
+      "sourceHash": "f869b23bd4451bdea39844fad1599aa96c5b0d56672fbe96cf497a9264857988",
+      "canonicalHash": "f869b23bd4451bdea39844fad1599aa96c5b0d56672fbe96cf497a9264857988",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/pnp-dc-model.ts",
+      "sourceHash": "31d592bb36d9cc2ca36232980bd96f6b6eb36f501906e937f68240b1305f3496",
+      "canonicalHash": "31d592bb36d9cc2ca36232980bd96f6b6eb36f501906e937f68240b1305f3496",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/signal-generator-model.ts",
+      "sourceHash": "22d1b5e7ead44456b6c01705e547f3e5a946bfa8d8f53e41ce05345ad409d4b5",
+      "canonicalHash": "22d1b5e7ead44456b6c01705e547f3e5a946bfa8d8f53e41ce05345ad409d4b5",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/thermal-transient-model.ts",
+      "sourceHash": "43a1e10892327048404adf24f336230603491aa7d221fa4f50b62350170b2766",
+      "canonicalHash": "43a1e10892327048404adf24f336230603491aa7d221fa4f50b62350170b2766",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/led-temporal-observation.ts",
+      "sourceHash": "796223ebe86d47b7aad92e8d181ada528d242d9c3a6bc4d8f1e16b7cc8e829c6",
+      "canonicalHash": "796223ebe86d47b7aad92e8d181ada528d242d9c3a6bc4d8f1e16b7cc8e829c6",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/hc-sr04-runtime.ts",
+      "sourceHash": "78deb55bf0cb4038907d0f392cfd80f22f55714e01d761e65d10f2002a5e6487",
+      "canonicalHash": "78deb55bf0cb4038907d0f392cfd80f22f55714e01d761e65d10f2002a5e6487",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/ping-ultrasonic-runtime.ts",
+      "sourceHash": "2476e82610e87cb3237593d203985681d5cb233afc6658010c187ab577d532f4",
+      "canonicalHash": "2476e82610e87cb3237593d203985681d5cb233afc6658010c187ab577d532f4",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/servo-runtime.ts",
+      "sourceHash": "c2ba9fcb826dfb52583959406a8cf8d68ee702f5badab3fc92c7b652c8e9b1e4",
+      "canonicalHash": "c2ba9fcb826dfb52583959406a8cf8d68ee702f5badab3fc92c7b652c8e9b1e4",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/device-model.ts",
+      "sourceHash": "4047a80a18cd0faae675825ce63eaa5902c7bef44fe75ff7c20a7e76b83e3884",
+      "canonicalHash": "4047a80a18cd0faae675825ce63eaa5902c7bef44fe75ff7c20a7e76b83e3884",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-user-functions.ts",
+      "sourceHash": "67cc890dfdb7cb25f4f0c89b2475fddc0c5906801f025fdda6b2358d9ae82fbd",
+      "canonicalHash": "67cc890dfdb7cb25f4f0c89b2475fddc0c5906801f025fdda6b2358d9ae82fbd",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-block-support.ts",
+      "sourceHash": "cd3a62be4a55ebd8d7a64a13d0a11e3d55380803aa3387a05a2771d36a1f8a0c",
+      "canonicalHash": "cd3a62be4a55ebd8d7a64a13d0a11e3d55380803aa3387a05a2771d36a1f8a0c",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-random.ts",
+      "sourceHash": "603c8e1ffcf9b9464e9308830bd213a6b94999f9816cc9939dbe159f008cc160",
+      "canonicalHash": "603c8e1ffcf9b9464e9308830bd213a6b94999f9816cc9939dbe159f008cc160",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-switch-syntax.ts",
+      "sourceHash": "d11bf27e95337116e0e1e84760a2e2b826e294c24356b37a73e8696a864fd590",
+      "canonicalHash": "d11bf27e95337116e0e1e84760a2e2b826e294c24356b37a73e8696a864fd590",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-pulse-runtime.ts",
+      "sourceHash": "70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd",
+      "canonicalHash": "70b08fe57a0b680e0d807eb3bfbe532465a88819e7c707e81e3ae711884138bd",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/linear-system.ts",
+      "sourceHash": "0fcb5a272d00ee0582302c87b4bf6a8794e755b8f0e39585e507292a5ace6b6a",
+      "canonicalHash": "0fcb5a272d00ee0582302c87b4bf6a8794e755b8f0e39585e507292a5ace6b6a",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/capacitor-constraints.ts",
+      "sourceHash": "ba43e67edb816dbf5a0aaa46fd80b53127d496380722cdd67e109a4f858175b1",
+      "canonicalHash": "ba43e67edb816dbf5a0aaa46fd80b53127d496380722cdd67e109a4f858175b1",
+      "equal": true
+    },
+    {
+      "path": "contexts/electronics/domain/models/pir-sensor-model.ts",
+      "sourceHash": "380f9d141aa77eaa0d419e2cdefd032eb20238ecec54923cb7f9d756be518c33",
+      "canonicalHash": "380f9d141aa77eaa0d419e2cdefd032eb20238ecec54923cb7f9d756be518c33",
+      "equal": true
+    }
+  ],
+  "dependencies": [
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "28c50f9f4457eadb117fa99e71070f167316d87d3b36742f8850126984ec9712"
+    },
+    {
+      "path": "node_modules/vite/package.json",
+      "sha256": "08aa811517022c5b83c52c63dc435d2aa725a64fe4e3cfa6f351affa6b9ed9de"
+    },
+    {
+      "path": "node_modules/.modules.yaml",
+      "sha256": "c2c6965aca5278052214fb58cf4939d33d1cb51d8a8c784914a04a2f563885af"
+    },
+    {
+      "path": "node_modules/@playwright/test/package.json",
+      "sha256": "39ecf851a45c2c6a7fe14754ce82d015c241d4c78d009f78e0809fcd47901984"
+    },
+    {
+      "path": "node_modules/@vitejs/plugin-react/package.json",
+      "sha256": "a170456f4cfee93149cccc4fb34de2ecd04466b8f9b22c2f7bb4dab2897b5600"
+    }
+  ],
+  "vendorModules": [],
+  "gitAfter": {
+    "canonicalStatus": "",
+    "sourceStatus": " M docs/product/electronics/components/ui-assets-persistence.yaml\n M docs/product/electronics/generated/component-coverage.json\n M e2e/electronics-simulation.spec.ts\n?? reports/arduino-seven-segment-matrix/\n?? reports/instrument-525-before-41061516266/\n?? reports/instrument-525-before-41080294495/\n?? reports/instrument-525-before-41094573695/\n?? tests/electronics/actual-intersections.browser.mjs\n?? tests/electronics/actual-intersections.ts\n"
+  },
+  "buildToolFiles": [
+    {
+      "name": "vite",
+      "path": "C:\\Users\\spike\\.codex\\worktrees\\electronics-value-inputs\\ASA-lab\\node_modules\\.pnpm\\vite@6.4.4_@types+node@22.20.1_yaml@2.9.0\\node_modules\\vite\\dist\\node\\index.js",
+      "sha256": "56670eb334999629af2b374fa5108f74b1961a59b7b023c03960d9068ef9e7cd"
+    },
+    {
+      "name": "@vitejs/plugin-react",
+      "path": "C:\\Users\\spike\\.codex\\worktrees\\electronics-value-inputs\\ASA-lab\\node_modules\\.pnpm\\@vitejs+plugin-react@4.3.4_vite@6.4.4_@types+node@22.20.1_yaml@2.9.0_\\node_modules\\@vitejs\\plugin-react\\dist\\index.cjs",
+      "sha256": "5ece9f9c6f6a026f372bac4b8591b2cfd9ad35b4ca816ff2e8dc97362fa5b4aa"
+    },
+    {
+      "name": "rollup",
+      "path": "C:\\Users\\spike\\.codex\\worktrees\\electronics-value-inputs\\ASA-lab\\node_modules\\.pnpm\\rollup@4.62.2\\node_modules\\rollup\\dist\\rollup.js",
+      "sha256": "4afcb1ade043bf512ca372b67d78763da68fa476a83f035ed87cc1f6e86bf670"
+    },
+    {
+      "name": "esbuild",
+      "path": "C:\\Users\\spike\\.codex\\worktrees\\electronics-value-inputs\\ASA-lab\\node_modules\\.pnpm\\esbuild@0.25.12\\node_modules\\esbuild\\lib\\main.js",
+      "sha256": "0d1241812c443111d39475dfc66836003e9ef8b87e54d990dd67df29d20010e1"
+    }
+  ],
+  "configAndLockCanonicalParity": [
+    {
+      "path": "apps/web/vite.config.ts",
+      "sourceHash": "0a7607d7daeea04cb8c816f21257ba8334fc150748e5a5992da69871e3cde534",
+      "canonicalHash": "0a7607d7daeea04cb8c816f21257ba8334fc150748e5a5992da69871e3cde534",
+      "equal": true
+    },
+    {
+      "path": "tools/web-private-symbols.mjs",
+      "sourceHash": "bc9460eb18031f5332a7a4fc6505737fc9acd6ffb1a61d100a6cd03fd165b49a",
+      "canonicalHash": "bc9460eb18031f5332a7a4fc6505737fc9acd6ffb1a61d100a6cd03fd165b49a",
+      "equal": true
+    },
+    {
+      "path": "tools/browser-error-symbols.mjs",
+      "sourceHash": "cdf46ded9d22c0aab8e0fe563e75ab4523fac1a204b8c094935e7f432b133003",
+      "canonicalHash": "cdf46ded9d22c0aab8e0fe563e75ab4523fac1a204b8c094935e7f432b133003",
+      "equal": true
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sourceHash": "28c50f9f4457eadb117fa99e71070f167316d87d3b36742f8850126984ec9712",
+      "canonicalHash": "28c50f9f4457eadb117fa99e71070f167316d87d3b36742f8850126984ec9712",
+      "equal": true
+    }
+  ]
+}
