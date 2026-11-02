@@ -719,6 +719,12 @@ survive the supported dev/test/staging/production overlays. They bound the rotat
 stdout/stderr files per container; they do not change the shared Docker daemon or
 other projects. Additional preview/test-only services are outside this policy.
 
+The eight logging mappings are written explicitly without YAML anchors or aliases.
+This preserves the same Compose values while admitting the CI transport guard's
+existing duplicate-key and zero-alias YAML parser. The dependency-free Python
+resource regression checks the eight complete explicit logging mappings; the
+Node-provisioned CI transport guard separately parses the full Compose model.
+
 Existing containers acquire the policy only when recreated through an authorized
 normal ASA release/update operation. Persistent volumes and installation identity
 must be retained. Do not truncate live logs, prune Docker storage, or recreate a

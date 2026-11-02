@@ -105,16 +105,20 @@ class ResourceTests(unittest.TestCase):
             self.assertIn(f'{key}: ${{{key}:-{default}}}', compose)
 
     def test_owned_container_log_defaults_are_explicit_and_scoped(self):
-        compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text()
-        self.assertIn("x-asa-container-logging: &asa-container-logging\n  driver: json-file\n  options:\n    max-size: '10m'\n    max-file: '5'\n", compose)
-        consumers = re.findall(r'^  ([a-z][a-z-]*):\n    logging: \*asa-container-logging$', compose, re.M)
-        self.assertCountEqual(consumers, ('postgres', 'migration', 'minio', 'minio-init',
-                                         'api', 'search', 'web', 'scratch'))
-        self.assertEqual(compose.count('    logging:'), 8)
+        compose = (Path(__file__).resolve().parents[2] / 'compose.yaml').read_text(encoding='utf-8')
+        # Keep this Python-only gate dependency-free. The Node-provisioned CI
+        # transport guard separately parses the full model with zero aliases.
+        owned = ('postgres', 'migration', 'minio', 'minio-init', 'api', 'search', 'web', 'scratch')
+        logging = ("    logging:\n      driver: json-file\n      options:\n"
+                   "        max-size: '10m'\n        max-file: '5'\n")
+        consumers = re.findall(r'^  ([a-z][a-z-]*):\n' + re.escape(logging), compose, re.M)
+        self.assertCountEqual(consumers, owned)
+        self.assertEqual(len(re.findall(r'^\s+logging:', compose, re.M)), 8)
+        self.assertNotRegex(compose, r'(?m)^\s*(?:[\w.-]+:\s*)?[&*][A-Za-z0-9_-]+')
 
     @unittest.skipUnless(os.environ.get('ASA_TEST_DOCKER_COMPOSE') == '1', 'Resolved Compose contract runs in Linux CI')
     def test_resolved_profiles_keep_all_eight_owned_log_budgets(self):
-        # Resolve real anchors, interpolation, profiles and overlay merges.
+        # Resolve real interpolation, profiles and overlay merges.
         # This read-only command creates no containers, images or volumes.
         root = Path(__file__).resolve().parents[2]
         owned = ('postgres', 'migration', 'minio', 'minio-init', 'api', 'search', 'web', 'scratch')
